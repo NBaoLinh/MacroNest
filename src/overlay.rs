@@ -199,6 +199,7 @@ mod windows_overlay {
         pending_selector: Option<PendingMacroSelector>,
         next_hold_run_token: u64,
         stop_ignore_keys: HashMap<u32, String>,
+        press_trigger_suppression: HashMap<String, usize>,
         ctrl: bool,
         alt: bool,
         shift: bool,
@@ -231,6 +232,7 @@ mod windows_overlay {
                 pending_selector: None,
                 next_hold_run_token: 1,
                 stop_ignore_keys: HashMap::new(),
+                press_trigger_suppression: HashMap::new(),
                 ctrl: false,
                 alt: false,
                 shift: false,
@@ -1305,6 +1307,11 @@ mod windows_overlay {
     }
 
     fn process_binding_release(binding: &HotkeyBinding) -> bool {
+        if is_press_trigger_suppressed(&binding.key) {
+            decrement_press_trigger_suppression(&binding.key);
+            return true;
+        }
+
         let preset_ids = {
             let hook_state = HOOK_STATE.lock();
             hook_state
@@ -1332,6 +1339,34 @@ mod windows_overlay {
             deactivate_hold_macro(preset_id);
         }
         true
+    }
+
+    fn increment_press_trigger_suppression(key_name: &str) {
+        let mut hook_state = HOOK_STATE.lock();
+        *hook_state
+            .press_trigger_suppression
+            .entry(key_name.to_owned())
+            .or_insert(0) += 1;
+    }
+
+    fn decrement_press_trigger_suppression(key_name: &str) {
+        let mut hook_state = HOOK_STATE.lock();
+        if let Some(count) = hook_state.press_trigger_suppression.get_mut(key_name) {
+            *count = count.saturating_sub(1);
+            if *count == 0 {
+                hook_state.press_trigger_suppression.remove(key_name);
+            }
+        }
+    }
+
+    fn is_press_trigger_suppressed(key_name: &str) -> bool {
+        HOOK_STATE
+            .lock()
+            .press_trigger_suppression
+            .get(key_name)
+            .copied()
+            .unwrap_or_default()
+            > 0
     }
 
     fn is_locked_input(key_name: &str) -> bool {
@@ -2034,10 +2069,12 @@ mod windows_overlay {
     ) -> Result<()> {
         SUPPRESSED_MACRO_HOTKEYS.lock().insert(hotkey_id);
         STOP_REQUESTED_MACRO_PRESETS.lock().remove(&preset.id);
+        let trigger_key_for_cleanup = trigger_key.clone();
         HOOK_STATE
             .lock()
             .stop_ignore_keys
             .insert(preset.id, trigger_key);
+        increment_press_trigger_suppression(&trigger_key_for_cleanup);
         thread::spawn(move || {
             let cleanup_steps = collect_macro_release_steps(&preset.steps);
             let mut press_locked_keys: Vec<String> = Vec::new();
@@ -2063,6 +2100,7 @@ mod windows_overlay {
             }
             hide_toolbox_for_owner(preset.id);
             HOOK_STATE.lock().stop_ignore_keys.remove(&preset.id);
+            decrement_press_trigger_suppression(&trigger_key_for_cleanup);
             STOP_REQUESTED_MACRO_PRESETS.lock().remove(&preset.id);
             SUPPRESSED_MACRO_HOTKEYS.lock().remove(&hotkey_id);
         });
