@@ -145,6 +145,8 @@ mod windows_overlay {
         UpdatePinPresets(Vec<PinPreset>),
         UpdateMousePathPresets(Vec<MousePathPreset>),
         UpdateMouseSensitivityPresets(Vec<MouseSensitivityPreset>),
+        ApplyMouseSensitivityPreset(u32),
+        RestoreMouseSensitivity,
         UpdateToolboxPresets(Vec<ToolboxPreset>),
         UpdateMacroPresets(Vec<MacroGroup>),
         UpdateAudioSettings(AudioSettings),
@@ -1635,6 +1637,20 @@ mod windows_overlay {
                         hook_state.active_mouse_sensitivity_preset_id = None;
                         hook_state.mouse_sensitivity_restore_speed = None;
                     }
+                }
+                OverlayCommand::ApplyMouseSensitivityPreset(preset_id) => {
+                    if let Some(preset) = HOOK_STATE
+                        .lock()
+                        .mouse_sensitivity_presets
+                        .iter()
+                        .find(|preset| preset.id == preset_id)
+                        .cloned()
+                    {
+                        let _ = apply_mouse_sensitivity_preset(&preset);
+                    }
+                }
+                OverlayCommand::RestoreMouseSensitivity => {
+                    let _ = restore_mouse_sensitivity();
                 }
                 OverlayCommand::UpdateToolboxPresets(presets) => {
                     HOOK_STATE.lock().toolbox_presets = presets;

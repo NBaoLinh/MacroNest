@@ -8193,7 +8193,7 @@ impl CrosshairApp {
             let preset = &mut self.state.mouse_sensitivity_presets[index];
             Self::show_preset_card(ui, preset.enabled, |ui| {
                 ui.horizontal(|ui| {
-                    ui.checkbox(&mut preset.enabled, "");
+                    let enabled_changed = ui.checkbox(&mut preset.enabled, "").changed();
                     ui.label(Self::preset_title_text(dark_mode, &preset.name, preset.enabled));
                     if ui
                         .button(if preset.collapsed {
@@ -8208,6 +8208,23 @@ impl CrosshairApp {
                     }
                     if ui.button(Self::tr_lang(language, "Remove", "Xóa")).clicked() {
                         remove_mouse_sensitivity_id = Some(preset.id);
+                    }
+                    if ui
+                        .button(Self::tr_lang(language, "Apply", "Áp dụng"))
+                        .clicked()
+                    {
+                        let _ = self
+                            .overlay_tx
+                            .send(OverlayCommand::ApplyMouseSensitivityPreset(preset.id));
+                    }
+                    if ui
+                        .button(Self::tr_lang(language, "Restore", "Khôi phục"))
+                        .clicked()
+                    {
+                        let _ = self.overlay_tx.send(OverlayCommand::RestoreMouseSensitivity);
+                    }
+                    if enabled_changed && !preset.enabled {
+                        let _ = self.overlay_tx.send(OverlayCommand::RestoreMouseSensitivity);
                     }
                 });
                 if preset.collapsed {
