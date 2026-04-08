@@ -1439,12 +1439,12 @@ mod windows_overlay {
     }
 
     fn set_mouse_speed(speed: u32) -> Result<()> {
-        let mut speed = speed.clamp(1, 20);
+        let speed = speed.clamp(1, 20);
         unsafe {
             SystemParametersInfoW(
                 SPI_SETMOUSESPEED,
                 0,
-                Some((&mut speed as *mut u32).cast()),
+                Some(speed as usize as *mut c_void),
                 SPIF_UPDATEINIFILE | SPIF_SENDCHANGE,
             )
             .context("Failed to set mouse speed")?;
