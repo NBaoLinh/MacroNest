@@ -6956,6 +6956,41 @@ impl CrosshairApp {
                                                                 }
                                                             }
                                                         });
+                                                } else if step.action == MacroAction::ApplyMouseSensitivityPreset {
+                                                    let selected_id = step.key.trim().parse::<u32>().ok();
+                                                    let selected_label = selected_id
+                                                        .and_then(|id| {
+                                                            self.state
+                                                                .mouse_sensitivity_presets
+                                                                .iter()
+                                                                .find(|preset| preset.id == id)
+                                                                .map(|preset| preset.name.clone())
+                                                        })
+                                                        .unwrap_or_else(|| {
+                                                            Self::tr_lang(
+                                                                language,
+                                                                "Select mouse sensitivity preset",
+                                                                "Chọn preset độ nhạy",
+                                                            )
+                                                            .to_owned()
+                                                        });
+                                                    egui::ComboBox::from_id_salt((group.id, preset.id, "mouse-sensitivity-preset-step"))
+                                                        .width(160.0)
+                                                        .selected_text(selected_label)
+                                                        .show_ui(ui, |ui| {
+                                                            for preset_option in &self.state.mouse_sensitivity_presets {
+                                                                if ui
+                                                                    .selectable_label(
+                                                                        selected_id == Some(preset_option.id),
+                                                                        &preset_option.name,
+                                                                    )
+                                                                    .clicked()
+                                                                {
+                                                                    step.key = preset_option.id.to_string();
+                                                                    live_sync = true;
+                                                                }
+                                                            }
+                                                        });
                                                 } else if step.action == MacroAction::EnableZoomPreset {
                                                     let selected_id = step.key.trim().parse::<u32>().ok();
                                                     let selected_label = selected_id
@@ -8319,11 +8354,11 @@ impl CrosshairApp {
                             .changed();
                         ui.end_row();
 
-                        ui.label(Self::tr_lang(language, "Current Speed", "Tốc độ hiện tại"));
-                        ui.horizontal_wrapped(|ui| {
-                            match Self::current_mouse_speed() {
-                                Some(current_speed) => {
-                                    ui.monospace(format!("{current_speed}"));
+                         ui.label(Self::tr_lang(language, "Current Speed", "Tốc độ hiện tại"));
+                          ui.horizontal_wrapped(|ui| {
+                              match Self::current_mouse_speed() {
+                                  Some(current_speed) => {
+                                      ui.monospace(format!("{current_speed}"));
                                     if current_speed == preset.speed {
                                         ui.label(Self::tr_lang(
                                             language,
@@ -8338,12 +8373,22 @@ impl CrosshairApp {
                                         "Unavailable",
                                         "Không đọc được",
                                     ));
-                                }
-                            }
-                        });
-                        ui.end_row();
-                    });
-            });
+                                  }
+                              }
+                          });
+                          ui.end_row();
+
+                          ui.label(Self::tr_lang(language, "Restore on exit", "Khôi phục khi thoát"));
+                          ui.horizontal_wrapped(|ui| {
+                              mouse_sensitivity_live_sync |= ui.checkbox(&mut preset.restore_on_exit, "").changed();
+                              ui.label(Self::tr_lang(language, "Exit speed", "Tốc độ khi thoát"));
+                              mouse_sensitivity_live_sync |= ui
+                                  .add(DragValue::new(&mut preset.restore_speed).range(1..=20))
+                                  .changed();
+                          });
+                          ui.end_row();
+                      });
+                  });
         }
         if let Some(remove_id) = remove_mouse_sensitivity_id {
             self.state

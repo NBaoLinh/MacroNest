@@ -587,7 +587,15 @@ pub struct MouseSensitivityPreset {
     #[serde(default = "default_true")]
     pub match_duplicate_window_titles: bool,
     pub speed: u32,
+    #[serde(default)]
+    pub restore_on_exit: bool,
+    #[serde(default = "default_mouse_sensitivity_restore_speed")]
+    pub restore_speed: u32,
     pub hotkey: Option<HotkeyBinding>,
+}
+
+fn default_mouse_sensitivity_restore_speed() -> u32 {
+    6
 }
 
 impl MouseSensitivityPreset {
@@ -601,6 +609,8 @@ impl MouseSensitivityPreset {
             extra_target_window_titles: Vec::new(),
             match_duplicate_window_titles: true,
             speed: 15,
+            restore_on_exit: false,
+            restore_speed: default_mouse_sensitivity_restore_speed(),
             hotkey: None,
         }
     }

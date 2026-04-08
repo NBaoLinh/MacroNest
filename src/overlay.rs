@@ -1476,6 +1476,24 @@ mod windows_overlay {
         Ok(())
     }
 
+    fn restore_mouse_sensitivity_on_exit() -> Result<()> {
+        let preset = {
+            let hook_state = HOOK_STATE.lock();
+            let Some(active_id) = hook_state.active_mouse_sensitivity_preset_id else {
+                return Ok(());
+            };
+            hook_state
+                .mouse_sensitivity_presets
+                .iter()
+                .find(|preset| preset.id == active_id && preset.restore_on_exit)
+                .cloned()
+        };
+        if let Some(preset) = preset {
+            set_mouse_speed(preset.restore_speed)?;
+        }
+        Ok(())
+    }
+
     fn toggle_mouse_sensitivity_preset(preset: &MouseSensitivityPreset) -> Result<()> {
         let should_restore = {
             let hook_state = HOOK_STATE.lock();
@@ -4886,6 +4904,7 @@ mod windows_overlay {
 
     fn shutdown_application(hwnd: HWND, runtime: &Runtime) -> Result<()> {
         let _ = unsafe { Shell_NotifyIconW(NIM_DELETE, &notify_icon(hwnd)) };
+        let _ = restore_mouse_sensitivity_on_exit();
         let _ = unsafe { ShowWindow(runtime.overlay_hwnd, SW_HIDE) };
         let _ = unsafe { ShowWindow(runtime.toolbox_hwnd, SW_HIDE) };
         let _ = unsafe { ShowWindow(runtime.pin_hwnd, SW_HIDE) };
