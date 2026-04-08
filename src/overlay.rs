@@ -75,6 +75,8 @@ mod windows_overlay {
                     SWP_NOSIZE, SWP_NOZORDER,
                     SWP_SHOWWINDOW, SetForegroundWindow, SetTimer, SetWindowLongPtrW,
                     SetWindowPos, SetWindowsHookExW, SetCursorPos, ShowWindow,
+                    SPI_GETMOUSESPEED, SPI_SETMOUSESPEED, SPIF_SENDCHANGE, SPIF_UPDATEINIFILE,
+                    SystemParametersInfoW,
                     TPM_BOTTOMALIGN, TPM_LEFTALIGN,
                     TrackPopupMenu, TranslateMessage, ULW_ALPHA, UnhookWindowsHookEx,
                     UpdateLayeredWindow, WH_KEYBOARD_LL, WH_MOUSE_LL, WINDOW_EX_STYLE, WINDOW_LONG_PTR_INDEX,
@@ -98,9 +100,9 @@ mod windows_overlay {
         model::{
             AudioSettings, CrosshairStyle, HotkeyBinding, MacroAction, MacroGroup, MacroPreset,
             MacroStep, MacroTriggerMode, MousePathEvent, MousePathEventKind, MousePathPreset,
-            PinPreset, ProfileRecord, RgbaColor, SoundLibraryItem, SoundPreset, ToolboxPreset,
-            WindowAnchor, WindowExpandControls, WindowExpandDirection, WindowFocusPreset,
-            WindowPreset,
+            MouseSensitivityPreset, PinPreset, ProfileRecord, RgbaColor, SoundLibraryItem,
+            SoundPreset, ToolboxPreset, WindowAnchor, WindowExpandControls,
+            WindowExpandDirection, WindowFocusPreset, WindowPreset,
         },
         platform,
         render::{RenderedCrosshair, render_crosshair},
@@ -142,6 +144,7 @@ mod windows_overlay {
         UpdateWindowExpandControls(WindowExpandControls),
         UpdatePinPresets(Vec<PinPreset>),
         UpdateMousePathPresets(Vec<MousePathPreset>),
+        UpdateMouseSensitivityPresets(Vec<MouseSensitivityPreset>),
         UpdateToolboxPresets(Vec<ToolboxPreset>),
         UpdateMacroPresets(Vec<MacroGroup>),
         UpdateAudioSettings(AudioSettings),
@@ -185,6 +188,9 @@ mod windows_overlay {
         window_expand_controls: WindowExpandControls,
         pin_presets: Vec<PinPreset>,
         mouse_path_presets: Vec<MousePathPreset>,
+        mouse_sensitivity_presets: Vec<MouseSensitivityPreset>,
+        active_mouse_sensitivity_preset_id: Option<u32>,
+        mouse_sensitivity_restore_speed: Option<u32>,
         active_pin_preset_id: Option<u32>,
         toolbox_presets: Vec<ToolboxPreset>,
         macro_groups: Vec<MacroGroup>,
@@ -218,6 +224,9 @@ mod windows_overlay {
                 window_expand_controls: WindowExpandControls::default(),
                 pin_presets: Vec::new(),
                 mouse_path_presets: Vec::new(),
+                mouse_sensitivity_presets: Vec::new(),
+                active_mouse_sensitivity_preset_id: None,
+                mouse_sensitivity_restore_speed: None,
                 active_pin_preset_id: None,
                 toolbox_presets: Vec::new(),
                 macro_groups: Vec::new(),
@@ -963,6 +972,37 @@ mod windows_overlay {
         }
     }
 
+    fn process_mouse_sensitivity_hotkey(binding: &HotkeyBinding, is_repeat: bool) -> Option<bool> {
+        if is_repeat {
+            return None;
+        }
+        let matched = {
+            let hook_state = HOOK_STATE.lock();
+            hook_state
+                .mouse_sensitivity_presets
+                .iter()
+                .find(|preset| {
+                    preset.enabled
+                        && preset.hotkey.as_ref().is_some_and(|hotkey| {
+                            hotkey::binding_matches(
+                                hotkey,
+                                &binding.key,
+                                binding.ctrl,
+                                binding.alt,
+                                binding.shift,
+                                binding.win,
+                            )
+                        })
+                })
+                .cloned()
+        };
+        let Some(preset) = matched else {
+            return None;
+        };
+        let _ = toggle_mouse_sensitivity_preset(&preset);
+        Some(true)
+    }
+
     fn record_mouse_event(message: u32, info: &MSLLHOOKSTRUCT) {
         let mut guard = MOUSE_RECORDING.lock();
         let Some(session) = guard.as_mut() else {
@@ -1014,6 +1054,9 @@ mod windows_overlay {
         }
 
         if let Some(swallow) = process_mouse_path_record_hotkey(binding, is_repeat) {
+            return Some(swallow);
+        }
+        if let Some(swallow) = process_mouse_sensitivity_hotkey(binding, is_repeat) {
             return Some(swallow);
         }
 
@@ -1379,6 +1422,69 @@ mod windows_overlay {
             > 0
     }
 
+    fn current_mouse_speed() -> Result<u32> {
+        let mut speed = 10u32;
+        unsafe {
+            SystemParametersInfoW(SPI_GETMOUSESPEED, 0, Some((&mut speed as *mut u32).cast()), Default::default())
+                .context("Failed to read mouse speed")?;
+        }
+        Ok(speed.clamp(1, 20))
+    }
+
+    fn set_mouse_speed(speed: u32) -> Result<()> {
+        let mut speed = speed.clamp(1, 20);
+        unsafe {
+            SystemParametersInfoW(
+                SPI_SETMOUSESPEED,
+                0,
+                Some((&mut speed as *mut u32).cast()),
+                SPIF_UPDATEINIFILE | SPIF_SENDCHANGE,
+            )
+            .context("Failed to set mouse speed")?;
+        }
+        Ok(())
+    }
+
+    fn apply_mouse_sensitivity_preset(preset: &MouseSensitivityPreset) -> Result<()> {
+        let mut hook_state = HOOK_STATE.lock();
+        if hook_state.mouse_sensitivity_restore_speed.is_none() {
+            hook_state.mouse_sensitivity_restore_speed = Some(current_mouse_speed()?);
+        }
+        hook_state.active_mouse_sensitivity_preset_id = Some(preset.id);
+        drop(hook_state);
+        set_mouse_speed(preset.speed)?;
+        Ok(())
+    }
+
+    fn restore_mouse_sensitivity() -> Result<()> {
+        let restore_speed = {
+            let mut hook_state = HOOK_STATE.lock();
+            let restore_speed = hook_state.mouse_sensitivity_restore_speed.take();
+            hook_state.active_mouse_sensitivity_preset_id = None;
+            restore_speed
+        };
+        if let Some(speed) = restore_speed {
+            set_mouse_speed(speed)?;
+        }
+        Ok(())
+    }
+
+    fn toggle_mouse_sensitivity_preset(preset: &MouseSensitivityPreset) -> Result<()> {
+        let should_restore = {
+            let hook_state = HOOK_STATE.lock();
+            hook_state.active_mouse_sensitivity_preset_id == Some(preset.id)
+        };
+        if should_restore {
+            restore_mouse_sensitivity()
+        } else {
+            apply_mouse_sensitivity_preset(preset)
+        }
+    }
+
+    fn parse_mouse_sensitivity_preset_id(key: &str) -> Option<u32> {
+        key.trim().parse::<u32>().ok()
+    }
+
     fn update_modifier_state(vk: u32, is_key_down: bool) {
         let mut hook_state = HOOK_STATE.lock();
         match vk {
@@ -1511,6 +1617,19 @@ mod windows_overlay {
                 OverlayCommand::UpdateMousePathPresets(presets) => {
                     HOOK_STATE.lock().mouse_path_presets = presets.clone();
                     runtime.mouse_path_presets = presets;
+                }
+                OverlayCommand::UpdateMouseSensitivityPresets(presets) => {
+                    let mut hook_state = HOOK_STATE.lock();
+                    hook_state.mouse_sensitivity_presets = presets.clone();
+                    if let Some(active_id) = hook_state.active_mouse_sensitivity_preset_id
+                        && !hook_state
+                            .mouse_sensitivity_presets
+                            .iter()
+                            .any(|preset| preset.id == active_id)
+                    {
+                        hook_state.active_mouse_sensitivity_preset_id = None;
+                        hook_state.mouse_sensitivity_restore_speed = None;
+                    }
                 }
                 OverlayCommand::UpdateToolboxPresets(presets) => {
                     HOOK_STATE.lock().toolbox_presets = presets;
@@ -2581,6 +2700,21 @@ mod windows_overlay {
         Ok(())
     }
 
+    fn apply_mouse_sensitivity_preset_by_id(spec: &str) -> Result<()> {
+        let preset_id = parse_mouse_sensitivity_preset_id(spec)
+            .context("Mouse sensitivity preset id is invalid")?;
+        let preset = {
+            let hook_state = HOOK_STATE.lock();
+            hook_state
+                .mouse_sensitivity_presets
+                .iter()
+                .find(|preset| preset.id == preset_id)
+                .cloned()
+                .context("Mouse sensitivity preset was not found")?
+        };
+        apply_mouse_sensitivity_preset(&preset)
+    }
+
     fn enable_zoom_preset(_spec: &str) -> Result<()> {
         bail!("Zoom was removed")
     }
@@ -2953,6 +3087,9 @@ mod windows_overlay {
                         stop_immediately_on_retrigger,
                     );
                 }
+                MacroAction::ApplyMouseSensitivityPreset => {
+                    let _ = apply_mouse_sensitivity_preset_by_id(&step.key);
+                }
                 MacroAction::EnableZoomPreset => {
                     let _ = enable_zoom_preset(&step.key);
                 }
@@ -3163,6 +3300,9 @@ mod windows_overlay {
                         Some(preset_id),
                         stop_immediately_on_retrigger,
                     );
+                }
+                MacroAction::ApplyMouseSensitivityPreset => {
+                    let _ = apply_mouse_sensitivity_preset_by_id(&step.key);
                 }
                 MacroAction::EnableZoomPreset => {
                     let _ = enable_zoom_preset(&step.key);
@@ -3710,6 +3850,7 @@ mod windows_overlay {
                 | MacroAction::EnablePinPreset
                 | MacroAction::DisablePin
                 | MacroAction::PlayMousePathPreset
+                | MacroAction::ApplyMouseSensitivityPreset
                 | MacroAction::EnableZoomPreset
                 | MacroAction::DisableZoom
                 | MacroAction::PlaySoundPreset => {}
@@ -3816,6 +3957,7 @@ mod windows_overlay {
             | MacroAction::EnablePinPreset
             | MacroAction::DisablePin
             | MacroAction::PlayMousePathPreset
+            | MacroAction::ApplyMouseSensitivityPreset
             | MacroAction::EnableZoomPreset
             | MacroAction::DisableZoom
             | MacroAction::PlaySoundPreset => return Ok(()),

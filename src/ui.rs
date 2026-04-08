@@ -21,9 +21,9 @@ use crate::{
         MacroAction, MacroFolder, MacroGroup, MacroPreset, MacroSelectorPreset,
         MacroStep, MacroTriggerMode, MasterMacroGroupState, MasterMacroPresetState, MasterPreset,
         MasterWindowPresetState, MasterZoomPresetState, MasterWindowFocusPresetState, PinPreset,
-        MousePathEvent, MousePathEventKind, MousePathPreset, ProfileRecord, RgbaColor,
-        SoundLibraryItem, SoundPreset, ToolboxPreset, UiLanguage, UiThemeMode, WindowAnchor,
-        WindowExpandDirection, WindowFocusPreset, WindowPreset, ZoomPreset,
+        MousePathEvent, MousePathEventKind, MousePathPreset, MouseSensitivityPreset, ProfileRecord,
+        RgbaColor, SoundLibraryItem, SoundPreset, ToolboxPreset, UiLanguage, UiThemeMode,
+        WindowAnchor, WindowExpandDirection, WindowFocusPreset, WindowPreset, ZoomPreset,
     },
     overlay::{OverlayCommand, UiCommand},
     profile_code,
@@ -439,6 +439,7 @@ impl CrosshairApp {
         }
         app.sync_crosshair();
         app.sync_window_presets();
+        app.sync_mouse_sensitivity_presets();
         app.sync_profiles();
         app.sync_macro_presets();
         app.sync_audio_settings();
@@ -470,6 +471,14 @@ impl CrosshairApp {
             .overlay_tx
             .send(OverlayCommand::UpdateMousePathPresets(
                 self.state.mouse_path_presets.clone(),
+            ));
+    }
+
+    fn sync_mouse_sensitivity_presets(&self) {
+        let _ = self
+            .overlay_tx
+            .send(OverlayCommand::UpdateMouseSensitivityPresets(
+                self.state.mouse_sensitivity_presets.clone(),
             ));
     }
 
@@ -1543,6 +1552,7 @@ impl CrosshairApp {
             MacroAction::EnablePinPreset => "EnablePinPreset",
             MacroAction::DisablePin => "DisablePin",
             MacroAction::PlayMousePathPreset => "PlayMousePathPreset",
+            MacroAction::ApplyMouseSensitivityPreset => "ApplyMouseSensitivityPreset",
             MacroAction::EnableZoomPreset => "EnableZoomPreset",
             MacroAction::DisableZoom => "DisableZoom",
             MacroAction::PlaySoundPreset => "PlaySoundPreset",
@@ -1594,6 +1604,7 @@ impl CrosshairApp {
             MacroAction::EnablePinPreset => "Enable one saved pin preset from the Pin tab.",
             MacroAction::DisablePin => "Turn the pinned app overlay off.",
             MacroAction::PlayMousePathPreset => "Play one recorded mouse path preset from the Mouse tab.",
+            MacroAction::ApplyMouseSensitivityPreset => "Apply one mouse sensitivity preset from the Mouse tab.",
             MacroAction::EnableZoomPreset => "Enable one saved zoom preset.",
             MacroAction::DisableZoom => "Turn the zoom overlay off.",
             MacroAction::PlaySoundPreset => "Play one sound preset from the Sound tab.",
@@ -1645,6 +1656,7 @@ impl CrosshairApp {
             MacroAction::EnablePinPreset => 0xe89e,
             MacroAction::DisablePin => 0xe8f5,
             MacroAction::PlayMousePathPreset => 0xe913,
+            MacroAction::ApplyMouseSensitivityPreset => 0xe837,
             MacroAction::EnableZoomPreset => 0xe8ff,
             MacroAction::DisableZoom => 0xe8f4,
             MacroAction::PlaySoundPreset => 0xe050,
@@ -1702,6 +1714,7 @@ impl CrosshairApp {
                 MacroAction::EnablePinPreset => "Ghim",
                 MacroAction::DisablePin => "BỏGhim",
                 MacroAction::PlayMousePathPreset => "ĐChuột",
+                MacroAction::ApplyMouseSensitivityPreset => "Nhạy",
                 MacroAction::EnableZoomPreset => "Zoom",
                 MacroAction::DisableZoom => "TắtZm",
                 MacroAction::PlaySoundPreset => "Âm",
@@ -1750,6 +1763,7 @@ impl CrosshairApp {
                 MacroAction::EnablePinPreset => "Pin",
                 MacroAction::DisablePin => "NoPin",
                 MacroAction::PlayMousePathPreset => "Path",
+                MacroAction::ApplyMouseSensitivityPreset => "Sense",
                 MacroAction::EnableZoomPreset => "Zoom",
                 MacroAction::DisableZoom => "NoZoom",
                 MacroAction::PlaySoundPreset => "Sound",
@@ -1887,6 +1901,7 @@ impl CrosshairApp {
                 | MacroAction::EnableCrosshairProfile
                 | MacroAction::EnablePinPreset
                 | MacroAction::PlayMousePathPreset
+                | MacroAction::ApplyMouseSensitivityPreset
                 | MacroAction::EnableZoomPreset
                 | MacroAction::PlaySoundPreset
                 | MacroAction::EnableMacroPreset
@@ -2920,6 +2935,16 @@ impl CrosshairApp {
         self.status = format!("Added mouse path preset {id}.");
     }
 
+    fn add_mouse_sensitivity_preset(&mut self) {
+        let id = self.state.next_mouse_sensitivity_preset_id.max(1);
+        self.state.next_mouse_sensitivity_preset_id = id + 1;
+        self.state
+            .mouse_sensitivity_presets
+            .push(MouseSensitivityPreset::new(id));
+        self.sync_mouse_sensitivity_presets();
+        self.status = format!("Added mouse sensitivity preset {id}.");
+    }
+
     fn add_toolbox_preset(&mut self) {
         let id = self.state.next_toolbox_preset_id.max(1);
         self.state.next_toolbox_preset_id = id + 1;
@@ -3647,6 +3672,21 @@ impl CrosshairApp {
                 }
                 self.sync_window_presets();
             }
+            (
+                CaptureRequest::MouseSensitivityPresetHotkey(preset_id),
+                CapturedInput::Binding(binding),
+            ) => {
+                if let Some(preset) = self
+                    .state
+                    .mouse_sensitivity_presets
+                    .iter_mut()
+                    .find(|preset| preset.id == preset_id)
+                {
+                    preset.hotkey = Some(binding);
+                    self.status = format!("Captured mouse sensitivity hotkey for {}.", preset.name);
+                }
+                self.persist_mouse_sensitivity_presets();
+            }
             (CaptureRequest::MacroPresetHotkey(group_id, preset_id), CapturedInput::Binding(binding)) => {
                 if let Some(preset) = self
                     .state
@@ -3903,6 +3943,11 @@ impl CrosshairApp {
 
     fn persist_mouse_path_presets(&mut self) {
         self.sync_window_presets();
+        self.persist();
+    }
+
+    fn persist_mouse_sensitivity_presets(&mut self) {
+        self.sync_mouse_sensitivity_presets();
         self.persist();
     }
 
@@ -6648,6 +6693,7 @@ impl CrosshairApp {
                                                             MacroAction::EnablePinPreset,
                                                             MacroAction::DisablePin,
                                                             MacroAction::PlaySoundPreset,
+                                                            MacroAction::ApplyMouseSensitivityPreset,
                                                             MacroAction::LoopStart,
                                                             MacroAction::LoopEnd,
                                                             MacroAction::StopIfKeyPressed,
@@ -7327,6 +7373,7 @@ impl CrosshairApp {
                                                                 MacroAction::EnablePinPreset,
                                                                 MacroAction::DisablePin,
                                                                 MacroAction::PlaySoundPreset,
+                                                                MacroAction::ApplyMouseSensitivityPreset,
                                                                 MacroAction::LoopStart,
                                                                 MacroAction::LoopEnd,
                                                                 MacroAction::StopIfKeyPressed,
@@ -8118,6 +8165,112 @@ impl CrosshairApp {
                 );
             }
         });
+
+        ui.separator();
+        ui.heading(self.tr("Mouse Sensitivity", "Độ nhạy chuột"));
+        ui.label(self.tr(
+            "Change the Windows mouse speed, then bind it to a hotkey or macro step.",
+            "Đổi tốc độ chuột của Windows, sau đó gắn vào phím tắt hoặc step macro.",
+        ));
+        if ui
+            .button(self.tr(
+                "+ Add mouse sensitivity preset",
+                "+ Thêm preset độ nhạy chuột",
+            ))
+            .clicked()
+        {
+            self.add_mouse_sensitivity_preset();
+            self.persist_mouse_sensitivity_presets();
+        }
+
+        let mut remove_mouse_sensitivity_id = None;
+        let mut next_mouse_sensitivity_capture_target = None;
+        let mut mouse_sensitivity_live_sync = false;
+        for index in 0..self.state.mouse_sensitivity_presets.len() {
+            let language = self.state.ui_language;
+            let dark_mode = self.state.ui_theme == UiThemeMode::Dark;
+            ui.separator();
+            let preset = &mut self.state.mouse_sensitivity_presets[index];
+            Self::show_preset_card(ui, preset.enabled, |ui| {
+                ui.horizontal(|ui| {
+                    ui.checkbox(&mut preset.enabled, "");
+                    ui.label(Self::preset_title_text(dark_mode, &preset.name, preset.enabled));
+                    if ui
+                        .button(if preset.collapsed {
+                            Self::tr_lang(language, "Expand", "Mở")
+                        } else {
+                            Self::tr_lang(language, "Collapse", "Thu gọn")
+                        })
+                        .clicked()
+                    {
+                        preset.collapsed = !preset.collapsed;
+                        mouse_sensitivity_live_sync = true;
+                    }
+                    if ui.button(Self::tr_lang(language, "Remove", "Xóa")).clicked() {
+                        remove_mouse_sensitivity_id = Some(preset.id);
+                    }
+                });
+                if preset.collapsed {
+                    return;
+                }
+                egui::Grid::new((preset.id, "mouse-sensitivity-grid"))
+                    .num_columns(2)
+                    .spacing([14.0, 8.0])
+                    .show(ui, |ui| {
+                        ui.label(Self::tr_lang(language, "Preset Name", "Tên preset"));
+                        mouse_sensitivity_live_sync |= ui
+                            .add_sized([260.0, 24.0], TextEdit::singleline(&mut preset.name))
+                            .changed();
+                        ui.end_row();
+
+                        ui.label(Self::tr_lang(language, "Hotkey", "Phím tắt"));
+                        ui.horizontal_wrapped(|ui| {
+                            ui.monospace(Self::format_binding_ui(language, preset.hotkey.as_ref()));
+                            let capture_target = CaptureRequest::MouseSensitivityPresetHotkey(preset.id);
+                            if ui
+                                .button(Self::capture_button_text(
+                                    language,
+                                    self.capture_target.as_ref() == Some(&capture_target),
+                                ))
+                                .clicked()
+                            {
+                                next_mouse_sensitivity_capture_target = Some((
+                                    capture_target,
+                                    match language {
+                                        UiLanguage::Vietnamese => {
+                                            format!("Đang bắt phím tắt cho {}.", preset.name)
+                                        }
+                                        _ => format!("Capturing hotkey for {}.", preset.name),
+                                    },
+                                ));
+                            }
+                            if ui.button(Self::tr_lang(language, "Clear", "Xóa")).clicked() {
+                                preset.hotkey = None;
+                                mouse_sensitivity_live_sync = true;
+                            }
+                        });
+                        ui.end_row();
+
+                        ui.label(Self::tr_lang(language, "Mouse Speed", "Tốc độ chuột"));
+                        mouse_sensitivity_live_sync |= ui
+                            .add(Slider::new(&mut preset.speed, 1..=20).show_value(true))
+                            .changed();
+                        ui.end_row();
+                    });
+            });
+        }
+        if let Some(remove_id) = remove_mouse_sensitivity_id {
+            self.state
+                .mouse_sensitivity_presets
+                .retain(|preset| preset.id != remove_id);
+            mouse_sensitivity_live_sync = true;
+        }
+        if let Some((target, status)) = next_mouse_sensitivity_capture_target {
+            self.begin_capture(target, status);
+        }
+        if mouse_sensitivity_live_sync {
+            self.persist_mouse_sensitivity_presets();
+        }
 
         let mut remove_id = None;
         let mut next_capture_target = None;

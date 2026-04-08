@@ -255,6 +255,7 @@ pub enum MacroAction {
     EnablePinPreset,
     DisablePin,
     PlayMousePathPreset,
+    ApplyMouseSensitivityPreset,
     EnableZoomPreset,
     DisableZoom,
     PlaySoundPreset,
@@ -339,6 +340,7 @@ pub enum CaptureRequest {
     WindowExpandHotkey(WindowExpandDirection),
     PinPresetHotkey(u32),
     MousePathRecordHotkey(u32),
+    MouseSensitivityPresetHotkey(u32),
     ZoomPresetHotkey(u32),
     MacroPresetHotkey(u32, u32),
     MacroSelectorHotkey(u32, u32),
@@ -570,6 +572,36 @@ impl MousePathPreset {
             record_hotkey: None,
             events: Vec::new(),
         }
+    }
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
+#[serde(default)]
+pub struct MouseSensitivityPreset {
+    pub id: u32,
+    pub name: String,
+    pub enabled: bool,
+    pub collapsed: bool,
+    pub speed: u32,
+    pub hotkey: Option<HotkeyBinding>,
+}
+
+impl MouseSensitivityPreset {
+    pub fn new(id: u32) -> Self {
+        Self {
+            id,
+            name: format!("Mouse Sensitivity {id}"),
+            enabled: true,
+            collapsed: true,
+            speed: 10,
+            hotkey: None,
+        }
+    }
+}
+
+impl Default for MouseSensitivityPreset {
+    fn default() -> Self {
+        Self::new(1)
     }
 }
 
@@ -1012,6 +1044,8 @@ pub struct AppState {
     pub next_pin_preset_id: u32,
     pub mouse_path_presets: Vec<MousePathPreset>,
     pub next_mouse_path_preset_id: u32,
+    pub mouse_sensitivity_presets: Vec<MouseSensitivityPreset>,
+    pub next_mouse_sensitivity_preset_id: u32,
     pub zoom_presets: Vec<ZoomPreset>,
     pub next_zoom_preset_id: u32,
     pub toolbox_presets: Vec<ToolboxPreset>,
@@ -1056,6 +1090,8 @@ impl Default for AppState {
             next_pin_preset_id: 1,
             mouse_path_presets: Vec::new(),
             next_mouse_path_preset_id: 1,
+            mouse_sensitivity_presets: Vec::new(),
+            next_mouse_sensitivity_preset_id: 1,
             zoom_presets: Vec::new(),
             next_zoom_preset_id: 1,
             toolbox_presets: vec![ToolboxPreset::new(1)],
