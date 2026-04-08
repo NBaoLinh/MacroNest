@@ -6112,9 +6112,14 @@ impl CrosshairApp {
                     .iter()
                     .filter(|group| group.folder_id == Some(folder.id))
                     .count();
+                let folder_has_selected_group = self
+                    .state
+                    .macro_groups
+                    .iter()
+                    .any(|group| group.folder_id == Some(folder.id) && self.selected_macro_groups.contains(&group.id));
                 let folder_id = folder.id;
                 let folder_name = folder.name.clone();
-                Self::show_preset_card(ui, folder.enabled, |ui| {
+                Self::show_preset_card(ui, folder_has_selected_group, |ui| {
                     ui.horizontal_wrapped(|ui| {
                         if ui.button(Self::folder_icon_text(false, 20.0)).clicked() {
                             open_folder_id = Some(folder_id);
@@ -6363,7 +6368,7 @@ impl CrosshairApp {
                         );
                         let mut remove_selector_id = None;
                         for selector in &mut group.selector_presets {
-                            Self::show_preset_card(ui, selector.enabled, |ui| {
+                            Self::show_preset_card(ui, group.enabled && selector.enabled, |ui| {
                                 ui.horizontal(|ui| {
                                     ui.label(Self::preset_title_text(self.state.ui_theme == UiThemeMode::Dark, &selector.name, selector.enabled));
                                     ui.add_sized([180.0, 24.0], TextEdit::singleline(&mut selector.name));
@@ -6519,9 +6524,9 @@ impl CrosshairApp {
                             ui.strong(Self::tr_lang(language, "Mouse", "Chuá»™t"));
                             ui.strong(Self::tr_lang(language, "Remove", "XÃ³a"));
                             ui.end_row();
-                        });
+                    });
                     for preset in &mut group.presets {
-                        Self::show_preset_card(ui, preset.enabled, |ui| {
+                        Self::show_preset_card(ui, group.enabled && preset.enabled, |ui| {
                         egui::Grid::new((group.id, preset.id, "preset-summary-row"))
                             .num_columns(8)
                             .spacing([6.0, 4.0])
