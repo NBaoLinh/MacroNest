@@ -745,6 +745,27 @@ impl CrosshairApp {
         self.capture_target.as_ref() == Some(target)
     }
 
+    #[cfg(windows)]
+    fn current_mouse_speed() -> Option<u32> {
+        let mut speed = 10u32;
+        unsafe {
+            use windows::Win32::UI::WindowsAndMessaging::{SPI_GETMOUSESPEED, SystemParametersInfoW};
+            SystemParametersInfoW(
+                SPI_GETMOUSESPEED,
+                0,
+                Some((&mut speed as *mut u32).cast()),
+                Default::default(),
+            )
+            .ok()?;
+        }
+        Some(speed.clamp(1, 20))
+    }
+
+    #[cfg(not(windows))]
+    fn current_mouse_speed() -> Option<u32> {
+        None
+    }
+
     fn choose_audio_file(&mut self, startup: bool) {
         let Some(path) = rfd::FileDialog::new()
             .add_filter("Audio", &["mp3", "wav", "flac", "ogg", "m4a"])
@@ -8296,6 +8317,30 @@ impl CrosshairApp {
                         mouse_sensitivity_live_sync |= ui
                             .add(Slider::new(&mut preset.speed, 1..=20).show_value(true))
                             .changed();
+                        ui.end_row();
+
+                        ui.label(Self::tr_lang(language, "Current Speed", "Tốc độ hiện tại"));
+                        ui.horizontal_wrapped(|ui| {
+                            match Self::current_mouse_speed() {
+                                Some(current_speed) => {
+                                    ui.monospace(format!("{current_speed}"));
+                                    if current_speed == preset.speed {
+                                        ui.label(Self::tr_lang(
+                                            language,
+                                            "matches this preset",
+                                            "khớp với preset này",
+                                        ));
+                                    }
+                                }
+                                None => {
+                                    ui.label(Self::tr_lang(
+                                        language,
+                                        "Unavailable",
+                                        "Không đọc được",
+                                    ));
+                                }
+                            }
+                        });
                         ui.end_row();
                     });
             });
