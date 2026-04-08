@@ -62,6 +62,9 @@ fn main() -> Result<()> {
     overlay.send(OverlayCommand::UpdateWindowFocusPresets(
         state.window_focus_presets.clone(),
     ));
+    overlay.send(OverlayCommand::UpdateMouseSensitivityPresets(
+        state.mouse_sensitivity_presets.clone(),
+    ));
     overlay.send(OverlayCommand::UpdateMacroPresets(
         state.macro_groups.clone(),
     ));
