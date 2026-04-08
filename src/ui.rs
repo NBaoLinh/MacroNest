@@ -6986,23 +6986,22 @@ impl CrosshairApp {
                                                             )
                                                             .to_owned()
                                                         });
-                                                    egui::ComboBox::from_id_salt((group.id, preset.id, "mouse-sensitivity-preset-step"))
-                                                        .width(240.0)
-                                                        .selected_text(selected_label)
-                                                        .show_ui(ui, |ui| {
-                                                            for preset_option in &self.state.mouse_sensitivity_presets {
-                                                                if ui
-                                                                    .selectable_label(
-                                                                        selected_id == Some(preset_option.id),
-                                                                        &preset_option.name,
-                                                                    )
-                                                                    .clicked()
-                                                                {
-                                                                    step.key = preset_option.id.to_string();
-                                                                    live_sync = true;
-                                                                }
+                                                    ui.menu_button(selected_label, |ui| {
+                                                        ui.set_min_width(240.0);
+                                                        for preset_option in &self.state.mouse_sensitivity_presets {
+                                                            if ui
+                                                                .selectable_label(
+                                                                    selected_id == Some(preset_option.id),
+                                                                    &preset_option.name,
+                                                                )
+                                                                .clicked()
+                                                            {
+                                                                step.key = preset_option.id.to_string();
+                                                                live_sync = true;
+                                                                ui.close();
                                                             }
-                                                        });
+                                                        }
+                                                    });
                                                 } else if step.action == MacroAction::EnableZoomPreset {
                                                     let selected_id = step.key.trim().parse::<u32>().ok();
                                                     let selected_label = selected_id
