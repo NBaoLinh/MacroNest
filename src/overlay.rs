@@ -145,6 +145,10 @@ mod windows_overlay {
         UpdatePinPresets(Vec<PinPreset>),
         UpdateMousePathPresets(Vec<MousePathPreset>),
         UpdateMouseSensitivityPresets(Vec<MouseSensitivityPreset>),
+        UpdateMouseSensitivitySettings {
+            restore_on_exit: bool,
+            restore_speed: u32,
+        },
         ApplyMouseSensitivityPreset(u32),
         RestoreMouseSensitivity,
         UpdateToolboxPresets(Vec<ToolboxPreset>),
@@ -193,6 +197,8 @@ mod windows_overlay {
         mouse_sensitivity_presets: Vec<MouseSensitivityPreset>,
         active_mouse_sensitivity_preset_id: Option<u32>,
         mouse_sensitivity_restore_speed: Option<u32>,
+        mouse_sensitivity_restore_on_exit: bool,
+        mouse_sensitivity_exit_restore_speed: u32,
         active_pin_preset_id: Option<u32>,
         toolbox_presets: Vec<ToolboxPreset>,
         macro_groups: Vec<MacroGroup>,
@@ -229,6 +235,8 @@ mod windows_overlay {
                 mouse_sensitivity_presets: Vec::new(),
                 active_mouse_sensitivity_preset_id: None,
                 mouse_sensitivity_restore_speed: None,
+                mouse_sensitivity_restore_on_exit: false,
+                mouse_sensitivity_exit_restore_speed: 6,
                 active_pin_preset_id: None,
                 toolbox_presets: Vec::new(),
                 macro_groups: Vec::new(),
@@ -1477,19 +1485,15 @@ mod windows_overlay {
     }
 
     fn restore_mouse_sensitivity_on_exit() -> Result<()> {
-        let preset = {
+        let (enabled, speed) = {
             let hook_state = HOOK_STATE.lock();
-            let Some(active_id) = hook_state.active_mouse_sensitivity_preset_id else {
-                return Ok(());
-            };
-            hook_state
-                .mouse_sensitivity_presets
-                .iter()
-                .find(|preset| preset.id == active_id && preset.restore_on_exit)
-                .cloned()
+            (
+                hook_state.mouse_sensitivity_restore_on_exit,
+                hook_state.mouse_sensitivity_exit_restore_speed,
+            )
         };
-        if let Some(preset) = preset {
-            set_mouse_speed(preset.restore_speed)?;
+        if enabled {
+            set_mouse_speed(speed)?;
         }
         Ok(())
     }
@@ -1655,6 +1659,14 @@ mod windows_overlay {
                         hook_state.active_mouse_sensitivity_preset_id = None;
                         hook_state.mouse_sensitivity_restore_speed = None;
                     }
+                }
+                OverlayCommand::UpdateMouseSensitivitySettings {
+                    restore_on_exit,
+                    restore_speed,
+                } => {
+                    let mut hook_state = HOOK_STATE.lock();
+                    hook_state.mouse_sensitivity_restore_on_exit = restore_on_exit;
+                    hook_state.mouse_sensitivity_exit_restore_speed = restore_speed.clamp(1, 20);
                 }
                 OverlayCommand::ApplyMouseSensitivityPreset(preset_id) => {
                     if let Some(preset) = HOOK_STATE

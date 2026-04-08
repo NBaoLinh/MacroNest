@@ -65,6 +65,10 @@ fn main() -> Result<()> {
     overlay.send(OverlayCommand::UpdateMouseSensitivityPresets(
         state.mouse_sensitivity_presets.clone(),
     ));
+    overlay.send(OverlayCommand::UpdateMouseSensitivitySettings {
+        restore_on_exit: state.mouse_sensitivity_restore_on_exit,
+        restore_speed: state.mouse_sensitivity_restore_speed,
+    });
     overlay.send(OverlayCommand::UpdateMacroPresets(
         state.macro_groups.clone(),
     ));
