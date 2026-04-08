@@ -47,7 +47,8 @@ mod windows_overlay {
             UI::{
                 Input::KeyboardAndMouse::{
                     GetAsyncKeyState, INPUT, INPUT_0, INPUT_KEYBOARD, INPUT_MOUSE, KEYBDINPUT,
-                    KEYEVENTF_EXTENDEDKEY, KEYEVENTF_KEYUP, KEYEVENTF_UNICODE, MOD_ALT, MOD_CONTROL,
+                    KEYEVENTF_EXTENDEDKEY, KEYEVENTF_KEYUP, KEYEVENTF_SCANCODE, KEYEVENTF_UNICODE,
+                    MAPVK_VK_TO_VSC, MOD_ALT, MOD_CONTROL, MapVirtualKeyW,
                     MOUSEEVENTF_ABSOLUTE, MOUSEEVENTF_MOVE,
                     MOUSEEVENTF_LEFTDOWN, MOUSEEVENTF_LEFTUP,
                     MOUSEEVENTF_MIDDLEDOWN, MOUSEEVENTF_MIDDLEUP,
@@ -3798,17 +3799,22 @@ mod windows_overlay {
         let Some(vk) = hotkey::key_name_to_vk(&step.key) else {
             bail!("Unsupported macro key: {}", step.key);
         };
-        let base_flags = if is_extended_key(vk) {
-            KEYEVENTF_EXTENDEDKEY
-        } else {
-            Default::default()
-        };
+        let scan = unsafe { MapVirtualKeyW(vk as u32, MAPVK_VK_TO_VSC) };
+        if scan == 0 {
+            bail!("Unsupported macro key scan code: {}", step.key);
+        }
+        let base_flags = KEYEVENTF_SCANCODE
+            | if is_extended_key(vk) {
+                KEYEVENTF_EXTENDEDKEY
+            } else {
+                Default::default()
+            };
         let key_down = INPUT {
             r#type: INPUT_KEYBOARD,
             Anonymous: INPUT_0 {
                 ki: KEYBDINPUT {
-                    wVk: VIRTUAL_KEY(vk as u16),
-                    wScan: 0,
+                    wVk: VIRTUAL_KEY(0),
+                    wScan: scan as u16,
                     dwFlags: base_flags,
                     time: 0,
                     dwExtraInfo: 0,
@@ -3819,8 +3825,8 @@ mod windows_overlay {
             r#type: INPUT_KEYBOARD,
             Anonymous: INPUT_0 {
                 ki: KEYBDINPUT {
-                    wVk: VIRTUAL_KEY(vk as u16),
-                    wScan: 0,
+                    wVk: VIRTUAL_KEY(0),
+                    wScan: scan as u16,
                     dwFlags: base_flags | KEYEVENTF_KEYUP,
                     time: 0,
                     dwExtraInfo: 0,
