@@ -6987,10 +6987,8 @@ impl CrosshairApp {
                                                             .to_owned()
                                                         });
                                                     egui::ComboBox::from_id_salt((group.id, preset.id, "mouse-sensitivity-preset-step"))
-                                                        .width(220.0)
-                                                        .selected_text(egui::RichText::new(selected_label).color(
-                                                            ui.visuals().widgets.inactive.fg_stroke.color,
-                                                        ))
+                                                        .width(240.0)
+                                                        .selected_text(selected_label)
                                                         .show_ui(ui, |ui| {
                                                             for preset_option in &self.state.mouse_sensitivity_presets {
                                                                 if ui
