@@ -1049,14 +1049,14 @@ mod windows_overlay {
     }
 
     fn process_binding_press(binding: &HotkeyBinding, is_repeat: bool) -> Option<bool> {
+        if let Some(swallow) = process_mouse_sensitivity_hotkey(binding, is_repeat) {
+            return Some(swallow);
+        }
         if is_ui_in_foreground() {
             return Some(false);
         }
 
         if let Some(swallow) = process_mouse_path_record_hotkey(binding, is_repeat) {
-            return Some(swallow);
-        }
-        if let Some(swallow) = process_mouse_sensitivity_hotkey(binding, is_repeat) {
             return Some(swallow);
         }
 

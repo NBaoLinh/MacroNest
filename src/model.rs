@@ -593,7 +593,7 @@ impl MouseSensitivityPreset {
             name: format!("Mouse Sensitivity {id}"),
             enabled: true,
             collapsed: true,
-            speed: 10,
+            speed: 15,
             hotkey: None,
         }
     }
