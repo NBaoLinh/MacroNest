@@ -6986,7 +6986,7 @@ impl CrosshairApp {
                                                             )
                                                             .to_owned()
                                                         });
-                                                    ui.menu_button(selected_label, |ui| {
+                                                    ui.menu_button(format!("{selected_label} ▾"), |ui| {
                                                         ui.set_min_width(240.0);
                                                         for preset_option in &self.state.mouse_sensitivity_presets {
                                                             if ui
@@ -8285,6 +8285,7 @@ impl CrosshairApp {
             Self::show_preset_card(ui, preset.enabled, |ui| {
                 ui.horizontal(|ui| {
                     let enabled_changed = ui.checkbox(&mut preset.enabled, "").changed();
+                    mouse_sensitivity_live_sync |= enabled_changed;
                     ui.label(Self::preset_title_text(dark_mode, &preset.name, preset.enabled));
                     if ui
                         .button(if preset.collapsed {
