@@ -8251,6 +8251,30 @@ impl CrosshairApp {
                         });
                         ui.end_row();
 
+                        ui.label(Self::tr_lang(language, "Target Window", "Cửa sổ mục tiêu"));
+                        mouse_sensitivity_live_sync |= Self::render_multi_window_targets(
+                            ui,
+                            (preset.id, "mouse-sensitivity-target"),
+                            Self::tr_lang(language, "Any window", "Bất kỳ cửa sổ"),
+                            &mut preset.target_window_title,
+                            &mut preset.extra_target_window_titles,
+                            &self.open_windows,
+                        );
+                        ui.end_row();
+
+                        ui.label(Self::tr_lang(language, "Duplicate Titles", "Tiêu đề trùng"));
+                        mouse_sensitivity_live_sync |= ui
+                            .checkbox(
+                                &mut preset.match_duplicate_window_titles,
+                                Self::tr_lang(
+                                    language,
+                                    "Treat same window titles as a match too",
+                                    "Coi các cửa sổ trùng tiêu đề cũng là khớp",
+                                ),
+                            )
+                            .changed();
+                        ui.end_row();
+
                         ui.label(Self::tr_lang(language, "Mouse Speed", "Tốc độ chuột"));
                         mouse_sensitivity_live_sync |= ui
                             .add(Slider::new(&mut preset.speed, 1..=20).show_value(true))

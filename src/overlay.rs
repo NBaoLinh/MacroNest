@@ -983,6 +983,11 @@ mod windows_overlay {
                 .iter()
                 .find(|preset| {
                     preset.enabled
+                        && window_focus_matches(
+                            preset.target_window_title.as_deref(),
+                            &preset.extra_target_window_titles,
+                            preset.match_duplicate_window_titles,
+                        )
                         && preset.hotkey.as_ref().is_some_and(|hotkey| {
                             hotkey::binding_matches(
                                 hotkey,

@@ -582,6 +582,10 @@ pub struct MouseSensitivityPreset {
     pub name: String,
     pub enabled: bool,
     pub collapsed: bool,
+    pub target_window_title: Option<String>,
+    pub extra_target_window_titles: Vec<String>,
+    #[serde(default = "default_true")]
+    pub match_duplicate_window_titles: bool,
     pub speed: u32,
     pub hotkey: Option<HotkeyBinding>,
 }
@@ -593,6 +597,9 @@ impl MouseSensitivityPreset {
             name: format!("Mouse Sensitivity {id}"),
             enabled: true,
             collapsed: true,
+            target_window_title: None,
+            extra_target_window_titles: Vec::new(),
+            match_duplicate_window_titles: true,
             speed: 15,
             hotkey: None,
         }
