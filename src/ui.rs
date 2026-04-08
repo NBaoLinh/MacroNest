@@ -1069,6 +1069,10 @@ impl CrosshairApp {
         "MacroNest"
     }
 
+    fn app_version_label(&self) -> &'static str {
+        option_env!("MACRONEST_BUILD_TAG").unwrap_or(env!("CARGO_PKG_VERSION"))
+    }
+
     fn app_brand_subtitle(&self) -> &'static str {
         match self.state.ui_language {
             UiLanguage::English => "Macro control, pin, toolbox, sound, and window tools",
@@ -6986,23 +6990,25 @@ impl CrosshairApp {
                                                             )
                                                             .to_owned()
                                                         });
-                                                    egui::ComboBox::from_id_salt((group.id, preset.id, "mouse-sensitivity-preset-step"))
-                                                        .width(260.0)
-                                                        .selected_text(format!("{selected_label} ▾"))
-                                                        .show_ui(ui, |ui| {
-                                                            for preset_option in &self.state.mouse_sensitivity_presets {
-                                                                if ui
-                                                                    .selectable_label(
-                                                                        selected_id == Some(preset_option.id),
-                                                                        &preset_option.name,
-                                                                    )
-                                                                    .clicked()
-                                                                {
-                                                                    step.key = preset_option.id.to_string();
-                                                                    live_sync = true;
+                                                    ui.push_id((group.id, preset.id, "mouse-sensitivity-preset-step"), |ui| {
+                                                        egui::ComboBox::from_id_salt("mouse-sensitivity-preset-step-combo")
+                                                            .width(260.0)
+                                                            .selected_text(format!("{selected_label} ▾"))
+                                                            .show_ui(ui, |ui| {
+                                                                for preset_option in &self.state.mouse_sensitivity_presets {
+                                                                    if ui
+                                                                        .selectable_label(
+                                                                            selected_id == Some(preset_option.id),
+                                                                            &preset_option.name,
+                                                                        )
+                                                                        .clicked()
+                                                                    {
+                                                                        step.key = preset_option.id.to_string();
+                                                                        live_sync = true;
+                                                                    }
                                                                 }
-                                                            }
-                                                        });
+                                                            });
+                                                    });
                                                 } else if step.action == MacroAction::EnableZoomPreset {
                                                     let selected_id = step.key.trim().parse::<u32>().ok();
                                                     let selected_label = selected_id
@@ -10038,6 +10044,16 @@ impl eframe::App for CrosshairApp {
                                                     RichText::new(self.app_brand_title())
                                                         .strong()
                                                         .size(20.0),
+                                                );
+                                                ui.add_space(6.0);
+                                                ui.label(
+                                                    RichText::new(format!("v{}", self.app_version_label()))
+                                                        .size(11.0)
+                                                        .color(if self.state.ui_theme == UiThemeMode::Dark {
+                                                            Color32::from_rgb(175, 194, 221)
+                                                        } else {
+                                                            Color32::from_rgb(80, 96, 128)
+                                                        }),
                                                 );
                                             }
                                         });
