@@ -30,15 +30,46 @@ pub fn load_duration_ms(path: &str) -> Result<u64> {
 }
 
 pub fn play_clip_async(clip: AudioClipSettings) {
-    thread::spawn(move || {
-        let _ = play_clip_blocking(&clip);
-    });
+    let _ = try_play_clip_async(clip);
 }
 
 pub fn play_clip_sequence_async(clips: Vec<AudioClipSettings>) {
+    let _ = try_play_clip_sequence_async(clips);
+}
+
+pub fn try_play_clip_async(clip: AudioClipSettings) -> Result<()> {
+    try_play_clip_sequence_async(vec![clip])
+}
+
+pub fn try_play_clip_sequence_async(clips: Vec<AudioClipSettings>) -> Result<()> {
+    let clips = clips
+        .into_iter()
+        .filter(|clip| clip.enabled && !clip.file_path.trim().is_empty())
+        .collect::<Vec<_>>();
+    if clips.is_empty() {
+        return Ok(());
+    }
+    for clip in &clips {
+        let path = clip.file_path.trim();
+        if !Path::new(path).exists() {
+            bail!("Audio file was not found");
+        }
+    }
+
+    let stream = OutputStreamBuilder::open_default_stream()
+        .context("Could not open the default audio output")?;
+    let sink = Sink::connect_new(stream.mixer());
+    for clip in &clips {
+        sink.set_volume(clip.volume.clamp(0.0, 2.0));
+        sink.append(clipped_source(clip)?);
+    }
+    sink.play();
     thread::spawn(move || {
-        let _ = play_clip_sequence_blocking(&clips);
+        sink.sleep_until_end();
+        drop(sink);
+        drop(stream);
     });
+    Ok(())
 }
 
 pub fn play_clip_blocking(clip: &AudioClipSettings) -> Result<()> {
@@ -170,15 +201,22 @@ pub fn load_waveform(path: &str, buckets: usize) -> Result<Vec<f32>> {
 
 fn clipped_source(
     clip: &AudioClipSettings,
-) -> Result<impl Source<Item = rodio::Sample> + Send + 'static> {
+) -> Result<Box<dyn Source<Item = rodio::Sample> + Send>> {
     let decoder = open_decoder(&clip.file_path)?;
     let start = Duration::from_millis(clip.start_ms);
-    let end = Duration::from_millis(clip.end_ms.max(clip.start_ms));
-    let length = end.saturating_sub(start);
-    Ok(decoder
-        .skip_duration(start)
-        .take_duration(length)
-        .speed(clip.speed.clamp(0.25, 3.0)))
+    let speed = clip.speed.clamp(0.25, 3.0);
+    if clip.end_ms <= clip.start_ms {
+        Ok(Box::new(decoder.skip_duration(start).speed(speed)))
+    } else {
+        let end = Duration::from_millis(clip.end_ms);
+        let length = end.saturating_sub(start);
+        Ok(Box::new(
+            decoder
+                .skip_duration(start)
+                .take_duration(length)
+                .speed(speed),
+        ))
+    }
 }
 
 fn open_decoder(path: &str) -> Result<Decoder<BufReader<File>>> {

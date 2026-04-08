@@ -1496,7 +1496,6 @@ mod windows_overlay {
                     runtime.ui_visible = visible;
                     if visible {
                         let _ = set_input_hooks_enabled(runtime, desired_hooks_enabled(runtime));
-                        let _ = ShowWindow(runtime.overlay_hwnd, SW_HIDE);
                         let _ = ShowWindow(runtime.pin_hwnd, SW_HIDE);
                         let _ = ShowWindow(runtime.toolbox_hwnd, SW_HIDE);
                         let _ = ShowWindow(runtime.mouse_trail_hwnd, SW_HIDE);
@@ -1520,7 +1519,6 @@ mod windows_overlay {
         runtime.ui_visible = visible;
         let _ = set_input_hooks_enabled(runtime, desired_hooks_enabled(runtime));
         if visible {
-            let _ = ShowWindow(runtime.overlay_hwnd, SW_HIDE);
             let _ = ShowWindow(runtime.pin_hwnd, SW_HIDE);
             let _ = ShowWindow(runtime.toolbox_hwnd, SW_HIDE);
             let _ = ShowWindow(runtime.mouse_trail_hwnd, SW_HIDE);
@@ -2804,14 +2802,21 @@ mod windows_overlay {
                 return MacroRunFlow::StopExecution;
             }
             let step = &steps[index];
-            if sleep_for_macro_delay(
-                preset_id,
-                step.delay_ms,
-                stop_immediately_on_retrigger,
-                target_window_title,
-                extra_target_window_titles,
-                match_duplicate_window_titles,
-            ) {
+            let hold_duration_ms = if step.action == MacroAction::KeyDown {
+                step.delay_ms
+            } else {
+                0
+            };
+            if step.action != MacroAction::KeyDown
+                && sleep_for_macro_delay(
+                    preset_id,
+                    step.delay_ms,
+                    stop_immediately_on_retrigger,
+                    target_window_title,
+                    extra_target_window_titles,
+                    match_duplicate_window_titles,
+                )
+            {
                 return MacroRunFlow::StopExecution;
             }
             match step.action {
@@ -2958,6 +2963,21 @@ mod windows_overlay {
                 MacroAction::DisableMacroPreset => {
                     let _ = set_macro_preset_enabled(&step.key, false);
                 }
+                MacroAction::KeyDown => {
+                    let _ = send_key_event(step);
+                    if hold_duration_ms > 0
+                        && sleep_for_macro_delay(
+                            preset_id,
+                            hold_duration_ms,
+                            stop_immediately_on_retrigger,
+                            target_window_title,
+                            extra_target_window_titles,
+                            match_duplicate_window_titles,
+                        )
+                    {
+                        return MacroRunFlow::StopExecution;
+                    }
+                }
                 _ => {
                     let _ = send_key_event(step);
                 }
@@ -2992,15 +3012,22 @@ mod windows_overlay {
                 return MacroRunFlow::StopExecution;
             }
             let step = &steps[index];
-            if sleep_for_hold_delay(
-                preset_id,
-                step.delay_ms,
-                stop_immediately_on_retrigger,
-                run_token,
-                target_window_title,
-                extra_target_window_titles,
-                match_duplicate_window_titles,
-            ) {
+            let hold_duration_ms = if step.action == MacroAction::KeyDown {
+                step.delay_ms
+            } else {
+                0
+            };
+            if step.action != MacroAction::KeyDown
+                && sleep_for_hold_delay(
+                    preset_id,
+                    step.delay_ms,
+                    stop_immediately_on_retrigger,
+                    run_token,
+                    target_window_title,
+                    extra_target_window_titles,
+                    match_duplicate_window_titles,
+                )
+            {
                 return MacroRunFlow::StopExecution;
             }
             match step.action {
@@ -3130,6 +3157,22 @@ mod windows_overlay {
                 }
                 MacroAction::DisableMacroPreset => {
                     let _ = set_macro_preset_enabled(&step.key, false);
+                }
+                MacroAction::KeyDown => {
+                    let _ = send_key_event(step);
+                    if hold_duration_ms > 0
+                        && sleep_for_hold_delay(
+                            preset_id,
+                            hold_duration_ms,
+                            stop_immediately_on_retrigger,
+                            run_token,
+                            target_window_title,
+                            extra_target_window_titles,
+                            match_duplicate_window_titles,
+                        )
+                    {
+                        return MacroRunFlow::StopExecution;
+                    }
                 }
                 _ => {
                     let _ = send_key_event(step);
@@ -4069,6 +4112,18 @@ mod windows_overlay {
         }
     }
 
+    fn hide_ui_window_native() {
+        unsafe {
+            let Some(app) = find_app_ui_window() else {
+                return;
+            };
+            if app.0.is_null() {
+                return;
+            }
+            let _ = ShowWindow(app, SW_HIDE);
+        }
+    }
+
     fn show_ui_window_native() {
         unsafe {
             let Some(app) = find_app_ui_window() else {
@@ -4098,18 +4153,6 @@ mod windows_overlay {
                 );
             }
             let _ = ShowWindow(app, SW_SHOWNA);
-        }
-    }
-
-    fn hide_ui_window_native() {
-        unsafe {
-            let Some(app) = find_app_ui_window() else {
-                return;
-            };
-            if app.0.is_null() {
-                return;
-            }
-            let _ = ShowWindow(app, SW_HIDE);
         }
     }
 
