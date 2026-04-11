@@ -7744,6 +7744,41 @@ impl CrosshairApp {
                                                                 }
                                                             }
                                                         });
+                                                } else if step.action == MacroAction::ApplyMouseSensitivityPreset {
+                                                    let selected_id = step.key.trim().parse::<u32>().ok();
+                                                    let selected_label = selected_id
+                                                        .and_then(|id| {
+                                                            self.state
+                                                                .mouse_sensitivity_presets
+                                                                .iter()
+                                                                .find(|preset| preset.id == id)
+                                                                .map(|preset| preset.name.clone())
+                                                        })
+                                                        .unwrap_or_else(|| {
+                                                            Self::tr_lang(
+                                                                language,
+                                                                "Select mouse sensitivity preset",
+                                                                "Chọn preset độ nhạy",
+                                                            )
+                                                            .to_owned()
+                                                        });
+                                                    egui::ComboBox::from_id_salt((group.id, preset.id, step_index, "mouse-sensitivity-preset-step"))
+                                                        .width(260.0)
+                                                        .selected_text(format!("{selected_label} ▾"))
+                                                        .show_ui(ui, |ui| {
+                                                            for preset_option in &self.state.mouse_sensitivity_presets {
+                                                                if ui
+                                                                    .selectable_label(
+                                                                        selected_id == Some(preset_option.id),
+                                                                        &preset_option.name,
+                                                                    )
+                                                                    .clicked()
+                                                                {
+                                                                    step.key = preset_option.id.to_string();
+                                                                    live_sync = true;
+                                                                }
+                                                            }
+                                                        });
                                                 } else if matches!(step.action, MacroAction::LockKeys | MacroAction::UnlockKeys) {
                                                     live_sync |= ui
                                                         .add_sized(
