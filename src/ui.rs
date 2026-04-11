@@ -9022,6 +9022,9 @@ impl CrosshairApp {
     ) -> AudioCardOutcome {
         let mut outcome = AudioCardOutcome::default();
         let previewing = audio::is_previewing(clip);
+        let available_width = ui.available_width();
+        let compact_layout = available_width < 560.0;
+        let control_width = available_width.clamp(160.0, 420.0);
 
         ui.heading(Self::tr_lang(language, "Media", "Media"));
         ui.label(RichText::new(title).strong());
@@ -9032,81 +9035,161 @@ impl CrosshairApp {
         ));
         ui.add_space(6.0);
 
-        ui.horizontal_wrapped(|ui| {
-            if ui
-                .button(Self::material_icon_text(0xe145, 18.0))
-                .on_hover_text(Self::tr_lang(
-                    language,
-                    "Choose audio file",
-                    "Chá»n file Ã¢m thanh",
-                ))
-                .clicked()
-            {
-                outcome.choose_file = true;
-            }
-            if ui
-                .add_enabled(
-                    !clip.file_path.trim().is_empty(),
-                    Button::new(if previewing {
-                        Self::material_icon_text(0xe034, 18.0)
+        if compact_layout {
+            ui.vertical(|ui| {
+                ui.horizontal_wrapped(|ui| {
+                    if ui
+                        .button(Self::material_icon_text(0xe145, 18.0))
+                        .on_hover_text(Self::tr_lang(
+                            language,
+                            "Choose audio file",
+                            "Chá»n file Ã¢m thanh",
+                        ))
+                        .clicked()
+                    {
+                        outcome.choose_file = true;
+                    }
+                    if ui
+                        .add_enabled(
+                            !clip.file_path.trim().is_empty(),
+                            Button::new(if previewing {
+                                Self::material_icon_text(0xe034, 18.0)
+                            } else {
+                                Self::material_icon_text(0xe037, 18.0)
+                            }),
+                        )
+                        .on_hover_text(if previewing {
+                            Self::tr_lang(language, "Stop preview", "Dá»«ng nghe thá»­")
+                        } else {
+                            Self::tr_lang(language, "Preview audio", "Nghe thá»­ Ã¢m thanh")
+                        })
+                        .clicked()
+                    {
+                        match audio::toggle_preview(clip.clone()) {
+                            Ok(true) => {
+                                outcome.status = Some(match language {
+                                    UiLanguage::Vietnamese => format!("Äang nghe thá»­ {title}."),
+                                    _ => format!("Previewing {title}."),
+                                })
+                            }
+                            Ok(false) => {
+                                outcome.status = Some(match language {
+                                    UiLanguage::Vietnamese => format!("ÄÃ£ dá»«ng nghe thá»­ {title}."),
+                                    _ => format!("Stopped {title} preview."),
+                                })
+                            }
+                            Err(error) => {
+                                outcome.status = Some(match language {
+                                    UiLanguage::Vietnamese => format!("Nghe thá»­ tháº¥t báº¡i: {error}"),
+                                    _ => format!("Preview failed: {error}"),
+                                })
+                            }
+                        }
+                    }
+                    if ui
+                        .add_enabled(
+                            !clip.file_path.trim().is_empty(),
+                            Button::new(Self::material_icon_text(0xe15b, 18.0)),
+                        )
+                        .on_hover_text(Self::tr_lang(
+                            language,
+                            "Clear audio file",
+                            "XÃ³a file Ã¢m thanh",
+                        ))
+                        .clicked()
+                    {
+                        audio::stop_preview();
+                        clip.file_path.clear();
+                        clip.start_ms = 0;
+                        clip.end_ms = 0;
+                        clip.volume = 1.0;
+                        clip.speed = 1.0;
+                        *duration_ms = None;
+                        outcome.changed = true;
+                        outcome.status = Some(match language {
+                            UiLanguage::Vietnamese => format!("ÄÃ£ xÃ³a {title}."),
+                            _ => format!("Cleared {title}."),
+                        });
+                    }
+                });
+            });
+        } else {
+            ui.horizontal_wrapped(|ui| {
+                if ui
+                    .button(Self::material_icon_text(0xe145, 18.0))
+                    .on_hover_text(Self::tr_lang(
+                        language,
+                        "Choose audio file",
+                        "Chá»n file Ã¢m thanh",
+                    ))
+                    .clicked()
+                {
+                    outcome.choose_file = true;
+                }
+                if ui
+                    .add_enabled(
+                        !clip.file_path.trim().is_empty(),
+                        Button::new(if previewing {
+                            Self::material_icon_text(0xe034, 18.0)
+                        } else {
+                            Self::material_icon_text(0xe037, 18.0)
+                        }),
+                    )
+                    .on_hover_text(if previewing {
+                        Self::tr_lang(language, "Stop preview", "Dá»«ng nghe thá»­")
                     } else {
-                        Self::material_icon_text(0xe037, 18.0)
-                    }),
-                )
-                .on_hover_text(if previewing {
-                    Self::tr_lang(language, "Stop preview", "Dá»«ng nghe thá»­")
-                } else {
-                    Self::tr_lang(language, "Preview audio", "Nghe thá»­ Ã¢m thanh")
-                })
-                .clicked()
-            {
-                match audio::toggle_preview(clip.clone()) {
-                    Ok(true) => {
-                        outcome.status = Some(match language {
-                            UiLanguage::Vietnamese => format!("Äang nghe thá»­ {title}."),
-                            _ => format!("Previewing {title}."),
-                        })
-                    }
-                    Ok(false) => {
-                        outcome.status = Some(match language {
-                            UiLanguage::Vietnamese => format!("ÄÃ£ dá»«ng nghe thá»­ {title}."),
-                            _ => format!("Stopped {title} preview."),
-                        })
-                    }
-                    Err(error) => {
-                        outcome.status = Some(match language {
-                            UiLanguage::Vietnamese => format!("Nghe thá»­ tháº¥t báº¡i: {error}"),
-                            _ => format!("Preview failed: {error}"),
-                        })
+                        Self::tr_lang(language, "Preview audio", "Nghe thá»­ Ã¢m thanh")
+                    })
+                    .clicked()
+                {
+                    match audio::toggle_preview(clip.clone()) {
+                        Ok(true) => {
+                            outcome.status = Some(match language {
+                                UiLanguage::Vietnamese => format!("Äang nghe thá»­ {title}."),
+                                _ => format!("Previewing {title}."),
+                            })
+                        }
+                        Ok(false) => {
+                            outcome.status = Some(match language {
+                                UiLanguage::Vietnamese => format!("ÄÃ£ dá»«ng nghe thá»­ {title}."),
+                                _ => format!("Stopped {title} preview."),
+                            })
+                        }
+                        Err(error) => {
+                            outcome.status = Some(match language {
+                                UiLanguage::Vietnamese => format!("Nghe thá»­ tháº¥t báº¡i: {error}"),
+                                _ => format!("Preview failed: {error}"),
+                            })
+                        }
                     }
                 }
-            }
-            if ui
-                .add_enabled(
-                    !clip.file_path.trim().is_empty(),
-                    Button::new(Self::material_icon_text(0xe15b, 18.0)),
-                )
-                .on_hover_text(Self::tr_lang(
-                    language,
-                    "Clear audio file",
-                    "XÃ³a file Ã¢m thanh",
-                ))
-                .clicked()
-            {
-                audio::stop_preview();
-                clip.file_path.clear();
-                clip.start_ms = 0;
-                clip.end_ms = 0;
-                clip.volume = 1.0;
-                clip.speed = 1.0;
-                *duration_ms = None;
-                outcome.changed = true;
-                outcome.status = Some(match language {
-                    UiLanguage::Vietnamese => format!("ÄÃ£ xÃ³a {title}."),
-                    _ => format!("Cleared {title}."),
-                });
-            }
-        });
+                if ui
+                    .add_enabled(
+                        !clip.file_path.trim().is_empty(),
+                        Button::new(Self::material_icon_text(0xe15b, 18.0)),
+                    )
+                    .on_hover_text(Self::tr_lang(
+                        language,
+                        "Clear audio file",
+                        "XÃ³a file Ã¢m thanh",
+                    ))
+                    .clicked()
+                {
+                    audio::stop_preview();
+                    clip.file_path.clear();
+                    clip.start_ms = 0;
+                    clip.end_ms = 0;
+                    clip.volume = 1.0;
+                    clip.speed = 1.0;
+                    *duration_ms = None;
+                    outcome.changed = true;
+                    outcome.status = Some(match language {
+                        UiLanguage::Vietnamese => format!("ÄÃ£ xÃ³a {title}."),
+                        _ => format!("Cleared {title}."),
+                    });
+                }
+            });
+        }
 
         ui.label(if clip.file_path.is_empty() {
             Self::tr_lang(language, "No audio file selected.", "ChÆ°a chá»n file Ã¢m thanh.")
@@ -9141,26 +9224,50 @@ impl CrosshairApp {
         }
 
         ui.add_space(8.0);
-        ui.horizontal_wrapped(|ui| {
-            ui.label(Self::tr_lang(language, "Volume", "Ã‚m lÆ°á»£ng"));
-            outcome.changed |= ui
-                .add(
-                    Slider::new(&mut clip.volume, 0.0..=2.0)
-                        .text("x")
-                        .clamping(egui::SliderClamping::Always),
-                )
-                .changed();
-        });
-        ui.horizontal_wrapped(|ui| {
-            ui.label(Self::tr_lang(language, "Speed", "Tá»‘c Ä‘á»™"));
-            outcome.changed |= ui
-                .add(
-                    Slider::new(&mut clip.speed, 0.25..=3.0)
-                        .text("x")
-                        .clamping(egui::SliderClamping::Always),
-                )
-                .changed();
-        });
+        if compact_layout {
+            ui.vertical(|ui| {
+                ui.label(Self::tr_lang(language, "Volume", "Ã‚m lÆ°á»£ng"));
+                outcome.changed |= ui
+                    .add_sized(
+                        [control_width, 20.0],
+                        Slider::new(&mut clip.volume, 0.0..=2.0)
+                            .text("x")
+                            .clamping(egui::SliderClamping::Always),
+                    )
+                    .changed();
+                ui.add_space(6.0);
+                ui.label(Self::tr_lang(language, "Speed", "Tá»‘c Ä‘á»™"));
+                outcome.changed |= ui
+                    .add_sized(
+                        [control_width, 20.0],
+                        Slider::new(&mut clip.speed, 0.25..=3.0)
+                            .text("x")
+                            .clamping(egui::SliderClamping::Always),
+                    )
+                    .changed();
+            });
+        } else {
+            ui.horizontal_wrapped(|ui| {
+                ui.label(Self::tr_lang(language, "Volume", "Ã‚m lÆ°á»£ng"));
+                outcome.changed |= ui
+                    .add(
+                        Slider::new(&mut clip.volume, 0.0..=2.0)
+                            .text("x")
+                            .clamping(egui::SliderClamping::Always),
+                    )
+                    .changed();
+            });
+            ui.horizontal_wrapped(|ui| {
+                ui.label(Self::tr_lang(language, "Speed", "Tá»‘c Ä‘á»™"));
+                outcome.changed |= ui
+                    .add(
+                        Slider::new(&mut clip.speed, 0.25..=3.0)
+                            .text("x")
+                            .clamping(egui::SliderClamping::Always),
+                    )
+                    .changed();
+            });
+        }
 
         outcome
     }
