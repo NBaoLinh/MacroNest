@@ -9812,6 +9812,12 @@ impl CrosshairApp {
         painter.rect_filled(rect, 16.0, fill);
     }
 
+    fn main_body_margin(&self, ctx: &egui::Context) -> egui::Margin {
+        let rect = ctx.content_rect();
+        let pad = (rect.width().min(rect.height()) * 0.035).clamp(18.0, 34.0);
+        egui::Margin::same(pad.round() as i8)
+    }
+
     fn begin_close_to_tray_animation(&mut self, ctx: &egui::Context) {
         if self.close_to_tray_animation.is_some() {
             return;
@@ -10302,7 +10308,9 @@ impl eframe::App for CrosshairApp {
             self.clear_pin_preview_cache();
         }
 
-        egui::CentralPanel::default().show(ctx, |ui| {
+        egui::CentralPanel::default()
+            .frame(Frame::new().fill(Color32::TRANSPARENT).inner_margin(self.main_body_margin(ctx)))
+            .show(ctx, |ui| {
             egui::ScrollArea::vertical()
                 .auto_shrink([false, false])
                 .show(ui, |ui| {
