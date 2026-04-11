@@ -9692,6 +9692,19 @@ impl CrosshairApp {
         painter.rect_stroke(rect, 16.0, stroke, egui::StrokeKind::Outside);
     }
 
+    fn render_window_backdrop(&self, ctx: &egui::Context) {
+        let rect = ctx.content_rect().shrink(0.5);
+        let fill = match self.state.ui_theme {
+            UiThemeMode::Dark => Color32::from_rgb(18, 14, 24),
+            UiThemeMode::Light => Color32::from_rgb(247, 249, 252),
+        };
+        let painter = ctx.layer_painter(egui::LayerId::new(
+            egui::Order::Background,
+            egui::Id::new("window-backdrop"),
+        ));
+        painter.rect_filled(rect, 16.0, fill);
+    }
+
     fn begin_close_to_tray_animation(&mut self, ctx: &egui::Context) {
         if self.close_to_tray_animation.is_some() {
             return;
@@ -9903,6 +9916,8 @@ impl eframe::App for CrosshairApp {
         if !self.state.show_window {
             return;
         }
+
+        self.render_window_backdrop(ctx);
 
         if self.center_window_next_frame && self.state.show_window {
             ctx.send_viewport_cmd(egui::ViewportCommand::InnerSize(Self::desired_window_size()));
