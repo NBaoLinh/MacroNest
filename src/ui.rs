@@ -1244,9 +1244,11 @@ impl CrosshairApp {
         open_windows: &[String],
     ) -> bool {
         let mut changed = false;
+        let primary_width = ui.available_width().clamp(180.0, 360.0);
+        let extra_width = ui.available_width().clamp(160.0, 320.0);
         ui.vertical(|ui| {
             egui::ComboBox::from_id_salt((id_source, "primary-target-window"))
-                .width(360.0)
+                .width(primary_width)
                 .selected_text(primary.clone().unwrap_or_else(|| label_when_none.to_owned()))
                 .show_ui(ui, |ui| {
                     if ui.selectable_label(primary.is_none(), label_when_none).clicked() {
@@ -1268,7 +1270,7 @@ impl CrosshairApp {
             for (index, extra) in extras.iter_mut().enumerate() {
                 ui.horizontal(|ui| {
                     egui::ComboBox::from_id_salt((id_source, "extra-target-window", index))
-                        .width(320.0)
+                        .width(extra_width)
                         .selected_text(extra.clone())
                         .show_ui(ui, |ui| {
                             for title in open_windows {
@@ -1316,7 +1318,7 @@ impl CrosshairApp {
         desired_height: f32,
     ) -> bool {
         Self::trim_audio_bounds(clip, total_ms);
-        let desired_size = vec2(ui.available_width().max(220.0), desired_height);
+        let desired_size = vec2(ui.available_width().max(1.0), desired_height);
         let (rect, response) = ui.allocate_exact_size(desired_size, Sense::click_and_drag());
         let painter = ui.painter_at(rect);
 
@@ -1421,7 +1423,7 @@ impl CrosshairApp {
         }
 
         ui.add_space(4.0);
-        ui.horizontal(|ui| {
+        ui.horizontal_wrapped(|ui| {
             ui.label(format!("Start: {}", Self::format_ms(clip.start_ms)));
             ui.separator();
             ui.label(format!("End: {}", Self::format_ms(clip.end_ms)));
@@ -1448,7 +1450,7 @@ impl CrosshairApp {
         let previewing = audio::is_previewing(clip);
 
         Self::show_preset_card(ui, clip.enabled, |ui| {
-            ui.horizontal(|ui| {
+            ui.horizontal_wrapped(|ui| {
                 ui.label(RichText::new(title).strong());
                 if !clip.file_path.trim().is_empty() {
                     ui.monospace(Self::format_ms(clip.end_ms.saturating_sub(clip.start_ms)));
@@ -8744,10 +8746,11 @@ impl CrosshairApp {
 
             ui.add_space(6.0);
             Self::show_preset_card(ui, item.clip.enabled, |ui| {
-                ui.horizontal(|ui| {
+                ui.horizontal_wrapped(|ui| {
                     changed |= ui.checkbox(&mut item.clip.enabled, "").changed();
+                    let name_width = ui.available_width().clamp(120.0, 240.0);
                     changed |= ui
-                        .add_sized([220.0, 24.0], TextEdit::singleline(&mut item.name))
+                        .add_sized([name_width, 24.0], TextEdit::singleline(&mut item.name))
                         .changed();
                     if ui
                         .button(if item.collapsed {
@@ -8845,7 +8848,7 @@ impl CrosshairApp {
 
             ui.add_space(6.0);
             Self::show_preset_card(ui, preset.clip.enabled, |ui| {
-                ui.horizontal(|ui| {
+                ui.horizontal_wrapped(|ui| {
                     changed |= ui
                         .checkbox(&mut preset.clip.enabled, "")
                         .on_hover_text(Self::tr_lang(
@@ -8854,8 +8857,9 @@ impl CrosshairApp {
                             "Báº­t preset Ã¢m thanh nÃ y",
                         ))
                         .changed();
+                    let name_width = ui.available_width().clamp(120.0, 240.0);
                     changed |= ui
-                        .add_sized([220.0, 24.0], TextEdit::singleline(&mut preset.name))
+                        .add_sized([name_width, 24.0], TextEdit::singleline(&mut preset.name))
                         .changed();
                     if ui
                         .button(if preset.collapsed {
@@ -9123,7 +9127,7 @@ impl CrosshairApp {
             outcome.changed |=
                 Self::render_audio_trim_bar(ui, (id_source, "trim"), clip, total_ms, waveform, 180.0);
             ui.add_space(8.0);
-            ui.horizontal(|ui| {
+            ui.horizontal_wrapped(|ui| {
                 ui.label(Self::tr_lang(language, "Start", "Báº¯t Ä‘áº§u"));
                 outcome.changed |= ui
                     .add(DragValue::new(&mut clip.start_ms).range(0..=total_ms))
@@ -9137,7 +9141,7 @@ impl CrosshairApp {
         }
 
         ui.add_space(8.0);
-        ui.horizontal(|ui| {
+        ui.horizontal_wrapped(|ui| {
             ui.label(Self::tr_lang(language, "Volume", "Ã‚m lÆ°á»£ng"));
             outcome.changed |= ui
                 .add(
@@ -9147,7 +9151,7 @@ impl CrosshairApp {
                 )
                 .changed();
         });
-        ui.horizontal(|ui| {
+        ui.horizontal_wrapped(|ui| {
             ui.label(Self::tr_lang(language, "Speed", "Tá»‘c Ä‘á»™"));
             outcome.changed |= ui
                 .add(
