@@ -10030,7 +10030,12 @@ impl eframe::App for CrosshairApp {
             return;
         }
 
-        self.render_window_backdrop(ctx);
+        if self.startup_splash.duration_sec <= 0.0
+            && self.close_to_tray_animation.is_none()
+            && self.open_from_tray_animation.is_none()
+        {
+            self.render_window_backdrop(ctx);
+        }
 
         if self.center_window_next_frame && self.state.show_window {
             ctx.send_viewport_cmd(egui::ViewportCommand::InnerSize(Self::desired_window_size()));
