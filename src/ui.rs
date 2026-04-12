@@ -414,7 +414,7 @@ impl CrosshairApp {
             open_from_tray_animation: None,
             startup_splash: StartupSplashState {
                 started_at: None,
-                duration_sec: 1.8,
+                duration_sec: 0.0,
             },
             hidden_window_inner_size: None,
             hidden_window_outer_pos: None,
