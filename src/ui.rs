@@ -414,7 +414,7 @@ impl CrosshairApp {
             open_from_tray_animation: None,
             startup_splash: StartupSplashState {
                 started_at: None,
-                duration_sec: 0.0,
+                duration_sec: 1.8,
             },
             hidden_window_inner_size: None,
             hidden_window_outer_pos: None,
@@ -1244,11 +1244,9 @@ impl CrosshairApp {
         open_windows: &[String],
     ) -> bool {
         let mut changed = false;
-        let primary_width = ui.available_width().clamp(180.0, 360.0);
-        let extra_width = ui.available_width().clamp(160.0, 320.0);
         ui.vertical(|ui| {
             egui::ComboBox::from_id_salt((id_source, "primary-target-window"))
-                .width(primary_width)
+                .width(360.0)
                 .selected_text(primary.clone().unwrap_or_else(|| label_when_none.to_owned()))
                 .show_ui(ui, |ui| {
                     if ui.selectable_label(primary.is_none(), label_when_none).clicked() {
@@ -1270,7 +1268,7 @@ impl CrosshairApp {
             for (index, extra) in extras.iter_mut().enumerate() {
                 ui.horizontal(|ui| {
                     egui::ComboBox::from_id_salt((id_source, "extra-target-window", index))
-                        .width(extra_width)
+                        .width(320.0)
                         .selected_text(extra.clone())
                         .show_ui(ui, |ui| {
                             for title in open_windows {
@@ -1318,7 +1316,7 @@ impl CrosshairApp {
         desired_height: f32,
     ) -> bool {
         Self::trim_audio_bounds(clip, total_ms);
-        let desired_size = vec2(ui.available_width().max(1.0), desired_height);
+        let desired_size = vec2(ui.available_width().max(220.0), desired_height);
         let (rect, response) = ui.allocate_exact_size(desired_size, Sense::click_and_drag());
         let painter = ui.painter_at(rect);
 
@@ -1423,7 +1421,7 @@ impl CrosshairApp {
         }
 
         ui.add_space(4.0);
-        ui.horizontal_wrapped(|ui| {
+        ui.horizontal(|ui| {
             ui.label(format!("Start: {}", Self::format_ms(clip.start_ms)));
             ui.separator();
             ui.label(format!("End: {}", Self::format_ms(clip.end_ms)));
@@ -1450,7 +1448,7 @@ impl CrosshairApp {
         let previewing = audio::is_previewing(clip);
 
         Self::show_preset_card(ui, clip.enabled, |ui| {
-            ui.horizontal_wrapped(|ui| {
+            ui.horizontal(|ui| {
                 ui.label(RichText::new(title).strong());
                 if !clip.file_path.trim().is_empty() {
                     ui.monospace(Self::format_ms(clip.end_ms.saturating_sub(clip.start_ms)));
@@ -4374,32 +4372,26 @@ impl CrosshairApp {
                         egui::pos2(orbit_center.x, orbit_center.y + stage_rect.height() * 0.16),
                         stage_rect.width() * 0.27,
                         stage_rect.height() * 0.40,
-                        Color32::from_rgba_premultiplied(5, 8, 16, (112.0 * fade) as u8),
-                        Color32::from_rgba_premultiplied(42, 58, 96, (92.0 * fade) as u8),
+                        Color32::from_rgba_premultiplied(3, 5, 10, (236.0 * fade) as u8),
+                        Color32::from_rgba_premultiplied(26, 38, 70, (142.0 * fade) as u8),
                     ),
                     (
                         egui::pos2(orbit_center.x - stage_rect.width() * 0.028, orbit_center.y + stage_rect.height() * 0.15),
                         stage_rect.width() * 0.36,
                         stage_rect.height() * 0.46,
-                        Color32::from_rgba_premultiplied(12, 18, 30, (86.0 * fade) as u8),
-                        Color32::from_rgba_premultiplied(neon_blue.r(), neon_blue.g(), neon_blue.b(), (70.0 * fade) as u8),
+                        Color32::from_rgba_premultiplied(8, 12, 22, (202.0 * fade) as u8),
+                        Color32::from_rgba_premultiplied(neon_blue.r(), neon_blue.g(), neon_blue.b(), (94.0 * fade) as u8),
                     ),
                     (
                         egui::pos2(orbit_center.x + stage_rect.width() * 0.034, orbit_center.y + stage_rect.height() * 0.165),
                         stage_rect.width() * 0.43,
                         stage_rect.height() * 0.54,
-                        Color32::from_rgba_premultiplied(18, 12, 28, (64.0 * fade) as u8),
-                        Color32::from_rgba_premultiplied(neon_pink.r(), neon_pink.g(), neon_pink.b(), (62.0 * fade) as u8),
+                        Color32::from_rgba_premultiplied(14, 10, 22, (148.0 * fade) as u8),
+                        Color32::from_rgba_premultiplied(neon_pink.r(), neon_pink.g(), neon_pink.b(), (82.0 * fade) as u8),
                     ),
                 ];
                 for (layer_index, (layer_center, radius_x, radius_y, fill, stroke)) in aura_layers.into_iter().enumerate() {
-                    let target_rect = egui::Rect::from_center_size(
-                        stage_rect.center(),
-                        vec2(
-                            stage_rect.width() * (0.98 - layer_index as f32 * 0.06),
-                            stage_rect.height() * (0.92 - layer_index as f32 * 0.05),
-                        ),
-                    );
+                    let target_rect = rect.shrink(10.0 + layer_index as f32 * 10.0);
                     let mut points = Vec::with_capacity(96);
                     for step in 0..96 {
                         let angle = step as f32 / 96.0 * std::f32::consts::TAU;
@@ -8752,11 +8744,10 @@ impl CrosshairApp {
 
             ui.add_space(6.0);
             Self::show_preset_card(ui, item.clip.enabled, |ui| {
-                ui.horizontal_wrapped(|ui| {
+                ui.horizontal(|ui| {
                     changed |= ui.checkbox(&mut item.clip.enabled, "").changed();
-                    let name_width = ui.available_width().clamp(120.0, 240.0);
                     changed |= ui
-                        .add_sized([name_width, 24.0], TextEdit::singleline(&mut item.name))
+                        .add_sized([220.0, 24.0], TextEdit::singleline(&mut item.name))
                         .changed();
                     if ui
                         .button(if item.collapsed {
@@ -8854,7 +8845,7 @@ impl CrosshairApp {
 
             ui.add_space(6.0);
             Self::show_preset_card(ui, preset.clip.enabled, |ui| {
-                ui.horizontal_wrapped(|ui| {
+                ui.horizontal(|ui| {
                     changed |= ui
                         .checkbox(&mut preset.clip.enabled, "")
                         .on_hover_text(Self::tr_lang(
@@ -8863,9 +8854,8 @@ impl CrosshairApp {
                             "Báº­t preset Ã¢m thanh nÃ y",
                         ))
                         .changed();
-                    let name_width = ui.available_width().clamp(120.0, 240.0);
                     changed |= ui
-                        .add_sized([name_width, 24.0], TextEdit::singleline(&mut preset.name))
+                        .add_sized([220.0, 24.0], TextEdit::singleline(&mut preset.name))
                         .changed();
                     if ui
                         .button(if preset.collapsed {
@@ -9028,9 +9018,6 @@ impl CrosshairApp {
     ) -> AudioCardOutcome {
         let mut outcome = AudioCardOutcome::default();
         let previewing = audio::is_previewing(clip);
-        let available_width = ui.available_width();
-        let compact_layout = available_width < 560.0;
-        let control_width = available_width.clamp(160.0, 420.0);
 
         ui.heading(Self::tr_lang(language, "Media", "Media"));
         ui.label(RichText::new(title).strong());
@@ -9041,161 +9028,81 @@ impl CrosshairApp {
         ));
         ui.add_space(6.0);
 
-        if compact_layout {
-            ui.vertical(|ui| {
-                ui.horizontal_wrapped(|ui| {
-                    if ui
-                        .button(Self::material_icon_text(0xe145, 18.0))
-                        .on_hover_text(Self::tr_lang(
-                            language,
-                            "Choose audio file",
-                            "Chá»n file Ã¢m thanh",
-                        ))
-                        .clicked()
-                    {
-                        outcome.choose_file = true;
-                    }
-                    if ui
-                        .add_enabled(
-                            !clip.file_path.trim().is_empty(),
-                            Button::new(if previewing {
-                                Self::material_icon_text(0xe034, 18.0)
-                            } else {
-                                Self::material_icon_text(0xe037, 18.0)
-                            }),
-                        )
-                        .on_hover_text(if previewing {
-                            Self::tr_lang(language, "Stop preview", "Dá»«ng nghe thá»­")
-                        } else {
-                            Self::tr_lang(language, "Preview audio", "Nghe thá»­ Ã¢m thanh")
-                        })
-                        .clicked()
-                    {
-                        match audio::toggle_preview(clip.clone()) {
-                            Ok(true) => {
-                                outcome.status = Some(match language {
-                                    UiLanguage::Vietnamese => format!("Äang nghe thá»­ {title}."),
-                                    _ => format!("Previewing {title}."),
-                                })
-                            }
-                            Ok(false) => {
-                                outcome.status = Some(match language {
-                                    UiLanguage::Vietnamese => format!("ÄÃ£ dá»«ng nghe thá»­ {title}."),
-                                    _ => format!("Stopped {title} preview."),
-                                })
-                            }
-                            Err(error) => {
-                                outcome.status = Some(match language {
-                                    UiLanguage::Vietnamese => format!("Nghe thá»­ tháº¥t báº¡i: {error}"),
-                                    _ => format!("Preview failed: {error}"),
-                                })
-                            }
-                        }
-                    }
-                    if ui
-                        .add_enabled(
-                            !clip.file_path.trim().is_empty(),
-                            Button::new(Self::material_icon_text(0xe15b, 18.0)),
-                        )
-                        .on_hover_text(Self::tr_lang(
-                            language,
-                            "Clear audio file",
-                            "XÃ³a file Ã¢m thanh",
-                        ))
-                        .clicked()
-                    {
-                        audio::stop_preview();
-                        clip.file_path.clear();
-                        clip.start_ms = 0;
-                        clip.end_ms = 0;
-                        clip.volume = 1.0;
-                        clip.speed = 1.0;
-                        *duration_ms = None;
-                        outcome.changed = true;
-                        outcome.status = Some(match language {
-                            UiLanguage::Vietnamese => format!("ÄÃ£ xÃ³a {title}."),
-                            _ => format!("Cleared {title}."),
-                        });
-                    }
-                });
-            });
-        } else {
-            ui.horizontal_wrapped(|ui| {
-                if ui
-                    .button(Self::material_icon_text(0xe145, 18.0))
-                    .on_hover_text(Self::tr_lang(
-                        language,
-                        "Choose audio file",
-                        "Chá»n file Ã¢m thanh",
-                    ))
-                    .clicked()
-                {
-                    outcome.choose_file = true;
-                }
-                if ui
-                    .add_enabled(
-                        !clip.file_path.trim().is_empty(),
-                        Button::new(if previewing {
-                            Self::material_icon_text(0xe034, 18.0)
-                        } else {
-                            Self::material_icon_text(0xe037, 18.0)
-                        }),
-                    )
-                    .on_hover_text(if previewing {
-                        Self::tr_lang(language, "Stop preview", "Dá»«ng nghe thá»­")
+        ui.horizontal_wrapped(|ui| {
+            if ui
+                .button(Self::material_icon_text(0xe145, 18.0))
+                .on_hover_text(Self::tr_lang(
+                    language,
+                    "Choose audio file",
+                    "Chá»n file Ã¢m thanh",
+                ))
+                .clicked()
+            {
+                outcome.choose_file = true;
+            }
+            if ui
+                .add_enabled(
+                    !clip.file_path.trim().is_empty(),
+                    Button::new(if previewing {
+                        Self::material_icon_text(0xe034, 18.0)
                     } else {
-                        Self::tr_lang(language, "Preview audio", "Nghe thá»­ Ã¢m thanh")
-                    })
-                    .clicked()
-                {
-                    match audio::toggle_preview(clip.clone()) {
-                        Ok(true) => {
-                            outcome.status = Some(match language {
-                                UiLanguage::Vietnamese => format!("Äang nghe thá»­ {title}."),
-                                _ => format!("Previewing {title}."),
-                            })
-                        }
-                        Ok(false) => {
-                            outcome.status = Some(match language {
-                                UiLanguage::Vietnamese => format!("ÄÃ£ dá»«ng nghe thá»­ {title}."),
-                                _ => format!("Stopped {title} preview."),
-                            })
-                        }
-                        Err(error) => {
-                            outcome.status = Some(match language {
-                                UiLanguage::Vietnamese => format!("Nghe thá»­ tháº¥t báº¡i: {error}"),
-                                _ => format!("Preview failed: {error}"),
-                            })
-                        }
+                        Self::material_icon_text(0xe037, 18.0)
+                    }),
+                )
+                .on_hover_text(if previewing {
+                    Self::tr_lang(language, "Stop preview", "Dá»«ng nghe thá»­")
+                } else {
+                    Self::tr_lang(language, "Preview audio", "Nghe thá»­ Ã¢m thanh")
+                })
+                .clicked()
+            {
+                match audio::toggle_preview(clip.clone()) {
+                    Ok(true) => {
+                        outcome.status = Some(match language {
+                            UiLanguage::Vietnamese => format!("Äang nghe thá»­ {title}."),
+                            _ => format!("Previewing {title}."),
+                        })
+                    }
+                    Ok(false) => {
+                        outcome.status = Some(match language {
+                            UiLanguage::Vietnamese => format!("ÄÃ£ dá»«ng nghe thá»­ {title}."),
+                            _ => format!("Stopped {title} preview."),
+                        })
+                    }
+                    Err(error) => {
+                        outcome.status = Some(match language {
+                            UiLanguage::Vietnamese => format!("Nghe thá»­ tháº¥t báº¡i: {error}"),
+                            _ => format!("Preview failed: {error}"),
+                        })
                     }
                 }
-                if ui
-                    .add_enabled(
-                        !clip.file_path.trim().is_empty(),
-                        Button::new(Self::material_icon_text(0xe15b, 18.0)),
-                    )
-                    .on_hover_text(Self::tr_lang(
-                        language,
-                        "Clear audio file",
-                        "XÃ³a file Ã¢m thanh",
-                    ))
-                    .clicked()
-                {
-                    audio::stop_preview();
-                    clip.file_path.clear();
-                    clip.start_ms = 0;
-                    clip.end_ms = 0;
-                    clip.volume = 1.0;
-                    clip.speed = 1.0;
-                    *duration_ms = None;
-                    outcome.changed = true;
-                    outcome.status = Some(match language {
-                        UiLanguage::Vietnamese => format!("ÄÃ£ xÃ³a {title}."),
-                        _ => format!("Cleared {title}."),
-                    });
-                }
-            });
-        }
+            }
+            if ui
+                .add_enabled(
+                    !clip.file_path.trim().is_empty(),
+                    Button::new(Self::material_icon_text(0xe15b, 18.0)),
+                )
+                .on_hover_text(Self::tr_lang(
+                    language,
+                    "Clear audio file",
+                    "XÃ³a file Ã¢m thanh",
+                ))
+                .clicked()
+            {
+                audio::stop_preview();
+                clip.file_path.clear();
+                clip.start_ms = 0;
+                clip.end_ms = 0;
+                clip.volume = 1.0;
+                clip.speed = 1.0;
+                *duration_ms = None;
+                outcome.changed = true;
+                outcome.status = Some(match language {
+                    UiLanguage::Vietnamese => format!("ÄÃ£ xÃ³a {title}."),
+                    _ => format!("Cleared {title}."),
+                });
+            }
+        });
 
         ui.label(if clip.file_path.is_empty() {
             Self::tr_lang(language, "No audio file selected.", "ChÆ°a chá»n file Ã¢m thanh.")
@@ -9216,7 +9123,7 @@ impl CrosshairApp {
             outcome.changed |=
                 Self::render_audio_trim_bar(ui, (id_source, "trim"), clip, total_ms, waveform, 180.0);
             ui.add_space(8.0);
-            ui.horizontal_wrapped(|ui| {
+            ui.horizontal(|ui| {
                 ui.label(Self::tr_lang(language, "Start", "Báº¯t Ä‘áº§u"));
                 outcome.changed |= ui
                     .add(DragValue::new(&mut clip.start_ms).range(0..=total_ms))
@@ -9230,50 +9137,26 @@ impl CrosshairApp {
         }
 
         ui.add_space(8.0);
-        if compact_layout {
-            ui.vertical(|ui| {
-                ui.label(Self::tr_lang(language, "Volume", "Ã‚m lÆ°á»£ng"));
-                outcome.changed |= ui
-                    .add_sized(
-                        [control_width, 20.0],
-                        Slider::new(&mut clip.volume, 0.0..=2.0)
-                            .text("x")
-                            .clamping(egui::SliderClamping::Always),
-                    )
-                    .changed();
-                ui.add_space(6.0);
-                ui.label(Self::tr_lang(language, "Speed", "Tá»‘c Ä‘á»™"));
-                outcome.changed |= ui
-                    .add_sized(
-                        [control_width, 20.0],
-                        Slider::new(&mut clip.speed, 0.25..=3.0)
-                            .text("x")
-                            .clamping(egui::SliderClamping::Always),
-                    )
-                    .changed();
-            });
-        } else {
-            ui.horizontal_wrapped(|ui| {
-                ui.label(Self::tr_lang(language, "Volume", "Ã‚m lÆ°á»£ng"));
-                outcome.changed |= ui
-                    .add(
-                        Slider::new(&mut clip.volume, 0.0..=2.0)
-                            .text("x")
-                            .clamping(egui::SliderClamping::Always),
-                    )
-                    .changed();
-            });
-            ui.horizontal_wrapped(|ui| {
-                ui.label(Self::tr_lang(language, "Speed", "Tá»‘c Ä‘á»™"));
-                outcome.changed |= ui
-                    .add(
-                        Slider::new(&mut clip.speed, 0.25..=3.0)
-                            .text("x")
-                            .clamping(egui::SliderClamping::Always),
-                    )
-                    .changed();
-            });
-        }
+        ui.horizontal(|ui| {
+            ui.label(Self::tr_lang(language, "Volume", "Ã‚m lÆ°á»£ng"));
+            outcome.changed |= ui
+                .add(
+                    Slider::new(&mut clip.volume, 0.0..=2.0)
+                        .text("x")
+                        .clamping(egui::SliderClamping::Always),
+                )
+                .changed();
+        });
+        ui.horizontal(|ui| {
+            ui.label(Self::tr_lang(language, "Speed", "Tá»‘c Ä‘á»™"));
+            outcome.changed |= ui
+                .add(
+                    Slider::new(&mut clip.speed, 0.25..=3.0)
+                        .text("x")
+                        .clamping(egui::SliderClamping::Always),
+                )
+                .changed();
+        });
 
         outcome
     }
@@ -9805,25 +9688,6 @@ impl CrosshairApp {
         painter.rect_stroke(rect, 16.0, stroke, egui::StrokeKind::Outside);
     }
 
-    fn render_window_backdrop(&self, ctx: &egui::Context) {
-        let rect = ctx.content_rect().shrink(0.5);
-        let fill = match self.state.ui_theme {
-            UiThemeMode::Dark => Color32::from_rgb(18, 14, 24),
-            UiThemeMode::Light => Color32::from_rgb(247, 249, 252),
-        };
-        let painter = ctx.layer_painter(egui::LayerId::new(
-            egui::Order::Background,
-            egui::Id::new("window-backdrop"),
-        ));
-        painter.rect_filled(rect, 16.0, fill);
-    }
-
-    fn main_body_margin(&self, ctx: &egui::Context) -> egui::Margin {
-        let rect = ctx.content_rect();
-        let pad = (rect.width().min(rect.height()) * 0.035).clamp(18.0, 34.0);
-        egui::Margin::same(pad.round() as i8)
-    }
-
     fn begin_close_to_tray_animation(&mut self, ctx: &egui::Context) {
         if self.close_to_tray_animation.is_some() {
             return;
@@ -10034,13 +9898,6 @@ impl eframe::App for CrosshairApp {
 
         if !self.state.show_window {
             return;
-        }
-
-        if self.startup_splash.duration_sec <= 0.0
-            && self.close_to_tray_animation.is_none()
-            && self.open_from_tray_animation.is_none()
-        {
-            self.render_window_backdrop(ctx);
         }
 
         if self.center_window_next_frame && self.state.show_window {
@@ -10319,9 +10176,7 @@ impl eframe::App for CrosshairApp {
             self.clear_pin_preview_cache();
         }
 
-        egui::CentralPanel::default()
-            .frame(Frame::new().fill(Color32::TRANSPARENT).inner_margin(self.main_body_margin(ctx)))
-            .show(ctx, |ui| {
+        egui::CentralPanel::default().show(ctx, |ui| {
             egui::ScrollArea::vertical()
                 .auto_shrink([false, false])
                 .show(ui, |ui| {
