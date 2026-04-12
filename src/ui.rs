@@ -4374,26 +4374,32 @@ impl CrosshairApp {
                         egui::pos2(orbit_center.x, orbit_center.y + stage_rect.height() * 0.16),
                         stage_rect.width() * 0.27,
                         stage_rect.height() * 0.40,
-                        Color32::from_rgba_premultiplied(3, 5, 10, (236.0 * fade) as u8),
-                        Color32::from_rgba_premultiplied(26, 38, 70, (142.0 * fade) as u8),
+                        Color32::from_rgba_premultiplied(5, 8, 16, (112.0 * fade) as u8),
+                        Color32::from_rgba_premultiplied(42, 58, 96, (92.0 * fade) as u8),
                     ),
                     (
                         egui::pos2(orbit_center.x - stage_rect.width() * 0.028, orbit_center.y + stage_rect.height() * 0.15),
                         stage_rect.width() * 0.36,
                         stage_rect.height() * 0.46,
-                        Color32::from_rgba_premultiplied(8, 12, 22, (202.0 * fade) as u8),
-                        Color32::from_rgba_premultiplied(neon_blue.r(), neon_blue.g(), neon_blue.b(), (94.0 * fade) as u8),
+                        Color32::from_rgba_premultiplied(12, 18, 30, (86.0 * fade) as u8),
+                        Color32::from_rgba_premultiplied(neon_blue.r(), neon_blue.g(), neon_blue.b(), (70.0 * fade) as u8),
                     ),
                     (
                         egui::pos2(orbit_center.x + stage_rect.width() * 0.034, orbit_center.y + stage_rect.height() * 0.165),
                         stage_rect.width() * 0.43,
                         stage_rect.height() * 0.54,
-                        Color32::from_rgba_premultiplied(14, 10, 22, (148.0 * fade) as u8),
-                        Color32::from_rgba_premultiplied(neon_pink.r(), neon_pink.g(), neon_pink.b(), (82.0 * fade) as u8),
+                        Color32::from_rgba_premultiplied(18, 12, 28, (64.0 * fade) as u8),
+                        Color32::from_rgba_premultiplied(neon_pink.r(), neon_pink.g(), neon_pink.b(), (62.0 * fade) as u8),
                     ),
                 ];
                 for (layer_index, (layer_center, radius_x, radius_y, fill, stroke)) in aura_layers.into_iter().enumerate() {
-                    let target_rect = rect.shrink(10.0 + layer_index as f32 * 10.0);
+                    let target_rect = egui::Rect::from_center_size(
+                        stage_rect.center(),
+                        vec2(
+                            stage_rect.width() * (0.98 - layer_index as f32 * 0.06),
+                            stage_rect.height() * (0.92 - layer_index as f32 * 0.05),
+                        ),
+                    );
                     let mut points = Vec::with_capacity(96);
                     for step in 0..96 {
                         let angle = step as f32 / 96.0 * std::f32::consts::TAU;
