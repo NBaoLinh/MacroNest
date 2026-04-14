@@ -113,7 +113,6 @@ mod windows_overlay {
 
     const HOTKEY_ID: i32 = 1001;
     const TIMER_ID: usize = 1;
-    const TRAY_TOGGLE_TIMER_ID: usize = 2;
     const TRAY_UID: u32 = 7001;
     const XBUTTON1_DATA: u16 = 0x0001;
     const XBUTTON2_DATA: u16 = 0x0002;
@@ -229,6 +228,7 @@ mod windows_overlay {
         pending_selector: Option<PendingMacroSelector>,
         next_hold_run_token: u64,
         pending_tray_toggle: Option<bool>,
+        tray_double_click_suppress_next_up: bool,
         stop_ignore_keys: HashMap<u32, String>,
         press_trigger_suppression: HashMap<String, usize>,
         ctrl: bool,
@@ -268,6 +268,7 @@ mod windows_overlay {
                 pending_selector: None,
                 next_hold_run_token: 1,
                 pending_tray_toggle: None,
+                tray_double_click_suppress_next_up: false,
                 stop_ignore_keys: HashMap::new(),
                 press_trigger_suppression: HashMap::new(),
                 ctrl: false,
@@ -615,26 +616,6 @@ mod windows_overlay {
             }
             WM_TIMER => {
                 if let Some(runtime) = runtime_mut(hwnd) {
-                    if wparam.0 == TRAY_TOGGLE_TIMER_ID {
-                        let pending = {
-                            let mut hook_state = HOOK_STATE.lock();
-                            hook_state.pending_tray_toggle.take()
-                        };
-                        if let Some(enabled) = pending {
-                            let _ = KillTimer(Some(hwnd), TRAY_TOGGLE_TIMER_ID);
-                            update_tray_icon(hwnd, enabled).ok();
-                            let status = if enabled {
-                                "Enabled all macros globally.".to_owned()
-                            } else {
-                                "Disabled all macros globally.".to_owned()
-                            };
-                            let _ = runtime
-                                .ui_tx
-                                .send(UiCommand::SetMacrosMasterEnabled(enabled, status));
-                            request_ui_repaint();
-                        }
-                        return LRESULT(0);
-                    }
                     process_pending_commands(hwnd, runtime);
                     let ui_foreground = is_ui_in_foreground();
                     if ui_foreground != runtime.ui_foreground {
@@ -771,29 +752,68 @@ mod windows_overlay {
                         }
                     }
                     WM_LBUTTONUP => {
-                        if runtime_mut(hwnd).is_some() {
-                            let next = {
+                        if let Some(runtime) = runtime_mut(hwnd) {
+                            let suppress_next_up = {
                                 let mut hook_state = HOOK_STATE.lock();
-                                let next = !hook_state.macros_master_enabled;
-                                hook_state.pending_tray_toggle = Some(next);
-                                next
+                                if hook_state.tray_double_click_suppress_next_up {
+                                    hook_state.tray_double_click_suppress_next_up = false;
+                                    true
+                                } else {
+                                    false
+                                }
                             };
-                            let _ = next;
-                            let _ = SetTimer(Some(hwnd), TRAY_TOGGLE_TIMER_ID, 220, None);
-                            wake_command_queue();
+                            if suppress_next_up {
+                                return LRESULT(0);
+                            }
+                            let ui_visible = runtime.ui_visible;
+                            if ui_visible {
+                                let (enabled, previous) = {
+                                    let mut hook_state = HOOK_STATE.lock();
+                                    let previous = hook_state.macros_master_enabled;
+                                    hook_state.macros_master_enabled = !hook_state.macros_master_enabled;
+                                    hook_state.pending_tray_toggle = Some(previous);
+                                    (hook_state.macros_master_enabled, previous)
+                                };
+                                let _ = previous;
+                                let _ = update_tray_icon(hwnd, enabled);
+                                let status = if enabled {
+                                    "Enabled all macros globally.".to_owned()
+                                } else {
+                                    "Disabled all macros globally.".to_owned()
+                                };
+                                let _ = runtime
+                                    .ui_tx
+                                    .send(UiCommand::SetMacrosMasterEnabled(enabled, status));
+                                request_ui_repaint();
+                            } else {
+                                let _ = runtime.ui_tx.send(UiCommand::ShowWindow);
+                                wake_command_queue();
+                            }
                         }
                     }
                     WM_LBUTTONDBLCLK => {
                         if let Some(runtime) = runtime_mut(hwnd) {
                             {
                                 let mut hook_state = HOOK_STATE.lock();
-                                hook_state.pending_tray_toggle = None;
+                                if let Some(previous) = hook_state.pending_tray_toggle.take() {
+                                    hook_state.macros_master_enabled = previous;
+                                    let _ = update_tray_icon(hwnd, previous);
+                                    let status = if previous {
+                                        "Enabled all macros globally.".to_owned()
+                                    } else {
+                                        "Disabled all macros globally.".to_owned()
+                                    };
+                                    let _ = runtime
+                                        .ui_tx
+                                        .send(UiCommand::SetMacrosMasterEnabled(previous, status));
+                                }
+                                hook_state.tray_double_click_suppress_next_up = true;
                             }
-                            let _ = KillTimer(Some(hwnd), TRAY_TOGGLE_TIMER_ID);
                             mark_ui_visible(runtime, true);
                             refresh_overlay_timer(hwnd, runtime);
                             show_ui_window_native();
                             let _ = runtime.ui_tx.send(UiCommand::ShowWindow);
+                            request_ui_repaint();
                             wake_command_queue();
                         }
                     }
