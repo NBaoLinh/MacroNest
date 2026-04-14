@@ -15,6 +15,7 @@ pub struct AppPaths {
     pub profiles_dir: PathBuf,
     pub custom_dir: PathBuf,
     pub icon_file: PathBuf,
+    pub icon_file_disabled: PathBuf,
 }
 
 impl AppPaths {
@@ -26,6 +27,7 @@ impl AppPaths {
         let profiles_dir = root.join("profiles");
         let custom_dir = root.join("custom-crosshairs");
         let icon_file = root.join("app-icon.ico");
+        let icon_file_disabled = root.join("app-icon-disabled.ico");
 
         fs::create_dir_all(&root)?;
         fs::create_dir_all(&profiles_dir)?;
@@ -37,6 +39,7 @@ impl AppPaths {
             profiles_dir,
             custom_dir,
             icon_file,
+            icon_file_disabled,
         })
     }
 

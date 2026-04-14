@@ -9858,6 +9858,11 @@ impl eframe::App for CrosshairApp {
                     self.persist_macro_presets();
                     self.status = status;
                 }
+                UiCommand::SetMacrosMasterEnabled(enabled, status) => {
+                    self.state.macros_master_enabled = enabled;
+                    self.persist();
+                    self.status = status;
+                }
                 UiCommand::MousePathRecordingStarted(preset_id, status) => {
                     self.active_mouse_record_preset_id = Some(preset_id);
                     self.status = status;
@@ -9886,6 +9891,20 @@ impl eframe::App for CrosshairApp {
                 self.refresh_open_windows_now();
             }
             self.last_active_panel = self.state.active_panel;
+        }
+
+        if self.state.show_window
+            && self.last_window_refresh_at.elapsed() >= Duration::from_millis(250)
+            && matches!(
+                self.state.active_panel,
+                AppPanel::WindowPresets
+                    | AppPanel::Pin
+                    | AppPanel::Macros
+                    | AppPanel::Mouse
+                    | AppPanel::Sound
+            )
+        {
+            self.refresh_open_windows_now();
         }
 
         if self.close_to_tray_animation.is_some() {

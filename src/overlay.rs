@@ -57,7 +57,7 @@ mod windows_overlay {
                     SetActiveWindow, SetFocus, UnregisterHotKey, VIRTUAL_KEY,
                 },
                 Shell::{
-                    NIF_ICON, NIF_MESSAGE, NIF_TIP, NIM_ADD, NIM_DELETE, NOTIFYICONDATAW,
+                    NIF_ICON, NIF_MESSAGE, NIF_TIP, NIM_ADD, NIM_DELETE, NIM_MODIFY, NOTIFYICONDATAW,
                     Shell_NotifyIconW,
                 },
                 WindowsAndMessaging::{
@@ -88,6 +88,7 @@ mod windows_overlay {
                     WNDCLASSW, WS_CAPTION, WS_EX_LAYERED, WS_EX_NOACTIVATE,
                     WS_EX_TOOLWINDOW, WS_EX_TOPMOST, WS_EX_TRANSPARENT, WS_OVERLAPPEDWINDOW,
                     WS_POPUP, GWLP_USERDATA, HC_ACTION, GW_OWNER,
+                    DestroyIcon,
                 },
             },
         },
@@ -164,6 +165,7 @@ mod windows_overlay {
         ShowWindow,
         Exit,
         SyncMacroGroups(Vec<MacroGroup>, String),
+        SetMacrosMasterEnabled(bool, String),
         MousePathRecordingStarted(u32, String),
         MousePathRecordingFinished(u32, Vec<MousePathEvent>, String),
     }
@@ -734,10 +736,21 @@ mod windows_overlay {
                     }
                     WM_LBUTTONUP => {
                         if let Some(runtime) = runtime_mut(hwnd) {
-                            mark_ui_visible(runtime, true);
-                            refresh_overlay_timer(hwnd, runtime);
-                            show_ui_window_native();
-                            let _ = runtime.ui_tx.send(UiCommand::ShowWindow);
+                            let enabled = {
+                                let mut hook_state = HOOK_STATE.lock();
+                                hook_state.macros_master_enabled = !hook_state.macros_master_enabled;
+                                hook_state.macros_master_enabled
+                            };
+                            let _ = update_tray_icon(hwnd, enabled);
+                            let status = if enabled {
+                                "Enabled all macros globally.".to_owned()
+                            } else {
+                                "Disabled all macros globally.".to_owned()
+                            };
+                            let _ = runtime
+                                .ui_tx
+                                .send(UiCommand::SetMacrosMasterEnabled(enabled, status));
+                            wake_command_queue();
                         }
                     }
                     _ => {}
@@ -1697,6 +1710,7 @@ mod windows_overlay {
                 }
                 OverlayCommand::SetMacrosMasterEnabled(enabled) => {
                     HOOK_STATE.lock().macros_master_enabled = enabled;
+                    let _ = update_tray_icon(hwnd, enabled);
                 }
                 OverlayCommand::SetUiVisible(visible) => {
                     runtime.ui_visible = visible;
@@ -5344,7 +5358,7 @@ mod windows_overlay {
         let mut data = notify_icon(hwnd);
         data.uFlags = NIF_MESSAGE | NIF_ICON | NIF_TIP;
         data.uCallbackMessage = WMAPP_TRAYICON;
-        let icon_path = runtime_icon_path(hwnd)?;
+        let icon_path = runtime_icon_path(hwnd, HOOK_STATE.lock().macros_master_enabled)?;
         data.hIcon = windows::Win32::UI::WindowsAndMessaging::HICON(
             LoadImageW(
                 None,
@@ -5367,6 +5381,28 @@ mod windows_overlay {
         Ok(())
     }
 
+    unsafe fn update_tray_icon(hwnd: HWND, enabled: bool) -> Result<()> {
+        let mut data = notify_icon(hwnd);
+        data.uFlags = NIF_ICON;
+        let icon_path = runtime_icon_path(hwnd, enabled)?;
+        data.hIcon = windows::Win32::UI::WindowsAndMessaging::HICON(
+            LoadImageW(
+                None,
+                PCWSTR(icon_path.as_ptr()),
+                IMAGE_ICON,
+                0,
+                0,
+                LR_LOADFROMFILE,
+            )?
+            .0,
+        );
+        let _ = Shell_NotifyIconW(NIM_MODIFY, &data);
+        if !data.hIcon.is_invalid() {
+            let _ = DestroyIcon(data.hIcon);
+        }
+        Ok(())
+    }
+
     fn notify_icon(hwnd: HWND) -> NOTIFYICONDATAW {
         NOTIFYICONDATAW {
             cbSize: size_of::<NOTIFYICONDATAW>() as u32,
@@ -5382,9 +5418,14 @@ mod windows_overlay {
         wide
     }
 
-    unsafe fn runtime_icon_path(hwnd: HWND) -> Result<Vec<u16>> {
+    unsafe fn runtime_icon_path(hwnd: HWND, enabled: bool) -> Result<Vec<u16>> {
         let runtime = runtime_mut(hwnd).context("Runtime was not available for tray icon")?;
-        Ok(widestring(&runtime.paths.icon_file.to_string_lossy()))
+        let path = if enabled {
+            &runtime.paths.icon_file
+        } else {
+            &runtime.paths.icon_file_disabled
+        };
+        Ok(widestring(&path.to_string_lossy()))
     }
 }
 

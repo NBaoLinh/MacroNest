@@ -50,6 +50,7 @@ fn main() -> Result<()> {
 
     let paths = AppPaths::discover()?;
     app_icon::ensure_ico_file(&paths.icon_file, 64)?;
+    app_icon::ensure_disabled_ico_file(&paths.icon_file_disabled, 64)?;
     let mut state = paths.load_state()?;
     state.show_window = true;
     let (ui_tx, ui_rx) = unbounded();
