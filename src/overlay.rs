@@ -2778,6 +2778,15 @@ mod windows_overlay {
         for group in &mut hook_state.macro_groups {
             if let Some(preset) = group.presets.iter_mut().find(|preset| preset.id == preset_id) {
                 preset.enabled = enabled;
+                let updated_groups = hook_state.macro_groups.clone();
+                let status = format!(
+                    "{} macro preset {}.",
+                    if enabled { "Enabled" } else { "Disabled" },
+                    preset_id
+                );
+                if let Some(tx) = hook_state.ui_tx.clone() {
+                    let _ = tx.send(UiCommand::SyncMacroGroups(updated_groups, status));
+                }
                 return Ok(());
             }
         }
@@ -3715,10 +3724,12 @@ mod windows_overlay {
         if show_toolbox_preset(owner_preset_id, step).is_err() {
             show_legacy_toolbox_text(owner_preset_id, step);
         }
+        wake_command_queue();
     }
 
     fn hide_toolbox_now() {
         *TOOLBOX_DISPLAY.lock() = None;
+        wake_command_queue();
     }
 
     fn hide_toolbox_for_owner(owner_preset_id: u32) {
