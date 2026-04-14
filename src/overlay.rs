@@ -156,6 +156,7 @@ mod windows_overlay {
         UpdateMacroPresets(Vec<MacroGroup>),
         UpdateAudioSettings(AudioSettings),
         SetMacrosMasterEnabled(bool),
+        RefreshPinOverlay,
         SetUiVisible(bool),
         Exit,
     }
@@ -1712,6 +1713,9 @@ mod windows_overlay {
                     HOOK_STATE.lock().macros_master_enabled = enabled;
                     let _ = update_tray_icon(hwnd, enabled);
                 }
+                OverlayCommand::RefreshPinOverlay => {
+                    let _ = refresh_pin_overlay(runtime);
+                }
                 OverlayCommand::SetUiVisible(visible) => {
                     runtime.ui_visible = visible;
                     if visible {
@@ -2619,11 +2623,13 @@ mod windows_overlay {
             bail!("Pin preset was not found");
         }
         hook_state.active_pin_preset_id = Some(preset_id);
+        send_overlay_command(OverlayCommand::RefreshPinOverlay);
         Ok(())
     }
 
     fn disable_pin_overlay() {
         HOOK_STATE.lock().active_pin_preset_id = None;
+        send_overlay_command(OverlayCommand::RefreshPinOverlay);
     }
 
     fn play_sound_preset(spec: &str) -> Result<()> {
