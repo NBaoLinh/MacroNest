@@ -9909,6 +9909,7 @@ impl eframe::App for CrosshairApp {
                     self.state.macros_master_enabled = enabled;
                     self.persist();
                     self.status = status;
+                    ctx.request_repaint();
                 }
                 UiCommand::MousePathRecordingStarted(preset_id, status) => {
                     self.active_mouse_record_preset_id = Some(preset_id);
