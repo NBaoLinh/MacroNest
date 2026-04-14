@@ -9848,6 +9848,7 @@ impl eframe::App for CrosshairApp {
         if matches!(self.state.active_panel, AppPanel::Zoom | AppPanel::Modes) {
             self.state.active_panel = AppPanel::Pin;
         }
+        crate::overlay::set_ui_context(ctx.clone());
         self.apply_theme(ctx);
         let wants_native_shadow = self.state.show_window
             && self.startup_splash.duration_sec <= 0.0
