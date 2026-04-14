@@ -28,6 +28,8 @@ mod windows_impl {
     #[derive(Debug, Clone)]
     pub struct WindowPreviewFrame {
         pub title: String,
+        pub screen_x: i32,
+        pub screen_y: i32,
         pub logical_width: i32,
         pub logical_height: i32,
         pub width: usize,
@@ -55,6 +57,20 @@ mod windows_impl {
         unsafe { capture_window_preview_from_hwnd(hwnd, max_dimension.max(64)) }
     }
 
+    pub fn capture_window_preview_with_candidates(
+        primary_title: Option<&str>,
+        extra_titles: &[String],
+        match_duplicate_window_titles: bool,
+        max_dimension: u32,
+    ) -> Option<WindowPreviewFrame> {
+        let hwnd = find_window_handle_with_candidates(
+            primary_title,
+            extra_titles,
+            match_duplicate_window_titles,
+        )?;
+        unsafe { capture_window_preview_from_hwnd(hwnd, max_dimension.max(64)) }
+    }
+
     unsafe extern "system" fn enum_window_proc(hwnd: HWND, lparam: LPARAM) -> BOOL {
         if !IsWindowVisible(hwnd).as_bool() {
             return true.into();
@@ -79,30 +95,66 @@ mod windows_impl {
     }
 
     fn find_window_handle(title: Option<&str>) -> Option<HWND> {
-        if let Some(title_or_selector) = title {
-            let mut found = None;
-            unsafe {
-                let _ = EnumWindows(
-                    Some(find_exact_window_proc),
-                    LPARAM((&mut (title_or_selector, &mut found)) as *mut _ as isize),
-                );
-            }
-            found
-        } else {
-            let hwnd = unsafe { GetForegroundWindow() };
-            if hwnd.0.is_null() { None } else { Some(hwnd) }
-        }
+        find_window_handle_with_candidates(title, &[], false)
     }
 
-    unsafe extern "system" fn find_exact_window_proc(hwnd: HWND, lparam: LPARAM) -> BOOL {
-        let (target_title, found) = &mut *(lparam.0 as *mut (&str, &mut Option<HWND>));
+    fn find_window_handle_with_candidates(
+        primary_title: Option<&str>,
+        extra_titles: &[String],
+        match_duplicate_window_titles: bool,
+    ) -> Option<HWND> {
+        if primary_title.is_none() && extra_titles.is_empty() {
+            let hwnd = unsafe { GetForegroundWindow() };
+            return if hwnd.0.is_null() { None } else { Some(hwnd) };
+        }
+
+        if let Some(title_or_selector) = primary_title
+            && let Some(hwnd) = find_window_by_candidate(title_or_selector, match_duplicate_window_titles)
+        {
+            return Some(hwnd);
+        }
+
+        for title in extra_titles {
+            if let Some(hwnd) = find_window_by_candidate(title, match_duplicate_window_titles) {
+                return Some(hwnd);
+            }
+        }
+
+        let hwnd = unsafe { GetForegroundWindow() };
+        if hwnd.0.is_null() { None } else { Some(hwnd) }
+    }
+
+    fn find_window_by_candidate(
+        title_or_selector: &str,
+        match_duplicate_window_titles: bool,
+    ) -> Option<HWND> {
+        let mut found = None;
+        unsafe {
+            let mut payload = (title_or_selector, match_duplicate_window_titles, &mut found);
+            let _ = EnumWindows(
+                Some(find_window_by_candidate_proc),
+                LPARAM((&mut payload) as *mut _ as isize),
+            );
+        }
+        found
+    }
+
+    unsafe extern "system" fn find_window_by_candidate_proc(hwnd: HWND, lparam: LPARAM) -> BOOL {
+        let (target_title, match_duplicate_window_titles, found) =
+            &mut *(lparam.0 as *mut (&str, bool, &mut Option<HWND>));
         if !IsWindowVisible(hwnd).as_bool() {
             return true.into();
         }
         let Some(title) = window_title(hwnd) else {
             return true.into();
         };
-        if title == *target_title || window_selector(hwnd, &title) == *target_title {
+        let matches = if *match_duplicate_window_titles {
+            title == selector_base_title(target_title)
+                || window_selector(hwnd, &title) == *target_title
+        } else {
+            title == *target_title || window_selector(hwnd, &title) == *target_title
+        };
+        if matches {
             **found = Some(hwnd);
             return false.into();
         }
@@ -111,6 +163,15 @@ mod windows_impl {
 
     fn window_selector(hwnd: HWND, title: &str) -> String {
         format!("{title} (0x{:X})", hwnd.0 as usize)
+    }
+
+    fn selector_base_title(target: &str) -> &str {
+        if let Some(prefix) = target.strip_suffix(')')
+            && let Some((base, _)) = prefix.rsplit_once(" (0x")
+        {
+            return base;
+        }
+        target
     }
 
     fn window_title(hwnd: HWND) -> Option<String> {
@@ -335,6 +396,8 @@ mod windows_impl {
 
         Some(WindowPreviewFrame {
             title,
+            screen_x: rect.left,
+            screen_y: rect.top,
             logical_width: screen_width,
             logical_height: screen_height,
             width: capture_width as usize,
@@ -357,6 +420,8 @@ mod fallback {
     #[derive(Debug, Clone)]
     pub struct WindowPreviewFrame {
         pub title: String,
+        pub screen_x: i32,
+        pub screen_y: i32,
         pub logical_width: i32,
         pub logical_height: i32,
         pub width: usize,
@@ -370,6 +435,15 @@ mod fallback {
 
     pub fn capture_window_preview(
         _title: Option<&str>,
+        _max_dimension: u32,
+    ) -> Option<WindowPreviewFrame> {
+        None
+    }
+
+    pub fn capture_window_preview_with_candidates(
+        _primary_title: Option<&str>,
+        _extra_titles: &[String],
+        _match_duplicate_window_titles: bool,
         _max_dimension: u32,
     ) -> Option<WindowPreviewFrame> {
         None

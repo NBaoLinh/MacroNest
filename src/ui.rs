@@ -83,6 +83,8 @@ struct StartupSplashState {
 struct ZoomPreviewView {
     texture: TextureHandle,
     title: String,
+    screen_x: i32,
+    screen_y: i32,
     logical_width: i32,
     logical_height: i32,
 }
@@ -90,6 +92,8 @@ struct ZoomPreviewView {
 struct ZoomPreviewCache {
     updated_at: Instant,
     source_window_key: Option<String>,
+    source_window_extra_keys: Vec<String>,
+    match_duplicate_window_titles: bool,
     view: ZoomPreviewView,
 }
 
@@ -666,16 +670,25 @@ impl CrosshairApp {
         ctx: &egui::Context,
         cache_id: u32,
         target_window_title: Option<&String>,
+        extra_target_window_titles: &[String],
+        match_duplicate_window_titles: bool,
     ) -> Option<ZoomPreviewView> {
         let refresh_every = Duration::from_millis(120);
         if let Some(cache) = self.zoom_preview_cache.get(&cache_id)
             && cache.source_window_key == target_window_title.cloned()
+            && cache.source_window_extra_keys == extra_target_window_titles
+            && cache.match_duplicate_window_titles == match_duplicate_window_titles
             && cache.updated_at.elapsed() < refresh_every
         {
             return Some(cache.view.clone());
         }
 
-        let frame = window_list::capture_window_preview(target_window_title.map(|s| s.as_str()), 720)?;
+        let frame = window_list::capture_window_preview_with_candidates(
+            target_window_title.map(|s| s.as_str()),
+            extra_target_window_titles,
+            match_duplicate_window_titles,
+            720,
+        )?;
         let image = ColorImage::from_rgba_unmultiplied([frame.width, frame.height], &frame.rgba);
         let view = if let Some(cache) = self.zoom_preview_cache.get_mut(&cache_id) {
             cache
@@ -684,7 +697,11 @@ impl CrosshairApp {
                 .set(image, TextureOptions::LINEAR);
             cache.updated_at = Instant::now();
             cache.source_window_key = target_window_title.cloned();
+            cache.source_window_extra_keys = extra_target_window_titles.to_vec();
+            cache.match_duplicate_window_titles = match_duplicate_window_titles;
             cache.view.title = frame.title.clone();
+            cache.view.screen_x = frame.screen_x;
+            cache.view.screen_y = frame.screen_y;
             cache.view.logical_width = frame.logical_width;
             cache.view.logical_height = frame.logical_height;
             cache.view.clone()
@@ -697,6 +714,8 @@ impl CrosshairApp {
             let view = ZoomPreviewView {
                 texture,
                 title: frame.title.clone(),
+                screen_x: frame.screen_x,
+                screen_y: frame.screen_y,
                 logical_width: frame.logical_width,
                 logical_height: frame.logical_height,
             };
@@ -705,6 +724,8 @@ impl CrosshairApp {
                 ZoomPreviewCache {
                     updated_at: Instant::now(),
                     source_window_key: target_window_title.cloned(),
+                    source_window_extra_keys: extra_target_window_titles.to_vec(),
+                    match_duplicate_window_titles,
                     view: view.clone(),
                 },
             );
@@ -718,7 +739,13 @@ impl CrosshairApp {
         ctx: &egui::Context,
         preset: &ZoomPreset,
     ) -> Option<ZoomPreviewView> {
-        self.window_preview_for_target(ctx, preset.id, preset.target_window_title.as_ref())
+        self.window_preview_for_target(
+            ctx,
+            preset.id,
+            preset.target_window_title.as_ref(),
+            &preset.extra_target_window_titles,
+            false,
+        )
     }
 
     fn clear_pin_preview_cache(&mut self) {
@@ -972,6 +999,19 @@ impl CrosshairApp {
 
     fn desired_window_size() -> egui::Vec2 {
         vec2(980.0, 980.0)
+    }
+
+    #[cfg(windows)]
+    fn screen_size() -> egui::Vec2 {
+        vec2(
+            unsafe { GetSystemMetrics(SM_CXSCREEN) } as f32,
+            unsafe { GetSystemMetrics(SM_CYSCREEN) } as f32,
+        )
+    }
+
+    #[cfg(not(windows))]
+    fn screen_size() -> egui::Vec2 {
+        vec2(1920.0, 1080.0)
     }
 
     fn square_window_size(size: egui::Vec2) -> egui::Vec2 {
@@ -2269,22 +2309,27 @@ impl CrosshairApp {
             egui::StrokeKind::Outside,
         );
 
+        let selection_bounds_rect = preview_rect;
         let (coord_width, coord_height, content_scale, preview_content_rect) =
             if let Some(preview_frame) = preview {
-                let logical_width = preview_frame.logical_width.max(1) as f32;
-                let logical_height = preview_frame.logical_height.max(1) as f32;
-                let fitted_scale = (preview_rect.width() / logical_width)
-                    .min(preview_rect.height() / logical_height)
-                    .max(0.0001);
-                let content_size = vec2(logical_width * fitted_scale, logical_height * fitted_scale);
+                let window_pos = egui::pos2(
+                    selection_bounds_rect.left()
+                        + (preview_frame.screen_x as f32 * scale),
+                    selection_bounds_rect.top()
+                        + (preview_frame.screen_y as f32 * scale),
+                );
+                let window_size = vec2(
+                    preview_frame.logical_width.max(1) as f32 * scale,
+                    preview_frame.logical_height.max(1) as f32 * scale,
+                );
                 (
-                    logical_width,
-                    logical_height,
-                    fitted_scale,
-                    egui::Rect::from_center_size(preview_rect.center(), content_size),
+                    screen_size.x,
+                    screen_size.y,
+                    scale,
+                    egui::Rect::from_min_size(window_pos, window_size),
                 )
             } else {
-                (screen_size.x, screen_size.y, scale, preview_rect)
+                (screen_size.x, screen_size.y, scale, selection_bounds_rect)
             };
 
         if let Some(preview_frame) = preview {
@@ -2303,23 +2348,23 @@ impl CrosshairApp {
                 );
         }
 
-        let min_size = vec2(24.0, 24.0);
+        let min_size = vec2(8.0, 8.0);
         let mut rect = egui::Rect::from_min_size(
             egui::pos2(
-                preview_content_rect.left() + (*x as f32 * content_scale),
-                preview_content_rect.top() + (*y as f32 * content_scale),
+                selection_bounds_rect.left() + (*x as f32 * content_scale),
+                selection_bounds_rect.top() + (*y as f32 * content_scale),
             ),
             vec2(
                 (*width).max(1) as f32 * content_scale,
                 (*height).max(1) as f32 * content_scale,
             ),
         );
-        rect = rect.intersect(preview_content_rect);
+        rect = rect.intersect(selection_bounds_rect);
         if rect.width() < min_size.x {
-            rect.max.x = (rect.min.x + min_size.x).min(preview_content_rect.right());
+            rect.max.x = (rect.min.x + min_size.x).min(selection_bounds_rect.right());
         }
         if rect.height() < min_size.y {
-            rect.max.y = (rect.min.y + min_size.y).min(preview_content_rect.bottom());
+            rect.max.y = (rect.min.y + min_size.y).min(selection_bounds_rect.bottom());
         }
 
         let rect_id = ui.make_persistent_id((id_source, "zoom-rect"));
@@ -2335,17 +2380,17 @@ impl CrosshairApp {
                 }
             }
             rect = rect.translate(delta);
-            if rect.left() < preview_content_rect.left() {
-                rect = rect.translate(vec2(preview_content_rect.left() - rect.left(), 0.0));
+            if rect.left() < selection_bounds_rect.left() {
+                rect = rect.translate(vec2(selection_bounds_rect.left() - rect.left(), 0.0));
             }
-            if rect.top() < preview_content_rect.top() {
-                rect = rect.translate(vec2(0.0, preview_content_rect.top() - rect.top()));
+            if rect.top() < selection_bounds_rect.top() {
+                rect = rect.translate(vec2(0.0, selection_bounds_rect.top() - rect.top()));
             }
-            if rect.right() > preview_content_rect.right() {
-                rect = rect.translate(vec2(preview_content_rect.right() - rect.right(), 0.0));
+            if rect.right() > selection_bounds_rect.right() {
+                rect = rect.translate(vec2(selection_bounds_rect.right() - rect.right(), 0.0));
             }
-            if rect.bottom() > preview_content_rect.bottom() {
-                rect = rect.translate(vec2(0.0, preview_content_rect.bottom() - rect.bottom()));
+            if rect.bottom() > selection_bounds_rect.bottom() {
+                rect = rect.translate(vec2(0.0, selection_bounds_rect.bottom() - rect.bottom()));
             }
             changed = true;
         }
@@ -2399,7 +2444,7 @@ impl CrosshairApp {
                     Self::apply_locked_aspect_ratio(
                         name,
                         aspect_ratio,
-                        preview_content_rect,
+                        selection_bounds_rect,
                         min_size,
                         &mut rect,
                     );
@@ -2407,19 +2452,19 @@ impl CrosshairApp {
                 rect.min.x = rect
                     .min
                     .x
-                    .clamp(preview_content_rect.left(), preview_content_rect.right() - min_size.x);
+                    .clamp(selection_bounds_rect.left(), selection_bounds_rect.right() - min_size.x);
                 rect.min.y = rect
                     .min
                     .y
-                    .clamp(preview_content_rect.top(), preview_content_rect.bottom() - min_size.y);
+                    .clamp(selection_bounds_rect.top(), selection_bounds_rect.bottom() - min_size.y);
                 rect.max.x = rect
                     .max
                     .x
-                    .clamp(rect.min.x + min_size.x, preview_content_rect.right());
+                    .clamp(rect.min.x + min_size.x, selection_bounds_rect.right());
                 rect.max.y = rect
                     .max
                     .y
-                    .clamp(rect.min.y + min_size.y, preview_content_rect.bottom());
+                    .clamp(rect.min.y + min_size.y, selection_bounds_rect.bottom());
                 changed = true;
             }
             ui.painter().rect_filled(
@@ -2459,8 +2504,8 @@ impl CrosshairApp {
         );
 
         if changed {
-            *x = ((rect.left() - preview_content_rect.left()) / content_scale).round() as i32;
-            *y = ((rect.top() - preview_content_rect.top()) / content_scale).round() as i32;
+            *x = ((rect.left() - selection_bounds_rect.left()) / content_scale).round() as i32;
+            *y = ((rect.top() - selection_bounds_rect.top()) / content_scale).round() as i32;
             *width = (rect.width() / content_scale).round().max(1.0) as i32;
             *height = (rect.height() / content_scale).round().max(1.0) as i32;
             *x = (*x).clamp(0, coord_width.round() as i32);
@@ -2493,7 +2538,7 @@ impl CrosshairApp {
         preset: &mut ToolboxPreset,
     ) -> bool {
         let mut changed = false;
-        let screen_size = vec2(1920.0, 1080.0);
+        let screen_size = Self::screen_size();
         let desired = vec2(ui.available_width().max(560.0), 420.0);
         let (canvas_rect, _) = ui.allocate_exact_size(desired, Sense::hover());
         let draw_rect = canvas_rect.shrink(8.0);
@@ -5210,7 +5255,7 @@ impl CrosshairApp {
         let language = self.state.ui_language;
         ui.heading("Zoom");
         ui.label("Pick one source region and stream it into one target region. Hold Shift while resizing Target Region to keep the same aspect ratio as Source Region.");
-        let screen_size = vec2(1920.0, 1080.0);
+        let screen_size = Self::screen_size();
         if ui.button("+ Add zoom preset").clicked() {
             self.add_zoom_preset();
             self.persist();
@@ -5404,7 +5449,7 @@ impl CrosshairApp {
             self.persist_window_presets();
         }
 
-        let screen_size = vec2(1920.0, 1080.0);
+        let screen_size = Self::screen_size();
         let mut remove_id = None;
         let mut live_sync = false;
         let pin_preview_allowed =
@@ -5419,6 +5464,8 @@ impl CrosshairApp {
                     ui.ctx(),
                     100_000 + preset_snapshot.id,
                     preset_snapshot.target_window_title.as_ref(),
+                    &preset_snapshot.extra_target_window_titles,
+                    preset_snapshot.match_duplicate_window_titles,
                 )
             } else {
                 self.zoom_preview_cache.remove(&(100_000 + preset_snapshot.id));
@@ -6033,17 +6080,17 @@ impl CrosshairApp {
             let master_fill = if self.state.macros_master_enabled {
                 Color32::from_rgb(44, 132, 74)
             } else {
-                Color32::from_rgb(245, 245, 245)
+                Color32::from_rgb(74, 78, 86)
             };
             let master_stroke = if self.state.macros_master_enabled {
                 Color32::from_rgb(124, 240, 164)
             } else {
-                Color32::from_rgb(150, 150, 150)
+                Color32::from_rgb(156, 162, 172)
             };
             let master_text = if self.state.macros_master_enabled {
                 Color32::WHITE
             } else {
-                ui.visuals().strong_text_color()
+                Color32::WHITE
             };
             if ui
                 .add_sized(
