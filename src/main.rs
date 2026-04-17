@@ -3,6 +3,7 @@
 mod app_icon;
 mod audio;
 mod hotkey;
+mod lang;
 mod model;
 mod overlay;
 mod platform;

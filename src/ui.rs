@@ -345,6 +345,7 @@ pub struct CrosshairApp {
     hidden_window_outer_pos: Option<egui::Pos2>,
     zoom_preview_cache: HashMap<u32, ZoomPreviewCache>,
     active_mouse_record_preset_id: Option<u32>,
+    active_toolbox_preview_preset_id: Option<u32>,
     last_applied_theme: Option<UiThemeMode>,
     native_shadow_applied: bool,
 }
@@ -424,6 +425,7 @@ impl CrosshairApp {
             hidden_window_outer_pos: None,
             zoom_preview_cache: HashMap::new(),
             active_mouse_record_preset_id: None,
+            active_toolbox_preview_preset_id: None,
             last_applied_theme: None,
             native_shadow_applied: false,
         };
@@ -525,6 +527,30 @@ impl CrosshairApp {
             .send(OverlayCommand::UpdateToolboxPresets(
                 self.state.toolbox_presets.clone(),
             ));
+    }
+
+    fn sync_toolbox_preview(&mut self, preset: Option<&ToolboxPreset>) {
+        let next_id = preset.map(|preset| preset.id);
+        if self.active_toolbox_preview_preset_id == next_id {
+            if let Some(preset) = preset {
+                let _ = self
+                    .overlay_tx
+                    .send(OverlayCommand::PreviewToolboxPreset(Some(preset.clone())));
+            }
+            return;
+        }
+        self.active_toolbox_preview_preset_id = next_id;
+        let _ = self
+            .overlay_tx
+            .send(OverlayCommand::PreviewToolboxPreset(preset.cloned()));
+    }
+
+    fn clear_toolbox_preview(&mut self) {
+        if self.active_toolbox_preview_preset_id.take().is_some() {
+            let _ = self
+                .overlay_tx
+                .send(OverlayCommand::PreviewToolboxPreset(None));
+        }
     }
 
     fn persist(&mut self) {
@@ -1085,13 +1111,17 @@ impl CrosshairApp {
         self.persist();
     }
 
-    fn tr<'a>(&self, english: &'a str, vietnamese: &'a str) -> &'a str {
+    fn tr(&self, english: &'static str, vietnamese: &'static str) -> &'static str {
         Self::tr_lang(self.state.ui_language, english, vietnamese)
     }
 
-    fn tr_lang<'a>(language: UiLanguage, english: &'a str, vietnamese: &'a str) -> &'a str {
+    fn tr_lang(
+        language: UiLanguage,
+        english: &'static str,
+        _vietnamese: &'static str,
+    ) -> &'static str {
         match language {
-            UiLanguage::Vietnamese => vietnamese,
+            UiLanguage::Vietnamese => crate::lang::translate(language, english).unwrap_or(english),
             UiLanguage::English | UiLanguage::Icon => english,
         }
     }
@@ -2154,15 +2184,15 @@ impl CrosshairApp {
     fn window_anchor_icon(anchor: WindowAnchor) -> &'static str {
         match anchor {
             WindowAnchor::Manual => "XY",
-            WindowAnchor::Center => "â—Ž",
-            WindowAnchor::TopLeft => "â†–",
-            WindowAnchor::Top => "â†‘",
-            WindowAnchor::TopRight => "â†—",
-            WindowAnchor::Left => "â†",
-            WindowAnchor::Right => "â†’",
-            WindowAnchor::BottomLeft => "â†™",
-            WindowAnchor::Bottom => "â†“",
-            WindowAnchor::BottomRight => "â†˜",
+            WindowAnchor::Center => "\u{25CE}",
+            WindowAnchor::TopLeft => "\u{2196}",
+            WindowAnchor::Top => "\u{2191}",
+            WindowAnchor::TopRight => "\u{2197}",
+            WindowAnchor::Left => "\u{2190}",
+            WindowAnchor::Right => "\u{2192}",
+            WindowAnchor::BottomLeft => "\u{2199}",
+            WindowAnchor::Bottom => "\u{2193}",
+            WindowAnchor::BottomRight => "\u{2198}",
         }
     }
 
@@ -2348,7 +2378,7 @@ impl CrosshairApp {
                 );
         }
 
-        let min_size = vec2(8.0, 8.0);
+        let min_size = vec2(6.0, 6.0);
         let mut rect = egui::Rect::from_min_size(
             egui::pos2(
                 selection_bounds_rect.left() + (*x as f32 * content_scale),
@@ -2406,7 +2436,7 @@ impl CrosshairApp {
             ("w", egui::pos2(rect.left(), rect.center().y)),
         ];
         for (name, pos) in handles {
-            let handle_rect = egui::Rect::from_center_size(pos, vec2(12.0, 12.0));
+            let handle_rect = egui::Rect::from_center_size(pos, vec2(8.0, 8.0));
             let response = ui.interact(
                 handle_rect,
                 ui.make_persistent_id((rect_id, name)),
@@ -2469,7 +2499,7 @@ impl CrosshairApp {
             }
             ui.painter().rect_filled(
                 handle_rect,
-                3.0,
+                2.0,
                 Color32::from_rgb(124, 240, 164),
             );
         }
@@ -2559,7 +2589,7 @@ impl CrosshairApp {
             egui::StrokeKind::Outside,
         );
 
-        let min_size = vec2(6.0, 6.0);
+        let min_size = vec2(4.0, 4.0);
         let mut rect = egui::Rect::from_min_size(
             egui::pos2(
                 preview_rect.left() + (preset.x as f32 * scale),
@@ -2609,7 +2639,7 @@ impl CrosshairApp {
             ("w", egui::pos2(rect.left(), rect.center().y)),
         ];
         for (name, pos) in handles {
-            let handle_rect = egui::Rect::from_center_size(pos, vec2(12.0, 12.0));
+            let handle_rect = egui::Rect::from_center_size(pos, vec2(8.0, 8.0));
             let response = ui.interact(
                 handle_rect,
                 ui.make_persistent_id((rect_id, name)),
@@ -2646,7 +2676,8 @@ impl CrosshairApp {
                 rect.max.y = rect.max.y.clamp(rect.min.y + min_size.y, preview_rect.bottom());
                 changed = true;
             }
-            ui.painter().rect_filled(handle_rect, 3.0, Color32::from_rgb(124, 240, 164));
+            ui.painter()
+                .rect_filled(handle_rect, 2.0, Color32::from_rgb(124, 240, 164));
         }
 
         let bg_alpha = (preset.background_opacity.clamp(0.0, 1.0) * 255.0).round() as u8;
@@ -6163,14 +6194,19 @@ impl CrosshairApp {
                     .iter()
                     .filter(|group| group.folder_id == Some(folder.id))
                     .count();
-                let folder_has_selected_group = self
+                let folder_has_enabled_content = self
                     .state
                     .macro_groups
                     .iter()
-                    .any(|group| group.folder_id == Some(folder.id) && self.selected_macro_groups.contains(&group.id));
+                    .any(|group| {
+                        group.folder_id == Some(folder.id)
+                            && group.enabled
+                            && (group.selector_presets.iter().any(|selector| selector.enabled)
+                                || group.presets.iter().any(|preset| preset.enabled))
+                    });
                 let folder_id = folder.id;
                 let folder_name = folder.name.clone();
-                Self::show_preset_card(ui, folder_has_selected_group, |ui| {
+                Self::show_preset_card(ui, folder_has_enabled_content, |ui| {
                     ui.horizontal_wrapped(|ui| {
                         if ui.button(Self::folder_icon_text(false, 20.0)).clicked() {
                             open_folder_id = Some(folder_id);
@@ -9544,6 +9580,7 @@ impl CrosshairApp {
 
         let mut remove_id = None;
         let mut changed = false;
+        let mut active_preview: Option<ToolboxPreset> = None;
         for index in 0..self.state.toolbox_presets.len() {
             let language = self.state.ui_language;
             ui.add_space(6.0);
@@ -9566,6 +9603,10 @@ impl CrosshairApp {
                     }
                 });
                 if preset.collapsed {
+                    if preset.preview_enabled {
+                        preset.preview_enabled = false;
+                        changed = true;
+                    }
                     return;
                 }
 
@@ -9612,11 +9653,24 @@ impl CrosshairApp {
                             .checkbox(&mut preset.rounded_background, Self::tr_lang(language, "Rounded corners", "Bo gÃ³c"))
                             .changed();
                         ui.end_row();
+
+                        ui.label(Self::tr_lang(language, "Preview", "Xem trước"));
+                        changed |= ui
+                            .checkbox(
+                                &mut preset.preview_enabled,
+                                Self::tr_lang(language, "Stream preview in editor", "Stream preview trong editor"),
+                            )
+                            .changed();
+                        ui.end_row();
                     });
 
                 ui.add_space(6.0);
                 ui.label(RichText::new(Self::tr_lang(language, "Position Preview", "Preview vá»‹ trÃ­")).strong());
                 changed |= Self::render_toolbox_rect_editor(ui, (preset.id, "toolbox-editor"), preset);
+
+                if preset.preview_enabled {
+                    active_preview = Some(preset.clone());
+                }
             });
         }
 
@@ -9624,6 +9678,7 @@ impl CrosshairApp {
             self.state.toolbox_presets.retain(|preset| preset.id != id);
             changed = true;
         }
+        self.sync_toolbox_preview(active_preview.as_ref());
         if changed {
             self.persist_toolbox_presets();
         }
@@ -9933,6 +9988,9 @@ impl eframe::App for CrosshairApp {
         }
 
         if self.state.active_panel != self.last_active_panel {
+            if self.last_active_panel == AppPanel::Settings && self.state.active_panel != AppPanel::Settings {
+                self.clear_toolbox_preview();
+            }
             if matches!(
                 self.state.active_panel,
                 AppPanel::WindowPresets | AppPanel::Pin | AppPanel::Macros

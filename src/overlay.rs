@@ -130,6 +130,8 @@ mod windows_overlay {
         Lazy::new(|| Mutex::new(HashSet::new()));
     static TOOLBOX_DISPLAY: Lazy<Mutex<Option<ToolboxDisplayState>>> =
         Lazy::new(|| Mutex::new(None));
+    static TOOLBOX_PREVIEW_DISPLAY: Lazy<Mutex<Option<ToolboxDisplayState>>> =
+        Lazy::new(|| Mutex::new(None));
     static MOUSE_RECORDING: Lazy<Mutex<Option<MouseRecordingSession>>> =
         Lazy::new(|| Mutex::new(None));
     static HOOK_STATE: Lazy<Mutex<HookState>> = Lazy::new(|| Mutex::new(HookState::default()));
@@ -155,6 +157,7 @@ mod windows_overlay {
         ApplyMouseSensitivityPreset(u32),
         RestoreMouseSensitivity,
         UpdateToolboxPresets(Vec<ToolboxPreset>),
+        PreviewToolboxPreset(Option<ToolboxPreset>),
         UpdateMacroPresets(Vec<MacroGroup>),
         UpdateAudioSettings(AudioSettings),
         SetMacrosMasterEnabled(bool),
@@ -640,7 +643,9 @@ mod windows_overlay {
                         }
 
                         let toolbox_active =
-                            TOOLBOX_DISPLAY.lock().is_some() || runtime.toolbox_display.is_some();
+                            TOOLBOX_DISPLAY.lock().is_some()
+                                || TOOLBOX_PREVIEW_DISPLAY.lock().is_some()
+                                || runtime.toolbox_display.is_some();
                         if toolbox_active {
                             let _ = refresh_toolbox(runtime);
                         }
@@ -1762,6 +1767,10 @@ mod windows_overlay {
                 OverlayCommand::UpdateToolboxPresets(presets) => {
                     HOOK_STATE.lock().toolbox_presets = presets;
                 }
+                OverlayCommand::PreviewToolboxPreset(preset) => {
+                    *TOOLBOX_PREVIEW_DISPLAY.lock() = preset.map(toolbox_preview_display_from_preset);
+                    let _ = refresh_toolbox(runtime);
+                }
                 OverlayCommand::UpdateMacroPresets(presets) => {
                     runtime.macro_groups = presets;
                     let _ = sync_macro_hotkeys(hwnd, runtime);
@@ -1787,6 +1796,7 @@ mod windows_overlay {
                         let _ = ShowWindow(runtime.toolbox_hwnd, SW_HIDE);
                         let _ = ShowWindow(runtime.mouse_trail_hwnd, SW_HIDE);
                     } else {
+                        *TOOLBOX_PREVIEW_DISPLAY.lock() = None;
                         let _ = set_input_hooks_enabled(runtime, desired_hooks_enabled(runtime));
                         hide_ui_window_native();
                         let _ = refresh_overlay(runtime);
@@ -1832,14 +1842,25 @@ mod windows_overlay {
 
     fn refresh_toolbox(runtime: &mut Runtime) -> Result<()> {
         let display = {
-            let mut guard = TOOLBOX_DISPLAY.lock();
-            if let Some(active) = guard.as_ref()
+            let mut preview_guard = TOOLBOX_PREVIEW_DISPLAY.lock();
+            if let Some(active) = preview_guard.as_ref()
                 && let Some(expires_at) = active.expires_at
                 && Instant::now() >= expires_at
             {
-                *guard = None;
+                *preview_guard = None;
             }
-            guard.clone()
+            if let Some(preview) = preview_guard.clone() {
+                Some(preview)
+            } else {
+                let mut guard = TOOLBOX_DISPLAY.lock();
+                if let Some(active) = guard.as_ref()
+                    && let Some(expires_at) = active.expires_at
+                    && Instant::now() >= expires_at
+                {
+                    *guard = None;
+                }
+                guard.clone()
+            }
         };
         if runtime.toolbox_display == display {
             return Ok(());
@@ -1898,7 +1919,9 @@ mod windows_overlay {
             return 33;
         }
 
-        let toolbox_active = TOOLBOX_DISPLAY.lock().is_some() || runtime.toolbox_display.is_some();
+        let toolbox_active = TOOLBOX_DISPLAY.lock().is_some()
+            || TOOLBOX_PREVIEW_DISPLAY.lock().is_some()
+            || runtime.toolbox_display.is_some();
         if toolbox_active {
             return 100;
         }
@@ -3758,6 +3781,29 @@ mod windows_overlay {
             expires_at,
         });
         Ok(())
+    }
+
+    fn toolbox_preview_display_from_preset(preset: ToolboxPreset) -> ToolboxDisplayState {
+        let screen_width = unsafe { GetSystemMetrics(SM_CXSCREEN) }.max(1);
+        let screen_height = unsafe { GetSystemMetrics(SM_CYSCREEN) }.max(1);
+        let scale_x = screen_width as f32 / 1920.0;
+        let scale_y = screen_height as f32 / 1080.0;
+        ToolboxDisplayState {
+            owner_preset_id: None,
+            preset_id: Some(preset.id),
+            text: preset.text,
+            text_color: preset.text_color,
+            background_color: preset.background_color,
+            background_opacity: preset.background_opacity.clamp(0.0, 1.0),
+            rounded_background: preset.rounded_background,
+            font_size: preset.font_size.max(1.0),
+            x: (preset.x as f32 * scale_x).round() as i32,
+            y: (preset.y as f32 * scale_y).round() as i32,
+            width: ((preset.width.max(1)) as f32 * scale_x).round().max(1.0) as i32,
+            height: ((preset.height.max(1)) as f32 * scale_y).round().max(1.0) as i32,
+            auto_hide_on_owner_completion: false,
+            expires_at: None,
+        }
     }
 
     fn show_legacy_toolbox_text(owner_preset_id: u32, step: &MacroStep) {
