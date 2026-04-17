@@ -6663,8 +6663,8 @@ impl CrosshairApp {
                                             (Self::tr_lang(language, "Left", "TrÃ¡i"), "MouseLeft"),
                                             (Self::tr_lang(language, "Right", "Pháº£i"), "MouseRight"),
                                             (Self::tr_lang(language, "Middle", "Giá»¯a"), "MouseMiddle"),
-                                            (Self::tr_lang(language, "Mouse 4", "Chuá»™t 4"), "MouseX1"),
-                                            (Self::tr_lang(language, "Mouse 5", "Chuá»™t 5"), "MouseX2"),
+                                            (Self::tr_lang(language, "Mouse X1", "Chuá»™t X1"), "MouseX1"),
+                                            (Self::tr_lang(language, "Mouse X2", "Chuá»™t X2"), "MouseX2"),
                                         ] {
                                             if ui.button(label).clicked() {
                                                 preset.hotkey = Some(crate::model::HotkeyBinding {
@@ -6711,23 +6711,27 @@ impl CrosshairApp {
                                         }
                                     }
                                 });
-                            live_sync |= ui
-                                .checkbox(
-                                    &mut preset.stop_on_retrigger_immediate,
-                                    Self::tr_lang(
-                                        language,
-                                        "Stop on trigger again",
-                                        "Nháº¥n trigger láº§n ná»¯a Ä‘á»ƒ dá»«ng",
-                                    ),
-                                )
-                                .on_hover_text(
-                                    Self::tr_lang(
-                                        language,
-                                        "Press the trigger again to stop this macro immediately, without waiting for a StopIfTriggerPressedAgain step.",
-                                        "Nháº¥n trigger láº§n ná»¯a Ä‘á»ƒ dá»«ng macro ngay láº­p tá»©c, khÃ´ng cáº§n chá» step dá»«ng.",
-                                    ),
-                                )
-                                .changed();
+                            if preset.trigger_mode == MacroTriggerMode::Press {
+                                live_sync |= ui
+                                    .checkbox(
+                                        &mut preset.stop_on_retrigger_immediate,
+                                        Self::tr_lang(
+                                            language,
+                                            "Stop on trigger again",
+                                            "Nháº¥n trigger láº§n ná»¯a Ä‘á»ƒ dá»«ng",
+                                        ),
+                                    )
+                                    .on_hover_text(
+                                        Self::tr_lang(
+                                            language,
+                                            "Press the trigger again to stop this macro immediately, without waiting for a StopIfTriggerPressedAgain step.",
+                                            "Nháº¥n trigger láº§n ná»¯a Ä‘á»ƒ dá»«ng macro ngay láº­p tá»©c, khÃ´ng cáº§n chá» step dá»«ng.",
+                                        ),
+                                    )
+                                    .changed();
+                            } else {
+                                preset.stop_on_retrigger_immediate = false;
+                            }
                             ui.label(Self::tr_lang(language, "Steps", "BÆ°á»›c"));
                             if Self::sized_button(ui, 68.0, Self::tr_lang(language, "Copy", "Sao chÃ©p")).clicked() {
                                 self.macro_preset_clipboard = Some(preset.clone());
@@ -9801,14 +9805,8 @@ impl CrosshairApp {
                 .unwrap_or_else(|| outer_rect.size());
             self.hidden_window_inner_size = Some(inner_size);
             self.hidden_window_outer_pos = Some(outer_rect.min);
-            self.close_to_tray_animation = Some(CloseToTrayAnimation {
-                started_at: ctx.input(|input| input.time),
-                duration_sec: 0.34,
-            });
-            ctx.request_repaint();
-        } else {
-            self.finish_close_to_tray_hide(ctx);
         }
+        self.finish_close_to_tray_hide(ctx);
     }
 
     fn update_close_to_tray_animation(&mut self, ctx: &egui::Context) {
