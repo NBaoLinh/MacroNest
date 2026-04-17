@@ -371,7 +371,9 @@ impl CrosshairApp {
         let initial_active_panel = state.active_panel;
 
         let ready_status = match state.ui_language {
-            UiLanguage::Vietnamese => "Sáºµn sÃ ng".to_owned(),
+            UiLanguage::Vietnamese => crate::lang::translate(UiLanguage::Vietnamese, "Ready")
+                .unwrap_or("Ready")
+                .to_owned(),
             _ => "Ready".to_owned(),
         };
 
@@ -1146,7 +1148,10 @@ impl CrosshairApp {
     fn app_brand_subtitle(&self) -> &'static str {
         match self.state.ui_language {
             UiLanguage::English => "Macro control, pin, toolbox, sound, and window tools",
-            UiLanguage::Vietnamese => "Macro, ghim app, toolbox, Ã¢m thanh vÃ  Ä‘iá»u khiá»ƒn cá»­a sá»•",
+            UiLanguage::Vietnamese => self.tr(
+                "Macro control, pin, toolbox, sound, and window tools",
+                "Macro control, pin, toolbox, sound, and window tools",
+            ),
             UiLanguage::Icon => "",
         }
     }
@@ -1164,29 +1169,20 @@ impl CrosshairApp {
     }
 
     fn panel_label(&self, panel: AppPanel) -> &'static str {
-        match self.state.ui_language {
-            UiLanguage::English => match panel {
-                AppPanel::Crosshair => "Crosshair",
-                AppPanel::WindowPresets => "Window Control",
-                AppPanel::Pin | AppPanel::Zoom => "Pin",
-                AppPanel::Mouse => "Mouse",
-                AppPanel::Macros | AppPanel::Modes => "Macro",
-                AppPanel::Sound => "Sound",
-                AppPanel::Media => "Media",
-                AppPanel::Settings => "Toolbox",
-            },
-            UiLanguage::Vietnamese => match panel {
-                AppPanel::Crosshair => "TÃ¢m ngáº¯m",
-                AppPanel::WindowPresets => "Cá»­a sá»•",
-                AppPanel::Pin | AppPanel::Zoom => "Ghim",
-                AppPanel::Mouse => "Chuá»™t",
-                AppPanel::Macros | AppPanel::Modes => "Macro",
-                AppPanel::Sound => "Ã‚m thanh",
-                AppPanel::Media => "Media",
-                AppPanel::Settings => "Toolbox",
-            },
-            UiLanguage::Icon => "",
+        if self.state.ui_language == UiLanguage::Icon {
+            return "";
         }
+        let english = match panel {
+            AppPanel::Crosshair => "Crosshair",
+            AppPanel::WindowPresets => "Window Control",
+            AppPanel::Pin | AppPanel::Zoom => "Pin",
+            AppPanel::Mouse => "Mouse",
+            AppPanel::Macros | AppPanel::Modes => "Macro",
+            AppPanel::Sound => "Sound",
+            AppPanel::Media => "Media",
+            AppPanel::Settings => "Toolbox",
+        };
+        Self::tr_lang(self.state.ui_language, english, english)
     }
 
     fn language_button_text(&self) -> RichText {
@@ -1207,7 +1203,10 @@ impl CrosshairApp {
     fn startup_loading_text(&self) -> &'static str {
         match self.state.ui_language {
             UiLanguage::English => "loading macro tools, overlays, and UI",
-            UiLanguage::Vietnamese => "Äang táº£i macro, overlay vÃ  cÃ´ng cá»¥",
+            UiLanguage::Vietnamese => self.tr(
+                "loading macro tools, overlays, and UI",
+                "loading macro tools, overlays, and UI",
+            ),
             UiLanguage::Icon => "",
         }
     }
