@@ -4190,7 +4190,8 @@ impl CrosshairApp {
                 ctx.send_viewport_cmd(egui::ViewportCommand::Visible(false));
                 let _ = self.overlay_tx.send(OverlayCommand::SetUiVisible(false));
                 std::thread::sleep(Duration::from_millis(70));
-                let capture = self.capture_screen_region_from_rect(rect, ctx.pixels_per_point());
+                let capture =
+                    self.capture_screen_region_from_rect(ctx, rect, ctx.pixels_per_point());
                 self.restore_image_search_viewport(ctx);
                 ctx.send_viewport_cmd(egui::ViewportCommand::Visible(true));
                 ctx.send_viewport_cmd(egui::ViewportCommand::Minimized(false));
@@ -4238,9 +4239,9 @@ impl CrosshairApp {
                 ctx.request_repaint();
             }
             ImageSearchCaptureMode::SearchRegion => {
+                let region = self.screen_region_from_rect(ctx, rect, ctx.pixels_per_point());
                 self.restore_image_search_viewport(ctx);
-                if let Some((screen_x, screen_y, width, height)) =
-                    self.screen_region_from_rect(rect, ctx.pixels_per_point())
+                if let Some((screen_x, screen_y, width, height)) = region
                 {
                     if let Some(preset) = self
                         .state
@@ -4270,11 +4271,12 @@ impl CrosshairApp {
 
     fn capture_screen_region_from_rect(
         &self,
+        ctx: &egui::Context,
         rect: egui::Rect,
         pixels_per_point: f32,
     ) -> Option<window_list::ScreenCaptureFrame> {
         let (capture_left, capture_top, capture_width, capture_height) =
-            self.screen_region_from_rect(rect, pixels_per_point)?;
+            self.screen_region_from_rect(ctx, rect, pixels_per_point)?;
         window_list::capture_virtual_screen_region(
             capture_left,
             capture_top,
@@ -4285,6 +4287,7 @@ impl CrosshairApp {
 
     fn screen_region_from_rect(
         &self,
+        ctx: &egui::Context,
         rect: egui::Rect,
         pixels_per_point: f32,
     ) -> Option<(i32, i32, i32, i32)> {
@@ -4292,8 +4295,11 @@ impl CrosshairApp {
         let min = rect.min;
         let max = rect.max;
         let scale = pixels_per_point.max(0.5);
-        let capture_left = left + (min.x * scale).round() as i32;
-        let capture_top = top + (min.y * scale).round() as i32;
+        let viewport_origin = ctx
+            .input(|input| input.viewport().inner_rect.map(|viewport| viewport.min))
+            .unwrap_or_else(|| egui::pos2(left as f32 / scale, top as f32 / scale));
+        let capture_left = ((viewport_origin.x + min.x) * scale).round() as i32;
+        let capture_top = ((viewport_origin.y + min.y) * scale).round() as i32;
         let capture_width = ((max.x - min.x).abs() * scale).round().max(1.0) as i32;
         let capture_height = ((max.y - min.y).abs() * scale).round().max(1.0) as i32;
         Some((capture_left, capture_top, capture_width, capture_height))
@@ -10097,9 +10103,17 @@ impl CrosshairApp {
                             live_sync |= ui
                                 .checkbox(
                                     &mut preset.use_color_matching,
-                                    Self::tr_lang(language, "Color match", "Khop mau"),
+                                    Self::tr_lang(language, "Use color", "Dung mau"),
                                 )
                                 .changed();
+                            ui.label(
+                                RichText::new(Self::tr_lang(
+                                    language,
+                                    "Off = grayscale",
+                                    "Tat = den trang",
+                                ))
+                                .small(),
+                            );
                             live_sync |= ui
                                 .checkbox(
                                     &mut preset.use_interception_driver,
