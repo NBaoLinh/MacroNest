@@ -3,6 +3,7 @@
 #[cfg(windows)]
 mod windows_overlay {
     use std::{
+        cell::RefCell,
         collections::{HashMap, HashSet},
         ffi::c_void,
         mem::size_of,
@@ -15,8 +16,9 @@ mod windows_overlay {
     };
 
     use anyhow::{Context, Result, bail};
-    use eframe::egui;
     use crossbeam_channel::{Receiver, Sender};
+    use eframe::egui;
+    use interception::{Interception, MouseFlags, MouseState, Stroke};
     use once_cell::sync::Lazy;
     use parking_lot::Mutex;
     use windows::{
@@ -24,21 +26,19 @@ mod windows_overlay {
             Foundation::{COLORREF, HINSTANCE, HWND, LPARAM, LRESULT, POINT, RECT, SIZE, WPARAM},
             Graphics::{
                 Dwm::{
-                    DWMWA_EXTENDED_FRAME_BOUNDS, DWM_THUMBNAIL_PROPERTIES, DWM_TNP_OPACITY,
-                    DWM_TNP_RECTDESTINATION, DWM_TNP_RECTSOURCE, DWM_TNP_SOURCECLIENTAREAONLY,
-                    DWM_TNP_VISIBLE,
-                    DwmGetWindowAttribute, DwmRegisterThumbnail, DwmUnregisterThumbnail,
-                    DwmUpdateThumbnailProperties,
+                    DWM_THUMBNAIL_PROPERTIES, DWM_TNP_OPACITY, DWM_TNP_RECTDESTINATION,
+                    DWM_TNP_RECTSOURCE, DWM_TNP_SOURCECLIENTAREAONLY, DWM_TNP_VISIBLE,
+                    DWMWA_EXTENDED_FRAME_BOUNDS, DwmGetWindowAttribute, DwmRegisterThumbnail,
+                    DwmUnregisterThumbnail, DwmUpdateThumbnailProperties,
                 },
                 Gdi::{
-                    AC_SRC_ALPHA, AC_SRC_OVER, BI_RGB, BITMAPINFO, BITMAPINFOHEADER,
-                    BLENDFUNCTION, BeginPaint, CreateCompatibleDC, CreateDIBSection,
-                    CreateFontW, DIB_RGB_COLORS, DEFAULT_CHARSET, DeleteDC, DeleteObject,
-                    DrawTextW, EndPaint, FF_DONTCARE, FW_MEDIUM, GetDC, GetMonitorInfoW,
-                    HGDIOBJ, MONITORINFO, MONITOR_DEFAULTTONEAREST, MonitorFromWindow,
-                    OUT_DEFAULT_PRECIS, PAINTSTRUCT, ReleaseDC, SelectObject, SetBkMode,
-                    SetTextColor, ANTIALIASED_QUALITY, CLIP_DEFAULT_PRECIS, DT_CENTER,
-                    DT_SINGLELINE, DT_VCENTER, TRANSPARENT,
+                    AC_SRC_ALPHA, AC_SRC_OVER, ANTIALIASED_QUALITY, BI_RGB, BITMAPINFO,
+                    BITMAPINFOHEADER, BLENDFUNCTION, BeginPaint, CLIP_DEFAULT_PRECIS,
+                    CreateCompatibleDC, CreateDIBSection, CreateFontW, DEFAULT_CHARSET,
+                    DIB_RGB_COLORS, DT_CENTER, DT_SINGLELINE, DT_VCENTER, DeleteDC, DeleteObject,
+                    DrawTextW, EndPaint, FF_DONTCARE, FW_MEDIUM, GetDC, GetMonitorInfoW, HGDIOBJ,
+                    MONITOR_DEFAULTTONEAREST, MONITORINFO, MonitorFromWindow, OUT_DEFAULT_PRECIS,
+                    PAINTSTRUCT, ReleaseDC, SelectObject, SetBkMode, SetTextColor, TRANSPARENT,
                 },
             },
             System::{
@@ -49,47 +49,41 @@ mod windows_overlay {
                 Input::KeyboardAndMouse::{
                     GetAsyncKeyState, INPUT, INPUT_0, INPUT_KEYBOARD, INPUT_MOUSE, KEYBDINPUT,
                     KEYEVENTF_EXTENDEDKEY, KEYEVENTF_KEYUP, KEYEVENTF_SCANCODE, KEYEVENTF_UNICODE,
-                    MAPVK_VK_TO_VSC, MOD_ALT, MOD_CONTROL, MapVirtualKeyW,
-                    MOUSEEVENTF_ABSOLUTE, MOUSEEVENTF_MOVE,
-                    MOUSEEVENTF_LEFTDOWN, MOUSEEVENTF_LEFTUP,
-                    MOUSEEVENTF_MIDDLEDOWN, MOUSEEVENTF_MIDDLEUP,
-                    MOUSEEVENTF_RIGHTDOWN, MOUSEEVENTF_RIGHTUP, MOUSEEVENTF_WHEEL,
-                    MOUSEEVENTF_XDOWN, MOUSEEVENTF_XUP, MOUSEINPUT, RegisterHotKey, SendInput,
-                    SetActiveWindow, SetFocus, UnregisterHotKey, VIRTUAL_KEY,
+                    MAPVK_VK_TO_VSC, MOD_ALT, MOD_CONTROL, MOUSEEVENTF_ABSOLUTE,
+                    MOUSEEVENTF_LEFTDOWN, MOUSEEVENTF_LEFTUP, MOUSEEVENTF_MIDDLEDOWN,
+                    MOUSEEVENTF_MIDDLEUP, MOUSEEVENTF_MOVE, MOUSEEVENTF_RIGHTDOWN,
+                    MOUSEEVENTF_RIGHTUP, MOUSEEVENTF_WHEEL, MOUSEEVENTF_XDOWN, MOUSEEVENTF_XUP,
+                    MOUSEINPUT, MapVirtualKeyW, RegisterHotKey, SendInput, SetActiveWindow,
+                    SetFocus, UnregisterHotKey, VIRTUAL_KEY,
                 },
                 Shell::{
-                    NIF_ICON, NIF_MESSAGE, NIF_TIP, NIM_ADD, NIM_DELETE, NIM_MODIFY, NOTIFYICONDATAW,
-                    Shell_NotifyIconW,
+                    NIF_ICON, NIF_MESSAGE, NIF_TIP, NIM_ADD, NIM_DELETE, NIM_MODIFY,
+                    NOTIFYICONDATAW, Shell_NotifyIconW,
                 },
                 WindowsAndMessaging::{
-                    AppendMenuW, BringWindowToTop, CREATESTRUCTW, CallNextHookEx,
-                    CreatePopupMenu, CreateWindowExW,
-                    DefWindowProcW, DestroyMenu, DispatchMessageW, GA_ROOT,
-                    GetAncestor, GetClassNameW, GetClientRect, GetCursorPos, GetForegroundWindow, GetMessageW, GetSystemMetrics,
-                    GetWindow,
-                    GetWindowLongPtrW, GetWindowRect, GetWindowThreadProcessId, HHOOK, HMENU,
-                    HWND_NOTOPMOST, HWND_TOPMOST, IDC_ARROW,
-                    IMAGE_ICON, KBDLLHOOKSTRUCT, KillTimer, LR_LOADFROMFILE, LoadCursorW, LoadImageW,
-                    MSLLHOOKSTRUCT, IsIconic, IsZoomed,
-                    MF_SEPARATOR, MF_STRING, MSG, PostMessageW, PostQuitMessage, RegisterClassW, SM_CXSCREEN,
-                    SM_CYSCREEN, SW_HIDE, SW_RESTORE, SW_SHOWNA, SWP_ASYNCWINDOWPOS, SWP_NOACTIVATE, SWP_NOMOVE,
-                    SWP_NOSIZE, SWP_NOZORDER,
-                    SWP_SHOWWINDOW, SetForegroundWindow, SetTimer, SetWindowLongPtrW,
-                    SetWindowPos, SetWindowsHookExW, SetCursorPos, ShowWindow,
+                    AppendMenuW, BringWindowToTop, CREATESTRUCTW, CallNextHookEx, CreatePopupMenu,
+                    CreateWindowExW, DefWindowProcW, DestroyIcon, DestroyMenu, DispatchMessageW,
+                    GA_ROOT, GW_OWNER, GWLP_USERDATA, GetAncestor, GetClassNameW, GetClientRect,
+                    GetCursorPos, GetForegroundWindow, GetMessageW, GetSystemMetrics, GetWindow,
+                    GetWindowLongPtrW, GetWindowRect, GetWindowThreadProcessId, HC_ACTION, HHOOK,
+                    HMENU, HTTRANSPARENT, HWND_NOTOPMOST, HWND_TOPMOST, IDC_ARROW, IMAGE_ICON,
+                    IsIconic, IsZoomed, KBDLLHOOKSTRUCT, KillTimer, LR_LOADFROMFILE, LoadCursorW,
+                    LoadImageW, MA_NOACTIVATE, MF_SEPARATOR, MF_STRING, MSG, MSLLHOOKSTRUCT,
+                    PostMessageW, PostQuitMessage, RegisterClassW, SM_CXSCREEN, SM_CYSCREEN,
                     SPI_GETMOUSESPEED, SPI_SETMOUSESPEED, SPIF_SENDCHANGE, SPIF_UPDATEINIFILE,
-                    SystemParametersInfoW,
-                    TPM_BOTTOMALIGN, TPM_LEFTALIGN,
-                    TrackPopupMenu, TranslateMessage, ULW_ALPHA, UnhookWindowsHookEx,
-                    UpdateLayeredWindow, WH_KEYBOARD_LL, WH_MOUSE_LL, WINDOW_EX_STYLE, WINDOW_LONG_PTR_INDEX,
-                    WM_APP, WM_COMMAND, WM_CREATE, WM_DESTROY, WM_HOTKEY, WM_KEYDOWN, WM_KEYUP,
-                    WM_LBUTTONDOWN, WM_LBUTTONDBLCLK, WM_LBUTTONUP, WM_MBUTTONDOWN, WM_NCCREATE, WM_RBUTTONDOWN, WM_RBUTTONUP,
-                    WM_SYSKEYDOWN, WM_SYSKEYUP, WM_TIMER, WM_XBUTTONDOWN, WM_XBUTTONUP, WM_NCHITTEST, HTTRANSPARENT,
-                    WM_MOUSEACTIVATE, MA_NOACTIVATE,
-                    WM_MOUSEMOVE, WM_MOUSEWHEEL,
-                    WNDCLASSW, WS_CAPTION, WS_EX_LAYERED, WS_EX_NOACTIVATE,
-                    WS_EX_TOOLWINDOW, WS_EX_TOPMOST, WS_EX_TRANSPARENT, WS_OVERLAPPEDWINDOW,
-                    WS_POPUP, GWLP_USERDATA, HC_ACTION, GW_OWNER,
-                    DestroyIcon,
+                    SW_HIDE, SW_RESTORE, SW_SHOWNA, SWP_ASYNCWINDOWPOS, SWP_NOACTIVATE, SWP_NOMOVE,
+                    SWP_NOSIZE, SWP_NOZORDER, SWP_SHOWWINDOW, SetCursorPos, SetForegroundWindow,
+                    SetTimer, SetWindowLongPtrW, SetWindowPos, SetWindowsHookExW, ShowWindow,
+                    SystemParametersInfoW, TPM_BOTTOMALIGN, TPM_LEFTALIGN, TrackPopupMenu,
+                    TranslateMessage, ULW_ALPHA, UnhookWindowsHookEx, UpdateLayeredWindow,
+                    WH_KEYBOARD_LL, WH_MOUSE_LL, WINDOW_EX_STYLE, WINDOW_LONG_PTR_INDEX, WM_APP,
+                    WM_COMMAND, WM_CREATE, WM_DESTROY, WM_HOTKEY, WM_KEYDOWN, WM_KEYUP,
+                    WM_LBUTTONDBLCLK, WM_LBUTTONDOWN, WM_LBUTTONUP, WM_MBUTTONDOWN,
+                    WM_MOUSEACTIVATE, WM_MOUSEMOVE, WM_MOUSEWHEEL, WM_NCCREATE, WM_NCHITTEST,
+                    WM_RBUTTONDOWN, WM_RBUTTONUP, WM_SYSKEYDOWN, WM_SYSKEYUP, WM_TIMER,
+                    WM_XBUTTONDOWN, WM_XBUTTONUP, WNDCLASSW, WS_CAPTION, WS_EX_LAYERED,
+                    WS_EX_NOACTIVATE, WS_EX_TOOLWINDOW, WS_EX_TOPMOST, WS_EX_TRANSPARENT,
+                    WS_OVERLAPPEDWINDOW, WS_POPUP,
                 },
             },
         },
@@ -97,14 +91,13 @@ mod windows_overlay {
     };
 
     use crate::{
-        audio,
-        hotkey,
+        audio, hotkey,
         model::{
             AudioSettings, CrosshairStyle, HotkeyBinding, MacroAction, MacroGroup, MacroPreset,
             MacroStep, MacroTriggerMode, MousePathEvent, MousePathEventKind, MousePathPreset,
             MouseSensitivityPreset, PinPreset, ProfileRecord, RgbaColor, SoundLibraryItem,
-            SoundPreset, ToolboxPreset, WindowAnchor, WindowExpandControls,
-            WindowExpandDirection, WindowFocusPreset, WindowPreset,
+            SoundPreset, ToolboxPreset, WindowAnchor, WindowExpandControls, WindowExpandDirection,
+            WindowFocusPreset, WindowPreset,
         },
         platform,
         render::{RenderedCrosshair, render_crosshair},
@@ -119,6 +112,8 @@ mod windows_overlay {
     const WMAPP_TRAYICON: u32 = WM_APP + 1;
     const WMAPP_PROCESS_QUEUE: u32 = WM_APP + 2;
     const MACRO_PRESET_BASE_ID: i32 = 10000;
+    const INTERCEPTION_MOUSE_DEVICE_START: i32 = 11;
+    const INTERCEPTION_MOUSE_DEVICE_END: i32 = 20;
 
     const MENU_TOGGLE: usize = 2001;
     const MENU_SHOW: usize = 2002;
@@ -135,6 +130,10 @@ mod windows_overlay {
     static MOUSE_RECORDING: Lazy<Mutex<Option<MouseRecordingSession>>> =
         Lazy::new(|| Mutex::new(None));
     static HOOK_STATE: Lazy<Mutex<HookState>> = Lazy::new(|| Mutex::new(HookState::default()));
+    thread_local! {
+        static INTERCEPTION_MOUSE_SENDER: RefCell<InterceptionMouseSender> =
+            RefCell::new(InterceptionMouseSender::default());
+    }
     static OVERLAY_COMMAND_TX: Lazy<Mutex<Option<Sender<OverlayCommand>>>> =
         Lazy::new(|| Mutex::new(None));
     static UI_CONTEXT: Lazy<Mutex<Option<egui::Context>>> = Lazy::new(|| Mutex::new(None));
@@ -154,6 +153,7 @@ mod windows_overlay {
             restore_on_exit: bool,
             restore_speed: u32,
         },
+        UpdateMouseDriverSettings(bool),
         ApplyMouseSensitivityPreset(u32),
         RestoreMouseSensitivity,
         UpdateToolboxPresets(Vec<ToolboxPreset>),
@@ -215,6 +215,7 @@ mod windows_overlay {
         mouse_sensitivity_presets: Vec<MouseSensitivityPreset>,
         active_mouse_sensitivity_preset_id: Option<u32>,
         mouse_sensitivity_restore_speed: Option<u32>,
+        mouse_use_interception_driver: bool,
         mouse_sensitivity_restore_on_exit: bool,
         mouse_sensitivity_exit_restore_speed: u32,
         active_pin_preset_id: Option<u32>,
@@ -255,6 +256,7 @@ mod windows_overlay {
                 mouse_sensitivity_presets: Vec::new(),
                 active_mouse_sensitivity_preset_id: None,
                 mouse_sensitivity_restore_speed: None,
+                mouse_use_interception_driver: false,
                 mouse_sensitivity_restore_on_exit: false,
                 mouse_sensitivity_exit_restore_speed: 6,
                 active_pin_preset_id: None,
@@ -282,6 +284,39 @@ mod windows_overlay {
                 pressed_inputs: HashSet::new(),
                 held_mouse_buttons: HashSet::new(),
             }
+        }
+    }
+
+    #[derive(Default)]
+    struct InterceptionMouseSender {
+        context: Option<Interception>,
+        mouse_device: Option<i32>,
+    }
+
+    impl InterceptionMouseSender {
+        fn send(&mut self, strokes: &[Stroke]) -> bool {
+            if self.context.is_none() {
+                self.context = Interception::new();
+            }
+            let preferred_device = self.mouse_device;
+            let Some(context) = self.context.as_ref() else {
+                return false;
+            };
+
+            if let Some(device) = preferred_device
+                && context.send(device, strokes) > 0
+            {
+                return true;
+            }
+
+            for device in INTERCEPTION_MOUSE_DEVICE_START..=INTERCEPTION_MOUSE_DEVICE_END {
+                if context.send(device, strokes) > 0 {
+                    self.mouse_device = Some(device);
+                    return true;
+                }
+            }
+
+            false
         }
     }
 
@@ -419,7 +454,11 @@ mod windows_overlay {
     ) -> Result<()> {
         unsafe {
             let instance = HINSTANCE(GetModuleHandleW(None)?.0);
-            register_class(instance, w!("CrosshairController"), Some(controller_wnd_proc))?;
+            register_class(
+                instance,
+                w!("CrosshairController"),
+                Some(controller_wnd_proc),
+            )?;
             register_class(instance, w!("CrosshairOverlay"), Some(overlay_wnd_proc))?;
             register_class(instance, w!("CrosshairToolbox"), Some(toolbox_wnd_proc))?;
             let overlay_hwnd = CreateWindowExW(
@@ -480,7 +519,11 @@ mod windows_overlay {
             )?;
 
             let pin_hwnd = CreateWindowExW(
-                WS_EX_LAYERED | WS_EX_TOOLWINDOW | WS_EX_TOPMOST | WS_EX_NOACTIVATE | WS_EX_TRANSPARENT,
+                WS_EX_LAYERED
+                    | WS_EX_TOOLWINDOW
+                    | WS_EX_TOPMOST
+                    | WS_EX_NOACTIVATE
+                    | WS_EX_TRANSPARENT,
                 w!("CrosshairOverlay"),
                 w!("CrosshairPinHost"),
                 WS_POPUP,
@@ -603,14 +646,19 @@ mod windows_overlay {
             WM_NCCREATE => {
                 let create = lparam.0 as *const CREATESTRUCTW;
                 let runtime = (*create).lpCreateParams as *mut Runtime;
-                SetWindowLongPtrW(hwnd, WINDOW_LONG_PTR_INDEX(GWLP_USERDATA.0), runtime as isize);
+                SetWindowLongPtrW(
+                    hwnd,
+                    WINDOW_LONG_PTR_INDEX(GWLP_USERDATA.0),
+                    runtime as isize,
+                );
                 LRESULT(1)
             }
             WM_CREATE => {
                 CONTROLLER_HWND.store(hwnd.0 as isize, Ordering::Relaxed);
                 if let Some(runtime) = runtime_mut(hwnd) {
                     let _ = add_tray_icon(hwnd);
-                    let _ = RegisterHotKey(Some(hwnd), HOTKEY_ID, MOD_CONTROL | MOD_ALT, b'X' as u32);
+                    let _ =
+                        RegisterHotKey(Some(hwnd), HOTKEY_ID, MOD_CONTROL | MOD_ALT, b'X' as u32);
                     let _ = SetTimer(Some(hwnd), TIMER_ID, 500, None);
                     let _ = set_input_hooks_enabled(runtime, false);
                     let _ = refresh_overlay(runtime);
@@ -642,18 +690,19 @@ mod windows_overlay {
                             let _ = refresh_pin_overlay(runtime);
                         }
 
-                        let toolbox_active =
-                            TOOLBOX_DISPLAY.lock().is_some()
-                                || TOOLBOX_PREVIEW_DISPLAY.lock().is_some()
-                                || runtime.toolbox_display.is_some();
+                        let toolbox_active = TOOLBOX_DISPLAY.lock().is_some()
+                            || TOOLBOX_PREVIEW_DISPLAY.lock().is_some()
+                            || runtime.toolbox_display.is_some();
                         if toolbox_active {
                             let _ = refresh_toolbox(runtime);
                         }
 
                         let mouse_recording_active = MOUSE_RECORDING.lock().is_some();
                         let mouse_trail_visible =
-                            windows::Win32::UI::WindowsAndMessaging::IsWindowVisible(runtime.mouse_trail_hwnd)
-                                .as_bool();
+                            windows::Win32::UI::WindowsAndMessaging::IsWindowVisible(
+                                runtime.mouse_trail_hwnd,
+                            )
+                            .as_bool();
                         if mouse_recording_active || mouse_trail_visible {
                             let _ = refresh_mouse_record_trail(runtime);
                         }
@@ -700,8 +749,11 @@ mod windows_overlay {
                         }
                     } else if let Some(preset) = runtime.registered_macro_hotkeys.get(&hotkey_id) {
                         if !SUPPRESSED_MACRO_HOTKEYS.lock().contains(&hotkey_id) {
-                            let trigger_key =
-                                preset.hotkey.as_ref().map(|binding| binding.key.clone()).unwrap_or_default();
+                            let trigger_key = preset
+                                .hotkey
+                                .as_ref()
+                                .map(|binding| binding.key.clone())
+                                .unwrap_or_default();
                             let _ = play_macro_preset(
                                 hotkey_id,
                                 preset.clone(),
@@ -775,7 +827,8 @@ mod windows_overlay {
                                 let (enabled, previous) = {
                                     let mut hook_state = HOOK_STATE.lock();
                                     let previous = hook_state.macros_master_enabled;
-                                    hook_state.macros_master_enabled = !hook_state.macros_master_enabled;
+                                    hook_state.macros_master_enabled =
+                                        !hook_state.macros_master_enabled;
                                     hook_state.pending_tray_toggle = Some(previous);
                                     (hook_state.macros_master_enabled, previous)
                                 };
@@ -890,8 +943,7 @@ mod windows_overlay {
         if code == HC_ACTION as i32 {
             let info = *(lparam.0 as *const KBDLLHOOKSTRUCT);
             let msg = wparam.0 as u32;
-            let is_key_event =
-                matches!(msg, WM_KEYDOWN | WM_SYSKEYDOWN | WM_KEYUP | WM_SYSKEYUP);
+            let is_key_event = matches!(msg, WM_KEYDOWN | WM_SYSKEYDOWN | WM_KEYUP | WM_SYSKEYUP);
             let injected = info.flags.0 & 0x10 != 0;
             if is_key_event && !injected {
                 let is_key_down = matches!(msg, WM_KEYDOWN | WM_SYSKEYDOWN);
@@ -945,9 +997,16 @@ mod windows_overlay {
             let mouse_lock_active = is_mouse_locked();
             if mouse_lock_active {
                 match message {
-                    WM_MOUSEMOVE | WM_MOUSEWHEEL | WM_LBUTTONDOWN | WM_LBUTTONUP | WM_RBUTTONDOWN
-                    | WM_RBUTTONUP | WM_MBUTTONDOWN | windows::Win32::UI::WindowsAndMessaging::WM_MBUTTONUP
-                    | WM_XBUTTONDOWN | WM_XBUTTONUP => {
+                    WM_MOUSEMOVE
+                    | WM_MOUSEWHEEL
+                    | WM_LBUTTONDOWN
+                    | WM_LBUTTONUP
+                    | WM_RBUTTONDOWN
+                    | WM_RBUTTONUP
+                    | WM_MBUTTONDOWN
+                    | windows::Win32::UI::WindowsAndMessaging::WM_MBUTTONUP
+                    | WM_XBUTTONDOWN
+                    | WM_XBUTTONUP => {
                         update_held_mouse_button(message, ((info.mouseData >> 16) & 0xFFFF) as u16);
                         return LRESULT(1);
                     }
@@ -990,7 +1049,8 @@ mod windows_overlay {
         let ctrl_down = unsafe { GetAsyncKeyState(0x11) } < 0;
         let alt_down = unsafe { GetAsyncKeyState(0x12) } < 0;
         let shift_down = unsafe { GetAsyncKeyState(0x10) } < 0;
-        let win_down = unsafe { GetAsyncKeyState(0x5B) } < 0 || unsafe { GetAsyncKeyState(0x5C) } < 0;
+        let win_down =
+            unsafe { GetAsyncKeyState(0x5B) } < 0 || unsafe { GetAsyncKeyState(0x5C) } < 0;
         HotkeyBinding {
             ctrl: ctrl_down && !key_name.eq_ignore_ascii_case("Ctrl"),
             alt: alt_down && !key_name.eq_ignore_ascii_case("Alt"),
@@ -1034,8 +1094,13 @@ mod windows_overlay {
     fn toggle_mouse_recording(preset_id: u32, preset_name: String) {
         let finished = {
             let mut guard = MOUSE_RECORDING.lock();
-            if guard.as_ref().is_some_and(|session| session.preset_id == preset_id) {
-                guard.take().map(|session| (session.preset_id, session.events))
+            if guard
+                .as_ref()
+                .is_some_and(|session| session.preset_id == preset_id)
+            {
+                guard
+                    .take()
+                    .map(|session| (session.preset_id, session.events))
             } else {
                 *guard = Some(MouseRecordingSession {
                     preset_id,
@@ -1131,7 +1196,9 @@ mod windows_overlay {
         };
         if matches!(kind, MousePathEventKind::Move)
             && session.events.last().is_some_and(|last| {
-                matches!(last.kind, MousePathEventKind::Move) && last.x == point.x && last.y == point.y
+                matches!(last.kind, MousePathEventKind::Move)
+                    && last.x == point.x
+                    && last.y == point.y
             })
         {
             return;
@@ -1157,7 +1224,10 @@ mod windows_overlay {
             return Some(swallow);
         }
 
-        if !binding.ctrl && !binding.alt && !binding.shift && !binding.win
+        if !binding.ctrl
+            && !binding.alt
+            && !binding.shift
+            && !binding.win
             && let Ok(consumed) = apply_selector_choice(&binding.key)
             && consumed
         {
@@ -1312,9 +1382,16 @@ mod windows_overlay {
         }
 
         let mut matched_any_macro = false;
-        let mut hold_matches: Vec<(MacroPreset, HotkeyBinding, Option<String>, Vec<String>, bool, String)> =
+        let mut hold_matches: Vec<(
+            MacroPreset,
+            HotkeyBinding,
+            Option<String>,
+            Vec<String>,
+            bool,
+            String,
+        )> = Vec::new();
+        let mut press_matches: Vec<(MacroPreset, Option<String>, Vec<String>, bool, String)> =
             Vec::new();
-        let mut press_matches: Vec<(MacroPreset, Option<String>, Vec<String>, bool, String)> = Vec::new();
         let mut selector_matches: Vec<(u32, u32)> = Vec::new();
 
         for group in &hook_state.macro_groups {
@@ -1355,7 +1432,7 @@ mod windows_overlay {
                         binding.alt,
                         binding.shift,
                         binding.win,
-                )
+                    )
                 {
                     matched_any_macro = true;
                     if preset.trigger_mode == MacroTriggerMode::Hold {
@@ -1412,7 +1489,15 @@ mod windows_overlay {
             }
         }
 
-        for (preset, trigger, target_window_title, extra_target_window_titles, match_duplicate_window_titles, trigger_key) in hold_matches {
+        for (
+            preset,
+            trigger,
+            target_window_title,
+            extra_target_window_titles,
+            match_duplicate_window_titles,
+            trigger_key,
+        ) in hold_matches
+        {
             activate_hold_macro(
                 preset,
                 trigger,
@@ -1423,7 +1508,14 @@ mod windows_overlay {
             );
         }
 
-        for (preset, target_window_title, extra_target_window_titles, match_duplicate_window_titles, trigger_key) in press_matches {
+        for (
+            preset,
+            target_window_title,
+            extra_target_window_titles,
+            match_duplicate_window_titles,
+            trigger_key,
+        ) in press_matches
+        {
             let hotkey_id = MACRO_PRESET_BASE_ID + preset.id as i32;
             if !SUPPRESSED_MACRO_HOTKEYS.lock().contains(&hotkey_id) {
                 let _ = play_macro_preset(
@@ -1522,8 +1614,13 @@ mod windows_overlay {
     fn current_mouse_speed() -> Result<u32> {
         let mut speed = 10u32;
         unsafe {
-            SystemParametersInfoW(SPI_GETMOUSESPEED, 0, Some((&mut speed as *mut u32).cast()), Default::default())
-                .context("Failed to read mouse speed")?;
+            SystemParametersInfoW(
+                SPI_GETMOUSESPEED,
+                0,
+                Some((&mut speed as *mut u32).cast()),
+                Default::default(),
+            )
+            .context("Failed to read mouse speed")?;
         }
         Ok(speed.clamp(1, 20))
     }
@@ -1720,7 +1817,10 @@ mod windows_overlay {
                     hook_state.pin_presets = presets.clone();
                     runtime.pin_presets = presets;
                     if let Some(active_id) = hook_state.active_pin_preset_id
-                        && !hook_state.pin_presets.iter().any(|preset| preset.id == active_id)
+                        && !hook_state
+                            .pin_presets
+                            .iter()
+                            .any(|preset| preset.id == active_id)
                     {
                         hook_state.active_pin_preset_id = None;
                     }
@@ -1750,6 +1850,9 @@ mod windows_overlay {
                     hook_state.mouse_sensitivity_restore_on_exit = restore_on_exit;
                     hook_state.mouse_sensitivity_exit_restore_speed = restore_speed.clamp(1, 20);
                 }
+                OverlayCommand::UpdateMouseDriverSettings(enabled) => {
+                    HOOK_STATE.lock().mouse_use_interception_driver = enabled;
+                }
                 OverlayCommand::ApplyMouseSensitivityPreset(preset_id) => {
                     if let Some(preset) = HOOK_STATE
                         .lock()
@@ -1768,7 +1871,8 @@ mod windows_overlay {
                     HOOK_STATE.lock().toolbox_presets = presets;
                 }
                 OverlayCommand::PreviewToolboxPreset(preset) => {
-                    *TOOLBOX_PREVIEW_DISPLAY.lock() = preset.map(toolbox_preview_display_from_preset);
+                    *TOOLBOX_PREVIEW_DISPLAY.lock() =
+                        preset.map(toolbox_preview_display_from_preset);
                     let _ = refresh_toolbox(runtime);
                 }
                 OverlayCommand::UpdateMacroPresets(presets) => {
@@ -1926,8 +2030,8 @@ mod windows_overlay {
             return 100;
         }
 
-        let pin_active =
-            runtime.active_pin_thumbnail.is_some() || HOOK_STATE.lock().active_pin_preset_id.is_some();
+        let pin_active = runtime.active_pin_thumbnail.is_some()
+            || HOOK_STATE.lock().active_pin_preset_id.is_some();
         if pin_active {
             return 100;
         }
@@ -1943,12 +2047,20 @@ mod windows_overlay {
         let instance = GetModuleHandleW(None)?;
         if enabled {
             if runtime.keyboard_hook.0.is_null() {
-                runtime.keyboard_hook =
-                    SetWindowsHookExW(WH_KEYBOARD_LL, Some(low_level_keyboard_proc), Some(instance.into()), 0)?;
+                runtime.keyboard_hook = SetWindowsHookExW(
+                    WH_KEYBOARD_LL,
+                    Some(low_level_keyboard_proc),
+                    Some(instance.into()),
+                    0,
+                )?;
             }
             if runtime.mouse_hook.0.is_null() {
-                runtime.mouse_hook =
-                    SetWindowsHookExW(WH_MOUSE_LL, Some(low_level_mouse_proc), Some(instance.into()), 0)?;
+                runtime.mouse_hook = SetWindowsHookExW(
+                    WH_MOUSE_LL,
+                    Some(low_level_mouse_proc),
+                    Some(instance.into()),
+                    0,
+                )?;
             }
         } else {
             if !runtime.keyboard_hook.0.is_null() {
@@ -1974,9 +2086,13 @@ mod windows_overlay {
     fn refresh_pin_overlay(runtime: &mut Runtime) -> Result<()> {
         let active = {
             let hook_state = HOOK_STATE.lock();
-            hook_state
-                .active_pin_preset_id
-                .and_then(|id| hook_state.pin_presets.iter().find(|preset| preset.id == id).cloned())
+            hook_state.active_pin_preset_id.and_then(|id| {
+                hook_state
+                    .pin_presets
+                    .iter()
+                    .find(|preset| preset.id == id)
+                    .cloned()
+            })
         };
 
         let Some(preset) = active else {
@@ -2002,10 +2118,13 @@ mod windows_overlay {
             preset.match_duplicate_window_titles,
             false,
         )
-            .context("Pin source window was not found")?;
+        .context("Pin source window was not found")?;
         unsafe {
             let source_root = GetAncestor(source, GA_ROOT);
-            if !source_root.0.is_null() && window_belongs_to_current_process(source_root) && !is_internal_app_window(source_root) {
+            if !source_root.0.is_null()
+                && window_belongs_to_current_process(source_root)
+                && !is_internal_app_window(source_root)
+            {
                 let _ = ShowWindow(runtime.pin_hwnd, SW_HIDE);
                 runtime.last_pin_update = Instant::now();
                 return Ok(());
@@ -2032,7 +2151,12 @@ mod windows_overlay {
             let mut source_rect = RECT::default();
             GetWindowRect(source, &mut source_rect)?;
             let (target_x, target_y, target_w, target_h) = if preset.use_custom_bounds {
-                (preset.x, preset.y, preset.width.max(1), preset.height.max(1))
+                (
+                    preset.x,
+                    preset.y,
+                    preset.width.max(1),
+                    preset.height.max(1),
+                )
             } else {
                 (
                     source_rect.left,
@@ -2069,8 +2193,8 @@ mod windows_overlay {
                     source_flags |= DWM_TNP_RECTSOURCE;
                 }
                 let target_bounds = (target_x, target_y, target_w, target_h);
-                let needs_apply =
-                    active.last_target_bounds != target_bounds || active.last_source_crop != source_crop_key;
+                let needs_apply = active.last_target_bounds != target_bounds
+                    || active.last_source_crop != source_crop_key;
                 if needs_apply {
                     let _ = SetWindowPos(
                         runtime.pin_hwnd,
@@ -2147,7 +2271,11 @@ mod windows_overlay {
         let bg_alpha = (display.background_opacity.clamp(0.0, 1.0) * 255.0).round() as u8;
         let bytes_len = (width as usize) * (height as usize) * 4;
         let pixels = std::slice::from_raw_parts_mut(bits_ptr as *mut u8, bytes_len);
-        let radius = if display.rounded_background { 16.0 } else { 0.0 };
+        let radius = if display.rounded_background {
+            16.0
+        } else {
+            0.0
+        };
         let bg_b = ((display.background_color.b as u32 * bg_alpha as u32) / 255) as u8;
         let bg_g = ((display.background_color.g as u32 * bg_alpha as u32) / 255) as u8;
         let bg_r = ((display.background_color.r as u32 * bg_alpha as u32) / 255) as u8;
@@ -2300,7 +2428,12 @@ mod windows_overlay {
     }
 
     fn sync_window_hotkeys(hwnd: HWND, runtime: &mut Runtime) -> Result<()> {
-        for hotkey_id in runtime.registered_window_hotkeys.keys().copied().collect::<Vec<_>>() {
+        for hotkey_id in runtime
+            .registered_window_hotkeys
+            .keys()
+            .copied()
+            .collect::<Vec<_>>()
+        {
             let _ = unsafe { UnregisterHotKey(Some(hwnd), hotkey_id) };
         }
         runtime.registered_window_hotkeys.clear();
@@ -2312,7 +2445,12 @@ mod windows_overlay {
     }
 
     fn sync_macro_hotkeys(hwnd: HWND, runtime: &mut Runtime) -> Result<()> {
-        for hotkey_id in runtime.registered_macro_hotkeys.keys().copied().collect::<Vec<_>>() {
+        for hotkey_id in runtime
+            .registered_macro_hotkeys
+            .keys()
+            .copied()
+            .collect::<Vec<_>>()
+        {
             let _ = unsafe { UnregisterHotKey(Some(hwnd), hotkey_id) };
         }
         runtime.registered_macro_hotkeys.clear();
@@ -2325,10 +2463,20 @@ mod windows_overlay {
             return;
         };
         let _ = unsafe { UnregisterHotKey(Some(hwnd), HOTKEY_ID) };
-        for hotkey_id in runtime.registered_window_hotkeys.keys().copied().collect::<Vec<_>>() {
+        for hotkey_id in runtime
+            .registered_window_hotkeys
+            .keys()
+            .copied()
+            .collect::<Vec<_>>()
+        {
             let _ = unsafe { UnregisterHotKey(Some(hwnd), hotkey_id) };
         }
-        for hotkey_id in runtime.registered_macro_hotkeys.keys().copied().collect::<Vec<_>>() {
+        for hotkey_id in runtime
+            .registered_macro_hotkeys
+            .keys()
+            .copied()
+            .collect::<Vec<_>>()
+        {
             let _ = unsafe { UnregisterHotKey(Some(hwnd), hotkey_id) };
         }
     }
@@ -2389,7 +2537,10 @@ mod windows_overlay {
         match_duplicate_window_titles: bool,
         trigger_key: String,
     ) {
-        let stale_run_exists = HOOK_STATE.lock().active_hold_macros.contains_key(&preset.id);
+        let stale_run_exists = HOOK_STATE
+            .lock()
+            .active_hold_macros
+            .contains_key(&preset.id);
         if stale_run_exists {
             deactivate_hold_macro(preset.id);
         }
@@ -2498,7 +2649,10 @@ mod windows_overlay {
     }
 
     fn apply_window_preset_by_id(spec: &str) -> Result<()> {
-        let preset_id = spec.trim().parse::<u32>().context("Window preset id is invalid")?;
+        let preset_id = spec
+            .trim()
+            .parse::<u32>()
+            .context("Window preset id is invalid")?;
         let mut preset = {
             let hook_state = HOOK_STATE.lock();
             hook_state
@@ -2513,7 +2667,10 @@ mod windows_overlay {
     }
 
     fn focus_window_by_preset_id(spec: &str) -> Result<()> {
-        let preset_id = spec.trim().parse::<u32>().context("Window preset id is invalid")?;
+        let preset_id = spec
+            .trim()
+            .parse::<u32>()
+            .context("Window preset id is invalid")?;
         let preset = {
             let hook_state = HOOK_STATE.lock();
             hook_state
@@ -2552,7 +2709,7 @@ mod windows_overlay {
             match_duplicate_window_titles,
             prefer_other_if_foreground_matches,
         )
-            .context("Target window was not found")?;
+        .context("Target window was not found")?;
         unsafe {
             let foreground = GetForegroundWindow();
             if foreground == hwnd && !IsIconic(hwnd).as_bool() {
@@ -2621,8 +2778,16 @@ mod windows_overlay {
                 .filter(|key| {
                     !matches!(
                         key.as_str(),
-                        "Ctrl" | "Alt" | "Shift" | "Win" | "Tab" | "MouseLeft" | "MouseRight"
-                            | "MouseMiddle" | "MouseX1" | "MouseX2"
+                        "Ctrl"
+                            | "Alt"
+                            | "Shift"
+                            | "Win"
+                            | "Tab"
+                            | "MouseLeft"
+                            | "MouseRight"
+                            | "MouseMiddle"
+                            | "MouseX1"
+                            | "MouseX2"
                     )
                 })
                 .cloned()
@@ -2703,9 +2868,16 @@ mod windows_overlay {
     }
 
     fn enable_pin_preset(spec: &str) -> Result<()> {
-        let preset_id = spec.trim().parse::<u32>().context("Pin preset id is invalid")?;
+        let preset_id = spec
+            .trim()
+            .parse::<u32>()
+            .context("Pin preset id is invalid")?;
         let mut hook_state = HOOK_STATE.lock();
-        if !hook_state.pin_presets.iter().any(|preset| preset.id == preset_id) {
+        if !hook_state
+            .pin_presets
+            .iter()
+            .any(|preset| preset.id == preset_id)
+        {
             bail!("Pin preset was not found");
         }
         hook_state.active_pin_preset_id = Some(preset_id);
@@ -2719,7 +2891,10 @@ mod windows_overlay {
     }
 
     fn play_sound_preset(spec: &str) -> Result<()> {
-        let preset_id = spec.trim().parse::<u32>().context("Sound preset id is invalid")?;
+        let preset_id = spec
+            .trim()
+            .parse::<u32>()
+            .context("Sound preset id is invalid")?;
         let clips = {
             let hook_state = HOOK_STATE.lock();
             let preset = hook_state
@@ -2775,7 +2950,9 @@ mod windows_overlay {
             let speed = step.mouse_speed_percent.max(10) as f32 / 100.0;
             let mut last_pos: Option<(i32, i32)> = None;
             for event in &events {
-                if preset_id.is_some_and(|id| macro_stop_requested(id, stop_immediately_on_retrigger)) {
+                if preset_id
+                    .is_some_and(|id| macro_stop_requested(id, stop_immediately_on_retrigger))
+                {
                     return Ok(());
                 }
                 match event.kind {
@@ -2783,21 +2960,27 @@ mod windows_overlay {
                         if let Some((from_x, from_y)) = last_pos {
                             let dx = event.x - from_x;
                             let dy = event.y - from_y;
-                            let distance =
-                                (((dx * dx + dy * dy) as f32).sqrt()).max(1.0);
+                            let distance = (((dx * dx + dy * dy) as f32).sqrt()).max(1.0);
                             let duration_ms = ((distance / (900.0 * speed)) * 1000.0)
                                 .round()
-                                .clamp(1.0, 5_000.0) as u64;
+                                .clamp(1.0, 5_000.0)
+                                as u64;
                             let steps = (duration_ms / 8).max(1);
                             for index in 1..=steps {
-                                if preset_id.is_some_and(|id| macro_stop_requested(id, stop_immediately_on_retrigger)) {
+                                if preset_id.is_some_and(|id| {
+                                    macro_stop_requested(id, stop_immediately_on_retrigger)
+                                }) {
                                     return Ok(());
                                 }
                                 let t = index as f32 / steps as f32;
                                 let x = from_x as f32 + dx as f32 * t;
                                 let y = from_y as f32 + dy as f32 * t;
                                 send_mouse_move_absolute(x.round() as i32, y.round() as i32)?;
-                                if sleep_for_mouse_path_delay(preset_id, 8, stop_immediately_on_retrigger) {
+                                if sleep_for_mouse_path_delay(
+                                    preset_id,
+                                    8,
+                                    stop_immediately_on_retrigger,
+                                ) {
                                     return Ok(());
                                 }
                             }
@@ -2807,7 +2990,11 @@ mod windows_overlay {
                         last_pos = Some((event.x, event.y));
                     }
                     _ => {
-                        if sleep_for_mouse_path_delay(preset_id, event.delay_ms, stop_immediately_on_retrigger) {
+                        if sleep_for_mouse_path_delay(
+                            preset_id,
+                            event.delay_ms,
+                            stop_immediately_on_retrigger,
+                        ) {
                             return Ok(());
                         }
                         let pseudo_step = MacroStep {
@@ -2832,7 +3019,11 @@ mod windows_overlay {
             }
         } else {
             for event in &events {
-                if sleep_for_mouse_path_delay(preset_id, event.delay_ms, stop_immediately_on_retrigger) {
+                if sleep_for_mouse_path_delay(
+                    preset_id,
+                    event.delay_ms,
+                    stop_immediately_on_retrigger,
+                ) {
                     return Ok(());
                 }
                 let pseudo_step = MacroStep {
@@ -2879,10 +3070,17 @@ mod windows_overlay {
     fn disable_zoom_overlay() {}
 
     fn set_macro_preset_enabled(spec: &str, enabled: bool) -> Result<()> {
-        let preset_id = spec.trim().parse::<u32>().context("Macro preset id is invalid")?;
+        let preset_id = spec
+            .trim()
+            .parse::<u32>()
+            .context("Macro preset id is invalid")?;
         let mut hook_state = HOOK_STATE.lock();
         for group in &mut hook_state.macro_groups {
-            if let Some(preset) = group.presets.iter_mut().find(|preset| preset.id == preset_id) {
+            if let Some(preset) = group
+                .presets
+                .iter_mut()
+                .find(|preset| preset.id == preset_id)
+            {
                 preset.enabled = enabled;
                 let updated_groups = hook_state.macro_groups.clone();
                 let status = format!(
@@ -2949,7 +3147,8 @@ mod windows_overlay {
             .options
             .iter()
             .find(|option| option.choice_key.eq_ignore_ascii_case(binding_key))
-            .cloned() else {
+            .cloned()
+        else {
             return Ok(false);
         };
 
@@ -2978,7 +3177,8 @@ mod windows_overlay {
                 .enable_preset_ids
                 .iter()
                 .filter_map(|id| {
-                    group.presets
+                    group
+                        .presets
                         .iter()
                         .find(|preset| preset.id == *id)
                         .map(|preset| hotkey::format_binding(preset.hotkey.as_ref()))
@@ -3036,10 +3236,7 @@ mod windows_overlay {
         });
     }
 
-    fn execute_hold_abort_step(
-        preset_id: u32,
-        step: &MacroStep,
-    ) {
+    fn execute_hold_abort_step(preset_id: u32, step: &MacroStep) {
         match step.action {
             MacroAction::LoopStart
             | MacroAction::LoopEnd
@@ -3137,7 +3334,9 @@ mod windows_overlay {
             ) {
                 return MacroRunFlow::StopExecution;
             }
-            if stop_immediately_on_retrigger && STOP_REQUESTED_MACRO_PRESETS.lock().contains(&preset_id) {
+            if stop_immediately_on_retrigger
+                && STOP_REQUESTED_MACRO_PRESETS.lock().contains(&preset_id)
+            {
                 return MacroRunFlow::StopExecution;
             }
             let step = &steps[index];
@@ -3350,7 +3549,9 @@ mod windows_overlay {
             ) {
                 return MacroRunFlow::StopExecution;
             }
-            if stop_immediately_on_retrigger && STOP_REQUESTED_MACRO_PRESETS.lock().contains(&preset_id) {
+            if stop_immediately_on_retrigger
+                && STOP_REQUESTED_MACRO_PRESETS.lock().contains(&preset_id)
+            {
                 return MacroRunFlow::StopExecution;
             }
             let step = &steps[index];
@@ -3542,8 +3743,7 @@ mod windows_overlay {
                 target_window_title,
                 extra_target_window_titles,
                 match_duplicate_window_titles,
-            )
-                || !current_hold_run_matches(preset_id, run_token)
+            ) || !current_hold_run_matches(preset_id, run_token)
                 || (stop_immediately_on_retrigger
                     && STOP_REQUESTED_MACRO_PRESETS.lock().contains(&preset_id));
         }
@@ -3560,7 +3760,9 @@ mod windows_overlay {
             ) {
                 return true;
             }
-            if stop_immediately_on_retrigger && STOP_REQUESTED_MACRO_PRESETS.lock().contains(&preset_id) {
+            if stop_immediately_on_retrigger
+                && STOP_REQUESTED_MACRO_PRESETS.lock().contains(&preset_id)
+            {
                 return true;
             }
             let chunk_ms = remaining_ms.min(10);
@@ -3571,9 +3773,9 @@ mod windows_overlay {
             target_window_title,
             extra_target_window_titles,
             match_duplicate_window_titles,
-        )
-            || !current_hold_run_matches(preset_id, run_token)
-            || (stop_immediately_on_retrigger && STOP_REQUESTED_MACRO_PRESETS.lock().contains(&preset_id))
+        ) || !current_hold_run_matches(preset_id, run_token)
+            || (stop_immediately_on_retrigger
+                && STOP_REQUESTED_MACRO_PRESETS.lock().contains(&preset_id))
     }
 
     fn sleep_for_macro_delay(
@@ -3601,7 +3803,9 @@ mod windows_overlay {
             ) {
                 return true;
             }
-            if stop_immediately_on_retrigger && STOP_REQUESTED_MACRO_PRESETS.lock().contains(&preset_id) {
+            if stop_immediately_on_retrigger
+                && STOP_REQUESTED_MACRO_PRESETS.lock().contains(&preset_id)
+            {
                 return true;
             }
             let chunk_ms = remaining_ms.min(10);
@@ -3612,9 +3816,8 @@ mod windows_overlay {
             target_window_title,
             extra_target_window_titles,
             match_duplicate_window_titles,
-        )
-            || (stop_immediately_on_retrigger
-                && STOP_REQUESTED_MACRO_PRESETS.lock().contains(&preset_id))
+        ) || (stop_immediately_on_retrigger
+            && STOP_REQUESTED_MACRO_PRESETS.lock().contains(&preset_id))
     }
 
     fn find_matching_loop_end(steps: &[MacroStep], start_index: usize) -> Option<usize> {
@@ -3662,7 +3865,10 @@ mod windows_overlay {
         extra_target_window_titles: &[String],
         match_duplicate_window_titles: bool,
     ) -> Result<()> {
-        let preset_id = spec.trim().parse::<u32>().context("Macro preset id is invalid")?;
+        let preset_id = spec
+            .trim()
+            .parse::<u32>()
+            .context("Macro preset id is invalid")?;
         let preset = {
             let hook_state = HOOK_STATE.lock();
             hook_state
@@ -3705,11 +3911,7 @@ mod windows_overlay {
                 .collect();
         }
 
-        if trimmed.len() > 1
-            && trimmed
-                .chars()
-                .all(|ch| ch.is_ascii_alphanumeric())
-        {
+        if trimmed.len() > 1 && trimmed.chars().all(|ch| ch.is_ascii_alphanumeric()) {
             return trimmed
                 .chars()
                 .map(|ch| normalize_locked_key(&ch.to_string()))
@@ -3920,7 +4122,9 @@ mod windows_overlay {
                 if let Some(preset_id) = preset_id
                     && let Some(active) = hook_state.active_hold_macros.get_mut(&preset_id)
                 {
-                    active.locked_keys.retain(|locked| !locked.eq_ignore_ascii_case(key));
+                    active
+                        .locked_keys
+                        .retain(|locked| !locked.eq_ignore_ascii_case(key));
                 }
                 if let Some(count) = hook_state.locked_inputs.get_mut(key) {
                     if *count > 1 {
@@ -3960,7 +4164,11 @@ mod windows_overlay {
                 active.locked_mouse_count = active.locked_mouse_count.saturating_add(1);
             }
             if first_lock {
-                hook_state.held_mouse_buttons.iter().cloned().collect::<Vec<_>>()
+                hook_state
+                    .held_mouse_buttons
+                    .iter()
+                    .cloned()
+                    .collect::<Vec<_>>()
             } else {
                 Vec::new()
             }
@@ -4262,6 +4470,17 @@ mod windows_overlay {
         Ok(())
     }
 
+    fn use_interception_mouse_output() -> bool {
+        HOOK_STATE.lock().mouse_use_interception_driver
+    }
+
+    fn send_mouse_strokes_interception(strokes: &[Stroke]) -> bool {
+        if !use_interception_mouse_output() {
+            return false;
+        }
+        INTERCEPTION_MOUSE_SENDER.with(|sender| sender.borrow_mut().send(strokes))
+    }
+
     fn send_mouse_event(step: &MacroStep) -> Result<()> {
         match step.action {
             MacroAction::MouseMoveAbsolute => {
@@ -4275,28 +4494,286 @@ mod windows_overlay {
             _ => {}
         }
 
-        let (flags, mouse_data, repeat_up) = match step.action {
-            MacroAction::MouseLeftClick => (MOUSEEVENTF_LEFTDOWN, 0, Some(MOUSEEVENTF_LEFTUP)),
-            MacroAction::MouseLeftDown => (MOUSEEVENTF_LEFTDOWN, 0, None),
-            MacroAction::MouseLeftUp => (MOUSEEVENTF_LEFTUP, 0, None),
-            MacroAction::MouseRightClick => (MOUSEEVENTF_RIGHTDOWN, 0, Some(MOUSEEVENTF_RIGHTUP)),
-            MacroAction::MouseRightDown => (MOUSEEVENTF_RIGHTDOWN, 0, None),
-            MacroAction::MouseRightUp => (MOUSEEVENTF_RIGHTUP, 0, None),
-            MacroAction::MouseMiddleClick => {
-                (MOUSEEVENTF_MIDDLEDOWN, 0, Some(MOUSEEVENTF_MIDDLEUP))
-            }
-            MacroAction::MouseMiddleDown => (MOUSEEVENTF_MIDDLEDOWN, 0, None),
-            MacroAction::MouseMiddleUp => (MOUSEEVENTF_MIDDLEUP, 0, None),
-            MacroAction::MouseX1Click => (MOUSEEVENTF_XDOWN, XBUTTON1_DATA as u32, Some(MOUSEEVENTF_XUP)),
-            MacroAction::MouseX1Down => (MOUSEEVENTF_XDOWN, XBUTTON1_DATA as u32, None),
-            MacroAction::MouseX1Up => (MOUSEEVENTF_XUP, XBUTTON1_DATA as u32, None),
-            MacroAction::MouseX2Click => (MOUSEEVENTF_XDOWN, XBUTTON2_DATA as u32, Some(MOUSEEVENTF_XUP)),
-            MacroAction::MouseX2Down => (MOUSEEVENTF_XDOWN, XBUTTON2_DATA as u32, None),
-            MacroAction::MouseX2Up => (MOUSEEVENTF_XUP, XBUTTON2_DATA as u32, None),
-            MacroAction::MouseWheelUp => (MOUSEEVENTF_WHEEL, 120u32, None),
-            MacroAction::MouseWheelDown => (MOUSEEVENTF_WHEEL, (-120i32) as u32, None),
+        let (flags, mouse_data, repeat_up, interception_strokes) = match step.action {
+            MacroAction::MouseLeftClick => (
+                MOUSEEVENTF_LEFTDOWN,
+                0,
+                Some(MOUSEEVENTF_LEFTUP),
+                Some(vec![
+                    Stroke::Mouse {
+                        state: MouseState::LEFT_BUTTON_DOWN,
+                        flags: MouseFlags::empty(),
+                        rolling: 0,
+                        x: 0,
+                        y: 0,
+                        information: 0,
+                    },
+                    Stroke::Mouse {
+                        state: MouseState::LEFT_BUTTON_UP,
+                        flags: MouseFlags::empty(),
+                        rolling: 0,
+                        x: 0,
+                        y: 0,
+                        information: 0,
+                    },
+                ]),
+            ),
+            MacroAction::MouseLeftDown => (
+                MOUSEEVENTF_LEFTDOWN,
+                0,
+                None,
+                Some(vec![Stroke::Mouse {
+                    state: MouseState::LEFT_BUTTON_DOWN,
+                    flags: MouseFlags::empty(),
+                    rolling: 0,
+                    x: 0,
+                    y: 0,
+                    information: 0,
+                }]),
+            ),
+            MacroAction::MouseLeftUp => (
+                MOUSEEVENTF_LEFTUP,
+                0,
+                None,
+                Some(vec![Stroke::Mouse {
+                    state: MouseState::LEFT_BUTTON_UP,
+                    flags: MouseFlags::empty(),
+                    rolling: 0,
+                    x: 0,
+                    y: 0,
+                    information: 0,
+                }]),
+            ),
+            MacroAction::MouseRightClick => (
+                MOUSEEVENTF_RIGHTDOWN,
+                0,
+                Some(MOUSEEVENTF_RIGHTUP),
+                Some(vec![
+                    Stroke::Mouse {
+                        state: MouseState::RIGHT_BUTTON_DOWN,
+                        flags: MouseFlags::empty(),
+                        rolling: 0,
+                        x: 0,
+                        y: 0,
+                        information: 0,
+                    },
+                    Stroke::Mouse {
+                        state: MouseState::RIGHT_BUTTON_UP,
+                        flags: MouseFlags::empty(),
+                        rolling: 0,
+                        x: 0,
+                        y: 0,
+                        information: 0,
+                    },
+                ]),
+            ),
+            MacroAction::MouseRightDown => (
+                MOUSEEVENTF_RIGHTDOWN,
+                0,
+                None,
+                Some(vec![Stroke::Mouse {
+                    state: MouseState::RIGHT_BUTTON_DOWN,
+                    flags: MouseFlags::empty(),
+                    rolling: 0,
+                    x: 0,
+                    y: 0,
+                    information: 0,
+                }]),
+            ),
+            MacroAction::MouseRightUp => (
+                MOUSEEVENTF_RIGHTUP,
+                0,
+                None,
+                Some(vec![Stroke::Mouse {
+                    state: MouseState::RIGHT_BUTTON_UP,
+                    flags: MouseFlags::empty(),
+                    rolling: 0,
+                    x: 0,
+                    y: 0,
+                    information: 0,
+                }]),
+            ),
+            MacroAction::MouseMiddleClick => (
+                MOUSEEVENTF_MIDDLEDOWN,
+                0,
+                Some(MOUSEEVENTF_MIDDLEUP),
+                Some(vec![
+                    Stroke::Mouse {
+                        state: MouseState::MIDDLE_BUTTON_DOWN,
+                        flags: MouseFlags::empty(),
+                        rolling: 0,
+                        x: 0,
+                        y: 0,
+                        information: 0,
+                    },
+                    Stroke::Mouse {
+                        state: MouseState::MIDDLE_BUTTON_UP,
+                        flags: MouseFlags::empty(),
+                        rolling: 0,
+                        x: 0,
+                        y: 0,
+                        information: 0,
+                    },
+                ]),
+            ),
+            MacroAction::MouseMiddleDown => (
+                MOUSEEVENTF_MIDDLEDOWN,
+                0,
+                None,
+                Some(vec![Stroke::Mouse {
+                    state: MouseState::MIDDLE_BUTTON_DOWN,
+                    flags: MouseFlags::empty(),
+                    rolling: 0,
+                    x: 0,
+                    y: 0,
+                    information: 0,
+                }]),
+            ),
+            MacroAction::MouseMiddleUp => (
+                MOUSEEVENTF_MIDDLEUP,
+                0,
+                None,
+                Some(vec![Stroke::Mouse {
+                    state: MouseState::MIDDLE_BUTTON_UP,
+                    flags: MouseFlags::empty(),
+                    rolling: 0,
+                    x: 0,
+                    y: 0,
+                    information: 0,
+                }]),
+            ),
+            MacroAction::MouseX1Click => (
+                MOUSEEVENTF_XDOWN,
+                XBUTTON1_DATA as u32,
+                Some(MOUSEEVENTF_XUP),
+                Some(vec![
+                    Stroke::Mouse {
+                        state: MouseState::BUTTON_4_DOWN,
+                        flags: MouseFlags::empty(),
+                        rolling: 0,
+                        x: 0,
+                        y: 0,
+                        information: 0,
+                    },
+                    Stroke::Mouse {
+                        state: MouseState::BUTTON_4_UP,
+                        flags: MouseFlags::empty(),
+                        rolling: 0,
+                        x: 0,
+                        y: 0,
+                        information: 0,
+                    },
+                ]),
+            ),
+            MacroAction::MouseX1Down => (
+                MOUSEEVENTF_XDOWN,
+                XBUTTON1_DATA as u32,
+                None,
+                Some(vec![Stroke::Mouse {
+                    state: MouseState::BUTTON_4_DOWN,
+                    flags: MouseFlags::empty(),
+                    rolling: 0,
+                    x: 0,
+                    y: 0,
+                    information: 0,
+                }]),
+            ),
+            MacroAction::MouseX1Up => (
+                MOUSEEVENTF_XUP,
+                XBUTTON1_DATA as u32,
+                None,
+                Some(vec![Stroke::Mouse {
+                    state: MouseState::BUTTON_4_UP,
+                    flags: MouseFlags::empty(),
+                    rolling: 0,
+                    x: 0,
+                    y: 0,
+                    information: 0,
+                }]),
+            ),
+            MacroAction::MouseX2Click => (
+                MOUSEEVENTF_XDOWN,
+                XBUTTON2_DATA as u32,
+                Some(MOUSEEVENTF_XUP),
+                Some(vec![
+                    Stroke::Mouse {
+                        state: MouseState::BUTTON_5_DOWN,
+                        flags: MouseFlags::empty(),
+                        rolling: 0,
+                        x: 0,
+                        y: 0,
+                        information: 0,
+                    },
+                    Stroke::Mouse {
+                        state: MouseState::BUTTON_5_UP,
+                        flags: MouseFlags::empty(),
+                        rolling: 0,
+                        x: 0,
+                        y: 0,
+                        information: 0,
+                    },
+                ]),
+            ),
+            MacroAction::MouseX2Down => (
+                MOUSEEVENTF_XDOWN,
+                XBUTTON2_DATA as u32,
+                None,
+                Some(vec![Stroke::Mouse {
+                    state: MouseState::BUTTON_5_DOWN,
+                    flags: MouseFlags::empty(),
+                    rolling: 0,
+                    x: 0,
+                    y: 0,
+                    information: 0,
+                }]),
+            ),
+            MacroAction::MouseX2Up => (
+                MOUSEEVENTF_XUP,
+                XBUTTON2_DATA as u32,
+                None,
+                Some(vec![Stroke::Mouse {
+                    state: MouseState::BUTTON_5_UP,
+                    flags: MouseFlags::empty(),
+                    rolling: 0,
+                    x: 0,
+                    y: 0,
+                    information: 0,
+                }]),
+            ),
+            MacroAction::MouseWheelUp => (
+                MOUSEEVENTF_WHEEL,
+                120u32,
+                None,
+                Some(vec![Stroke::Mouse {
+                    state: MouseState::WHEEL,
+                    flags: MouseFlags::empty(),
+                    rolling: 120,
+                    x: 0,
+                    y: 0,
+                    information: 0,
+                }]),
+            ),
+            MacroAction::MouseWheelDown => (
+                MOUSEEVENTF_WHEEL,
+                (-120i32) as u32,
+                None,
+                Some(vec![Stroke::Mouse {
+                    state: MouseState::WHEEL,
+                    flags: MouseFlags::empty(),
+                    rolling: -120,
+                    x: 0,
+                    y: 0,
+                    information: 0,
+                }]),
+            ),
             _ => bail!("Unsupported mouse action"),
         };
+
+        if let Some(strokes) = interception_strokes.as_deref()
+            && send_mouse_strokes_interception(strokes)
+        {
+            return Ok(());
+        }
 
         let input = INPUT {
             r#type: INPUT_MOUSE,
@@ -4341,8 +4818,20 @@ mod windows_overlay {
     fn send_mouse_move_absolute(x: i32, y: i32) -> Result<()> {
         let screen_w = unsafe { GetSystemMetrics(SM_CXSCREEN) }.max(1);
         let screen_h = unsafe { GetSystemMetrics(SM_CYSCREEN) }.max(1);
-        let normalized_x = ((x.clamp(0, screen_w - 1) as i64) * 65535 / (screen_w - 1).max(1) as i64) as i32;
-        let normalized_y = ((y.clamp(0, screen_h - 1) as i64) * 65535 / (screen_h - 1).max(1) as i64) as i32;
+        let normalized_x =
+            ((x.clamp(0, screen_w - 1) as i64) * 65535 / (screen_w - 1).max(1) as i64) as i32;
+        let normalized_y =
+            ((y.clamp(0, screen_h - 1) as i64) * 65535 / (screen_h - 1).max(1) as i64) as i32;
+        if send_mouse_strokes_interception(&[Stroke::Mouse {
+            state: MouseState::empty(),
+            flags: MouseFlags::MOVE_ABSOLUTE,
+            rolling: 0,
+            x: normalized_x,
+            y: normalized_y,
+            information: 0,
+        }]) {
+            return Ok(());
+        }
         let input = INPUT {
             r#type: INPUT_MOUSE,
             Anonymous: INPUT_0 {
@@ -4366,6 +4855,16 @@ mod windows_overlay {
     }
 
     fn send_mouse_move_relative(dx: i32, dy: i32) -> Result<()> {
+        if send_mouse_strokes_interception(&[Stroke::Mouse {
+            state: MouseState::empty(),
+            flags: MouseFlags::empty(),
+            rolling: 0,
+            x: dx,
+            y: dy,
+            information: 0,
+        }]) {
+            return Ok(());
+        }
         let input = INPUT {
             r#type: INPUT_MOUSE,
             Anonymous: INPUT_0 {
@@ -4424,7 +4923,10 @@ mod windows_overlay {
 
     fn looks_like_main_ui_window(hwnd: HWND) -> bool {
         unsafe {
-            if hwnd.0.is_null() || !window_belongs_to_current_process(hwnd) || is_internal_app_window(hwnd) {
+            if hwnd.0.is_null()
+                || !window_belongs_to_current_process(hwnd)
+                || is_internal_app_window(hwnd)
+            {
                 return false;
             }
             if GetAncestor(hwnd, GA_ROOT) != hwnd {
@@ -4548,7 +5050,10 @@ mod windows_overlay {
                 bail!("No foreground window is available");
             }
             let target_root = GetAncestor(target, GA_ROOT);
-            if !target_root.0.is_null() && window_belongs_to_current_process(target_root) && !is_internal_app_window(target_root) {
+            if !target_root.0.is_null()
+                && window_belongs_to_current_process(target_root)
+                && !is_internal_app_window(target_root)
+            {
                 return Ok(());
             }
 
@@ -4589,7 +5094,10 @@ mod windows_overlay {
                 bail!("No foreground window is available");
             }
             let target_root = GetAncestor(target, GA_ROOT);
-            if !target_root.0.is_null() && window_belongs_to_current_process(target_root) && !is_internal_app_window(target_root) {
+            if !target_root.0.is_null()
+                && window_belongs_to_current_process(target_root)
+                && !is_internal_app_window(target_root)
+            {
                 return Ok(());
             }
 
@@ -4624,7 +5132,10 @@ mod windows_overlay {
                 bail!("No foreground window is available");
             }
             let target_root = GetAncestor(target, GA_ROOT);
-            if !target_root.0.is_null() && window_belongs_to_current_process(target_root) && !is_internal_app_window(target_root) {
+            if !target_root.0.is_null()
+                && window_belongs_to_current_process(target_root)
+                && !is_internal_app_window(target_root)
+            {
                 return Ok(());
             }
 
@@ -4642,7 +5153,10 @@ mod windows_overlay {
                 bail!("No foreground window is available");
             }
             let target_root = GetAncestor(target, GA_ROOT);
-            if !target_root.0.is_null() && window_belongs_to_current_process(target_root) && !is_internal_app_window(target_root) {
+            if !target_root.0.is_null()
+                && window_belongs_to_current_process(target_root)
+                && !is_internal_app_window(target_root)
+            {
                 return Ok(());
             }
 
@@ -4851,15 +5365,14 @@ mod windows_overlay {
                 size_of::<RECT>() as u32,
             );
 
-            let (left_invisible, top_invisible) =
-                if frame_result.is_ok() {
-                    (
-                        frame_rect.left - window_rect.left,
-                        frame_rect.top - window_rect.top,
-                    )
-                } else {
-                    (0, 0)
-                };
+            let (left_invisible, top_invisible) = if frame_result.is_ok() {
+                (
+                    frame_rect.left - window_rect.left,
+                    frame_rect.top - window_rect.top,
+                )
+            } else {
+                (0, 0)
+            };
             let (right_invisible, bottom_invisible) = if frame_result.is_ok() {
                 (
                     window_rect.right - frame_rect.right,
@@ -5047,11 +5560,7 @@ mod windows_overlay {
             match_duplicate_window_titles,
             prefer_other_if_foreground_matches,
         );
-        if hwnd.0.is_null() {
-            None
-        } else {
-            Some(hwnd)
-        }
+        if hwnd.0.is_null() { None } else { Some(hwnd) }
     }
 
     fn shutdown_application(hwnd: HWND, runtime: &Runtime) -> Result<()> {
@@ -5108,7 +5617,10 @@ mod windows_overlay {
         found
     }
 
-    unsafe extern "system" fn find_window_by_selector_proc(hwnd: HWND, lparam: LPARAM) -> windows::core::BOOL {
+    unsafe extern "system" fn find_window_by_selector_proc(
+        hwnd: HWND,
+        lparam: LPARAM,
+    ) -> windows::core::BOOL {
         let (target, found) = &mut *(lparam.0 as *mut (&str, &mut Option<HWND>));
         if !windows::Win32::UI::WindowsAndMessaging::IsWindowVisible(hwnd).as_bool() {
             return true.into();
@@ -5191,15 +5703,13 @@ mod windows_overlay {
         {
             return true;
         }
-        extra_target_titles
-            .iter()
-            .any(|target| {
-                window_matches_selector_with_duplicate_titles(
-                    hwnd,
-                    target,
-                    match_duplicate_window_titles,
-                )
-            })
+        extra_target_titles.iter().any(|target| {
+            window_matches_selector_with_duplicate_titles(
+                hwnd,
+                target,
+                match_duplicate_window_titles,
+            )
+        })
     }
 
     unsafe fn window_title(hwnd: HWND) -> Option<String> {
@@ -5276,7 +5786,10 @@ mod windows_overlay {
         let bgra = rgba_to_bgra(&rendered.rgba);
         std::ptr::copy_nonoverlapping(bgra.as_ptr(), bits as *mut u8, bgra.len());
 
-        let destination = POINT { x: window_x, y: window_y };
+        let destination = POINT {
+            x: window_x,
+            y: window_y,
+        };
         let source = POINT { x: 0, y: 0 };
         let size = SIZE {
             cx: rendered.width as i32,
@@ -5568,6 +6081,7 @@ mod fallback {
         UpdateWindowExpandControls(WindowExpandControls),
         UpdateMacroPresets(Vec<MacroGroup>),
         UpdateAudioSettings(AudioSettings),
+        UpdateMouseDriverSettings(bool),
         SetMacrosMasterEnabled(bool),
         SetUiVisible(bool),
         Exit,

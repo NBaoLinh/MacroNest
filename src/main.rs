@@ -71,6 +71,9 @@ fn main() -> Result<()> {
         restore_on_exit: state.mouse_sensitivity_restore_on_exit,
         restore_speed: state.mouse_sensitivity_restore_speed,
     });
+    overlay.send(OverlayCommand::UpdateMouseDriverSettings(
+        state.mouse_use_interception_driver,
+    ));
     overlay.send(OverlayCommand::UpdateMacroPresets(
         state.macro_groups.clone(),
     ));
@@ -132,7 +135,10 @@ fn run_popup_blob(kind: PopupBlobKind) -> Result<()> {
         native_options,
         Box::new(move |cc| {
             ui::configure_fonts(&cc.egui_ctx);
-            Ok(Box::new(PopupBlobApp::new(kind, crate::model::UiThemeMode::Dark)))
+            Ok(Box::new(PopupBlobApp::new(
+                kind,
+                crate::model::UiThemeMode::Dark,
+            )))
         }),
     )
     .map_err(|error| anyhow::anyhow!(error.to_string()))?;

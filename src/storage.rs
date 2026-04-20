@@ -16,6 +16,11 @@ pub struct AppPaths {
     pub custom_dir: PathBuf,
     pub icon_file: PathBuf,
     pub icon_file_disabled: PathBuf,
+    pub interception_dir: PathBuf,
+    pub interception_zip_file: PathBuf,
+    pub interception_extract_dir: PathBuf,
+    pub interception_installer_dir: PathBuf,
+    pub interception_installer_exe: PathBuf,
 }
 
 impl AppPaths {
@@ -28,10 +33,17 @@ impl AppPaths {
         let custom_dir = root.join("custom-crosshairs");
         let icon_file = root.join("app-icon.ico");
         let icon_file_disabled = root.join("app-icon-disabled.ico");
+        let interception_dir = root.join("interception");
+        let interception_zip_file = interception_dir.join("Interception.zip");
+        let interception_extract_dir = interception_dir.join("package");
+        let interception_installer_dir = interception_extract_dir.join("command line installer");
+        let interception_installer_exe =
+            interception_installer_dir.join("install-interception.exe");
 
         fs::create_dir_all(&root)?;
         fs::create_dir_all(&profiles_dir)?;
         fs::create_dir_all(&custom_dir)?;
+        fs::create_dir_all(&interception_dir)?;
 
         Ok(Self {
             root,
@@ -40,6 +52,11 @@ impl AppPaths {
             custom_dir,
             icon_file,
             icon_file_disabled,
+            interception_dir,
+            interception_zip_file,
+            interception_extract_dir,
+            interception_installer_dir,
+            interception_installer_exe,
         })
     }
 
@@ -94,7 +111,8 @@ impl AppPaths {
                 .iter()
                 .flat_map(|group| group.presets.iter().map(|preset| preset.id))
                 .collect::<std::collections::HashSet<_>>();
-            let mut next_generated_preset_id = used_preset_ids.iter().copied().max().unwrap_or(0) + 1;
+            let mut next_generated_preset_id =
+                used_preset_ids.iter().copied().max().unwrap_or(0) + 1;
             let migrated_presets = state
                 .macro_presets
                 .clone()
@@ -229,7 +247,10 @@ impl AppPaths {
             .macro_groups
             .iter()
             .flat_map(|group| {
-                group.selector_presets.iter().flat_map(|selector| selector.options.iter().map(|option| option.id))
+                group
+                    .selector_presets
+                    .iter()
+                    .flat_map(|selector| selector.options.iter().map(|option| option.id))
             })
             .max()
             .unwrap_or(0)
