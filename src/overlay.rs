@@ -7,6 +7,7 @@ mod windows_overlay {
         collections::{HashMap, HashSet},
         ffi::c_void,
         mem::size_of,
+        path::{Path, PathBuf},
         sync::{
             Arc,
             atomic::{AtomicBool, AtomicIsize, Ordering},
@@ -18,7 +19,7 @@ mod windows_overlay {
     use anyhow::{Context, Result, bail};
     use crossbeam_channel::{Receiver, Sender};
     use eframe::egui;
-    use interception::{Interception, MouseFlags, MouseState, Stroke};
+    use libloading::Library;
     use once_cell::sync::Lazy;
     use parking_lot::Mutex;
     use windows::{
@@ -114,6 +115,18 @@ mod windows_overlay {
     const MACRO_PRESET_BASE_ID: i32 = 10000;
     const INTERCEPTION_MOUSE_DEVICE_START: i32 = 11;
     const INTERCEPTION_MOUSE_DEVICE_END: i32 = 20;
+    const INTERCEPTION_MOUSE_LEFT_BUTTON_DOWN: u16 = 0x001;
+    const INTERCEPTION_MOUSE_LEFT_BUTTON_UP: u16 = 0x002;
+    const INTERCEPTION_MOUSE_RIGHT_BUTTON_DOWN: u16 = 0x004;
+    const INTERCEPTION_MOUSE_RIGHT_BUTTON_UP: u16 = 0x008;
+    const INTERCEPTION_MOUSE_MIDDLE_BUTTON_DOWN: u16 = 0x010;
+    const INTERCEPTION_MOUSE_MIDDLE_BUTTON_UP: u16 = 0x020;
+    const INTERCEPTION_MOUSE_BUTTON_4_DOWN: u16 = 0x040;
+    const INTERCEPTION_MOUSE_BUTTON_4_UP: u16 = 0x080;
+    const INTERCEPTION_MOUSE_BUTTON_5_DOWN: u16 = 0x100;
+    const INTERCEPTION_MOUSE_BUTTON_5_UP: u16 = 0x200;
+    const INTERCEPTION_MOUSE_WHEEL: u16 = 0x400;
+    const INTERCEPTION_MOUSE_MOVE_ABSOLUTE: u16 = 0x001;
 
     const MENU_TOGGLE: usize = 2001;
     const MENU_SHOW: usize = 2002;
@@ -216,6 +229,7 @@ mod windows_overlay {
         active_mouse_sensitivity_preset_id: Option<u32>,
         mouse_sensitivity_restore_speed: Option<u32>,
         mouse_use_interception_driver: bool,
+        interception_dll_path: PathBuf,
         mouse_sensitivity_restore_on_exit: bool,
         mouse_sensitivity_exit_restore_speed: u32,
         active_pin_preset_id: Option<u32>,
@@ -257,6 +271,7 @@ mod windows_overlay {
                 active_mouse_sensitivity_preset_id: None,
                 mouse_sensitivity_restore_speed: None,
                 mouse_use_interception_driver: false,
+                interception_dll_path: PathBuf::new(),
                 mouse_sensitivity_restore_on_exit: false,
                 mouse_sensitivity_exit_restore_speed: 6,
                 active_pin_preset_id: None,
@@ -287,30 +302,113 @@ mod windows_overlay {
         }
     }
 
+    type InterceptionContext = *mut c_void;
+    type InterceptionDevice = i32;
+    type InterceptionCreateContextFn = unsafe extern "C" fn() -> InterceptionContext;
+    type InterceptionDestroyContextFn = unsafe extern "C" fn(InterceptionContext);
+    type InterceptionSendFn = unsafe extern "C" fn(
+        InterceptionContext,
+        InterceptionDevice,
+        *const InterceptionMouseStroke,
+        u32,
+    ) -> i32;
+
+    #[repr(C)]
+    #[derive(Clone, Copy)]
+    struct InterceptionMouseStroke {
+        state: u16,
+        flags: u16,
+        rolling: i16,
+        x: i32,
+        y: i32,
+        information: u32,
+    }
+
+    struct InterceptionApi {
+        _library: Library,
+        create_context: InterceptionCreateContextFn,
+        destroy_context: InterceptionDestroyContextFn,
+        send: InterceptionSendFn,
+    }
+
+    impl InterceptionApi {
+        unsafe fn load(dll_path: &Path) -> Option<Self> {
+            let library = Library::new(dll_path).ok()?;
+            let create_context = *library
+                .get::<InterceptionCreateContextFn>(b"interception_create_context\0")
+                .ok()?;
+            let destroy_context = *library
+                .get::<InterceptionDestroyContextFn>(b"interception_destroy_context\0")
+                .ok()?;
+            let send = *library
+                .get::<InterceptionSendFn>(b"interception_send\0")
+                .ok()?;
+            Some(Self {
+                _library: library,
+                create_context,
+                destroy_context,
+                send,
+            })
+        }
+    }
+
     #[derive(Default)]
     struct InterceptionMouseSender {
-        context: Option<Interception>,
+        api: Option<InterceptionApi>,
+        context: Option<InterceptionContext>,
         mouse_device: Option<i32>,
+        loaded_dll_path: Option<PathBuf>,
     }
 
     impl InterceptionMouseSender {
-        fn send(&mut self, strokes: &[Stroke]) -> bool {
-            if self.context.is_none() {
-                self.context = Interception::new();
+        fn reset(&mut self) {
+            if let (Some(api), Some(context)) = (self.api.as_ref(), self.context.take()) {
+                unsafe { (api.destroy_context)(context) };
+            }
+            self.api = None;
+            self.mouse_device = None;
+            self.loaded_dll_path = None;
+        }
+
+        fn ensure_api(&mut self, dll_path: &Path) -> bool {
+            if self.loaded_dll_path.as_deref() == Some(dll_path) && self.api.is_some() {
+                return true;
+            }
+            self.reset();
+            let Some(api) = (unsafe { InterceptionApi::load(dll_path) }) else {
+                return false;
+            };
+            let context = unsafe { (api.create_context)() };
+            if context.is_null() {
+                return false;
+            }
+            self.context = Some(context);
+            self.loaded_dll_path = Some(dll_path.to_path_buf());
+            self.api = Some(api);
+            true
+        }
+
+        fn send(&mut self, dll_path: &Path, strokes: &[InterceptionMouseStroke]) -> bool {
+            if !dll_path.exists() || !self.ensure_api(dll_path) {
+                return false;
             }
             let preferred_device = self.mouse_device;
-            let Some(context) = self.context.as_ref() else {
+            let Some(api) = self.api.as_ref() else {
+                return false;
+            };
+            let Some(context) = self.context else {
                 return false;
             };
 
             if let Some(device) = preferred_device
-                && context.send(device, strokes) > 0
+                && unsafe { (api.send)(context, device, strokes.as_ptr(), strokes.len() as u32) } > 0
             {
                 return true;
             }
 
             for device in INTERCEPTION_MOUSE_DEVICE_START..=INTERCEPTION_MOUSE_DEVICE_END {
-                if context.send(device, strokes) > 0 {
+                if unsafe { (api.send)(context, device, strokes.as_ptr(), strokes.len() as u32) } > 0
+                {
                     self.mouse_device = Some(device);
                     return true;
                 }
@@ -452,6 +550,7 @@ mod windows_overlay {
         ui_tx: Sender<UiCommand>,
         running: Arc<AtomicBool>,
     ) -> Result<()> {
+        HOOK_STATE.lock().interception_dll_path = paths.interception_dll_file.clone();
         unsafe {
             let instance = HINSTANCE(GetModuleHandleW(None)?.0);
             register_class(
@@ -4474,11 +4573,33 @@ mod windows_overlay {
         HOOK_STATE.lock().mouse_use_interception_driver
     }
 
-    fn send_mouse_strokes_interception(strokes: &[Stroke]) -> bool {
+    fn current_interception_dll_path() -> PathBuf {
+        HOOK_STATE.lock().interception_dll_path.clone()
+    }
+
+    fn interception_mouse_stroke(
+        state: u16,
+        flags: u16,
+        rolling: i16,
+        x: i32,
+        y: i32,
+    ) -> InterceptionMouseStroke {
+        InterceptionMouseStroke {
+            state,
+            flags,
+            rolling,
+            x,
+            y,
+            information: 0,
+        }
+    }
+
+    fn send_mouse_strokes_interception(strokes: &[InterceptionMouseStroke]) -> bool {
         if !use_interception_mouse_output() {
             return false;
         }
-        INTERCEPTION_MOUSE_SENDER.with(|sender| sender.borrow_mut().send(strokes))
+        let dll_path = current_interception_dll_path();
+        INTERCEPTION_MOUSE_SENDER.with(|sender| sender.borrow_mut().send(&dll_path, strokes))
     }
 
     fn send_mouse_event(step: &MacroStep) -> Result<()> {
@@ -4500,271 +4621,189 @@ mod windows_overlay {
                 0,
                 Some(MOUSEEVENTF_LEFTUP),
                 Some(vec![
-                    Stroke::Mouse {
-                        state: MouseState::LEFT_BUTTON_DOWN,
-                        flags: MouseFlags::empty(),
-                        rolling: 0,
-                        x: 0,
-                        y: 0,
-                        information: 0,
-                    },
-                    Stroke::Mouse {
-                        state: MouseState::LEFT_BUTTON_UP,
-                        flags: MouseFlags::empty(),
-                        rolling: 0,
-                        x: 0,
-                        y: 0,
-                        information: 0,
-                    },
+                    interception_mouse_stroke(INTERCEPTION_MOUSE_LEFT_BUTTON_DOWN, 0, 0, 0, 0),
+                    interception_mouse_stroke(INTERCEPTION_MOUSE_LEFT_BUTTON_UP, 0, 0, 0, 0),
                 ]),
             ),
             MacroAction::MouseLeftDown => (
                 MOUSEEVENTF_LEFTDOWN,
                 0,
                 None,
-                Some(vec![Stroke::Mouse {
-                    state: MouseState::LEFT_BUTTON_DOWN,
-                    flags: MouseFlags::empty(),
-                    rolling: 0,
-                    x: 0,
-                    y: 0,
-                    information: 0,
-                }]),
+                Some(vec![interception_mouse_stroke(
+                    INTERCEPTION_MOUSE_LEFT_BUTTON_DOWN,
+                    0,
+                    0,
+                    0,
+                    0,
+                )]),
             ),
             MacroAction::MouseLeftUp => (
                 MOUSEEVENTF_LEFTUP,
                 0,
                 None,
-                Some(vec![Stroke::Mouse {
-                    state: MouseState::LEFT_BUTTON_UP,
-                    flags: MouseFlags::empty(),
-                    rolling: 0,
-                    x: 0,
-                    y: 0,
-                    information: 0,
-                }]),
+                Some(vec![interception_mouse_stroke(
+                    INTERCEPTION_MOUSE_LEFT_BUTTON_UP,
+                    0,
+                    0,
+                    0,
+                    0,
+                )]),
             ),
             MacroAction::MouseRightClick => (
                 MOUSEEVENTF_RIGHTDOWN,
                 0,
                 Some(MOUSEEVENTF_RIGHTUP),
                 Some(vec![
-                    Stroke::Mouse {
-                        state: MouseState::RIGHT_BUTTON_DOWN,
-                        flags: MouseFlags::empty(),
-                        rolling: 0,
-                        x: 0,
-                        y: 0,
-                        information: 0,
-                    },
-                    Stroke::Mouse {
-                        state: MouseState::RIGHT_BUTTON_UP,
-                        flags: MouseFlags::empty(),
-                        rolling: 0,
-                        x: 0,
-                        y: 0,
-                        information: 0,
-                    },
+                    interception_mouse_stroke(INTERCEPTION_MOUSE_RIGHT_BUTTON_DOWN, 0, 0, 0, 0),
+                    interception_mouse_stroke(INTERCEPTION_MOUSE_RIGHT_BUTTON_UP, 0, 0, 0, 0),
                 ]),
             ),
             MacroAction::MouseRightDown => (
                 MOUSEEVENTF_RIGHTDOWN,
                 0,
                 None,
-                Some(vec![Stroke::Mouse {
-                    state: MouseState::RIGHT_BUTTON_DOWN,
-                    flags: MouseFlags::empty(),
-                    rolling: 0,
-                    x: 0,
-                    y: 0,
-                    information: 0,
-                }]),
+                Some(vec![interception_mouse_stroke(
+                    INTERCEPTION_MOUSE_RIGHT_BUTTON_DOWN,
+                    0,
+                    0,
+                    0,
+                    0,
+                )]),
             ),
             MacroAction::MouseRightUp => (
                 MOUSEEVENTF_RIGHTUP,
                 0,
                 None,
-                Some(vec![Stroke::Mouse {
-                    state: MouseState::RIGHT_BUTTON_UP,
-                    flags: MouseFlags::empty(),
-                    rolling: 0,
-                    x: 0,
-                    y: 0,
-                    information: 0,
-                }]),
+                Some(vec![interception_mouse_stroke(
+                    INTERCEPTION_MOUSE_RIGHT_BUTTON_UP,
+                    0,
+                    0,
+                    0,
+                    0,
+                )]),
             ),
             MacroAction::MouseMiddleClick => (
                 MOUSEEVENTF_MIDDLEDOWN,
                 0,
                 Some(MOUSEEVENTF_MIDDLEUP),
                 Some(vec![
-                    Stroke::Mouse {
-                        state: MouseState::MIDDLE_BUTTON_DOWN,
-                        flags: MouseFlags::empty(),
-                        rolling: 0,
-                        x: 0,
-                        y: 0,
-                        information: 0,
-                    },
-                    Stroke::Mouse {
-                        state: MouseState::MIDDLE_BUTTON_UP,
-                        flags: MouseFlags::empty(),
-                        rolling: 0,
-                        x: 0,
-                        y: 0,
-                        information: 0,
-                    },
+                    interception_mouse_stroke(INTERCEPTION_MOUSE_MIDDLE_BUTTON_DOWN, 0, 0, 0, 0),
+                    interception_mouse_stroke(INTERCEPTION_MOUSE_MIDDLE_BUTTON_UP, 0, 0, 0, 0),
                 ]),
             ),
             MacroAction::MouseMiddleDown => (
                 MOUSEEVENTF_MIDDLEDOWN,
                 0,
                 None,
-                Some(vec![Stroke::Mouse {
-                    state: MouseState::MIDDLE_BUTTON_DOWN,
-                    flags: MouseFlags::empty(),
-                    rolling: 0,
-                    x: 0,
-                    y: 0,
-                    information: 0,
-                }]),
+                Some(vec![interception_mouse_stroke(
+                    INTERCEPTION_MOUSE_MIDDLE_BUTTON_DOWN,
+                    0,
+                    0,
+                    0,
+                    0,
+                )]),
             ),
             MacroAction::MouseMiddleUp => (
                 MOUSEEVENTF_MIDDLEUP,
                 0,
                 None,
-                Some(vec![Stroke::Mouse {
-                    state: MouseState::MIDDLE_BUTTON_UP,
-                    flags: MouseFlags::empty(),
-                    rolling: 0,
-                    x: 0,
-                    y: 0,
-                    information: 0,
-                }]),
+                Some(vec![interception_mouse_stroke(
+                    INTERCEPTION_MOUSE_MIDDLE_BUTTON_UP,
+                    0,
+                    0,
+                    0,
+                    0,
+                )]),
             ),
             MacroAction::MouseX1Click => (
                 MOUSEEVENTF_XDOWN,
                 XBUTTON1_DATA as u32,
                 Some(MOUSEEVENTF_XUP),
                 Some(vec![
-                    Stroke::Mouse {
-                        state: MouseState::BUTTON_4_DOWN,
-                        flags: MouseFlags::empty(),
-                        rolling: 0,
-                        x: 0,
-                        y: 0,
-                        information: 0,
-                    },
-                    Stroke::Mouse {
-                        state: MouseState::BUTTON_4_UP,
-                        flags: MouseFlags::empty(),
-                        rolling: 0,
-                        x: 0,
-                        y: 0,
-                        information: 0,
-                    },
+                    interception_mouse_stroke(INTERCEPTION_MOUSE_BUTTON_4_DOWN, 0, 0, 0, 0),
+                    interception_mouse_stroke(INTERCEPTION_MOUSE_BUTTON_4_UP, 0, 0, 0, 0),
                 ]),
             ),
             MacroAction::MouseX1Down => (
                 MOUSEEVENTF_XDOWN,
                 XBUTTON1_DATA as u32,
                 None,
-                Some(vec![Stroke::Mouse {
-                    state: MouseState::BUTTON_4_DOWN,
-                    flags: MouseFlags::empty(),
-                    rolling: 0,
-                    x: 0,
-                    y: 0,
-                    information: 0,
-                }]),
+                Some(vec![interception_mouse_stroke(
+                    INTERCEPTION_MOUSE_BUTTON_4_DOWN,
+                    0,
+                    0,
+                    0,
+                    0,
+                )]),
             ),
             MacroAction::MouseX1Up => (
                 MOUSEEVENTF_XUP,
                 XBUTTON1_DATA as u32,
                 None,
-                Some(vec![Stroke::Mouse {
-                    state: MouseState::BUTTON_4_UP,
-                    flags: MouseFlags::empty(),
-                    rolling: 0,
-                    x: 0,
-                    y: 0,
-                    information: 0,
-                }]),
+                Some(vec![interception_mouse_stroke(
+                    INTERCEPTION_MOUSE_BUTTON_4_UP,
+                    0,
+                    0,
+                    0,
+                    0,
+                )]),
             ),
             MacroAction::MouseX2Click => (
                 MOUSEEVENTF_XDOWN,
                 XBUTTON2_DATA as u32,
                 Some(MOUSEEVENTF_XUP),
                 Some(vec![
-                    Stroke::Mouse {
-                        state: MouseState::BUTTON_5_DOWN,
-                        flags: MouseFlags::empty(),
-                        rolling: 0,
-                        x: 0,
-                        y: 0,
-                        information: 0,
-                    },
-                    Stroke::Mouse {
-                        state: MouseState::BUTTON_5_UP,
-                        flags: MouseFlags::empty(),
-                        rolling: 0,
-                        x: 0,
-                        y: 0,
-                        information: 0,
-                    },
+                    interception_mouse_stroke(INTERCEPTION_MOUSE_BUTTON_5_DOWN, 0, 0, 0, 0),
+                    interception_mouse_stroke(INTERCEPTION_MOUSE_BUTTON_5_UP, 0, 0, 0, 0),
                 ]),
             ),
             MacroAction::MouseX2Down => (
                 MOUSEEVENTF_XDOWN,
                 XBUTTON2_DATA as u32,
                 None,
-                Some(vec![Stroke::Mouse {
-                    state: MouseState::BUTTON_5_DOWN,
-                    flags: MouseFlags::empty(),
-                    rolling: 0,
-                    x: 0,
-                    y: 0,
-                    information: 0,
-                }]),
+                Some(vec![interception_mouse_stroke(
+                    INTERCEPTION_MOUSE_BUTTON_5_DOWN,
+                    0,
+                    0,
+                    0,
+                    0,
+                )]),
             ),
             MacroAction::MouseX2Up => (
                 MOUSEEVENTF_XUP,
                 XBUTTON2_DATA as u32,
                 None,
-                Some(vec![Stroke::Mouse {
-                    state: MouseState::BUTTON_5_UP,
-                    flags: MouseFlags::empty(),
-                    rolling: 0,
-                    x: 0,
-                    y: 0,
-                    information: 0,
-                }]),
+                Some(vec![interception_mouse_stroke(
+                    INTERCEPTION_MOUSE_BUTTON_5_UP,
+                    0,
+                    0,
+                    0,
+                    0,
+                )]),
             ),
             MacroAction::MouseWheelUp => (
                 MOUSEEVENTF_WHEEL,
                 120u32,
                 None,
-                Some(vec![Stroke::Mouse {
-                    state: MouseState::WHEEL,
-                    flags: MouseFlags::empty(),
-                    rolling: 120,
-                    x: 0,
-                    y: 0,
-                    information: 0,
-                }]),
+                Some(vec![interception_mouse_stroke(
+                    INTERCEPTION_MOUSE_WHEEL,
+                    0,
+                    120,
+                    0,
+                    0,
+                )]),
             ),
             MacroAction::MouseWheelDown => (
                 MOUSEEVENTF_WHEEL,
                 (-120i32) as u32,
                 None,
-                Some(vec![Stroke::Mouse {
-                    state: MouseState::WHEEL,
-                    flags: MouseFlags::empty(),
-                    rolling: -120,
-                    x: 0,
-                    y: 0,
-                    information: 0,
-                }]),
+                Some(vec![interception_mouse_stroke(
+                    INTERCEPTION_MOUSE_WHEEL,
+                    0,
+                    -120,
+                    0,
+                    0,
+                )]),
             ),
             _ => bail!("Unsupported mouse action"),
         };
@@ -4822,14 +4861,13 @@ mod windows_overlay {
             ((x.clamp(0, screen_w - 1) as i64) * 65535 / (screen_w - 1).max(1) as i64) as i32;
         let normalized_y =
             ((y.clamp(0, screen_h - 1) as i64) * 65535 / (screen_h - 1).max(1) as i64) as i32;
-        if send_mouse_strokes_interception(&[Stroke::Mouse {
-            state: MouseState::empty(),
-            flags: MouseFlags::MOVE_ABSOLUTE,
-            rolling: 0,
-            x: normalized_x,
-            y: normalized_y,
-            information: 0,
-        }]) {
+        if send_mouse_strokes_interception(&[interception_mouse_stroke(
+            0,
+            INTERCEPTION_MOUSE_MOVE_ABSOLUTE,
+            0,
+            normalized_x,
+            normalized_y,
+        )]) {
             return Ok(());
         }
         let input = INPUT {
@@ -4855,14 +4893,7 @@ mod windows_overlay {
     }
 
     fn send_mouse_move_relative(dx: i32, dy: i32) -> Result<()> {
-        if send_mouse_strokes_interception(&[Stroke::Mouse {
-            state: MouseState::empty(),
-            flags: MouseFlags::empty(),
-            rolling: 0,
-            x: dx,
-            y: dy,
-            information: 0,
-        }]) {
+        if send_mouse_strokes_interception(&[interception_mouse_stroke(0, 0, 0, dx, dy)]) {
             return Ok(());
         }
         let input = INPUT {

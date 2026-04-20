@@ -19,8 +19,10 @@ pub struct AppPaths {
     pub interception_dir: PathBuf,
     pub interception_zip_file: PathBuf,
     pub interception_extract_dir: PathBuf,
+    pub interception_package_root: PathBuf,
     pub interception_installer_dir: PathBuf,
     pub interception_installer_exe: PathBuf,
+    pub interception_dll_file: PathBuf,
 }
 
 impl AppPaths {
@@ -36,9 +38,15 @@ impl AppPaths {
         let interception_dir = root.join("interception");
         let interception_zip_file = interception_dir.join("Interception.zip");
         let interception_extract_dir = interception_dir.join("package");
-        let interception_installer_dir = interception_extract_dir.join("command line installer");
+        let interception_package_root = interception_extract_dir.join("Interception");
+        let interception_installer_dir =
+            interception_package_root.join("command line installer");
         let interception_installer_exe =
             interception_installer_dir.join("install-interception.exe");
+        let interception_dll_file = interception_package_root
+            .join("library")
+            .join("x64")
+            .join("interception.dll");
 
         fs::create_dir_all(&root)?;
         fs::create_dir_all(&profiles_dir)?;
@@ -55,8 +63,10 @@ impl AppPaths {
             interception_dir,
             interception_zip_file,
             interception_extract_dir,
+            interception_package_root,
             interception_installer_dir,
             interception_installer_exe,
+            interception_dll_file,
         })
     }
 
