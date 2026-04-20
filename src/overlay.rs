@@ -2124,6 +2124,8 @@ mod windows_overlay {
                     runtime.ui_visible = visible;
                     if visible {
                         let _ = set_input_hooks_enabled(runtime, desired_hooks_enabled(runtime));
+                        show_ui_window_native();
+                        let _ = runtime.ui_tx.send(UiCommand::ShowWindow);
                         let _ = ShowWindow(runtime.pin_hwnd, SW_HIDE);
                         let _ = ShowWindow(runtime.toolbox_hwnd, SW_HIDE);
                         let _ = ShowWindow(runtime.mouse_trail_hwnd, SW_HIDE);
@@ -5296,25 +5298,65 @@ mod windows_overlay {
             window_list::capture_virtual_screen_region(left, top, width, height)
                 .context("Failed to capture the screen")?
         };
-        let Some((match_x, match_y)) = find_template_match(
-            &screen.rgba,
-            screen.width,
-            screen.height,
-            &template_rgba,
-            template_width,
-            template_height,
-            12,
-        ) else {
+        let template_image = image::RgbaImage::from_raw(
+            template_width as u32,
+            template_height as u32,
+            template_rgba.clone(),
+        )
+        .context("Template image data is invalid.")?;
+        let scales = [1.0_f32, 0.75, 0.85, 0.9, 1.1, 1.25, 1.5];
+        let mut best_match = None;
+        for scale in scales {
+            let (candidate_rgba, candidate_width, candidate_height) =
+                if (scale - 1.0).abs() < f32::EPSILON {
+                    (template_rgba.clone(), template_width, template_height)
+                } else {
+                    let scaled_width = ((template_width as f32) * scale).round().max(1.0) as u32;
+                    let scaled_height =
+                        ((template_height as f32) * scale).round().max(1.0) as u32;
+                    if scaled_width as usize > screen.width || scaled_height as usize > screen.height
+                    {
+                        continue;
+                    }
+                    let scaled = image::imageops::resize(
+                        &template_image,
+                        scaled_width,
+                        scaled_height,
+                        image::imageops::FilterType::Triangle,
+                    );
+                    (
+                        scaled.into_raw(),
+                        scaled_width as usize,
+                        scaled_height as usize,
+                    )
+                };
+            if let Some((match_x, match_y)) = find_template_match(
+                &screen.rgba,
+                screen.width,
+                screen.height,
+                &candidate_rgba,
+                candidate_width,
+                candidate_height,
+                14,
+            ) {
+                best_match = Some((match_x, match_y, candidate_width, candidate_height, scale));
+                break;
+            }
+        }
+        let Some((match_x, match_y, matched_width, matched_height, matched_scale)) = best_match else {
             return Ok("No match found on screen.".to_owned());
         };
 
-        let center_x = screen.screen_x + match_x as i32 + (template_width as i32 / 2);
-        let center_y = screen.screen_y + match_y as i32 + (template_height as i32 / 2);
+        let center_x = screen.screen_x + match_x as i32 + (matched_width as i32 / 2);
+        let center_y = screen.screen_y + match_y as i32 + (matched_height as i32 / 2);
         send_mouse_move_absolute_backend(center_x, center_y, preset.use_interception_driver)?;
         if preset.click_after_move {
             send_mouse_left_click_backend(preset.use_interception_driver)?;
         }
-        Ok(format!("Matched at {center_x}, {center_y}."))
+        Ok(format!(
+            "Matched at {center_x}, {center_y} (scale {:.2}x).",
+            matched_scale
+        ))
     }
 
     fn is_extended_key(vk: u32) -> bool {

@@ -4114,14 +4114,18 @@ impl CrosshairApp {
         self.image_search_capture_target_preset_id = None;
         self.image_search_capture_anchor = None;
         self.image_search_capture_current = None;
+        self.restore_image_search_viewport(ctx);
+        self.status = "Image template capture cancelled.".to_owned();
+        ctx.request_repaint();
+    }
+
+    fn restore_image_search_viewport(&mut self, ctx: &egui::Context) {
         if let Some(size) = self.image_search_restore_inner_size.take() {
             ctx.send_viewport_cmd(egui::ViewportCommand::InnerSize(size));
         }
         if let Some(pos) = self.image_search_restore_outer_pos.take() {
             ctx.send_viewport_cmd(egui::ViewportCommand::OuterPosition(pos));
         }
-        self.status = "Image template capture cancelled.".to_owned();
-        ctx.request_repaint();
     }
 
     fn finish_image_search_capture(&mut self, ctx: &egui::Context, rect: egui::Rect) {
@@ -4139,17 +4143,12 @@ impl CrosshairApp {
         let _ = self.overlay_tx.send(OverlayCommand::SetUiVisible(false));
         std::thread::sleep(Duration::from_millis(70));
         let capture = self.capture_screen_region_from_rect(rect, ctx.pixels_per_point());
+        self.restore_image_search_viewport(ctx);
         ctx.send_viewport_cmd(egui::ViewportCommand::Visible(true));
         ctx.send_viewport_cmd(egui::ViewportCommand::Minimized(false));
         let _ = self.overlay_tx.send(OverlayCommand::SetUiVisible(true));
 
         let Some(capture) = capture else {
-            if let Some(size) = self.image_search_restore_inner_size.take() {
-                ctx.send_viewport_cmd(egui::ViewportCommand::InnerSize(size));
-            }
-            if let Some(pos) = self.image_search_restore_outer_pos.take() {
-                ctx.send_viewport_cmd(egui::ViewportCommand::OuterPosition(pos));
-            }
             self.status = "Failed to capture the selected screen area.".to_owned();
             ctx.request_repaint();
             return;
@@ -4167,12 +4166,6 @@ impl CrosshairApp {
             image::ColorType::Rgba8,
         );
 
-        if let Some(size) = self.image_search_restore_inner_size.take() {
-            ctx.send_viewport_cmd(egui::ViewportCommand::InnerSize(size));
-        }
-        if let Some(pos) = self.image_search_restore_outer_pos.take() {
-            ctx.send_viewport_cmd(egui::ViewportCommand::OuterPosition(pos));
-        }
         if let Some(preset) = self
             .state
             .image_search_presets
@@ -9989,10 +9982,9 @@ impl CrosshairApp {
                             preview.file_name, preview.width, preview.height
                         ))
                         .small());
-                        let scale = ((320.0 / preview.width.max(1) as f32)
-                            .min(180.0 / preview.height.max(1) as f32))
-                        .floor()
-                        .max(1.0);
+                        let scale = (320.0 / preview.width.max(1) as f32)
+                            .min(180.0 / preview.height.max(1) as f32)
+                            .min(1.0);
                         let size = vec2(
                             preview.width as f32 * scale,
                             preview.height as f32 * scale,
