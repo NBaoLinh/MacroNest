@@ -5187,6 +5187,19 @@ mod windows_overlay {
         Ok(())
     }
 
+    #[derive(Clone, Copy, Debug)]
+    struct TemplateMatchScore {
+        avg_channel_diff: f32,
+        mismatch_ratio: f32,
+    }
+
+    #[derive(Clone, Copy, Debug)]
+    struct TemplateMatchHit {
+        x: usize,
+        y: usize,
+        score: TemplateMatchScore,
+    }
+
     fn pixels_match_with_tolerance(template_px: &[u8], screen_px: &[u8], tolerance: u8) -> bool {
         if template_px.len() < 4 || screen_px.len() < 4 {
             return false;
@@ -5197,7 +5210,31 @@ mod windows_overlay {
             && (template_px[2] as i16 - screen_px[2] as i16).abs() <= tolerance
     }
 
-    fn template_matches_at(
+    fn template_anchor_points(template_width: usize, template_height: usize) -> Vec<(usize, usize)> {
+        let mut anchors = Vec::new();
+        let candidates = [
+            (0, 0),
+            (template_width / 2, 0),
+            (template_width.saturating_sub(1), 0),
+            (0, template_height / 2),
+            (template_width / 2, template_height / 2),
+            (template_width.saturating_sub(1), template_height / 2),
+            (0, template_height.saturating_sub(1)),
+            (template_width / 2, template_height.saturating_sub(1)),
+            (
+                template_width.saturating_sub(1),
+                template_height.saturating_sub(1),
+            ),
+        ];
+        for point in candidates {
+            if !anchors.contains(&point) {
+                anchors.push(point);
+            }
+        }
+        anchors
+    }
+
+    fn anchor_passes_at(
         screen_rgba: &[u8],
         screen_width: usize,
         screen_height: usize,
@@ -5208,39 +5245,95 @@ mod windows_overlay {
         start_y: usize,
         tolerance: u8,
     ) -> bool {
+        if start_x + template_width > screen_width || start_y + template_height > screen_height {
+            return false;
+        }
+        let screen_row_bytes = match screen_width.checked_mul(4) {
+            Some(value) => value,
+            None => return false,
+        };
+        let template_row_bytes = match template_width.checked_mul(4) {
+            Some(value) => value,
+            None => return false,
+        };
+        let anchors = template_anchor_points(template_width, template_height);
+        let required_matches = ((anchors.len() as f32) * 0.45).ceil().max(1.0) as usize;
+        let mut matched = 0usize;
+        let anchor_tolerance = tolerance.saturating_add(10);
+        for (anchor_x, anchor_y) in anchors {
+            let screen_offset = (start_y + anchor_y) * screen_row_bytes + (start_x + anchor_x) * 4;
+            let template_offset = anchor_y * template_row_bytes + anchor_x * 4;
+            let Some(screen_px) = screen_rgba.get(screen_offset..screen_offset + 4) else {
+                continue;
+            };
+            let Some(template_px) = template_rgba.get(template_offset..template_offset + 4) else {
+                continue;
+            };
+            if pixels_match_with_tolerance(template_px, screen_px, anchor_tolerance) {
+                matched += 1;
+                if matched >= required_matches {
+                    return true;
+                }
+            }
+        }
+        false
+    }
+
+    fn template_match_score_at(
+        screen_rgba: &[u8],
+        screen_width: usize,
+        screen_height: usize,
+        template_rgba: &[u8],
+        template_width: usize,
+        template_height: usize,
+        start_x: usize,
+        start_y: usize,
+        tolerance: u8,
+        max_avg_channel_diff: f32,
+        max_mismatch_ratio: f32,
+    ) -> Option<TemplateMatchScore> {
         if template_width == 0
             || template_height == 0
             || start_x + template_width > screen_width
             || start_y + template_height > screen_height
         {
-            return false;
+            return None;
         }
-        let row_bytes = match template_width.checked_mul(4) {
-            Some(value) => value,
-            None => return false,
-        };
-        let screen_row_bytes = match screen_width.checked_mul(4) {
-            Some(value) => value,
-            None => return false,
-        };
+        let row_bytes = template_width.checked_mul(4)?;
+        let screen_row_bytes = screen_width.checked_mul(4)?;
+        let pixel_count = template_width.checked_mul(template_height)?;
+        let max_mismatches = ((pixel_count as f32) * max_mismatch_ratio).ceil() as usize;
+        let max_total_diff = (pixel_count as f32 * 3.0 * max_avg_channel_diff).ceil() as i64;
+        let mut mismatch_count = 0usize;
+        let mut total_diff = 0i64;
+
         for ty in 0..template_height {
             let screen_start = (start_y + ty) * screen_row_bytes + start_x * 4;
             let template_start = ty * row_bytes;
-            let Some(screen_row) = screen_rgba.get(screen_start..screen_start + row_bytes) else {
-                return false;
-            };
-            let Some(template_row) = template_rgba.get(template_start..template_start + row_bytes)
-            else {
-                return false;
-            };
+            let screen_row = screen_rgba.get(screen_start..screen_start + row_bytes)?;
+            let template_row = template_rgba.get(template_start..template_start + row_bytes)?;
             for (screen_px, template_px) in screen_row.chunks_exact(4).zip(template_row.chunks_exact(4))
             {
-                if !pixels_match_with_tolerance(template_px, screen_px, tolerance) {
-                    return false;
+                let dr = (template_px[0] as i16 - screen_px[0] as i16).abs() as i64;
+                let dg = (template_px[1] as i16 - screen_px[1] as i16).abs() as i64;
+                let db = (template_px[2] as i16 - screen_px[2] as i16).abs() as i64;
+                total_diff += dr + dg + db;
+                if dr as u8 > tolerance || dg as u8 > tolerance || db as u8 > tolerance {
+                    mismatch_count += 1;
+                    if mismatch_count > max_mismatches {
+                        return None;
+                    }
+                }
+                if total_diff > max_total_diff {
+                    return None;
                 }
             }
         }
-        true
+
+        Some(TemplateMatchScore {
+            avg_channel_diff: total_diff as f32 / (pixel_count as f32 * 3.0),
+            mismatch_ratio: mismatch_count as f32 / pixel_count as f32,
+        })
     }
 
     fn find_template_match_near_position(
@@ -5255,10 +5348,12 @@ mod windows_overlay {
         target_screen_x: i32,
         target_screen_y: i32,
         tolerance: u8,
-    ) -> Option<(usize, usize)> {
+        max_radius: i32,
+    ) -> Option<TemplateMatchHit> {
         let local_x = target_screen_x - screen_origin_x;
         let local_y = target_screen_y - screen_origin_y;
-        for radius in 0..=6_i32 {
+        let mut best_hit = None;
+        for radius in 0..=max_radius {
             for offset_y in -radius..=radius {
                 for offset_x in -radius..=radius {
                     let candidate_x = local_x + offset_x;
@@ -5268,7 +5363,7 @@ mod windows_overlay {
                     }
                     let candidate_x = candidate_x as usize;
                     let candidate_y = candidate_y as usize;
-                    if template_matches_at(
+                    if !anchor_passes_at(
                         screen_rgba,
                         screen_width,
                         screen_height,
@@ -5279,12 +5374,40 @@ mod windows_overlay {
                         candidate_y,
                         tolerance,
                     ) {
-                        return Some((candidate_x, candidate_y));
+                        continue;
+                    }
+                    if let Some(score) = template_match_score_at(
+                        screen_rgba,
+                        screen_width,
+                        screen_height,
+                        template_rgba,
+                        template_width,
+                        template_height,
+                        candidate_x,
+                        candidate_y,
+                        tolerance,
+                        18.0,
+                        0.28,
+                    ) {
+                        let hit = TemplateMatchHit {
+                            x: candidate_x,
+                            y: candidate_y,
+                            score,
+                        };
+                        if score.avg_channel_diff <= 10.0 && score.mismatch_ratio <= 0.12 {
+                            return Some(hit);
+                        }
+                        let should_replace = best_hit.is_none_or(|current: TemplateMatchHit| {
+                            score.avg_channel_diff < current.score.avg_channel_diff
+                        });
+                        if should_replace {
+                            best_hit = Some(hit);
+                        }
                     }
                 }
             }
         }
-        None
+        best_hit
     }
 
     fn find_template_match(
@@ -5295,7 +5418,7 @@ mod windows_overlay {
         template_width: usize,
         template_height: usize,
         tolerance: u8,
-    ) -> Option<(usize, usize)> {
+    ) -> Option<TemplateMatchHit> {
         if template_width == 0
             || template_height == 0
             || screen_width < template_width
@@ -5303,56 +5426,51 @@ mod windows_overlay {
         {
             return None;
         }
-        let row_bytes = template_width.checked_mul(4)?;
-        let screen_row_bytes = screen_width.checked_mul(4)?;
-        let anchor = template_rgba.get(0..4)?;
+        let mut best_hit = None;
 
         for y in 0..=screen_height - template_height {
-            let screen_row_offset = y * screen_row_bytes;
             for x in 0..=screen_width - template_width {
-                let screen_offset = screen_row_offset + x * 4;
-                let Some(screen_anchor) = screen_rgba.get(screen_offset..screen_offset + 4) else {
+                if !anchor_passes_at(
+                    screen_rgba,
+                    screen_width,
+                    screen_height,
+                    template_rgba,
+                    template_width,
+                    template_height,
+                    x,
+                    y,
+                    tolerance,
+                ) {
+                    continue;
+                }
+                let Some(score) = template_match_score_at(
+                    screen_rgba,
+                    screen_width,
+                    screen_height,
+                    template_rgba,
+                    template_width,
+                    template_height,
+                    x,
+                    y,
+                    tolerance,
+                    19.0,
+                    0.30,
+                ) else {
                     continue;
                 };
-                if !pixels_match_with_tolerance(anchor, screen_anchor, tolerance) {
-                    continue;
+                let hit = TemplateMatchHit { x, y, score };
+                if score.avg_channel_diff <= 10.5 && score.mismatch_ratio <= 0.14 {
+                    return Some(hit);
                 }
-
-                let mut matched = true;
-                for ty in 0..template_height {
-                    let screen_start = (y + ty) * screen_row_bytes + x * 4;
-                    let template_start = ty * row_bytes;
-                    let Some(screen_row) = screen_rgba.get(screen_start..screen_start + row_bytes)
-                    else {
-                        matched = false;
-                        break;
-                    };
-                    let Some(template_row) =
-                        template_rgba.get(template_start..template_start + row_bytes)
-                    else {
-                        matched = false;
-                        break;
-                    };
-                    for (screen_px, template_px) in
-                        screen_row.chunks_exact(4).zip(template_row.chunks_exact(4))
-                    {
-                        if !pixels_match_with_tolerance(template_px, screen_px, tolerance) {
-                            matched = false;
-                            break;
-                        }
-                    }
-                    if !matched {
-                        matched = false;
-                        break;
-                    }
-                }
-
-                if matched {
-                    return Some((x, y));
+                let should_replace = best_hit.is_none_or(|current: TemplateMatchHit| {
+                    score.avg_channel_diff < current.score.avg_channel_diff
+                });
+                if should_replace {
+                    best_hit = Some(hit);
                 }
             }
         }
-        None
+        best_hit
     }
 
     fn image_search_template_file(preset_id: u32) -> PathBuf {
@@ -5396,6 +5514,7 @@ mod windows_overlay {
         .context("Template image data is invalid.")?;
         let scales = [1.0_f32, 0.75, 0.85, 0.9, 1.1, 1.25, 1.5];
         let mut best_match = None;
+        let mut best_candidate: Option<(TemplateMatchHit, usize, usize, f32)> = None;
         for scale in scales {
             let (candidate_rgba, candidate_width, candidate_height) =
                 if (scale - 1.0).abs() < f32::EPSILON {
@@ -5424,7 +5543,7 @@ mod windows_overlay {
                 preset.last_capture_screen_x,
                 preset.last_capture_screen_y,
             ) {
-                if let Some((match_x, match_y)) = find_template_match_near_position(
+                if let Some(hit) = find_template_match_near_position(
                     &screen.rgba,
                     screen.width,
                     screen.height,
@@ -5436,12 +5555,23 @@ mod windows_overlay {
                     capture_x,
                     capture_y,
                     18,
+                    120,
                 ) {
-                    best_match = Some((match_x, match_y, candidate_width, candidate_height, scale));
-                    break;
+                    let is_strong = hit.score.avg_channel_diff <= 10.5
+                        && hit.score.mismatch_ratio <= 0.14;
+                    if is_strong {
+                        best_match = Some((hit, candidate_width, candidate_height, scale));
+                        break;
+                    }
+                    let should_replace = best_candidate.is_none_or(|(current, _, _, _)| {
+                        hit.score.avg_channel_diff < current.score.avg_channel_diff
+                    });
+                    if should_replace {
+                        best_candidate = Some((hit, candidate_width, candidate_height, scale));
+                    }
                 }
             }
-            if let Some((match_x, match_y)) = find_template_match(
+            if let Some(hit) = find_template_match(
                 &screen.rgba,
                 screen.width,
                 screen.height,
@@ -5450,23 +5580,46 @@ mod windows_overlay {
                 candidate_height,
                 14,
             ) {
-                best_match = Some((match_x, match_y, candidate_width, candidate_height, scale));
-                break;
+                let is_strong = hit.score.avg_channel_diff <= 10.5
+                    && hit.score.mismatch_ratio <= 0.14;
+                if is_strong {
+                    best_match = Some((hit, candidate_width, candidate_height, scale));
+                    break;
+                }
+                let should_replace = best_candidate.is_none_or(|(current, _, _, _)| {
+                    hit.score.avg_channel_diff < current.score.avg_channel_diff
+                });
+                if should_replace {
+                    best_candidate = Some((hit, candidate_width, candidate_height, scale));
+                }
             }
         }
-        let Some((match_x, match_y, matched_width, matched_height, matched_scale)) = best_match else {
+        let Some((hit, matched_width, matched_height, matched_scale)) = best_match else {
+            if let Some((candidate, candidate_width, candidate_height, scale)) = best_candidate {
+                let center_x = screen.screen_x + candidate.x as i32 + (candidate_width as i32 / 2);
+                let center_y =
+                    screen.screen_y + candidate.y as i32 + (candidate_height as i32 / 2);
+                return Ok(format!(
+                    "No strong match. Best candidate near {center_x}, {center_y} with {:.1}% mismatch, avg diff {:.1}, scale {:.2}x.",
+                    candidate.score.mismatch_ratio * 100.0,
+                    candidate.score.avg_channel_diff,
+                    scale
+                ));
+            }
             return Ok("No match found on screen.".to_owned());
         };
 
-        let center_x = screen.screen_x + match_x as i32 + (matched_width as i32 / 2);
-        let center_y = screen.screen_y + match_y as i32 + (matched_height as i32 / 2);
+        let center_x = screen.screen_x + hit.x as i32 + (matched_width as i32 / 2);
+        let center_y = screen.screen_y + hit.y as i32 + (matched_height as i32 / 2);
         send_mouse_move_absolute_backend(center_x, center_y, preset.use_interception_driver)?;
         if preset.click_after_move {
             send_mouse_left_click_backend(preset.use_interception_driver)?;
         }
         Ok(format!(
-            "Matched at {center_x}, {center_y} (scale {:.2}x).",
-            matched_scale
+            "Matched at {center_x}, {center_y} (scale {:.2}x, mismatch {:.1}%, avg diff {:.1}).",
+            matched_scale,
+            hit.score.mismatch_ratio * 100.0,
+            hit.score.avg_channel_diff
         ))
     }
 
