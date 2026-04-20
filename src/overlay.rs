@@ -167,6 +167,10 @@ mod windows_overlay {
             restore_speed: u32,
         },
         UpdateMouseDriverSettings(bool),
+        UpdateKeyboardArrowMouseSettings {
+            enabled: bool,
+            step_px: u32,
+        },
         ApplyMouseSensitivityPreset(u32),
         RestoreMouseSensitivity,
         UpdateToolboxPresets(Vec<ToolboxPreset>),
@@ -229,6 +233,8 @@ mod windows_overlay {
         active_mouse_sensitivity_preset_id: Option<u32>,
         mouse_sensitivity_restore_speed: Option<u32>,
         mouse_use_interception_driver: bool,
+        keyboard_arrow_mouse_enabled: bool,
+        keyboard_arrow_mouse_step_px: u32,
         interception_dll_path: PathBuf,
         mouse_sensitivity_restore_on_exit: bool,
         mouse_sensitivity_exit_restore_speed: u32,
@@ -271,6 +277,8 @@ mod windows_overlay {
                 active_mouse_sensitivity_preset_id: None,
                 mouse_sensitivity_restore_speed: None,
                 mouse_use_interception_driver: false,
+                keyboard_arrow_mouse_enabled: false,
+                keyboard_arrow_mouse_step_px: 12,
                 interception_dll_path: PathBuf::new(),
                 mouse_sensitivity_restore_on_exit: false,
                 mouse_sensitivity_exit_restore_speed: 6,
@@ -783,6 +791,8 @@ mod windows_overlay {
                         }
                     }
                     if !is_ui_in_foreground() {
+                        apply_keyboard_arrow_mouse_movement();
+
                         let pin_active = runtime.active_pin_thumbnail.is_some()
                             || HOOK_STATE.lock().active_pin_preset_id.is_some();
                         if pin_active {
@@ -1063,6 +1073,10 @@ mod windows_overlay {
                     }
 
                     update_held_key(&key_name, is_key_down, is_key_up);
+                    if is_key_down && keyboard_arrow_mouse_should_swallow(&key_name) {
+                        apply_keyboard_arrow_mouse_movement();
+                    }
+                    swallow |= keyboard_arrow_mouse_should_swallow(&key_name);
                     swallow |= is_locked_input(&key_name);
                     update_modifier_state(info.vkCode, is_key_down);
                     return if swallow {
@@ -1880,6 +1894,48 @@ mod windows_overlay {
         HOOK_STATE.lock().locked_mouse_count > 0
     }
 
+    fn is_keyboard_arrow_mouse_key(key_name: &str) -> bool {
+        matches!(key_name, "Left" | "Right" | "Up" | "Down")
+    }
+
+    fn keyboard_arrow_mouse_delta() -> Option<(i32, i32)> {
+        let hook_state = HOOK_STATE.lock();
+        if !hook_state.keyboard_arrow_mouse_enabled {
+            return None;
+        }
+        let step = hook_state.keyboard_arrow_mouse_step_px as i32;
+        let mut dx = 0i32;
+        let mut dy = 0i32;
+        if hook_state.held_inputs.contains("Left") {
+            dx -= step;
+        }
+        if hook_state.held_inputs.contains("Right") {
+            dx += step;
+        }
+        if hook_state.held_inputs.contains("Up") {
+            dy -= step;
+        }
+        if hook_state.held_inputs.contains("Down") {
+            dy += step;
+        }
+        if dx == 0 && dy == 0 {
+            None
+        } else {
+            Some((dx, dy))
+        }
+    }
+
+    fn keyboard_arrow_mouse_should_swallow(key_name: &str) -> bool {
+        let hook_state = HOOK_STATE.lock();
+        hook_state.keyboard_arrow_mouse_enabled && is_keyboard_arrow_mouse_key(key_name)
+    }
+
+    fn apply_keyboard_arrow_mouse_movement() {
+        if let Some((dx, dy)) = keyboard_arrow_mouse_delta() {
+            let _ = send_mouse_move_relative(dx, dy);
+        }
+    }
+
     unsafe fn runtime_mut(hwnd: HWND) -> Option<&'static mut Runtime> {
         let ptr = GetWindowLongPtrW(hwnd, WINDOW_LONG_PTR_INDEX(GWLP_USERDATA.0));
         if ptr == 0 {
@@ -1951,6 +2007,11 @@ mod windows_overlay {
                 }
                 OverlayCommand::UpdateMouseDriverSettings(enabled) => {
                     HOOK_STATE.lock().mouse_use_interception_driver = enabled;
+                }
+                OverlayCommand::UpdateKeyboardArrowMouseSettings { enabled, step_px } => {
+                    let mut hook_state = HOOK_STATE.lock();
+                    hook_state.keyboard_arrow_mouse_enabled = enabled;
+                    hook_state.keyboard_arrow_mouse_step_px = step_px.clamp(1, 100) as u32;
                 }
                 OverlayCommand::ApplyMouseSensitivityPreset(preset_id) => {
                     if let Some(preset) = HOOK_STATE
@@ -2133,6 +2194,14 @@ mod windows_overlay {
             || HOOK_STATE.lock().active_pin_preset_id.is_some();
         if pin_active {
             return 100;
+        }
+
+        if keyboard_arrow_mouse_delta().is_some() {
+            return 16;
+        }
+
+        if HOOK_STATE.lock().keyboard_arrow_mouse_enabled {
+            return 33;
         }
 
         750
@@ -6113,6 +6182,7 @@ mod fallback {
         UpdateMacroPresets(Vec<MacroGroup>),
         UpdateAudioSettings(AudioSettings),
         UpdateMouseDriverSettings(bool),
+        UpdateKeyboardArrowMouseSettings { enabled: bool, step_px: u32 },
         SetMacrosMasterEnabled(bool),
         SetUiVisible(bool),
         Exit,

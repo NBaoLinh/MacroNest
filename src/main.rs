@@ -74,6 +74,10 @@ fn main() -> Result<()> {
     overlay.send(OverlayCommand::UpdateMouseDriverSettings(
         state.mouse_use_interception_driver,
     ));
+    overlay.send(OverlayCommand::UpdateKeyboardArrowMouseSettings {
+        enabled: state.keyboard_arrow_mouse_enabled,
+        step_px: state.keyboard_arrow_mouse_step_px,
+    });
     overlay.send(OverlayCommand::UpdateMacroPresets(
         state.macro_groups.clone(),
     ));
