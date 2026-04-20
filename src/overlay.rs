@@ -5185,13 +5185,24 @@ mod windows_overlay {
         Ok(())
     }
 
-    fn find_exact_template_match(
+    fn pixels_match_with_tolerance(template_px: &[u8], screen_px: &[u8], tolerance: u8) -> bool {
+        if template_px.len() < 4 || screen_px.len() < 4 {
+            return false;
+        }
+        let tolerance = tolerance as i16;
+        (template_px[0] as i16 - screen_px[0] as i16).abs() <= tolerance
+            && (template_px[1] as i16 - screen_px[1] as i16).abs() <= tolerance
+            && (template_px[2] as i16 - screen_px[2] as i16).abs() <= tolerance
+    }
+
+    fn find_template_match(
         screen_rgba: &[u8],
         screen_width: usize,
         screen_height: usize,
         template_rgba: &[u8],
         template_width: usize,
         template_height: usize,
+        tolerance: u8,
     ) -> Option<(usize, usize)> {
         if template_width == 0
             || template_height == 0
@@ -5208,7 +5219,10 @@ mod windows_overlay {
             let screen_row_offset = y * screen_row_bytes;
             for x in 0..=screen_width - template_width {
                 let screen_offset = screen_row_offset + x * 4;
-                if screen_rgba.get(screen_offset..screen_offset + 4) != Some(anchor) {
+                let Some(screen_anchor) = screen_rgba.get(screen_offset..screen_offset + 4) else {
+                    continue;
+                };
+                if !pixels_match_with_tolerance(anchor, screen_anchor, tolerance) {
                     continue;
                 }
 
@@ -5216,9 +5230,26 @@ mod windows_overlay {
                 for ty in 0..template_height {
                     let screen_start = (y + ty) * screen_row_bytes + x * 4;
                     let template_start = ty * row_bytes;
-                    if screen_rgba.get(screen_start..screen_start + row_bytes)
-                        != template_rgba.get(template_start..template_start + row_bytes)
+                    let Some(screen_row) = screen_rgba.get(screen_start..screen_start + row_bytes)
+                    else {
+                        matched = false;
+                        break;
+                    };
+                    let Some(template_row) =
+                        template_rgba.get(template_start..template_start + row_bytes)
+                    else {
+                        matched = false;
+                        break;
+                    };
+                    for (screen_px, template_px) in
+                        screen_row.chunks_exact(4).zip(template_row.chunks_exact(4))
                     {
+                        if !pixels_match_with_tolerance(template_px, screen_px, tolerance) {
+                            matched = false;
+                            break;
+                        }
+                    }
+                    if !matched {
                         matched = false;
                         break;
                     }
@@ -5251,19 +5282,28 @@ mod windows_overlay {
         let template_height = template.height() as usize;
         let template_rgba = template.into_raw();
 
-        let screen = window_list::capture_window_region_with_candidates(
-            preset.target_window_title.as_deref(),
-            &preset.extra_target_window_titles,
-            preset.match_duplicate_window_titles,
-        )
-        .context("Failed to capture the target window")?;
-        let Some((match_x, match_y)) = find_exact_template_match(
+        let screen = if preset.target_window_title.is_some()
+            || !preset.extra_target_window_titles.is_empty()
+        {
+            window_list::capture_window_region_with_candidates(
+                preset.target_window_title.as_deref(),
+                &preset.extra_target_window_titles,
+                preset.match_duplicate_window_titles,
+            )
+            .context("Failed to capture the target window")?
+        } else {
+            let (left, top, width, height) = window_list::virtual_screen_bounds();
+            window_list::capture_virtual_screen_region(left, top, width, height)
+                .context("Failed to capture the screen")?
+        };
+        let Some((match_x, match_y)) = find_template_match(
             &screen.rgba,
             screen.width,
             screen.height,
             &template_rgba,
             template_width,
             template_height,
+            12,
         ) else {
             return Ok("No match found on screen.".to_owned());
         };

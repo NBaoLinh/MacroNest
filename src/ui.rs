@@ -4726,6 +4726,7 @@ impl CrosshairApp {
                             }
                         });
                         ui.end_row();
+
                     });
 
                 ui.separator();
@@ -4779,6 +4780,7 @@ impl CrosshairApp {
                             }
                         });
                         ui.end_row();
+
                     });
 
                 ui.separator();
@@ -9746,6 +9748,29 @@ impl CrosshairApp {
                             });
                         });
                         ui.end_row();
+
+                        ui.label(Self::tr_lang(language, "Mouse Driver", "Driver chuot"));
+                        ui.horizontal_wrapped(|ui| {
+                            live_sync |= ui
+                                .checkbox(
+                                    &mut preset.use_interception_driver,
+                                    Self::tr_lang(
+                                        language,
+                                        "Use Interception",
+                                        "Dung Interception",
+                                    ),
+                                )
+                                .changed();
+                            ui.label(
+                                RichText::new(if preset.use_interception_driver {
+                                    Self::tr_lang(language, "Interception", "Interception")
+                                } else {
+                                    Self::tr_lang(language, "SendInput", "SendInput")
+                                })
+                                .small(),
+                            );
+                        });
+                        ui.end_row();
                     });
                 ui.add_space(6.0);
                 Self::render_mouse_path_preview(ui, language, &preset.events, 240.0);
@@ -9921,7 +9946,7 @@ impl CrosshairApp {
                         live_sync |= Self::render_multi_window_targets(
                             ui,
                             (preset.id, "image-search-target"),
-                            Self::tr_lang(language, "Focused window", "Cua so dang focus"),
+                            Self::tr_lang(language, "Any screen", "Toan man hinh"),
                             &mut preset.target_window_title,
                             &mut preset.extra_target_window_titles,
                             &open_windows,
@@ -9954,28 +9979,6 @@ impl CrosshairApp {
                         });
                         ui.end_row();
 
-                        ui.label(Self::tr_lang(language, "Mouse Driver", "Driver chuot"));
-                        ui.horizontal_wrapped(|ui| {
-                            live_sync |= ui
-                                .checkbox(
-                                    &mut preset.use_interception_driver,
-                                    Self::tr_lang(
-                                        language,
-                                        "Use Interception",
-                                        "Dung Interception",
-                                    ),
-                                )
-                                .changed();
-                            ui.label(
-                                RichText::new(if preset.use_interception_driver {
-                                    Self::tr_lang(language, "Interception", "Interception")
-                                } else {
-                                    Self::tr_lang(language, "SendInput", "SendInput")
-                                })
-                                .small(),
-                            );
-                        });
-                        ui.end_row();
                     });
 
                 if let Some(preview) = preview.as_ref() {
