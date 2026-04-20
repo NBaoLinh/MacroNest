@@ -895,7 +895,7 @@ impl CrosshairApp {
             .to_owned();
 
         let view = if let Some(cache) = self.image_search_preview_cache.get_mut(&preset.id) {
-            cache.view.texture.set(color_image, TextureOptions::LINEAR);
+            cache.view.texture.set(color_image, TextureOptions::NEAREST);
             cache.updated_at = Instant::now();
             cache.source_path = file_path.clone();
             cache.source_modified = modified;
@@ -907,7 +907,7 @@ impl CrosshairApp {
             let texture = ctx.load_texture(
                 format!("image-search-preview-{}", preset.id),
                 color_image,
-                TextureOptions::LINEAR,
+                TextureOptions::NEAREST,
             );
             let view = ImageSearchPreviewView {
                 texture,
@@ -9247,29 +9247,13 @@ impl CrosshairApp {
         ui.separator();
         ui.heading(self.tr("Mouse Driver", "Driver chuot"));
         ui.label(self.tr(
-            "Choose the mouse output backend.",
-            "Chon backend xuat chuot.",
+            "Download or remove the Interception driver. Each mouse path preset now chooses its own backend.",
+            "Tai hoac xoa driver Interception. Tung preset duong chuot se tu chon backend rieng.",
         ));
         let driver_downloaded = self.mouse_interception_driver_downloaded();
         let driver_installed = self.mouse_interception_driver_installed();
         let driver_ready = driver_downloaded || driver_installed;
-        let active_backend = if self.state.mouse_use_interception_driver && driver_installed {
-            "Interception"
-        } else {
-            "SendInput"
-        };
-        let mut mouse_driver_settings_changed = false;
         ui.horizontal_wrapped(|ui| {
-            mouse_driver_settings_changed |= ui
-                .checkbox(
-                    &mut self.state.mouse_use_interception_driver,
-                    Self::tr_lang(
-                        self.state.ui_language,
-                        "Use Interception",
-                        "Dung Interception",
-                    ),
-                )
-                .changed();
             let download_driver_clicked = ui
                 .add_enabled(
                     !driver_ready,
@@ -9306,8 +9290,6 @@ impl CrosshairApp {
             {
                 match self.uninstall_and_remove_interception_driver() {
                     Ok(status) => {
-                        self.state.mouse_use_interception_driver = false;
-                        self.sync_mouse_driver_settings();
                         self.persist();
                         self.status = status;
                     }
@@ -9323,7 +9305,6 @@ impl CrosshairApp {
             }
         });
         ui.horizontal_wrapped(|ui| {
-            ui.label(RichText::new(format!("Backend: {active_backend}")).small());
             ui.label(RichText::new(format!(
                 "Package: {}",
                 if driver_downloaded { "ready" } else { "missing" }
@@ -9339,10 +9320,6 @@ impl CrosshairApp {
             ))
             .small());
         });
-        if mouse_driver_settings_changed {
-            self.sync_mouse_driver_settings();
-            self.persist();
-        }
 
         ui.separator();
         ui.heading(self.tr("Arrow Mouse", "Chuot bang phim mui ten"));
@@ -9374,8 +9351,8 @@ impl CrosshairApp {
         });
         ui.label(if self.state.keyboard_arrow_mouse_enabled {
             match self.state.ui_language {
-                UiLanguage::Vietnamese => format!("Dang bat. Backend: {active_backend}."),
-                _ => format!("Active. Backend: {active_backend}."),
+                UiLanguage::Vietnamese => "Dang bat. Backend: SendInput.".to_owned(),
+                _ => "Active. Backend: SendInput.".to_owned(),
             }
         } else {
             Self::tr_lang(
@@ -9830,12 +9807,7 @@ impl CrosshairApp {
             Self::show_preset_card(ui, preset.enabled, |ui| {
                 ui.horizontal(|ui| {
                     live_sync |= ui.checkbox(&mut preset.enabled, "").changed();
-                    ui.label(Self::preset_title_text(
-                        dark_mode,
-                        &preset.name,
-                        preset.enabled,
-                    ));
-                    ui.add_sized([220.0, 24.0], TextEdit::singleline(&mut preset.name));
+                    ui.label(Self::preset_title_text(dark_mode, &preset.name, preset.enabled));
                     ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
                         if ui
                             .button(Self::tr_lang(language, "Delete", "Xoa"))
@@ -9865,6 +9837,12 @@ impl CrosshairApp {
                     .num_columns(2)
                     .spacing([14.0, 8.0])
                     .show(ui, |ui| {
+                        ui.label(Self::tr_lang(language, "Preset Name", "Ten preset"));
+                        live_sync |= ui
+                            .add_sized([260.0, 24.0], TextEdit::singleline(&mut preset.name))
+                            .changed();
+                        ui.end_row();
+
                         ui.label(Self::tr_lang(language, "Hotkey", "Phim tat"));
                         ui.horizontal_wrapped(|ui| {
                             ui.monospace(hotkey_text.clone());
@@ -9960,6 +9938,29 @@ impl CrosshairApp {
                                 .changed();
                         });
                         ui.end_row();
+
+                        ui.label(Self::tr_lang(language, "Mouse Driver", "Driver chuot"));
+                        ui.horizontal_wrapped(|ui| {
+                            live_sync |= ui
+                                .checkbox(
+                                    &mut preset.use_interception_driver,
+                                    Self::tr_lang(
+                                        language,
+                                        "Use Interception",
+                                        "Dung Interception",
+                                    ),
+                                )
+                                .changed();
+                            ui.label(
+                                RichText::new(if preset.use_interception_driver {
+                                    Self::tr_lang(language, "Per preset", "Theo preset")
+                                } else {
+                                    Self::tr_lang(language, "SendInput", "SendInput")
+                                })
+                                .small(),
+                            );
+                        });
+                        ui.end_row();
                     });
 
                 if let Some(preview) = preview.as_ref() {
@@ -9970,9 +9971,13 @@ impl CrosshairApp {
                             preview.file_name, preview.width, preview.height
                         ))
                         .small());
+                        let scale = ((320.0 / preview.width.max(1) as f32)
+                            .min(180.0 / preview.height.max(1) as f32))
+                        .floor()
+                        .max(1.0);
                         let size = vec2(
-                            preview.width.min(360) as f32,
-                            preview.height.min(180) as f32,
+                            preview.width as f32 * scale,
+                            preview.height as f32 * scale,
                         );
                         ui.image((preview.texture.id(), size));
                     });

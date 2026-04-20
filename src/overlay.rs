@@ -3169,13 +3169,13 @@ mod windows_overlay {
             .trim()
             .parse::<u32>()
             .context("Mouse path preset id is invalid")?;
-        let events = {
+        let (events, use_interception_driver) = {
             let hook_state = HOOK_STATE.lock();
             hook_state
                 .mouse_path_presets
                 .iter()
                 .find(|preset| preset.id == mouse_path_preset_id)
-                .map(|preset| preset.events.clone())
+                .map(|preset| (preset.events.clone(), preset.use_interception_driver))
                 .context("Mouse path preset was not found")?
         };
         if events.is_empty() {
@@ -3211,7 +3211,11 @@ mod windows_overlay {
                                 let t = index as f32 / steps as f32;
                                 let x = from_x as f32 + dx as f32 * t;
                                 let y = from_y as f32 + dy as f32 * t;
-                                send_mouse_move_absolute(x.round() as i32, y.round() as i32)?;
+                                send_mouse_move_absolute_backend(
+                                    x.round() as i32,
+                                    y.round() as i32,
+                                    use_interception_driver,
+                                )?;
                                 if sleep_for_mouse_path_delay(
                                     preset_id,
                                     8,
@@ -3221,7 +3225,11 @@ mod windows_overlay {
                                 }
                             }
                         } else {
-                            send_mouse_move_absolute(event.x, event.y)?;
+                            send_mouse_move_absolute_backend(
+                                event.x,
+                                event.y,
+                                use_interception_driver,
+                            )?;
                         }
                         last_pos = Some((event.x, event.y));
                     }
@@ -3249,7 +3257,10 @@ mod windows_overlay {
                             y: event.y,
                             ..MacroStep::default()
                         };
-                        send_mouse_event(&pseudo_step)?;
+                        send_mouse_event_with_backend(
+                            &pseudo_step,
+                            use_interception_driver,
+                        )?;
                     }
                 }
             }
@@ -3278,7 +3289,7 @@ mod windows_overlay {
                     y: event.y,
                     ..MacroStep::default()
                 };
-                send_mouse_event(&pseudo_step)?;
+                send_mouse_event_with_backend(&pseudo_step, use_interception_driver)?;
             }
         }
         Ok(())
@@ -4706,10 +4717,6 @@ mod windows_overlay {
         Ok(())
     }
 
-    fn use_interception_mouse_output() -> bool {
-        HOOK_STATE.lock().mouse_use_interception_driver
-    }
-
     fn current_interception_dll_path() -> PathBuf {
         HOOK_STATE.lock().interception_dll_path.clone()
     }
@@ -4731,8 +4738,11 @@ mod windows_overlay {
         }
     }
 
-    fn send_mouse_strokes_interception(strokes: &[InterceptionMouseStroke]) -> bool {
-        if !use_interception_mouse_output() {
+    fn send_mouse_strokes_interception(
+        prefer_interception: bool,
+        strokes: &[InterceptionMouseStroke],
+    ) -> bool {
+        if !prefer_interception {
             return false;
         }
         let dll_path = current_interception_dll_path();
@@ -4740,13 +4750,21 @@ mod windows_overlay {
     }
 
     fn send_mouse_event(step: &MacroStep) -> Result<()> {
+        send_mouse_event_with_backend(step, false)
+    }
+
+    fn send_mouse_event_with_backend(step: &MacroStep, prefer_interception: bool) -> Result<()> {
         match step.action {
             MacroAction::MouseMoveAbsolute => {
-                send_mouse_move_absolute(step.x, step.y)?;
+                send_mouse_move_absolute_backend(step.x, step.y, prefer_interception)?;
                 return Ok(());
             }
             MacroAction::MouseMoveRelative => {
-                send_mouse_move_relative(step.x, step.y)?;
+                send_mouse_move_relative_with_backend(
+                    step.x,
+                    step.y,
+                    prefer_interception,
+                )?;
                 return Ok(());
             }
             _ => {}
@@ -4946,7 +4964,7 @@ mod windows_overlay {
         };
 
         if let Some(strokes) = interception_strokes.as_deref()
-            && send_mouse_strokes_interception(strokes)
+            && send_mouse_strokes_interception(prefer_interception, strokes)
         {
             return Ok(());
         }
@@ -4992,19 +5010,30 @@ mod windows_overlay {
     }
 
     fn send_mouse_move_absolute(x: i32, y: i32) -> Result<()> {
+        send_mouse_move_absolute_backend(x, y, false)
+    }
+
+    fn send_mouse_move_absolute_backend(
+        x: i32,
+        y: i32,
+        prefer_interception: bool,
+    ) -> Result<()> {
         let screen_w = unsafe { GetSystemMetrics(SM_CXSCREEN) }.max(1);
         let screen_h = unsafe { GetSystemMetrics(SM_CYSCREEN) }.max(1);
         let normalized_x =
             ((x.clamp(0, screen_w - 1) as i64) * 65535 / (screen_w - 1).max(1) as i64) as i32;
         let normalized_y =
             ((y.clamp(0, screen_h - 1) as i64) * 65535 / (screen_h - 1).max(1) as i64) as i32;
-        if send_mouse_strokes_interception(&[interception_mouse_stroke(
-            0,
-            INTERCEPTION_MOUSE_MOVE_ABSOLUTE,
-            0,
-            normalized_x,
-            normalized_y,
-        )]) {
+        if send_mouse_strokes_interception(
+            prefer_interception,
+            &[interception_mouse_stroke(
+                0,
+                INTERCEPTION_MOUSE_MOVE_ABSOLUTE,
+                0,
+                normalized_x,
+                normalized_y,
+            )],
+        ) {
             return Ok(());
         }
         let input = INPUT {
@@ -5030,7 +5059,18 @@ mod windows_overlay {
     }
 
     fn send_mouse_move_relative(dx: i32, dy: i32) -> Result<()> {
-        if send_mouse_strokes_interception(&[interception_mouse_stroke(0, 0, 0, dx, dy)]) {
+        send_mouse_move_relative_with_backend(dx, dy, false)
+    }
+
+    fn send_mouse_move_relative_with_backend(
+        dx: i32,
+        dy: i32,
+        prefer_interception: bool,
+    ) -> Result<()> {
+        if send_mouse_strokes_interception(
+            prefer_interception,
+            &[interception_mouse_stroke(0, 0, 0, dx, dy)],
+        ) {
             return Ok(());
         }
         let input = INPUT {
@@ -5058,7 +5098,7 @@ mod windows_overlay {
     }
 
     fn send_mouse_left_click() -> Result<()> {
-        if send_mouse_strokes_interception(&[
+        if send_mouse_strokes_interception(false, &[
             interception_mouse_stroke(INTERCEPTION_MOUSE_LEFT_BUTTON_DOWN, 0, 0, 0, 0),
             interception_mouse_stroke(INTERCEPTION_MOUSE_LEFT_BUTTON_UP, 0, 0, 0, 0),
         ]) {
@@ -5101,53 +5141,11 @@ mod windows_overlay {
         Ok(())
     }
 
-    fn send_mouse_move_absolute_backend(x: i32, y: i32, prefer_interception: bool) -> Result<()> {
-        let screen_w = unsafe { GetSystemMetrics(SM_CXSCREEN) }.max(1);
-        let screen_h = unsafe { GetSystemMetrics(SM_CYSCREEN) }.max(1);
-        let normalized_x =
-            ((x.clamp(0, screen_w - 1) as i64) * 65535 / (screen_w - 1).max(1) as i64) as i32;
-        let normalized_y =
-            ((y.clamp(0, screen_h - 1) as i64) * 65535 / (screen_h - 1).max(1) as i64) as i32;
-        if prefer_interception
-            && send_mouse_strokes_interception(&[interception_mouse_stroke(
-                0,
-                INTERCEPTION_MOUSE_MOVE_ABSOLUTE,
-                0,
-                normalized_x,
-                normalized_y,
-            )])
-        {
-            return Ok(());
-        }
-        let input = INPUT {
-            r#type: INPUT_MOUSE,
-            Anonymous: INPUT_0 {
-                mi: MOUSEINPUT {
-                    dx: normalized_x,
-                    dy: normalized_y,
-                    mouseData: 0,
-                    dwFlags: MOUSEEVENTF_MOVE | MOUSEEVENTF_ABSOLUTE,
-                    time: 0,
-                    dwExtraInfo: 0,
-                },
-            },
-        };
-        unsafe {
-            let sent = SendInput(&[input], size_of::<INPUT>() as i32);
-            if sent == 0 {
-                let _ = SetCursorPos(x, y);
-            }
-        }
-        Ok(())
-    }
-
     fn send_mouse_left_click_backend(prefer_interception: bool) -> Result<()> {
-        if prefer_interception
-            && send_mouse_strokes_interception(&[
+        if send_mouse_strokes_interception(prefer_interception, &[
                 interception_mouse_stroke(INTERCEPTION_MOUSE_LEFT_BUTTON_DOWN, 0, 0, 0, 0),
                 interception_mouse_stroke(INTERCEPTION_MOUSE_LEFT_BUTTON_UP, 0, 0, 0, 0),
-            ])
-        {
+            ]) {
             return Ok(());
         }
         let inputs = [

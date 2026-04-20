@@ -561,6 +561,7 @@ pub struct MousePathPreset {
     pub enabled: bool,
     pub collapsed: bool,
     pub record_hotkey: Option<HotkeyBinding>,
+    pub use_interception_driver: bool,
     pub events: Vec<MousePathEvent>,
 }
 
@@ -572,6 +573,7 @@ impl MousePathPreset {
             enabled: true,
             collapsed: true,
             record_hotkey: None,
+            use_interception_driver: false,
             events: Vec::new(),
         }
     }
