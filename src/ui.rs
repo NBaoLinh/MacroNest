@@ -58,6 +58,7 @@ enum AudioEditorTarget {
 enum ImageSearchCaptureMode {
     Template,
     SearchRegion,
+    ColorSample,
 }
 
 #[derive(Clone)]
@@ -949,6 +950,28 @@ impl CrosshairApp {
             }
             _ => "Any screen".to_owned(),
         }
+    }
+
+    fn image_search_target_color_text(preset: &ImageSearchPreset) -> String {
+        preset
+            .target_color
+            .map(|color| format!("#{:02X}{:02X}{:02X}", color.r, color.g, color.b))
+            .unwrap_or_else(|| "None".to_owned())
+    }
+
+    fn image_search_target_color_swatch(ui: &mut egui::Ui, color: Option<RgbaColor>) {
+        let (rect, _) = ui.allocate_exact_size(vec2(18.0, 18.0), Sense::hover());
+        let fill = color.map_or(
+            Color32::from_rgba_premultiplied(42, 48, 56, 220),
+            |color| Color32::from_rgba_unmultiplied(color.r, color.g, color.b, 255),
+        );
+        ui.painter().rect_filled(rect, 4.0, fill);
+        ui.painter().rect_stroke(
+            rect,
+            4.0,
+            egui::Stroke::new(1.0, Color32::from_rgb(160, 174, 196)),
+            egui::StrokeKind::Outside,
+        );
     }
 
     fn clear_pin_preview_cache(&mut self) {
@@ -4137,6 +4160,9 @@ impl CrosshairApp {
             ImageSearchCaptureMode::SearchRegion => {
                 "Drag on screen to pick the image search area. Press Esc to cancel.".to_owned()
             }
+            ImageSearchCaptureMode::ColorSample => {
+                "Click a pixel on screen to pick a target color. Press Esc to cancel.".to_owned()
+            }
         };
         ctx.request_repaint();
     }
@@ -4157,6 +4183,7 @@ impl CrosshairApp {
         self.status = match mode {
             ImageSearchCaptureMode::Template => "Image template capture cancelled.".to_owned(),
             ImageSearchCaptureMode::SearchRegion => "Image search area capture cancelled.".to_owned(),
+            ImageSearchCaptureMode::ColorSample => "Image color pick cancelled.".to_owned(),
         };
         ctx.request_repaint();
     }
@@ -4266,6 +4293,10 @@ impl CrosshairApp {
                 }
                 ctx.request_repaint();
             }
+            ImageSearchCaptureMode::ColorSample => {
+                let center = rect.center();
+                self.finish_image_search_color_pick(ctx, center);
+            }
         }
     }
 
@@ -4283,6 +4314,23 @@ impl CrosshairApp {
             capture_width,
             capture_height,
         )
+    }
+
+    fn screen_point_from_pos(
+        &self,
+        ctx: &egui::Context,
+        pos: egui::Pos2,
+        pixels_per_point: f32,
+    ) -> Option<(i32, i32)> {
+        let (left, top, _width, _height) = window_list::virtual_screen_bounds();
+        let scale = pixels_per_point.max(0.5);
+        let viewport_origin = ctx
+            .input(|input| input.viewport().inner_rect.map(|viewport| viewport.min))
+            .unwrap_or_else(|| egui::pos2(left as f32 / scale, top as f32 / scale));
+        Some((
+            ((viewport_origin.x + pos.x) * scale).round() as i32,
+            ((viewport_origin.y + pos.y) * scale).round() as i32,
+        ))
     }
 
     fn screen_region_from_rect(
@@ -4303,6 +4351,67 @@ impl CrosshairApp {
         let capture_width = ((max.x - min.x).abs() * scale).round().max(1.0) as i32;
         let capture_height = ((max.y - min.y).abs() * scale).round().max(1.0) as i32;
         Some((capture_left, capture_top, capture_width, capture_height))
+    }
+
+    fn finish_image_search_color_pick(&mut self, ctx: &egui::Context, pos: egui::Pos2) {
+        let Some(preset_id) = self.image_search_capture_target_preset_id else {
+            self.cancel_image_search_capture(ctx);
+            self.status = "No image search preset is active.".to_owned();
+            return;
+        };
+
+        self.image_search_capture_active = false;
+        self.image_search_capture_target_preset_id = None;
+        self.image_search_capture_mode = None;
+        self.image_search_capture_anchor = None;
+        self.image_search_capture_current = None;
+
+        let screen_point = self.screen_point_from_pos(ctx, pos, ctx.pixels_per_point());
+        ctx.send_viewport_cmd(egui::ViewportCommand::Visible(false));
+        let _ = self.overlay_tx.send(OverlayCommand::SetUiVisible(false));
+        std::thread::sleep(Duration::from_millis(70));
+        let capture = screen_point.and_then(|(screen_x, screen_y)| {
+            window_list::capture_virtual_screen_region(screen_x, screen_y, 1, 1)
+        });
+        self.restore_image_search_viewport(ctx);
+        ctx.send_viewport_cmd(egui::ViewportCommand::Visible(true));
+        ctx.send_viewport_cmd(egui::ViewportCommand::Minimized(false));
+        let _ = self.overlay_tx.send(OverlayCommand::SetUiVisible(true));
+
+        let Some(capture) = capture else {
+            self.status = "Failed to sample the selected screen color.".to_owned();
+            ctx.request_repaint();
+            return;
+        };
+        if capture.rgba.len() < 4 {
+            self.status = "Failed to read the selected screen color.".to_owned();
+            ctx.request_repaint();
+            return;
+        }
+
+        let color = RgbaColor {
+            r: capture.rgba[0],
+            g: capture.rgba[1],
+            b: capture.rgba[2],
+            a: 255,
+        };
+        if let Some(preset) = self
+            .state
+            .image_search_presets
+            .iter_mut()
+            .find(|preset| preset.id == preset_id)
+        {
+            preset.collapsed = false;
+            preset.use_color_matching = true;
+            preset.target_color = Some(color);
+        }
+        self.sync_image_search_presets();
+        self.persist();
+        self.status = format!(
+            "Picked color #{:02X}{:02X}{:02X} for preset #{}.",
+            color.r, color.g, color.b, preset_id
+        );
+        ctx.request_repaint();
     }
 
     fn apply_captured_input(&mut self, target: CaptureRequest, captured: CapturedInput) {
@@ -9921,6 +10030,7 @@ impl CrosshairApp {
             let mut next_capture = None;
             let mut start_image_search_capture = None;
             let mut start_search_region_capture = None;
+            let mut start_color_pick_capture = None;
             let template_file = self.image_search_template_file_for_preset(preset_snapshot.id);
             let template_ready = template_file.exists();
             let dark_mode = self.state.ui_theme == UiThemeMode::Dark;
@@ -10032,26 +10142,6 @@ impl CrosshairApp {
                         });
                         ui.end_row();
 
-                        ui.label(Self::tr_lang(language, "Accuracy", "Do chinh xac"));
-                        ui.horizontal_wrapped(|ui| {
-                            live_sync |= ui
-                                .add(
-                                    Slider::new(&mut preset.confidence_threshold, 0.35..=0.99)
-                                        .fixed_decimals(2)
-                                        .show_value(true),
-                                )
-                                .changed();
-                            ui.label(
-                                RichText::new(Self::tr_lang(
-                                    language,
-                                    "Higher = stricter match",
-                                    "Cang cao = can khop sat hon",
-                                ))
-                                .small(),
-                            );
-                        });
-                        ui.end_row();
-
                         ui.label(Self::tr_lang(language, "Search area", "Vung tim"));
                         ui.horizontal_wrapped(|ui| {
                             ui.monospace(Self::image_search_search_area_text(preset));
@@ -10078,6 +10168,71 @@ impl CrosshairApp {
                         });
                         ui.end_row();
 
+                        ui.label(Self::tr_lang(language, "Color", "Mau"));
+                        ui.horizontal_wrapped(|ui| {
+                            live_sync |= ui
+                                .checkbox(
+                                    &mut preset.use_color_matching,
+                                    Self::tr_lang(language, "Match color", "Khop mau"),
+                                )
+                                .changed();
+                            Self::image_search_target_color_swatch(ui, preset.target_color);
+                            ui.monospace(Self::image_search_target_color_text(preset));
+                            if ui
+                                .button(Self::tr_lang(language, "Pick color", "Chon mau"))
+                                .clicked()
+                            {
+                                start_color_pick_capture = Some(preset.id);
+                            }
+                            if ui
+                                .button(Self::tr_lang(language, "Clear", "Xoa"))
+                                .clicked()
+                            {
+                                preset.target_color = None;
+                                preset.use_color_matching = false;
+                                live_sync = true;
+                            }
+                        });
+                        ui.end_row();
+
+                        if preset.use_color_matching {
+                            ui.label(Self::tr_lang(language, "Tolerance", "Dung sai"));
+                            ui.horizontal_wrapped(|ui| {
+                                live_sync |= ui
+                                    .add(Slider::new(&mut preset.color_tolerance, 0..=96))
+                                    .changed();
+                                ui.label(
+                                    RichText::new(Self::tr_lang(
+                                        language,
+                                        "Higher = wider color range",
+                                        "Cang cao = mau gan do deu khop",
+                                    ))
+                                    .small(),
+                                );
+                            });
+                            ui.end_row();
+                        } else {
+                            ui.label(Self::tr_lang(language, "Accuracy", "Do chinh xac"));
+                            ui.horizontal_wrapped(|ui| {
+                                live_sync |= ui
+                                    .add(
+                                        Slider::new(&mut preset.confidence_threshold, 0.35..=0.99)
+                                            .fixed_decimals(2)
+                                            .show_value(true),
+                                    )
+                                    .changed();
+                                ui.label(
+                                    RichText::new(Self::tr_lang(
+                                        language,
+                                        "Higher = stricter match",
+                                        "Cang cao = can khop sat hon",
+                                    ))
+                                    .small(),
+                                );
+                            });
+                            ui.end_row();
+                        }
+
                         ui.label(Self::tr_lang(language, "Target window", "Cua so"));
                         live_sync |= Self::render_multi_window_targets(
                             ui,
@@ -10100,20 +10255,6 @@ impl CrosshairApp {
 
                         ui.label(Self::tr_lang(language, "Mouse", "Chuot"));
                         ui.horizontal_wrapped(|ui| {
-                            live_sync |= ui
-                                .checkbox(
-                                    &mut preset.use_color_matching,
-                                    Self::tr_lang(language, "Use color", "Dung mau"),
-                                )
-                                .changed();
-                            ui.label(
-                                RichText::new(Self::tr_lang(
-                                    language,
-                                    "Off = grayscale",
-                                    "Tat = den trang",
-                                ))
-                                .small(),
-                            );
                             live_sync |= ui
                                 .checkbox(
                                     &mut preset.use_interception_driver,
@@ -10164,6 +10305,9 @@ impl CrosshairApp {
                     preset_id,
                     ImageSearchCaptureMode::SearchRegion,
                 );
+            }
+            if let Some(preset_id) = start_color_pick_capture {
+                self.begin_image_search_capture(ctx, preset_id, ImageSearchCaptureMode::ColorSample);
             }
         }
 
@@ -10217,6 +10361,10 @@ impl CrosshairApp {
                         "Drag to pick the search area. Press Esc to cancel.",
                         "Keo de chon vung tim. Bam Esc de huy.",
                     ),
+                    ImageSearchCaptureMode::ColorSample => self.tr(
+                        "Click a pixel to pick the target color. Press Esc to cancel.",
+                        "Bam vao diem anh de lay mau muc tieu. Bam Esc de huy.",
+                    ),
                 };
 
                 painter.text(
@@ -10243,28 +10391,44 @@ impl CrosshairApp {
                     );
                 }
 
-                if response.drag_started() {
-                    self.image_search_capture_anchor = response.interact_pointer_pos();
-                    self.image_search_capture_current = self.image_search_capture_anchor;
-                }
-                if response.dragged() {
-                    self.image_search_capture_current = response.interact_pointer_pos();
-                }
-
-                let pointer_released = ui.input(|input| input.pointer.any_released());
-                if pointer_released
-                    && let (Some(anchor), Some(current)) = (
-                        self.image_search_capture_anchor,
-                        self.image_search_capture_current,
-                    )
-                {
-                    let selection = egui::Rect::from_two_pos(anchor, current);
-                    if selection.width() >= 2.0 && selection.height() >= 2.0 {
-                        self.finish_image_search_capture(ctx, selection);
-                    } else {
-                        self.cancel_image_search_capture(ctx);
+                if capture_mode == ImageSearchCaptureMode::ColorSample {
+                    if let Some(pointer) = response.hover_pos() {
+                        painter.circle_stroke(
+                            pointer,
+                            9.0,
+                            egui::Stroke::new(2.0, Color32::from_rgb(120, 220, 255)),
+                        );
                     }
-                    return;
+                    if response.clicked()
+                        && let Some(pointer) = response.interact_pointer_pos()
+                    {
+                        self.finish_image_search_color_pick(ctx, pointer);
+                        return;
+                    }
+                } else {
+                    if response.drag_started() {
+                        self.image_search_capture_anchor = response.interact_pointer_pos();
+                        self.image_search_capture_current = self.image_search_capture_anchor;
+                    }
+                    if response.dragged() {
+                        self.image_search_capture_current = response.interact_pointer_pos();
+                    }
+
+                    let pointer_released = ui.input(|input| input.pointer.any_released());
+                    if pointer_released
+                        && let (Some(anchor), Some(current)) = (
+                            self.image_search_capture_anchor,
+                            self.image_search_capture_current,
+                        )
+                    {
+                        let selection = egui::Rect::from_two_pos(anchor, current);
+                        if selection.width() >= 2.0 && selection.height() >= 2.0 {
+                            self.finish_image_search_capture(ctx, selection);
+                        } else {
+                            self.cancel_image_search_capture(ctx);
+                        }
+                        return;
+                    }
                 }
 
                 if ctx.input(|input| input.key_pressed(egui::Key::Escape)) {

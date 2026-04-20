@@ -99,6 +99,10 @@ fn default_image_search_confidence_threshold() -> f32 {
     0.58
 }
 
+fn default_image_search_color_tolerance() -> u8 {
+    18
+}
+
 #[derive(Debug, Clone, Copy, Serialize, Deserialize, PartialEq, Eq, Default)]
 pub enum AppPanel {
     #[default]
@@ -971,8 +975,11 @@ pub struct ImageSearchPreset {
     pub use_interception_driver: bool,
     #[serde(default = "default_image_search_confidence_threshold")]
     pub confidence_threshold: f32,
-    #[serde(default = "default_true")]
+    #[serde(default)]
     pub use_color_matching: bool,
+    pub target_color: Option<RgbaColor>,
+    #[serde(default = "default_image_search_color_tolerance")]
+    pub color_tolerance: u8,
     pub last_capture_screen_x: Option<i32>,
     pub last_capture_screen_y: Option<i32>,
     pub search_region_screen_x: Option<i32>,
@@ -995,7 +1002,9 @@ impl ImageSearchPreset {
             click_after_move: false,
             use_interception_driver: false,
             confidence_threshold: default_image_search_confidence_threshold(),
-            use_color_matching: true,
+            use_color_matching: false,
+            target_color: None,
+            color_tolerance: default_image_search_color_tolerance(),
             last_capture_screen_x: None,
             last_capture_screen_y: None,
             search_region_screen_x: None,

@@ -5079,6 +5079,20 @@ mod windows_overlay {
         Ok(())
     }
 
+    fn settle_image_search_mouse_move(
+        x: i32,
+        y: i32,
+        prefer_interception: bool,
+    ) -> Result<()> {
+        for attempt in 0..3 {
+            send_mouse_move_absolute_backend(x, y, prefer_interception)?;
+            if attempt < 2 {
+                thread::sleep(Duration::from_millis(10));
+            }
+        }
+        Ok(())
+    }
+
     fn send_mouse_move_relative(dx: i32, dy: i32) -> Result<()> {
         send_mouse_move_relative_with_backend(dx, dy, false)
     }
@@ -5292,7 +5306,7 @@ mod windows_overlay {
         let anchor_hint = anchor_hint_screen.map(|(screen_x, screen_y)| {
             (screen_x - screen.screen_x, screen_y - screen.screen_y)
         });
-        let mut best_hit = None;
+        let mut best_hit: Option<TemplateMatchHit> = None;
 
         for &scale in scales {
             let scaled_width = ((template_width as f32) * scale).round().max(1.0) as i32;
@@ -5402,6 +5416,70 @@ mod windows_overlay {
         Some((left, top, width, height))
     }
 
+    #[derive(Clone, Copy, Debug)]
+    struct ColorMatchHit {
+        x: i32,
+        y: i32,
+        score: u32,
+        distance_sq: i32,
+    }
+
+    fn find_color_match(
+        screen: &window_list::ScreenCaptureFrame,
+        target: RgbaColor,
+        tolerance: u8,
+    ) -> Option<ColorMatchHit> {
+        let width = screen.width as i32;
+        let height = screen.height as i32;
+        if width <= 0 || height <= 0 {
+            return None;
+        }
+        let center_x = width / 2;
+        let center_y = height / 2;
+        let tolerance = tolerance as i16;
+        let mut best_hit: Option<ColorMatchHit> = None;
+
+        for y in 0..height {
+            for x in 0..width {
+                let index = ((y as usize) * screen.width + (x as usize)) * 4;
+                if index + 3 >= screen.rgba.len() {
+                    continue;
+                }
+                let r = screen.rgba[index] as i16;
+                let g = screen.rgba[index + 1] as i16;
+                let b = screen.rgba[index + 2] as i16;
+                let dr = (r - target.r as i16).abs();
+                let dg = (g - target.g as i16).abs();
+                let db = (b - target.b as i16).abs();
+                if dr > tolerance || dg > tolerance || db > tolerance {
+                    continue;
+                }
+
+                let score = (dr as u32) + (dg as u32) + (db as u32);
+                let distance_sq = (x - center_x).pow(2) + (y - center_y).pow(2);
+                let candidate = ColorMatchHit {
+                    x,
+                    y,
+                    score,
+                    distance_sq,
+                };
+                let replace = match best_hit {
+                    None => true,
+                    Some(current) if candidate.score < current.score => true,
+                    Some(current) if candidate.score == current.score => {
+                        candidate.distance_sq < current.distance_sq
+                    }
+                    _ => false,
+                };
+                if replace {
+                    best_hit = Some(candidate);
+                }
+            }
+        }
+
+        best_hit
+    }
+
     fn capture_near_last_image_search_region(
         capture_x: i32,
         capture_y: i32,
@@ -5433,6 +5511,49 @@ mod windows_overlay {
     }
 
     fn run_image_search_once(preset: &ImageSearchPreset) -> Result<String> {
+        if preset.use_color_matching {
+            let target = preset
+                .target_color
+                .context("No target color has been picked yet.")?;
+            let screen = if let Some((left, top, width, height)) = configured_image_search_region(preset)
+            {
+                window_list::capture_virtual_screen_region(left, top, width, height)
+                    .context("Failed to capture the selected search area")?
+            } else if preset.target_window_title.is_some()
+                || !preset.extra_target_window_titles.is_empty()
+            {
+                window_list::capture_window_region_with_candidates(
+                    preset.target_window_title.as_deref(),
+                    &preset.extra_target_window_titles,
+                    preset.match_duplicate_window_titles,
+                )
+                .context("Failed to capture the target window")?
+            } else {
+                let (left, top, width, height) = window_list::virtual_screen_bounds();
+                window_list::capture_virtual_screen_region(left, top, width, height)
+                    .context("Failed to capture the screen")?
+            };
+
+            let Some(hit) = find_color_match(&screen, target, preset.color_tolerance) else {
+                return Ok(format!(
+                    "No color match found for #{:02X}{:02X}{:02X} with tolerance {}.",
+                    target.r, target.g, target.b, preset.color_tolerance
+                ));
+            };
+
+            let center_x = screen.screen_x + hit.x;
+            let center_y = screen.screen_y + hit.y;
+            settle_image_search_mouse_move(center_x, center_y, preset.use_interception_driver)?;
+            if preset.click_after_move {
+                thread::sleep(Duration::from_millis(12));
+                send_mouse_left_click_backend(preset.use_interception_driver)?;
+            }
+            return Ok(format!(
+                "Matched color #{:02X}{:02X}{:02X} at {center_x}, {center_y} with tolerance {}.",
+                target.r, target.g, target.b, preset.color_tolerance
+            ));
+        }
+
         let template_file = image_search_template_file(preset.id);
         if !template_file.exists() {
             bail!("No image template has been captured yet.");
@@ -5489,7 +5610,7 @@ mod windows_overlay {
             template_height,
             &scales,
             anchor_hint,
-            preset.use_color_matching,
+            false,
         )? else {
             if configured_region.is_some() {
                 return Ok("No OpenCV match found inside the selected search area.".to_owned());
@@ -5511,15 +5632,15 @@ mod windows_overlay {
                 required_confidence
             ));
         }
-        send_mouse_move_absolute_backend(center_x, center_y, preset.use_interception_driver)?;
+        settle_image_search_mouse_move(center_x, center_y, preset.use_interception_driver)?;
         if preset.click_after_move {
+            thread::sleep(Duration::from_millis(12));
             send_mouse_left_click_backend(preset.use_interception_driver)?;
         }
         Ok(format!(
-            "OpenCV matched at {center_x}, {center_y} with confidence {:.3} on {:.2}x using {}.",
+            "OpenCV matched at {center_x}, {center_y} with confidence {:.3} on {:.2}x.",
             hit.confidence,
-            hit.scale,
-            if preset.use_color_matching { "color" } else { "grayscale" }
+            hit.scale
         ))
     }
 

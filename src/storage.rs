@@ -146,6 +146,9 @@ impl AppPaths {
         }
         for preset in &mut state.image_search_presets {
             preset.collapsed = true;
+            if preset.target_color.is_none() {
+                preset.use_color_matching = false;
+            }
         }
         let legacy_image_search_template = self.image_search_template_file.exists();
         if legacy_image_search_template {
