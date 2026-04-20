@@ -4130,9 +4130,28 @@ impl CrosshairApp {
             self.status = "No image search preset is active.".to_owned();
             return;
         };
-        let Some(capture) = self.capture_screen_region_from_rect(rect, ctx.pixels_per_point()) else {
-            self.cancel_image_search_capture(ctx);
+
+        self.image_search_capture_active = false;
+        self.image_search_capture_target_preset_id = None;
+        self.image_search_capture_anchor = None;
+        self.image_search_capture_current = None;
+        ctx.send_viewport_cmd(egui::ViewportCommand::Visible(false));
+        let _ = self.overlay_tx.send(OverlayCommand::SetUiVisible(false));
+        std::thread::sleep(Duration::from_millis(70));
+        let capture = self.capture_screen_region_from_rect(rect, ctx.pixels_per_point());
+        ctx.send_viewport_cmd(egui::ViewportCommand::Visible(true));
+        ctx.send_viewport_cmd(egui::ViewportCommand::Minimized(false));
+        let _ = self.overlay_tx.send(OverlayCommand::SetUiVisible(true));
+
+        let Some(capture) = capture else {
+            if let Some(size) = self.image_search_restore_inner_size.take() {
+                ctx.send_viewport_cmd(egui::ViewportCommand::InnerSize(size));
+            }
+            if let Some(pos) = self.image_search_restore_outer_pos.take() {
+                ctx.send_viewport_cmd(egui::ViewportCommand::OuterPosition(pos));
+            }
             self.status = "Failed to capture the selected screen area.".to_owned();
+            ctx.request_repaint();
             return;
         };
 
@@ -4148,10 +4167,6 @@ impl CrosshairApp {
             image::ColorType::Rgba8,
         );
 
-        self.image_search_capture_active = false;
-        self.image_search_capture_target_preset_id = None;
-        self.image_search_capture_anchor = None;
-        self.image_search_capture_current = None;
         if let Some(size) = self.image_search_restore_inner_size.take() {
             ctx.send_viewport_cmd(egui::ViewportCommand::InnerSize(size));
         }
@@ -9953,7 +9968,7 @@ impl CrosshairApp {
                                 .changed();
                             ui.label(
                                 RichText::new(if preset.use_interception_driver {
-                                    Self::tr_lang(language, "Per preset", "Theo preset")
+                                    Self::tr_lang(language, "Interception", "Interception")
                                 } else {
                                     Self::tr_lang(language, "SendInput", "SendInput")
                                 })
@@ -10031,7 +10046,6 @@ impl CrosshairApp {
                 let response = ui.allocate_rect(rect, Sense::click_and_drag());
                 let painter = ui.painter_at(rect);
 
-                painter.rect_filled(rect, 0.0, Color32::from_rgba_premultiplied(10, 12, 16, 120));
                 painter.text(
                     rect.left_top() + vec2(18.0, 18.0),
                     egui::Align2::LEFT_TOP,
@@ -10098,11 +10112,6 @@ impl CrosshairApp {
                         0.0,
                         egui::Stroke::new(2.0, Color32::from_rgb(120, 220, 255)),
                         egui::StrokeKind::Middle,
-                    );
-                    painter.rect_filled(
-                        selection,
-                        0.0,
-                        Color32::from_rgba_premultiplied(120, 220, 255, 40),
                     );
                 }
             });
