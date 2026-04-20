@@ -143,6 +143,7 @@ mod windows_overlay {
     static MOUSE_RECORDING: Lazy<Mutex<Option<MouseRecordingSession>>> =
         Lazy::new(|| Mutex::new(None));
     static HOOK_STATE: Lazy<Mutex<HookState>> = Lazy::new(|| Mutex::new(HookState::default()));
+    static IMAGE_SEARCH_RUNNING: AtomicBool = AtomicBool::new(false);
     thread_local! {
         static INTERCEPTION_MOUSE_SENDER: RefCell<InterceptionMouseSender> =
             RefCell::new(InterceptionMouseSender::default());
@@ -1247,13 +1248,26 @@ mod windows_overlay {
             return None;
         };
 
-        let status = match run_image_search_once(&preset) {
-            Ok(status) => status,
-            Err(error) => format!("Image search failed: {error}"),
-        };
-        if let Some(tx) = ui_tx {
-            let _ = tx.send(UiCommand::ImageSearchFinished(format!("{}: {status}", preset.name)));
+        if IMAGE_SEARCH_RUNNING.swap(true, Ordering::SeqCst) {
+            if let Some(tx) = ui_tx {
+                let _ = tx.send(UiCommand::ImageSearchFinished(format!(
+                    "{}: Image search is still running.",
+                    preset.name
+                )));
+            }
+            return Some(true);
         }
+        thread::spawn(move || {
+            let status = match run_image_search_once(&preset) {
+                Ok(status) => status,
+                Err(error) => format!("Image search failed: {error}"),
+            };
+            IMAGE_SEARCH_RUNNING.store(false, Ordering::SeqCst);
+            if let Some(tx) = ui_tx {
+                let _ =
+                    tx.send(UiCommand::ImageSearchFinished(format!("{}: {status}", preset.name)));
+            }
+        });
         Some(true)
     }
 
@@ -5473,6 +5487,29 @@ mod windows_overlay {
         best_hit
     }
 
+    fn capture_near_last_image_search_region(
+        capture_x: i32,
+        capture_y: i32,
+        template_width: usize,
+        template_height: usize,
+    ) -> Option<window_list::ScreenCaptureFrame> {
+        let (virtual_left, virtual_top, virtual_width, virtual_height) =
+            window_list::virtual_screen_bounds();
+        let padding_x = ((template_width as i32) * 10).max(280);
+        let padding_y = ((template_height as i32) * 6).max(140);
+        let desired_left = capture_x - padding_x;
+        let desired_top = capture_y - padding_y;
+        let desired_right = capture_x + template_width as i32 + padding_x;
+        let desired_bottom = capture_y + template_height as i32 + padding_y;
+        let left = desired_left.max(virtual_left);
+        let top = desired_top.max(virtual_top);
+        let right = desired_right.min(virtual_left + virtual_width);
+        let bottom = desired_bottom.min(virtual_top + virtual_height);
+        let width = (right - left).max(template_width as i32);
+        let height = (bottom - top).max(template_height as i32);
+        window_list::capture_virtual_screen_region(left, top, width, height)
+    }
+
     fn image_search_template_file(preset_id: u32) -> PathBuf {
         let hook_state = HOOK_STATE.lock();
         hook_state
@@ -5492,6 +5529,10 @@ mod windows_overlay {
         let template_height = template.height() as usize;
         let template_rgba = template.into_raw();
 
+        let used_roi_capture = preset.target_window_title.is_none()
+            && preset.extra_target_window_titles.is_empty()
+            && preset.last_capture_screen_x.is_some()
+            && preset.last_capture_screen_y.is_some();
         let screen = if preset.target_window_title.is_some()
             || !preset.extra_target_window_titles.is_empty()
         {
@@ -5501,6 +5542,17 @@ mod windows_overlay {
                 preset.match_duplicate_window_titles,
             )
             .context("Failed to capture the target window")?
+        } else if let (Some(capture_x), Some(capture_y)) = (
+            preset.last_capture_screen_x,
+            preset.last_capture_screen_y,
+        ) {
+            capture_near_last_image_search_region(
+                capture_x,
+                capture_y,
+                template_width,
+                template_height,
+            )
+            .context("Failed to capture the area near the original template")?
         } else {
             let (left, top, width, height) = window_list::virtual_screen_bounds();
             window_list::capture_virtual_screen_region(left, top, width, height)
@@ -5606,8 +5658,25 @@ mod windows_overlay {
                     scale
                 ));
             }
+            if used_roi_capture {
+                return Ok("No match found near the captured area.".to_owned());
+            }
             return Ok("No match found on screen.".to_owned());
         };
+
+        if used_roi_capture
+            && hit.score.avg_channel_diff > 18.0
+            && hit.score.mismatch_ratio > 0.30
+        {
+            let center_x = screen.screen_x + hit.x as i32 + (matched_width as i32 / 2);
+            let center_y = screen.screen_y + hit.y as i32 + (matched_height as i32 / 2);
+            return Ok(format!(
+                "No strong match near the captured area. Best candidate near {center_x}, {center_y} with {:.1}% mismatch, avg diff {:.1}, scale {:.2}x.",
+                hit.score.mismatch_ratio * 100.0,
+                hit.score.avg_channel_diff,
+                matched_scale
+            ));
+        }
 
         let center_x = screen.screen_x + hit.x as i32 + (matched_width as i32 / 2);
         let center_y = screen.screen_y + hit.y as i32 + (matched_height as i32 / 2);
