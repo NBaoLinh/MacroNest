@@ -5262,6 +5262,16 @@ mod windows_overlay {
         false
     }
 
+    fn template_match_anchor_distance_sq(
+        hit: TemplateMatchHit,
+        anchor_hint: Option<(i32, i32)>,
+    ) -> Option<i32> {
+        let (anchor_x, anchor_y) = anchor_hint?;
+        let hit_center_x = hit.x + hit.width / 2;
+        let hit_center_y = hit.y + hit.height / 2;
+        Some((hit_center_x - anchor_x).pow(2) + (hit_center_y - anchor_y).pow(2))
+    }
+
     fn find_template_match_opencv(
         screen: &window_list::ScreenCaptureFrame,
         template_rgba: &[u8],
@@ -5437,11 +5447,23 @@ mod windows_overlay {
 
         let center_x = screen.screen_x + hit.x + (hit.width / 2);
         let center_y = screen.screen_y + hit.y + (hit.height / 2);
-        if hit.confidence < 0.78 {
+        let local_anchor_hint = anchor_hint.map(|(x, y)| (x - screen.screen_x, y - screen.screen_y));
+        let anchor_distance_sq = template_match_anchor_distance_sq(hit, local_anchor_hint);
+        let near_anchor_limit = (template_width.max(template_height) as i32 * 2).max(64).pow(2);
+        let near_anchor = anchor_distance_sq.is_some_and(|distance| distance <= near_anchor_limit);
+        let required_confidence = if used_roi_capture && near_anchor {
+            0.55
+        } else if used_roi_capture {
+            0.67
+        } else {
+            0.78
+        };
+        if hit.confidence < required_confidence {
             return Ok(format!(
-                "No strong OpenCV match. Best candidate near {center_x}, {center_y} with confidence {:.3} at scale {:.2}x.",
+                "No strong OpenCV match. Best candidate near {center_x}, {center_y} with confidence {:.3} at scale {:.2}x (need {:.2}).",
                 hit.confidence,
-                hit.scale
+                hit.scale,
+                required_confidence
             ));
         }
         send_mouse_move_absolute_backend(center_x, center_y, preset.use_interception_driver)?;
