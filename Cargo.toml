@@ -25,6 +25,7 @@ tiny-skia = "0.11"
 
 [target.'cfg(windows)'.dependencies]
 libloading = "0.8"
+opencv = { version = "0.98.2", default-features = false, features = ["clang-runtime", "imgproc"] }
 windows = { version = "0.61", features = [
     "Win32_Foundation",
     "Win32_Graphics_Dwm",
