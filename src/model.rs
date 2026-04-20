@@ -965,6 +965,8 @@ pub struct ImageSearchPreset {
     pub hotkey: Option<HotkeyBinding>,
     pub click_after_move: bool,
     pub use_interception_driver: bool,
+    pub last_capture_screen_x: Option<i32>,
+    pub last_capture_screen_y: Option<i32>,
 }
 
 impl ImageSearchPreset {
@@ -980,6 +982,8 @@ impl ImageSearchPreset {
             hotkey: None,
             click_after_move: false,
             use_interception_driver: false,
+            last_capture_screen_x: None,
+            last_capture_screen_y: None,
         }
     }
 }

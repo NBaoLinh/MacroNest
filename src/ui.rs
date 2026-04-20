@@ -4174,6 +4174,8 @@ impl CrosshairApp {
         {
             preset.enabled = true;
             preset.collapsed = false;
+            preset.last_capture_screen_x = Some(capture.screen_x);
+            preset.last_capture_screen_y = Some(capture.screen_y);
         }
         self.image_search_preview_cache.remove(&preset_id);
         self.sync_image_search_presets();
@@ -9982,9 +9984,10 @@ impl CrosshairApp {
                             preview.file_name, preview.width, preview.height
                         ))
                         .small());
-                        let scale = (320.0 / preview.width.max(1) as f32)
+                        let base_scale = (320.0 / preview.width.max(1) as f32)
                             .min(180.0 / preview.height.max(1) as f32)
                             .min(1.0);
+                        let scale = base_scale / ctx.pixels_per_point().max(1.0);
                         let size = vec2(
                             preview.width as f32 * scale,
                             preview.height as f32 * scale,

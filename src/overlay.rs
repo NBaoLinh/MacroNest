@@ -2124,7 +2124,7 @@ mod windows_overlay {
                     runtime.ui_visible = visible;
                     if visible {
                         let _ = set_input_hooks_enabled(runtime, desired_hooks_enabled(runtime));
-                        show_ui_window_native();
+                        restore_ui_window_native();
                         let _ = runtime.ui_tx.send(UiCommand::ShowWindow);
                         let _ = ShowWindow(runtime.pin_hwnd, SW_HIDE);
                         let _ = ShowWindow(runtime.toolbox_hwnd, SW_HIDE);
@@ -5197,6 +5197,96 @@ mod windows_overlay {
             && (template_px[2] as i16 - screen_px[2] as i16).abs() <= tolerance
     }
 
+    fn template_matches_at(
+        screen_rgba: &[u8],
+        screen_width: usize,
+        screen_height: usize,
+        template_rgba: &[u8],
+        template_width: usize,
+        template_height: usize,
+        start_x: usize,
+        start_y: usize,
+        tolerance: u8,
+    ) -> bool {
+        if template_width == 0
+            || template_height == 0
+            || start_x + template_width > screen_width
+            || start_y + template_height > screen_height
+        {
+            return false;
+        }
+        let row_bytes = match template_width.checked_mul(4) {
+            Some(value) => value,
+            None => return false,
+        };
+        let screen_row_bytes = match screen_width.checked_mul(4) {
+            Some(value) => value,
+            None => return false,
+        };
+        for ty in 0..template_height {
+            let screen_start = (start_y + ty) * screen_row_bytes + start_x * 4;
+            let template_start = ty * row_bytes;
+            let Some(screen_row) = screen_rgba.get(screen_start..screen_start + row_bytes) else {
+                return false;
+            };
+            let Some(template_row) = template_rgba.get(template_start..template_start + row_bytes)
+            else {
+                return false;
+            };
+            for (screen_px, template_px) in screen_row.chunks_exact(4).zip(template_row.chunks_exact(4))
+            {
+                if !pixels_match_with_tolerance(template_px, screen_px, tolerance) {
+                    return false;
+                }
+            }
+        }
+        true
+    }
+
+    fn find_template_match_near_position(
+        screen_rgba: &[u8],
+        screen_width: usize,
+        screen_height: usize,
+        screen_origin_x: i32,
+        screen_origin_y: i32,
+        template_rgba: &[u8],
+        template_width: usize,
+        template_height: usize,
+        target_screen_x: i32,
+        target_screen_y: i32,
+        tolerance: u8,
+    ) -> Option<(usize, usize)> {
+        let local_x = target_screen_x - screen_origin_x;
+        let local_y = target_screen_y - screen_origin_y;
+        for radius in 0..=6_i32 {
+            for offset_y in -radius..=radius {
+                for offset_x in -radius..=radius {
+                    let candidate_x = local_x + offset_x;
+                    let candidate_y = local_y + offset_y;
+                    if candidate_x < 0 || candidate_y < 0 {
+                        continue;
+                    }
+                    let candidate_x = candidate_x as usize;
+                    let candidate_y = candidate_y as usize;
+                    if template_matches_at(
+                        screen_rgba,
+                        screen_width,
+                        screen_height,
+                        template_rgba,
+                        template_width,
+                        template_height,
+                        candidate_x,
+                        candidate_y,
+                        tolerance,
+                    ) {
+                        return Some((candidate_x, candidate_y));
+                    }
+                }
+            }
+        }
+        None
+    }
+
     fn find_template_match(
         screen_rgba: &[u8],
         screen_width: usize,
@@ -5330,6 +5420,27 @@ mod windows_overlay {
                         scaled_height as usize,
                     )
                 };
+            if let (Some(capture_x), Some(capture_y)) = (
+                preset.last_capture_screen_x,
+                preset.last_capture_screen_y,
+            ) {
+                if let Some((match_x, match_y)) = find_template_match_near_position(
+                    &screen.rgba,
+                    screen.width,
+                    screen.height,
+                    screen.screen_x,
+                    screen.screen_y,
+                    &candidate_rgba,
+                    candidate_width,
+                    candidate_height,
+                    capture_x,
+                    capture_y,
+                    18,
+                ) {
+                    best_match = Some((match_x, match_y, candidate_width, candidate_height, scale));
+                    break;
+                }
+            }
             if let Some((match_x, match_y)) = find_template_match(
                 &screen.rgba,
                 screen.width,
@@ -5500,6 +5611,18 @@ mod windows_overlay {
                     start_h,
                     SWP_NOZORDER | SWP_NOACTIVATE,
                 );
+            }
+            let _ = ShowWindow(app, SW_SHOWNA);
+        }
+    }
+
+    fn restore_ui_window_native() {
+        unsafe {
+            let Some(app) = find_app_ui_window() else {
+                return;
+            };
+            if app.0.is_null() {
+                return;
             }
             let _ = ShowWindow(app, SW_SHOWNA);
         }
