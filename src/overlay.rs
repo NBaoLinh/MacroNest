@@ -94,11 +94,11 @@ mod windows_overlay {
     use crate::{
         audio, hotkey,
         model::{
-            AudioSettings, CrosshairStyle, HotkeyBinding, MacroAction, MacroGroup, MacroPreset,
-            MacroStep, MacroTriggerMode, MousePathEvent, MousePathEventKind, MousePathPreset,
-            MouseSensitivityPreset, PinPreset, ProfileRecord, RgbaColor, SoundLibraryItem,
-            SoundPreset, ToolboxPreset, WindowAnchor, WindowExpandControls, WindowExpandDirection,
-            WindowFocusPreset, WindowPreset,
+            AudioSettings, CrosshairStyle, HotkeyBinding, ImageSearchPreset, MacroAction,
+            MacroGroup, MacroPreset, MacroStep, MacroTriggerMode, MousePathEvent,
+            MousePathEventKind, MousePathPreset, MouseSensitivityPreset, PinPreset, ProfileRecord,
+            RgbaColor, SoundLibraryItem, SoundPreset, ToolboxPreset, WindowAnchor,
+            WindowExpandControls, WindowExpandDirection, WindowFocusPreset, WindowPreset,
         },
         platform, window_list,
         render::{RenderedCrosshair, render_crosshair},
@@ -171,12 +171,7 @@ mod windows_overlay {
             enabled: bool,
             step_px: u32,
         },
-        UpdateImageSearchSettings {
-            enabled: bool,
-            trigger_hotkey: Option<HotkeyBinding>,
-            click_after_move: bool,
-            template_file: PathBuf,
-        },
+        UpdateImageSearchPresets(Vec<ImageSearchPreset>),
         ApplyMouseSensitivityPreset(u32),
         RestoreMouseSensitivity,
         UpdateToolboxPresets(Vec<ToolboxPreset>),
@@ -242,10 +237,8 @@ mod windows_overlay {
         mouse_use_interception_driver: bool,
         keyboard_arrow_mouse_enabled: bool,
         keyboard_arrow_mouse_step_px: u32,
-        image_search_enabled: bool,
-        image_search_trigger_hotkey: Option<HotkeyBinding>,
-        image_search_click_after_move: bool,
-        image_search_template_file: PathBuf,
+        image_search_presets: Vec<ImageSearchPreset>,
+        image_search_dir: PathBuf,
         interception_dll_path: PathBuf,
         mouse_sensitivity_restore_on_exit: bool,
         mouse_sensitivity_exit_restore_speed: u32,
@@ -290,10 +283,8 @@ mod windows_overlay {
                 mouse_use_interception_driver: false,
                 keyboard_arrow_mouse_enabled: false,
                 keyboard_arrow_mouse_step_px: 12,
-                image_search_enabled: false,
-                image_search_trigger_hotkey: None,
-                image_search_click_after_move: false,
-                image_search_template_file: PathBuf::new(),
+                image_search_presets: Vec::new(),
+                image_search_dir: PathBuf::new(),
                 interception_dll_path: PathBuf::new(),
                 mouse_sensitivity_restore_on_exit: false,
                 mouse_sensitivity_exit_restore_speed: 6,
@@ -573,7 +564,11 @@ mod windows_overlay {
         ui_tx: Sender<UiCommand>,
         running: Arc<AtomicBool>,
     ) -> Result<()> {
-        HOOK_STATE.lock().interception_dll_path = paths.interception_dll_file.clone();
+        {
+            let mut hook_state = HOOK_STATE.lock();
+            hook_state.interception_dll_path = paths.interception_dll_file.clone();
+            hook_state.image_search_dir = paths.image_search_dir.clone();
+        }
         unsafe {
             let instance = HINSTANCE(GetModuleHandleW(None)?.0);
             register_class(
@@ -1221,39 +1216,43 @@ mod windows_overlay {
             return None;
         }
 
-        let (enabled, trigger_hotkey, click_after_move, template_file, ui_tx) = {
+        let (matched, ui_tx) = {
             let hook_state = HOOK_STATE.lock();
-            (
-                hook_state.image_search_enabled,
-                hook_state.image_search_trigger_hotkey.clone(),
-                hook_state.image_search_click_after_move,
-                hook_state.image_search_template_file.clone(),
-                hook_state.ui_tx.clone(),
-            )
+            let matched = hook_state
+                .image_search_presets
+                .iter()
+                .find(|preset| {
+                    preset.enabled
+                        && window_focus_matches(
+                            preset.target_window_title.as_deref(),
+                            &preset.extra_target_window_titles,
+                            preset.match_duplicate_window_titles,
+                        )
+                        && preset.hotkey.as_ref().is_some_and(|hotkey| {
+                            hotkey::binding_matches(
+                                hotkey,
+                                &binding.key,
+                                binding.ctrl,
+                                binding.alt,
+                                binding.shift,
+                                binding.win,
+                            )
+                        })
+                })
+                .cloned();
+            (matched, hook_state.ui_tx.clone())
         };
 
-        let Some(trigger_hotkey) = trigger_hotkey else {
+        let Some(preset) = matched else {
             return None;
         };
-        if !enabled
-            || !hotkey::binding_matches(
-                &trigger_hotkey,
-                &binding.key,
-                binding.ctrl,
-                binding.alt,
-                binding.shift,
-                binding.win,
-            )
-        {
-            return None;
-        }
 
-        let status = match run_image_search_once(&template_file, click_after_move) {
+        let status = match run_image_search_once(&preset) {
             Ok(status) => status,
             Err(error) => format!("Image search failed: {error}"),
         };
         if let Some(tx) = ui_tx {
-            let _ = tx.send(UiCommand::ImageSearchFinished(status));
+            let _ = tx.send(UiCommand::ImageSearchFinished(format!("{}: {status}", preset.name)));
         }
         Some(true)
     }
@@ -2079,17 +2078,8 @@ mod windows_overlay {
                     hook_state.keyboard_arrow_mouse_enabled = enabled;
                     hook_state.keyboard_arrow_mouse_step_px = step_px.clamp(1, 100) as u32;
                 }
-                OverlayCommand::UpdateImageSearchSettings {
-                    enabled,
-                    trigger_hotkey,
-                    click_after_move,
-                    template_file,
-                } => {
-                    let mut hook_state = HOOK_STATE.lock();
-                    hook_state.image_search_enabled = enabled;
-                    hook_state.image_search_trigger_hotkey = trigger_hotkey;
-                    hook_state.image_search_click_after_move = click_after_move;
-                    hook_state.image_search_template_file = template_file;
+                OverlayCommand::UpdateImageSearchPresets(presets) => {
+                    HOOK_STATE.lock().image_search_presets = presets;
                 }
                 OverlayCommand::ApplyMouseSensitivityPreset(preset_id) => {
                     if let Some(preset) = HOOK_STATE
@@ -5111,6 +5101,92 @@ mod windows_overlay {
         Ok(())
     }
 
+    fn send_mouse_move_absolute_backend(x: i32, y: i32, prefer_interception: bool) -> Result<()> {
+        let screen_w = unsafe { GetSystemMetrics(SM_CXSCREEN) }.max(1);
+        let screen_h = unsafe { GetSystemMetrics(SM_CYSCREEN) }.max(1);
+        let normalized_x =
+            ((x.clamp(0, screen_w - 1) as i64) * 65535 / (screen_w - 1).max(1) as i64) as i32;
+        let normalized_y =
+            ((y.clamp(0, screen_h - 1) as i64) * 65535 / (screen_h - 1).max(1) as i64) as i32;
+        if prefer_interception
+            && send_mouse_strokes_interception(&[interception_mouse_stroke(
+                0,
+                INTERCEPTION_MOUSE_MOVE_ABSOLUTE,
+                0,
+                normalized_x,
+                normalized_y,
+            )])
+        {
+            return Ok(());
+        }
+        let input = INPUT {
+            r#type: INPUT_MOUSE,
+            Anonymous: INPUT_0 {
+                mi: MOUSEINPUT {
+                    dx: normalized_x,
+                    dy: normalized_y,
+                    mouseData: 0,
+                    dwFlags: MOUSEEVENTF_MOVE | MOUSEEVENTF_ABSOLUTE,
+                    time: 0,
+                    dwExtraInfo: 0,
+                },
+            },
+        };
+        unsafe {
+            let sent = SendInput(&[input], size_of::<INPUT>() as i32);
+            if sent == 0 {
+                let _ = SetCursorPos(x, y);
+            }
+        }
+        Ok(())
+    }
+
+    fn send_mouse_left_click_backend(prefer_interception: bool) -> Result<()> {
+        if prefer_interception
+            && send_mouse_strokes_interception(&[
+                interception_mouse_stroke(INTERCEPTION_MOUSE_LEFT_BUTTON_DOWN, 0, 0, 0, 0),
+                interception_mouse_stroke(INTERCEPTION_MOUSE_LEFT_BUTTON_UP, 0, 0, 0, 0),
+            ])
+        {
+            return Ok(());
+        }
+        let inputs = [
+            INPUT {
+                r#type: INPUT_MOUSE,
+                Anonymous: INPUT_0 {
+                    mi: MOUSEINPUT {
+                        dx: 0,
+                        dy: 0,
+                        mouseData: 0,
+                        dwFlags: MOUSEEVENTF_LEFTDOWN,
+                        time: 0,
+                        dwExtraInfo: 0,
+                    },
+                },
+            },
+            INPUT {
+                r#type: INPUT_MOUSE,
+                Anonymous: INPUT_0 {
+                    mi: MOUSEINPUT {
+                        dx: 0,
+                        dy: 0,
+                        mouseData: 0,
+                        dwFlags: MOUSEEVENTF_LEFTUP,
+                        time: 0,
+                        dwExtraInfo: 0,
+                    },
+                },
+            },
+        ];
+        unsafe {
+            let sent = SendInput(&inputs, size_of::<INPUT>() as i32);
+            if sent == 0 {
+                bail!("SendInput failed");
+            }
+        }
+        Ok(())
+    }
+
     fn find_exact_template_match(
         screen_rgba: &[u8],
         screen_width: usize,
@@ -5158,21 +5234,31 @@ mod windows_overlay {
         None
     }
 
-    fn run_image_search_once(template_file: &Path, click_after_move: bool) -> Result<String> {
+    fn image_search_template_file(preset_id: u32) -> PathBuf {
+        let hook_state = HOOK_STATE.lock();
+        hook_state
+            .image_search_dir
+            .join(format!("preset-{preset_id}.png"))
+    }
+
+    fn run_image_search_once(preset: &ImageSearchPreset) -> Result<String> {
+        let template_file = image_search_template_file(preset.id);
         if !template_file.exists() {
             bail!("No image template has been captured yet.");
         }
-        let template = image::open(template_file)
+        let template = image::open(&template_file)
             .with_context(|| format!("Failed to open template {}", template_file.display()))?
             .to_rgba8();
         let template_width = template.width() as usize;
         let template_height = template.height() as usize;
         let template_rgba = template.into_raw();
 
-        let (left, top, width, height) = window_list::virtual_screen_bounds();
-        let screen = window_list::capture_virtual_screen_region(left, top, width, height)
-            .context("Failed to capture the screen")?
-            ;
+        let screen = window_list::capture_window_region_with_candidates(
+            preset.target_window_title.as_deref(),
+            &preset.extra_target_window_titles,
+            preset.match_duplicate_window_titles,
+        )
+        .context("Failed to capture the target window")?;
         let Some((match_x, match_y)) = find_exact_template_match(
             &screen.rgba,
             screen.width,
@@ -5186,11 +5272,9 @@ mod windows_overlay {
 
         let center_x = screen.screen_x + match_x as i32 + (template_width as i32 / 2);
         let center_y = screen.screen_y + match_y as i32 + (template_height as i32 / 2);
-        unsafe {
-            let _ = SetCursorPos(center_x, center_y);
-        }
-        if click_after_move {
-            let _ = send_mouse_left_click();
+        send_mouse_move_absolute_backend(center_x, center_y, preset.use_interception_driver)?;
+        if preset.click_after_move {
+            send_mouse_left_click_backend(preset.use_interception_driver)?;
         }
         Ok(format!("Matched at {center_x}, {center_y}."))
     }
@@ -6368,13 +6452,11 @@ pub use windows_overlay::*;
 
 #[cfg(not(windows))]
 mod fallback {
-    use std::path::PathBuf;
-
     use anyhow::{Result, bail};
 
     use crate::{
         model::{
-            AudioSettings, CrosshairStyle, HotkeyBinding, MacroGroup, ProfileRecord,
+            AudioSettings, CrosshairStyle, ImageSearchPreset, MacroGroup, ProfileRecord,
             WindowExpandControls, WindowFocusPreset, WindowPreset,
         },
         storage::AppPaths,
@@ -6391,12 +6473,7 @@ mod fallback {
         UpdateAudioSettings(AudioSettings),
         UpdateMouseDriverSettings(bool),
         UpdateKeyboardArrowMouseSettings { enabled: bool, step_px: u32 },
-        UpdateImageSearchSettings {
-            enabled: bool,
-            trigger_hotkey: Option<HotkeyBinding>,
-            click_after_move: bool,
-            template_file: PathBuf,
-        },
+        UpdateImageSearchPresets(Vec<ImageSearchPreset>),
         SetMacrosMasterEnabled(bool),
         SetUiVisible(bool),
         Exit,

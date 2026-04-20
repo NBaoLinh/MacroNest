@@ -82,6 +82,19 @@ mod windows_impl {
         unsafe { capture_window_preview_from_hwnd(hwnd, max_dimension.max(64)) }
     }
 
+    pub fn capture_window_region_with_candidates(
+        primary_title: Option<&str>,
+        extra_titles: &[String],
+        match_duplicate_window_titles: bool,
+    ) -> Option<ScreenCaptureFrame> {
+        let hwnd = find_window_handle_with_candidates(
+            primary_title,
+            extra_titles,
+            match_duplicate_window_titles,
+        )?;
+        unsafe { capture_window_region_from_hwnd(hwnd) }
+    }
+
     pub fn virtual_screen_bounds() -> (i32, i32, i32, i32) {
         unsafe {
             let left = GetSystemMetrics(SM_XVIRTUALSCREEN);
@@ -436,6 +449,18 @@ mod windows_impl {
         })
     }
 
+    unsafe fn capture_window_region_from_hwnd(hwnd: HWND) -> Option<ScreenCaptureFrame> {
+        let mut rect = RECT::default();
+        if GetWindowRect(hwnd, &mut rect).is_err() {
+            return None;
+        }
+        let left = rect.left;
+        let top = rect.top;
+        let width = (rect.right - rect.left).max(1);
+        let height = (rect.bottom - rect.top).max(1);
+        capture_screen_region_from_desktop(left, top, width, height)
+    }
+
     unsafe fn capture_screen_region_from_desktop(
         left: i32,
         top: i32,
@@ -557,6 +582,23 @@ mod fallback {
         _match_duplicate_window_titles: bool,
         _max_dimension: u32,
     ) -> Option<WindowPreviewFrame> {
+        None
+    }
+
+    #[derive(Debug, Clone)]
+    pub struct ScreenCaptureFrame {
+        pub screen_x: i32,
+        pub screen_y: i32,
+        pub width: usize,
+        pub height: usize,
+        pub rgba: Vec<u8>,
+    }
+
+    pub fn capture_window_region_with_candidates(
+        _primary_title: Option<&str>,
+        _extra_titles: &[String],
+        _match_duplicate_window_titles: bool,
+    ) -> Option<ScreenCaptureFrame> {
         None
     }
 }

@@ -6,7 +6,7 @@ use std::{
 use anyhow::{Context, Result};
 use directories::ProjectDirs;
 
-use crate::model::{AppState, ProfileRecord};
+use crate::model::{AppState, ImageSearchPreset, ProfileRecord};
 
 #[derive(Debug, Clone)]
 pub struct AppPaths {
@@ -23,6 +23,7 @@ pub struct AppPaths {
     pub interception_installer_dir: PathBuf,
     pub interception_installer_exe: PathBuf,
     pub interception_dll_file: PathBuf,
+    pub image_search_dir: PathBuf,
     pub image_search_template_file: PathBuf,
 }
 
@@ -71,8 +72,13 @@ impl AppPaths {
             interception_installer_dir,
             interception_installer_exe,
             interception_dll_file,
+            image_search_dir,
             image_search_template_file,
         })
+    }
+
+    pub fn image_search_template_file_for(&self, preset_id: u32) -> PathBuf {
+        self.image_search_dir.join(format!("preset-{preset_id}.png"))
     }
 
     pub fn load_state(&self) -> Result<AppState> {
@@ -119,6 +125,39 @@ impl AppPaths {
         }
         for preset in &mut state.window_focus_presets {
             preset.collapsed = true;
+        }
+        if state.image_search_presets.is_empty() {
+            let mut preset = ImageSearchPreset::default();
+            preset.enabled = state.image_search_settings.enabled
+                || self.image_search_template_file.exists();
+            preset.hotkey = state.image_search_settings.trigger_hotkey.clone();
+            preset.click_after_move = state.image_search_settings.click_after_move;
+            state.image_search_presets.push(preset);
+        }
+        let next_image_search_preset_id = state
+            .image_search_presets
+            .iter()
+            .map(|preset| preset.id)
+            .max()
+            .unwrap_or(0)
+            + 1;
+        if state.next_image_search_preset_id < next_image_search_preset_id {
+            state.next_image_search_preset_id = next_image_search_preset_id;
+        }
+        for preset in &mut state.image_search_presets {
+            preset.collapsed = true;
+        }
+        let legacy_image_search_template = self.image_search_template_file.exists();
+        if legacy_image_search_template {
+            let first_template = state
+                .image_search_presets
+                .first()
+                .map(|preset| self.image_search_template_file_for(preset.id));
+            if let Some(first_template) = first_template
+                && !first_template.exists()
+            {
+                let _ = fs::copy(&self.image_search_template_file, &first_template);
+            }
         }
         if !state.macro_presets.is_empty() {
             let mut used_preset_ids = state

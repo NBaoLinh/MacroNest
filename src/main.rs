@@ -78,12 +78,9 @@ fn main() -> Result<()> {
         enabled: state.keyboard_arrow_mouse_enabled,
         step_px: state.keyboard_arrow_mouse_step_px,
     });
-    overlay.send(OverlayCommand::UpdateImageSearchSettings {
-        enabled: state.image_search_settings.enabled,
-        trigger_hotkey: state.image_search_settings.trigger_hotkey.clone(),
-        click_after_move: state.image_search_settings.click_after_move,
-        template_file: paths.image_search_template_file.clone(),
-    });
+    overlay.send(OverlayCommand::UpdateImageSearchPresets(
+        state.image_search_presets.clone(),
+    ));
     overlay.send(OverlayCommand::UpdateMacroPresets(
         state.macro_groups.clone(),
     ));

@@ -343,7 +343,7 @@ pub enum CaptureRequest {
     MousePathRecordHotkey(u32),
     MouseSensitivityPresetHotkey(u32),
     ZoomPresetHotkey(u32),
-    ImageSearchTriggerHotkey,
+    ImageSearchPresetHotkey(u32),
     MacroPresetHotkey(u32, u32),
     MacroSelectorHotkey(u32, u32),
     MacroSelectorOptionKey(u32, u32, u32),
@@ -949,6 +949,45 @@ impl Default for ImageSearchSettings {
     }
 }
 
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
+#[serde(default)]
+pub struct ImageSearchPreset {
+    pub id: u32,
+    pub name: String,
+    pub enabled: bool,
+    pub collapsed: bool,
+    pub target_window_title: Option<String>,
+    pub extra_target_window_titles: Vec<String>,
+    #[serde(default = "default_true")]
+    pub match_duplicate_window_titles: bool,
+    pub hotkey: Option<HotkeyBinding>,
+    pub click_after_move: bool,
+    pub use_interception_driver: bool,
+}
+
+impl ImageSearchPreset {
+    pub fn new(id: u32) -> Self {
+        Self {
+            id,
+            name: format!("Image Search {id}"),
+            enabled: true,
+            collapsed: true,
+            target_window_title: None,
+            extra_target_window_titles: Vec::new(),
+            match_duplicate_window_titles: true,
+            hotkey: None,
+            click_after_move: false,
+            use_interception_driver: false,
+        }
+    }
+}
+
+impl Default for ImageSearchPreset {
+    fn default() -> Self {
+        Self::new(1)
+    }
+}
+
 impl Default for AiSettings {
     fn default() -> Self {
         Self {
@@ -1106,6 +1145,8 @@ pub struct AppState {
     pub next_macro_selector_preset_id: u32,
     pub next_macro_selector_option_id: u32,
     pub macros_master_enabled: bool,
+    pub image_search_presets: Vec<ImageSearchPreset>,
+    pub next_image_search_preset_id: u32,
     pub ai_settings: AiSettings,
     pub audio_settings: AudioSettings,
     pub image_search_settings: ImageSearchSettings,
@@ -1158,6 +1199,8 @@ impl Default for AppState {
             next_macro_selector_preset_id: 1,
             next_macro_selector_option_id: 1,
             macros_master_enabled: true,
+            image_search_presets: vec![ImageSearchPreset::default()],
+            next_image_search_preset_id: 2,
             ai_settings: AiSettings::default(),
             audio_settings: AudioSettings::default(),
             image_search_settings: ImageSearchSettings::default(),
