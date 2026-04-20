@@ -5216,7 +5216,7 @@ mod windows_overlay {
         confidence: f32,
     }
 
-    fn rgba_to_gray_mat(rgba: &[u8], width: usize, height: usize) -> Result<Mat> {
+    fn rgba_to_color_mat(rgba: &[u8], width: usize, height: usize) -> Result<Mat> {
         let expected_len = width
             .checked_mul(height)
             .and_then(|value| value.checked_mul(4))
@@ -5228,9 +5228,17 @@ mod windows_overlay {
         let rgba_mat = flat
             .reshape(4, height as i32)
             .context("Failed to reshape RGBA buffer into OpenCV Mat.")?;
+        let mut bgr = Mat::default();
+        imgproc::cvt_color(&rgba_mat, &mut bgr, imgproc::COLOR_RGBA2BGR, 0)
+            .context("Failed to convert RGBA image to BGR.")?;
+        Ok(bgr)
+    }
+
+    fn rgba_to_gray_mat(rgba: &[u8], width: usize, height: usize) -> Result<Mat> {
+        let rgba_mat = rgba_to_color_mat(rgba, width, height)?;
         let mut gray = Mat::default();
-        imgproc::cvt_color(&rgba_mat, &mut gray, imgproc::COLOR_RGBA2GRAY, 0)
-            .context("Failed to convert RGBA image to grayscale.")?;
+        imgproc::cvt_color(&rgba_mat, &mut gray, imgproc::COLOR_BGR2GRAY, 0)
+            .context("Failed to convert BGR image to grayscale.")?;
         Ok(gray)
     }
 
@@ -5262,16 +5270,6 @@ mod windows_overlay {
         false
     }
 
-    fn template_match_anchor_distance_sq(
-        hit: TemplateMatchHit,
-        anchor_hint: Option<(i32, i32)>,
-    ) -> Option<i32> {
-        let (anchor_x, anchor_y) = anchor_hint?;
-        let hit_center_x = hit.x + hit.width / 2;
-        let hit_center_y = hit.y + hit.height / 2;
-        Some((hit_center_x - anchor_x).pow(2) + (hit_center_y - anchor_y).pow(2))
-    }
-
     fn find_template_match_opencv(
         screen: &window_list::ScreenCaptureFrame,
         template_rgba: &[u8],
@@ -5279,9 +5277,18 @@ mod windows_overlay {
         template_height: usize,
         scales: &[f32],
         anchor_hint_screen: Option<(i32, i32)>,
+        use_color_matching: bool,
     ) -> Result<Option<TemplateMatchHit>> {
-        let screen_gray = rgba_to_gray_mat(&screen.rgba, screen.width, screen.height)?;
-        let template_gray = rgba_to_gray_mat(template_rgba, template_width, template_height)?;
+        let screen_mat = if use_color_matching {
+            rgba_to_color_mat(&screen.rgba, screen.width, screen.height)?
+        } else {
+            rgba_to_gray_mat(&screen.rgba, screen.width, screen.height)?
+        };
+        let template_mat = if use_color_matching {
+            rgba_to_color_mat(template_rgba, template_width, template_height)?
+        } else {
+            rgba_to_gray_mat(template_rgba, template_width, template_height)?
+        };
         let anchor_hint = anchor_hint_screen.map(|(screen_x, screen_y)| {
             (screen_x - screen.screen_x, screen_y - screen.screen_y)
         });
@@ -5295,11 +5302,13 @@ mod windows_overlay {
             }
 
             let scaled_template = if (scale - 1.0).abs() < f32::EPSILON {
-                template_gray.try_clone().context("Failed to clone template Mat.")?
+                template_mat
+                    .try_clone()
+                    .context("Failed to clone template Mat.")?
             } else {
                 let mut resized = Mat::default();
                 imgproc::resize(
-                    &template_gray,
+                    &template_mat,
                     &mut resized,
                     Size::new(scaled_width, scaled_height),
                     0.0,
@@ -5310,15 +5319,15 @@ mod windows_overlay {
                 resized
             };
 
-            let result_cols = screen_gray.cols() - scaled_template.cols() + 1;
-            let result_rows = screen_gray.rows() - scaled_template.rows() + 1;
+            let result_cols = screen_mat.cols() - scaled_template.cols() + 1;
+            let result_rows = screen_mat.rows() - scaled_template.rows() + 1;
             if result_cols <= 0 || result_rows <= 0 {
                 continue;
             }
 
             let mut result = Mat::default();
             imgproc::match_template(
-                &screen_gray,
+                &screen_mat,
                 &scaled_template,
                 &mut result,
                 imgproc::TM_CCOEFF_NORMED,
@@ -5354,6 +5363,43 @@ mod windows_overlay {
         }
 
         Ok(best_hit)
+    }
+
+    fn configured_image_search_region(
+        preset: &ImageSearchPreset,
+    ) -> Option<(i32, i32, i32, i32)> {
+        let (
+            Some(region_x),
+            Some(region_y),
+            Some(region_width),
+            Some(region_height),
+        ) = (
+            preset.search_region_screen_x,
+            preset.search_region_screen_y,
+            preset.search_region_width,
+            preset.search_region_height,
+        )
+        else {
+            return None;
+        };
+        if region_width <= 0 || region_height <= 0 {
+            return None;
+        }
+
+        let (virtual_left, virtual_top, virtual_width, virtual_height) =
+            window_list::virtual_screen_bounds();
+        let virtual_right = virtual_left + virtual_width;
+        let virtual_bottom = virtual_top + virtual_height;
+        let left = region_x.max(virtual_left);
+        let top = region_y.max(virtual_top);
+        let right = (region_x + region_width).min(virtual_right);
+        let bottom = (region_y + region_height).min(virtual_bottom);
+        let width = right - left;
+        let height = bottom - top;
+        if width <= 0 || height <= 0 {
+            return None;
+        }
+        Some((left, top, width, height))
     }
 
     fn capture_near_last_image_search_region(
@@ -5404,11 +5450,16 @@ mod windows_overlay {
             (Some(x), Some(y)) => Some((x, y)),
             _ => None,
         };
+        let configured_region = configured_image_search_region(preset);
 
-        let used_roi_capture = preset.target_window_title.is_none()
+        let used_roi_capture = configured_region.is_some()
+            || (preset.target_window_title.is_none()
             && preset.extra_target_window_titles.is_empty()
-            && anchor_hint.is_some();
-        let screen = if preset.target_window_title.is_some()
+            && anchor_hint.is_some());
+        let screen = if let Some((left, top, width, height)) = configured_region {
+            window_list::capture_virtual_screen_region(left, top, width, height)
+                .context("Failed to capture the selected search area")?
+        } else if preset.target_window_title.is_some()
             || !preset.extra_target_window_titles.is_empty()
         {
             window_list::capture_window_region_with_candidates(
@@ -5438,7 +5489,11 @@ mod windows_overlay {
             template_height,
             &scales,
             anchor_hint,
+            preset.use_color_matching,
         )? else {
+            if configured_region.is_some() {
+                return Ok("No OpenCV match found inside the selected search area.".to_owned());
+            }
             if used_roi_capture {
                 return Ok("No OpenCV match found near the captured area.".to_owned());
             }
@@ -5447,20 +5502,10 @@ mod windows_overlay {
 
         let center_x = screen.screen_x + hit.x + (hit.width / 2);
         let center_y = screen.screen_y + hit.y + (hit.height / 2);
-        let local_anchor_hint = anchor_hint.map(|(x, y)| (x - screen.screen_x, y - screen.screen_y));
-        let anchor_distance_sq = template_match_anchor_distance_sq(hit, local_anchor_hint);
-        let near_anchor_limit = (template_width.max(template_height) as i32 * 2).max(64).pow(2);
-        let near_anchor = anchor_distance_sq.is_some_and(|distance| distance <= near_anchor_limit);
-        let required_confidence = if used_roi_capture && near_anchor {
-            0.55
-        } else if used_roi_capture {
-            0.67
-        } else {
-            0.78
-        };
+        let required_confidence = preset.confidence_threshold.clamp(0.35, 0.99);
         if hit.confidence < required_confidence {
             return Ok(format!(
-                "No strong OpenCV match. Best candidate near {center_x}, {center_y} with confidence {:.3} at scale {:.2}x (need {:.2}).",
+                "Best OpenCV candidate near {center_x}, {center_y} scored {:.3} at scale {:.2}x, below threshold {:.2}.",
                 hit.confidence,
                 hit.scale,
                 required_confidence
@@ -5471,9 +5516,10 @@ mod windows_overlay {
             send_mouse_left_click_backend(preset.use_interception_driver)?;
         }
         Ok(format!(
-            "OpenCV matched at {center_x}, {center_y} with confidence {:.3} on {:.2}x.",
+            "OpenCV matched at {center_x}, {center_y} with confidence {:.3} on {:.2}x using {}.",
             hit.confidence,
-            hit.scale
+            hit.scale,
+            if preset.use_color_matching { "color" } else { "grayscale" }
         ))
     }
 

@@ -95,6 +95,10 @@ fn default_true() -> bool {
     true
 }
 
+fn default_image_search_confidence_threshold() -> f32 {
+    0.58
+}
+
 #[derive(Debug, Clone, Copy, Serialize, Deserialize, PartialEq, Eq, Default)]
 pub enum AppPanel {
     #[default]
@@ -951,7 +955,7 @@ impl Default for ImageSearchSettings {
     }
 }
 
-#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
 #[serde(default)]
 pub struct ImageSearchPreset {
     pub id: u32,
@@ -965,8 +969,16 @@ pub struct ImageSearchPreset {
     pub hotkey: Option<HotkeyBinding>,
     pub click_after_move: bool,
     pub use_interception_driver: bool,
+    #[serde(default = "default_image_search_confidence_threshold")]
+    pub confidence_threshold: f32,
+    #[serde(default = "default_true")]
+    pub use_color_matching: bool,
     pub last_capture_screen_x: Option<i32>,
     pub last_capture_screen_y: Option<i32>,
+    pub search_region_screen_x: Option<i32>,
+    pub search_region_screen_y: Option<i32>,
+    pub search_region_width: Option<i32>,
+    pub search_region_height: Option<i32>,
 }
 
 impl ImageSearchPreset {
@@ -982,8 +994,14 @@ impl ImageSearchPreset {
             hotkey: None,
             click_after_move: false,
             use_interception_driver: false,
+            confidence_threshold: default_image_search_confidence_threshold(),
+            use_color_matching: true,
             last_capture_screen_x: None,
             last_capture_screen_y: None,
+            search_region_screen_x: None,
+            search_region_screen_y: None,
+            search_region_width: None,
+            search_region_height: None,
         }
     }
 }
