@@ -1073,9 +1073,6 @@ mod windows_overlay {
                     }
 
                     update_held_key(&key_name, is_key_down, is_key_up);
-                    if is_key_down && keyboard_arrow_mouse_should_swallow(&key_name) {
-                        apply_keyboard_arrow_mouse_movement();
-                    }
                     swallow |= keyboard_arrow_mouse_should_swallow(&key_name);
                     swallow |= is_locked_input(&key_name);
                     update_modifier_state(info.vkCode, is_key_down);
@@ -1930,6 +1927,15 @@ mod windows_overlay {
         hook_state.keyboard_arrow_mouse_enabled && is_keyboard_arrow_mouse_key(key_name)
     }
 
+    fn keyboard_arrow_mouse_is_active() -> bool {
+        let hook_state = HOOK_STATE.lock();
+        hook_state.keyboard_arrow_mouse_enabled
+            && hook_state
+                .held_inputs
+                .iter()
+                .any(|key_name| is_keyboard_arrow_mouse_key(key_name))
+    }
+
     fn apply_keyboard_arrow_mouse_movement() {
         if let Some((dx, dy)) = keyboard_arrow_mouse_delta() {
             let _ = send_mouse_move_relative(dx, dy);
@@ -2196,8 +2202,8 @@ mod windows_overlay {
             return 100;
         }
 
-        if keyboard_arrow_mouse_delta().is_some() {
-            return 16;
+        if keyboard_arrow_mouse_is_active() {
+            return 12;
         }
 
         if HOOK_STATE.lock().keyboard_arrow_mouse_enabled {

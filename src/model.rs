@@ -1118,7 +1118,7 @@ impl Default for AppState {
             next_mouse_sensitivity_preset_id: 1,
             mouse_use_interception_driver: false,
             keyboard_arrow_mouse_enabled: false,
-            keyboard_arrow_mouse_step_px: 12,
+            keyboard_arrow_mouse_step_px: 4,
             mouse_sensitivity_restore_on_exit: false,
             mouse_sensitivity_restore_speed: 6,
             zoom_presets: Vec::new(),
