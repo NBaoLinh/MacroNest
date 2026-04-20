@@ -359,6 +359,11 @@ pub struct CrosshairApp {
     show_library_audio_editor: HashSet<u32>,
     active_audio_editor: Option<AudioEditorTarget>,
     capture_ignored_keys: HashSet<u32>,
+    image_search_capture_active: bool,
+    image_search_capture_anchor: Option<egui::Pos2>,
+    image_search_capture_current: Option<egui::Pos2>,
+    image_search_restore_inner_size: Option<egui::Vec2>,
+    image_search_restore_outer_pos: Option<egui::Pos2>,
     selected_macro_steps: HashSet<(u32, u32, usize)>,
     selected_macro_groups: HashSet<u32>,
     macro_group_clipboard: Vec<u32>,
@@ -438,6 +443,11 @@ impl CrosshairApp {
             show_library_audio_editor: HashSet::new(),
             active_audio_editor: None,
             capture_ignored_keys: HashSet::new(),
+            image_search_capture_active: false,
+            image_search_capture_anchor: None,
+            image_search_capture_current: None,
+            image_search_restore_inner_size: None,
+            image_search_restore_outer_pos: None,
             selected_macro_steps: HashSet::new(),
             selected_macro_groups: HashSet::new(),
             macro_group_clipboard: Vec::new(),
@@ -547,6 +557,17 @@ impl CrosshairApp {
             .send(OverlayCommand::UpdateKeyboardArrowMouseSettings {
                 enabled: self.state.keyboard_arrow_mouse_enabled,
                 step_px: self.state.keyboard_arrow_mouse_step_px,
+            });
+    }
+
+    fn sync_image_search_settings(&self) {
+        let _ = self
+            .overlay_tx
+            .send(OverlayCommand::UpdateImageSearchSettings {
+                enabled: self.state.image_search_settings.enabled,
+                trigger_hotkey: self.state.image_search_settings.trigger_hotkey.clone(),
+                click_after_move: self.state.image_search_settings.click_after_move,
+                template_file: self.paths.image_search_template_file.clone(),
             });
     }
 
@@ -1328,6 +1349,7 @@ impl CrosshairApp {
             AppPanel::WindowPresets => 0xe8f0,
             AppPanel::Pin | AppPanel::Zoom => 0xe55f,
             AppPanel::Mouse => 0xe323,
+            AppPanel::ImageSearch => 0xe8b6,
             AppPanel::Macros | AppPanel::Modes => 0xe312,
             AppPanel::Sound | AppPanel::Media => 0xe050,
             AppPanel::Settings => 0xe8b8,
@@ -1343,6 +1365,7 @@ impl CrosshairApp {
             AppPanel::WindowPresets => "Window Control",
             AppPanel::Pin | AppPanel::Zoom => "Pin",
             AppPanel::Mouse => "Mouse",
+            AppPanel::ImageSearch => "Image Search",
             AppPanel::Macros | AppPanel::Modes => "Macro",
             AppPanel::Sound => "Sound",
             AppPanel::Media => "Media",
@@ -3972,6 +3995,100 @@ impl CrosshairApp {
         self.status = "Capture cancelled.".to_owned();
     }
 
+    fn begin_image_search_capture(&mut self, ctx: &egui::Context) {
+        if self.image_search_capture_active {
+            return;
+        }
+        let viewport = ctx.input(|input| input.viewport().clone());
+        self.image_search_restore_inner_size =
+            viewport.inner_rect.map(|rect| rect.size()).or(Some(Self::desired_window_size()));
+        self.image_search_restore_outer_pos = viewport.outer_rect.map(|rect| rect.min);
+        self.enforce_square_window_frames = 0;
+        self.center_window_next_frame = false;
+        let (left, top, width, height) = window_list::virtual_screen_bounds();
+        ctx.send_viewport_cmd(egui::ViewportCommand::OuterPosition(egui::pos2(
+            left as f32,
+            top as f32,
+        )));
+        ctx.send_viewport_cmd(egui::ViewportCommand::InnerSize(vec2(width as f32, height as f32)));
+        self.image_search_capture_active = true;
+        self.image_search_capture_anchor = None;
+        self.image_search_capture_current = None;
+        self.status = "Drag on screen to pick an image template. Press Esc to cancel.".to_owned();
+        ctx.request_repaint();
+    }
+
+    fn cancel_image_search_capture(&mut self, ctx: &egui::Context) {
+        if !self.image_search_capture_active {
+            return;
+        }
+        self.image_search_capture_active = false;
+        self.image_search_capture_anchor = None;
+        self.image_search_capture_current = None;
+        if let Some(size) = self.image_search_restore_inner_size.take() {
+            ctx.send_viewport_cmd(egui::ViewportCommand::InnerSize(size));
+        }
+        if let Some(pos) = self.image_search_restore_outer_pos.take() {
+            ctx.send_viewport_cmd(egui::ViewportCommand::OuterPosition(pos));
+        }
+        self.status = "Image template capture cancelled.".to_owned();
+        ctx.request_repaint();
+    }
+
+    fn finish_image_search_capture(&mut self, ctx: &egui::Context, rect: egui::Rect) {
+        let Some(capture) = self.capture_screen_region_from_rect(rect) else {
+            self.cancel_image_search_capture(ctx);
+            self.status = "Failed to capture the selected screen area.".to_owned();
+            return;
+        };
+
+        if let Some(parent) = self.paths.image_search_template_file.parent() {
+            let _ = fs::create_dir_all(parent);
+        }
+        let save_result = image::save_buffer(
+            &self.paths.image_search_template_file,
+            &capture.rgba,
+            capture.width as u32,
+            capture.height as u32,
+            image::ColorType::Rgba8,
+        );
+
+        self.image_search_capture_active = false;
+        self.image_search_capture_anchor = None;
+        self.image_search_capture_current = None;
+        if let Some(size) = self.image_search_restore_inner_size.take() {
+            ctx.send_viewport_cmd(egui::ViewportCommand::InnerSize(size));
+        }
+        if let Some(pos) = self.image_search_restore_outer_pos.take() {
+            ctx.send_viewport_cmd(egui::ViewportCommand::OuterPosition(pos));
+        }
+        self.state.image_search_settings.enabled = true;
+        self.sync_image_search_settings();
+        self.persist();
+        self.status = match save_result {
+            Ok(()) => format!(
+                "Saved template {}x{} and enabled image search.",
+                capture.width, capture.height
+            ),
+            Err(error) => format!("Captured template but could not save it: {error}"),
+        };
+        ctx.request_repaint();
+    }
+
+    fn capture_screen_region_from_rect(
+        &self,
+        rect: egui::Rect,
+    ) -> Option<window_list::ScreenCaptureFrame> {
+        let (left, top, _width, _height) = window_list::virtual_screen_bounds();
+        let min = rect.min;
+        let max = rect.max;
+        let capture_left = left + min.x.round() as i32;
+        let capture_top = top + min.y.round() as i32;
+        let capture_width = (max.x - min.x).abs().round().max(1.0) as i32;
+        let capture_height = (max.y - min.y).abs().round().max(1.0) as i32;
+        window_list::capture_virtual_screen_region(capture_left, capture_top, capture_width, capture_height)
+    }
+
     fn apply_captured_input(&mut self, target: CaptureRequest, captured: CapturedInput) {
         match (target, captured) {
             (CaptureRequest::WindowPresetHotkey(preset_id), CapturedInput::Binding(binding)) => {
@@ -4053,6 +4170,12 @@ impl CrosshairApp {
                     self.status = format!("Captured zoom hotkey for {}.", preset.name);
                 }
                 self.sync_window_presets();
+            }
+            (CaptureRequest::ImageSearchTriggerHotkey, CapturedInput::Binding(binding)) => {
+                self.state.image_search_settings.trigger_hotkey = Some(binding);
+                self.sync_image_search_settings();
+                self.persist();
+                self.status = "Captured image search hotkey.".to_owned();
             }
             (CaptureRequest::PinPresetHotkey(preset_id), CapturedInput::Binding(binding)) => {
                 if let Some(preset) = self
@@ -9531,6 +9654,182 @@ impl CrosshairApp {
         }
     }
 
+    fn render_image_search_panel(&mut self, ui: &mut egui::Ui, ctx: &egui::Context) {
+        ui.heading(self.panel_label(AppPanel::ImageSearch));
+        ui.label(self.tr(
+            "Capture an on-screen template, then press a hotkey to move the mouse to the first exact match.",
+            "Chup mau ngay tren man hinh, roi bam phim tat de di chuot den diem khop dau tien.",
+        ));
+
+        let template_ready = self.paths.image_search_template_file.exists();
+        let hotkey_text = self
+            .state
+            .image_search_settings
+            .trigger_hotkey
+            .as_ref()
+            .map(|binding| hotkey::format_binding(Some(binding)))
+            .unwrap_or_else(|| self.tr("None", "Chua co").to_owned());
+
+        ui.horizontal_wrapped(|ui| {
+            if ui
+                .checkbox(
+                    &mut self.state.image_search_settings.enabled,
+                    Self::tr_lang(self.state.ui_language, "Enabled", "Bat"),
+                )
+                .changed()
+            {
+                self.sync_image_search_settings();
+                self.persist();
+            }
+            if ui
+                .button(self.tr("Pick from screen", "Chon tu man hinh"))
+                .clicked()
+            {
+                self.begin_image_search_capture(ctx);
+            }
+            if ui
+                .button(self.tr("Clear template", "Xoa mau"))
+                .clicked()
+            {
+                if self.paths.image_search_template_file.exists() {
+                    let _ = fs::remove_file(&self.paths.image_search_template_file);
+                }
+                self.state.image_search_settings.enabled = false;
+                self.sync_image_search_settings();
+                self.persist();
+                self.status = "Removed the image template.".to_owned();
+            }
+        });
+
+        ui.horizontal_wrapped(|ui| {
+            ui.label(RichText::new(format!(
+                "{}",
+                if template_ready {
+                    self.tr("Template: ready", "Mau: co san")
+                } else {
+                    self.tr("Template: missing", "Mau: chua co")
+                }
+            ))
+            .small());
+            ui.label(RichText::new(format!("Hotkey: {hotkey_text}")).small());
+            ui.label(RichText::new(format!(
+                "{}",
+                if self.state.image_search_settings.click_after_move {
+                    self.tr("Auto click: on", "Tu dong click: bat")
+                } else {
+                    self.tr("Auto click: off", "Tu dong click: tat")
+                }
+            ))
+            .small());
+        });
+
+        ui.horizontal_wrapped(|ui| {
+            if ui
+                .button(self.tr("Set trigger hotkey", "Dat phim tat"))
+                .clicked()
+            {
+                self.begin_capture(
+                    CaptureRequest::ImageSearchTriggerHotkey,
+                    self.tr("Press a hotkey for image search.", "Bam phim tat cho image search.")
+                        .to_owned(),
+                );
+            }
+            if ui
+                .checkbox(
+                    &mut self.state.image_search_settings.click_after_move,
+                    Self::tr_lang(self.state.ui_language, "Click after move", "Click sau khi di"),
+                )
+                .changed()
+            {
+                self.sync_image_search_settings();
+                self.persist();
+            }
+        });
+
+        ui.label(self.tr(
+            "Pick from screen opens a transparent overlay. Drag to select the template area.",
+            "Chon tu man hinh se mo overlay trong suot. Keo de chon vung mau.",
+        ));
+    }
+
+    fn render_image_search_capture_overlay(
+        &mut self,
+        ctx: &egui::Context,
+    ) -> bool {
+        if !self.image_search_capture_active {
+            return false;
+        }
+
+        ctx.request_repaint();
+        egui::CentralPanel::default()
+            .frame(Frame::new().fill(Color32::TRANSPARENT))
+            .show(ctx, |ui| {
+                let rect = ui.max_rect();
+                let response = ui.allocate_rect(rect, Sense::click_and_drag());
+                let painter = ui.painter_at(rect);
+
+                painter.rect_filled(rect, 0.0, Color32::from_rgba_premultiplied(10, 12, 16, 120));
+                painter.text(
+                    rect.left_top() + vec2(18.0, 18.0),
+                    egui::Align2::LEFT_TOP,
+                    self.tr(
+                        "Drag to capture an image template. Press Esc to cancel.",
+                        "Keo de chup mau. Bam Esc de huy.",
+                    ),
+                    egui::FontId::proportional(18.0),
+                    Color32::WHITE,
+                );
+
+                if response.drag_started() {
+                    self.image_search_capture_anchor = response.interact_pointer_pos();
+                    self.image_search_capture_current = self.image_search_capture_anchor;
+                }
+                if response.dragged() {
+                    self.image_search_capture_current = response.interact_pointer_pos();
+                }
+
+                let pointer_released = ui.input(|input| input.pointer.any_released());
+                if pointer_released
+                    && let (Some(anchor), Some(current)) = (
+                        self.image_search_capture_anchor,
+                        self.image_search_capture_current,
+                    )
+                {
+                    let selection = egui::Rect::from_two_pos(anchor, current);
+                    if selection.width() >= 2.0 && selection.height() >= 2.0 {
+                        self.finish_image_search_capture(ctx, selection);
+                    } else {
+                        self.cancel_image_search_capture(ctx);
+                    }
+                    return;
+                }
+
+                if ctx.input(|input| input.key_pressed(egui::Key::Escape)) {
+                    self.cancel_image_search_capture(ctx);
+                    return;
+                }
+
+                if let (Some(anchor), Some(current)) = (
+                    self.image_search_capture_anchor,
+                    self.image_search_capture_current,
+                ) {
+                    let selection = egui::Rect::from_two_pos(anchor, current);
+                    painter.rect_stroke(
+                        selection,
+                        0.0,
+                        egui::Stroke::new(2.0, Color32::from_rgb(120, 220, 255)),
+                        egui::StrokeKind::Middle,
+                    );
+                    painter.rect_filled(
+                        selection,
+                        0.0,
+                        Color32::from_rgba_premultiplied(120, 220, 255, 40),
+                    );
+                }
+            });
+        true
+    }
+
     fn render_sound_panel(&mut self, ui: &mut egui::Ui) {
         let language = self.state.ui_language;
         ui.heading(self.panel_label(AppPanel::Sound));
@@ -10952,6 +11251,9 @@ impl eframe::App for CrosshairApp {
                     self.persist_mouse_path_presets();
                     self.status = status;
                 }
+                UiCommand::ImageSearchFinished(status) => {
+                    self.status = status;
+                }
             }
         }
 
@@ -11026,6 +11328,11 @@ impl eframe::App for CrosshairApp {
         {
             self.cancel_capture();
         }
+        if self.image_search_capture_active
+            && ctx.input(|input| input.viewport().focused == Some(false))
+        {
+            self.cancel_image_search_capture(ctx);
+        }
 
         if ctx.input(|input| input.viewport().close_requested()) && !self.quit_requested {
             ctx.send_viewport_cmd(egui::ViewportCommand::CancelClose);
@@ -11050,6 +11357,10 @@ impl eframe::App for CrosshairApp {
             let elapsed = (ctx.input(|input| input.time) - animation.started_at).max(0.0);
             let progress = (elapsed / animation.duration_sec).clamp(0.0, 1.0) as f32;
             self.render_tray_blob_transition(ctx, progress, true);
+            return;
+        }
+
+        if self.render_image_search_capture_overlay(ctx) {
             return;
         }
 
@@ -11233,6 +11544,7 @@ impl eframe::App for CrosshairApp {
                         AppPanel::WindowPresets,
                         AppPanel::Pin,
                         AppPanel::Mouse,
+                        AppPanel::ImageSearch,
                         AppPanel::Macros,
                         AppPanel::Sound,
                     ];
@@ -11291,8 +11603,10 @@ impl eframe::App for CrosshairApp {
                 });
             });
 
-        self.render_custom_window_resize_handles(ctx);
-        self.render_custom_window_border(ctx);
+        if !self.image_search_capture_active {
+            self.render_custom_window_resize_handles(ctx);
+            self.render_custom_window_border(ctx);
+        }
 
         if self.state.active_panel != AppPanel::Pin
             || ctx.input(|input| input.viewport().focused == Some(false))
@@ -11309,6 +11623,7 @@ impl eframe::App for CrosshairApp {
                         AppPanel::WindowPresets => self.render_window_presets_panel(ui),
                         AppPanel::Pin => self.render_pin_panel(ui),
                         AppPanel::Mouse => self.render_mouse_panel(ui),
+                        AppPanel::ImageSearch => self.render_image_search_panel(ui, ctx),
                         AppPanel::Zoom => self.render_pin_panel(ui),
                         AppPanel::Modes => self.render_macro_panel(ui),
                         AppPanel::Macros => self.render_macro_panel(ui),

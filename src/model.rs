@@ -102,6 +102,7 @@ pub enum AppPanel {
     WindowPresets,
     Pin,
     Mouse,
+    ImageSearch,
     Zoom,
     Modes,
     Macros,
@@ -342,6 +343,7 @@ pub enum CaptureRequest {
     MousePathRecordHotkey(u32),
     MouseSensitivityPresetHotkey(u32),
     ZoomPresetHotkey(u32),
+    ImageSearchTriggerHotkey,
     MacroPresetHotkey(u32, u32),
     MacroSelectorHotkey(u32, u32),
     MacroSelectorOptionKey(u32, u32, u32),
@@ -929,6 +931,24 @@ pub struct AiSettings {
     pub enabled: bool,
 }
 
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
+#[serde(default)]
+pub struct ImageSearchSettings {
+    pub enabled: bool,
+    pub trigger_hotkey: Option<HotkeyBinding>,
+    pub click_after_move: bool,
+}
+
+impl Default for ImageSearchSettings {
+    fn default() -> Self {
+        Self {
+            enabled: false,
+            trigger_hotkey: None,
+            click_after_move: false,
+        }
+    }
+}
+
 impl Default for AiSettings {
     fn default() -> Self {
         Self {
@@ -1088,6 +1108,7 @@ pub struct AppState {
     pub macros_master_enabled: bool,
     pub ai_settings: AiSettings,
     pub audio_settings: AudioSettings,
+    pub image_search_settings: ImageSearchSettings,
 }
 
 impl Default for AppState {
@@ -1139,6 +1160,7 @@ impl Default for AppState {
             macros_master_enabled: true,
             ai_settings: AiSettings::default(),
             audio_settings: AudioSettings::default(),
+            image_search_settings: ImageSearchSettings::default(),
         }
     }
 }

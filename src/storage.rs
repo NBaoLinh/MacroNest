@@ -23,6 +23,7 @@ pub struct AppPaths {
     pub interception_installer_dir: PathBuf,
     pub interception_installer_exe: PathBuf,
     pub interception_dll_file: PathBuf,
+    pub image_search_template_file: PathBuf,
 }
 
 impl AppPaths {
@@ -47,11 +48,14 @@ impl AppPaths {
             .join("library")
             .join("x64")
             .join("interception.dll");
+        let image_search_dir = root.join("image-search");
+        let image_search_template_file = image_search_dir.join("template.png");
 
         fs::create_dir_all(&root)?;
         fs::create_dir_all(&profiles_dir)?;
         fs::create_dir_all(&custom_dir)?;
         fs::create_dir_all(&interception_dir)?;
+        fs::create_dir_all(&image_search_dir)?;
 
         Ok(Self {
             root,
@@ -67,6 +71,7 @@ impl AppPaths {
             interception_installer_dir,
             interception_installer_exe,
             interception_dll_file,
+            image_search_template_file,
         })
     }
 

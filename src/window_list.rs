@@ -7,13 +7,15 @@ mod windows_impl {
         Win32::{
             Foundation::{HWND, LPARAM, RECT},
             Graphics::Gdi::{
-                BI_RGB, BITMAPINFO, BITMAPINFOHEADER, CreateCompatibleDC, CreateDIBSection,
-                DIB_RGB_COLORS, DeleteDC, DeleteObject, GetDC, GetWindowDC, HGDIOBJ, HALFTONE,
-                ReleaseDC, SRCCOPY, SelectObject, SetStretchBltMode, StretchBlt,
+                BitBlt, BI_RGB, BITMAPINFO, BITMAPINFOHEADER, CreateCompatibleDC,
+                CreateDIBSection, DIB_RGB_COLORS, DeleteDC, DeleteObject, GetDC, GetWindowDC,
+                HGDIOBJ, HALFTONE, ReleaseDC, SRCCOPY, SelectObject, SetStretchBltMode,
+                StretchBlt,
             },
             UI::WindowsAndMessaging::{
                 EnumWindows, GetForegroundWindow, GetWindowRect, GetWindowTextLengthW,
-                GetWindowTextW, IsWindowVisible, PW_RENDERFULLCONTENT,
+                GetWindowTextW, GetSystemMetrics, IsWindowVisible, PW_RENDERFULLCONTENT,
+                SM_CXVIRTUALSCREEN, SM_CYVIRTUALSCREEN, SM_XVIRTUALSCREEN, SM_YVIRTUALSCREEN,
             },
             Storage::Xps::{PRINT_WINDOW_FLAGS, PrintWindow},
         },
@@ -32,6 +34,15 @@ mod windows_impl {
         pub screen_y: i32,
         pub logical_width: i32,
         pub logical_height: i32,
+        pub width: usize,
+        pub height: usize,
+        pub rgba: Vec<u8>,
+    }
+
+    #[derive(Debug, Clone)]
+    pub struct ScreenCaptureFrame {
+        pub screen_x: i32,
+        pub screen_y: i32,
         pub width: usize,
         pub height: usize,
         pub rgba: Vec<u8>,
@@ -69,6 +80,25 @@ mod windows_impl {
             match_duplicate_window_titles,
         )?;
         unsafe { capture_window_preview_from_hwnd(hwnd, max_dimension.max(64)) }
+    }
+
+    pub fn virtual_screen_bounds() -> (i32, i32, i32, i32) {
+        unsafe {
+            let left = GetSystemMetrics(SM_XVIRTUALSCREEN);
+            let top = GetSystemMetrics(SM_YVIRTUALSCREEN);
+            let width = GetSystemMetrics(SM_CXVIRTUALSCREEN).max(1);
+            let height = GetSystemMetrics(SM_CYVIRTUALSCREEN).max(1);
+            (left, top, width, height)
+        }
+    }
+
+    pub fn capture_virtual_screen_region(
+        left: i32,
+        top: i32,
+        width: i32,
+        height: i32,
+    ) -> Option<ScreenCaptureFrame> {
+        unsafe { capture_screen_region_from_desktop(left, top, width.max(1), height.max(1)) }
     }
 
     unsafe extern "system" fn enum_window_proc(hwnd: HWND, lparam: LPARAM) -> BOOL {
@@ -402,6 +432,87 @@ mod windows_impl {
             logical_height: screen_height,
             width: capture_width as usize,
             height: capture_height as usize,
+            rgba,
+        })
+    }
+
+    unsafe fn capture_screen_region_from_desktop(
+        left: i32,
+        top: i32,
+        width: i32,
+        height: i32,
+    ) -> Option<ScreenCaptureFrame> {
+        let screen_dc = GetDC(None);
+        if screen_dc.0.is_null() {
+            return None;
+        }
+
+        let compat_dc = CreateCompatibleDC(Some(screen_dc));
+        if compat_dc.0.is_null() {
+            let _ = ReleaseDC(None, screen_dc);
+            return None;
+        }
+
+        let mut info = BITMAPINFO::default();
+        info.bmiHeader.biSize = std::mem::size_of::<BITMAPINFOHEADER>() as u32;
+        info.bmiHeader.biWidth = width;
+        info.bmiHeader.biHeight = -height;
+        info.bmiHeader.biPlanes = 1;
+        info.bmiHeader.biBitCount = 32;
+        info.bmiHeader.biCompression = BI_RGB.0;
+
+        let mut bits: *mut core::ffi::c_void = std::ptr::null_mut();
+        let bitmap = CreateDIBSection(Some(screen_dc), &info, DIB_RGB_COLORS, &mut bits, None, 0)
+            .ok()?;
+        if bitmap.0.is_null() || bits.is_null() {
+            let _ = DeleteDC(compat_dc);
+            let _ = ReleaseDC(None, screen_dc);
+            return None;
+        }
+
+        let old_obj = SelectObject(compat_dc, HGDIOBJ(bitmap.0));
+        let copied = BitBlt(
+            compat_dc,
+            0,
+            0,
+            width,
+            height,
+            Some(screen_dc),
+            left,
+            top,
+            SRCCOPY,
+        )
+        .is_ok();
+
+        let rgba = if copied {
+            let len = (width as usize) * (height as usize) * 4;
+            let pixels = std::slice::from_raw_parts(bits as *const u8, len);
+            let mut rgba = Vec::with_capacity(len);
+            for px in pixels.chunks_exact(4) {
+                rgba.push(px[2]);
+                rgba.push(px[1]);
+                rgba.push(px[0]);
+                rgba.push(255);
+            }
+            rgba
+        } else {
+            Vec::new()
+        };
+
+        let _ = SelectObject(compat_dc, old_obj);
+        let _ = DeleteObject(HGDIOBJ(bitmap.0));
+        let _ = DeleteDC(compat_dc);
+        let _ = ReleaseDC(None, screen_dc);
+
+        if !copied || rgba.is_empty() {
+            return None;
+        }
+
+        Some(ScreenCaptureFrame {
+            screen_x: left,
+            screen_y: top,
+            width: width as usize,
+            height: height as usize,
             rgba,
         })
     }
