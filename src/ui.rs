@@ -978,7 +978,7 @@ impl CrosshairApp {
         );
     }
 
-    fn update_image_search_color_pick_preview(
+    fn update_image_search_cursor_preview(
         &mut self,
         ctx: &egui::Context,
         pointer: egui::Pos2,
@@ -1017,6 +1017,125 @@ impl CrosshairApp {
         }
         self.image_search_color_pick_preview_color = Some(sampled);
         Some(sampled)
+    }
+
+    fn image_search_preview_panel_rect(
+        viewport_rect: egui::Rect,
+        pointer: egui::Pos2,
+        panel_size: egui::Vec2,
+    ) -> egui::Rect {
+        let margin = 18.0;
+        let candidates = [
+            egui::Rect::from_min_size(
+                viewport_rect.right_top() - vec2(panel_size.x + margin, -margin),
+                panel_size,
+            ),
+            egui::Rect::from_min_size(
+                viewport_rect.left_top() + vec2(margin, margin),
+                panel_size,
+            ),
+            egui::Rect::from_min_size(
+                viewport_rect.right_bottom() - vec2(panel_size.x + margin, panel_size.y + margin),
+                panel_size,
+            ),
+            egui::Rect::from_min_size(
+                viewport_rect.left_bottom() + vec2(margin, -(panel_size.y + margin)),
+                panel_size,
+            ),
+        ];
+        let pointer_safe_zone = egui::Rect::from_center_size(pointer, vec2(54.0, 54.0));
+        candidates
+            .into_iter()
+            .find(|candidate| !candidate.intersects(pointer_safe_zone))
+            .unwrap_or(candidates[0])
+    }
+
+    fn render_image_search_cursor_preview_panel(
+        &self,
+        painter: &egui::Painter,
+        viewport_rect: egui::Rect,
+        pointer: egui::Pos2,
+        sampled_color: Option<RgbaColor>,
+        screen_point: Option<(i32, i32)>,
+    ) {
+        let Some(texture) = self.image_search_color_pick_texture.as_ref() else {
+            return;
+        };
+        let panel_size = vec2(188.0, 254.0);
+        let panel_rect = Self::image_search_preview_panel_rect(viewport_rect, pointer, panel_size);
+        painter.rect_filled(
+            panel_rect,
+            10.0,
+            Color32::from_rgba_premultiplied(12, 18, 28, 228),
+        );
+        painter.rect_stroke(
+            panel_rect,
+            10.0,
+            egui::Stroke::new(1.0, Color32::from_rgb(110, 156, 210)),
+            egui::StrokeKind::Outside,
+        );
+        let preview_rect =
+            egui::Rect::from_min_size(panel_rect.min + vec2(12.0, 12.0), vec2(164.0, 164.0));
+        painter.image(
+            texture.id(),
+            preview_rect,
+            egui::Rect::from_min_max(egui::pos2(0.0, 0.0), egui::pos2(1.0, 1.0)),
+            Color32::WHITE,
+        );
+        painter.rect_stroke(
+            preview_rect,
+            6.0,
+            egui::Stroke::new(1.0, Color32::from_rgb(146, 192, 248)),
+            egui::StrokeKind::Outside,
+        );
+        let cell_size = preview_rect.width() / 17.0;
+        let center_rect =
+            egui::Rect::from_center_size(preview_rect.center(), vec2(cell_size, cell_size));
+        painter.rect_stroke(
+            center_rect,
+            0.0,
+            egui::Stroke::new(2.0, Color32::from_rgb(120, 220, 255)),
+            egui::StrokeKind::Outside,
+        );
+
+        if let Some(color) = sampled_color.or(self.image_search_color_pick_preview_color) {
+            let swatch_rect =
+                egui::Rect::from_min_size(panel_rect.min + vec2(12.0, 188.0), vec2(26.0, 26.0));
+            painter.rect_filled(
+                swatch_rect,
+                6.0,
+                Color32::from_rgb(color.r, color.g, color.b),
+            );
+            painter.rect_stroke(
+                swatch_rect,
+                6.0,
+                egui::Stroke::new(1.0, Color32::WHITE),
+                egui::StrokeKind::Outside,
+            );
+            painter.text(
+                swatch_rect.right_center() + vec2(10.0, -8.0),
+                egui::Align2::LEFT_TOP,
+                format!("#{:02X}{:02X}{:02X}", color.r, color.g, color.b),
+                egui::FontId::proportional(18.0),
+                Color32::WHITE,
+            );
+        }
+        if let Some((screen_x, screen_y)) = screen_point {
+            painter.text(
+                panel_rect.min + vec2(12.0, 222.0),
+                egui::Align2::LEFT_TOP,
+                format!("X:{screen_x}  Y:{screen_y}"),
+                egui::FontId::proportional(13.0),
+                Color32::from_rgb(188, 206, 230),
+            );
+        }
+        painter.text(
+            panel_rect.min + vec2(12.0, 238.0),
+            egui::Align2::LEFT_TOP,
+            "Center pixel",
+            egui::FontId::proportional(13.0),
+            Color32::from_rgb(188, 206, 230),
+        );
     }
 
     fn clear_pin_preview_cache(&mut self) {
@@ -10438,10 +10557,18 @@ impl CrosshairApp {
                     );
                 }
 
-                if capture_mode == ImageSearchCaptureMode::ColorSample {
-                    if let Some(pointer) = response.hover_pos() {
-                        let sampled_color =
-                            self.update_image_search_color_pick_preview(ctx, pointer);
+                if let Some(pointer) = response.hover_pos() {
+                    let sampled_color = self.update_image_search_cursor_preview(ctx, pointer);
+                    let screen_point =
+                        self.screen_point_from_pos(ctx, pointer, ctx.pixels_per_point());
+                    self.render_image_search_cursor_preview_panel(
+                        &painter,
+                        rect,
+                        pointer,
+                        sampled_color,
+                        screen_point,
+                    );
+                    if capture_mode == ImageSearchCaptureMode::ColorSample {
                         painter.circle_stroke(
                             pointer,
                             9.0,
@@ -10463,88 +10590,9 @@ impl CrosshairApp {
                             [pointer + vec2(0.0, 4.0), pointer + vec2(0.0, 14.0)],
                             egui::Stroke::new(1.0, Color32::from_rgb(120, 220, 255)),
                         );
-
-                        let panel_size = vec2(188.0, 236.0);
-                        let panel_rect = egui::Rect::from_min_size(
-                            rect.right_top() - vec2(panel_size.x + 18.0, -18.0),
-                            panel_size,
-                        );
-                        painter.rect_filled(
-                            panel_rect,
-                            10.0,
-                            Color32::from_rgba_premultiplied(12, 18, 28, 228),
-                        );
-                        painter.rect_stroke(
-                            panel_rect,
-                            10.0,
-                            egui::Stroke::new(1.0, Color32::from_rgb(110, 156, 210)),
-                            egui::StrokeKind::Outside,
-                        );
-                        if let Some(texture) = self.image_search_color_pick_texture.as_ref() {
-                            let preview_rect = egui::Rect::from_min_size(
-                                panel_rect.min + vec2(12.0, 12.0),
-                                vec2(164.0, 164.0),
-                            );
-                            painter.image(
-                                texture.id(),
-                                preview_rect,
-                                egui::Rect::from_min_max(
-                                    egui::pos2(0.0, 0.0),
-                                    egui::pos2(1.0, 1.0),
-                                ),
-                                Color32::WHITE,
-                            );
-                            painter.rect_stroke(
-                                preview_rect,
-                                6.0,
-                                egui::Stroke::new(1.0, Color32::from_rgb(146, 192, 248)),
-                                egui::StrokeKind::Outside,
-                            );
-                            let cell_size = preview_rect.width() / 17.0;
-                            let center_rect = egui::Rect::from_center_size(
-                                preview_rect.center(),
-                                vec2(cell_size, cell_size),
-                            );
-                            painter.rect_stroke(
-                                center_rect,
-                                0.0,
-                                egui::Stroke::new(2.0, Color32::from_rgb(120, 220, 255)),
-                                egui::StrokeKind::Outside,
-                            );
-                        }
-                        if let Some(color) = sampled_color.or(self.image_search_color_pick_preview_color)
-                        {
-                            let swatch_rect = egui::Rect::from_min_size(
-                                panel_rect.min + vec2(12.0, 188.0),
-                                vec2(26.0, 26.0),
-                            );
-                            painter.rect_filled(
-                                swatch_rect,
-                                6.0,
-                                Color32::from_rgb(color.r, color.g, color.b),
-                            );
-                            painter.rect_stroke(
-                                swatch_rect,
-                                6.0,
-                                egui::Stroke::new(1.0, Color32::WHITE),
-                                egui::StrokeKind::Outside,
-                            );
-                            painter.text(
-                                swatch_rect.right_center() + vec2(10.0, -8.0),
-                                egui::Align2::LEFT_TOP,
-                                format!("#{:02X}{:02X}{:02X}", color.r, color.g, color.b),
-                                egui::FontId::proportional(18.0),
-                                Color32::WHITE,
-                            );
-                            painter.text(
-                                swatch_rect.right_center() + vec2(10.0, 14.0),
-                                egui::Align2::LEFT_TOP,
-                                "Center pixel",
-                                egui::FontId::proportional(13.0),
-                                Color32::from_rgb(188, 206, 230),
-                            );
-                        }
                     }
+                }
+                if capture_mode == ImageSearchCaptureMode::ColorSample {
                     if response.clicked()
                         && let Some(pointer) = response.interact_pointer_pos()
                     {
