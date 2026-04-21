@@ -244,6 +244,7 @@ mod windows_overlay {
         keyboard_arrow_mouse_enabled: bool,
         keyboard_arrow_mouse_step_px: u32,
         image_search_presets: Vec<ImageSearchPreset>,
+        image_search_following_presets: HashSet<u32>,
         image_search_dir: PathBuf,
         interception_dll_path: PathBuf,
         mouse_sensitivity_restore_on_exit: bool,
@@ -290,6 +291,7 @@ mod windows_overlay {
                 keyboard_arrow_mouse_enabled: false,
                 keyboard_arrow_mouse_step_px: 12,
                 image_search_presets: Vec::new(),
+                image_search_following_presets: HashSet::new(),
                 image_search_dir: PathBuf::new(),
                 interception_dll_path: PathBuf::new(),
                 mouse_sensitivity_restore_on_exit: false,
@@ -1217,6 +1219,59 @@ mod windows_overlay {
         Some(true)
     }
 
+    fn image_search_following_is_active(preset_id: u32) -> bool {
+        HOOK_STATE
+            .lock()
+            .image_search_following_presets
+            .contains(&preset_id)
+    }
+
+    fn set_image_search_following_active(preset_id: u32, active: bool) {
+        let mut hook_state = HOOK_STATE.lock();
+        if active {
+            hook_state.image_search_following_presets.insert(preset_id);
+        } else {
+            hook_state.image_search_following_presets.remove(&preset_id);
+        }
+    }
+
+    fn run_image_search_follow_loop(
+        preset: ImageSearchPreset,
+        ui_tx: Option<Sender<UiCommand>>,
+    ) {
+        if let Some(tx) = ui_tx.as_ref() {
+            let _ = tx.send(UiCommand::ImageSearchFinished(format!(
+                "{}: repeat mode started. Press the hotkey again to stop.",
+                preset.name
+            )));
+        }
+
+        while image_search_following_is_active(preset.id) {
+            match run_image_search_once_with_options(&preset, false) {
+                Ok(_) => {}
+                Err(error) => {
+                    if let Some(tx) = ui_tx.as_ref() {
+                        let _ = tx.send(UiCommand::ImageSearchFinished(format!(
+                            "{}: Image search failed: {error}",
+                            preset.name
+                        )));
+                    }
+                    break;
+                }
+            }
+            thread::sleep(Duration::from_millis(40));
+        }
+
+        set_image_search_following_active(preset.id, false);
+        IMAGE_SEARCH_RUNNING.store(false, Ordering::SeqCst);
+        if let Some(tx) = ui_tx {
+            let _ = tx.send(UiCommand::ImageSearchFinished(format!(
+                "{}: repeat mode stopped.",
+                preset.name
+            )));
+        }
+    }
+
     fn process_image_search_hotkey(binding: &HotkeyBinding, is_repeat: bool) -> Option<bool> {
         if is_repeat {
             return None;
@@ -1252,6 +1307,42 @@ mod windows_overlay {
         let Some(preset) = matched else {
             return None;
         };
+
+        if preset.repeat_until_triggered_again {
+            let active = {
+                let mut hook_state = HOOK_STATE.lock();
+                if hook_state.image_search_following_presets.contains(&preset.id) {
+                    hook_state.image_search_following_presets.remove(&preset.id);
+                    false
+                } else {
+                    hook_state.image_search_following_presets.insert(preset.id);
+                    true
+                }
+            };
+
+            if !active {
+                if let Some(tx) = ui_tx {
+                    let _ = tx.send(UiCommand::ImageSearchFinished(format!(
+                        "{}: repeat mode stopped.",
+                        preset.name
+                    )));
+                }
+                return Some(true);
+            }
+
+            if IMAGE_SEARCH_RUNNING.swap(true, Ordering::SeqCst) {
+                set_image_search_following_active(preset.id, false);
+                if let Some(tx) = ui_tx {
+                    let _ = tx.send(UiCommand::ImageSearchFinished(format!(
+                        "{}: Image search is still running.",
+                        preset.name
+                    )));
+                }
+                return Some(true);
+            }
+            thread::spawn(move || run_image_search_follow_loop(preset, ui_tx));
+            return Some(true);
+        }
 
         if IMAGE_SEARCH_RUNNING.swap(true, Ordering::SeqCst) {
             if let Some(tx) = ui_tx {
@@ -2098,7 +2189,16 @@ mod windows_overlay {
                     hook_state.keyboard_arrow_mouse_step_px = step_px.clamp(1, 100) as u32;
                 }
                 OverlayCommand::UpdateImageSearchPresets(presets) => {
-                    HOOK_STATE.lock().image_search_presets = presets;
+                    let mut hook_state = HOOK_STATE.lock();
+                    hook_state.image_search_presets = presets;
+                    let valid_ids: HashSet<u32> = hook_state
+                        .image_search_presets
+                        .iter()
+                        .map(|preset| preset.id)
+                        .collect();
+                    hook_state
+                        .image_search_following_presets
+                        .retain(|preset_id| valid_ids.contains(preset_id));
                 }
                 OverlayCommand::ApplyMouseSensitivityPreset(preset_id) => {
                     if let Some(preset) = HOOK_STATE
@@ -5627,7 +5727,10 @@ mod windows_overlay {
             .join(format!("preset-{preset_id}.png"))
     }
 
-    fn run_image_search_once(preset: &ImageSearchPreset) -> Result<String> {
+    fn run_image_search_once_with_options(
+        preset: &ImageSearchPreset,
+        fire_click: bool,
+    ) -> Result<String> {
         if preset.use_color_matching {
             let target = preset
                 .target_color
@@ -5660,14 +5763,21 @@ mod windows_overlay {
 
             let center_x = screen.screen_x + hit.x;
             let center_y = screen.screen_y + hit.y;
-            settle_image_search_mouse_move(center_x, center_y, preset.use_interception_driver)?;
-            if preset.click_after_move {
+            let moved_x = center_x + preset.move_offset_x;
+            let moved_y = center_y + preset.move_offset_y;
+            settle_image_search_mouse_move(moved_x, moved_y, preset.use_interception_driver)?;
+            if fire_click {
                 thread::sleep(Duration::from_millis(12));
                 send_mouse_left_click_backend(preset.use_interception_driver)?;
             }
             return Ok(format!(
-                "Matched color #{:02X}{:02X}{:02X} at {center_x}, {center_y} with tolerance {}.",
-                target.r, target.g, target.b, preset.color_tolerance
+                "Matched color #{:02X}{:02X}{:02X} at {moved_x}, {moved_y} with tolerance {} and offset {:+}, {:+}.",
+                target.r,
+                target.g,
+                target.b,
+                preset.color_tolerance,
+                preset.move_offset_x,
+                preset.move_offset_y
             ));
         }
 
@@ -5776,25 +5886,33 @@ mod windows_overlay {
 
         let center_x = screen.screen_x + hit.x + (hit.width / 2);
         let center_y = screen.screen_y + hit.y + (hit.height / 2);
+        let moved_x = center_x + preset.move_offset_x;
+        let moved_y = center_y + preset.move_offset_y;
         let required_confidence = preset.confidence_threshold.clamp(0.35, 0.99);
         if hit.confidence < required_confidence {
             return Ok(format!(
-                "Best match near {center_x}, {center_y} scored {:.3} at scale {:.2}x, below threshold {:.2}.",
+                "Best match near {moved_x}, {moved_y} scored {:.3} at scale {:.2}x, below threshold {:.2}.",
                 hit.confidence,
                 hit.scale,
                 required_confidence
             ));
         }
-        settle_image_search_mouse_move(center_x, center_y, preset.use_interception_driver)?;
-        if preset.click_after_move {
+        settle_image_search_mouse_move(moved_x, moved_y, preset.use_interception_driver)?;
+        if fire_click {
             thread::sleep(Duration::from_millis(12));
             send_mouse_left_click_backend(preset.use_interception_driver)?;
         }
         Ok(format!(
-            "OpenCV matched at {center_x}, {center_y} with confidence {:.3} on {:.2}x.",
+            "OpenCV matched at {moved_x}, {moved_y} with confidence {:.3} on {:.2}x (offset {:+}, {:+}).",
             hit.confidence,
-            hit.scale
+            hit.scale,
+            preset.move_offset_x,
+            preset.move_offset_y
         ))
+    }
+
+    fn run_image_search_once(preset: &ImageSearchPreset) -> Result<String> {
+        run_image_search_once_with_options(preset, preset.click_after_move)
     }
 
     fn is_extended_key(vk: u32) -> bool {

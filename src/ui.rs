@@ -10360,6 +10360,50 @@ impl CrosshairApp {
                         });
                         ui.end_row();
 
+                        ui.label(Self::tr_lang(language, "Offset", "Lech"));
+                        ui.horizontal_wrapped(|ui| {
+                            ui.label("X");
+                            live_sync |= ui
+                                .add(DragValue::new(&mut preset.move_offset_x).range(-5000..=5000))
+                                .changed();
+                            ui.label("Y");
+                            live_sync |= ui
+                                .add(DragValue::new(&mut preset.move_offset_y).range(-5000..=5000))
+                                .changed();
+                            ui.label(
+                                RichText::new(Self::tr_lang(
+                                    language,
+                                    "Applied after match",
+                                    "Ap dung sau khi khop",
+                                ))
+                                .small(),
+                            );
+                        });
+                        ui.end_row();
+
+                        ui.label(Self::tr_lang(language, "Repeat", "Lap"));
+                        ui.horizontal_wrapped(|ui| {
+                            live_sync |= ui
+                                .checkbox(
+                                    &mut preset.repeat_until_triggered_again,
+                                    Self::tr_lang(
+                                        language,
+                                        "Repeat until triggered again",
+                                        "Lap cho den khi bam trigger lai",
+                                    ),
+                                )
+                                .changed();
+                            ui.label(
+                                RichText::new(Self::tr_lang(
+                                    language,
+                                    "Move only while active",
+                                    "Chi di chuot khi dang bat",
+                                ))
+                                .small(),
+                            );
+                        });
+                        ui.end_row();
+
                         ui.label(Self::tr_lang(language, "Color", "Mau"));
                         ui.horizontal_wrapped(|ui| {
                             live_sync |= ui

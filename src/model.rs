@@ -103,6 +103,10 @@ fn default_image_search_color_tolerance() -> u8 {
     18
 }
 
+fn default_image_search_offset_px() -> i32 {
+    0
+}
+
 #[derive(Debug, Clone, Copy, Serialize, Deserialize, PartialEq, Eq, Default)]
 pub enum AppPanel {
     #[default]
@@ -973,10 +977,16 @@ pub struct ImageSearchPreset {
     pub hotkey: Option<HotkeyBinding>,
     pub click_after_move: bool,
     pub use_interception_driver: bool,
+    #[serde(default = "default_image_search_offset_px")]
+    pub move_offset_x: i32,
+    #[serde(default = "default_image_search_offset_px")]
+    pub move_offset_y: i32,
     #[serde(default = "default_image_search_confidence_threshold")]
     pub confidence_threshold: f32,
     #[serde(default)]
     pub use_color_matching: bool,
+    #[serde(default)]
+    pub repeat_until_triggered_again: bool,
     pub target_color: Option<RgbaColor>,
     #[serde(default = "default_image_search_color_tolerance")]
     pub color_tolerance: u8,
@@ -1001,8 +1011,11 @@ impl ImageSearchPreset {
             hotkey: None,
             click_after_move: false,
             use_interception_driver: false,
+            move_offset_x: default_image_search_offset_px(),
+            move_offset_y: default_image_search_offset_px(),
             confidence_threshold: default_image_search_confidence_threshold(),
             use_color_matching: false,
+            repeat_until_triggered_again: false,
             target_color: None,
             color_tolerance: default_image_search_color_tolerance(),
             last_capture_screen_x: None,
