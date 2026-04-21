@@ -966,10 +966,25 @@ impl CrosshairApp {
     }
 
     fn image_search_target_color_text(preset: &ImageSearchPreset) -> String {
-        preset
-            .target_color
-            .map(|color| format!("#{:02X}{:02X}{:02X}", color.r, color.g, color.b))
-            .unwrap_or_else(|| "None".to_owned())
+        let colors = Self::image_search_target_colors(preset);
+        match colors.as_slice() {
+            [] => "None".to_owned(),
+            [color] => format!("#{:02X}{:02X}{:02X}", color.r, color.g, color.b),
+            [first, rest @ ..] => format!(
+                "#{:02X}{:02X}{:02X} +{}",
+                first.r,
+                first.g,
+                first.b,
+                rest.len()
+            ),
+        }
+    }
+
+    fn image_search_target_colors(preset: &ImageSearchPreset) -> Vec<RgbaColor> {
+        if !preset.target_colors.is_empty() {
+            return preset.target_colors.clone();
+        }
+        preset.target_color.into_iter().collect()
     }
 
     fn image_search_target_color_swatch(ui: &mut egui::Ui, color: Option<RgbaColor>) {
@@ -4753,7 +4768,13 @@ impl CrosshairApp {
         {
             preset.collapsed = false;
             preset.use_color_matching = true;
-            preset.target_color = Some(color);
+            if preset.target_colors.is_empty() {
+                if let Some(existing) = preset.target_color {
+                    preset.target_colors.push(existing);
+                }
+            }
+            preset.target_colors.push(color);
+            preset.target_color = preset.target_colors.first().copied();
         }
         self.sync_image_search_presets();
         self.persist();
@@ -10712,8 +10733,47 @@ impl CrosshairApp {
                                     Self::tr_lang(language, "Match color", "Khop mau"),
                                 )
                                 .changed();
-                            Self::image_search_target_color_swatch(ui, preset.target_color);
-                            ui.monospace(Self::image_search_target_color_text(preset));
+                            let colors = Self::image_search_target_colors(&preset);
+                            let uses_legacy_single_color =
+                                preset.target_colors.is_empty() && preset.target_color.is_some();
+                            if colors.is_empty() {
+                                ui.monospace("None");
+                            } else {
+                                for (index, color) in colors.iter().copied().enumerate() {
+                                    Self::image_search_target_color_swatch(ui, Some(color));
+                                    ui.monospace(format!(
+                                        "#{:02X}{:02X}{:02X}",
+                                        color.r, color.g, color.b
+                                    ));
+                                    if ui
+                                        .small_button(Self::tr_lang(language, "x", "x"))
+                                        .on_hover_text(Self::tr_lang(
+                                            language,
+                                            "Remove this color",
+                                            "Xoa mau nay",
+                                        ))
+                                        .clicked()
+                                    {
+                                        if uses_legacy_single_color && index == 0 {
+                                            preset.target_color = None;
+                                            preset.use_color_matching = false;
+                                            live_sync = true;
+                                        } else if !preset.target_colors.is_empty() {
+                                            preset.target_colors = preset
+                                                .target_colors
+                                                .iter()
+                                                .copied()
+                                                .enumerate()
+                                                .filter_map(|(i, item)| {
+                                                    (i != index).then_some(item)
+                                                })
+                                                .collect();
+                                            preset.target_color = preset.target_colors.first().copied();
+                                            live_sync = true;
+                                        }
+                                    }
+                                }
+                            }
                             if ui
                                 .button(Self::tr_lang(language, "Pick color", "Chon mau"))
                                 .clicked()
@@ -10725,13 +10785,16 @@ impl CrosshairApp {
                                 .clicked()
                             {
                                 preset.target_color = None;
+                                preset.target_colors.clear();
                                 preset.use_color_matching = false;
                                 live_sync = true;
                             }
                         });
                         ui.end_row();
 
-                        if preset.use_color_matching {
+                        if preset.use_color_matching
+                            && !Self::image_search_target_colors(&preset).is_empty()
+                        {
                             ui.label(Self::tr_lang(language, "Tolerance", "Dung sai"));
                             ui.horizontal_wrapped(|ui| {
                                 live_sync |= ui
@@ -10763,11 +10826,11 @@ impl CrosshairApp {
                                         "Higher = stricter match",
                                         "Cang cao = can khop sat hon",
                                     ))
-                                    .small(),
-                                );
-                            });
-                            ui.end_row();
-                        }
+                                .small(),
+                            );
+                        });
+                        ui.end_row();
+                    }
 
                         ui.label(Self::tr_lang(language, "Target window", "Cua so"));
                         live_sync |= Self::render_multi_window_targets(

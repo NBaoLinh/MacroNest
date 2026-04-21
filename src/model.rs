@@ -996,6 +996,8 @@ pub struct ImageSearchPreset {
     #[serde(default)]
     pub predictive_lead: bool,
     pub target_color: Option<RgbaColor>,
+    #[serde(default)]
+    pub target_colors: Vec<RgbaColor>,
     #[serde(default = "default_image_search_color_tolerance")]
     pub color_tolerance: u8,
     pub last_capture_screen_x: Option<i32>,
@@ -1026,6 +1028,7 @@ impl ImageSearchPreset {
             repeat_until_triggered_again: false,
             predictive_lead: false,
             target_color: None,
+            target_colors: Vec::new(),
             color_tolerance: default_image_search_color_tolerance(),
             last_capture_screen_x: None,
             last_capture_screen_y: None,

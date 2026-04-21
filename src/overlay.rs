@@ -5757,16 +5757,17 @@ mod windows_overlay {
         y: i32,
         score: u32,
         distance_sq: i32,
+        matched_color: RgbaColor,
     }
 
     fn find_color_match(
         screen: &window_list::ScreenCaptureFrame,
-        target: RgbaColor,
+        targets: &[RgbaColor],
         tolerance: u8,
     ) -> Option<ColorMatchHit> {
         let width = screen.width as i32;
         let height = screen.height as i32;
-        if width <= 0 || height <= 0 {
+        if width <= 0 || height <= 0 || targets.is_empty() {
             return None;
         }
         let center_x = width / 2;
@@ -5783,36 +5784,46 @@ mod windows_overlay {
                 let r = screen.rgba[index] as i16;
                 let g = screen.rgba[index + 1] as i16;
                 let b = screen.rgba[index + 2] as i16;
-                let dr = (r - target.r as i16).abs();
-                let dg = (g - target.g as i16).abs();
-                let db = (b - target.b as i16).abs();
-                if dr > tolerance || dg > tolerance || db > tolerance {
-                    continue;
-                }
-
-                let score = (dr as u32) + (dg as u32) + (db as u32);
-                let distance_sq = (x - center_x).pow(2) + (y - center_y).pow(2);
-                let candidate = ColorMatchHit {
-                    x,
-                    y,
-                    score,
-                    distance_sq,
-                };
-                let replace = match best_hit {
-                    None => true,
-                    Some(current) if candidate.score < current.score => true,
-                    Some(current) if candidate.score == current.score => {
-                        candidate.distance_sq < current.distance_sq
+                for target in targets {
+                    let dr = (r - target.r as i16).abs();
+                    let dg = (g - target.g as i16).abs();
+                    let db = (b - target.b as i16).abs();
+                    if dr > tolerance || dg > tolerance || db > tolerance {
+                        continue;
                     }
-                    _ => false,
-                };
-                if replace {
-                    best_hit = Some(candidate);
+
+                    let score = (dr as u32) + (dg as u32) + (db as u32);
+                    let distance_sq = (x - center_x).pow(2) + (y - center_y).pow(2);
+                    let candidate = ColorMatchHit {
+                        x,
+                        y,
+                        score,
+                        distance_sq,
+                        matched_color: *target,
+                    };
+                    let replace = match best_hit {
+                        None => true,
+                        Some(current) if candidate.score < current.score => true,
+                        Some(current) if candidate.score == current.score => {
+                            candidate.distance_sq < current.distance_sq
+                        }
+                        _ => false,
+                    };
+                    if replace {
+                        best_hit = Some(candidate);
+                    }
                 }
             }
         }
 
         best_hit
+    }
+
+    fn image_search_target_colors(preset: &ImageSearchPreset) -> Vec<RgbaColor> {
+        if !preset.target_colors.is_empty() {
+            return preset.target_colors.clone();
+        }
+        preset.target_color.into_iter().collect()
     }
 
     fn capture_near_last_image_search_region(
@@ -5920,9 +5931,10 @@ mod windows_overlay {
         fire_click: bool,
     ) -> Result<String> {
         if preset.use_color_matching {
-            let target = preset
-                .target_color
-                .context("No target color has been picked yet.")?;
+            let target_colors = image_search_target_colors(preset);
+            if target_colors.is_empty() {
+                bail!("No target colors have been picked yet.");
+            }
             let screen = if let Some((left, top, width, height)) = configured_image_search_region(preset)
             {
                 window_list::capture_virtual_screen_region(left, top, width, height)
@@ -5942,10 +5954,15 @@ mod windows_overlay {
                     .context("Failed to capture the screen")?
             };
 
-            let Some(hit) = find_color_match(&screen, target, preset.color_tolerance) else {
+            let Some(hit) = find_color_match(&screen, &target_colors, preset.color_tolerance) else {
+                let color_list = target_colors
+                    .iter()
+                    .map(|color| format!("#{:02X}{:02X}{:02X}", color.r, color.g, color.b))
+                    .collect::<Vec<_>>()
+                    .join(", ");
                 return Ok(format!(
-                    "No color match found for #{:02X}{:02X}{:02X} with tolerance {}.",
-                    target.r, target.g, target.b, preset.color_tolerance
+                    "No color match found for [{color_list}] with tolerance {}.",
+                    preset.color_tolerance
                 ));
             };
 
@@ -5967,9 +5984,9 @@ mod windows_overlay {
             return Ok(match lead_state {
                 Some((dx, dy, speed)) => format!(
                     "Matched color #{:02X}{:02X}{:02X} at {moved_x}, {moved_y} with tolerance {}, offset {:+}, {:+}, lead {:+}, {:+} ({} px/s).",
-                    target.r,
-                    target.g,
-                    target.b,
+                    hit.matched_color.r,
+                    hit.matched_color.g,
+                    hit.matched_color.b,
                     preset.color_tolerance,
                     preset.move_offset_x,
                     preset.move_offset_y,
@@ -5979,9 +5996,9 @@ mod windows_overlay {
                 ),
                 None => format!(
                     "Matched color #{:02X}{:02X}{:02X} at {moved_x}, {moved_y} with tolerance {} and offset {:+}, {:+}.",
-                    target.r,
-                    target.g,
-                    target.b,
+                    hit.matched_color.r,
+                    hit.matched_color.g,
+                    hit.matched_color.b,
                     preset.color_tolerance,
                     preset.move_offset_x,
                     preset.move_offset_y
