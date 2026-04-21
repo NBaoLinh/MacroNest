@@ -5416,6 +5416,53 @@ mod windows_overlay {
         Some((left, top, width, height))
     }
 
+    fn expand_search_region_to_fit(
+        region: (i32, i32, i32, i32),
+        min_width: i32,
+        min_height: i32,
+    ) -> (i32, i32, i32, i32) {
+        let (left, top, width, height) = region;
+        let target_width = width.max(min_width.max(1));
+        let target_height = height.max(min_height.max(1));
+        if target_width == width && target_height == height {
+            return region;
+        }
+
+        let center_x = left + width / 2;
+        let center_y = top + height / 2;
+        let mut next_left = center_x - target_width / 2;
+        let mut next_top = center_y - target_height / 2;
+        let (virtual_left, virtual_top, virtual_width, virtual_height) =
+            window_list::virtual_screen_bounds();
+        let virtual_right = virtual_left + virtual_width;
+        let virtual_bottom = virtual_top + virtual_height;
+
+        if next_left < virtual_left {
+            next_left = virtual_left;
+        }
+        if next_top < virtual_top {
+            next_top = virtual_top;
+        }
+
+        let mut next_right = (next_left + target_width).min(virtual_right);
+        let mut next_bottom = (next_top + target_height).min(virtual_bottom);
+        if next_right - next_left < target_width {
+            next_left = (next_right - target_width).max(virtual_left);
+            next_right = (next_left + target_width).min(virtual_right);
+        }
+        if next_bottom - next_top < target_height {
+            next_top = (next_bottom - target_height).max(virtual_top);
+            next_bottom = (next_top + target_height).min(virtual_bottom);
+        }
+
+        (
+            next_left,
+            next_top,
+            (next_right - next_left).max(1),
+            (next_bottom - next_top).max(1),
+        )
+    }
+
     #[derive(Clone, Copy, Debug)]
     struct ColorMatchHit {
         x: i32,
@@ -5503,6 +5550,76 @@ mod windows_overlay {
         window_list::capture_virtual_screen_region(left, top, width, height)
     }
 
+    fn find_template_match_exact_rgba(
+        screen: &window_list::ScreenCaptureFrame,
+        template_rgba: &[u8],
+        template_width: usize,
+        template_height: usize,
+        max_average_diff: f32,
+        anchor_hint_screen: Option<(i32, i32)>,
+    ) -> Option<TemplateMatchHit> {
+        if template_width == 0
+            || template_height == 0
+            || screen.width < template_width
+            || screen.height < template_height
+        {
+            return None;
+        }
+
+        let anchor_hint =
+            anchor_hint_screen.map(|(x, y)| (x - screen.screen_x, y - screen.screen_y));
+        let mut best_hit: Option<TemplateMatchHit> = None;
+
+        for y in 0..=(screen.height - template_height) {
+            for x in 0..=(screen.width - template_width) {
+                let mut total_diff = 0u64;
+                let mut over_budget = false;
+                for row in 0..template_height {
+                    let screen_row = ((y + row) * screen.width + x) * 4;
+                    let template_row = row * template_width * 4;
+                    for col in 0..template_width {
+                        let screen_idx = screen_row + col * 4;
+                        let template_idx = template_row + col * 4;
+                        let dr = screen.rgba[screen_idx].abs_diff(template_rgba[template_idx]) as u64;
+                        let dg =
+                            screen.rgba[screen_idx + 1].abs_diff(template_rgba[template_idx + 1]) as u64;
+                        let db =
+                            screen.rgba[screen_idx + 2].abs_diff(template_rgba[template_idx + 2]) as u64;
+                        total_diff += dr + dg + db;
+                        let processed = ((row * template_width) + (col + 1)) as f32;
+                        let average = total_diff as f32 / processed / 3.0;
+                        if average > max_average_diff {
+                            over_budget = true;
+                            break;
+                        }
+                    }
+                    if over_budget {
+                        break;
+                    }
+                }
+                if over_budget {
+                    continue;
+                }
+
+                let pixel_count = (template_width * template_height) as f32;
+                let avg_diff = total_diff as f32 / pixel_count / 3.0;
+                let candidate = TemplateMatchHit {
+                    x: x as i32,
+                    y: y as i32,
+                    width: template_width as i32,
+                    height: template_height as i32,
+                    scale: 1.0,
+                    confidence: (1.0 - (avg_diff / 255.0)).clamp(0.0, 1.0),
+                };
+                if select_better_template_match(candidate, best_hit, anchor_hint) {
+                    best_hit = Some(candidate);
+                }
+            }
+        }
+
+        best_hit
+    }
+
     fn image_search_template_file(preset_id: u32) -> PathBuf {
         let hook_state = HOOK_STATE.lock();
         hook_state
@@ -5577,7 +5694,12 @@ mod windows_overlay {
             || (preset.target_window_title.is_none()
             && preset.extra_target_window_titles.is_empty()
             && anchor_hint.is_some());
-        let screen = if let Some((left, top, width, height)) = configured_region {
+        let screen = if let Some(region) = configured_region {
+            let (left, top, width, height) = expand_search_region_to_fit(
+                region,
+                template_width as i32,
+                template_height as i32,
+            );
             window_list::capture_virtual_screen_region(left, top, width, height)
                 .context("Failed to capture the selected search area")?
         } else if preset.target_window_title.is_some()
@@ -5602,8 +5724,27 @@ mod windows_overlay {
             window_list::capture_virtual_screen_region(left, top, width, height)
                 .context("Failed to capture the screen")?
         };
+
+        let fallback_average_diff = ((1.0 - preset.confidence_threshold.clamp(0.35, 0.99))
+            * 48.0)
+            .clamp(2.0, 18.0);
+        let exact_hit = if used_roi_capture
+            || configured_region.is_some()
+            || (screen.width <= 960 && screen.height <= 960)
+        {
+            find_template_match_exact_rgba(
+                &screen,
+                &template_rgba,
+                template_width,
+                template_height,
+                fallback_average_diff,
+                anchor_hint,
+            )
+        } else {
+            None
+        };
         let scales = [1.0_f32, 0.9, 1.1, 0.8, 1.2, 1.33];
-        let Some(hit) = find_template_match_opencv(
+        let opencv_hit = find_template_match_opencv(
             &screen,
             &template_rgba,
             template_width,
@@ -5611,14 +5752,26 @@ mod windows_overlay {
             &scales,
             anchor_hint,
             false,
-        )? else {
-            if configured_region.is_some() {
-                return Ok("No OpenCV match found inside the selected search area.".to_owned());
+        )?;
+        let hit = match (exact_hit, opencv_hit) {
+            (Some(exact), Some(opencv)) => {
+                if exact.confidence > opencv.confidence + 0.08 {
+                    exact
+                } else {
+                    opencv
+                }
             }
-            if used_roi_capture {
-                return Ok("No OpenCV match found near the captured area.".to_owned());
+            (Some(exact), None) => exact,
+            (None, Some(opencv)) => opencv,
+            (None, None) => {
+                if configured_region.is_some() {
+                    return Ok("No match found inside the selected search area.".to_owned());
+                }
+                if used_roi_capture {
+                    return Ok("No match found near the captured area.".to_owned());
+                }
+                return Ok("No match found on screen.".to_owned());
             }
-            return Ok("No OpenCV match found on screen.".to_owned());
         };
 
         let center_x = screen.screen_x + hit.x + (hit.width / 2);
@@ -5626,7 +5779,7 @@ mod windows_overlay {
         let required_confidence = preset.confidence_threshold.clamp(0.35, 0.99);
         if hit.confidence < required_confidence {
             return Ok(format!(
-                "Best OpenCV candidate near {center_x}, {center_y} scored {:.3} at scale {:.2}x, below threshold {:.2}.",
+                "Best match near {center_x}, {center_y} scored {:.3} at scale {:.2}x, below threshold {:.2}.",
                 hit.confidence,
                 hit.scale,
                 required_confidence
