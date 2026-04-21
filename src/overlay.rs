@@ -5236,9 +5236,10 @@ mod windows_overlay {
         y: i32,
         prefer_interception: bool,
     ) -> Result<()> {
-        for attempt in 0..3 {
+        let attempts = if prefer_interception { 1 } else { 3 };
+        for attempt in 0..attempts {
             send_mouse_move_absolute_backend(x, y, prefer_interception)?;
-            if attempt < 2 {
+            if attempt + 1 < attempts {
                 thread::sleep(Duration::from_millis(10));
             }
         }
