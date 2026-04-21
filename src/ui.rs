@@ -10415,6 +10415,29 @@ impl CrosshairApp {
                             );
                         });
                         ui.end_row();
+
+                        ui.label(Self::tr_lang(language, "Replay mode", "Che do chay lai"));
+                        ui.horizontal_wrapped(|ui| {
+                            live_sync |= ui
+                                .checkbox(
+                                    &mut preset.replay_relative_motion,
+                                    Self::tr_lang(
+                                        language,
+                                        "Relative motion",
+                                        "Di chuyen tuong doi",
+                                    ),
+                                )
+                                .changed();
+                            ui.label(
+                                RichText::new(Self::tr_lang(
+                                    language,
+                                    "3D/game mode",
+                                    "Che do 3D/game",
+                                ))
+                                .small(),
+                            );
+                        });
+                        ui.end_row();
                     });
                 ui.add_space(6.0);
                 Self::render_mouse_path_preview(ui, language, &preset.events, 240.0);

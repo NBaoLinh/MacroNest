@@ -577,6 +577,8 @@ pub struct MousePathPreset {
     pub collapsed: bool,
     pub record_hotkey: Option<HotkeyBinding>,
     pub use_interception_driver: bool,
+    #[serde(default)]
+    pub replay_relative_motion: bool,
     pub events: Vec<MousePathEvent>,
 }
 
@@ -589,6 +591,7 @@ impl MousePathPreset {
             collapsed: true,
             record_hotkey: None,
             use_interception_driver: false,
+            replay_relative_motion: false,
             events: Vec::new(),
         }
     }

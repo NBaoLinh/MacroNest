@@ -3297,13 +3297,19 @@ mod windows_overlay {
             .trim()
             .parse::<u32>()
             .context("Mouse path preset id is invalid")?;
-        let (events, use_interception_driver) = {
+        let (events, use_interception_driver, replay_relative_motion) = {
             let hook_state = HOOK_STATE.lock();
             hook_state
                 .mouse_path_presets
                 .iter()
                 .find(|preset| preset.id == mouse_path_preset_id)
-                .map(|preset| (preset.events.clone(), preset.use_interception_driver))
+                .map(|preset| {
+                    (
+                        preset.events.clone(),
+                        preset.use_interception_driver,
+                        preset.replay_relative_motion,
+                    )
+                })
                 .context("Mouse path preset was not found")?
         };
         if events.is_empty() {
@@ -3312,7 +3318,7 @@ mod windows_overlay {
 
         if step.smooth_mouse_path {
             let speed = step.mouse_speed_percent.max(10) as f32 / 100.0;
-            let mut last_pos: Option<(i32, i32)> = None;
+            let mut last_move_pos: Option<(i32, i32)> = None;
             for event in &events {
                 if preset_id
                     .is_some_and(|id| macro_stop_requested(id, stop_immediately_on_retrigger))
@@ -3321,7 +3327,21 @@ mod windows_overlay {
                 }
                 match event.kind {
                     MousePathEventKind::Move => {
-                        if let Some((from_x, from_y)) = last_pos {
+                        if replay_relative_motion {
+                            if let Some((from_x, from_y)) = last_move_pos {
+                                settle_mouse_path_relative_segment(
+                                    from_x,
+                                    from_y,
+                                    event.x,
+                                    event.y,
+                                    speed,
+                                    use_interception_driver,
+                                    preset_id,
+                                    stop_immediately_on_retrigger,
+                                )?;
+                            }
+                            last_move_pos = Some((event.x, event.y));
+                        } else if let Some((from_x, from_y)) = last_move_pos {
                             let dx = event.x - from_x;
                             let dy = event.y - from_y;
                             let distance = (((dx * dx + dy * dy) as f32).sqrt()).max(1.0);
@@ -3352,14 +3372,15 @@ mod windows_overlay {
                                     return Ok(());
                                 }
                             }
+                            last_move_pos = Some((event.x, event.y));
                         } else {
                             send_mouse_move_absolute_backend(
                                 event.x,
                                 event.y,
                                 use_interception_driver,
                             )?;
+                            last_move_pos = Some((event.x, event.y));
                         }
-                        last_pos = Some((event.x, event.y));
                     }
                     _ => {
                         if sleep_for_mouse_path_delay(
@@ -3385,14 +3406,12 @@ mod windows_overlay {
                             y: event.y,
                             ..MacroStep::default()
                         };
-                        send_mouse_event_with_backend(
-                            &pseudo_step,
-                            use_interception_driver,
-                        )?;
+                        send_mouse_event_with_backend(&pseudo_step, use_interception_driver)?;
                     }
                 }
             }
         } else {
+            let mut last_move_pos: Option<(i32, i32)> = None;
             for event in &events {
                 if sleep_for_mouse_path_delay(
                     preset_id,
@@ -3401,23 +3420,46 @@ mod windows_overlay {
                 ) {
                     return Ok(());
                 }
-                let pseudo_step = MacroStep {
-                    action: match event.kind {
-                        MousePathEventKind::Move => MacroAction::MouseMoveAbsolute,
-                        MousePathEventKind::LeftDown => MacroAction::MouseLeftDown,
-                        MousePathEventKind::LeftUp => MacroAction::MouseLeftUp,
-                        MousePathEventKind::RightDown => MacroAction::MouseRightDown,
-                        MousePathEventKind::RightUp => MacroAction::MouseRightUp,
-                        MousePathEventKind::MiddleDown => MacroAction::MouseMiddleDown,
-                        MousePathEventKind::MiddleUp => MacroAction::MouseMiddleUp,
-                        MousePathEventKind::WheelUp => MacroAction::MouseWheelUp,
-                        MousePathEventKind::WheelDown => MacroAction::MouseWheelDown,
-                    },
-                    x: event.x,
-                    y: event.y,
-                    ..MacroStep::default()
-                };
-                send_mouse_event_with_backend(&pseudo_step, use_interception_driver)?;
+                match event.kind {
+                    MousePathEventKind::Move if replay_relative_motion => {
+                        if let Some((from_x, from_y)) = last_move_pos {
+                            send_mouse_move_relative_with_backend(
+                                event.x - from_x,
+                                event.y - from_y,
+                                use_interception_driver,
+                            )?;
+                        }
+                        last_move_pos = Some((event.x, event.y));
+                    }
+                    MousePathEventKind::Move => {
+                        let pseudo_step = MacroStep {
+                            action: MacroAction::MouseMoveAbsolute,
+                            x: event.x,
+                            y: event.y,
+                            ..MacroStep::default()
+                        };
+                        send_mouse_event_with_backend(&pseudo_step, use_interception_driver)?;
+                    }
+                    _ => {
+                        let pseudo_step = MacroStep {
+                            action: match event.kind {
+                                MousePathEventKind::LeftDown => MacroAction::MouseLeftDown,
+                                MousePathEventKind::LeftUp => MacroAction::MouseLeftUp,
+                                MousePathEventKind::RightDown => MacroAction::MouseRightDown,
+                                MousePathEventKind::RightUp => MacroAction::MouseRightUp,
+                                MousePathEventKind::MiddleDown => MacroAction::MouseMiddleDown,
+                                MousePathEventKind::MiddleUp => MacroAction::MouseMiddleUp,
+                                MousePathEventKind::WheelUp => MacroAction::MouseWheelUp,
+                                MousePathEventKind::WheelDown => MacroAction::MouseWheelDown,
+                                MousePathEventKind::Move => MacroAction::MouseMoveAbsolute,
+                            },
+                            x: event.x,
+                            y: event.y,
+                            ..MacroStep::default()
+                        };
+                        send_mouse_event_with_backend(&pseudo_step, use_interception_driver)?;
+                    }
+                }
             }
         }
         Ok(())
@@ -5241,6 +5283,47 @@ mod windows_overlay {
             send_mouse_move_absolute_backend(x, y, prefer_interception)?;
             if attempt + 1 < attempts {
                 thread::sleep(Duration::from_millis(10));
+            }
+        }
+        Ok(())
+    }
+
+    fn settle_mouse_path_relative_segment(
+        from_x: i32,
+        from_y: i32,
+        to_x: i32,
+        to_y: i32,
+        speed: f32,
+        prefer_interception: bool,
+        preset_id: Option<u32>,
+        stop_immediately_on_retrigger: bool,
+    ) -> Result<()> {
+        let dx = to_x - from_x;
+        let dy = to_y - from_y;
+        let distance = (((dx * dx + dy * dy) as f32).sqrt()).max(1.0);
+        let duration_ms = ((distance / (900.0 * speed)) * 1000.0)
+            .round()
+            .clamp(1.0, 5_000.0) as u64;
+        let steps = (duration_ms / 8).max(1);
+        let mut prev_x = from_x;
+        let mut prev_y = from_y;
+        for index in 1..=steps {
+            if preset_id.is_some_and(|id| macro_stop_requested(id, stop_immediately_on_retrigger))
+            {
+                return Ok(());
+            }
+            let t = index as f32 / steps as f32;
+            let next_x = (from_x as f32 + dx as f32 * t).round() as i32;
+            let next_y = (from_y as f32 + dy as f32 * t).round() as i32;
+            send_mouse_move_relative_with_backend(
+                next_x - prev_x,
+                next_y - prev_y,
+                prefer_interception,
+            )?;
+            prev_x = next_x;
+            prev_y = next_y;
+            if sleep_for_mouse_path_delay(preset_id, 8, stop_immediately_on_retrigger) {
+                return Ok(());
             }
         }
         Ok(())
