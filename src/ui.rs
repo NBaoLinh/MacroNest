@@ -3509,6 +3509,7 @@ impl CrosshairApp {
     ) {
         let selected = Self::macro_action_is_mouse(*current);
         let popup_id = ui.make_persistent_id((id_source, "mouse-submenu-popup"));
+        let image_popup_id = ui.make_persistent_id((id_source, "image-search-submenu-popup"));
         let mut open = ui
             .ctx()
             .data(|data| data.get_temp::<bool>(popup_id))
@@ -3523,6 +3524,7 @@ impl CrosshairApp {
                 );
                 if response.hovered() || response.clicked() {
                     open = true;
+                    ui.ctx().data_mut(|data| data.insert_temp(image_popup_id, false));
                 }
                 let popup_response = egui::Popup::from_response(&response)
                     .id(popup_id)
@@ -3572,15 +3574,17 @@ impl CrosshairApp {
             },
         );
         let response = inner.inner;
-        Self::show_instant_hover_tooltip(
-            ui,
-            &response,
-            Self::tr_lang(
-                language,
-                "Mouse\nOpen mouse click, wheel, and move actions.",
-                "Chuá»™t\nMá»Ÿ cÃ¡c action click, lÄƒn vÃ  di chuyá»ƒn chuá»™t.",
-            ),
-        );
+        if !open {
+            Self::show_instant_hover_tooltip(
+                ui,
+                &response,
+                Self::tr_lang(
+                    language,
+                    "Mouse\nOpen mouse click, wheel, and move actions.",
+                    "Chuá»™t\nMÃ¡Â»Å¸ cÃƒÂ¡c action click, lÄƒn vÃƒÂ  di chuyÃ¡Â»Æ’n chuá»â„¢t.",
+                ),
+            );
+        }
     }
 
     fn image_search_macro_actions() -> &'static [MacroAction] {
@@ -3604,6 +3608,7 @@ impl CrosshairApp {
     ) {
         let selected = Self::macro_action_is_image_search(*current);
         let popup_id = ui.make_persistent_id((id_source, "image-search-submenu-popup"));
+        let mouse_popup_id = ui.make_persistent_id((id_source, "mouse-submenu-popup"));
         let mut open = ui
             .ctx()
             .data(|data| data.get_temp::<bool>(popup_id))
@@ -3618,6 +3623,7 @@ impl CrosshairApp {
                 );
                 if response.hovered() || response.clicked() {
                     open = true;
+                    ui.ctx().data_mut(|data| data.insert_temp(mouse_popup_id, false));
                 }
                 let popup_response = egui::Popup::from_response(&response)
                     .id(popup_id)
@@ -3667,24 +3673,26 @@ impl CrosshairApp {
             },
         );
         let response = inner.inner;
-        Self::show_instant_hover_tooltip(
-            ui,
-            &response,
-            Self::tr_lang(
-                language,
-                "Image\nOpen image search start, trigger, and stop actions.",
-                "Image\nMÃ¡Â»Å¸ cÃƒÂ¡c action báºÂ¯t Ã„â€˜áº§u, trigger vÃƒÂ  dá»«ng image search.",
-            ),
-        );
+        if !open {
+            Self::show_instant_hover_tooltip(
+                ui,
+                &response,
+                Self::tr_lang(
+                    language,
+                    "Image\nOpen image search start, trigger, and stop actions.",
+                    "Image\nMở các action bắt đầu, trigger và dừng image search.",
+                ),
+            );
+        }
     }
 
     fn capture_button_text(language: UiLanguage, active: bool) -> RichText {
         if active {
-            RichText::new(Self::tr_lang(language, "Capturing...", "Äang báº¯t..."))
+            RichText::new(Self::tr_lang(language, "Capturing...", "Đang bắt..."))
                 .strong()
                 .color(Color32::from_rgb(255, 232, 96))
         } else {
-            RichText::new(Self::tr_lang(language, "Capture", "Báº¯t phÃ­m"))
+            RichText::new(Self::tr_lang(language, "Capture", "Bắt phím"))
         }
     }
 
