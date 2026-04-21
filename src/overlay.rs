@@ -5540,6 +5540,8 @@ mod windows_overlay {
         center_y: i32,
         enabled: bool,
         lead_strength: f32,
+        lead_speed_threshold: f32,
+        lead_max_px: f32,
     ) -> (i32, i32, Option<(i32, i32, f32)>) {
         let now = Instant::now();
         let mut hook_state = HOOK_STATE.lock();
@@ -5570,13 +5572,13 @@ mod windows_overlay {
         }
 
         let speed = (((dx * dx + dy * dy) as f32).sqrt() / delta).max(0.0);
-        if speed < 90.0 {
+        if speed < lead_speed_threshold.max(1.0) {
             return (center_x, center_y, None);
         }
 
         let lead_factor = lead_strength.clamp(0.0, 0.20);
         let lead_seconds = delta.clamp(0.02, 0.05) * lead_factor;
-        let max_lead_px = (4.0 + lead_factor * 16.0).clamp(4.0, 8.0);
+        let max_lead_px = lead_max_px.clamp(1.0, 24.0);
         let raw_lead_x = center_x as f32 + (dx as f32 / delta) * lead_seconds;
         let raw_lead_y = center_y as f32 + (dy as f32 / delta) * lead_seconds;
         let lead_dx = (raw_lead_x - center_x as f32).clamp(-max_lead_px, max_lead_px);
@@ -5973,6 +5975,8 @@ mod windows_overlay {
                 center_y,
                 preset.predictive_lead,
                 preset.predictive_lead_strength,
+                preset.predictive_lead_speed_threshold,
+                preset.predictive_lead_max_px,
             );
             let moved_x = lead_x + preset.move_offset_x;
             let moved_y = lead_y + preset.move_offset_y;
@@ -6117,6 +6121,8 @@ mod windows_overlay {
             center_y,
             preset.predictive_lead,
             preset.predictive_lead_strength,
+            preset.predictive_lead_speed_threshold,
+            preset.predictive_lead_max_px,
         );
         let moved_x = lead_x + preset.move_offset_x;
         let moved_y = lead_y + preset.move_offset_y;

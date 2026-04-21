@@ -10726,6 +10726,50 @@ impl CrosshairApp {
                                 );
                             });
                             ui.end_row();
+
+                            ui.label(Self::tr_lang(language, "Lead speed", "Toc do dan dau"));
+                            ui.horizontal_wrapped(|ui| {
+                                live_sync |= ui
+                                    .add(
+                                        Slider::new(
+                                            &mut preset.predictive_lead_speed_threshold,
+                                            10.0..=400.0,
+                                        )
+                                        .clamping(egui::SliderClamping::Always),
+                                    )
+                                    .changed();
+                                ui.label(
+                                    RichText::new(Self::tr_lang(
+                                        language,
+                                        "Higher = only fast motion leads",
+                                        "Cao hon = chi lead khi chuyen dong nhanh",
+                                    ))
+                                    .small(),
+                                );
+                            });
+                            ui.end_row();
+
+                            ui.label(Self::tr_lang(language, "Lead cap", "Gioi han lead"));
+                            ui.horizontal_wrapped(|ui| {
+                                live_sync |= ui
+                                    .add(
+                                        Slider::new(
+                                            &mut preset.predictive_lead_max_px,
+                                            1.0..=24.0,
+                                        )
+                                        .clamping(egui::SliderClamping::Always),
+                                    )
+                                    .changed();
+                                ui.label(
+                                    RichText::new(Self::tr_lang(
+                                        language,
+                                        "Max pixels to push ahead",
+                                        "So pixel toi da duoc day len truoc",
+                                    ))
+                                    .small(),
+                                );
+                            });
+                            ui.end_row();
                         }
 
                         ui.label(Self::tr_lang(language, "Color", "Mau"));
