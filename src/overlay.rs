@@ -5559,7 +5559,7 @@ mod windows_overlay {
             return (center_x, center_y, None);
         };
         let delta = now.saturating_duration_since(previous.seen_at).as_secs_f32();
-        if delta < 0.001 {
+        if delta < 0.02 {
             return (center_x, center_y, None);
         }
 
@@ -5570,9 +5570,19 @@ mod windows_overlay {
         }
 
         let speed = (((dx * dx + dy * dy) as f32).sqrt() / delta).max(0.0);
-        let lead_seconds = delta.clamp(0.03, 0.08) * lead_strength.clamp(0.05, 0.60);
-        let lead_x = center_x as f32 + (dx as f32 / delta) * lead_seconds;
-        let lead_y = center_y as f32 + (dy as f32 / delta) * lead_seconds;
+        if speed < 90.0 {
+            return (center_x, center_y, None);
+        }
+
+        let lead_factor = lead_strength.clamp(0.0, 0.20);
+        let lead_seconds = delta.clamp(0.02, 0.05) * lead_factor;
+        let max_lead_px = (4.0 + lead_factor * 16.0).clamp(4.0, 8.0);
+        let raw_lead_x = center_x as f32 + (dx as f32 / delta) * lead_seconds;
+        let raw_lead_y = center_y as f32 + (dy as f32 / delta) * lead_seconds;
+        let lead_dx = (raw_lead_x - center_x as f32).clamp(-max_lead_px, max_lead_px);
+        let lead_dy = (raw_lead_y - center_y as f32).clamp(-max_lead_px, max_lead_px);
+        let lead_x = center_x as f32 + lead_dx;
+        let lead_y = center_y as f32 + lead_dy;
         let predicted_x = lead_x.round().clamp(i32::MIN as f32, i32::MAX as f32) as i32;
         let predicted_y = lead_y.round().clamp(i32::MIN as f32, i32::MAX as f32) as i32;
         (predicted_x, predicted_y, Some((dx, dy, speed)))

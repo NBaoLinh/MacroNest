@@ -108,7 +108,7 @@ fn default_image_search_offset_px() -> i32 {
 }
 
 fn default_image_search_lead_strength() -> f32 {
-    0.22
+    0.06
 }
 
 #[derive(Debug, Clone, Copy, Serialize, Deserialize, PartialEq, Eq, Default)]
