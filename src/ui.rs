@@ -985,10 +985,11 @@ impl CrosshairApp {
         &mut self,
         ctx: &egui::Context,
         pointer: egui::Pos2,
+        sample_size: i32,
     ) -> Option<RgbaColor> {
         let (screen_x, screen_y) =
             self.screen_point_from_pos(ctx, pointer, ctx.pixels_per_point())?;
-        let sample_size = 17;
+        let sample_size = sample_size.max(3) | 1;
         let left = screen_x - sample_size / 2;
         let top = screen_y - sample_size / 2;
         let capture =
@@ -1064,7 +1065,7 @@ impl CrosshairApp {
         let Some(texture) = self.image_search_color_pick_texture.as_ref() else {
             return;
         };
-        let panel_size = vec2(148.0, 196.0);
+        let panel_size = vec2(188.0, 236.0);
         let panel_rect = Self::image_search_preview_panel_rect(viewport_rect, pointer, panel_size);
         painter.rect_filled(
             panel_rect,
@@ -1078,7 +1079,7 @@ impl CrosshairApp {
             egui::StrokeKind::Outside,
         );
         let preview_rect =
-            egui::Rect::from_min_size(panel_rect.min + vec2(10.0, 10.0), vec2(96.0, 96.0));
+            egui::Rect::from_min_size(panel_rect.min + vec2(12.0, 12.0), vec2(144.0, 144.0));
         painter.image(
             texture.id(),
             preview_rect,
@@ -1103,7 +1104,7 @@ impl CrosshairApp {
 
         if let Some(color) = sampled_color.or(self.image_search_color_pick_preview_color) {
             let swatch_rect =
-                egui::Rect::from_min_size(panel_rect.min + vec2(10.0, 118.0), vec2(20.0, 20.0));
+                egui::Rect::from_min_size(panel_rect.min + vec2(12.0, 166.0), vec2(24.0, 24.0));
             painter.rect_filled(
                 swatch_rect,
                 6.0,
@@ -1119,24 +1120,24 @@ impl CrosshairApp {
                 swatch_rect.right_center() + vec2(10.0, -8.0),
                 egui::Align2::LEFT_TOP,
                 format!("#{:02X}{:02X}{:02X}", color.r, color.g, color.b),
-                egui::FontId::proportional(13.0),
+                egui::FontId::proportional(15.0),
                 Color32::WHITE,
             );
         }
         if let Some((screen_x, screen_y)) = screen_point {
             painter.text(
-                panel_rect.min + vec2(10.0, 146.0),
+                panel_rect.min + vec2(12.0, 198.0),
                 egui::Align2::LEFT_TOP,
                 format!("X:{screen_x}  Y:{screen_y}"),
-                egui::FontId::proportional(11.0),
+                egui::FontId::proportional(12.0),
                 Color32::from_rgb(188, 206, 230),
             );
         }
         painter.text(
-            panel_rect.min + vec2(10.0, 162.0),
+            panel_rect.min + vec2(12.0, 214.0),
             egui::Align2::LEFT_TOP,
             "Center pixel",
-            egui::FontId::proportional(11.0),
+            egui::FontId::proportional(12.0),
             Color32::from_rgb(188, 206, 230),
         );
     }
@@ -10589,7 +10590,16 @@ impl CrosshairApp {
                     .or(response.interact_pointer_pos())
                     .or(response.hover_pos());
                 if let Some(pointer) = preview_pointer {
-                    let sampled_color = self.update_image_search_cursor_preview(ctx, pointer);
+                    let preview_sample_size = if capture_mode == ImageSearchCaptureMode::Template {
+                        29
+                    } else {
+                        17
+                    };
+                    let sampled_color = self.update_image_search_cursor_preview(
+                        ctx,
+                        pointer,
+                        preview_sample_size,
+                    );
                     let screen_point =
                         self.screen_point_from_pos(ctx, pointer, ctx.pixels_per_point());
                     self.render_image_search_cursor_preview_panel(
