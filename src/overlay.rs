@@ -5740,30 +5740,16 @@ mod windows_overlay {
 
         for y in 0..height {
             for x in x_start as i32..x_end as i32 {
-                let index = ((y as usize) * screen.width + (x as usize)) * 4;
-                if index + 3 >= screen.rgba.len() {
-                    continue;
-                }
-                let r = screen.rgba[index] as i16;
-                let g = screen.rgba[index + 1] as i16;
-                let b = screen.rgba[index + 2] as i16;
-                for target in targets {
-                    let dr = (r - target.r as i16).abs();
-                    let dg = (g - target.g as i16).abs();
-                    let db = (b - target.b as i16).abs();
-                    if dr > tolerance || dg > tolerance || db > tolerance {
-                        continue;
-                    }
-
-                    let score = (dr as u32) + (dg as u32) + (db as u32);
-                    let distance_sq = (x - center_x).pow(2) + (y - center_y).pow(2);
-                    let candidate = ColorMatchHit {
-                        x,
-                        y,
-                        score,
-                        distance_sq,
-                        matched_color: *target,
-                    };
+                let candidate = color_match_candidate_for_pixel(
+                    screen,
+                    targets,
+                    tolerance,
+                    x,
+                    y,
+                    center_x,
+                    center_y,
+                );
+                if let Some(candidate) = candidate {
                     let replace = match best_hit {
                         None => true,
                         Some(current) if candidate.score < current.score => true,
@@ -5780,6 +5766,149 @@ mod windows_overlay {
         }
 
         best_hit
+    }
+
+    fn color_match_candidate_for_pixel(
+        screen: &window_list::ScreenCaptureFrame,
+        targets: &[RgbaColor],
+        tolerance: i16,
+        x: i32,
+        y: i32,
+        reference_x: i32,
+        reference_y: i32,
+    ) -> Option<ColorMatchHit> {
+        if x < 0 || y < 0 || x >= screen.width as i32 || y >= screen.height as i32 {
+            return None;
+        }
+        let index = ((y as usize) * screen.width + (x as usize)) * 4;
+        if index + 3 >= screen.rgba.len() {
+            return None;
+        }
+        let r = screen.rgba[index] as i16;
+        let g = screen.rgba[index + 1] as i16;
+        let b = screen.rgba[index + 2] as i16;
+        let mut best_hit: Option<ColorMatchHit> = None;
+        for target in targets {
+            let dr = (r - target.r as i16).abs();
+            let dg = (g - target.g as i16).abs();
+            let db = (b - target.b as i16).abs();
+            if dr > tolerance || dg > tolerance || db > tolerance {
+                continue;
+            }
+
+            let score = (dr as u32) + (dg as u32) + (db as u32);
+            let distance_sq = (x - reference_x).pow(2) + (y - reference_y).pow(2);
+            let candidate = ColorMatchHit {
+                x,
+                y,
+                score,
+                distance_sq,
+                matched_color: *target,
+            };
+            let replace = match best_hit {
+                None => true,
+                Some(current) if candidate.score < current.score => true,
+                Some(current) if candidate.score == current.score => {
+                    candidate.distance_sq < current.distance_sq
+                }
+                _ => false,
+            };
+            if replace {
+                best_hit = Some(candidate);
+            }
+        }
+        best_hit
+    }
+
+    fn find_color_match_from_anchor(
+        screen: &window_list::ScreenCaptureFrame,
+        targets: &[RgbaColor],
+        tolerance: u8,
+        anchor_x: i32,
+        anchor_y: i32,
+    ) -> Option<ColorMatchHit> {
+        let width = screen.width as i32;
+        let height = screen.height as i32;
+        if width <= 0 || height <= 0 || targets.is_empty() {
+            return None;
+        }
+        if anchor_x < 0 || anchor_y < 0 || anchor_x >= width || anchor_y >= height {
+            return None;
+        }
+
+        let tolerance = tolerance as i16;
+        let max_radius = (anchor_x)
+            .max(width - 1 - anchor_x)
+            .max(anchor_y)
+            .max(height - 1 - anchor_y);
+
+        for radius in 0..=max_radius {
+            let left = (anchor_x - radius).max(0);
+            let right = (anchor_x + radius).min(width - 1);
+            let top = (anchor_y - radius).max(0);
+            let bottom = (anchor_y + radius).min(height - 1);
+            let mut best_in_radius: Option<ColorMatchHit> = None;
+
+            for x in left..=right {
+                for y in [top, bottom] {
+                    if let Some(candidate) = color_match_candidate_for_pixel(
+                        screen,
+                        targets,
+                        tolerance,
+                        x,
+                        y,
+                        anchor_x,
+                        anchor_y,
+                    ) {
+                        let replace = match best_in_radius {
+                            None => true,
+                            Some(current) if candidate.score < current.score => true,
+                            Some(current) if candidate.score == current.score => {
+                                candidate.distance_sq < current.distance_sq
+                            }
+                            _ => false,
+                        };
+                        if replace {
+                            best_in_radius = Some(candidate);
+                        }
+                    }
+                }
+            }
+
+            if top + 1 <= bottom.saturating_sub(1) {
+                for y in (top + 1)..bottom {
+                    for x in [left, right] {
+                        if let Some(candidate) = color_match_candidate_for_pixel(
+                            screen,
+                            targets,
+                            tolerance,
+                            x,
+                            y,
+                            anchor_x,
+                            anchor_y,
+                        ) {
+                            let replace = match best_in_radius {
+                                None => true,
+                                Some(current) if candidate.score < current.score => true,
+                                Some(current) if candidate.score == current.score => {
+                                    candidate.distance_sq < current.distance_sq
+                                }
+                                _ => false,
+                            };
+                            if replace {
+                                best_in_radius = Some(candidate);
+                            }
+                        }
+                    }
+                }
+            }
+
+            if best_in_radius.is_some() {
+                return best_in_radius;
+            }
+        }
+
+        None
     }
 
     fn find_color_match(
@@ -5951,7 +6080,25 @@ mod windows_overlay {
                     .context("Failed to capture the screen")?
             };
 
-            let hit = if preset.dual_color_scan_midpoint {
+            let anchor = if preset.color_priority_from_anchor {
+                Some(
+                    preset
+                        .color_priority_anchor_screen_x
+                        .zip(preset.color_priority_anchor_screen_y)
+                        .ok_or_else(|| anyhow::anyhow!("No priority point has been picked yet."))?,
+                )
+            } else {
+                None
+            };
+            let hit = if let Some((anchor_x, anchor_y)) = anchor {
+                find_color_match_from_anchor(
+                    &screen,
+                    &target_colors,
+                    preset.color_tolerance,
+                    anchor_x - screen.screen_x,
+                    anchor_y - screen.screen_y,
+                )
+            } else if preset.dual_color_scan_midpoint {
                 find_dual_color_midpoint_match(&screen, &target_colors, preset.color_tolerance)
             } else {
                 find_color_match(&screen, &target_colors, preset.color_tolerance)
@@ -5983,7 +6130,14 @@ mod windows_overlay {
                 thread::sleep(Duration::from_millis(12));
                 send_mouse_left_click_backend(preset.use_interception_driver)?;
             }
-            return Ok(if preset.dual_color_scan_midpoint {
+            return Ok(if anchor.is_some() {
+                format!(
+                    "Matched colors from priority point at {moved_x}, {moved_y} with tolerance {} and offset {:+}, {:+}.",
+                    preset.color_tolerance,
+                    preset.move_offset_x,
+                    preset.move_offset_y
+                )
+            } else if preset.dual_color_scan_midpoint {
                 format!(
                     "Matched colors midpoint at {moved_x}, {moved_y} with tolerance {} and offset {:+}, {:+}.",
                     preset.color_tolerance,

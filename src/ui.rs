@@ -62,6 +62,7 @@ enum ImageSearchCaptureMode {
     Template,
     SearchRegion,
     ColorSample,
+    ColorPriorityAnchor,
 }
 
 #[derive(Clone)]
@@ -4526,6 +4527,10 @@ impl CrosshairApp {
             ImageSearchCaptureMode::ColorSample => {
                 "Click a pixel on screen to pick a target color. Press Esc to cancel.".to_owned()
             }
+            ImageSearchCaptureMode::ColorPriorityAnchor => {
+                "Click a point on screen to set the color priority anchor. Press Esc to cancel."
+                    .to_owned()
+            }
         };
         ctx.request_repaint();
     }
@@ -4548,6 +4553,9 @@ impl CrosshairApp {
             ImageSearchCaptureMode::Template => "Image template capture cancelled.".to_owned(),
             ImageSearchCaptureMode::SearchRegion => "Image search area capture cancelled.".to_owned(),
             ImageSearchCaptureMode::ColorSample => "Image color pick cancelled.".to_owned(),
+            ImageSearchCaptureMode::ColorPriorityAnchor => {
+                "Image priority point capture cancelled.".to_owned()
+            }
         };
         ctx.request_repaint();
     }
@@ -4660,6 +4668,10 @@ impl CrosshairApp {
             ImageSearchCaptureMode::ColorSample => {
                 let center = rect.center();
                 self.finish_image_search_color_pick(ctx, center);
+            }
+            ImageSearchCaptureMode::ColorPriorityAnchor => {
+                let center = rect.center();
+                self.finish_image_search_color_priority_anchor_pick(ctx, center);
             }
         }
     }
@@ -4781,6 +4793,56 @@ impl CrosshairApp {
         self.status = format!(
             "Picked color #{:02X}{:02X}{:02X} for preset #{}.",
             color.r, color.g, color.b, preset_id
+        );
+        ctx.request_repaint();
+    }
+
+    fn finish_image_search_color_priority_anchor_pick(
+        &mut self,
+        ctx: &egui::Context,
+        pos: egui::Pos2,
+    ) {
+        let Some(preset_id) = self.image_search_capture_target_preset_id else {
+            self.cancel_image_search_capture(ctx);
+            self.status = "No image search preset is active.".to_owned();
+            return;
+        };
+
+        self.image_search_capture_active = false;
+        self.image_search_capture_target_preset_id = None;
+        self.image_search_capture_mode = None;
+        self.image_search_capture_anchor = None;
+        self.image_search_capture_current = None;
+        self.image_search_color_pick_preview_color = None;
+
+        let screen_point = self.screen_point_from_pos(ctx, pos, ctx.pixels_per_point());
+        self.restore_image_search_viewport(ctx);
+        ctx.send_viewport_cmd(egui::ViewportCommand::Visible(true));
+        ctx.send_viewport_cmd(egui::ViewportCommand::Minimized(false));
+        let _ = self.overlay_tx.send(OverlayCommand::SetUiVisible(true));
+
+        let Some((screen_x, screen_y)) = screen_point else {
+            self.status = "Failed to read the selected priority point.".to_owned();
+            ctx.request_repaint();
+            return;
+        };
+
+        if let Some(preset) = self
+            .state
+            .image_search_presets
+            .iter_mut()
+            .find(|preset| preset.id == preset_id)
+        {
+            preset.color_priority_from_anchor = true;
+            preset.color_priority_anchor_screen_x = Some(screen_x);
+            preset.color_priority_anchor_screen_y = Some(screen_y);
+            preset.collapsed = false;
+        }
+        self.sync_image_search_presets();
+        self.persist();
+        self.status = format!(
+            "Saved priority point at {}, {} for preset #{}.",
+            screen_x, screen_y, preset_id
         );
         ctx.request_repaint();
     }
@@ -10521,6 +10583,7 @@ impl CrosshairApp {
             let mut start_image_search_capture = None;
             let mut start_search_region_capture = None;
             let mut start_color_pick_capture = None;
+            let mut start_color_priority_anchor_capture = None;
             let template_file = self.image_search_template_file_for_preset(preset_snapshot.id);
             let template_ready = template_file.exists();
             let dark_mode = self.state.ui_theme == UiThemeMode::Dark;
@@ -10836,6 +10899,18 @@ impl CrosshairApp {
                             {
                                 start_color_pick_capture = Some(preset.id);
                             }
+                            if preset.use_color_matching && preset.color_priority_from_anchor {
+                                if ui
+                                    .button(Self::tr_lang(
+                                        language,
+                                        "Pick priority point",
+                                        "Chon diem uu tien",
+                                    ))
+                                    .clicked()
+                                {
+                                    start_color_priority_anchor_capture = Some(preset.id);
+                                }
+                            }
                             if ui
                                 .button(Self::tr_lang(language, "Clear", "Xoa"))
                                 .clicked()
@@ -10843,6 +10918,9 @@ impl CrosshairApp {
                                 preset.target_color = None;
                                 preset.target_colors.clear();
                                 preset.use_color_matching = false;
+                                preset.color_priority_from_anchor = false;
+                                preset.color_priority_anchor_screen_x = None;
+                                preset.color_priority_anchor_screen_y = None;
                                 live_sync = true;
                             }
                         });
@@ -10937,6 +11015,61 @@ impl CrosshairApp {
                                             language,
                                             "Useful when color shifts with lighting",
                                             "Huu ich khi mau thay doi theo anh sang",
+                                        ))
+                                        .small(),
+                                    );
+                                });
+                                ui.end_row();
+
+                                ui.label(Self::tr_lang(language, "Priority point", "Diem uu tien"));
+                                ui.horizontal_wrapped(|ui| {
+                                    live_sync |= ui
+                                        .checkbox(
+                                            &mut preset.color_priority_from_anchor,
+                                            Self::tr_lang(
+                                                language,
+                                                "Prioritize from point",
+                                                "Uu tien tu diem",
+                                            ),
+                                        )
+                                        .changed();
+                                    let anchor = preset
+                                        .color_priority_anchor_screen_x
+                                        .zip(preset.color_priority_anchor_screen_y);
+                                    if let Some((x, y)) = anchor {
+                                        ui.monospace(format!("{x}, {y}"));
+                                        if ui
+                                            .small_button(Self::tr_lang(language, "x", "x"))
+                                            .on_hover_text(Self::tr_lang(
+                                                language,
+                                                "Clear priority point",
+                                                "Xoa diem uu tien",
+                                            ))
+                                            .clicked()
+                                        {
+                                            preset.color_priority_anchor_screen_x = None;
+                                            preset.color_priority_anchor_screen_y = None;
+                                            live_sync = true;
+                                        }
+                                    } else {
+                                        ui.monospace(Self::tr_lang(language, "None", "Khong co"));
+                                    }
+                                    if preset.color_priority_from_anchor
+                                        && ui
+                                            .button(Self::tr_lang(
+                                                language,
+                                                "Pick point",
+                                                "Chon diem",
+                                            ))
+                                            .clicked()
+                                    {
+                                        start_color_priority_anchor_capture = Some(preset.id);
+                                    }
+                                    ui.label(
+                                        RichText::new(Self::tr_lang(
+                                            language,
+                                            "Search starts here and expands outward",
+                                            "Tim tu diem nay va lan ra xung quanh",
                                         ))
                                         .small(),
                                     );
@@ -11041,6 +11174,13 @@ impl CrosshairApp {
             if let Some(preset_id) = start_color_pick_capture {
                 self.begin_image_search_capture(ctx, preset_id, ImageSearchCaptureMode::ColorSample);
             }
+            if let Some(preset_id) = start_color_priority_anchor_capture {
+                self.begin_image_search_capture(
+                    ctx,
+                    preset_id,
+                    ImageSearchCaptureMode::ColorPriorityAnchor,
+                );
+            }
         }
 
         if let Some(remove_id) = remove_id {
@@ -11097,6 +11237,10 @@ impl CrosshairApp {
                         "Click a pixel to pick the target color. Press Esc to cancel.",
                         "Bam vao diem anh de lay mau muc tieu. Bam Esc de huy.",
                     ),
+                    ImageSearchCaptureMode::ColorPriorityAnchor => self.tr(
+                        "Click a point to set the color priority anchor. Press Esc to cancel.",
+                        "Bam vao diem de dat moc uu tien mau. Bam Esc de huy.",
+                    ),
                 };
 
                 painter.text(
@@ -11149,7 +11293,11 @@ impl CrosshairApp {
                         sampled_color,
                         screen_point,
                     );
-                    if capture_mode == ImageSearchCaptureMode::ColorSample {
+                    if matches!(
+                        capture_mode,
+                        ImageSearchCaptureMode::ColorSample
+                            | ImageSearchCaptureMode::ColorPriorityAnchor
+                    ) {
                         painter.circle_stroke(
                             pointer,
                             9.0,
@@ -11173,13 +11321,19 @@ impl CrosshairApp {
                         );
                     }
                 }
-                if capture_mode == ImageSearchCaptureMode::ColorSample {
+                if capture_mode == ImageSearchCaptureMode::ColorSample
+                    || capture_mode == ImageSearchCaptureMode::ColorPriorityAnchor
+                {
                     if response.clicked()
                         && let Some(pointer) = precise_pointer
                             .or(response.interact_pointer_pos())
                             .or(response.hover_pos())
                     {
-                        self.finish_image_search_color_pick(ctx, pointer);
+                        if capture_mode == ImageSearchCaptureMode::ColorSample {
+                            self.finish_image_search_color_pick(ctx, pointer);
+                        } else {
+                            self.finish_image_search_color_priority_anchor_pick(ctx, pointer);
+                        }
                         return;
                     }
                 } else {

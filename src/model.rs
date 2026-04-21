@@ -1013,6 +1013,10 @@ pub struct ImageSearchPreset {
     #[serde(default)]
     pub target_colors: Vec<RgbaColor>,
     #[serde(default)]
+    pub color_priority_from_anchor: bool,
+    pub color_priority_anchor_screen_x: Option<i32>,
+    pub color_priority_anchor_screen_y: Option<i32>,
+    #[serde(default)]
     pub image_search_move_advanced_open: bool,
     #[serde(default)]
     pub image_search_advanced_open: bool,
@@ -1052,6 +1056,9 @@ impl ImageSearchPreset {
             repeat_until_triggered_again: false,
             target_color: None,
             target_colors: Vec::new(),
+            color_priority_from_anchor: false,
+            color_priority_anchor_screen_x: None,
+            color_priority_anchor_screen_y: None,
             image_search_move_advanced_open: false,
             image_search_advanced_open: false,
             color_tolerance: default_image_search_color_tolerance(),
