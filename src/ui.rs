@@ -10772,6 +10772,69 @@ impl CrosshairApp {
                             ui.end_row();
                         }
 
+                        ui.label(Self::tr_lang(language, "Move passes", "So lan chot"));
+                        ui.horizontal_wrapped(|ui| {
+                            live_sync |= ui
+                                .add(
+                                    Slider::new(&mut preset.move_snap_repeats, 1..=6)
+                                        .clamping(egui::SliderClamping::Always),
+                                )
+                                .changed();
+                            ui.label(
+                                RichText::new(Self::tr_lang(
+                                    language,
+                                    "More = stronger snap",
+                                    "Nhieu hon = chot manh hon",
+                                ))
+                                .small(),
+                            );
+                        });
+                        ui.end_row();
+
+                        ui.label(Self::tr_lang(language, "Move delay", "Do tre chot"));
+                        ui.horizontal_wrapped(|ui| {
+                            live_sync |= ui
+                                .add(
+                                    Slider::new(
+                                        &mut preset.move_snap_repeat_delay_ms,
+                                        0..=25,
+                                    )
+                                    .clamping(egui::SliderClamping::Always),
+                                )
+                                .changed();
+                            ui.label(
+                                RichText::new(Self::tr_lang(
+                                    language,
+                                    "Pause between passes, ms",
+                                    "Tam dung giua cac lan chot, ms",
+                                ))
+                                .small(),
+                            );
+                        });
+                        ui.end_row();
+
+                        ui.label(Self::tr_lang(language, "Move hold", "Giu chuot"));
+                        ui.horizontal_wrapped(|ui| {
+                            live_sync |= ui
+                                .add(
+                                    Slider::new(
+                                        &mut preset.move_snap_hold_ms,
+                                        0..=40,
+                                    )
+                                    .clamping(egui::SliderClamping::Always),
+                                )
+                                .changed();
+                            ui.label(
+                                RichText::new(Self::tr_lang(
+                                    language,
+                                    "Hold after move, ms",
+                                    "Giu sau khi di chuot, ms",
+                                ))
+                                .small(),
+                            );
+                        });
+                        ui.end_row();
+
                         ui.label(Self::tr_lang(language, "Color", "Mau"));
                         ui.horizontal_wrapped(|ui| {
                             live_sync |= ui

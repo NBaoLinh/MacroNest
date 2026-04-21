@@ -5279,18 +5279,31 @@ mod windows_overlay {
         x: i32,
         y: i32,
         prefer_interception: bool,
+        repeats: u8,
+        repeat_delay_ms: u64,
+        hold_ms: u64,
     ) -> Result<()> {
-        if prefer_interception {
-            send_mouse_move_absolute_backend(x, y, true)?;
-            return Ok(());
+        let repeat_count = repeats.max(1) as usize;
+        let hold_delay = Duration::from_millis(hold_ms.min(40));
+        let inter_repeat_delay = Duration::from_millis(repeat_delay_ms.min(25));
+        for index in 0..repeat_count {
+            if prefer_interception {
+                send_mouse_move_absolute_backend(x, y, true)?;
+            } else {
+                unsafe {
+                    let _ = SetCursorPos(x, y);
+                }
+                send_mouse_move_absolute_backend(x, y, false)?;
+                unsafe {
+                    let _ = SetCursorPos(x, y);
+                }
+            }
+            if index + 1 < repeat_count {
+                thread::sleep(inter_repeat_delay);
+            }
         }
-
-        unsafe {
-            let _ = SetCursorPos(x, y);
-        }
-        send_mouse_move_absolute_backend(x, y, false)?;
-        unsafe {
-            let _ = SetCursorPos(x, y);
+        if !hold_delay.is_zero() {
+            thread::sleep(hold_delay);
         }
         Ok(())
     }
@@ -5980,7 +5993,14 @@ mod windows_overlay {
             );
             let moved_x = lead_x + preset.move_offset_x;
             let moved_y = lead_y + preset.move_offset_y;
-            settle_image_search_mouse_move(moved_x, moved_y, preset.use_interception_driver)?;
+            settle_image_search_mouse_move(
+                moved_x,
+                moved_y,
+                preset.use_interception_driver,
+                preset.move_snap_repeats,
+                preset.move_snap_repeat_delay_ms,
+                preset.move_snap_hold_ms,
+            )?;
             if fire_click {
                 thread::sleep(Duration::from_millis(12));
                 send_mouse_left_click_backend(preset.use_interception_driver)?;
@@ -6135,7 +6155,14 @@ mod windows_overlay {
                 required_confidence
             ));
         }
-        settle_image_search_mouse_move(moved_x, moved_y, preset.use_interception_driver)?;
+        settle_image_search_mouse_move(
+            moved_x,
+            moved_y,
+            preset.use_interception_driver,
+            preset.move_snap_repeats,
+            preset.move_snap_repeat_delay_ms,
+            preset.move_snap_hold_ms,
+        )?;
         if fire_click {
             thread::sleep(Duration::from_millis(12));
             send_mouse_left_click_backend(preset.use_interception_driver)?;
