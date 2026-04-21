@@ -993,6 +993,8 @@ pub struct ImageSearchPreset {
     pub use_color_matching: bool,
     #[serde(default)]
     pub repeat_until_triggered_again: bool,
+    #[serde(default)]
+    pub predictive_lead: bool,
     pub target_color: Option<RgbaColor>,
     #[serde(default = "default_image_search_color_tolerance")]
     pub color_tolerance: u8,
@@ -1022,6 +1024,7 @@ impl ImageSearchPreset {
             confidence_threshold: default_image_search_confidence_threshold(),
             use_color_matching: false,
             repeat_until_triggered_again: false,
+            predictive_lead: false,
             target_color: None,
             color_tolerance: default_image_search_color_tolerance(),
             last_capture_screen_x: None,

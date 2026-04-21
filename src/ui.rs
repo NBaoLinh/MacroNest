@@ -10681,6 +10681,29 @@ impl CrosshairApp {
                         });
                         ui.end_row();
 
+                        ui.label(Self::tr_lang(language, "Lead", "Don dau"));
+                        ui.horizontal_wrapped(|ui| {
+                            live_sync |= ui
+                                .checkbox(
+                                    &mut preset.predictive_lead,
+                                    Self::tr_lang(
+                                        language,
+                                        "Predict moving target",
+                                        "Doan truoc muc tieu dang chay",
+                                    ),
+                                )
+                                .changed();
+                            ui.label(
+                                RichText::new(Self::tr_lang(
+                                    language,
+                                    "Moves mouse a bit ahead of the last match",
+                                    "Di chuot nhanh hon mot chut ve phia truoc diem khop cuoi",
+                                ))
+                                .small(),
+                            );
+                        });
+                        ui.end_row();
+
                         ui.label(Self::tr_lang(language, "Color", "Mau"));
                         ui.horizontal_wrapped(|ui| {
                             live_sync |= ui
