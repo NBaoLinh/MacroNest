@@ -358,6 +358,12 @@ impl eframe::App for PopupBlobApp {
     }
 }
 
+#[derive(Clone, Copy, PartialEq, Eq)]
+enum MacroActionSubmenuKind {
+    Mouse,
+    ImageSearch,
+}
+
 pub struct CrosshairApp {
     pub paths: AppPaths,
     pub state: AppState,
@@ -3508,12 +3514,19 @@ impl CrosshairApp {
         live_sync: &mut bool,
     ) {
         let selected = Self::macro_action_is_mouse(*current);
+        let owner_id = ui.make_persistent_id((id_source, "macro-action-submenu-owner"));
         let popup_id = ui.make_persistent_id((id_source, "mouse-submenu-popup"));
         let image_popup_id = ui.make_persistent_id((id_source, "image-search-submenu-popup"));
+        let active_owner = ui
+            .ctx()
+            .data(|data| data.get_temp::<MacroActionSubmenuKind>(owner_id));
         let mut open = ui
             .ctx()
             .data(|data| data.get_temp::<bool>(popup_id))
             .unwrap_or(false);
+        if active_owner.is_some_and(|kind| kind != MacroActionSubmenuKind::Mouse) {
+            open = false;
+        }
         let inner = ui.allocate_ui_with_layout(
             vec2(58.0, 42.0),
             egui::Layout::top_down(egui::Align::Center),
@@ -3524,6 +3537,7 @@ impl CrosshairApp {
                 );
                 if response.hovered() || response.clicked() {
                     open = true;
+                    ui.ctx().data_mut(|data| data.insert_temp(owner_id, MacroActionSubmenuKind::Mouse));
                     ui.ctx().data_mut(|data| data.insert_temp(image_popup_id, false));
                 }
                 let popup_response = egui::Popup::from_response(&response)
@@ -3554,6 +3568,10 @@ impl CrosshairApp {
                     let mut keep_open_rect = response.rect.expand(10.0);
                     if let Some(popup) = &popup_response {
                         keep_open_rect = keep_open_rect.union(popup.response.rect.expand(10.0));
+                        if popup.response.rect.contains(pointer_pos) {
+                            ui.ctx()
+                                .data_mut(|data| data.insert_temp(owner_id, MacroActionSubmenuKind::Mouse));
+                        }
                     }
                     if !keep_open_rect.contains(pointer_pos) {
                         open = false;
@@ -3607,12 +3625,19 @@ impl CrosshairApp {
         live_sync: &mut bool,
     ) {
         let selected = Self::macro_action_is_image_search(*current);
+        let owner_id = ui.make_persistent_id((id_source, "macro-action-submenu-owner"));
         let popup_id = ui.make_persistent_id((id_source, "image-search-submenu-popup"));
         let mouse_popup_id = ui.make_persistent_id((id_source, "mouse-submenu-popup"));
+        let active_owner = ui
+            .ctx()
+            .data(|data| data.get_temp::<MacroActionSubmenuKind>(owner_id));
         let mut open = ui
             .ctx()
             .data(|data| data.get_temp::<bool>(popup_id))
             .unwrap_or(false);
+        if active_owner.is_some_and(|kind| kind != MacroActionSubmenuKind::ImageSearch) {
+            open = false;
+        }
         let inner = ui.allocate_ui_with_layout(
             vec2(58.0, 42.0),
             egui::Layout::top_down(egui::Align::Center),
@@ -3623,6 +3648,7 @@ impl CrosshairApp {
                 );
                 if response.hovered() || response.clicked() {
                     open = true;
+                    ui.ctx().data_mut(|data| data.insert_temp(owner_id, MacroActionSubmenuKind::ImageSearch));
                     ui.ctx().data_mut(|data| data.insert_temp(mouse_popup_id, false));
                 }
                 let popup_response = egui::Popup::from_response(&response)
@@ -3653,6 +3679,11 @@ impl CrosshairApp {
                     let mut keep_open_rect = response.rect.expand(10.0);
                     if let Some(popup) = &popup_response {
                         keep_open_rect = keep_open_rect.union(popup.response.rect.expand(10.0));
+                        if popup.response.rect.contains(pointer_pos) {
+                            ui.ctx().data_mut(|data| {
+                                data.insert_temp(owner_id, MacroActionSubmenuKind::ImageSearch)
+                            });
+                        }
                     }
                     if !keep_open_rect.contains(pointer_pos) {
                         open = false;
