@@ -107,30 +107,6 @@ fn default_image_search_offset_px() -> i32 {
     0
 }
 
-fn default_image_search_lead_strength() -> f32 {
-    0.06
-}
-
-fn default_image_search_lead_speed_threshold() -> f32 {
-    90.0
-}
-
-fn default_image_search_lead_max_px() -> f32 {
-    6.0
-}
-
-fn default_image_search_move_repeats() -> u8 {
-    2
-}
-
-fn default_image_search_move_repeat_delay_ms() -> u64 {
-    0
-}
-
-fn default_image_search_move_hold_ms() -> u64 {
-    0
-}
-
 #[derive(Debug, Clone, Copy, Serialize, Deserialize, PartialEq, Eq, Default)]
 pub enum AppPanel {
     #[default]
@@ -1019,18 +995,6 @@ pub struct ImageSearchPreset {
     pub repeat_until_triggered_again: bool,
     #[serde(default)]
     pub predictive_lead: bool,
-    #[serde(default = "default_image_search_lead_strength")]
-    pub predictive_lead_strength: f32,
-    #[serde(default = "default_image_search_lead_speed_threshold")]
-    pub predictive_lead_speed_threshold: f32,
-    #[serde(default = "default_image_search_lead_max_px")]
-    pub predictive_lead_max_px: f32,
-    #[serde(default = "default_image_search_move_repeats")]
-    pub move_snap_repeats: u8,
-    #[serde(default = "default_image_search_move_repeat_delay_ms")]
-    pub move_snap_repeat_delay_ms: u64,
-    #[serde(default = "default_image_search_move_hold_ms")]
-    pub move_snap_hold_ms: u64,
     pub target_color: Option<RgbaColor>,
     #[serde(default = "default_image_search_color_tolerance")]
     pub color_tolerance: u8,
@@ -1061,12 +1025,6 @@ impl ImageSearchPreset {
             use_color_matching: false,
             repeat_until_triggered_again: false,
             predictive_lead: false,
-            predictive_lead_strength: default_image_search_lead_strength(),
-            predictive_lead_speed_threshold: default_image_search_lead_speed_threshold(),
-            predictive_lead_max_px: default_image_search_lead_max_px(),
-            move_snap_repeats: default_image_search_move_repeats(),
-            move_snap_repeat_delay_ms: default_image_search_move_repeat_delay_ms(),
-            move_snap_hold_ms: default_image_search_move_hold_ms(),
             target_color: None,
             color_tolerance: default_image_search_color_tolerance(),
             last_capture_screen_x: None,

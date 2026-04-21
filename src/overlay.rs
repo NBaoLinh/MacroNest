@@ -5279,25 +5279,13 @@ mod windows_overlay {
         x: i32,
         y: i32,
         prefer_interception: bool,
-        repeats: u8,
-        repeat_delay_ms: u64,
-        hold_ms: u64,
     ) -> Result<()> {
-        let repeat_count = repeats.max(1) as usize;
-        let hold_delay = Duration::from_millis(hold_ms.min(40));
-        let inter_repeat_delay = Duration::from_millis(repeat_delay_ms.min(25));
-        for index in 0..repeat_count {
-            if prefer_interception {
-                send_mouse_move_absolute_backend(x, y, true)?;
-            } else {
-                send_mouse_move_absolute_backend(x, y, false)?;
+        let attempts = if prefer_interception { 1 } else { 3 };
+        for attempt in 0..attempts {
+            send_mouse_move_absolute_backend(x, y, prefer_interception)?;
+            if attempt + 1 < attempts {
+                thread::sleep(Duration::from_millis(10));
             }
-            if index + 1 < repeat_count {
-                thread::sleep(inter_repeat_delay);
-            }
-        }
-        if !hold_delay.is_zero() {
-            thread::sleep(hold_delay);
         }
         Ok(())
     }
@@ -5546,9 +5534,6 @@ mod windows_overlay {
         center_x: i32,
         center_y: i32,
         enabled: bool,
-        lead_strength: f32,
-        lead_speed_threshold: f32,
-        lead_max_px: f32,
     ) -> (i32, i32, Option<(i32, i32, f32)>) {
         let now = Instant::now();
         let mut hook_state = HOOK_STATE.lock();
@@ -5568,7 +5553,7 @@ mod windows_overlay {
             return (center_x, center_y, None);
         };
         let delta = now.saturating_duration_since(previous.seen_at).as_secs_f32();
-        if delta < 0.02 {
+        if delta < 0.001 {
             return (center_x, center_y, None);
         }
 
@@ -5579,19 +5564,9 @@ mod windows_overlay {
         }
 
         let speed = (((dx * dx + dy * dy) as f32).sqrt() / delta).max(0.0);
-        if speed < lead_speed_threshold.max(1.0) {
-            return (center_x, center_y, None);
-        }
-
-        let lead_factor = lead_strength.clamp(0.0, 0.20);
-        let lead_seconds = delta.clamp(0.02, 0.05) * lead_factor;
-        let max_lead_px = lead_max_px.clamp(1.0, 24.0);
-        let raw_lead_x = center_x as f32 + (dx as f32 / delta) * lead_seconds;
-        let raw_lead_y = center_y as f32 + (dy as f32 / delta) * lead_seconds;
-        let lead_dx = (raw_lead_x - center_x as f32).clamp(-max_lead_px, max_lead_px);
-        let lead_dy = (raw_lead_y - center_y as f32).clamp(-max_lead_px, max_lead_px);
-        let lead_x = center_x as f32 + lead_dx;
-        let lead_y = center_y as f32 + lead_dy;
+        let lead_seconds = delta.clamp(0.04, 0.12) * 1.35;
+        let lead_x = center_x as f32 + (dx as f32 / delta) * lead_seconds;
+        let lead_y = center_y as f32 + (dy as f32 / delta) * lead_seconds;
         let predicted_x = lead_x.round().clamp(i32::MIN as f32, i32::MAX as f32) as i32;
         let predicted_y = lead_y.round().clamp(i32::MIN as f32, i32::MAX as f32) as i32;
         (predicted_x, predicted_y, Some((dx, dy, speed)))
@@ -5981,20 +5956,10 @@ mod windows_overlay {
                 center_x,
                 center_y,
                 preset.predictive_lead,
-                preset.predictive_lead_strength,
-                preset.predictive_lead_speed_threshold,
-                preset.predictive_lead_max_px,
             );
             let moved_x = lead_x + preset.move_offset_x;
             let moved_y = lead_y + preset.move_offset_y;
-            settle_image_search_mouse_move(
-                moved_x,
-                moved_y,
-                preset.use_interception_driver,
-                preset.move_snap_repeats,
-                preset.move_snap_repeat_delay_ms,
-                preset.move_snap_hold_ms,
-            )?;
+            settle_image_search_mouse_move(moved_x, moved_y, preset.use_interception_driver)?;
             if fire_click {
                 thread::sleep(Duration::from_millis(12));
                 send_mouse_left_click_backend(preset.use_interception_driver)?;
@@ -6134,9 +6099,6 @@ mod windows_overlay {
             center_x,
             center_y,
             preset.predictive_lead,
-            preset.predictive_lead_strength,
-            preset.predictive_lead_speed_threshold,
-            preset.predictive_lead_max_px,
         );
         let moved_x = lead_x + preset.move_offset_x;
         let moved_y = lead_y + preset.move_offset_y;
@@ -6149,14 +6111,7 @@ mod windows_overlay {
                 required_confidence
             ));
         }
-        settle_image_search_mouse_move(
-            moved_x,
-            moved_y,
-            preset.use_interception_driver,
-            preset.move_snap_repeats,
-            preset.move_snap_repeat_delay_ms,
-            preset.move_snap_hold_ms,
-        )?;
+        settle_image_search_mouse_move(moved_x, moved_y, preset.use_interception_driver)?;
         if fire_click {
             thread::sleep(Duration::from_millis(12));
             send_mouse_left_click_backend(preset.use_interception_driver)?;
