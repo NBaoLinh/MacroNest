@@ -148,7 +148,6 @@ mod windows_overlay {
     static MOUSE_RECORDING: Lazy<Mutex<Option<MouseRecordingSession>>> =
         Lazy::new(|| Mutex::new(None));
     static HOOK_STATE: Lazy<Mutex<HookState>> = Lazy::new(|| Mutex::new(HookState::default()));
-    static IMAGE_SEARCH_RUNNING: AtomicBool = AtomicBool::new(false);
     thread_local! {
         static INTERCEPTION_MOUSE_SENDER: RefCell<InterceptionMouseSender> =
             RefCell::new(InterceptionMouseSender::default());
@@ -1266,7 +1265,6 @@ mod windows_overlay {
         }
 
         set_image_search_following_active(preset.id, false);
-        IMAGE_SEARCH_RUNNING.store(false, Ordering::SeqCst);
         if let Some(tx) = ui_tx {
             let _ = tx.send(UiCommand::ImageSearchFinished(format!(
                 "{}: repeat mode stopped.",
@@ -1285,7 +1283,7 @@ mod windows_overlay {
             let matched = hook_state
                 .image_search_presets
                 .iter()
-                .find(|preset| {
+                .filter(|preset| {
                     preset.enabled
                         && window_focus_matches(
                             preset.target_window_title.as_deref(),
@@ -1303,70 +1301,59 @@ mod windows_overlay {
                             )
                         })
                 })
-                .cloned();
+                .cloned()
+                .collect::<Vec<_>>();
             (matched, hook_state.ui_tx.clone())
         };
 
-        let Some(preset) = matched else {
+        if matched.is_empty() {
             return None;
-        };
+        }
 
-        if preset.repeat_until_triggered_again {
-            let active = {
-                let mut hook_state = HOOK_STATE.lock();
-                if hook_state.image_search_following_presets.contains(&preset.id) {
-                    hook_state.image_search_following_presets.remove(&preset.id);
-                    false
-                } else {
-                    hook_state.image_search_following_presets.insert(preset.id);
-                    true
+        for preset in matched {
+            if preset.repeat_until_triggered_again {
+                let active = {
+                    let mut hook_state = HOOK_STATE.lock();
+                    if hook_state.image_search_following_presets.contains(&preset.id) {
+                        hook_state.image_search_following_presets.remove(&preset.id);
+                        false
+                    } else {
+                        hook_state.image_search_following_presets.insert(preset.id);
+                        true
+                    }
+                };
+
+                if !active {
+                    if let Some(tx) = ui_tx.as_ref() {
+                        let _ = tx.send(UiCommand::ImageSearchFinished(format!(
+                            "{}: repeat mode stopped.",
+                            preset.name
+                        )));
+                    }
+                    continue;
                 }
-            };
 
-            if !active {
+                let ui_tx = ui_tx.clone();
+                set_image_search_following_active(preset.id, true);
+                thread::spawn(move || run_image_search_follow_loop(preset, ui_tx));
+                continue;
+            }
+
+            let ui_tx = ui_tx.clone();
+            thread::spawn(move || {
+                let status = match run_image_search_once(&preset) {
+                    Ok(status) => status,
+                    Err(error) => format!("Image search failed: {error}"),
+                };
                 if let Some(tx) = ui_tx {
                     let _ = tx.send(UiCommand::ImageSearchFinished(format!(
-                        "{}: repeat mode stopped.",
+                        "{}: {status}",
                         preset.name
                     )));
                 }
-                return Some(true);
-            }
-
-            if IMAGE_SEARCH_RUNNING.swap(true, Ordering::SeqCst) {
-                set_image_search_following_active(preset.id, false);
-                if let Some(tx) = ui_tx {
-                    let _ = tx.send(UiCommand::ImageSearchFinished(format!(
-                        "{}: Image search is still running.",
-                        preset.name
-                    )));
-                }
-                return Some(true);
-            }
-            thread::spawn(move || run_image_search_follow_loop(preset, ui_tx));
-            return Some(true);
+            });
         }
 
-        if IMAGE_SEARCH_RUNNING.swap(true, Ordering::SeqCst) {
-            if let Some(tx) = ui_tx {
-                let _ = tx.send(UiCommand::ImageSearchFinished(format!(
-                    "{}: Image search is still running.",
-                    preset.name
-                )));
-            }
-            return Some(true);
-        }
-        thread::spawn(move || {
-            let status = match run_image_search_once(&preset) {
-                Ok(status) => status,
-                Err(error) => format!("Image search failed: {error}"),
-            };
-            IMAGE_SEARCH_RUNNING.store(false, Ordering::SeqCst);
-            if let Some(tx) = ui_tx {
-                let _ =
-                    tx.send(UiCommand::ImageSearchFinished(format!("{}: {status}", preset.name)));
-            }
-        });
         Some(true)
     }
 
@@ -6316,10 +6303,6 @@ mod windows_overlay {
         if image_search_following_is_active(preset.id) {
             return Ok(());
         }
-        if IMAGE_SEARCH_RUNNING.swap(true, Ordering::SeqCst) {
-            bail!("Image search is still running.");
-        }
-
         let ui_tx = HOOK_STATE.lock().ui_tx.clone();
         set_image_search_following_active(preset.id, true);
         thread::spawn(move || run_image_search_follow_loop(preset, ui_tx));
