@@ -1061,7 +1061,7 @@ impl CrosshairApp {
         let Some(texture) = self.image_search_color_pick_texture.as_ref() else {
             return;
         };
-        let panel_size = vec2(188.0, 254.0);
+        let panel_size = vec2(162.0, 214.0);
         let panel_rect = Self::image_search_preview_panel_rect(viewport_rect, pointer, panel_size);
         painter.rect_filled(
             panel_rect,
@@ -1075,7 +1075,7 @@ impl CrosshairApp {
             egui::StrokeKind::Outside,
         );
         let preview_rect =
-            egui::Rect::from_min_size(panel_rect.min + vec2(12.0, 12.0), vec2(164.0, 164.0));
+            egui::Rect::from_min_size(panel_rect.min + vec2(12.0, 12.0), vec2(120.0, 120.0));
         painter.image(
             texture.id(),
             preview_rect,
@@ -1100,7 +1100,7 @@ impl CrosshairApp {
 
         if let Some(color) = sampled_color.or(self.image_search_color_pick_preview_color) {
             let swatch_rect =
-                egui::Rect::from_min_size(panel_rect.min + vec2(12.0, 188.0), vec2(26.0, 26.0));
+                egui::Rect::from_min_size(panel_rect.min + vec2(12.0, 146.0), vec2(22.0, 22.0));
             painter.rect_filled(
                 swatch_rect,
                 6.0,
@@ -1116,24 +1116,24 @@ impl CrosshairApp {
                 swatch_rect.right_center() + vec2(10.0, -8.0),
                 egui::Align2::LEFT_TOP,
                 format!("#{:02X}{:02X}{:02X}", color.r, color.g, color.b),
-                egui::FontId::proportional(18.0),
+                egui::FontId::proportional(15.0),
                 Color32::WHITE,
             );
         }
         if let Some((screen_x, screen_y)) = screen_point {
             painter.text(
-                panel_rect.min + vec2(12.0, 222.0),
+                panel_rect.min + vec2(12.0, 178.0),
                 egui::Align2::LEFT_TOP,
                 format!("X:{screen_x}  Y:{screen_y}"),
-                egui::FontId::proportional(13.0),
+                egui::FontId::proportional(12.0),
                 Color32::from_rgb(188, 206, 230),
             );
         }
         painter.text(
-            panel_rect.min + vec2(12.0, 238.0),
+            panel_rect.min + vec2(12.0, 194.0),
             egui::Align2::LEFT_TOP,
             "Center pixel",
-            egui::FontId::proportional(13.0),
+            egui::FontId::proportional(12.0),
             Color32::from_rgb(188, 206, 230),
         );
     }
@@ -10600,12 +10600,21 @@ impl CrosshairApp {
                         return;
                     }
                 } else {
-                    if response.drag_started() {
-                        self.image_search_capture_anchor = response.interact_pointer_pos();
-                        self.image_search_capture_current = self.image_search_capture_anchor;
+                    let pointer_down = ui.input(|input| input.pointer.primary_down());
+                    let press_origin = ui.input(|input| input.pointer.press_origin());
+                    if pointer_down
+                        && self.image_search_capture_anchor.is_none()
+                        && let Some(origin) = press_origin
+                        && rect.contains(origin)
+                    {
+                        self.image_search_capture_anchor = Some(origin);
+                        self.image_search_capture_current = Some(origin);
                     }
-                    if response.dragged() {
-                        self.image_search_capture_current = response.interact_pointer_pos();
+                    if pointer_down
+                        && self.image_search_capture_anchor.is_some()
+                        && let Some(pointer) = response.interact_pointer_pos().or(response.hover_pos())
+                    {
+                        self.image_search_capture_current = Some(pointer);
                     }
 
                     let pointer_released = ui.input(|input| input.pointer.any_released());
