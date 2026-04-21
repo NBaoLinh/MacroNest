@@ -33,9 +33,12 @@ use crate::{
 };
 
 #[cfg(windows)]
-use windows::Win32::UI::{
-    Input::KeyboardAndMouse::GetAsyncKeyState,
-    WindowsAndMessaging::{GetSystemMetrics, SM_CXSCREEN, SM_CYSCREEN},
+use windows::Win32::{
+    Foundation::POINT,
+    UI::{
+        Input::KeyboardAndMouse::GetAsyncKeyState,
+        WindowsAndMessaging::{GetCursorPos, GetSystemMetrics, SM_CXSCREEN, SM_CYSCREEN},
+    },
 };
 
 #[derive(Default)]
@@ -1061,7 +1064,7 @@ impl CrosshairApp {
         let Some(texture) = self.image_search_color_pick_texture.as_ref() else {
             return;
         };
-        let panel_size = vec2(162.0, 214.0);
+        let panel_size = vec2(148.0, 196.0);
         let panel_rect = Self::image_search_preview_panel_rect(viewport_rect, pointer, panel_size);
         painter.rect_filled(
             panel_rect,
@@ -1075,7 +1078,7 @@ impl CrosshairApp {
             egui::StrokeKind::Outside,
         );
         let preview_rect =
-            egui::Rect::from_min_size(panel_rect.min + vec2(12.0, 12.0), vec2(120.0, 120.0));
+            egui::Rect::from_min_size(panel_rect.min + vec2(10.0, 10.0), vec2(96.0, 96.0));
         painter.image(
             texture.id(),
             preview_rect,
@@ -1085,9 +1088,9 @@ impl CrosshairApp {
         painter.rect_stroke(
             preview_rect,
             6.0,
-            egui::Stroke::new(1.0, Color32::from_rgb(146, 192, 248)),
-            egui::StrokeKind::Outside,
-        );
+                egui::Stroke::new(1.0, Color32::from_rgb(146, 192, 248)),
+                egui::StrokeKind::Outside,
+            );
         let cell_size = preview_rect.width() / 17.0;
         let center_rect =
             egui::Rect::from_center_size(preview_rect.center(), vec2(cell_size, cell_size));
@@ -1100,7 +1103,7 @@ impl CrosshairApp {
 
         if let Some(color) = sampled_color.or(self.image_search_color_pick_preview_color) {
             let swatch_rect =
-                egui::Rect::from_min_size(panel_rect.min + vec2(12.0, 146.0), vec2(22.0, 22.0));
+                egui::Rect::from_min_size(panel_rect.min + vec2(10.0, 118.0), vec2(20.0, 20.0));
             painter.rect_filled(
                 swatch_rect,
                 6.0,
@@ -1116,26 +1119,48 @@ impl CrosshairApp {
                 swatch_rect.right_center() + vec2(10.0, -8.0),
                 egui::Align2::LEFT_TOP,
                 format!("#{:02X}{:02X}{:02X}", color.r, color.g, color.b),
-                egui::FontId::proportional(15.0),
+                egui::FontId::proportional(13.0),
                 Color32::WHITE,
             );
         }
         if let Some((screen_x, screen_y)) = screen_point {
             painter.text(
-                panel_rect.min + vec2(12.0, 178.0),
+                panel_rect.min + vec2(10.0, 146.0),
                 egui::Align2::LEFT_TOP,
                 format!("X:{screen_x}  Y:{screen_y}"),
-                egui::FontId::proportional(12.0),
+                egui::FontId::proportional(11.0),
                 Color32::from_rgb(188, 206, 230),
             );
         }
         painter.text(
-            panel_rect.min + vec2(12.0, 194.0),
+            panel_rect.min + vec2(10.0, 162.0),
             egui::Align2::LEFT_TOP,
             "Center pixel",
-            egui::FontId::proportional(12.0),
+            egui::FontId::proportional(11.0),
             Color32::from_rgb(188, 206, 230),
         );
+    }
+
+    #[cfg(windows)]
+    fn precise_image_search_capture_pointer(&self, ctx: &egui::Context) -> Option<egui::Pos2> {
+        let mut point = POINT::default();
+        unsafe {
+            if GetCursorPos(&mut point).is_err() {
+                return None;
+            }
+        }
+        let scale = ctx.pixels_per_point().max(0.5);
+        let viewport_min = ctx
+            .input(|input| input.viewport().inner_rect.map(|viewport| viewport.min))?;
+        Some(egui::pos2(
+            point.x as f32 / scale - viewport_min.x,
+            point.y as f32 / scale - viewport_min.y,
+        ))
+    }
+
+    #[cfg(not(windows))]
+    fn precise_image_search_capture_pointer(&self, _ctx: &egui::Context) -> Option<egui::Pos2> {
+        None
     }
 
     fn clear_pin_preview_cache(&mut self) {
@@ -10557,7 +10582,13 @@ impl CrosshairApp {
                     );
                 }
 
-                if let Some(pointer) = response.hover_pos() {
+                let precise_pointer = self
+                    .precise_image_search_capture_pointer(ctx)
+                    .filter(|pointer| rect.contains(*pointer));
+                let preview_pointer = precise_pointer
+                    .or(response.interact_pointer_pos())
+                    .or(response.hover_pos());
+                if let Some(pointer) = preview_pointer {
                     let sampled_color = self.update_image_search_cursor_preview(ctx, pointer);
                     let screen_point =
                         self.screen_point_from_pos(ctx, pointer, ctx.pixels_per_point());
@@ -10594,17 +10625,19 @@ impl CrosshairApp {
                 }
                 if capture_mode == ImageSearchCaptureMode::ColorSample {
                     if response.clicked()
-                        && let Some(pointer) = response.interact_pointer_pos()
+                        && let Some(pointer) = precise_pointer
+                            .or(response.interact_pointer_pos())
+                            .or(response.hover_pos())
                     {
                         self.finish_image_search_color_pick(ctx, pointer);
                         return;
                     }
                 } else {
                     let pointer_down = ui.input(|input| input.pointer.primary_down());
-                    let press_origin = ui.input(|input| input.pointer.press_origin());
                     if pointer_down
                         && self.image_search_capture_anchor.is_none()
-                        && let Some(origin) = press_origin
+                        && let Some(origin) = precise_pointer
+                            .or(ui.input(|input| input.pointer.press_origin()))
                         && rect.contains(origin)
                     {
                         self.image_search_capture_anchor = Some(origin);
@@ -10612,7 +10645,9 @@ impl CrosshairApp {
                     }
                     if pointer_down
                         && self.image_search_capture_anchor.is_some()
-                        && let Some(pointer) = response.interact_pointer_pos().or(response.hover_pos())
+                        && let Some(pointer) = precise_pointer
+                            .or(response.interact_pointer_pos())
+                            .or(response.hover_pos())
                     {
                         self.image_search_capture_current = Some(pointer);
                     }
