@@ -5290,13 +5290,7 @@ mod windows_overlay {
             if prefer_interception {
                 send_mouse_move_absolute_backend(x, y, true)?;
             } else {
-                unsafe {
-                    let _ = SetCursorPos(x, y);
-                }
                 send_mouse_move_absolute_backend(x, y, false)?;
-                unsafe {
-                    let _ = SetCursorPos(x, y);
-                }
             }
             if index + 1 < repeat_count {
                 thread::sleep(inter_repeat_delay);
