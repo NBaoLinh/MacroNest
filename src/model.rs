@@ -107,6 +107,10 @@ fn default_image_search_offset_px() -> i32 {
     0
 }
 
+fn default_image_search_lead_strength() -> f32 {
+    0.22
+}
+
 #[derive(Debug, Clone, Copy, Serialize, Deserialize, PartialEq, Eq, Default)]
 pub enum AppPanel {
     #[default]
@@ -995,6 +999,8 @@ pub struct ImageSearchPreset {
     pub repeat_until_triggered_again: bool,
     #[serde(default)]
     pub predictive_lead: bool,
+    #[serde(default = "default_image_search_lead_strength")]
+    pub predictive_lead_strength: f32,
     pub target_color: Option<RgbaColor>,
     #[serde(default = "default_image_search_color_tolerance")]
     pub color_tolerance: u8,
@@ -1025,6 +1031,7 @@ impl ImageSearchPreset {
             use_color_matching: false,
             repeat_until_triggered_again: false,
             predictive_lead: false,
+            predictive_lead_strength: default_image_search_lead_strength(),
             target_color: None,
             color_tolerance: default_image_search_color_tolerance(),
             last_capture_screen_x: None,

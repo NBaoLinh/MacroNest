@@ -5280,12 +5280,17 @@ mod windows_overlay {
         y: i32,
         prefer_interception: bool,
     ) -> Result<()> {
-        let attempts = if prefer_interception { 1 } else { 3 };
-        for attempt in 0..attempts {
-            send_mouse_move_absolute_backend(x, y, prefer_interception)?;
-            if attempt + 1 < attempts {
-                thread::sleep(Duration::from_millis(10));
-            }
+        if prefer_interception {
+            send_mouse_move_absolute_backend(x, y, true)?;
+            return Ok(());
+        }
+
+        unsafe {
+            let _ = SetCursorPos(x, y);
+        }
+        send_mouse_move_absolute_backend(x, y, false)?;
+        unsafe {
+            let _ = SetCursorPos(x, y);
         }
         Ok(())
     }
@@ -5534,6 +5539,7 @@ mod windows_overlay {
         center_x: i32,
         center_y: i32,
         enabled: bool,
+        lead_strength: f32,
     ) -> (i32, i32, Option<(i32, i32, f32)>) {
         let now = Instant::now();
         let mut hook_state = HOOK_STATE.lock();
@@ -5564,7 +5570,7 @@ mod windows_overlay {
         }
 
         let speed = (((dx * dx + dy * dy) as f32).sqrt() / delta).max(0.0);
-        let lead_seconds = delta.clamp(0.04, 0.12) * 1.35;
+        let lead_seconds = delta.clamp(0.03, 0.08) * lead_strength.clamp(0.05, 0.60);
         let lead_x = center_x as f32 + (dx as f32 / delta) * lead_seconds;
         let lead_y = center_y as f32 + (dy as f32 / delta) * lead_seconds;
         let predicted_x = lead_x.round().clamp(i32::MIN as f32, i32::MAX as f32) as i32;
@@ -5956,6 +5962,7 @@ mod windows_overlay {
                 center_x,
                 center_y,
                 preset.predictive_lead,
+                preset.predictive_lead_strength,
             );
             let moved_x = lead_x + preset.move_offset_x;
             let moved_y = lead_y + preset.move_offset_y;
@@ -6099,6 +6106,7 @@ mod windows_overlay {
             center_x,
             center_y,
             preset.predictive_lead,
+            preset.predictive_lead_strength,
         );
         let moved_x = lead_x + preset.move_offset_x;
         let moved_y = lead_y + preset.move_offset_y;

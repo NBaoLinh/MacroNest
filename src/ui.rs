@@ -10704,6 +10704,30 @@ impl CrosshairApp {
                         });
                         ui.end_row();
 
+                        if preset.predictive_lead {
+                            ui.label(Self::tr_lang(language, "Lead strength", "Do manh dan dau"));
+                            ui.horizontal_wrapped(|ui| {
+                                live_sync |= ui
+                                    .add(
+                                        Slider::new(
+                                            &mut preset.predictive_lead_strength,
+                                            0.05..=0.60,
+                                        )
+                                        .clamping(egui::SliderClamping::Always),
+                                    )
+                                    .changed();
+                                ui.label(
+                                    RichText::new(Self::tr_lang(
+                                        language,
+                                        "Lower = less aggressive",
+                                        "Thap hon = it tay hon",
+                                    ))
+                                    .small(),
+                                );
+                            });
+                            ui.end_row();
+                        }
+
                         ui.label(Self::tr_lang(language, "Color", "Mau"));
                         ui.horizontal_wrapped(|ui| {
                             live_sync |= ui
