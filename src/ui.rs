@@ -2197,6 +2197,9 @@ impl CrosshairApp {
             MacroAction::EnableZoomPreset => "EnableZoomPreset",
             MacroAction::DisableZoom => "DisableZoom",
             MacroAction::PlaySoundPreset => "PlaySoundPreset",
+            MacroAction::StartImageSearch => "StartImageSearch",
+            MacroAction::TriggerImageSearchMove => "TriggerImageSearchMove",
+            MacroAction::StopImageSearch => "StopImageSearch",
             MacroAction::LoopStart => "LoopStart",
             MacroAction::LoopEnd => "LoopEnd",
             MacroAction::StopIfTriggerPressedAgain => "StopIfTriggerPressedAgain",
@@ -2257,6 +2260,15 @@ impl CrosshairApp {
             MacroAction::EnableZoomPreset => "Enable one saved zoom preset.",
             MacroAction::DisableZoom => "Turn the zoom overlay off.",
             MacroAction::PlaySoundPreset => "Play one sound preset from the Sound tab.",
+            MacroAction::StartImageSearch => {
+                "Start scanning one image-search preset in the background."
+            }
+            MacroAction::TriggerImageSearchMove => {
+                "Move the mouse to the latest image-search match, or run one search now."
+            }
+            MacroAction::StopImageSearch => {
+                "Stop one image-search preset that is currently scanning."
+            }
             MacroAction::LoopStart => {
                 "Start looping the next adjacent steps. Input = loop count, or turn on Infinite."
             }
@@ -2323,6 +2335,9 @@ impl CrosshairApp {
             MacroAction::EnableZoomPreset => 0xe8ff,
             MacroAction::DisableZoom => 0xe8f4,
             MacroAction::PlaySoundPreset => 0xe050,
+            MacroAction::StartImageSearch => 0xe8b6,
+            MacroAction::TriggerImageSearchMove => 0xe8f9,
+            MacroAction::StopImageSearch => 0xe047,
             MacroAction::LoopStart => 0xe028,
             MacroAction::LoopEnd => 0xe040,
             MacroAction::StopIfTriggerPressedAgain => 0xe047,
@@ -2381,6 +2396,9 @@ impl CrosshairApp {
                 MacroAction::EnableZoomPreset => "Zoom",
                 MacroAction::DisableZoom => "Táº¯tZm",
                 MacroAction::PlaySoundPreset => "Ã‚m",
+                MacroAction::StartImageSearch => "Start",
+                MacroAction::TriggerImageSearchMove => "Move",
+                MacroAction::StopImageSearch => "Stop",
                 MacroAction::LoopStart => "Láº·p",
                 MacroAction::LoopEnd => "Cuá»‘i",
                 MacroAction::StopIfTriggerPressedAgain => "Dá»«ng",
@@ -2430,6 +2448,9 @@ impl CrosshairApp {
                 MacroAction::EnableZoomPreset => "Zoom",
                 MacroAction::DisableZoom => "NoZoom",
                 MacroAction::PlaySoundPreset => "Sound",
+                MacroAction::StartImageSearch => "Start",
+                MacroAction::TriggerImageSearchMove => "Move",
+                MacroAction::StopImageSearch => "Stop",
                 MacroAction::LoopStart => "Loop",
                 MacroAction::LoopEnd => "End",
                 MacroAction::StopIfTriggerPressedAgain => "Stop",
@@ -2576,6 +2597,9 @@ impl CrosshairApp {
                 | MacroAction::PlaySoundPreset
                 | MacroAction::EnableMacroPreset
                 | MacroAction::DisableMacroPreset
+                | MacroAction::StartImageSearch
+                | MacroAction::TriggerImageSearchMove
+                | MacroAction::StopImageSearch
                 | MacroAction::LoopStart
                 | MacroAction::StopIfKeyPressed
                 | MacroAction::ShowToolbox
@@ -3555,6 +3579,101 @@ impl CrosshairApp {
                 language,
                 "Mouse\nOpen mouse click, wheel, and move actions.",
                 "Chuá»™t\nMá»Ÿ cÃ¡c action click, lÄƒn vÃ  di chuyá»ƒn chuá»™t.",
+            ),
+        );
+    }
+
+    fn image_search_macro_actions() -> &'static [MacroAction] {
+        &[
+            MacroAction::StartImageSearch,
+            MacroAction::TriggerImageSearchMove,
+            MacroAction::StopImageSearch,
+        ]
+    }
+
+    fn macro_action_is_image_search(action: MacroAction) -> bool {
+        Self::image_search_macro_actions().contains(&action)
+    }
+
+    fn render_image_search_action_group_option(
+        ui: &mut egui::Ui,
+        language: UiLanguage,
+        id_source: impl std::hash::Hash + Copy,
+        current: &mut MacroAction,
+        live_sync: &mut bool,
+    ) {
+        let selected = Self::macro_action_is_image_search(*current);
+        let popup_id = ui.make_persistent_id((id_source, "image-search-submenu-popup"));
+        let mut open = ui
+            .ctx()
+            .data(|data| data.get_temp::<bool>(popup_id))
+            .unwrap_or(false);
+        let inner = ui.allocate_ui_with_layout(
+            vec2(58.0, 42.0),
+            egui::Layout::top_down(egui::Align::Center),
+            |ui| {
+                let response = ui.add_sized(
+                    [34.0, 24.0],
+                    Button::new(Self::material_icon_text(0xe8b6, 18.0)).selected(selected),
+                );
+                if response.hovered() || response.clicked() {
+                    open = true;
+                }
+                let popup_response = egui::Popup::from_response(&response)
+                    .id(popup_id)
+                    .open_bool(&mut open)
+                    .align(egui::RectAlign::BOTTOM_START)
+                    .layout(egui::Layout::top_down_justified(egui::Align::Min))
+                    .width(220.0)
+                    .close_behavior(egui::PopupCloseBehavior::IgnoreClicks)
+                    .show(|ui| {
+                        egui::Grid::new((id_source, "image-search-action-grid"))
+                            .num_columns(3)
+                            .spacing([6.0, 6.0])
+                            .show(ui, |ui| {
+                                for (index, action) in
+                                    Self::image_search_macro_actions().iter().copied().enumerate()
+                                {
+                                    Self::render_macro_action_option(
+                                        ui, language, current, action, live_sync,
+                                    );
+                                    if (index + 1) % 3 == 0 {
+                                        ui.end_row();
+                                    }
+                                }
+                            });
+                    });
+                if open && let Some(pointer_pos) = ui.ctx().pointer_hover_pos() {
+                    let mut keep_open_rect = response.rect.expand(10.0);
+                    if let Some(popup) = &popup_response {
+                        keep_open_rect = keep_open_rect.union(popup.response.rect.expand(10.0));
+                    }
+                    if !keep_open_rect.contains(pointer_pos) {
+                        open = false;
+                    }
+                }
+                ui.ctx().data_mut(|data| data.insert_temp(popup_id, open));
+                let label_color = if selected {
+                    ui.visuals().strong_text_color()
+                } else {
+                    ui.visuals().text_color()
+                };
+                ui.label(
+                    RichText::new(Self::tr_lang(language, "Image", "Anh"))
+                        .size(9.0)
+                        .color(label_color),
+                );
+                response
+            },
+        );
+        let response = inner.inner;
+        Self::show_instant_hover_tooltip(
+            ui,
+            &response,
+            Self::tr_lang(
+                language,
+                "Image\nOpen image search start, trigger, and stop actions.",
+                "Image\nMÃ¡Â»Å¸ cÃƒÂ¡c action báºÂ¯t Ã„â€˜áº§u, trigger vÃƒÂ  dá»«ng image search.",
             ),
         );
     }
@@ -7741,6 +7860,17 @@ impl CrosshairApp {
                             )
                         })
                         .collect::<Vec<_>>();
+                    let image_search_preset_options = self
+                        .state
+                        .image_search_presets
+                        .iter()
+                        .map(|preset_option| {
+                            (
+                                preset_option.id,
+                                preset_option.name.clone(),
+                            )
+                        })
+                        .collect::<Vec<_>>();
 
                     if !group.selector_presets.is_empty() {
                         ui.separator();
@@ -8150,6 +8280,13 @@ impl CrosshairApp {
                                                             &mut step.action,
                                                             &mut live_sync,
                                                         );
+                                                        Self::render_image_search_action_group_option(
+                                                            ui,
+                                                            language,
+                                                            (group.id, preset.id, "hold-stop-image-search-group"),
+                                                            &mut step.action,
+                                                            &mut live_sync,
+                                                        );
                                                     });
                                             });
                                             Self::show_instant_hover_tooltip(
@@ -8354,6 +8491,45 @@ impl CrosshairApp {
                                                                     .clicked()
                                                                 {
                                                                     step.key = preset_option.id.to_string();
+                                                                    live_sync = true;
+                                                                }
+                                                            }
+                                                        });
+                                                } else if matches!(
+                                                    step.action,
+                                                    MacroAction::StartImageSearch
+                                                        | MacroAction::TriggerImageSearchMove
+                                                        | MacroAction::StopImageSearch
+                                                ) {
+                                                    let selected_id = step.key.trim().parse::<u32>().ok();
+                                                    let selected_label = selected_id
+                                                        .and_then(|id| {
+                                                            image_search_preset_options
+                                                                .iter()
+                                                                .find(|(preset_id, _)| *preset_id == id)
+                                                                .map(|(_, label)| label.clone())
+                                                        })
+                                                        .unwrap_or_else(|| {
+                                                            Self::tr_lang(
+                                                                language,
+                                                                "Select image search preset",
+                                                                "Chá»n preset image search",
+                                                            )
+                                                            .to_owned()
+                                                        });
+                                                    egui::ComboBox::from_id_salt((group.id, preset.id, "hold-stop-image-search"))
+                                                        .width(160.0)
+                                                        .selected_text(selected_label)
+                                                        .show_ui(ui, |ui| {
+                                                            for (preset_option_id, preset_option_label) in &image_search_preset_options {
+                                                                if ui
+                                                                    .selectable_label(
+                                                                        selected_id == Some(*preset_option_id),
+                                                                        preset_option_label,
+                                                                    )
+                                                                    .clicked()
+                                                                {
+                                                                    step.key = preset_option_id.to_string();
                                                                     live_sync = true;
                                                                 }
                                                             }
@@ -8867,6 +9043,13 @@ impl CrosshairApp {
                                                                 &mut step.action,
                                                                 &mut live_sync,
                                                             );
+                                                            Self::render_image_search_action_group_option(
+                                                                ui,
+                                                                language,
+                                                                (group.id, preset.id, step_index, "image-search-group"),
+                                                                &mut step.action,
+                                                                &mut live_sync,
+                                                            );
                                                         });
                                                 });
                                             Self::show_instant_hover_tooltip(
@@ -9069,6 +9252,38 @@ impl CrosshairApp {
                                                                     .clicked()
                                                                 {
                                                                     step.key = preset_option.id.to_string();
+                                                                    live_sync = true;
+                                                                }
+                                                            }
+                                                        });
+                                                } else if matches!(
+                                                    step.action,
+                                                    MacroAction::StartImageSearch
+                                                        | MacroAction::TriggerImageSearchMove
+                                                        | MacroAction::StopImageSearch
+                                                ) {
+                                                    let selected_id = step.key.trim().parse::<u32>().ok();
+                                                    let selected_label = selected_id
+                                                        .and_then(|id| {
+                                                            image_search_preset_options
+                                                                .iter()
+                                                                .find(|(preset_id, _)| *preset_id == id)
+                                                                .map(|(_, label)| label.clone())
+                                                        })
+                                                        .unwrap_or_else(|| "Select image search preset".to_owned());
+                                                    egui::ComboBox::from_id_salt((group.id, preset.id, step_index, "image-search-preset-step"))
+                                                        .width(146.0)
+                                                        .selected_text(selected_label)
+                                                        .show_ui(ui, |ui| {
+                                                            for (preset_option_id, preset_option_label) in &image_search_preset_options {
+                                                                if ui
+                                                                    .selectable_label(
+                                                                        selected_id == Some(*preset_option_id),
+                                                                        preset_option_label,
+                                                                    )
+                                                                    .clicked()
+                                                                {
+                                                                    step.key = preset_option_id.to_string();
                                                                     live_sync = true;
                                                                 }
                                                             }

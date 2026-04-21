@@ -504,6 +504,7 @@ mod windows_overlay {
         trigger: HotkeyBinding,
         release_steps: Vec<MacroStep>,
         hold_stop_step: Option<MacroStep>,
+        image_search_preset_ids: Vec<u32>,
         locked_keys: Vec<String>,
         locked_mouse_count: usize,
         run_token: u64,
@@ -2877,6 +2878,8 @@ mod windows_overlay {
             for _ in 0..press_locked_mouse_count {
                 apply_unlock_mouse(None);
             }
+            let image_search_preset_ids = collect_macro_image_search_start_ids(&preset.steps);
+            stop_image_search_following_ids(&image_search_preset_ids);
             hide_toolbox_for_owner(preset.id);
             HOOK_STATE.lock().stop_ignore_keys.remove(&preset.id);
             decrement_press_trigger_suppression(&trigger_key_for_cleanup);
@@ -2910,6 +2913,7 @@ mod windows_overlay {
         let hold_stop_step = preset
             .hold_stop_step_enabled
             .then(|| preset.hold_stop_step.clone());
+        let image_search_preset_ids = collect_macro_image_search_start_ids(&preset.steps);
         let run_token = {
             let mut hook_state = HOOK_STATE.lock();
             let run_token = hook_state.next_hold_run_token;
@@ -2920,6 +2924,7 @@ mod windows_overlay {
                     trigger,
                     release_steps,
                     hold_stop_step,
+                    image_search_preset_ids,
                     locked_keys: Vec::new(),
                     locked_mouse_count: 0,
                     run_token,
@@ -2963,6 +2968,7 @@ mod windows_overlay {
             trigger: _,
             release_steps,
             hold_stop_step,
+            image_search_preset_ids,
             locked_keys,
             locked_mouse_count,
             run_token: _,
@@ -2985,6 +2991,7 @@ mod windows_overlay {
                 execute_hold_abort_step(preset_id, &step);
             }
         }
+        stop_image_search_following_ids(&image_search_preset_ids);
 
         hide_toolbox_for_owner(preset_id);
         HOOK_STATE.lock().stop_ignore_keys.remove(&preset_id);
@@ -3653,6 +3660,15 @@ mod windows_overlay {
             MacroAction::PlaySoundPreset => {
                 let _ = play_sound_preset(&step.key);
             }
+            MacroAction::StartImageSearch => {
+                let _ = start_image_search_following(&step.key);
+            }
+            MacroAction::TriggerImageSearchMove => {
+                let _ = trigger_image_search_move(&step.key);
+            }
+            MacroAction::StopImageSearch => {
+                let _ = stop_image_search_following(&step.key);
+            }
             MacroAction::ShowToolbox => {
                 trigger_toolbox_display(preset_id, step);
             }
@@ -3831,6 +3847,15 @@ mod windows_overlay {
                 }
                 MacroAction::PlaySoundPreset => {
                     let _ = play_sound_preset(&step.key);
+                }
+                MacroAction::StartImageSearch => {
+                    let _ = start_image_search_following(&step.key);
+                }
+                MacroAction::TriggerImageSearchMove => {
+                    let _ = trigger_image_search_move(&step.key);
+                }
+                MacroAction::StopImageSearch => {
+                    let _ = stop_image_search_following(&step.key);
                 }
                 MacroAction::ShowToolbox => {
                     trigger_toolbox_display(preset_id, step);
@@ -4047,6 +4072,15 @@ mod windows_overlay {
                 }
                 MacroAction::PlaySoundPreset => {
                     let _ = play_sound_preset(&step.key);
+                }
+                MacroAction::StartImageSearch => {
+                    let _ = start_image_search_following(&step.key);
+                }
+                MacroAction::TriggerImageSearchMove => {
+                    let _ = trigger_image_search_move(&step.key);
+                }
+                MacroAction::StopImageSearch => {
+                    let _ = stop_image_search_following(&step.key);
                 }
                 MacroAction::ShowToolbox => {
                     trigger_toolbox_display(preset_id, step);
@@ -4620,7 +4654,10 @@ mod windows_overlay {
                 | MacroAction::ApplyMouseSensitivityPreset
                 | MacroAction::EnableZoomPreset
                 | MacroAction::DisableZoom
-                | MacroAction::PlaySoundPreset => {}
+                | MacroAction::PlaySoundPreset
+                | MacroAction::StartImageSearch
+                | MacroAction::TriggerImageSearchMove
+                | MacroAction::StopImageSearch => {}
                 MacroAction::LoopStart
                 | MacroAction::LoopEnd
                 | MacroAction::StopIfTriggerPressedAgain
@@ -4694,6 +4731,18 @@ mod windows_overlay {
         cleanup_steps
     }
 
+    fn collect_macro_image_search_start_ids(steps: &[MacroStep]) -> Vec<u32> {
+        let mut ids = HashSet::new();
+        for step in steps {
+            if step.action == MacroAction::StartImageSearch
+                && let Ok(preset_id) = step.key.trim().parse::<u32>()
+            {
+                ids.insert(preset_id);
+            }
+        }
+        ids.into_iter().collect()
+    }
+
     fn send_key_event(step: &MacroStep) -> Result<()> {
         match step.action {
             MacroAction::MouseLeftClick
@@ -4727,7 +4776,10 @@ mod windows_overlay {
             | MacroAction::ApplyMouseSensitivityPreset
             | MacroAction::EnableZoomPreset
             | MacroAction::DisableZoom
-            | MacroAction::PlaySoundPreset => return Ok(()),
+            | MacroAction::PlaySoundPreset
+            | MacroAction::StartImageSearch
+            | MacroAction::TriggerImageSearchMove
+            | MacroAction::StopImageSearch => return Ok(()),
             MacroAction::LoopStart
             | MacroAction::LoopEnd
             | MacroAction::StopIfTriggerPressedAgain
@@ -5913,6 +5965,59 @@ mod windows_overlay {
 
     fn run_image_search_once(preset: &ImageSearchPreset) -> Result<String> {
         run_image_search_once_with_options(preset, preset.click_after_move)
+    }
+
+    fn image_search_preset_by_id(spec: &str) -> Result<ImageSearchPreset> {
+        let preset_id = spec
+            .trim()
+            .parse::<u32>()
+            .context("Image search preset id is invalid")?;
+        HOOK_STATE
+            .lock()
+            .image_search_presets
+            .iter()
+            .find(|preset| preset.id == preset_id)
+            .cloned()
+            .context("Image search preset was not found")
+    }
+
+    fn start_image_search_following(spec: &str) -> Result<()> {
+        let preset = image_search_preset_by_id(spec)?;
+        if image_search_following_is_active(preset.id) {
+            return Ok(());
+        }
+        if IMAGE_SEARCH_RUNNING.swap(true, Ordering::SeqCst) {
+            bail!("Image search is still running.");
+        }
+
+        let ui_tx = HOOK_STATE.lock().ui_tx.clone();
+        set_image_search_following_active(preset.id, true);
+        thread::spawn(move || run_image_search_follow_loop(preset, ui_tx));
+        Ok(())
+    }
+
+    fn stop_image_search_following(spec: &str) -> Result<()> {
+        let preset = image_search_preset_by_id(spec)?;
+        set_image_search_following_active(preset.id, false);
+        Ok(())
+    }
+
+    fn stop_image_search_following_ids(preset_ids: &[u32]) {
+        for preset_id in preset_ids {
+            set_image_search_following_active(*preset_id, false);
+        }
+    }
+
+    fn trigger_image_search_move(spec: &str) -> Result<()> {
+        let preset = image_search_preset_by_id(spec)?;
+        let status = run_image_search_once(&preset)?;
+        if let Some(tx) = HOOK_STATE.lock().ui_tx.clone() {
+            let _ = tx.send(UiCommand::ImageSearchFinished(format!(
+                "{}: {status}",
+                preset.name
+            )));
+        }
+        Ok(())
     }
 
     fn is_extended_key(vk: u32) -> bool {
