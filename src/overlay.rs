@@ -5279,12 +5279,18 @@ mod windows_overlay {
         x: i32,
         y: i32,
         prefer_interception: bool,
+        move_passes: u8,
+        move_delay_ms: u64,
     ) -> Result<()> {
-        let attempts = if prefer_interception { 1 } else { 3 };
+        let attempts = if prefer_interception {
+            1
+        } else {
+            move_passes.max(1) as usize
+        };
         for attempt in 0..attempts {
             send_mouse_move_absolute_backend(x, y, prefer_interception)?;
-            if attempt + 1 < attempts {
-                thread::sleep(Duration::from_millis(10));
+            if attempt + 1 < attempts && move_delay_ms > 0 {
+                thread::sleep(Duration::from_millis(move_delay_ms));
             }
         }
         Ok(())
@@ -5966,7 +5972,13 @@ mod windows_overlay {
             let center_y = screen.screen_y + hit.y;
             let moved_x = center_x + preset.move_offset_x;
             let moved_y = center_y + preset.move_offset_y;
-            settle_image_search_mouse_move(moved_x, moved_y, preset.use_interception_driver)?;
+            settle_image_search_mouse_move(
+                moved_x,
+                moved_y,
+                preset.use_interception_driver,
+                preset.non_interception_move_passes,
+                preset.non_interception_move_delay_ms,
+            )?;
             if fire_click {
                 thread::sleep(Duration::from_millis(12));
                 send_mouse_left_click_backend(preset.use_interception_driver)?;
@@ -6107,7 +6119,13 @@ mod windows_overlay {
                 required_confidence
             ));
         }
-        settle_image_search_mouse_move(moved_x, moved_y, preset.use_interception_driver)?;
+        settle_image_search_mouse_move(
+            moved_x,
+            moved_y,
+            preset.use_interception_driver,
+            preset.non_interception_move_passes,
+            preset.non_interception_move_delay_ms,
+        )?;
         if fire_click {
             thread::sleep(Duration::from_millis(12));
             send_mouse_left_click_backend(preset.use_interception_driver)?;

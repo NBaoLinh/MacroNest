@@ -111,6 +111,14 @@ fn default_image_search_offset_px() -> i32 {
     0
 }
 
+fn default_image_search_move_passes() -> u8 {
+    3
+}
+
+fn default_image_search_move_delay_ms() -> u64 {
+    10
+}
+
 #[derive(Debug, Clone, Copy, Serialize, Deserialize, PartialEq, Eq, Default)]
 pub enum AppPanel {
     #[default]
@@ -991,6 +999,10 @@ pub struct ImageSearchPreset {
     pub move_offset_x: i32,
     #[serde(default = "default_image_search_offset_px")]
     pub move_offset_y: i32,
+    #[serde(default = "default_image_search_move_passes")]
+    pub non_interception_move_passes: u8,
+    #[serde(default = "default_image_search_move_delay_ms")]
+    pub non_interception_move_delay_ms: u64,
     #[serde(default = "default_image_search_confidence_threshold")]
     pub confidence_threshold: f32,
     #[serde(default)]
@@ -1000,6 +1012,8 @@ pub struct ImageSearchPreset {
     pub target_color: Option<RgbaColor>,
     #[serde(default)]
     pub target_colors: Vec<RgbaColor>,
+    #[serde(default)]
+    pub image_search_move_advanced_open: bool,
     #[serde(default)]
     pub image_search_advanced_open: bool,
     #[serde(default = "default_image_search_color_tolerance")]
@@ -1031,11 +1045,14 @@ impl ImageSearchPreset {
             use_interception_driver: false,
             move_offset_x: default_image_search_offset_px(),
             move_offset_y: default_image_search_offset_px(),
+            non_interception_move_passes: default_image_search_move_passes(),
+            non_interception_move_delay_ms: default_image_search_move_delay_ms(),
             confidence_threshold: default_image_search_confidence_threshold(),
             use_color_matching: false,
             repeat_until_triggered_again: false,
             target_color: None,
             target_colors: Vec::new(),
+            image_search_move_advanced_open: false,
             image_search_advanced_open: false,
             color_tolerance: default_image_search_color_tolerance(),
             color_scan_rate_hz: default_image_search_color_scan_rate_hz(),

@@ -10702,6 +10702,85 @@ impl CrosshairApp {
                         });
                         ui.end_row();
 
+                        ui.label(Self::tr_lang(language, "Move", "Di"));
+                        ui.horizontal_wrapped(|ui| {
+                            if ui
+                                .button(Self::tr_lang(
+                                    language,
+                                    if preset.image_search_move_advanced_open {
+                                        "Hide advanced"
+                                    } else {
+                                        "Advanced"
+                                    },
+                                    if preset.image_search_move_advanced_open {
+                                        "An nang cao"
+                                    } else {
+                                        "Nang cao"
+                                    },
+                                ))
+                                .clicked()
+                            {
+                                preset.image_search_move_advanced_open =
+                                    !preset.image_search_move_advanced_open;
+                                live_sync = true;
+                            }
+                            ui.label(
+                                RichText::new(if preset.image_search_move_advanced_open {
+                                    Self::tr_lang(language, "Open", "Dang mo")
+                                } else {
+                                    Self::tr_lang(language, "Closed", "Dang dong")
+                                })
+                                .small(),
+                            );
+                        });
+                        ui.end_row();
+
+                        if preset.image_search_move_advanced_open {
+                            ui.label(Self::tr_lang(language, "Move passes", "So lan"));
+                            ui.horizontal_wrapped(|ui| {
+                                live_sync |= ui
+                                    .add(
+                                        Slider::new(
+                                            &mut preset.non_interception_move_passes,
+                                            1..=10,
+                                        )
+                                        .clamping(egui::SliderClamping::Always),
+                                    )
+                                    .changed();
+                                ui.label(
+                                    RichText::new(Self::tr_lang(
+                                        language,
+                                        "Only used when Interception is off",
+                                        "Chi dung khi Interception tat",
+                                    ))
+                                    .small(),
+                                );
+                            });
+                            ui.end_row();
+
+                            ui.label(Self::tr_lang(language, "Move delay", "Do tre"));
+                            ui.horizontal_wrapped(|ui| {
+                                live_sync |= ui
+                                    .add(
+                                        Slider::new(
+                                            &mut preset.non_interception_move_delay_ms,
+                                            0..=100,
+                                        )
+                                        .clamping(egui::SliderClamping::Always),
+                                    )
+                                    .changed();
+                                ui.label(
+                                    RichText::new(Self::tr_lang(
+                                        language,
+                                        "Delay between extra move passes in ms",
+                                        "Do tre giua cac lan di them (ms)",
+                                    ))
+                                    .small(),
+                                );
+                            });
+                            ui.end_row();
+                        }
+
                         ui.label(Self::tr_lang(language, "Color", "Mau"));
                         ui.horizontal_wrapped(|ui| {
                             live_sync |= ui
