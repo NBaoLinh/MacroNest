@@ -103,6 +103,10 @@ fn default_image_search_color_tolerance() -> u8 {
     18
 }
 
+fn default_image_search_color_scan_rate_hz() -> u32 {
+    24
+}
+
 fn default_image_search_offset_px() -> i32 {
     0
 }
@@ -993,13 +997,17 @@ pub struct ImageSearchPreset {
     pub use_color_matching: bool,
     #[serde(default)]
     pub repeat_until_triggered_again: bool,
-    #[serde(default)]
-    pub predictive_lead: bool,
     pub target_color: Option<RgbaColor>,
     #[serde(default)]
     pub target_colors: Vec<RgbaColor>,
+    #[serde(default)]
+    pub image_search_advanced_open: bool,
     #[serde(default = "default_image_search_color_tolerance")]
     pub color_tolerance: u8,
+    #[serde(default = "default_image_search_color_scan_rate_hz")]
+    pub color_scan_rate_hz: u32,
+    #[serde(default)]
+    pub dual_color_scan_midpoint: bool,
     pub last_capture_screen_x: Option<i32>,
     pub last_capture_screen_y: Option<i32>,
     pub search_region_screen_x: Option<i32>,
@@ -1026,10 +1034,12 @@ impl ImageSearchPreset {
             confidence_threshold: default_image_search_confidence_threshold(),
             use_color_matching: false,
             repeat_until_triggered_again: false,
-            predictive_lead: false,
             target_color: None,
             target_colors: Vec::new(),
+            image_search_advanced_open: false,
             color_tolerance: default_image_search_color_tolerance(),
+            color_scan_rate_hz: default_image_search_color_scan_rate_hz(),
+            dual_color_scan_midpoint: false,
             last_capture_screen_x: None,
             last_capture_screen_y: None,
             search_region_screen_x: None,

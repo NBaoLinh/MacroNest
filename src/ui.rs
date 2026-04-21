@@ -10702,29 +10702,6 @@ impl CrosshairApp {
                         });
                         ui.end_row();
 
-                        ui.label(Self::tr_lang(language, "Lead", "Don dau"));
-                        ui.horizontal_wrapped(|ui| {
-                            live_sync |= ui
-                                .checkbox(
-                                    &mut preset.predictive_lead,
-                                    Self::tr_lang(
-                                        language,
-                                        "Predict moving target",
-                                        "Doan truoc muc tieu dang chay",
-                                    ),
-                                )
-                                .changed();
-                            ui.label(
-                                RichText::new(Self::tr_lang(
-                                    language,
-                                    "Moves mouse a bit ahead of the last match",
-                                    "Di chuot nhanh hon mot chut ve phia truoc diem khop cuoi",
-                                ))
-                                .small(),
-                            );
-                        });
-                        ui.end_row();
-
                         ui.label(Self::tr_lang(language, "Color", "Mau"));
                         ui.horizontal_wrapped(|ui| {
                             live_sync |= ui
@@ -10792,24 +10769,101 @@ impl CrosshairApp {
                         });
                         ui.end_row();
 
-                        if preset.use_color_matching
-                            && !Self::image_search_target_colors(&preset).is_empty()
-                        {
-                            ui.label(Self::tr_lang(language, "Tolerance", "Dung sai"));
+                        if preset.use_color_matching {
                             ui.horizontal_wrapped(|ui| {
-                                live_sync |= ui
-                                    .add(Slider::new(&mut preset.color_tolerance, 0..=96))
-                                    .changed();
-                                ui.label(
-                                    RichText::new(Self::tr_lang(
+                                if ui
+                                    .button(Self::tr_lang(
                                         language,
-                                        "Higher = wider color range",
-                                        "Cang cao = mau gan do deu khop",
+                                        if preset.image_search_advanced_open {
+                                            "Hide advanced"
+                                        } else {
+                                            "Advanced"
+                                        },
+                                        if preset.image_search_advanced_open {
+                                            "An nang cao"
+                                        } else {
+                                            "Nang cao"
+                                        },
                                     ))
+                                    .clicked()
+                                {
+                                    preset.image_search_advanced_open =
+                                        !preset.image_search_advanced_open;
+                                    live_sync = true;
+                                }
+                                ui.label(
+                                    RichText::new(if preset.image_search_advanced_open {
+                                        Self::tr_lang(language, "Open", "Dang mo")
+                                    } else {
+                                        Self::tr_lang(language, "Closed", "Dang dong")
+                                    })
                                     .small(),
                                 );
                             });
                             ui.end_row();
+
+                            if preset.image_search_advanced_open {
+                                ui.label(Self::tr_lang(language, "Tolerance", "Dung sai"));
+                                ui.horizontal_wrapped(|ui| {
+                                    live_sync |= ui
+                                        .add(Slider::new(&mut preset.color_tolerance, 0..=96))
+                                        .changed();
+                                    ui.label(
+                                        RichText::new(Self::tr_lang(
+                                            language,
+                                            "Higher = wider color range",
+                                            "Cang cao = mau gan do deu khop",
+                                        ))
+                                        .small(),
+                                    );
+                                });
+                                ui.end_row();
+
+                                ui.label(Self::tr_lang(language, "Scan rate", "Tan suat"));
+                                ui.horizontal_wrapped(|ui| {
+                                    live_sync |= ui
+                                        .add(
+                                            Slider::new(
+                                                &mut preset.color_scan_rate_hz,
+                                                1..=120,
+                                            )
+                                            .clamping(egui::SliderClamping::Always),
+                                        )
+                                        .changed();
+                                    ui.label(
+                                        RichText::new(Self::tr_lang(
+                                            language,
+                                            "Scans per second while repeating",
+                                            "So lan quet moi giay khi lap",
+                                        ))
+                                        .small(),
+                                    );
+                                });
+                                ui.end_row();
+
+                                ui.label(Self::tr_lang(language, "Dual midpoint", "2 luong"));
+                                ui.horizontal_wrapped(|ui| {
+                                    live_sync |= ui
+                                        .checkbox(
+                                            &mut preset.dual_color_scan_midpoint,
+                                            Self::tr_lang(
+                                                language,
+                                                "Use midpoint of two scans",
+                                                "Lay trung diem cua hai luong",
+                                            ),
+                                        )
+                                        .changed();
+                                    ui.label(
+                                        RichText::new(Self::tr_lang(
+                                            language,
+                                            "Useful when color shifts with lighting",
+                                            "Huu ich khi mau thay doi theo anh sang",
+                                        ))
+                                        .small(),
+                                    );
+                                });
+                                ui.end_row();
+                            }
                         } else {
                             ui.label(Self::tr_lang(language, "Accuracy", "Do chinh xac"));
                             ui.horizontal_wrapped(|ui| {
@@ -10826,11 +10880,11 @@ impl CrosshairApp {
                                         "Higher = stricter match",
                                         "Cang cao = can khop sat hon",
                                     ))
-                                .small(),
+                                    .small(),
                             );
                         });
                         ui.end_row();
-                    }
+                        }
 
                         ui.label(Self::tr_lang(language, "Target window", "Cua so"));
                         live_sync |= Self::render_multi_window_targets(

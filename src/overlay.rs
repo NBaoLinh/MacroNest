@@ -245,7 +245,6 @@ mod windows_overlay {
         keyboard_arrow_mouse_step_px: u32,
         image_search_presets: Vec<ImageSearchPreset>,
         image_search_following_presets: HashSet<u32>,
-        image_search_motion_history: HashMap<u32, ImageSearchMotionState>,
         image_search_dir: PathBuf,
         interception_dll_path: PathBuf,
         mouse_sensitivity_restore_on_exit: bool,
@@ -293,7 +292,6 @@ mod windows_overlay {
                 keyboard_arrow_mouse_step_px: 12,
                 image_search_presets: Vec::new(),
                 image_search_following_presets: HashSet::new(),
-                image_search_motion_history: HashMap::new(),
                 image_search_dir: PathBuf::new(),
                 interception_dll_path: PathBuf::new(),
                 mouse_sensitivity_restore_on_exit: false,
@@ -1262,7 +1260,9 @@ mod windows_overlay {
                     break;
                 }
             }
-            thread::sleep(Duration::from_millis(40));
+            let rate_hz = preset.color_scan_rate_hz.max(1);
+            let sleep_ms = (1000 / rate_hz).max(1);
+            thread::sleep(Duration::from_millis(sleep_ms as u64));
         }
 
         set_image_search_following_active(preset.id, false);
@@ -5468,13 +5468,6 @@ mod windows_overlay {
         confidence: f32,
     }
 
-    #[derive(Clone, Copy, Debug)]
-    struct ImageSearchMotionState {
-        center_x: i32,
-        center_y: i32,
-        seen_at: Instant,
-    }
-
     fn rgba_to_color_mat(rgba: &[u8], width: usize, height: usize) -> Result<Mat> {
         let expected_len = width
             .checked_mul(height)
@@ -5527,49 +5520,6 @@ mod windows_overlay {
             return candidate_distance < current_distance;
         }
         false
-    }
-
-    fn apply_image_search_predictive_lead(
-        preset_id: u32,
-        center_x: i32,
-        center_y: i32,
-        enabled: bool,
-    ) -> (i32, i32, Option<(i32, i32, f32)>) {
-        let now = Instant::now();
-        let mut hook_state = HOOK_STATE.lock();
-        let previous = hook_state.image_search_motion_history.insert(
-            preset_id,
-            ImageSearchMotionState {
-                center_x,
-                center_y,
-                seen_at: now,
-            },
-        );
-        if !enabled {
-            return (center_x, center_y, None);
-        }
-
-        let Some(previous) = previous else {
-            return (center_x, center_y, None);
-        };
-        let delta = now.saturating_duration_since(previous.seen_at).as_secs_f32();
-        if delta < 0.001 {
-            return (center_x, center_y, None);
-        }
-
-        let dx = center_x - previous.center_x;
-        let dy = center_y - previous.center_y;
-        if dx.abs() + dy.abs() < 2 {
-            return (center_x, center_y, None);
-        }
-
-        let speed = (((dx * dx + dy * dy) as f32).sqrt() / delta).max(0.0);
-        let lead_seconds = delta.clamp(0.04, 0.12) * 1.35;
-        let lead_x = center_x as f32 + (dx as f32 / delta) * lead_seconds;
-        let lead_y = center_y as f32 + (dy as f32 / delta) * lead_seconds;
-        let predicted_x = lead_x.round().clamp(i32::MIN as f32, i32::MAX as f32) as i32;
-        let predicted_y = lead_y.round().clamp(i32::MIN as f32, i32::MAX as f32) as i32;
-        (predicted_x, predicted_y, Some((dx, dy, speed)))
     }
 
     fn find_template_match_opencv(
@@ -5760,14 +5710,21 @@ mod windows_overlay {
         matched_color: RgbaColor,
     }
 
-    fn find_color_match(
+    fn find_color_match_in_range(
         screen: &window_list::ScreenCaptureFrame,
         targets: &[RgbaColor],
         tolerance: u8,
+        x_start: usize,
+        x_end: usize,
     ) -> Option<ColorMatchHit> {
         let width = screen.width as i32;
         let height = screen.height as i32;
         if width <= 0 || height <= 0 || targets.is_empty() {
+            return None;
+        }
+        let x_start = x_start.min(screen.width);
+        let x_end = x_end.min(screen.width);
+        if x_start >= x_end {
             return None;
         }
         let center_x = width / 2;
@@ -5776,7 +5733,7 @@ mod windows_overlay {
         let mut best_hit: Option<ColorMatchHit> = None;
 
         for y in 0..height {
-            for x in 0..width {
+            for x in x_start as i32..x_end as i32 {
                 let index = ((y as usize) * screen.width + (x as usize)) * 4;
                 if index + 3 >= screen.rgba.len() {
                     continue;
@@ -5817,6 +5774,40 @@ mod windows_overlay {
         }
 
         best_hit
+    }
+
+    fn find_color_match(
+        screen: &window_list::ScreenCaptureFrame,
+        targets: &[RgbaColor],
+        tolerance: u8,
+    ) -> Option<ColorMatchHit> {
+        find_color_match_in_range(screen, targets, tolerance, 0, screen.width)
+    }
+
+    fn find_dual_color_midpoint_match(
+        screen: &window_list::ScreenCaptureFrame,
+        targets: &[RgbaColor],
+        tolerance: u8,
+    ) -> Option<ColorMatchHit> {
+        let mid = (screen.width / 2).max(1);
+        let (left_hit, right_hit) = thread::scope(|scope| {
+            let left = scope.spawn(|| find_color_match_in_range(screen, targets, tolerance, 0, mid));
+            let right = scope.spawn(|| find_color_match_in_range(screen, targets, tolerance, mid, screen.width));
+            (left.join().ok().flatten(), right.join().ok().flatten())
+        });
+        match (left_hit, right_hit) {
+            (Some(left), Some(right)) => {
+                Some(ColorMatchHit {
+                    x: ((left.x + right.x) / 2).max(0),
+                    y: ((left.y + right.y) / 2).max(0),
+                    score: left.score.min(right.score),
+                    distance_sq: left.distance_sq.min(right.distance_sq),
+                    matched_color: left.matched_color,
+                })
+            }
+            (Some(hit), None) | (None, Some(hit)) => Some(hit),
+            (None, None) => None,
+        }
     }
 
     fn image_search_target_colors(preset: &ImageSearchPreset) -> Vec<RgbaColor> {
@@ -5954,7 +5945,12 @@ mod windows_overlay {
                     .context("Failed to capture the screen")?
             };
 
-            let Some(hit) = find_color_match(&screen, &target_colors, preset.color_tolerance) else {
+            let hit = if preset.dual_color_scan_midpoint {
+                find_dual_color_midpoint_match(&screen, &target_colors, preset.color_tolerance)
+            } else {
+                find_color_match(&screen, &target_colors, preset.color_tolerance)
+            };
+            let Some(hit) = hit else {
                 let color_list = target_colors
                     .iter()
                     .map(|color| format!("#{:02X}{:02X}{:02X}", color.r, color.g, color.b))
@@ -5968,33 +5964,22 @@ mod windows_overlay {
 
             let center_x = screen.screen_x + hit.x;
             let center_y = screen.screen_y + hit.y;
-            let (lead_x, lead_y, lead_state) = apply_image_search_predictive_lead(
-                preset.id,
-                center_x,
-                center_y,
-                preset.predictive_lead,
-            );
-            let moved_x = lead_x + preset.move_offset_x;
-            let moved_y = lead_y + preset.move_offset_y;
+            let moved_x = center_x + preset.move_offset_x;
+            let moved_y = center_y + preset.move_offset_y;
             settle_image_search_mouse_move(moved_x, moved_y, preset.use_interception_driver)?;
             if fire_click {
                 thread::sleep(Duration::from_millis(12));
                 send_mouse_left_click_backend(preset.use_interception_driver)?;
             }
-            return Ok(match lead_state {
-                Some((dx, dy, speed)) => format!(
-                    "Matched color #{:02X}{:02X}{:02X} at {moved_x}, {moved_y} with tolerance {}, offset {:+}, {:+}, lead {:+}, {:+} ({} px/s).",
-                    hit.matched_color.r,
-                    hit.matched_color.g,
-                    hit.matched_color.b,
+            return Ok(if preset.dual_color_scan_midpoint {
+                format!(
+                    "Matched colors midpoint at {moved_x}, {moved_y} with tolerance {} and offset {:+}, {:+}.",
                     preset.color_tolerance,
                     preset.move_offset_x,
-                    preset.move_offset_y,
-                    dx,
-                    dy,
-                    speed.round()
-                ),
-                None => format!(
+                    preset.move_offset_y
+                )
+            } else {
+                format!(
                     "Matched color #{:02X}{:02X}{:02X} at {moved_x}, {moved_y} with tolerance {} and offset {:+}, {:+}.",
                     hit.matched_color.r,
                     hit.matched_color.g,
@@ -6002,7 +5987,7 @@ mod windows_overlay {
                     preset.color_tolerance,
                     preset.move_offset_x,
                     preset.move_offset_y
-                ),
+                )
             });
         }
 
@@ -6111,14 +6096,8 @@ mod windows_overlay {
 
         let center_x = screen.screen_x + hit.x + (hit.width / 2);
         let center_y = screen.screen_y + hit.y + (hit.height / 2);
-        let (lead_x, lead_y, lead_state) = apply_image_search_predictive_lead(
-            preset.id,
-            center_x,
-            center_y,
-            preset.predictive_lead,
-        );
-        let moved_x = lead_x + preset.move_offset_x;
-        let moved_y = lead_y + preset.move_offset_y;
+        let moved_x = center_x + preset.move_offset_x;
+        let moved_y = center_y + preset.move_offset_y;
         let required_confidence = preset.confidence_threshold.clamp(0.35, 0.99);
         if hit.confidence < required_confidence {
             return Ok(format!(
@@ -6133,25 +6112,13 @@ mod windows_overlay {
             thread::sleep(Duration::from_millis(12));
             send_mouse_left_click_backend(preset.use_interception_driver)?;
         }
-        Ok(match lead_state {
-            Some((dx, dy, speed)) => format!(
-                "OpenCV matched at {moved_x}, {moved_y} with confidence {:.3} on {:.2}x (offset {:+}, {:+}, lead {:+}, {:+}, {} px/s).",
-                hit.confidence,
-                hit.scale,
-                preset.move_offset_x,
-                preset.move_offset_y,
-                dx,
-                dy,
-                speed.round()
-            ),
-            None => format!(
-                "OpenCV matched at {moved_x}, {moved_y} with confidence {:.3} on {:.2}x (offset {:+}, {:+}).",
-                hit.confidence,
-                hit.scale,
-                preset.move_offset_x,
-                preset.move_offset_y
-            ),
-        })
+        Ok(format!(
+            "OpenCV matched at {moved_x}, {moved_y} with confidence {:.3} on {:.2}x (offset {:+}, {:+}).",
+            hit.confidence,
+            hit.scale,
+            preset.move_offset_x,
+            preset.move_offset_y
+        ))
     }
 
     fn run_image_search_once(preset: &ImageSearchPreset) -> Result<String> {
