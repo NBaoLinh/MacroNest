@@ -1728,6 +1728,15 @@ impl CrosshairApp {
         }
     }
 
+    fn pop_key_list_entry(spec: &mut String) -> bool {
+        let mut keys = hotkey::split_key_list(spec);
+        let Some(_) = keys.pop() else {
+            return false;
+        };
+        *spec = keys.join(", ");
+        true
+    }
+
     fn app_brand_title(&self) -> &'static str {
         "MacroNest"
     }
@@ -8497,9 +8506,15 @@ impl CrosshairApp {
                                     }
                                 }
                                 if Self::sized_button(ui, 56.0, Self::tr_lang(language, "Clear", "XÃƒÂ³a")).clicked() {
-                                    preset.hotkey = None;
-                                    preset.trigger_keys.clear();
-                                    live_sync = true;
+                                    let mut changed = false;
+                                    if !preset.trigger_keys.trim().is_empty() {
+                                        changed |= Self::pop_key_list_entry(&mut preset.trigger_keys);
+                                    }
+                                    if preset.hotkey.is_some() {
+                                        preset.hotkey = None;
+                                        changed = true;
+                                    }
+                                    live_sync |= changed;
                                 }
                                 if Self::sized_button(ui, 64.0, Self::tr_lang(language, "Remove", "XÃƒÂ³a")).clicked() {
                                     remove_preset = Some(preset.id);
@@ -8630,8 +8645,7 @@ impl CrosshairApp {
                                         }
                                     }
                                     if Self::sized_button(ui, 56.0, Self::tr_lang(language, "Clear", "Clear")).clicked() {
-                                        preset.release_wait_key.clear();
-                                        live_sync = true;
+                                        live_sync |= Self::pop_key_list_entry(&mut preset.release_wait_key);
                                     }
                                 });
                             }
