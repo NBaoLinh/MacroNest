@@ -10655,7 +10655,7 @@ impl CrosshairApp {
             "Macro chuot, backend driver, va di chuot bang mui ten.",
         ));
         ui.separator();
-        ui.heading(self.tr("Mouse Driver", "Driver chuot"));
+        ui.heading(self.tr("Driver", "Driver chuot"));
         ui.label(self.tr(
             "Interception. Per-path backend.",
             "Tai hoac xoa driver Interception. Tung preset duong chuot se tu chon backend rieng.",
