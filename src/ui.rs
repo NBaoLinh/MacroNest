@@ -8635,15 +8635,15 @@ impl CrosshairApp {
                         .num_columns(9)
                         .spacing([6.0, 4.0])
                         .show(ui, |ui| {
-                            ui.strong(Self::tr_lang(language, "Trigger", "KÃƒÂ­ch hoÃ¡ÂºÂ¡t"));
+                            ui.strong(Self::tr_lang(language, "Trig", "Trig"));
                             ui.strong(Self::tr_lang(language, "Key", "PhÃ­m"));
-                            ui.strong(Self::tr_lang(language, "Enabled", "BÃ¡ÂºÂ­t"));
-                            ui.strong(Self::tr_lang(language, "Show", "HiÃ¡Â»â€¡n"));
-                            ui.strong(Self::tr_lang(language, "Capture", "BÃ¡ÂºÂ¯t"));
-                            ui.strong(Self::tr_lang(language, "Clear", "XÃƒÂ³a"));
+                            ui.strong(Self::tr_lang(language, "On", "BÃ¡ÂºÂ­t"));
+                            ui.strong(Self::tr_lang(language, "Vis", "HiÃ¡Â»â€¡n"));
+                            ui.strong(Self::tr_lang(language, "CAP", "CAP"));
+                            ui.strong(Self::tr_lang(language, "Clr", "Clr"));
                             ui.strong(Self::tr_lang(language, "Copy", "Sao chÃƒÂ©p"));
                             ui.strong(Self::tr_lang(language, "Paste", "DÃ¡ÂºÂ¡n"));
-                            ui.strong(Self::tr_lang(language, "Remove", "XÃƒÂ³a"));
+                            ui.strong(Self::tr_lang(language, "Del", "XÃƒÂ³a"));
                             ui.end_row();
                     });
                     for preset_index in render_preset_indices.iter().copied() {
