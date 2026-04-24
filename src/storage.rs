@@ -187,6 +187,7 @@ impl AppPaths {
                     crate::model::MacroPreset {
                         id: preset_id,
                         enabled: legacy.enabled,
+                        favorite: false,
                         collapsed: legacy.collapsed,
                         trigger_mode: crate::model::MacroTriggerMode::Press,
                         stop_on_retrigger_immediate: false,

@@ -791,6 +791,8 @@ impl Default for MasterPreset {
 pub struct MacroPreset {
     pub id: u32,
     pub enabled: bool,
+    #[serde(default)]
+    pub favorite: bool,
     pub collapsed: bool,
     pub trigger_mode: MacroTriggerMode,
     pub stop_on_retrigger_immediate: bool,
@@ -805,6 +807,7 @@ impl MacroPreset {
         Self {
             id,
             enabled: true,
+            favorite: false,
             collapsed: true,
             trigger_mode: MacroTriggerMode::Press,
             stop_on_retrigger_immediate: false,
@@ -1013,6 +1016,10 @@ pub struct ImageSearchPreset {
     #[serde(default)]
     pub target_colors: Vec<RgbaColor>,
     #[serde(default)]
+    pub search_region_is_circle: bool,
+    #[serde(default)]
+    pub show_search_region_overlay: bool,
+    #[serde(default)]
     pub color_priority_from_anchor: bool,
     pub color_priority_anchor_screen_x: Option<i32>,
     pub color_priority_anchor_screen_y: Option<i32>,
@@ -1056,6 +1063,8 @@ impl ImageSearchPreset {
             repeat_until_triggered_again: false,
             target_color: None,
             target_colors: Vec::new(),
+            search_region_is_circle: false,
+            show_search_region_overlay: false,
             color_priority_from_anchor: false,
             color_priority_anchor_screen_x: None,
             color_priority_anchor_screen_y: None,

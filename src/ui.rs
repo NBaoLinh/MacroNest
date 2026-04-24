@@ -401,6 +401,7 @@ pub struct CrosshairApp {
     image_search_restore_outer_pos: Option<egui::Pos2>,
     selected_macro_steps: HashSet<(u32, u32, usize)>,
     selected_macro_groups: HashSet<u32>,
+    macro_preset_search_query: String,
     macro_group_clipboard: Vec<u32>,
     macro_group_clipboard_is_cut: bool,
     macro_preset_clipboard: Option<MacroPreset>,
@@ -490,6 +491,7 @@ impl CrosshairApp {
             image_search_restore_outer_pos: None,
             selected_macro_steps: HashSet::new(),
             selected_macro_groups: HashSet::new(),
+            macro_preset_search_query: String::new(),
             macro_group_clipboard: Vec::new(),
             macro_group_clipboard_is_cut: false,
             macro_preset_clipboard: None,
@@ -619,8 +621,12 @@ impl CrosshairApp {
     }
 
     fn sync_macro_presets(&self) {
+        let mut macro_groups = self.state.macro_groups.clone();
+        for group in &mut macro_groups {
+            Self::sort_macro_group_presets(group);
+        }
         let _ = self.overlay_tx.send(OverlayCommand::UpdateMacroPresets(
-            self.state.macro_groups.clone(),
+            macro_groups,
         ));
     }
 
@@ -960,7 +966,12 @@ impl CrosshairApp {
             preset.search_region_height,
         ) {
             (Some(x), Some(y), Some(width), Some(height)) if width > 0 && height > 0 => {
-                format!("{x}, {y}  {width}x{height}")
+                let shape = if preset.search_region_is_circle {
+                    "Circle"
+                } else {
+                    "Rect"
+                };
+                format!("{shape} {x}, {y}  {width}x{height}")
             }
             _ => "Any screen".to_owned(),
         }
@@ -1546,6 +1557,53 @@ impl CrosshairApp {
     fn preset_title_text(dark_mode: bool, name: &str, enabled: bool) -> RichText {
         let text = RichText::new(name).strong();
         text.color(Self::preset_body_text_color(dark_mode, enabled))
+    }
+
+    fn contains_case_insensitive(haystack: &str, needle: &str) -> bool {
+        if needle.is_empty() {
+            return true;
+        }
+        haystack
+            .to_lowercase()
+            .contains(&needle.to_lowercase())
+    }
+
+    fn sort_macro_group_presets(group: &mut MacroGroup) {
+        group.presets.sort_by(|left, right| {
+            right
+                .favorite
+                .cmp(&left.favorite)
+                .then(left.id.cmp(&right.id))
+        });
+    }
+
+    fn macro_preset_matches_search_query(
+        group: &MacroGroup,
+        preset: &MacroPreset,
+        query: &str,
+    ) -> bool {
+        if query.trim().is_empty() {
+            return true;
+        }
+        let query = query.trim();
+        Self::contains_case_insensitive(&group.name, query)
+            || Self::contains_case_insensitive(
+                &hotkey::format_binding(preset.hotkey.as_ref()),
+                query,
+            )
+            || preset.favorite && Self::contains_case_insensitive("favorite", query)
+    }
+
+    fn macro_group_matches_search_query(group: &MacroGroup, query: &str) -> bool {
+        if query.trim().is_empty() {
+            return true;
+        }
+        let query = query.trim();
+        Self::contains_case_insensitive(&group.name, query)
+            || group
+                .presets
+                .iter()
+                .any(|preset| Self::macro_preset_matches_search_query(group, preset, query))
     }
 
     fn desired_window_size() -> egui::Vec2 {
@@ -7425,6 +7483,30 @@ impl CrosshairApp {
             "Each macro group can contain multiple small macro presets.",
             "Má»—i nhÃ³m macro cÃ³ thá»ƒ chá»©a nhiá»u preset macro nhá».",
         ));
+        ui.horizontal(|ui| {
+            ui.label(Self::tr_lang(language, "Search", "Tim"));
+            ui.add_sized(
+                [260.0, 24.0],
+                TextEdit::singleline(&mut self.macro_preset_search_query)
+                    .hint_text(Self::tr_lang(
+                        language,
+                        "Preset or group name",
+                        "Ten preset hoac nhom",
+                    )),
+            );
+            if ui
+                .button(Self::tr_lang(language, "Clear", "Xoa"))
+                .on_hover_text(Self::tr_lang(
+                    language,
+                    "Clear preset search",
+                    "Xoa bo loc tim preset",
+                ))
+                .clicked()
+            {
+                self.macro_preset_search_query.clear();
+            }
+        });
+
         let mut release_folder_id = None;
         let mut delete_folder_id = None;
         let capture_target_snapshot = self.capture_target.clone();
@@ -7780,6 +7862,7 @@ impl CrosshairApp {
             }
             ui.separator();
         }
+        let search_query = self.macro_preset_search_query.trim().to_owned();
         let visible_group_indices: Vec<usize> = self
             .state
             .macro_groups
@@ -7789,6 +7872,7 @@ impl CrosshairApp {
                 Some(folder_id) => group.folder_id == Some(folder_id),
                 None => group.folder_id.is_none(),
             })
+            .filter(|(_, group)| Self::macro_group_matches_search_query(group, &search_query))
             .map(|(index, _)| index)
             .collect();
         ui.separator();
@@ -7816,6 +7900,27 @@ impl CrosshairApp {
             let selected_steps_snapshot = self.selected_macro_steps.clone();
             let drag_select_anchor_snapshot = self.macro_drag_select_anchor;
             let mut drag_select_anchor_update = None;
+            let render_preset_indices = {
+                let group = &mut self.state.macro_groups[group_index];
+                Self::sort_macro_group_presets(group);
+                let query = search_query.as_str();
+                if query.is_empty() || Self::contains_case_insensitive(&group.name, query) {
+                    (0..group.presets.len()).collect::<Vec<_>>()
+                } else {
+                    group
+                        .presets
+                        .iter()
+                        .enumerate()
+                        .filter(|(_, preset)| {
+                            Self::macro_preset_matches_search_query(group, preset, query)
+                        })
+                        .map(|(index, _)| index)
+                        .collect::<Vec<_>>()
+                }
+            };
+            if render_preset_indices.is_empty() {
+                continue;
+            }
 
             ui.separator();
             {
@@ -8150,9 +8255,10 @@ impl CrosshairApp {
                     }
 
                     egui::Grid::new((group.id, "preset-header-row"))
-                        .num_columns(8)
+                        .num_columns(9)
                         .spacing([6.0, 4.0])
                         .show(ui, |ui| {
+                            ui.strong(Self::tr_lang(language, "Fav", "YT"));
                             ui.strong(Self::tr_lang(language, "Trigger", "KÃ­ch hoáº¡t"));
                             ui.strong(Self::tr_lang(language, "Binding", "PhÃ­m"));
                             ui.strong(Self::tr_lang(language, "Enabled", "Báº­t"));
@@ -8163,12 +8269,47 @@ impl CrosshairApp {
                             ui.strong(Self::tr_lang(language, "Remove", "XÃ³a"));
                             ui.end_row();
                     });
-                    for preset in &mut group.presets {
+                    for preset_index in render_preset_indices.iter().copied() {
+                        let preset = &mut group.presets[preset_index];
                         Self::show_preset_card(ui, group.enabled && preset.enabled, |ui| {
                         egui::Grid::new((group.id, preset.id, "preset-summary-row"))
-                            .num_columns(8)
+                            .num_columns(9)
                             .spacing([6.0, 4.0])
                             .show(ui, |ui| {
+                                let star_text = if preset.favorite { "★" } else { "☆" };
+                                let star_fill = if preset.favorite {
+                                    Color32::from_rgb(104, 82, 18)
+                                } else {
+                                    Color32::from_rgba_premultiplied(52, 58, 70, 190)
+                                };
+                                let star_stroke = if preset.favorite {
+                                    Color32::from_rgb(255, 220, 96)
+                                } else {
+                                    Color32::from_rgb(102, 110, 122)
+                                };
+                                if ui
+                                    .add_sized(
+                                        [28.0, 22.0],
+                                        Button::new(
+                                            RichText::new(star_text).color(if preset.favorite {
+                                                Color32::from_rgb(255, 224, 110)
+                                            } else {
+                                                Color32::from_rgb(208, 214, 224)
+                                            }),
+                                        )
+                                        .fill(star_fill)
+                                        .stroke(egui::Stroke::new(1.0, star_stroke)),
+                                    )
+                                    .on_hover_text(Self::tr_lang(
+                                        language,
+                                        "Favorite preset",
+                                        "Preset yeu thich",
+                                    ))
+                                    .clicked()
+                                {
+                                    preset.favorite = !preset.favorite;
+                                    live_sync = true;
+                                }
                                 ui.label(Self::tr_lang(language, "Trigger", "KÃ­ch hoáº¡t"));
                                 ui.add_sized(
                                     [148.0, 22.0],
@@ -10720,6 +10861,31 @@ impl CrosshairApp {
                             }
                         });
                         ui.end_row();
+                        ui.horizontal_wrapped(|ui| {
+                            live_sync |= ui
+                                .checkbox(
+                                    &mut preset.search_region_is_circle,
+                                    Self::tr_lang(language, "Circle area", "Vung tron"),
+                                )
+                                .on_hover_text(Self::tr_lang(
+                                    language,
+                                    "Use a circular search region inside the selected box.",
+                                    "Dung vung tim hinh tron nam trong khung da chon.",
+                                ))
+                                .changed();
+                            live_sync |= ui
+                                .checkbox(
+                                    &mut preset.show_search_region_overlay,
+                                    Self::tr_lang(language, "Show overlay", "Hien overlay"),
+                                )
+                                .on_hover_text(Self::tr_lang(
+                                    language,
+                                    "Show the search region on the screen while the preset is enabled.",
+                                    "Hien vung tim tren man hinh khi preset dang bat.",
+                                ))
+                                .changed();
+                        });
+                        ui.end_row();
 
                         ui.label(Self::tr_lang(language, "Offset", "Lech"));
                         ui.horizontal_wrapped(|ui| {
@@ -11383,12 +11549,30 @@ impl CrosshairApp {
                     self.image_search_capture_current,
                 ) {
                     let selection = egui::Rect::from_two_pos(anchor, current);
-                    painter.rect_stroke(
-                        selection,
-                        0.0,
-                        egui::Stroke::new(2.0, Color32::from_rgb(120, 220, 255)),
-                        egui::StrokeKind::Middle,
-                    );
+                    let use_circle = capture_mode == ImageSearchCaptureMode::SearchRegion
+                        && self
+                            .image_search_capture_target_preset_id
+                            .and_then(|preset_id| {
+                                self.state
+                                    .image_search_presets
+                                    .iter()
+                                    .find(|preset| preset.id == preset_id)
+                            })
+                            .is_some_and(|preset| preset.search_region_is_circle);
+                    if use_circle {
+                        painter.circle_stroke(
+                            selection.center(),
+                            selection.width().min(selection.height()) * 0.5,
+                            egui::Stroke::new(2.0, Color32::from_rgb(120, 220, 255)),
+                        );
+                    } else {
+                        painter.rect_stroke(
+                            selection,
+                            0.0,
+                            egui::Stroke::new(2.0, Color32::from_rgb(120, 220, 255)),
+                            egui::StrokeKind::Middle,
+                        );
+                    }
                 }
             });
         true

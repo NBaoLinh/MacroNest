@@ -22,7 +22,7 @@ mod windows_overlay {
     use libloading::Library;
     use once_cell::sync::Lazy;
     use opencv::{
-        core::{self as cv, Mat, Point as CvPoint, Size},
+        core::{self as cv, Mat, Size},
         imgproc,
         prelude::*,
     };
@@ -454,6 +454,7 @@ mod windows_overlay {
         registered_macro_hotkeys: HashMap<i32, MacroPreset>,
         overlay_hwnd: HWND,
         mouse_trail_hwnd: HWND,
+        search_area_hwnd: HWND,
         toolbox_hwnd: HWND,
         pin_hwnd: HWND,
         last_pin_update: Instant,
@@ -624,6 +625,25 @@ mod windows_overlay {
                 None,
             )?;
 
+            let search_area_hwnd = CreateWindowExW(
+                WS_EX_LAYERED
+                    | WS_EX_TRANSPARENT
+                    | WS_EX_TOOLWINDOW
+                    | WS_EX_TOPMOST
+                    | WS_EX_NOACTIVATE,
+                w!("CrosshairOverlay"),
+                w!("CrosshairSearchArea"),
+                WS_POPUP,
+                0,
+                0,
+                32,
+                32,
+                None,
+                None,
+                Some(instance),
+                None,
+            )?;
+
             let toolbox_hwnd = CreateWindowExW(
                 WS_EX_LAYERED
                     | WS_EX_TOOLWINDOW
@@ -688,6 +708,7 @@ mod windows_overlay {
                 registered_macro_hotkeys: HashMap::new(),
                 overlay_hwnd,
                 mouse_trail_hwnd,
+                search_area_hwnd,
                 toolbox_hwnd,
                 pin_hwnd,
                 last_pin_update: Instant::now() - Duration::from_secs(1),
@@ -834,6 +855,7 @@ mod windows_overlay {
                             let _ = refresh_mouse_record_trail(runtime);
                         }
                     }
+                    let _ = refresh_search_area_overlay(runtime);
 
                     refresh_overlay_timer(hwnd, runtime);
                 }
@@ -2179,16 +2201,19 @@ mod windows_overlay {
                     hook_state.keyboard_arrow_mouse_step_px = step_px.clamp(1, 100) as u32;
                 }
                 OverlayCommand::UpdateImageSearchPresets(presets) => {
-                    let mut hook_state = HOOK_STATE.lock();
-                    hook_state.image_search_presets = presets;
-                    let valid_ids: HashSet<u32> = hook_state
-                        .image_search_presets
-                        .iter()
-                        .map(|preset| preset.id)
-                        .collect();
-                    hook_state
-                        .image_search_following_presets
-                        .retain(|preset_id| valid_ids.contains(preset_id));
+                    {
+                        let mut hook_state = HOOK_STATE.lock();
+                        hook_state.image_search_presets = presets;
+                        let valid_ids: HashSet<u32> = hook_state
+                            .image_search_presets
+                            .iter()
+                            .map(|preset| preset.id)
+                            .collect();
+                        hook_state
+                            .image_search_following_presets
+                            .retain(|preset_id| valid_ids.contains(preset_id));
+                    }
+                    let _ = refresh_search_area_overlay(runtime);
                 }
                 OverlayCommand::ApplyMouseSensitivityPreset(preset_id) => {
                     if let Some(preset) = HOOK_STATE
@@ -2350,6 +2375,27 @@ mod windows_overlay {
         }
 
         unsafe { paint_mouse_trail(runtime.mouse_trail_hwnd, &points) }
+    }
+
+    fn refresh_search_area_overlay(runtime: &mut Runtime) -> Result<()> {
+        let regions = {
+            let hook_state = HOOK_STATE.lock();
+            hook_state
+                .image_search_presets
+                .iter()
+                .filter(|preset| preset.enabled && preset.show_search_region_overlay)
+                .filter_map(|preset| configured_image_search_region(preset))
+                .collect::<Vec<_>>()
+        };
+
+        if regions.is_empty() {
+            unsafe {
+                let _ = ShowWindow(runtime.search_area_hwnd, SW_HIDE);
+            }
+            return Ok(());
+        }
+
+        unsafe { paint_search_area_overlay(runtime.search_area_hwnd, &regions) }
     }
 
     fn desired_timer_interval_ms(runtime: &Runtime) -> u32 {
@@ -5461,6 +5507,15 @@ mod windows_overlay {
         confidence: f32,
     }
 
+    #[derive(Clone, Copy, Debug)]
+    struct ImageSearchRegion {
+        left: i32,
+        top: i32,
+        width: i32,
+        height: i32,
+        is_circle: bool,
+    }
+
     fn rgba_to_color_mat(rgba: &[u8], width: usize, height: usize) -> Result<Mat> {
         let expected_len = width
             .checked_mul(height)
@@ -5523,6 +5578,7 @@ mod windows_overlay {
         scales: &[f32],
         anchor_hint_screen: Option<(i32, i32)>,
         use_color_matching: bool,
+        search_region: Option<&ImageSearchRegion>,
     ) -> Result<Option<TemplateMatchHit>> {
         let screen_mat = if use_color_matching {
             rgba_to_color_mat(&screen.rgba, screen.width, screen.height)?
@@ -5580,30 +5636,31 @@ mod windows_overlay {
             )
             .context("OpenCV matchTemplate failed.")?;
 
-            let mut min_val = 0.0_f64;
-            let mut max_val = 0.0_f64;
-            let mut min_loc = CvPoint::default();
-            let mut max_loc = CvPoint::default();
-            cv::min_max_loc(
-                &result,
-                Some(&mut min_val),
-                Some(&mut max_val),
-                Some(&mut min_loc),
-                Some(&mut max_loc),
-                &cv::no_array(),
-            )
-            .context("OpenCV minMaxLoc failed.")?;
-
-            let candidate = TemplateMatchHit {
-                x: max_loc.x,
-                y: max_loc.y,
-                width: scaled_width,
-                height: scaled_height,
-                scale,
-                confidence: max_val as f32,
-            };
-            if select_better_template_match(candidate, best_hit, anchor_hint) {
-                best_hit = Some(candidate);
+            let result_data = result
+                .data_typed::<f32>()
+                .context("OpenCV result matrix was not readable.")?;
+            let result_width = result.cols().max(0) as usize;
+            let result_height = result.rows().max(0) as usize;
+            for y in 0..result_height {
+                for x in 0..result_width {
+                    let confidence = result_data[y * result_width + x];
+                    let center_x = screen.screen_x + x as i32 + scaled_width / 2;
+                    let center_y = screen.screen_y + y as i32 + scaled_height / 2;
+                    if !image_search_region_contains_point(search_region, center_x, center_y) {
+                        continue;
+                    }
+                    let candidate = TemplateMatchHit {
+                        x: x as i32,
+                        y: y as i32,
+                        width: scaled_width,
+                        height: scaled_height,
+                        scale,
+                        confidence,
+                    };
+                    if select_better_template_match(candidate, best_hit, anchor_hint) {
+                        best_hit = Some(candidate);
+                    }
+                }
             }
         }
 
@@ -5612,7 +5669,7 @@ mod windows_overlay {
 
     fn configured_image_search_region(
         preset: &ImageSearchPreset,
-    ) -> Option<(i32, i32, i32, i32)> {
+    ) -> Option<ImageSearchRegion> {
         let (
             Some(region_x),
             Some(region_y),
@@ -5644,15 +5701,27 @@ mod windows_overlay {
         if width <= 0 || height <= 0 {
             return None;
         }
-        Some((left, top, width, height))
+        Some(ImageSearchRegion {
+            left,
+            top,
+            width,
+            height,
+            is_circle: preset.search_region_is_circle,
+        })
     }
 
     fn expand_search_region_to_fit(
-        region: (i32, i32, i32, i32),
+        region: ImageSearchRegion,
         min_width: i32,
         min_height: i32,
-    ) -> (i32, i32, i32, i32) {
-        let (left, top, width, height) = region;
+    ) -> ImageSearchRegion {
+        let ImageSearchRegion {
+            left,
+            top,
+            width,
+            height,
+            is_circle,
+        } = region;
         let target_width = width.max(min_width.max(1));
         let target_height = height.max(min_height.max(1));
         if target_width == width && target_height == height {
@@ -5686,12 +5755,41 @@ mod windows_overlay {
             next_bottom = (next_top + target_height).min(virtual_bottom);
         }
 
-        (
-            next_left,
-            next_top,
-            (next_right - next_left).max(1),
-            (next_bottom - next_top).max(1),
-        )
+        ImageSearchRegion {
+            left: next_left,
+            top: next_top,
+            width: (next_right - next_left).max(1),
+            height: (next_bottom - next_top).max(1),
+            is_circle,
+        }
+    }
+
+    fn image_search_region_contains_point(
+        region: Option<&ImageSearchRegion>,
+        x: i32,
+        y: i32,
+    ) -> bool {
+        let Some(region) = region else {
+            return true;
+        };
+        let inside_rect = x >= region.left
+            && y >= region.top
+            && x < region.left + region.width
+            && y < region.top + region.height;
+        if !inside_rect {
+            return false;
+        }
+        if !region.is_circle {
+            return true;
+        }
+
+        let center_x = region.left as f32 + region.width as f32 * 0.5;
+        let center_y = region.top as f32 + region.height as f32 * 0.5;
+        let radius_x = (region.width as f32 * 0.5).max(1.0);
+        let radius_y = (region.height as f32 * 0.5).max(1.0);
+        let dx = (x as f32 + 0.5 - center_x) / radius_x;
+        let dy = (y as f32 + 0.5 - center_y) / radius_y;
+        dx * dx + dy * dy <= 1.0
     }
 
     #[derive(Clone, Copy, Debug)]
@@ -5709,6 +5807,7 @@ mod windows_overlay {
         tolerance: u8,
         x_start: usize,
         x_end: usize,
+        region: Option<&ImageSearchRegion>,
     ) -> Option<ColorMatchHit> {
         let width = screen.width as i32;
         let height = screen.height as i32;
@@ -5735,6 +5834,7 @@ mod windows_overlay {
                     y,
                     center_x,
                     center_y,
+                    region,
                 );
                 if let Some(candidate) = candidate {
                     let replace = match best_hit {
@@ -5763,8 +5863,12 @@ mod windows_overlay {
         y: i32,
         reference_x: i32,
         reference_y: i32,
+        region: Option<&ImageSearchRegion>,
     ) -> Option<ColorMatchHit> {
         if x < 0 || y < 0 || x >= screen.width as i32 || y >= screen.height as i32 {
+            return None;
+        }
+        if !image_search_region_contains_point(region, screen.screen_x + x, screen.screen_y + y) {
             return None;
         }
         let index = ((y as usize) * screen.width + (x as usize)) * 4;
@@ -5813,6 +5917,7 @@ mod windows_overlay {
         tolerance: u8,
         anchor_x: i32,
         anchor_y: i32,
+        region: Option<&ImageSearchRegion>,
     ) -> Option<ColorMatchHit> {
         let width = screen.width as i32;
         let height = screen.height as i32;
@@ -5846,6 +5951,7 @@ mod windows_overlay {
                         y,
                         anchor_x,
                         anchor_y,
+                        region,
                     ) {
                         let replace = match best_in_radius {
                             None => true,
@@ -5873,6 +5979,7 @@ mod windows_overlay {
                             y,
                             anchor_x,
                             anchor_y,
+                            region,
                         ) {
                             let replace = match best_in_radius {
                                 None => true,
@@ -5902,19 +6009,21 @@ mod windows_overlay {
         screen: &window_list::ScreenCaptureFrame,
         targets: &[RgbaColor],
         tolerance: u8,
+        region: Option<&ImageSearchRegion>,
     ) -> Option<ColorMatchHit> {
-        find_color_match_in_range(screen, targets, tolerance, 0, screen.width)
+        find_color_match_in_range(screen, targets, tolerance, 0, screen.width, region)
     }
 
     fn find_dual_color_midpoint_match(
         screen: &window_list::ScreenCaptureFrame,
         targets: &[RgbaColor],
         tolerance: u8,
+        region: Option<&ImageSearchRegion>,
     ) -> Option<ColorMatchHit> {
         let mid = (screen.width / 2).max(1);
         let (left_hit, right_hit) = thread::scope(|scope| {
-            let left = scope.spawn(|| find_color_match_in_range(screen, targets, tolerance, 0, mid));
-            let right = scope.spawn(|| find_color_match_in_range(screen, targets, tolerance, mid, screen.width));
+            let left = scope.spawn(|| find_color_match_in_range(screen, targets, tolerance, 0, mid, region));
+            let right = scope.spawn(|| find_color_match_in_range(screen, targets, tolerance, mid, screen.width, region));
             (left.join().ok().flatten(), right.join().ok().flatten())
         });
         match (left_hit, right_hit) {
@@ -5969,6 +6078,7 @@ mod windows_overlay {
         template_height: usize,
         max_average_diff: f32,
         anchor_hint_screen: Option<(i32, i32)>,
+        search_region: Option<&ImageSearchRegion>,
     ) -> Option<TemplateMatchHit> {
         if template_width == 0
             || template_height == 0
@@ -5984,6 +6094,11 @@ mod windows_overlay {
 
         for y in 0..=(screen.height - template_height) {
             for x in 0..=(screen.width - template_width) {
+                let center_x = screen.screen_x + x as i32 + (template_width as i32 / 2);
+                let center_y = screen.screen_y + y as i32 + (template_height as i32 / 2);
+                if !image_search_region_contains_point(search_region, center_x, center_y) {
+                    continue;
+                }
                 let mut total_diff = 0u64;
                 let mut over_budget = false;
                 for row in 0..template_height {
@@ -6048,9 +6163,9 @@ mod windows_overlay {
             if target_colors.is_empty() {
                 bail!("No target colors have been picked yet.");
             }
-            let screen = if let Some((left, top, width, height)) = configured_image_search_region(preset)
-            {
-                window_list::capture_virtual_screen_region(left, top, width, height)
+            let configured_region = configured_image_search_region(preset);
+            let screen = if let Some(region) = configured_region {
+                window_list::capture_virtual_screen_region(region.left, region.top, region.width, region.height)
                     .context("Failed to capture the selected search area")?
             } else if preset.target_window_title.is_some()
                 || !preset.extra_target_window_titles.is_empty()
@@ -6084,11 +6199,22 @@ mod windows_overlay {
                     preset.color_tolerance,
                     anchor_x - screen.screen_x,
                     anchor_y - screen.screen_y,
+                    configured_region.as_ref(),
                 )
             } else if preset.dual_color_scan_midpoint {
-                find_dual_color_midpoint_match(&screen, &target_colors, preset.color_tolerance)
+                find_dual_color_midpoint_match(
+                    &screen,
+                    &target_colors,
+                    preset.color_tolerance,
+                    configured_region.as_ref(),
+                )
             } else {
-                find_color_match(&screen, &target_colors, preset.color_tolerance)
+                find_color_match(
+                    &screen,
+                    &target_colors,
+                    preset.color_tolerance,
+                    configured_region.as_ref(),
+                )
             };
             let Some(hit) = hit else {
                 let color_list = target_colors
@@ -6168,12 +6294,12 @@ mod windows_overlay {
             && preset.extra_target_window_titles.is_empty()
             && anchor_hint.is_some());
         let screen = if let Some(region) = configured_region {
-            let (left, top, width, height) = expand_search_region_to_fit(
+            let region = expand_search_region_to_fit(
                 region,
                 template_width as i32,
                 template_height as i32,
             );
-            window_list::capture_virtual_screen_region(left, top, width, height)
+            window_list::capture_virtual_screen_region(region.left, region.top, region.width, region.height)
                 .context("Failed to capture the selected search area")?
         } else if preset.target_window_title.is_some()
             || !preset.extra_target_window_titles.is_empty()
@@ -6212,6 +6338,7 @@ mod windows_overlay {
                 template_height,
                 fallback_average_diff,
                 anchor_hint,
+                configured_region.as_ref(),
             )
         } else {
             None
@@ -6225,6 +6352,7 @@ mod windows_overlay {
             &scales,
             anchor_hint,
             false,
+            configured_region.as_ref(),
         )?;
         let hit = match (exact_hit, opencv_hit) {
             (Some(exact), Some(opencv)) => {
@@ -7377,6 +7505,143 @@ mod windows_overlay {
         Ok(())
     }
 
+    unsafe fn paint_search_area_overlay(
+        hwnd: HWND,
+        regions: &[ImageSearchRegion],
+    ) -> Result<()> {
+        let screen_width = GetSystemMetrics(SM_CXSCREEN).max(1);
+        let screen_height = GetSystemMetrics(SM_CYSCREEN).max(1);
+        let _ = SetWindowPos(
+            hwnd,
+            Some(HWND_TOPMOST),
+            0,
+            0,
+            screen_width,
+            screen_height,
+            SWP_NOACTIVATE | SWP_SHOWWINDOW,
+        );
+
+        let screen_dc = GetDC(None);
+        if screen_dc.0.is_null() {
+            bail!("Failed to acquire the screen DC");
+        }
+        let mem_dc = CreateCompatibleDC(Some(screen_dc));
+        if mem_dc.0.is_null() {
+            let _ = ReleaseDC(None, screen_dc);
+            bail!("Failed to create a memory DC");
+        }
+
+        let mut bitmap_info = BITMAPINFO::default();
+        bitmap_info.bmiHeader = BITMAPINFOHEADER {
+            biSize: size_of::<BITMAPINFOHEADER>() as u32,
+            biWidth: screen_width,
+            biHeight: -screen_height,
+            biPlanes: 1,
+            biBitCount: 32,
+            biCompression: BI_RGB.0,
+            ..Default::default()
+        };
+
+        let mut bits = std::ptr::null_mut();
+        let bitmap = CreateDIBSection(
+            Some(mem_dc),
+            &bitmap_info,
+            DIB_RGB_COLORS,
+            &mut bits,
+            None,
+            0,
+        )?;
+        if bitmap.0.is_null() {
+            let _ = DeleteDC(mem_dc);
+            let _ = ReleaseDC(None, screen_dc);
+            bail!("Failed to create search area DIB");
+        }
+
+        let old_bitmap = SelectObject(mem_dc, HGDIOBJ(bitmap.0));
+        let pixel_len = (screen_width as usize) * (screen_height as usize) * 4;
+        let pixels = std::slice::from_raw_parts_mut(bits as *mut u8, pixel_len);
+        pixels.fill(0);
+
+        for region in regions {
+            let fill = [78, 214, 186, 36];
+            let outline = [92, 220, 255, 210];
+            if region.is_circle {
+                fill_ellipse_rgba(
+                    pixels,
+                    screen_width as usize,
+                    screen_height as usize,
+                    region.left,
+                    region.top,
+                    region.width,
+                    region.height,
+                    fill,
+                );
+                draw_ellipse_outline_rgba(
+                    pixels,
+                    screen_width as usize,
+                    screen_height as usize,
+                    region.left,
+                    region.top,
+                    region.width,
+                    region.height,
+                    outline,
+                );
+            } else {
+                fill_rect_rgba(
+                    pixels,
+                    screen_width as usize,
+                    screen_height as usize,
+                    region.left,
+                    region.top,
+                    region.width,
+                    region.height,
+                    fill,
+                );
+                draw_rect_outline_rgba(
+                    pixels,
+                    screen_width as usize,
+                    screen_height as usize,
+                    region.left,
+                    region.top,
+                    region.width,
+                    region.height,
+                    outline,
+                );
+            }
+        }
+
+        let destination = POINT { x: 0, y: 0 };
+        let source = POINT { x: 0, y: 0 };
+        let size = SIZE {
+            cx: screen_width,
+            cy: screen_height,
+        };
+        let blend = BLENDFUNCTION {
+            BlendOp: AC_SRC_OVER as u8,
+            BlendFlags: 0,
+            SourceConstantAlpha: 255,
+            AlphaFormat: AC_SRC_ALPHA as u8,
+        };
+
+        let _ = UpdateLayeredWindow(
+            hwnd,
+            Some(screen_dc),
+            Some(&destination),
+            Some(&size),
+            Some(mem_dc),
+            Some(&source),
+            COLORREF(0),
+            Some(&blend),
+            ULW_ALPHA,
+        );
+
+        let _ = SelectObject(mem_dc, old_bitmap);
+        let _ = DeleteObject(HGDIOBJ(bitmap.0));
+        let _ = DeleteDC(mem_dc);
+        let _ = ReleaseDC(None, screen_dc);
+        Ok(())
+    }
+
     fn blend_rgba_pixel(
         pixels: &mut [u8],
         width: usize,
@@ -7396,6 +7661,119 @@ mod windows_overlay {
         dst[1] = (dst[1] as f32 * inv + color[1] as f32 * alpha).round() as u8;
         dst[2] = (dst[2] as f32 * inv + color[0] as f32 * alpha).round() as u8;
         dst[3] = dst[3].max(color[3]);
+    }
+
+    fn fill_rect_rgba(
+        pixels: &mut [u8],
+        width: usize,
+        height: usize,
+        left: i32,
+        top: i32,
+        rect_width: i32,
+        rect_height: i32,
+        color: [u8; 4],
+    ) {
+        let right = left.saturating_add(rect_width).max(left + 1);
+        let bottom = top.saturating_add(rect_height).max(top + 1);
+        for y in top.max(0)..bottom {
+            for x in left.max(0)..right {
+                blend_rgba_pixel(pixels, width, height, x, y, color);
+            }
+        }
+    }
+
+    fn point_in_ellipse(
+        x: i32,
+        y: i32,
+        left: i32,
+        top: i32,
+        width: i32,
+        height: i32,
+    ) -> bool {
+        let center_x = left as f32 + width as f32 * 0.5;
+        let center_y = top as f32 + height as f32 * 0.5;
+        let radius_x = (width as f32 * 0.5).max(1.0);
+        let radius_y = (height as f32 * 0.5).max(1.0);
+        let dx = (x as f32 + 0.5 - center_x) / radius_x;
+        let dy = (y as f32 + 0.5 - center_y) / radius_y;
+        dx * dx + dy * dy <= 1.0
+    }
+
+    fn fill_ellipse_rgba(
+        pixels: &mut [u8],
+        width: usize,
+        height: usize,
+        left: i32,
+        top: i32,
+        ellipse_width: i32,
+        ellipse_height: i32,
+        color: [u8; 4],
+    ) {
+        let right = left.saturating_add(ellipse_width).max(left + 1);
+        let bottom = top.saturating_add(ellipse_height).max(top + 1);
+        for y in top.max(0)..bottom {
+            for x in left.max(0)..right {
+                if point_in_ellipse(x, y, left, top, ellipse_width, ellipse_height) {
+                    blend_rgba_pixel(pixels, width, height, x, y, color);
+                }
+            }
+        }
+    }
+
+    fn draw_rect_outline_rgba(
+        pixels: &mut [u8],
+        width: usize,
+        height: usize,
+        left: i32,
+        top: i32,
+        rect_width: i32,
+        rect_height: i32,
+        color: [u8; 4],
+    ) {
+        let right = left.saturating_add(rect_width).max(left + 1) - 1;
+        let bottom = top.saturating_add(rect_height).max(top + 1) - 1;
+        draw_line_rgba(pixels, width, height, left, top, right, top, color);
+        draw_line_rgba(pixels, width, height, right, top, right, bottom, color);
+        draw_line_rgba(pixels, width, height, right, bottom, left, bottom, color);
+        draw_line_rgba(pixels, width, height, left, bottom, left, top, color);
+    }
+
+    fn draw_ellipse_outline_rgba(
+        pixels: &mut [u8],
+        width: usize,
+        height: usize,
+        left: i32,
+        top: i32,
+        ellipse_width: i32,
+        ellipse_height: i32,
+        color: [u8; 4],
+    ) {
+        let steps = ((ellipse_width.max(ellipse_height) as f32) * std::f32::consts::TAU / 2.0)
+            .round()
+            .clamp(32.0, 360.0) as i32;
+        let center_x = left as f32 + ellipse_width as f32 * 0.5;
+        let center_y = top as f32 + ellipse_height as f32 * 0.5;
+        let radius_x = ellipse_width as f32 * 0.5;
+        let radius_y = ellipse_height as f32 * 0.5;
+        let mut prev_x = center_x + radius_x;
+        let mut prev_y = center_y;
+        for step in 1..=steps {
+            let angle = (step as f32 / steps as f32) * std::f32::consts::TAU;
+            let next_x = center_x + radius_x * angle.cos();
+            let next_y = center_y + radius_y * angle.sin();
+            draw_line_rgba(
+                pixels,
+                width,
+                height,
+                prev_x.round() as i32,
+                prev_y.round() as i32,
+                next_x.round() as i32,
+                next_y.round() as i32,
+                color,
+            );
+            prev_x = next_x;
+            prev_y = next_y;
+        }
     }
 
     fn draw_line_rgba(
