@@ -289,6 +289,11 @@ pub fn key_name_to_vk(name: &str) -> Option<u32> {
 #[cfg(windows)]
 pub fn vk_to_key_name(vk: u32) -> Option<&'static str> {
     Some(match vk {
+        0x01 => "MouseLeft",
+        0x02 => "MouseRight",
+        0x04 => "MouseMiddle",
+        0x05 => "MouseX1",
+        0x06 => "MouseX2",
         0x10 | 0xA0 | 0xA1 => "Shift",
         0x11 | 0xA2 | 0xA3 => "Ctrl",
         0x12 | 0xA4 | 0xA5 => "Alt",
