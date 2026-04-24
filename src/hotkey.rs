@@ -58,27 +58,13 @@ pub fn split_key_list(spec: &str) -> Vec<String> {
         return Vec::new();
     }
 
-    let has_separator = trimmed
-        .chars()
-        .any(|ch| matches!(ch, ',' | ';' | '+' | ' ' | '\t' | '\n'));
-    if has_separator {
-        return trimmed
-            .split(|ch: char| matches!(ch, ',' | ';' | '+' | ' ' | '\t' | '\n'))
-            .filter_map(|part| {
-                let key = part.trim();
-                (!key.is_empty()).then(|| normalize_key_name(key))
-            })
-            .collect();
-    }
-
-    if trimmed.len() > 1 && trimmed.chars().all(|ch| ch.is_ascii_alphanumeric()) {
-        return trimmed
-            .chars()
-            .map(|ch| normalize_key_name(&ch.to_string()))
-            .collect();
-    }
-
-    vec![normalize_key_name(trimmed)]
+    trimmed
+        .split(|ch: char| matches!(ch, ',' | ';' | '+' | ' ' | '\t' | '\n'))
+        .filter_map(|part| {
+            let key = part.trim();
+            (!key.is_empty()).then(|| normalize_key_name(key))
+        })
+        .collect()
 }
 
 pub fn key_list_contains(spec: &str, key_name: &str) -> bool {
