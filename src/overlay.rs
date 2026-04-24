@@ -1523,14 +1523,7 @@ mod windows_overlay {
             return true;
         }
 
-        hook_state
-            .held_inputs
-            .iter()
-            .all(|held| held.eq_ignore_ascii_case(released_key))
-            && hook_state
-                .held_mouse_buttons
-                .iter()
-                .all(|held| held.eq_ignore_ascii_case(released_key))
+        hook_state.held_inputs.is_empty() && hook_state.held_mouse_buttons.is_empty()
     }
 
     fn process_binding_press(binding: &HotkeyBinding, is_repeat: bool) -> Option<bool> {
