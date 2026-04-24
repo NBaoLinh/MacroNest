@@ -1500,6 +1500,24 @@ mod windows_overlay {
         session.dirty = true;
     }
 
+    fn release_trigger_ready(released_key_name: &str, require_all_inputs_released: bool) -> bool {
+        if !require_all_inputs_released {
+            return true;
+        }
+
+        let hook_state = HOOK_STATE.lock();
+        let released_key_name = released_key_name.trim();
+        let other_keys_held = hook_state
+            .held_inputs
+            .iter()
+            .any(|held| !held.eq_ignore_ascii_case(released_key_name));
+        let other_mouse_held = hook_state
+            .held_mouse_buttons
+            .iter()
+            .any(|held| !held.eq_ignore_ascii_case(released_key_name));
+        !other_keys_held && !other_mouse_held
+    }
+
     fn process_binding_press(binding: &HotkeyBinding, is_repeat: bool) -> Option<bool> {
         if let Some(swallow) = process_mouse_sensitivity_hotkey(binding, is_repeat) {
             return Some(swallow);
@@ -1725,8 +1743,8 @@ mod windows_overlay {
                         binding.win,
                     )
                 {
-                    matched_any_macro = true;
                     if preset.trigger_mode == MacroTriggerMode::Hold {
+                        matched_any_macro = true;
                         if !hook_state.active_hold_macros.contains_key(&preset.id) {
                             hold_matches.push((
                                 preset.clone(),
@@ -1739,6 +1757,12 @@ mod windows_overlay {
                         }
                         continue;
                     }
+
+                    if preset.trigger_mode == MacroTriggerMode::Release {
+                        continue;
+                    }
+
+                    matched_any_macro = true;
 
                     if is_repeat {
                         continue;
@@ -1835,8 +1859,52 @@ mod windows_overlay {
             return true;
         }
 
+        let mut release_matches: Vec<(
+            MacroPreset,
+            Option<String>,
+            Vec<String>,
+            bool,
+            String,
+        )> = Vec::new();
         let preset_ids = {
             let hook_state = HOOK_STATE.lock();
+            for group in &hook_state.macro_groups {
+                if !group.enabled {
+                    continue;
+                }
+                if !macro_target_matches(group) {
+                    continue;
+                }
+                for preset in &group.presets {
+                    if !preset.enabled {
+                        continue;
+                    }
+                    let Some(hotkey) = preset.hotkey.as_ref() else {
+                        continue;
+                    };
+                    if preset.trigger_mode != MacroTriggerMode::Release {
+                        continue;
+                    }
+                    if !hotkey::binding_matches(
+                        hotkey,
+                        &binding.key,
+                        binding.ctrl,
+                        binding.alt,
+                        binding.shift,
+                        binding.win,
+                    ) {
+                        continue;
+                    }
+                    release_matches.push((
+                        preset.clone(),
+                        group.target_window_title.clone(),
+                        group.extra_target_window_titles.clone(),
+                        group.match_duplicate_window_titles,
+                        binding.key.clone(),
+                    ));
+                }
+            }
+
             hook_state
                 .active_hold_macros
                 .iter()
@@ -1853,6 +1921,34 @@ mod windows_overlay {
                 .map(|(preset_id, _)| *preset_id)
                 .collect::<Vec<_>>()
         };
+
+        for (
+            preset,
+            target_window_title,
+            extra_target_window_titles,
+            match_duplicate_window_titles,
+            trigger_key,
+        ) in release_matches
+        {
+            if !release_trigger_ready(
+                &trigger_key,
+                preset.release_requires_all_inputs_released,
+            ) {
+                continue;
+            }
+            let hotkey_id = MACRO_PRESET_BASE_ID + preset.id as i32;
+            if STOP_REQUESTED_MACRO_PRESETS.lock().contains(&preset.id) {
+                continue;
+            }
+            let _ = play_macro_preset(
+                hotkey_id,
+                preset,
+                target_window_title,
+                extra_target_window_titles,
+                match_duplicate_window_titles,
+                trigger_key,
+            );
+        }
 
         if preset_ids.is_empty() {
             return false;

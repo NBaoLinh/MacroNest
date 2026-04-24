@@ -357,6 +357,7 @@ pub enum MacroTriggerMode {
     #[default]
     Press,
     Hold,
+    Release,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
@@ -794,6 +795,7 @@ pub struct MacroPreset {
     pub collapsed: bool,
     pub trigger_mode: MacroTriggerMode,
     pub stop_on_retrigger_immediate: bool,
+    pub release_requires_all_inputs_released: bool,
     pub hotkey: Option<HotkeyBinding>,
     pub hold_stop_step_enabled: bool,
     pub hold_stop_step: MacroStep,
@@ -808,6 +810,7 @@ impl MacroPreset {
             collapsed: true,
             trigger_mode: MacroTriggerMode::Press,
             stop_on_retrigger_immediate: false,
+            release_requires_all_inputs_released: false,
             hotkey: None,
             hold_stop_step_enabled: false,
             hold_stop_step: MacroStep::default(),

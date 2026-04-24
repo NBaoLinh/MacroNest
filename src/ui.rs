@@ -2701,6 +2701,7 @@ impl CrosshairApp {
         match mode {
             MacroTriggerMode::Press => "Press",
             MacroTriggerMode::Hold => "Hold",
+            MacroTriggerMode::Release => "Release",
         }
     }
 
@@ -8410,14 +8411,18 @@ impl CrosshairApp {
                         ui.horizontal(|ui| {
                             ui.label(Self::tr_lang(language, "Trigger Mode", "Cháº¿ Ä‘á»™ trigger"));
                             egui::ComboBox::from_id_salt((group.id, preset.id, "trigger-mode"))
-                                .width(90.0)
+                                .width(108.0)
                                 .selected_text(match (language, preset.trigger_mode) {
                                     (UiLanguage::Vietnamese, MacroTriggerMode::Press) => "Nháº¥n",
                                     (UiLanguage::Vietnamese, MacroTriggerMode::Hold) => "Giá»¯",
                                     (_, _) => Self::macro_trigger_mode_label(preset.trigger_mode),
                                 })
                                 .show_ui(ui, |ui| {
-                                    for mode in [MacroTriggerMode::Press, MacroTriggerMode::Hold] {
+                                    for mode in [
+                                        MacroTriggerMode::Press,
+                                        MacroTriggerMode::Hold,
+                                        MacroTriggerMode::Release,
+                                    ] {
                                         if ui
                                             .selectable_label(
                                                 preset.trigger_mode == mode,
@@ -8449,6 +8454,24 @@ impl CrosshairApp {
                                             language,
                                             "Press the trigger again to stop this macro immediately, without waiting for a StopIfTriggerPressedAgain step.",
                                             "Nháº¥n trigger láº§n ná»¯a Ä‘á»ƒ dá»«ng macro ngay láº­p tá»©c, khÃ´ng cáº§n chá» step dá»«ng.",
+                                        ),
+                                    )
+                                    .changed();
+                            } else if preset.trigger_mode == MacroTriggerMode::Release {
+                                live_sync |= ui
+                                    .checkbox(
+                                        &mut preset.release_requires_all_inputs_released,
+                                        Self::tr_lang(
+                                            language,
+                                            "Wait until every other held input is released",
+                                            "ChÃ¡Â»Â thÃ¡ÂºÂ£ hÃ¡ÂºÂ¿t phÃƒÂ­m/nÃ¡ÂºÂ¯t khÃƒÂ¡c rÃ¡Â»â€˜i mÃ¡Â»â€ºi trigger",
+                                        ),
+                                    )
+                                    .on_hover_text(
+                                        Self::tr_lang(
+                                            language,
+                                            "If enabled, releasing the trigger key or mouse button will not fire while any other key or mouse button is still held down.",
+                                            "BÃ¡ÂºÂ­t tÃ¡Â»â€˜n nÃƒÂ y thÃƒÂ¬ khi tháº£ phÃƒÂ­m/nÃ¡ÂºÂ¯t trigger, macro sÃ¡ÂºÂ½ khÃƒÂ´ng chÃ¡ÂºÂ¡y nÃ¡ÂºÂ¿u cÃƒÂ²n phÃƒÂ­m hoáº·c nÃ¡ÂºÂ¯t khÃƒÂ¡c Ä‘ang Ä‘áº¿n.",
                                         ),
                                     )
                                     .changed();
