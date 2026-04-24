@@ -7123,7 +7123,7 @@ impl CrosshairApp {
     fn render_zoom_panel(&mut self, ui: &mut egui::Ui) {
         let language = self.state.ui_language;
         ui.heading("Zoom");
-        ui.label("Source -> target. Shift = same ratio.");
+        ui.label("Source -> target. Shift keeps ratio.");
         let screen_size = Self::screen_size();
         if ui.button("+ Add zoom preset").clicked() {
             self.add_zoom_preset();
@@ -7654,7 +7654,7 @@ impl CrosshairApp {
         self.ensure_master_presets();
         self.reconcile_master_presets();
         ui.heading("Mode");
-        ui.label("One active at a time.");
+        ui.label("One active.");
         ui.horizontal(|ui| {
             if ui.button("+ Capture Current").clicked() {
                 self.add_master_preset_from_current();
@@ -10661,7 +10661,7 @@ impl CrosshairApp {
         ui.separator();
         ui.heading(self.tr("Mouse Driver", "Driver chuot"));
         ui.label(self.tr(
-            "Download or remove Interception. Each path preset picks its own backend.",
+            "Interception package. Per-path backend.",
             "Tai hoac xoa driver Interception. Tung preset duong chuot se tu chon backend rieng.",
         ));
         let driver_downloaded = self.mouse_interception_driver_downloaded();
@@ -13928,6 +13928,7 @@ fn audio_duration(clip: &AudioClipSettings) -> Option<u64> {
         audio::load_duration_ms(&clip.file_path).ok()
     }
 }
+
 
 
 
