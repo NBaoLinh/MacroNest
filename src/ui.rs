@@ -1715,6 +1715,19 @@ impl CrosshairApp {
         }
     }
 
+    fn format_macro_trigger_ui(language: UiLanguage, preset: &MacroPreset) -> String {
+        let label = if preset.trigger_keys.trim().is_empty() {
+            hotkey::format_binding(preset.hotkey.as_ref())
+        } else {
+            hotkey::format_key_list(&preset.trigger_keys)
+        };
+        if label == "Not set" {
+            Self::tr_lang(language, "Not set", "ChÃ†Â°a Ã„â€˜Ã¡ÂºÂ·t").to_owned()
+        } else {
+            label
+        }
+    }
+
     fn app_brand_title(&self) -> &'static str {
         "MacroNest"
     }
@@ -2751,14 +2764,22 @@ impl CrosshairApp {
     fn macro_group_binding_labels(group: &MacroGroup) -> HashMap<u32, String> {
         let mut counts: HashMap<String, usize> = HashMap::new();
         for preset in &group.presets {
-            let label = hotkey::format_binding(preset.hotkey.as_ref());
+            let label = if preset.trigger_keys.trim().is_empty() {
+                hotkey::format_binding(preset.hotkey.as_ref())
+            } else {
+                hotkey::format_key_list(&preset.trigger_keys)
+            };
             *counts.entry(label).or_insert(0) += 1;
         }
 
         let mut seen: HashMap<String, usize> = HashMap::new();
         let mut labels = HashMap::new();
         for preset in &group.presets {
-            let label = hotkey::format_binding(preset.hotkey.as_ref());
+            let label = if preset.trigger_keys.trim().is_empty() {
+                hotkey::format_binding(preset.hotkey.as_ref())
+            } else {
+                hotkey::format_key_list(&preset.trigger_keys)
+            };
             if counts.get(&label).copied().unwrap_or_default() > 1 && label != "Not set" {
                 let entry = seen.entry(label.clone()).or_insert(0);
                 *entry += 1;
@@ -4530,12 +4551,16 @@ impl CrosshairApp {
     fn begin_capture(&mut self, target: CaptureRequest, status: String) {
         self.capture_target = Some(target.clone());
         self.capture_ignored_keys = self.snapshot_pressed_capture_keys();
-        self.status = if matches!(target, CaptureRequest::MacroPresetReleaseWaitKey(_, _)) {
+        self.status = if matches!(
+            target,
+            CaptureRequest::MacroPresetHotkey(_, _)
+                | CaptureRequest::MacroPresetReleaseWaitKey(_, _)
+        ) {
             match self.state.ui_language {
                 UiLanguage::Vietnamese => {
-                    "Đang bắt key chờ release. Bấm thêm key hoặc Esc để dừng.".to_owned()
+                    "Đang bắt nhiều key. Bấm thêm key hoặc Esc để dừng.".to_owned()
                 }
-                _ => "Capturing release wait keys. Press more keys or Esc to finish.".to_owned(),
+                _ => "Capturing multiple keys. Press more keys or Esc to finish.".to_owned(),
             }
         } else {
             status
@@ -4913,7 +4938,10 @@ impl CrosshairApp {
     }
 
     fn apply_captured_input(&mut self, target: CaptureRequest, captured: CapturedInput) -> bool {
-        let keep_capture_open = matches!(&target, CaptureRequest::MacroPresetReleaseWaitKey(_, _));
+        let keep_capture_open = matches!(
+            &target,
+            CaptureRequest::MacroPresetHotkey(_, _) | CaptureRequest::MacroPresetReleaseWaitKey(_, _)
+        );
         match (target, captured) {
             (CaptureRequest::WindowPresetHotkey(preset_id), CapturedInput::Binding(binding)) => {
                 if let Some(preset) = self
@@ -5063,8 +5091,24 @@ impl CrosshairApp {
                             .find(|preset| preset.id == preset_id)
                     })
                 {
-                    preset.hotkey = Some(binding);
-                    self.status = format!("Captured trigger hotkey for macro {preset_id}.");
+                    let key = binding.key.trim().to_owned();
+                    let existing = preset
+                        .trigger_keys
+                        .split(',')
+                        .map(str::trim)
+                        .filter(|part| !part.is_empty())
+                        .map(str::to_owned)
+                        .collect::<Vec<_>>();
+                    if existing.iter().any(|part| part.eq_ignore_ascii_case(&key)) {
+                        self.status = format!("Key {key} is already in that trigger list.");
+                    } else if existing.is_empty() {
+                        preset.trigger_keys = key.clone();
+                        self.status = format!("Captured trigger key for macro {preset_id}.");
+                    } else {
+                        preset.trigger_keys = format!("{},{}", preset.trigger_keys.trim(), key);
+                        self.status = format!("Added trigger key {key} for macro {preset_id}.");
+                    }
+                    preset.hotkey = None;
                 }
                 self.sync_macro_presets();
             }
@@ -8405,7 +8449,7 @@ impl CrosshairApp {
                                             binding_labels
                                                 .get(&preset.id)
                                                 .cloned()
-                                                .unwrap_or_else(|| hotkey::format_binding(preset.hotkey.as_ref())),
+                                                .unwrap_or_else(|| Self::format_macro_trigger_ui(language, preset)),
                                         )
                                             .monospace(),
                                     ),
@@ -11704,68 +11748,6 @@ impl CrosshairApp {
         true
     }
 
-    fn render_capture_modal_overlay(&mut self, ctx: &egui::Context) {
-        if self.capture_target.is_none() || self.image_search_capture_active {
-            return;
-        }
-
-        ctx.request_repaint();
-        let rect = ctx.input(|input| {
-            input
-                .viewport()
-                .inner_rect
-                .unwrap_or_else(|| egui::Rect::from_min_size(egui::Pos2::ZERO, Self::desired_window_size()))
-        });
-        let dim_layer = ctx.layer_painter(egui::LayerId::new(
-            egui::Order::Foreground,
-            egui::Id::new("capture-modal-dim"),
-        ));
-        dim_layer.rect_filled(rect, 0.0, Color32::from_rgba_premultiplied(0, 0, 0, 132));
-
-        egui::Area::new(egui::Id::new("capture-modal-area"))
-            .order(egui::Order::Foreground)
-            .fixed_pos(rect.min)
-            .show(ctx, |ui| {
-                ui.set_min_size(rect.size());
-                let response = ui.allocate_rect(ui.max_rect(), Sense::click_and_drag());
-                let painter = ui.painter_at(ui.max_rect());
-                let card_rect = egui::Rect::from_center_size(
-                    ui.max_rect().center(),
-                    egui::vec2((rect.width() * 0.42).clamp(260.0, 520.0), 92.0),
-                );
-                painter.rect_filled(
-                    card_rect,
-                    14.0,
-                    Color32::from_rgba_premultiplied(22, 28, 38, 232),
-                );
-                painter.rect_stroke(
-                    card_rect,
-                    14.0,
-                    egui::Stroke::new(1.0, Color32::from_rgb(112, 188, 255)),
-                    egui::StrokeKind::Outside,
-                );
-                painter.text(
-                    card_rect.center_top() + vec2(0.0, 22.0),
-                    egui::Align2::CENTER_TOP,
-                    self.capture_hint_text(),
-                    egui::FontId::proportional(17.0),
-                    Color32::WHITE,
-                );
-                if let Some(target) = &self.capture_target {
-                    if matches!(target, CaptureRequest::MacroPresetReleaseWaitKey(_, _)) {
-                        painter.text(
-                            card_rect.center_bottom() - vec2(0.0, 24.0),
-                            egui::Align2::CENTER_BOTTOM,
-                            "Each key appends to the wait list. Press Esc to finish.",
-                            egui::FontId::monospace(13.0),
-                            Color32::from_rgb(200, 222, 255),
-                        );
-                    }
-                }
-                response
-            });
-    }
-
     fn render_sound_panel(&mut self, ui: &mut egui::Ui) {
         let language = self.state.ui_language;
         ui.heading(self.panel_label(AppPanel::Sound));
@@ -13576,7 +13558,6 @@ impl eframe::App for CrosshairApp {
                 });
         });
 
-        self.render_capture_modal_overlay(ctx);
     }
 
     fn on_exit(&mut self, _gl: Option<&eframe::glow::Context>) {

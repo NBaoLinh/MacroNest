@@ -798,6 +798,8 @@ pub struct MacroPreset {
     pub stop_on_retrigger_immediate: bool,
     pub release_requires_all_inputs_released: bool,
     pub release_wait_key: String,
+    #[serde(default, skip_serializing_if = "String::is_empty")]
+    pub trigger_keys: String,
     pub hotkey: Option<HotkeyBinding>,
     pub hold_stop_step_enabled: bool,
     pub hold_stop_step: MacroStep,
@@ -814,6 +816,7 @@ impl MacroPreset {
             stop_on_retrigger_immediate: false,
             release_requires_all_inputs_released: false,
             release_wait_key: String::new(),
+            trigger_keys: String::new(),
             hotkey: None,
             hold_stop_step_enabled: false,
             hold_stop_step: MacroStep::default(),

@@ -1738,49 +1738,51 @@ mod windows_overlay {
                 if !preset.enabled {
                     continue;
                 }
-                if let Some(hotkey) = preset.hotkey.as_ref()
-                    && hotkey::binding_matches(
-                        hotkey,
-                        &binding.key,
-                        binding.ctrl,
-                        binding.alt,
-                        binding.shift,
-                        binding.win,
-                    )
-                {
-                    if preset.trigger_mode == MacroTriggerMode::Hold {
-                        matched_any_macro = true;
-                        if !hook_state.active_hold_macros.contains_key(&preset.id) {
-                            hold_matches.push((
-                                preset.clone(),
-                                hotkey.clone(),
-                                group.target_window_title.clone(),
-                                group.extra_target_window_titles.clone(),
-                                group.match_duplicate_window_titles,
-                                binding.key.clone(),
-                            ));
-                        }
-                        continue;
-                    }
-
-                    if preset.trigger_mode == MacroTriggerMode::Release {
-                        continue;
-                    }
-
-                    matched_any_macro = true;
-
-                    if is_repeat {
-                        continue;
-                    }
-
-                    press_matches.push((
-                        preset.clone(),
-                        group.target_window_title.clone(),
-                        group.extra_target_window_titles.clone(),
-                        group.match_duplicate_window_titles,
-                        binding.key.clone(),
-                    ));
+                if !macro_preset_trigger_matches(preset, &binding) {
+                    continue;
                 }
+                if preset.trigger_mode == MacroTriggerMode::Hold {
+                    matched_any_macro = true;
+                    if !hook_state.active_hold_macros.contains_key(&preset.id) {
+                        let trigger = preset
+                            .hotkey
+                            .clone()
+                            .unwrap_or_else(|| HotkeyBinding {
+                                ctrl: false,
+                                alt: false,
+                                shift: false,
+                                win: false,
+                                key: binding.key.clone(),
+                            });
+                        hold_matches.push((
+                            preset.clone(),
+                            trigger,
+                            group.target_window_title.clone(),
+                            group.extra_target_window_titles.clone(),
+                            group.match_duplicate_window_titles,
+                            binding.key.clone(),
+                        ));
+                    }
+                    continue;
+                }
+
+                if preset.trigger_mode == MacroTriggerMode::Release {
+                    continue;
+                }
+
+                matched_any_macro = true;
+
+                if is_repeat {
+                    continue;
+                }
+
+                press_matches.push((
+                    preset.clone(),
+                    group.target_window_title.clone(),
+                    group.extra_target_window_titles.clone(),
+                    group.match_duplicate_window_titles,
+                    binding.key.clone(),
+                ));
             }
         }
 
@@ -1879,20 +1881,10 @@ mod windows_overlay {
                     if !preset.enabled {
                         continue;
                     }
-                    let Some(hotkey) = preset.hotkey.as_ref() else {
-                        continue;
-                    };
                     if preset.trigger_mode != MacroTriggerMode::Release {
                         continue;
                     }
-                    if !hotkey::binding_matches(
-                        hotkey,
-                        &binding.key,
-                        binding.ctrl,
-                        binding.alt,
-                        binding.shift,
-                        binding.win,
-                    ) {
+                    if !macro_preset_trigger_matches(preset, binding) {
                         continue;
                     }
                     release_matches.push((
@@ -7144,6 +7136,24 @@ mod windows_overlay {
                 group.match_duplicate_window_titles,
             )
         }
+    }
+
+    fn macro_preset_trigger_matches(preset: &MacroPreset, binding: &HotkeyBinding) -> bool {
+        let trigger_keys = preset.trigger_keys.trim();
+        if !trigger_keys.is_empty() {
+            return hotkey::key_list_contains(trigger_keys, &binding.key);
+        }
+
+        preset.hotkey.as_ref().is_some_and(|hotkey| {
+            hotkey::binding_matches(
+                hotkey,
+                &binding.key,
+                binding.ctrl,
+                binding.alt,
+                binding.shift,
+                binding.win,
+            )
+        })
     }
 
     fn window_focus_matches(

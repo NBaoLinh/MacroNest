@@ -43,6 +43,50 @@ pub fn format_binding(binding: Option<&HotkeyBinding>) -> String {
     }
 }
 
+pub fn format_key_list(spec: &str) -> String {
+    let keys = split_key_list(spec);
+    if keys.is_empty() {
+        "Not set".to_owned()
+    } else {
+        keys.join(", ")
+    }
+}
+
+pub fn split_key_list(spec: &str) -> Vec<String> {
+    let trimmed = spec.trim();
+    if trimmed.is_empty() {
+        return Vec::new();
+    }
+
+    let has_separator = trimmed
+        .chars()
+        .any(|ch| matches!(ch, ',' | ';' | '+' | ' ' | '\t' | '\n'));
+    if has_separator {
+        return trimmed
+            .split(|ch: char| matches!(ch, ',' | ';' | '+' | ' ' | '\t' | '\n'))
+            .filter_map(|part| {
+                let key = part.trim();
+                (!key.is_empty()).then(|| normalize_key_name(key))
+            })
+            .collect();
+    }
+
+    if trimmed.len() > 1 && trimmed.chars().all(|ch| ch.is_ascii_alphanumeric()) {
+        return trimmed
+            .chars()
+            .map(|ch| normalize_key_name(&ch.to_string()))
+            .collect();
+    }
+
+    vec![normalize_key_name(trimmed)]
+}
+
+pub fn key_list_contains(spec: &str, key_name: &str) -> bool {
+    split_key_list(spec)
+        .iter()
+        .any(|item| item.eq_ignore_ascii_case(key_name))
+}
+
 #[allow(dead_code)]
 pub fn is_mouse_key_name(name: &str) -> bool {
     matches!(
@@ -152,6 +196,16 @@ fn key_to_name(key: Key) -> Option<&'static str> {
         Key::F24 => "F24",
         _ => return None,
     })
+}
+
+fn normalize_key_name(key: &str) -> String {
+    let trimmed = key.trim();
+    if let Some(vk) = key_name_to_vk(trimmed)
+        && let Some(name) = vk_to_key_name(vk)
+    {
+        return name.to_owned();
+    }
+    trimmed.to_owned()
 }
 
 #[cfg(windows)]
