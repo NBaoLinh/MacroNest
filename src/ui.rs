@@ -9431,7 +9431,7 @@ impl CrosshairApp {
                                             } else if step.action == MacroAction::ShowToolbox {
                                                 live_sync |= ui
                                                     .checkbox(&mut step.timed_override, "T")
-                                                    .on_hover_text("Use timed display for this step")
+                                                    .on_hover_text("Timed display")
                                                     .changed();
                                                 ui.add_enabled_ui(step.timed_override, |ui| {
                                                     live_sync |= ui
@@ -9504,7 +9504,7 @@ impl CrosshairApp {
                                             .add_sized([22.0, 18.0], Button::new(RichText::new("+").strong()))
                                             .on_hover_text(Self::tr_lang(
                                                 language,
-                                                "Add one step to the top of this preset",
+                                                "Add step",
                                                 "ThÃƒÆ’Ã‚Âªm mÃƒÂ¡Ã‚Â»Ã¢â€žÂ¢t bÃƒâ€ Ã‚Â°ÃƒÂ¡Ã‚Â»Ã¢â‚¬Âºc vÃƒÆ’Ã‚Â o Ãƒâ€žÃ¢â‚¬ËœÃƒÂ¡Ã‚ÂºÃ‚Â§u preset nÃƒÆ’Ã‚Â y",
                                             ))
                                             .clicked()
@@ -9525,7 +9525,7 @@ impl CrosshairApp {
                                             )
                                             .on_hover_text(Self::tr_lang(
                                                 language,
-                                                "Clear all steps",
+                                                "Clear steps",
                                                 "XÃ³a toÃ n bá»™ steps",
                                             ))
                                             .clicked()
@@ -9562,7 +9562,7 @@ impl CrosshairApp {
                                 ui.painter().text(
                                     rect.center(),
                                     egui::Align2::CENTER_CENTER,
-                                    "Drop step here",
+                                    "Drop here",
                                     egui::TextStyle::Body.resolve(ui.style()),
                                     Color32::from_rgb(22, 66, 34),
                                 );
@@ -10291,7 +10291,7 @@ impl CrosshairApp {
                                                     .checkbox(&mut step.smooth_mouse_path, "S")
                                                     .on_hover_text(Self::tr_lang(
                                                         language,
-                                                        "Move the cursor at a constant speed",
+                                                        "Constant speed",
                                                         "Di chuyÃƒÂ¡Ã‚Â»Ã†â€™n chuÃƒÂ¡Ã‚Â»Ã¢â€žÂ¢t vÃƒÂ¡Ã‚Â»Ã¢â‚¬Âºi tÃƒÂ¡Ã‚Â»Ã¢â‚¬Ëœc Ãƒâ€žÃ¢â‚¬ËœÃƒÂ¡Ã‚Â»Ã¢â€žÂ¢ Ãƒâ€žÃ¢â‚¬ËœÃƒÂ¡Ã‚Â»Ã‚Âu",
                                                     ))
                                                     .changed();
@@ -10308,7 +10308,7 @@ impl CrosshairApp {
                                                     .checkbox(&mut step.timed_override, "T")
                                                     .on_hover_text(Self::tr_lang(
                                                         language,
-                                                        "Use timed display for this step",
+                                                        "Timed display",
                                                         "DÃƒÆ’Ã‚Â¹ng thÃƒÂ¡Ã‚Â»Ã‚Âi gian hiÃƒÂ¡Ã‚Â»Ã†â€™n thÃƒÂ¡Ã‚Â»Ã¢â‚¬Â¹ riÃƒÆ’Ã‚Âªng cho step nÃƒÆ’Ã‚Â y",
                                                         ))
                                                     .changed();
@@ -10349,7 +10349,7 @@ impl CrosshairApp {
                                                     )
                                                     .on_hover_text(Self::tr_lang(
                                                         language,
-                                                        "Capture keyboard input for this step",
+                                                        "Capture input",
                                                         "BÃƒÂ¡Ã‚ÂºÃ‚Â¯t phÃƒÆ’Ã‚Â­m cho step nÃƒÆ’Ã‚Â y",
                                                     ))
                                                     .clicked()
@@ -13928,6 +13928,7 @@ fn audio_duration(clip: &AudioClipSettings) -> Option<u64> {
         audio::load_duration_ms(&clip.file_path).ok()
     }
 }
+
 
 
 
