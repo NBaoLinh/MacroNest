@@ -333,6 +333,11 @@ pub struct MacroStep {
     pub duration_override_ms: u64,
     pub smooth_mouse_path: bool,
     pub mouse_speed_percent: u32,
+    #[serde(default = "default_true")]
+    pub image_search_move_cursor_on_match: bool,
+    #[serde(default)]
+    pub image_search_wait_until_found: bool,
+    pub image_search_trigger_macro_preset_id: Option<u32>,
 }
 
 impl Default for MacroStep {
@@ -348,6 +353,9 @@ impl Default for MacroStep {
             duration_override_ms: 1500,
             smooth_mouse_path: false,
             mouse_speed_percent: 100,
+            image_search_move_cursor_on_match: true,
+            image_search_wait_until_found: false,
+            image_search_trigger_macro_preset_id: None,
         }
     }
 }

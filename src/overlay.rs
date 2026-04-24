@@ -118,6 +118,12 @@ mod windows_overlay {
     const WMAPP_TRAYICON: u32 = WM_APP + 1;
     const WMAPP_PROCESS_QUEUE: u32 = WM_APP + 2;
     const MACRO_PRESET_BASE_ID: i32 = 10000;
+
+    #[derive(Debug, Clone)]
+    struct ImageSearchRunOutcome {
+        matched: bool,
+        status: String,
+    }
     const INTERCEPTION_MOUSE_DEVICE_START: i32 = 11;
     const INTERCEPTION_MOUSE_DEVICE_END: i32 = 20;
     const INTERCEPTION_MOUSE_LEFT_BUTTON_DOWN: u16 = 0x001;
@@ -1268,7 +1274,7 @@ mod windows_overlay {
         }
 
         while image_search_following_is_active(preset.id) {
-            match run_image_search_once_with_options(&preset, false) {
+            match run_image_search_once_with_options(&preset, true, false) {
                 Ok(_) => {}
                 Err(error) => {
                     if let Some(tx) = ui_tx.as_ref() {
@@ -3835,7 +3841,23 @@ mod windows_overlay {
                 let _ = start_image_search_following(&step.key);
             }
             MacroAction::TriggerImageSearchMove => {
-                let _ = trigger_image_search_move(&step.key);
+                if let Ok(preset) = image_search_preset_by_id(&step.key) {
+                    let mut no_locked_keys = Vec::new();
+                    let mut no_locked_mouse = 0usize;
+                    let _ = trigger_image_search_move_with_options(
+                        &preset,
+                        step.image_search_move_cursor_on_match,
+                        step.image_search_wait_until_found,
+                        step.image_search_trigger_macro_preset_id,
+                        preset_id,
+                        &mut no_locked_keys,
+                        &mut no_locked_mouse,
+                        false,
+                        None,
+                        &[],
+                        false,
+                    );
+                }
             }
             MacroAction::StopImageSearch => {
                 let _ = stop_image_search_following(&step.key);
@@ -4023,7 +4045,25 @@ mod windows_overlay {
                     let _ = start_image_search_following(&step.key);
                 }
                 MacroAction::TriggerImageSearchMove => {
-                    let _ = trigger_image_search_move(&step.key);
+                    if let Some(preset) = image_search_preset_by_id(&step.key).ok() {
+                        let mut no_locked_keys = Vec::new();
+                        let mut no_locked_mouse = 0usize;
+                        if let MacroRunFlow::StopExecution = trigger_image_search_move_with_options(
+                            &preset,
+                            step.image_search_move_cursor_on_match,
+                            step.image_search_wait_until_found,
+                            step.image_search_trigger_macro_preset_id,
+                            preset_id,
+                            &mut no_locked_keys,
+                            &mut no_locked_mouse,
+                            stop_immediately_on_retrigger,
+                            target_window_title,
+                            extra_target_window_titles,
+                            match_duplicate_window_titles,
+                        ) {
+                            return MacroRunFlow::StopExecution;
+                        }
+                    }
                 }
                 MacroAction::StopImageSearch => {
                     let _ = stop_image_search_following(&step.key);
@@ -4248,7 +4288,25 @@ mod windows_overlay {
                     let _ = start_image_search_following(&step.key);
                 }
                 MacroAction::TriggerImageSearchMove => {
-                    let _ = trigger_image_search_move(&step.key);
+                    if let Some(preset) = image_search_preset_by_id(&step.key).ok() {
+                        let mut no_locked_keys = Vec::new();
+                        let mut no_locked_mouse = 0usize;
+                        if let MacroRunFlow::StopExecution = trigger_image_search_move_with_options(
+                            &preset,
+                            step.image_search_move_cursor_on_match,
+                            step.image_search_wait_until_found,
+                            step.image_search_trigger_macro_preset_id,
+                            preset_id,
+                            &mut no_locked_keys,
+                            &mut no_locked_mouse,
+                            stop_immediately_on_retrigger,
+                            target_window_title,
+                            extra_target_window_titles,
+                            match_duplicate_window_titles,
+                        ) {
+                            return MacroRunFlow::StopExecution;
+                        }
+                    }
                 }
                 MacroAction::StopImageSearch => {
                     let _ = stop_image_search_following(&step.key);
@@ -6250,8 +6308,9 @@ mod windows_overlay {
 
     fn run_image_search_once_with_options(
         preset: &ImageSearchPreset,
+        move_cursor: bool,
         fire_click: bool,
-    ) -> Result<String> {
+    ) -> Result<ImageSearchRunOutcome> {
         if preset.use_color_matching {
             let target_colors = image_search_target_colors(preset);
             if target_colors.is_empty() {
@@ -6316,51 +6375,59 @@ mod windows_overlay {
                     .map(|color| format!("#{:02X}{:02X}{:02X}", color.r, color.g, color.b))
                     .collect::<Vec<_>>()
                     .join(", ");
-                return Ok(format!(
-                    "No color match found for [{color_list}] with tolerance {}.",
-                    preset.color_tolerance
-                ));
+                return Ok(ImageSearchRunOutcome {
+                    matched: false,
+                    status: format!(
+                        "No color match found for [{color_list}] with tolerance {}.",
+                        preset.color_tolerance
+                    ),
+                });
             };
 
             let center_x = screen.screen_x + hit.x;
             let center_y = screen.screen_y + hit.y;
             let moved_x = center_x + preset.move_offset_x;
             let moved_y = center_y + preset.move_offset_y;
-            settle_image_search_mouse_move(
-                moved_x,
-                moved_y,
-                preset.use_interception_driver,
-                preset.non_interception_move_passes,
-                preset.non_interception_move_delay_ms,
-            )?;
+            if move_cursor {
+                settle_image_search_mouse_move(
+                    moved_x,
+                    moved_y,
+                    preset.use_interception_driver,
+                    preset.non_interception_move_passes,
+                    preset.non_interception_move_delay_ms,
+                )?;
+            }
             if fire_click {
                 thread::sleep(Duration::from_millis(12));
                 send_mouse_left_click_backend(preset.use_interception_driver)?;
             }
-            return Ok(if anchor.is_some() {
-                format!(
-                    "Matched colors from priority point at {moved_x}, {moved_y} with tolerance {} and offset {:+}, {:+}.",
-                    preset.color_tolerance,
-                    preset.move_offset_x,
-                    preset.move_offset_y
-                )
-            } else if preset.dual_color_scan_midpoint {
-                format!(
-                    "Matched colors midpoint at {moved_x}, {moved_y} with tolerance {} and offset {:+}, {:+}.",
-                    preset.color_tolerance,
-                    preset.move_offset_x,
-                    preset.move_offset_y
-                )
-            } else {
-                format!(
-                    "Matched color #{:02X}{:02X}{:02X} at {moved_x}, {moved_y} with tolerance {} and offset {:+}, {:+}.",
-                    hit.matched_color.r,
-                    hit.matched_color.g,
-                    hit.matched_color.b,
-                    preset.color_tolerance,
-                    preset.move_offset_x,
-                    preset.move_offset_y
-                )
+            return Ok(ImageSearchRunOutcome {
+                matched: true,
+                status: if anchor.is_some() {
+                    format!(
+                        "Matched colors from priority point at {moved_x}, {moved_y} with tolerance {} and offset {:+}, {:+}.",
+                        preset.color_tolerance,
+                        preset.move_offset_x,
+                        preset.move_offset_y
+                    )
+                } else if preset.dual_color_scan_midpoint {
+                    format!(
+                        "Matched colors midpoint at {moved_x}, {moved_y} with tolerance {} and offset {:+}, {:+}.",
+                        preset.color_tolerance,
+                        preset.move_offset_x,
+                        preset.move_offset_y
+                    )
+                } else {
+                    format!(
+                        "Matched color #{:02X}{:02X}{:02X} at {moved_x}, {moved_y} with tolerance {} and offset {:+}, {:+}.",
+                        hit.matched_color.r,
+                        hit.matched_color.g,
+                        hit.matched_color.b,
+                        preset.color_tolerance,
+                        preset.move_offset_x,
+                        preset.move_offset_y
+                    )
+                },
             });
         }
 
@@ -6460,12 +6527,21 @@ mod windows_overlay {
             (None, Some(opencv)) => opencv,
             (None, None) => {
                 if configured_region.is_some() {
-                    return Ok("No match found inside the selected search area.".to_owned());
+                    return Ok(ImageSearchRunOutcome {
+                        matched: false,
+                        status: "No match found inside the selected search area.".to_owned(),
+                    });
                 }
                 if used_roi_capture {
-                    return Ok("No match found near the captured area.".to_owned());
+                    return Ok(ImageSearchRunOutcome {
+                        matched: false,
+                        status: "No match found near the captured area.".to_owned(),
+                    });
                 }
-                return Ok("No match found on screen.".to_owned());
+                return Ok(ImageSearchRunOutcome {
+                    matched: false,
+                    status: "No match found on screen.".to_owned(),
+                });
             }
         };
 
@@ -6475,35 +6551,44 @@ mod windows_overlay {
         let moved_y = center_y + preset.move_offset_y;
         let required_confidence = preset.confidence_threshold.clamp(0.35, 0.99);
         if hit.confidence < required_confidence {
-            return Ok(format!(
-                "Best match near {moved_x}, {moved_y} scored {:.3} at scale {:.2}x, below threshold {:.2}.",
-                hit.confidence,
-                hit.scale,
-                required_confidence
-            ));
+            return Ok(ImageSearchRunOutcome {
+                matched: false,
+                status: format!(
+                    "Best match near {moved_x}, {moved_y} scored {:.3} at scale {:.2}x, below threshold {:.2}.",
+                    hit.confidence,
+                    hit.scale,
+                    required_confidence
+                ),
+            });
         }
-        settle_image_search_mouse_move(
-            moved_x,
-            moved_y,
-            preset.use_interception_driver,
-            preset.non_interception_move_passes,
-            preset.non_interception_move_delay_ms,
-        )?;
+        if move_cursor {
+            settle_image_search_mouse_move(
+                moved_x,
+                moved_y,
+                preset.use_interception_driver,
+                preset.non_interception_move_passes,
+                preset.non_interception_move_delay_ms,
+            )?;
+        }
         if fire_click {
             thread::sleep(Duration::from_millis(12));
             send_mouse_left_click_backend(preset.use_interception_driver)?;
         }
-        Ok(format!(
-            "OpenCV matched at {moved_x}, {moved_y} with confidence {:.3} on {:.2}x (offset {:+}, {:+}).",
-            hit.confidence,
-            hit.scale,
-            preset.move_offset_x,
-            preset.move_offset_y
-        ))
+        Ok(ImageSearchRunOutcome {
+            matched: true,
+            status: format!(
+                "OpenCV matched at {moved_x}, {moved_y} with confidence {:.3} on {:.2}x (offset {:+}, {:+}).",
+                hit.confidence,
+                hit.scale,
+                preset.move_offset_x,
+                preset.move_offset_y
+            ),
+        })
     }
 
     fn run_image_search_once(preset: &ImageSearchPreset) -> Result<String> {
-        run_image_search_once_with_options(preset, preset.click_after_move)
+        run_image_search_once_with_options(preset, true, preset.click_after_move)
+            .map(|outcome| outcome.status)
     }
 
     fn image_search_preset_by_id(spec: &str) -> Result<ImageSearchPreset> {
@@ -6553,6 +6638,64 @@ mod windows_overlay {
             )));
         }
         Ok(())
+    }
+
+    fn trigger_image_search_move_with_options(
+        preset: &ImageSearchPreset,
+        move_cursor: bool,
+        wait_until_found: bool,
+        trigger_macro_preset_id: Option<u32>,
+        macro_preset_id: u32,
+        press_locked_keys: &mut Vec<String>,
+        press_locked_mouse_count: &mut usize,
+        stop_immediately_on_retrigger: bool,
+        target_window_title: Option<&str>,
+        extra_target_window_titles: &[String],
+        match_duplicate_window_titles: bool,
+    ) -> MacroRunFlow {
+        loop {
+            if !macro_runtime_target_matches(
+                target_window_title,
+                extra_target_window_titles,
+                match_duplicate_window_titles,
+            ) {
+                return MacroRunFlow::StopExecution;
+            }
+            if stop_immediately_on_retrigger
+                && STOP_REQUESTED_MACRO_PRESETS.lock().contains(&macro_preset_id)
+            {
+                return MacroRunFlow::StopExecution;
+            }
+
+            let outcome = match run_image_search_once_with_options(preset, move_cursor, false) {
+                Ok(outcome) => outcome,
+                Err(error) => {
+                    eprintln!("Image search macro step failed: {error}");
+                    return MacroRunFlow::Continue;
+                }
+            };
+
+            if outcome.matched {
+                if let Some(trigger_preset_id) = trigger_macro_preset_id {
+                    let _ = trigger_nested_macro_preset(
+                        &trigger_preset_id.to_string(),
+                        press_locked_keys,
+                        press_locked_mouse_count,
+                        stop_immediately_on_retrigger,
+                        target_window_title,
+                        extra_target_window_titles,
+                        match_duplicate_window_titles,
+                    );
+                }
+                return MacroRunFlow::Continue;
+            }
+
+            if !wait_until_found {
+                return MacroRunFlow::Continue;
+            }
+
+            thread::sleep(Duration::from_millis(25));
+        }
     }
 
     fn is_extended_key(vk: u32) -> bool {

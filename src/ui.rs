@@ -9095,11 +9095,11 @@ impl CrosshairApp {
                                                             )
                                                             .to_owned()
                                                         });
-                                                    egui::ComboBox::from_id_salt((group.id, preset.id, "hold-stop-image-search"))
-                                                        .width(160.0)
-                                                        .selected_text(selected_label)
-                                                        .show_ui(ui, |ui| {
-                                                            for (preset_option_id, preset_option_label) in &image_search_preset_options {
+                                                egui::ComboBox::from_id_salt((group.id, preset.id, "hold-stop-image-search"))
+                                                    .width(160.0)
+                                                    .selected_text(selected_label)
+                                                    .show_ui(ui, |ui| {
+                                                        for (preset_option_id, preset_option_label) in &image_search_preset_options {
                                                                 if ui
                                                                     .selectable_label(
                                                                         selected_id == Some(*preset_option_id),
@@ -9870,6 +9870,89 @@ impl CrosshairApp {
                                                                 }
                                                             }
                                                         });
+                                                    if step.action == MacroAction::TriggerImageSearchMove {
+                                                        ui.add_space(4.0);
+                                                        ui.horizontal(|ui| {
+                                                            live_sync |= ui
+                                                                .checkbox(
+                                                                    &mut step.image_search_move_cursor_on_match,
+                                                                    Self::tr_lang(language, "Move", "Di chuyển"),
+                                                                )
+                                                                .on_hover_text(Self::tr_lang(
+                                                                    language,
+                                                                    "Move the cursor to the matched image before continuing.",
+                                                                    "Di chuyển chuột tới ảnh tìm thấy rồi mới tiếp tục.",
+                                                                ))
+                                                                .changed();
+                                                            live_sync |= ui
+                                                                .checkbox(
+                                                                    &mut step.image_search_wait_until_found,
+                                                                    Self::tr_lang(language, "Wait", "Đợi"),
+                                                                )
+                                                                .on_hover_text(Self::tr_lang(
+                                                                    language,
+                                                                    "Keep scanning until the image is found.",
+                                                                    "Tiếp tục dò cho tới khi thấy ảnh.",
+                                                                ))
+                                                                .changed();
+                                                            let mut trigger_macro_enabled = step.image_search_trigger_macro_preset_id.is_some();
+                                                            if ui
+                                                                .checkbox(
+                                                                    &mut trigger_macro_enabled,
+                                                                    Self::tr_lang(language, "Macro", "Macro"),
+                                                                )
+                                                                .on_hover_text(Self::tr_lang(
+                                                                    language,
+                                                                    "Trigger another macro preset from the same macro group.",
+                                                                    "Kích hoạt một preset macro khác trong cùng group.",
+                                                                ))
+                                                                .changed()
+                                                            {
+                                                                if trigger_macro_enabled {
+                                                                    step.image_search_trigger_macro_preset_id = group_preset_options
+                                                                        .iter()
+                                                                        .find(|(preset_option_id, _)| *preset_option_id != preset.id)
+                                                                        .map(|(preset_option_id, _)| *preset_option_id);
+                                                                } else {
+                                                                    step.image_search_trigger_macro_preset_id = None;
+                                                                }
+                                                                live_sync = true;
+                                                            }
+                                                            if let Some(selected_id) = step.image_search_trigger_macro_preset_id {
+                                                                let selected_label = group_preset_options
+                                                                    .iter()
+                                                                    .find(|(preset_option_id, _)| *preset_option_id == selected_id)
+                                                                    .map(|(_, label)| label.clone())
+                                                                    .unwrap_or_else(|| "Select macro preset".to_owned());
+                                                                egui::ComboBox::from_id_salt((
+                                                                    group.id,
+                                                                    preset.id,
+                                                                    step_index,
+                                                                    "image-search-trigger-macro-preset",
+                                                                ))
+                                                                .width(160.0)
+                                                                .selected_text(selected_label)
+                                                                .show_ui(ui, |ui| {
+                                                                    for (preset_option_id, preset_option_label) in &group_preset_options {
+                                                                        if *preset_option_id == preset.id {
+                                                                            continue;
+                                                                        }
+                                                                        if ui
+                                                                            .selectable_label(
+                                                                                selected_id == *preset_option_id,
+                                                                                preset_option_label,
+                                                                            )
+                                                                            .clicked()
+                                                                        {
+                                                                            step.image_search_trigger_macro_preset_id =
+                                                                                Some(*preset_option_id);
+                                                                            live_sync = true;
+                                                                        }
+                                                                    }
+                                                                });
+                                                            }
+                                                        });
+                                                    }
                                                 } else if step.action == MacroAction::EnableZoomPreset {
                                                     let selected_id = step.key.trim().parse::<u32>().ok();
                                                     let selected_label = selected_id
