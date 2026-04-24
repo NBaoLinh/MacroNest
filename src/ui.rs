@@ -2332,7 +2332,7 @@ impl CrosshairApp {
                     "{} {}  |  {} {}",
                     Self::tr_lang(language, "Total:", "TÃƒÂ¡Ã‚Â»Ã¢â‚¬Â¢ng:"),
                     Self::format_ms(total_ms),
-                    Self::tr_lang(language, "Slice:", "Ãƒâ€žÃ‚ÂoÃƒÂ¡Ã‚ÂºÃ‚Â¡n hiÃƒÂ¡Ã‚Â»Ã¢â‚¬Â¡n tÃƒÂ¡Ã‚ÂºÃ‚Â¡i:"),
+                    Self::tr_lang(language, "Slice", "Ãƒâ€žÃ‚ÂoÃƒÂ¡Ã‚ÂºÃ‚Â¡n hiÃƒÂ¡Ã‚Â»Ã¢â‚¬Â¡n tÃƒÂ¡Ã‚ÂºÃ‚Â¡i"),
                     Self::format_ms(clip.end_ms.saturating_sub(clip.start_ms))
                 ));
             }
@@ -6951,7 +6951,7 @@ impl CrosshairApp {
                                 .changed();
                             ui.end_row();
 
-                            ui.label(Self::tr_lang(language, "Restore Hotkey", "PhÃƒÆ’Ã‚Â­m tÃƒÂ¡Ã‚ÂºÃ‚Â¯t khÃƒÆ’Ã‚Â´i phÃƒÂ¡Ã‚Â»Ã‚Â¥c"));
+                            ui.label(Self::tr_lang(language, "Restore Key", "PhÃƒÆ’Ã‚Â­m tÃƒÂ¡Ã‚ÂºÃ‚Â¯t khÃƒÆ’Ã‚Â´i phÃƒÂ¡Ã‚Â»Ã‚Â¥c"));
                             ui.horizontal_wrapped(|ui| {
                                 ui.add_enabled_ui(preset.restore_titlebar_enabled, |ui| {
                                     ui.monospace(hotkey::format_binding(
@@ -11353,7 +11353,7 @@ impl CrosshairApp {
                         });
                         ui.end_row();
 
-                        ui.label(Self::tr_lang(language, "Search area", "Vung tim"));
+                        ui.label(Self::tr_lang(language, "Area", "Vung tim"));
                         ui.horizontal_wrapped(|ui| {
                             ui.monospace(Self::image_search_search_area_text(preset));
                             if ui
@@ -12665,7 +12665,7 @@ impl CrosshairApp {
                 "{} {}  |  {} {}",
                 Self::tr_lang(language, "Total:", "TÃƒÂ¡Ã‚Â»Ã¢â‚¬Â¢ng:"),
                 Self::format_ms(total_ms),
-                Self::tr_lang(language, "Slice:", "Ãƒâ€žÃ‚ÂoÃƒÂ¡Ã‚ÂºÃ‚Â¡n hiÃƒÂ¡Ã‚Â»Ã¢â‚¬Â¡n tÃƒÂ¡Ã‚ÂºÃ‚Â¡i:"),
+                Self::tr_lang(language, "Slice", "Doan hien tai"),
                 Self::format_ms(clip.end_ms.saturating_sub(clip.start_ms))
             ));
             ui.add_space(8.0);
