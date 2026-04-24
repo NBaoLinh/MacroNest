@@ -4565,6 +4565,9 @@ impl CrosshairApp {
         self.capture_target = Some(target.clone());
         self.capture_ignored_keys = self.snapshot_pressed_capture_keys();
         self.capture_ignored_keys.extend([0x01, 0x02, 0x04, 0x05, 0x06]);
+        if !self.capture_request_accepts_mouse(&target) {
+            self.capture_ignored_keys.extend([0x01, 0x02, 0x04, 0x05, 0x06]);
+        }
         self.capture_wait_for_mouse_release = true;
         self.status = if self.capture_request_keeps_open(&target) {
             match self.state.ui_language {
@@ -5471,8 +5474,14 @@ impl CrosshairApp {
             {
                 return None;
             }
-            for mouse_vk in [0x01, 0x02, 0x04, 0x05, 0x06] {
-                self.capture_ignored_keys.remove(&mouse_vk);
+            if self
+                .capture_target
+                .as_ref()
+                .is_some_and(|target| self.capture_request_accepts_mouse(target))
+            {
+                for mouse_vk in [0x01, 0x02, 0x04, 0x05, 0x06] {
+                    self.capture_ignored_keys.remove(&mouse_vk);
+                }
             }
             self.capture_wait_for_mouse_release = false;
         }
