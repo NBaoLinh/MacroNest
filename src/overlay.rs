@@ -2535,7 +2535,7 @@ mod windows_overlay {
     }
 
     fn desired_hooks_enabled(_runtime: &Runtime) -> bool {
-        !is_ui_in_foreground()
+        true
     }
 
     unsafe fn set_input_hooks_enabled(runtime: &mut Runtime, enabled: bool) -> Result<()> {
