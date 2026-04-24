@@ -1577,7 +1577,7 @@ impl CrosshairApp {
             right
                 .favorite
                 .cmp(&left.favorite)
-                .then(left.id.cmp(&right.id))
+                .then(right.id.cmp(&left.id))
         });
     }
 
@@ -2879,12 +2879,16 @@ impl CrosshairApp {
         preset_id: u32,
         step_index: usize,
         additive: bool,
+        currently_selected: bool,
+        selected_count_in_preset: usize,
     ) {
         if additive {
             let key = (group_id, preset_id, step_index);
             if !self.selected_macro_steps.insert(key) {
                 self.selected_macro_steps.remove(&key);
             }
+        } else if currently_selected && selected_count_in_preset <= 1 {
+            self.selected_macro_steps.clear();
         } else {
             self.selected_macro_steps.clear();
             self.selected_macro_steps
@@ -7821,17 +7825,6 @@ impl CrosshairApp {
                         "Ten preset hoac nhom",
                     )),
             );
-            if ui
-                .button(Self::tr_lang(language, "Clear", "Xoa"))
-                .on_hover_text(Self::tr_lang(
-                    language,
-                    "Clear preset search",
-                    "Xoa bo loc tim preset",
-                ))
-                .clicked()
-            {
-                self.macro_preset_search_query.clear();
-            }
         });
 
         let mut release_folder_id = None;
@@ -8248,12 +8241,9 @@ impl CrosshairApp {
             let mut move_step_to: Option<(u32, Vec<usize>, usize)> = None;
             let mut remove_preset = None;
             let mut pending_step_selection = None;
-            let mut pending_step_selection_range = None;
             let mut selection_after_move = None;
             let mut clear_step_selection = None;
             let selected_steps_snapshot = self.selected_macro_steps.clone();
-            let drag_select_anchor_snapshot = self.macro_drag_select_anchor;
-            let mut drag_select_anchor_update = None;
             let render_preset_indices = {
                 let group = &self.state.macro_groups[group_index];
                 let query = search_query.as_str();
@@ -9614,26 +9604,6 @@ impl CrosshairApp {
                                                     ui.input(|input| input.modifiers.ctrl),
                                                 ));
                                             }
-                                            if select_response.drag_started() {
-                                                drag_select_anchor_update =
-                                                    Some(Some((group.id, preset.id, step_index)));
-                                                pending_step_selection_range =
-                                                    Some((group.id, preset.id, step_index, step_index));
-                                            }
-                                            if let Some((anchor_group, anchor_preset, anchor_index)) =
-                                                drag_select_anchor_snapshot
-                                                && anchor_group == group.id
-                                                && anchor_preset == preset.id
-                                                && ui.input(|input| input.pointer.primary_down())
-                                                && select_response.hovered()
-                                            {
-                                                pending_step_selection_range = Some((
-                                                    group.id,
-                                                    preset.id,
-                                                    anchor_index,
-                                                    step_index,
-                                                ));
-                                            }
                                             let drag_handle = ui
                                                 .add_sized(
                                                     [24.0, 18.0],
@@ -10456,14 +10426,25 @@ impl CrosshairApp {
             if let Some(target) = next_capture_target {
                 self.begin_capture(target, "Capturing macro input.".to_owned());
             }
-            if let Some(range) = pending_step_selection_range {
-                self.set_macro_step_range_selection(range.0, range.1, range.2, range.3);
-            }
             if let Some((group_id, preset_id, step_index, additive)) = pending_step_selection {
-                self.select_macro_step(group_id, preset_id, step_index, additive);
-            }
-            if let Some(anchor_update) = drag_select_anchor_update {
-                self.macro_drag_select_anchor = anchor_update;
+                let currently_selected = self
+                    .selected_macro_steps
+                    .contains(&(group_id, preset_id, step_index));
+                let selected_count_in_preset = self
+                    .selected_macro_steps
+                    .iter()
+                    .filter(|(selected_group, selected_preset, _)| {
+                        *selected_group == group_id && *selected_preset == preset_id
+                    })
+                    .count();
+                self.select_macro_step(
+                    group_id,
+                    preset_id,
+                    step_index,
+                    additive,
+                    currently_selected,
+                    selected_count_in_preset,
+                );
             }
             if !ui.input(|input| input.pointer.primary_down()) {
                 self.macro_drag_select_anchor = None;
