@@ -1108,11 +1108,10 @@ mod windows_overlay {
                             swallow |= binding_swallow;
                         }
                     }
+                    update_held_key(&key_name, is_key_down, is_key_up);
                     if is_key_up {
                         swallow |= process_binding_release(&binding);
                     }
-
-                    update_held_key(&key_name, is_key_down, is_key_up);
                     swallow |= keyboard_arrow_mouse_should_swallow(&key_name);
                     swallow |= is_locked_input(&key_name);
                     update_modifier_state(info.vkCode, is_key_down);
@@ -1503,7 +1502,7 @@ mod windows_overlay {
     fn release_trigger_ready(
         wait_key_spec: &str,
         require_all_inputs_released: bool,
-        released_key: &str,
+        _released_key: &str,
     ) -> bool {
         let wait_keys = parse_locked_keys(wait_key_spec);
         let hook_state = HOOK_STATE.lock();
@@ -1511,11 +1510,11 @@ mod windows_overlay {
             hook_state
                 .held_inputs
                 .iter()
-                .any(|held| held.eq_ignore_ascii_case(wait_key) && !held.eq_ignore_ascii_case(released_key))
+                .any(|held| held.eq_ignore_ascii_case(wait_key))
                 || hook_state
                     .held_mouse_buttons
                     .iter()
-                    .any(|held| held.eq_ignore_ascii_case(wait_key) && !held.eq_ignore_ascii_case(released_key))
+                    .any(|held| held.eq_ignore_ascii_case(wait_key))
         }) {
             return false;
         }
