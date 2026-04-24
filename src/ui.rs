@@ -5808,6 +5808,31 @@ impl CrosshairApp {
 
                     });
 
+                ui.add_space(6.0);
+                ui.label(self.tr("Saved Profiles", "Danh sach profile"));
+                for profile in self.state.profiles.clone() {
+                    let is_selected =
+                        self.state.selected_profile.as_deref() == Some(profile.name.as_str());
+                    Self::show_preset_card(ui, is_selected, |ui| {
+                        ui.horizontal(|ui| {
+                            ui.label(Self::preset_title_text(
+                                self.state.ui_theme == UiThemeMode::Dark,
+                                &profile.name,
+                                is_selected,
+                            ));
+                            if is_selected {
+                                ui.label(RichText::new(self.tr("Active", "Dang bat")).strong());
+                            } else if ui.button(self.tr("Show", "Hien")).clicked() {
+                                self.state.selected_profile = Some(profile.name.clone());
+                                self.state.active_style = profile.style.clone();
+                                self.save_name = profile.name.clone();
+                                changed = true;
+                            }
+                        });
+                    });
+                    ui.add_space(4.0);
+                }
+
                 ui.separator();
                 ui.heading(self.tr("Crosshair Settings", "CÃƒÂ i Ã„â€˜Ã¡ÂºÂ·t tÃƒÂ¢m ngÃ¡ÂºÂ¯m"));
                 egui::Grid::new("crosshair-settings-grid")
