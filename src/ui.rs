@@ -3791,11 +3791,11 @@ impl CrosshairApp {
 
     fn capture_button_text(language: UiLanguage, active: bool) -> RichText {
         if active {
-            RichText::new(Self::tr_lang(language, "● Capturing...", "Äang báº¯t..."))
+            RichText::new(Self::tr_lang(language, "● Capturing...", "● Đang bắt..."))
                 .strong()
                 .color(Color32::from_rgb(255, 232, 96))
         } else {
-            RichText::new(Self::tr_lang(language, "Capture", "Báº¯t phÃ­m"))
+            RichText::new(Self::tr_lang(language, "Capture", "Bắt phím"))
         }
     }
 
@@ -4530,7 +4530,16 @@ impl CrosshairApp {
     fn begin_capture(&mut self, target: CaptureRequest, status: String) {
         self.capture_target = Some(target.clone());
         self.capture_ignored_keys = self.snapshot_pressed_capture_keys();
-        self.status = status;
+        self.status = if matches!(target, CaptureRequest::MacroPresetReleaseWaitKey(_, _)) {
+            match self.state.ui_language {
+                UiLanguage::Vietnamese => {
+                    "Đang bắt key chờ release. Bấm thêm key hoặc Esc để dừng.".to_owned()
+                }
+                _ => "Capturing release wait keys. Press more keys or Esc to finish.".to_owned(),
+            }
+        } else {
+            status
+        };
     }
 
     fn cancel_capture(&mut self) {
@@ -4903,7 +4912,8 @@ impl CrosshairApp {
         ctx.request_repaint();
     }
 
-    fn apply_captured_input(&mut self, target: CaptureRequest, captured: CapturedInput) {
+    fn apply_captured_input(&mut self, target: CaptureRequest, captured: CapturedInput) -> bool {
+        let keep_capture_open = matches!(&target, CaptureRequest::MacroPresetReleaseWaitKey(_, _));
         match (target, captured) {
             (CaptureRequest::WindowPresetHotkey(preset_id), CapturedInput::Binding(binding)) => {
                 if let Some(preset) = self
@@ -5280,24 +5290,30 @@ impl CrosshairApp {
                 self.status = "Capture type mismatch.".to_owned();
             }
         }
-        self.capture_target = None;
-        self.capture_ignored_keys.clear();
         self.persist();
+        keep_capture_open
     }
 
-    fn poll_capture_input(&mut self) {
+    fn poll_capture_input(&mut self, ctx: &egui::Context) {
         let Some(target) = self.capture_target.clone() else {
             self.capture_ignored_keys.clear();
             return;
         };
-        let Some(captured) = self.capture_next_input() else {
+        let Some(captured) = self.capture_next_input(ctx) else {
             return;
         };
-        self.apply_captured_input(target, CapturedInput::Binding(captured));
+        let keep_capture_open = self.apply_captured_input(target, CapturedInput::Binding(captured));
+        if !keep_capture_open {
+            self.capture_target = None;
+            self.capture_ignored_keys.clear();
+        }
     }
 
     #[cfg(windows)]
-    fn capture_next_input(&mut self) -> Option<crate::model::HotkeyBinding> {
+    fn capture_next_input(&mut self, ctx: &egui::Context) -> Option<crate::model::HotkeyBinding> {
+        if let Some(binding) = self.capture_scroll_binding(ctx) {
+            return Some(binding);
+        }
         for vk in Self::capture_scan_keys() {
             let pressed = unsafe { (GetAsyncKeyState(vk as i32) as u16 & 0x8000) != 0 };
             if pressed {
@@ -5327,7 +5343,31 @@ impl CrosshairApp {
     }
 
     #[cfg(not(windows))]
-    fn capture_next_input(&mut self) -> Option<crate::model::HotkeyBinding> {
+    fn capture_next_input(&mut self, _ctx: &egui::Context) -> Option<crate::model::HotkeyBinding> {
+        None
+    }
+
+    #[cfg(windows)]
+    fn capture_scroll_binding(&self, ctx: &egui::Context) -> Option<crate::model::HotkeyBinding> {
+        let scroll_y = ctx.input(|input| input.raw_scroll_delta.y);
+        if scroll_y.abs() < 0.01 {
+            return None;
+        }
+        Some(crate::model::HotkeyBinding {
+            ctrl: false,
+            alt: false,
+            shift: false,
+            win: false,
+            key: if scroll_y > 0.0 {
+                "MouseWheelUp".to_owned()
+            } else {
+                "MouseWheelDown".to_owned()
+            },
+        })
+    }
+
+    #[cfg(not(windows))]
+    fn capture_scroll_binding(&self, _ctx: &egui::Context) -> Option<crate::model::HotkeyBinding> {
         None
     }
 
@@ -7925,6 +7965,7 @@ impl CrosshairApp {
         }
         for group_index in visible_group_indices {
             let mut next_capture_target = None;
+            let mut cancel_active_capture = false;
             let mut remove_step = None;
             let mut insert_step_after = None;
             let mut move_step_to: Option<(u32, Vec<usize>, usize)> = None;
@@ -7967,7 +8008,7 @@ impl CrosshairApp {
                             .min_col_width(140.0)
                             .spacing([12.0, 6.0])
                             .show(ui, |ui| {
-                                let star_text = if group.favorite { "â˜…" } else { "â˜†" };
+                                let star_icon = if group.favorite { 0xe838 } else { 0xe83a };
                                 let star_fill = if group.favorite {
                                     Color32::from_rgb(104, 82, 18)
                                 } else {
@@ -7982,7 +8023,7 @@ impl CrosshairApp {
                                     .add_sized(
                                         [28.0, 22.0],
                                         Button::new(
-                                            RichText::new(star_text).color(if group.favorite {
+                                            Self::material_icon_text(star_icon, 15.0).color(if group.favorite {
                                                 Color32::from_rgb(255, 224, 110)
                                             } else {
                                                 Color32::from_rgb(208, 214, 224)
@@ -8385,40 +8426,19 @@ impl CrosshairApp {
                                             language,
                                             capture_target_snapshot.as_ref() == Some(&capture_target),
                                         )),
-                                    )
+                                )
                                     .clicked()
                                 {
-                                    next_capture_target = Some(capture_target);
+                                    if capture_target_snapshot.as_ref() == Some(&capture_target) {
+                                        cancel_active_capture = true;
+                                    } else {
+                                        next_capture_target = Some(capture_target);
+                                    }
                                 }
                                 if Self::sized_button(ui, 56.0, Self::tr_lang(language, "Clear", "XÃƒÂ³a")).clicked() {
                                     preset.hotkey = None;
                                     live_sync = true;
                                 }
-                                egui::ComboBox::from_id_salt((group.id, preset.id, "mouse-trigger"))
-                                    .width(96.0)
-                                    .selected_text(Self::format_binding_ui(language, preset.hotkey.as_ref()))
-                                    .show_ui(ui, |ui| {
-                                        for (label, key) in [
-                                            (Self::tr_lang(language, "Left", "TrÃƒÂ¡i"), "MouseLeft"),
-                                            (Self::tr_lang(language, "Right", "PhÃ¡ÂºÂ£i"), "MouseRight"),
-                                            (Self::tr_lang(language, "Middle", "GiÃ¡Â»Â¯a"), "MouseMiddle"),
-                                            (Self::tr_lang(language, "Mouse X1", "ChuÃ¡Â»â„¢t X1"), "MouseX1"),
-                                            (Self::tr_lang(language, "Mouse X2", "ChuÃ¡Â»â„¢t X2"), "MouseX2"),
-                                        (Self::tr_lang(language, "Wheel Up", "Wheel Up"), "MouseWheelUp"),
-                                        (Self::tr_lang(language, "Wheel Down", "Wheel Down"), "MouseWheelDown"),
-                                        ] {
-                                            if ui.button(label).clicked() {
-                                                preset.hotkey = Some(crate::model::HotkeyBinding {
-                                                    ctrl: false,
-                                                    alt: false,
-                                                    shift: false,
-                                                    win: false,
-                                                    key: key.to_owned(),
-                                                });
-                                                live_sync = true;
-                                            }
-                                        }
-                                    });
                                 if Self::sized_button(ui, 64.0, Self::tr_lang(language, "Remove", "XÃƒÂ³a")).clicked() {
                                     remove_preset = Some(preset.id);
                                 }
@@ -8541,7 +8561,11 @@ impl CrosshairApp {
                                         )
                                         .clicked()
                                     {
-                                        next_capture_target = Some(wait_capture_target);
+                                        if capture_target_snapshot.as_ref() == Some(&wait_capture_target) {
+                                            cancel_active_capture = true;
+                                        } else {
+                                            next_capture_target = Some(wait_capture_target);
+                                        }
                                     }
                                     if Self::sized_button(ui, 56.0, Self::tr_lang(language, "Clear", "Clear")).clicked() {
                                         preset.release_wait_key.clear();
@@ -9197,10 +9221,6 @@ impl CrosshairApp {
                                         ui.add_sized([54.0, 18.0], egui::Label::new(RichText::new(Self::tr_lang(language, "Delay", "TrÃ¡Â»â€¦")).strong()));
                                         ui.add_sized([154.0, 18.0], egui::Label::new(RichText::new(Self::tr_lang(language, "Action", "HÃƒÂ nh Ã„â€˜Ã¡Â»â„¢ng")).strong()));
                                         ui.add_sized([146.0, 18.0], egui::Label::new(RichText::new(Self::tr_lang(language, "Input", "DÃ¡Â»Â¯ liÃ¡Â»â€¡u")).strong()));
-                                        ui.add_sized([48.0, 18.0], egui::Label::new(RichText::new("X").strong()));
-                                        ui.add_sized([48.0, 18.0], egui::Label::new(RichText::new("Y").strong()));
-                                        ui.add_sized([28.0, 18.0], egui::Label::new(RichText::new(Self::tr_lang(language, "Cap", "BÃ¡ÂºÂ¯t")).strong()));
-                                        ui.add_sized([28.0, 18.0], egui::Label::new(RichText::new("X").strong()));
                                         if Self::sized_button(ui, 112.0, Self::tr_lang(language, "Clear Steps", "Clear Steps")).clicked() {
                                             preset.steps.clear();
                                             live_sync = true;
@@ -10052,6 +10072,9 @@ impl CrosshairApp {
                     clear_step_selection = Some((group.id, preset_id));
                 }
             });
+            if cancel_active_capture {
+                self.cancel_capture();
+            }
             if let Some(target) = next_capture_target {
                 self.begin_capture(target, "Capturing macro input.".to_owned());
             }
@@ -11677,8 +11700,70 @@ impl CrosshairApp {
                         );
                     }
                 }
-            });
+        });
         true
+    }
+
+    fn render_capture_modal_overlay(&mut self, ctx: &egui::Context) {
+        if self.capture_target.is_none() || self.image_search_capture_active {
+            return;
+        }
+
+        ctx.request_repaint();
+        let rect = ctx.input(|input| {
+            input
+                .viewport()
+                .inner_rect
+                .unwrap_or_else(|| egui::Rect::from_min_size(egui::Pos2::ZERO, Self::desired_window_size()))
+        });
+        let dim_layer = ctx.layer_painter(egui::LayerId::new(
+            egui::Order::Foreground,
+            egui::Id::new("capture-modal-dim"),
+        ));
+        dim_layer.rect_filled(rect, 0.0, Color32::from_rgba_premultiplied(0, 0, 0, 132));
+
+        egui::Area::new(egui::Id::new("capture-modal-area"))
+            .order(egui::Order::Foreground)
+            .fixed_pos(rect.min)
+            .show(ctx, |ui| {
+                ui.set_min_size(rect.size());
+                let response = ui.allocate_rect(ui.max_rect(), Sense::click_and_drag());
+                let painter = ui.painter_at(ui.max_rect());
+                let card_rect = egui::Rect::from_center_size(
+                    ui.max_rect().center(),
+                    egui::vec2((rect.width() * 0.42).clamp(260.0, 520.0), 92.0),
+                );
+                painter.rect_filled(
+                    card_rect,
+                    14.0,
+                    Color32::from_rgba_premultiplied(22, 28, 38, 232),
+                );
+                painter.rect_stroke(
+                    card_rect,
+                    14.0,
+                    egui::Stroke::new(1.0, Color32::from_rgb(112, 188, 255)),
+                    egui::StrokeKind::Outside,
+                );
+                painter.text(
+                    card_rect.center_top() + vec2(0.0, 22.0),
+                    egui::Align2::CENTER_TOP,
+                    self.capture_hint_text(),
+                    egui::FontId::proportional(17.0),
+                    Color32::WHITE,
+                );
+                if let Some(target) = &self.capture_target {
+                    if matches!(target, CaptureRequest::MacroPresetReleaseWaitKey(_, _)) {
+                        painter.text(
+                            card_rect.center_bottom() - vec2(0.0, 24.0),
+                            egui::Align2::CENTER_BOTTOM,
+                            "Each key appends to the wait list. Press Esc to finish.",
+                            egui::FontId::monospace(13.0),
+                            Color32::from_rgb(200, 222, 255),
+                        );
+                    }
+                }
+                response
+            });
     }
 
     fn render_sound_panel(&mut self, ui: &mut egui::Ui) {
@@ -13171,7 +13256,7 @@ impl eframe::App for CrosshairApp {
             self.enforce_square_window_frames = self.enforce_square_window_frames.saturating_sub(1);
         }
 
-        self.poll_capture_input();
+        self.poll_capture_input(ctx);
         if self.capture_target.is_some() && ctx.input(|input| input.key_pressed(egui::Key::Escape))
         {
             self.cancel_capture();
@@ -13490,6 +13575,8 @@ impl eframe::App for CrosshairApp {
                     ui.label(RichText::new(&self.status).strong());
                 });
         });
+
+        self.render_capture_modal_overlay(ctx);
     }
 
     fn on_exit(&mut self, _gl: Option<&eframe::glow::Context>) {
