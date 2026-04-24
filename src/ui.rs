@@ -6883,9 +6883,9 @@ impl CrosshairApp {
                             });
                             ui.end_row();
 
-                            ui.label(Self::tr_lang(language, "Title Bar", "Thanh tiÃƒÆ’Ã‚Âªu Ãƒâ€žÃ¢â‚¬ËœÃƒÂ¡Ã‚Â»Ã‚Â khi ÃƒÆ’Ã‚Â¡p dÃƒÂ¡Ã‚Â»Ã‚Â¥ng"));
+                            ui.label(Self::tr_lang(language, "Title", "Thanh tiÃƒÆ’Ã‚Âªu Ãƒâ€žÃ¢â‚¬ËœÃƒÂ¡Ã‚Â»Ã‚Â khi ÃƒÆ’Ã‚Â¡p dÃƒÂ¡Ã‚Â»Ã‚Â¥ng"));
                             live_sync |= ui
-                                .checkbox(&mut preset.remove_title_bar, Self::tr_lang(language, "Remove title bar", "XÃƒÆ’Ã‚Â³a thanh tiÃƒÆ’Ã‚Âªu Ãƒâ€žÃ¢â‚¬ËœÃƒÂ¡Ã‚Â»Ã‚Â"))
+                                .checkbox(&mut preset.remove_title_bar, Self::tr_lang(language, "Remove bar", "XÃƒÆ’Ã‚Â³a thanh tiÃƒÆ’Ã‚Âªu Ãƒâ€žÃ¢â‚¬ËœÃƒÂ¡Ã‚Â»Ã‚Â"))
                                 .on_hover_text(
                                     Self::tr_lang(
                                         language,
@@ -6935,7 +6935,7 @@ impl CrosshairApp {
                             });
                             ui.end_row();
 
-                            ui.label(Self::tr_lang(language, "Restore Bar", "KhÃƒÆ’Ã‚Â´i phÃƒÂ¡Ã‚Â»Ã‚Â¥c thanh tiÃƒÆ’Ã‚Âªu Ãƒâ€žÃ¢â‚¬ËœÃƒÂ¡Ã‚Â»Ã‚Â"));
+                            ui.label(Self::tr_lang(language, "Restore", "KhÃƒÆ’Ã‚Â´i phÃƒÂ¡Ã‚Â»Ã‚Â¥c thanh tiÃƒÆ’Ã‚Âªu Ãƒâ€žÃ¢â‚¬ËœÃƒÂ¡Ã‚Â»Ã‚Â"));
                             live_sync |= ui
                                 .checkbox(
                                     &mut preset.restore_titlebar_enabled,
@@ -6997,7 +6997,7 @@ impl CrosshairApp {
         ui.label(
             RichText::new(Self::tr_lang(
                 language,
-                "Focus Presets",
+                "Focus",
                 "Preset focus cÃƒÂ¡Ã‚Â»Ã‚Â­a sÃƒÂ¡Ã‚Â»Ã¢â‚¬Â¢",
             ))
             .strong(),
@@ -7728,7 +7728,7 @@ impl CrosshairApp {
                                 ui.strong("Preset");
                                 ui.strong("Apply");
                                 ui.strong("Animate");
-                                ui.strong("Restore Bar");
+                                ui.strong("Restore");
                                 ui.end_row();
                                 for item in &mut preset.window_presets {
                                     let label = self
