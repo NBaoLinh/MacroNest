@@ -2332,7 +2332,7 @@ impl CrosshairApp {
                     "{} {}  |  {} {}",
                     Self::tr_lang(language, "Total:", "TÃƒÂ¡Ã‚Â»Ã¢â‚¬Â¢ng:"),
                     Self::format_ms(total_ms),
-                    Self::tr_lang(language, "Current slice:", "Ãƒâ€žÃ‚ÂoÃƒÂ¡Ã‚ÂºÃ‚Â¡n hiÃƒÂ¡Ã‚Â»Ã¢â‚¬Â¡n tÃƒÂ¡Ã‚ÂºÃ‚Â¡i:"),
+                    Self::tr_lang(language, "Slice:", "Ãƒâ€žÃ‚ÂoÃƒÂ¡Ã‚ÂºÃ‚Â¡n hiÃƒÂ¡Ã‚Â»Ã¢â‚¬Â¡n tÃƒÂ¡Ã‚ÂºÃ‚Â¡i:"),
                     Self::format_ms(clip.end_ms.saturating_sub(clip.start_ms))
                 ));
             }
@@ -7091,7 +7091,7 @@ impl CrosshairApp {
                                 &mut preset.match_duplicate_window_titles,
                                 Self::tr_lang(
                                     language,
-                                    "Treat same window titles as a match too",
+                            "Match same titles too",
                                     "Coi cÃƒÆ’Ã‚Â¡c cÃƒÂ¡Ã‚Â»Ã‚Â­a sÃƒÂ¡Ã‚Â»Ã¢â‚¬Â¢ trÃƒÆ’Ã‚Â¹ng tiÃƒÆ’Ã‚Âªu Ãƒâ€žÃ¢â‚¬ËœÃƒÂ¡Ã‚Â»Ã‚Â cÃƒâ€¦Ã‚Â©ng lÃƒÆ’Ã‚Â  khÃƒÂ¡Ã‚Â»Ã¢â‚¬Âºp",
                                 ),
                             )
@@ -7450,7 +7450,7 @@ impl CrosshairApp {
                                 &mut preset.match_duplicate_window_titles,
                                 Self::tr_lang(
                                     language,
-                                    "Treat same window titles as a match too",
+                                    "Match same titles too",
                                     "Coi cÃƒÆ’Ã‚Â¡c cÃƒÂ¡Ã‚Â»Ã‚Â­a sÃƒÂ¡Ã‚Â»Ã¢â‚¬Â¢ trÃƒÆ’Ã‚Â¹ng tiÃƒÆ’Ã‚Âªu Ãƒâ€žÃ¢â‚¬ËœÃƒÂ¡Ã‚Â»Ã‚Â cÃƒâ€¦Ã‚Â©ng lÃƒÆ’Ã‚Â  khÃƒÂ¡Ã‚Â»Ã¢â‚¬Âºp",
                                 ),
                             )
@@ -8461,7 +8461,7 @@ impl CrosshairApp {
                                     &mut group.match_duplicate_window_titles,
                                     Self::tr_lang(
                                         language,
-                                        "Treat same window titles as a match too",
+                                        "Match same titles too",
                                         "Coi cÃƒÆ’Ã‚Â¡c cÃƒÂ¡Ã‚Â»Ã‚Â­a sÃƒÂ¡Ã‚Â»Ã¢â‚¬Â¢ trÃƒÆ’Ã‚Â¹ng tiÃƒÆ’Ã‚Âªu Ãƒâ€žÃ¢â‚¬ËœÃƒÂ¡Ã‚Â»Ã‚Â cÃƒâ€¦Ã‚Â©ng lÃƒÆ’Ã‚Â  khÃƒÂ¡Ã‚Â»Ã¢â‚¬Âºp",
                                     ),
                                 )
@@ -10964,7 +10964,7 @@ impl CrosshairApp {
                                 &mut preset.match_duplicate_window_titles,
                                 Self::tr_lang(
                                     language,
-                                    "Treat same window titles as a match too",
+                                    "Match same titles too",
                                     "Coi cÃƒÆ’Ã‚Â¡c cÃƒÂ¡Ã‚Â»Ã‚Â­a sÃƒÂ¡Ã‚Â»Ã¢â‚¬Â¢ trÃƒÆ’Ã‚Â¹ng tiÃƒÆ’Ã‚Âªu Ãƒâ€žÃ¢â‚¬ËœÃƒÂ¡Ã‚Â»Ã‚Â cÃƒâ€¦Ã‚Â©ng lÃƒÆ’Ã‚Â  khÃƒÂ¡Ã‚Â»Ã¢â‚¬Âºp",
                                 ),
                             )
@@ -10973,7 +10973,7 @@ impl CrosshairApp {
 
                         ui.label(Self::tr_lang(
                             language,
-                            "Mouse Speed",
+                            "Speed",
                             "TÃƒÂ¡Ã‚Â»Ã¢â‚¬Ëœc Ãƒâ€žÃ¢â‚¬ËœÃƒÂ¡Ã‚Â»Ã¢â€žÂ¢ chuÃƒÂ¡Ã‚Â»Ã¢â€žÂ¢t",
                         ));
                         mouse_sensitivity_live_sync |= ui
@@ -10983,7 +10983,7 @@ impl CrosshairApp {
 
                         ui.label(Self::tr_lang(
                             language,
-                            "Current Speed",
+                            "Current",
                             "TÃƒÂ¡Ã‚Â»Ã¢â‚¬Ëœc Ãƒâ€žÃ¢â‚¬ËœÃƒÂ¡Ã‚Â»Ã¢â€žÂ¢ hiÃƒÂ¡Ã‚Â»Ã¢â‚¬Â¡n tÃƒÂ¡Ã‚ÂºÃ‚Â¡i",
                         ));
                         ui.horizontal_wrapped(|ui| match Self::current_mouse_speed() {
@@ -12673,7 +12673,7 @@ impl CrosshairApp {
                 "{} {}  |  {} {}",
                 Self::tr_lang(language, "Total:", "TÃƒÂ¡Ã‚Â»Ã¢â‚¬Â¢ng:"),
                 Self::format_ms(total_ms),
-                Self::tr_lang(language, "Current slice:", "Ãƒâ€žÃ‚ÂoÃƒÂ¡Ã‚ÂºÃ‚Â¡n hiÃƒÂ¡Ã‚Â»Ã¢â‚¬Â¡n tÃƒÂ¡Ã‚ÂºÃ‚Â¡i:"),
+                Self::tr_lang(language, "Slice:", "Ãƒâ€žÃ‚ÂoÃƒÂ¡Ã‚ÂºÃ‚Â¡n hiÃƒÂ¡Ã‚Â»Ã¢â‚¬Â¡n tÃƒÂ¡Ã‚ÂºÃ‚Â¡i:"),
                 Self::format_ms(clip.end_ms.saturating_sub(clip.start_ms))
             ));
             ui.add_space(8.0);
@@ -13928,5 +13928,6 @@ fn audio_duration(clip: &AudioClipSettings) -> Option<u64> {
         audio::load_duration_ms(&clip.file_path).ok()
     }
 }
+
 
 
