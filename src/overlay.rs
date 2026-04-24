@@ -1861,13 +1861,14 @@ mod windows_overlay {
     }
 
     fn process_binding_release(binding: &HotkeyBinding) -> bool {
-        if is_press_trigger_suppressed(&binding.key) {
+        let suppressed_press_release = is_press_trigger_suppressed(&binding.key);
+        if suppressed_press_release {
             decrement_press_trigger_suppression(&binding.key);
-            return true;
         }
 
         let mut release_matches: Vec<(MacroPreset, Option<String>, Vec<String>, bool)> =
             Vec::new();
+        let mut triggered_release_macro = false;
         let preset_ids = {
             let hook_state = HOOK_STATE.lock();
             for group in &hook_state.macro_groups {
@@ -1935,16 +1936,17 @@ mod windows_overlay {
                 match_duplicate_window_titles,
                 binding.key.clone(),
             );
+            triggered_release_macro = true;
         }
 
-        if preset_ids.is_empty() {
-            return false;
+        let had_hold_matches = !preset_ids.is_empty();
+        if had_hold_matches {
+            for preset_id in preset_ids {
+                deactivate_hold_macro(preset_id);
+            }
         }
 
-        for preset_id in preset_ids {
-            deactivate_hold_macro(preset_id);
-        }
-        true
+        triggered_release_macro || suppressed_press_release || had_hold_matches
     }
 
     fn increment_press_trigger_suppression(key_name: &str) {

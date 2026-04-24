@@ -4560,11 +4560,7 @@ impl CrosshairApp {
     fn begin_capture(&mut self, target: CaptureRequest, status: String) {
         self.capture_target = Some(target.clone());
         self.capture_ignored_keys = self.snapshot_pressed_capture_keys();
-        self.status = if matches!(
-            target,
-            CaptureRequest::MacroPresetHotkey(_, _)
-                | CaptureRequest::MacroPresetReleaseWaitKey(_, _)
-        ) {
+        self.status = if self.capture_request_keeps_open(&target) {
             match self.state.ui_language {
                 UiLanguage::Vietnamese => {
                     "Đang bắt nhiều key. Bấm thêm key hoặc Esc để dừng.".to_owned()
@@ -4574,6 +4570,50 @@ impl CrosshairApp {
         } else {
             status
         };
+    }
+
+    fn capture_request_keeps_open(&self, target: &CaptureRequest) -> bool {
+        match target {
+            CaptureRequest::MacroPresetHotkey(_, _)
+            | CaptureRequest::MacroPresetReleaseWaitKey(_, _) => true,
+            CaptureRequest::MacroPresetHoldStopInput(group_id, preset_id) => self
+                .state
+                .macro_groups
+                .iter()
+                .find(|group| group.id == *group_id)
+                .and_then(|group| {
+                    group
+                        .presets
+                        .iter()
+                        .find(|preset| preset.id == *preset_id)
+                })
+                .is_some_and(|preset| {
+                    matches!(
+                        preset.hold_stop_step.action,
+                        MacroAction::LockKeys | MacroAction::UnlockKeys
+                    )
+                }),
+            CaptureRequest::MacroStepInput {
+                group_id,
+                preset_id,
+                step_index,
+            } => self
+                .state
+                .macro_groups
+                .iter()
+                .find(|group| group.id == *group_id)
+                .and_then(|group| {
+                    group
+                        .presets
+                        .iter()
+                        .find(|preset| preset.id == *preset_id)
+                })
+                .and_then(|preset| preset.steps.get(*step_index))
+                .is_some_and(|step| {
+                    matches!(step.action, MacroAction::LockKeys | MacroAction::UnlockKeys)
+                }),
+            _ => false,
+        }
     }
 
     fn cancel_capture(&mut self) {
@@ -4947,10 +4987,7 @@ impl CrosshairApp {
     }
 
     fn apply_captured_input(&mut self, target: CaptureRequest, captured: CapturedInput) -> bool {
-        let keep_capture_open = matches!(
-            &target,
-            CaptureRequest::MacroPresetHotkey(_, _) | CaptureRequest::MacroPresetReleaseWaitKey(_, _)
-        );
+        let keep_capture_open = self.capture_request_keeps_open(&target);
         match (target, captured) {
             (CaptureRequest::WindowPresetHotkey(preset_id), CapturedInput::Binding(binding)) => {
                 if let Some(preset) = self
@@ -5367,11 +5404,7 @@ impl CrosshairApp {
         if let Some(binding) = self.capture_scroll_binding(ctx) {
             return Some(binding);
         }
-        let pointer_over_area = ctx.is_pointer_over_area();
         for vk in Self::capture_scan_keys() {
-            if pointer_over_area && Self::capture_mouse_vk(vk) {
-                continue;
-            }
             let pressed = unsafe { (GetAsyncKeyState(vk as i32) as u16 & 0x8000) != 0 };
             if pressed {
                 if self.capture_ignored_keys.contains(&vk) {
@@ -5406,9 +5439,6 @@ impl CrosshairApp {
 
     #[cfg(windows)]
     fn capture_scroll_binding(&self, ctx: &egui::Context) -> Option<crate::model::HotkeyBinding> {
-        if ctx.is_pointer_over_area() {
-            return None;
-        }
         let scroll_y = ctx.input(|input| input.raw_scroll_delta.y);
         if scroll_y.abs() < 0.01 {
             return None;
