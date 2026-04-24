@@ -1500,18 +1500,22 @@ mod windows_overlay {
         session.dirty = true;
     }
 
-    fn release_trigger_ready(wait_key_spec: &str, require_all_inputs_released: bool) -> bool {
+    fn release_trigger_ready(
+        wait_key_spec: &str,
+        require_all_inputs_released: bool,
+        released_key: &str,
+    ) -> bool {
         let wait_keys = parse_locked_keys(wait_key_spec);
         let hook_state = HOOK_STATE.lock();
         if wait_keys.iter().any(|wait_key| {
             hook_state
                 .held_inputs
                 .iter()
-                .any(|held| held.eq_ignore_ascii_case(wait_key))
+                .any(|held| held.eq_ignore_ascii_case(wait_key) && !held.eq_ignore_ascii_case(released_key))
                 || hook_state
                     .held_mouse_buttons
                     .iter()
-                    .any(|held| held.eq_ignore_ascii_case(wait_key))
+                    .any(|held| held.eq_ignore_ascii_case(wait_key) && !held.eq_ignore_ascii_case(released_key))
         }) {
             return false;
         }
@@ -1520,7 +1524,14 @@ mod windows_overlay {
             return true;
         }
 
-        hook_state.held_inputs.is_empty() && hook_state.held_mouse_buttons.is_empty()
+        hook_state
+            .held_inputs
+            .iter()
+            .all(|held| held.eq_ignore_ascii_case(released_key))
+            && hook_state
+                .held_mouse_buttons
+                .iter()
+                .all(|held| held.eq_ignore_ascii_case(released_key))
     }
 
     fn process_binding_press(binding: &HotkeyBinding, is_repeat: bool) -> Option<bool> {
@@ -1920,7 +1931,11 @@ mod windows_overlay {
             match_duplicate_window_titles,
         ) in release_matches
         {
-            if !release_trigger_ready(&preset.release_wait_key, preset.release_requires_all_inputs_released) {
+            if !release_trigger_ready(
+                &preset.release_wait_key,
+                preset.release_requires_all_inputs_released,
+                &binding.key,
+            ) {
                 continue;
             }
             let hotkey_id = MACRO_PRESET_BASE_ID + preset.id as i32;
