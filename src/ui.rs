@@ -6935,11 +6935,11 @@ impl CrosshairApp {
                             });
                             ui.end_row();
 
-                            ui.label(Self::tr_lang(language, "Restore", "KhÃƒÆ’Ã‚Â´i phÃƒÂ¡Ã‚Â»Ã‚Â¥c thanh tiÃƒÆ’Ã‚Âªu Ãƒâ€žÃ¢â‚¬ËœÃƒÂ¡Ã‚Â»Ã‚Â"));
+                            ui.label(Self::tr_lang(language, "Restore", "KhÃƒÆ’Ã‚Â´i phÃƒÂ¡Ã‚Â»Ã‚Â¥c"));
                             live_sync |= ui
                                 .checkbox(
                                     &mut preset.restore_titlebar_enabled,
-                                    Self::tr_lang(language, "Enable separate restore hotkey", "BÃƒÂ¡Ã‚ÂºÃ‚Â­t phÃƒÆ’Ã‚Â­m tÃƒÂ¡Ã‚ÂºÃ‚Â¯t khÃƒÆ’Ã‚Â´i phÃƒÂ¡Ã‚Â»Ã‚Â¥c riÃƒÆ’Ã‚Âªng"),
+                                    Self::tr_lang(language, "Separate hotkey", "PhÃƒÆ’Ã‚Â­m riÃƒÆ’Ã‚Âªng"),
                                 )
                                 .on_hover_text(
                                     Self::tr_lang(
@@ -11138,7 +11138,7 @@ impl CrosshairApp {
                         });
                         ui.end_row();
 
-                        ui.label(Self::tr_lang(language, "Mouse Driver", "Driver chuot"));
+                        ui.label(Self::tr_lang(language, "Driver", "Driver chuot"));
                         ui.horizontal_wrapped(|ui| {
                             live_sync |= ui
                                 .checkbox(
