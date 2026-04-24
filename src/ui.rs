@@ -10832,39 +10832,41 @@ impl CrosshairApp {
                         &preset.name,
                         preset.enabled,
                     ));
-                    if ui
-                        .button(if preset.collapsed {
-                            Self::tr_lang(language, "Show", "HiÃ¡Â»â€¡n")
-                        } else {
-                            Self::tr_lang(language, "Hide", "Ã¡ÂºÂ¨n")
-                        })
-                        .clicked()
-                    {
-                        preset.collapsed = !preset.collapsed;
-                        mouse_sensitivity_live_sync = true;
-                    }
-                    if ui
-                        .button(Self::tr_lang(language, "Remove", "XÃƒÂ³a"))
-                        .clicked()
-                    {
-                        remove_mouse_sensitivity_id = Some(preset.id);
-                    }
-                    if ui
-                        .button(Self::tr_lang(language, "Apply", "ÃƒÂp dÃ¡Â»Â¥ng"))
-                        .clicked()
-                    {
-                        let _ = self
-                            .overlay_tx
-                            .send(OverlayCommand::ApplyMouseSensitivityPreset(preset.id));
-                    }
-                    if ui
-                        .button(Self::tr_lang(language, "Restore", "KhÃƒÂ´i phÃ¡Â»Â¥c"))
-                        .clicked()
-                    {
-                        let _ = self
-                            .overlay_tx
-                            .send(OverlayCommand::RestoreMouseSensitivity);
-                    }
+                    ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
+                        if ui
+                            .button(Self::tr_lang(language, "Restore", "KhÃƒÂ´i phÃ¡Â»Â¥c"))
+                            .clicked()
+                        {
+                            let _ = self
+                                .overlay_tx
+                                .send(OverlayCommand::RestoreMouseSensitivity);
+                        }
+                        if ui
+                            .button(Self::tr_lang(language, "Apply", "ÃƒÂp dÃ¡Â»Â¥ng"))
+                            .clicked()
+                        {
+                            let _ = self
+                                .overlay_tx
+                                .send(OverlayCommand::ApplyMouseSensitivityPreset(preset.id));
+                        }
+                        if ui
+                            .button(Self::tr_lang(language, "Remove", "XÃƒÂ³a"))
+                            .clicked()
+                        {
+                            remove_mouse_sensitivity_id = Some(preset.id);
+                        }
+                        if ui
+                            .button(if preset.collapsed {
+                                Self::tr_lang(language, "Show", "HiÃ¡Â»â€¡n")
+                            } else {
+                                Self::tr_lang(language, "Hide", "Ã¡ÂºÂ¨n")
+                            })
+                            .clicked()
+                        {
+                            preset.collapsed = !preset.collapsed;
+                            mouse_sensitivity_live_sync = true;
+                        }
+                    });
                     if enabled_changed && !preset.enabled {
                         let _ = self
                             .overlay_tx
@@ -11016,23 +11018,25 @@ impl CrosshairApp {
                         &preset.name,
                         preset.enabled,
                     ));
-                    if ui
-                        .button(if preset.collapsed {
-                            Self::tr_lang(language, "Show", "HiÃ¡Â»â€¡n")
-                        } else {
-                            Self::tr_lang(language, "Hide", "Ã¡ÂºÂ¨n")
-                        })
-                        .clicked()
-                    {
-                        preset.collapsed = !preset.collapsed;
-                        live_sync = true;
-                    }
-                    if ui
-                        .button(Self::tr_lang(language, "Remove", "XÃƒÂ³a"))
-                        .clicked()
-                    {
-                        remove_id = Some(preset.id);
-                    }
+                    ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
+                        if ui
+                            .button(Self::tr_lang(language, "Remove", "XÃƒÂ³a"))
+                            .clicked()
+                        {
+                            remove_id = Some(preset.id);
+                        }
+                        if ui
+                            .button(if preset.collapsed {
+                                Self::tr_lang(language, "Show", "HiÃ¡Â»â€¡n")
+                            } else {
+                                Self::tr_lang(language, "Hide", "Ã¡ÂºÂ¨n")
+                            })
+                            .clicked()
+                        {
+                            preset.collapsed = !preset.collapsed;
+                            live_sync = true;
+                        }
+                    });
                 });
                 if preset.collapsed {
                     return;
@@ -12378,23 +12382,25 @@ impl CrosshairApp {
                     changed |= ui
                         .add_sized([220.0, 24.0], TextEdit::singleline(&mut preset.name))
                         .changed();
-                    if ui
-                        .button(if preset.collapsed {
-                            Self::tr_lang(language, "Show", "HiÃ¡Â»â€¡n")
-                        } else {
-                            Self::tr_lang(language, "Hide", "Ã¡ÂºÂ¨n")
-                        })
-                        .clicked()
-                    {
-                        preset.collapsed = !preset.collapsed;
-                        changed = true;
-                    }
-                    if ui
-                        .button(Self::tr_lang(language, "Remove", "XÃƒÂ³a"))
-                        .clicked()
-                    {
-                        remove_sound_preset = Some(preset.id);
-                    }
+                    ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
+                        if ui
+                            .button(Self::tr_lang(language, "Remove", "XÃƒÂ³a"))
+                            .clicked()
+                        {
+                            remove_sound_preset = Some(preset.id);
+                        }
+                        if ui
+                            .button(if preset.collapsed {
+                                Self::tr_lang(language, "Show", "HiÃ¡Â»â€¡n")
+                            } else {
+                                Self::tr_lang(language, "Hide", "Ã¡ÂºÂ¨n")
+                            })
+                            .clicked()
+                        {
+                            preset.collapsed = !preset.collapsed;
+                            changed = true;
+                        }
+                    });
                 });
                 if preset.collapsed {
                     return;
@@ -13085,23 +13091,25 @@ impl CrosshairApp {
                     changed |= ui
                         .add_sized([220.0, 24.0], TextEdit::singleline(&mut preset.name))
                         .changed();
-                    if ui
-                        .button(if preset.collapsed {
-                            Self::tr_lang(language, "Show", "HiÃ¡Â»â€¡n")
-                        } else {
-                            Self::tr_lang(language, "Hide", "Ã¡ÂºÂ¨n")
-                        })
-                        .clicked()
-                    {
-                        preset.collapsed = !preset.collapsed;
-                        changed = true;
-                    }
-                    if ui
-                        .button(Self::tr_lang(language, "Remove", "XÃƒÂ³a"))
-                        .clicked()
-                    {
-                        remove_id = Some(preset.id);
-                    }
+                    ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
+                        if ui
+                            .button(Self::tr_lang(language, "Remove", "XÃƒÂ³a"))
+                            .clicked()
+                        {
+                            remove_id = Some(preset.id);
+                        }
+                        if ui
+                            .button(if preset.collapsed {
+                                Self::tr_lang(language, "Show", "HiÃ¡Â»â€¡n")
+                            } else {
+                                Self::tr_lang(language, "Hide", "Ã¡ÂºÂ¨n")
+                            })
+                            .clicked()
+                        {
+                            preset.collapsed = !preset.collapsed;
+                            changed = true;
+                        }
+                    });
                 });
                 if preset.collapsed {
                     if preset.preview_enabled {
