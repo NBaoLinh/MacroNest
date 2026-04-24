@@ -6978,7 +6978,7 @@ impl CrosshairApp {
                             live_sync |= Self::render_multi_window_targets(
                                 ui,
                                 (preset.id, "window-target"),
-                                "Focused window",
+                                "Focus",
                                 &mut preset.target_window_title,
                                 &mut preset.extra_target_window_titles,
                                 &self.open_windows,
@@ -7078,7 +7078,7 @@ impl CrosshairApp {
                         live_sync |= Self::render_multi_window_targets(
                             ui,
                             (preset.id, "window-focus-target"),
-                            Self::tr_lang(language, "Focused window", "CÃƒÂ¡Ã‚Â»Ã‚Â­a sÃƒÂ¡Ã‚Â»Ã¢â‚¬Â¢ Ãƒâ€žÃ¢â‚¬Ëœang focus"),
+                            Self::tr_lang(language, "Focus", "CÃƒÂ¡Ã‚Â»Ã‚Â­a sÃƒÂ¡Ã‚Â»Ã¢â‚¬Â¢ Ãƒâ€žÃ¢â‚¬Ëœang focus"),
                             &mut preset.target_window_title,
                             &mut preset.extra_target_window_titles,
                             &self.open_windows,
@@ -7432,7 +7432,7 @@ impl CrosshairApp {
                         let target_changed = Self::render_multi_window_targets(
                             ui,
                             (preset.id, "pin-target-window"),
-                            Self::tr_lang(language, "Focused window", "CÃƒÂ¡Ã‚Â»Ã‚Â­a sÃƒÂ¡Ã‚Â»Ã¢â‚¬Â¢ Ãƒâ€žÃ¢â‚¬Ëœang focus"),
+                            Self::tr_lang(language, "Focus", "CÃƒÂ¡Ã‚Â»Ã‚Â­a sÃƒÂ¡Ã‚Â»Ã¢â‚¬Â¢ Ãƒâ€žÃ¢â‚¬Ëœang focus"),
                             &mut preset.target_window_title,
                             &mut preset.extra_target_window_titles,
                             &self.open_windows,
@@ -8455,7 +8455,7 @@ impl CrosshairApp {
                             );
                             ui.end_row();
 
-                            ui.label(Self::tr_lang(language, "Duplicate Titles", "TiÃƒÆ’Ã‚Âªu Ãƒâ€žÃ¢â‚¬ËœÃƒÂ¡Ã‚Â»Ã‚Â trÃƒÆ’Ã‚Â¹ng"));
+                            ui.label(Self::tr_lang(language, "Titles", "TiÃƒÆ’Ã‚Âªu Ãƒâ€žÃ¢â‚¬ËœÃƒÂ¡Ã‚Â»Ã‚Â trÃƒÆ’Ã‚Â¹ng"));
                             live_sync |= ui
                                 .checkbox(
                                     &mut group.match_duplicate_window_titles,
@@ -10818,7 +10818,7 @@ impl CrosshairApp {
             ui.label(
                 RichText::new(Self::tr_lang(
                     self.state.ui_language,
-                    "Restore on exit",
+                    "Restore",
                     "Khoi phuc khi thoat",
                 ))
                 .strong(),
@@ -10952,7 +10952,7 @@ impl CrosshairApp {
 
                         ui.label(Self::tr_lang(
                             language,
-                            "Duplicate Titles",
+                            "Titles",
                             "TiÃƒÆ’Ã‚Âªu Ãƒâ€žÃ¢â‚¬ËœÃƒÂ¡Ã‚Â»Ã‚Â trÃƒÆ’Ã‚Â¹ng",
                         ));
                         mouse_sensitivity_live_sync |= ui
