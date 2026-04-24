@@ -3628,7 +3628,7 @@ impl CrosshairApp {
         live_sync: &mut bool,
     ) {
         let selected = Self::macro_action_is_mouse(*current);
-        let owner_id = ui.make_persistent_id((id_source, "macro-action-submenu-owner"));
+        let owner_id = ui.make_persistent_id("macro-action-submenu-owner");
         let popup_id = ui.make_persistent_id((id_source, "mouse-submenu-popup"));
         let image_popup_id = ui.make_persistent_id((id_source, "image-search-submenu-popup"));
         let active_owner = ui
@@ -3740,7 +3740,7 @@ impl CrosshairApp {
         live_sync: &mut bool,
     ) {
         let selected = Self::macro_action_is_image_search(*current);
-        let owner_id = ui.make_persistent_id((id_source, "macro-action-submenu-owner"));
+        let owner_id = ui.make_persistent_id("macro-action-submenu-owner");
         let popup_id = ui.make_persistent_id((id_source, "image-search-submenu-popup"));
         let mouse_popup_id = ui.make_persistent_id((id_source, "mouse-submenu-popup"));
         let active_owner = ui
@@ -9906,7 +9906,7 @@ impl CrosshairApp {
                                                                     "Tiếp tục dò cho tới khi thấy ảnh.",
                                                                 ))
                                                                 .changed();
-                                                            let mut trigger_macro_enabled = step.image_search_trigger_macro_preset_id.is_some();
+                                                            let mut trigger_macro_enabled = step.image_search_trigger_macro_enabled;
                                                             if ui
                                                                 .checkbox(
                                                                     &mut trigger_macro_enabled,
@@ -9919,20 +9919,25 @@ impl CrosshairApp {
                                                                 ))
                                                                 .changed()
                                                             {
+                                                                step.image_search_trigger_macro_enabled = trigger_macro_enabled;
                                                                 if trigger_macro_enabled {
-                                                                    step.image_search_trigger_macro_preset_id = group_preset_options
-                                                                        .iter()
-                                                                        .find(|(preset_option_id, _)| *preset_option_id != preset.id)
-                                                                        .map(|(preset_option_id, _)| *preset_option_id);
-                                                                } else {
-                                                                    step.image_search_trigger_macro_preset_id = None;
+                                                                    if step
+                                                                        .image_search_trigger_macro_preset_id
+                                                                        .is_none()
+                                                                    {
+                                                                        step.image_search_trigger_macro_preset_id = group_preset_options
+                                                                            .iter()
+                                                                            .find(|(preset_option_id, _)| *preset_option_id != preset.id)
+                                                                            .map(|(preset_option_id, _)| *preset_option_id);
+                                                                    }
                                                                 }
                                                                 live_sync = true;
                                                             }
-                                                            if let Some(selected_id) = step.image_search_trigger_macro_preset_id {
+                                                            if step.image_search_trigger_macro_enabled {
+                                                                let selected_id = step.image_search_trigger_macro_preset_id;
                                                                 let selected_label = group_preset_options
                                                                     .iter()
-                                                                    .find(|(preset_option_id, _)| *preset_option_id == selected_id)
+                                                                    .find(|(preset_option_id, _)| Some(*preset_option_id) == selected_id)
                                                                     .map(|(_, label)| label.clone())
                                                                     .unwrap_or_else(|| "Select macro preset".to_owned());
                                                                 egui::ComboBox::from_id_salt((
@@ -9940,7 +9945,7 @@ impl CrosshairApp {
                                                                     preset.id,
                                                                     step_index,
                                                                     "image-search-trigger-macro-preset",
-                                                                ))
+                                                                    ))
                                                                 .width(160.0)
                                                                 .selected_text(selected_label)
                                                                 .show_ui(ui, |ui| {
@@ -9950,7 +9955,7 @@ impl CrosshairApp {
                                                                         }
                                                                         if ui
                                                                             .selectable_label(
-                                                                                selected_id == *preset_option_id,
+                                                                                selected_id == Some(*preset_option_id),
                                                                                 preset_option_label,
                                                                             )
                                                                             .clicked()

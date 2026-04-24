@@ -3865,6 +3865,7 @@ mod windows_overlay {
                         &preset,
                         step.image_search_move_cursor_on_match,
                         step.image_search_wait_until_found,
+                        step.image_search_trigger_macro_enabled,
                         step.image_search_trigger_macro_preset_id,
                         preset_id,
                         &mut no_locked_keys,
@@ -4072,6 +4073,7 @@ mod windows_overlay {
                             &preset,
                             step.image_search_move_cursor_on_match,
                             step.image_search_wait_until_found,
+                            step.image_search_trigger_macro_enabled,
                             step.image_search_trigger_macro_preset_id,
                             preset_id,
                             &mut no_locked_keys,
@@ -4318,6 +4320,7 @@ mod windows_overlay {
                             &preset,
                             step.image_search_move_cursor_on_match,
                             step.image_search_wait_until_found,
+                            step.image_search_trigger_macro_enabled,
                             step.image_search_trigger_macro_preset_id,
                             preset_id,
                             &mut no_locked_keys,
@@ -6672,6 +6675,7 @@ mod windows_overlay {
         preset: &ImageSearchPreset,
         move_cursor: bool,
         wait_until_found: bool,
+        trigger_macro_enabled: bool,
         trigger_macro_preset_id: Option<u32>,
         macro_preset_id: u32,
         press_locked_keys: &mut Vec<String>,
@@ -6723,16 +6727,18 @@ mod windows_overlay {
                         outcome.status
                     )));
                 }
-                if let Some(trigger_preset_id) = trigger_macro_preset_id {
-                    let _ = trigger_nested_macro_preset(
-                        &trigger_preset_id.to_string(),
-                        press_locked_keys,
-                        press_locked_mouse_count,
-                        stop_immediately_on_retrigger,
-                        target_window_title,
-                        extra_target_window_titles,
-                        match_duplicate_window_titles,
-                    );
+                if trigger_macro_enabled {
+                    if let Some(trigger_preset_id) = trigger_macro_preset_id {
+                        let _ = trigger_nested_macro_preset(
+                            &trigger_preset_id.to_string(),
+                            press_locked_keys,
+                            press_locked_mouse_count,
+                            stop_immediately_on_retrigger,
+                            target_window_title,
+                            extra_target_window_titles,
+                            match_duplicate_window_titles,
+                        );
+                    }
                 }
                 return MacroRunFlow::Continue;
             }
