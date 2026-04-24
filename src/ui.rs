@@ -392,6 +392,7 @@ pub struct CrosshairApp {
     show_library_audio_editor: HashSet<u32>,
     active_audio_editor: Option<AudioEditorTarget>,
     capture_ignored_keys: HashSet<u32>,
+    capture_suppress_next_poll: bool,
     image_search_capture_active: bool,
     image_search_capture_target_preset_id: Option<u32>,
     image_search_capture_mode: Option<ImageSearchCaptureMode>,
@@ -482,6 +483,7 @@ impl CrosshairApp {
             show_library_audio_editor: HashSet::new(),
             active_audio_editor: None,
             capture_ignored_keys: HashSet::new(),
+            capture_suppress_next_poll: false,
             image_search_capture_active: false,
             image_search_capture_target_preset_id: None,
             image_search_capture_mode: None,
@@ -4619,6 +4621,7 @@ impl CrosshairApp {
     fn cancel_capture(&mut self) {
         self.capture_target = None;
         self.capture_ignored_keys.clear();
+        self.capture_suppress_next_poll = true;
         self.status = "Capture cancelled.".to_owned();
     }
 
@@ -5385,6 +5388,11 @@ impl CrosshairApp {
     }
 
     fn poll_capture_input(&mut self, ctx: &egui::Context) {
+        if self.capture_suppress_next_poll {
+            self.capture_suppress_next_poll = false;
+            self.capture_ignored_keys.clear();
+            return;
+        }
         let Some(target) = self.capture_target.clone() else {
             self.capture_ignored_keys.clear();
             return;
@@ -9284,9 +9292,13 @@ impl CrosshairApp {
                                                 ))
                                                 .clicked()
                                             {
-                                                next_capture_target = Some(
-                                                    CaptureRequest::MacroPresetHoldStopInput(group.id, preset.id),
-                                                );
+                                                let hold_stop_capture_target =
+                                                    CaptureRequest::MacroPresetHoldStopInput(group.id, preset.id);
+                                                if capture_target_snapshot.as_ref() == Some(&hold_stop_capture_target) {
+                                                    cancel_active_capture = true;
+                                                } else {
+                                                    next_capture_target = Some(hold_stop_capture_target);
+                                                }
                                             }
                                             if ui.button(Self::tr_lang(language, "Clear", "XÃƒÂ³a")).clicked() {
                                                 clear_hold_stop_step = true;
@@ -10070,12 +10082,16 @@ impl CrosshairApp {
                                                 ))
                                                 .clicked()
                                             {
-                                                next_capture_target =
-                                                    Some(CaptureRequest::MacroStepInput {
-                                                        group_id: group.id,
-                                                        preset_id: preset.id,
-                                                        step_index,
-                                                    });
+                                                let step_capture_target = CaptureRequest::MacroStepInput {
+                                                    group_id: group.id,
+                                                    preset_id: preset.id,
+                                                    step_index,
+                                                };
+                                                if capture_target_snapshot.as_ref() == Some(&step_capture_target) {
+                                                    cancel_active_capture = true;
+                                                } else {
+                                                    next_capture_target = Some(step_capture_target);
+                                                }
                                             }
                                             if ui
                                                 .add_sized([28.0, 18.0], Button::new("X"))
