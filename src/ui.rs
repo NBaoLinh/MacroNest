@@ -5358,7 +5358,11 @@ impl CrosshairApp {
         if let Some(binding) = self.capture_scroll_binding(ctx) {
             return Some(binding);
         }
+        let pointer_over_area = ctx.is_pointer_over_area();
         for vk in Self::capture_scan_keys() {
+            if pointer_over_area && Self::capture_mouse_vk(vk) {
+                continue;
+            }
             let pressed = unsafe { (GetAsyncKeyState(vk as i32) as u16 & 0x8000) != 0 };
             if pressed {
                 if self.capture_ignored_keys.contains(&vk) {
@@ -5393,6 +5397,9 @@ impl CrosshairApp {
 
     #[cfg(windows)]
     fn capture_scroll_binding(&self, ctx: &egui::Context) -> Option<crate::model::HotkeyBinding> {
+        if ctx.is_pointer_over_area() {
+            return None;
+        }
         let scroll_y = ctx.input(|input| input.raw_scroll_delta.y);
         if scroll_y.abs() < 0.01 {
             return None;
@@ -5410,9 +5417,19 @@ impl CrosshairApp {
         })
     }
 
+    #[cfg(windows)]
+    fn capture_mouse_vk(vk: u32) -> bool {
+        matches!(vk, 0x01 | 0x02 | 0x04 | 0x05 | 0x06)
+    }
+
     #[cfg(not(windows))]
     fn capture_scroll_binding(&self, _ctx: &egui::Context) -> Option<crate::model::HotkeyBinding> {
         None
+    }
+
+    #[cfg(not(windows))]
+    fn capture_mouse_vk(_vk: u32) -> bool {
+        false
     }
 
     #[cfg(windows)]
