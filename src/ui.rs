@@ -6997,7 +6997,7 @@ impl CrosshairApp {
         ui.label(
             RichText::new(Self::tr_lang(
                 language,
-                "Window Focus Presets",
+                "Focus Presets",
                 "Preset focus cÃƒÂ¡Ã‚Â»Ã‚Â­a sÃƒÂ¡Ã‚Â»Ã¢â‚¬Â¢",
             ))
             .strong(),
@@ -7123,7 +7123,7 @@ impl CrosshairApp {
     fn render_zoom_panel(&mut self, ui: &mut egui::Ui) {
         let language = self.state.ui_language;
         ui.heading("Zoom");
-        ui.label("Pick one source region and stream it into one target region. Hold Shift while resizing Target Region to keep the same aspect ratio as Source Region.");
+        ui.label("Source -> target region. Hold Shift to keep aspect ratio.");
         let screen_size = Self::screen_size();
         if ui.button("+ Add zoom preset").clicked() {
             self.add_zoom_preset();
