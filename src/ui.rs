@@ -8481,6 +8481,7 @@ impl CrosshairApp {
                                 }
                                 if Self::sized_button(ui, 56.0, Self::tr_lang(language, "Clear", "XÃƒÂ³a")).clicked() {
                                     preset.hotkey = None;
+                                    preset.trigger_keys.clear();
                                     live_sync = true;
                                 }
                                 if Self::sized_button(ui, 64.0, Self::tr_lang(language, "Remove", "XÃƒÂ³a")).clicked() {
