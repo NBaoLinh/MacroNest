@@ -13256,7 +13256,6 @@ impl eframe::App for CrosshairApp {
             self.enforce_square_window_frames = self.enforce_square_window_frames.saturating_sub(1);
         }
 
-        self.poll_capture_input(ctx);
         if self.capture_target.is_some() && ctx.input(|input| input.key_pressed(egui::Key::Escape))
         {
             self.cancel_capture();
@@ -13575,6 +13574,8 @@ impl eframe::App for CrosshairApp {
                     ui.label(RichText::new(&self.status).strong());
                 });
         });
+
+        self.poll_capture_input(ctx);
 
     }
 
