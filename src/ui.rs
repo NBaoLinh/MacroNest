@@ -8636,7 +8636,7 @@ impl CrosshairApp {
                         .spacing([6.0, 4.0])
                         .show(ui, |ui| {
                             ui.strong(Self::tr_lang(language, "Trigger", "KÃƒÂ­ch hoÃ¡ÂºÂ¡t"));
-                            ui.strong(Self::tr_lang(language, "Binding", "PhÃƒÂ­m"));
+                            ui.strong(Self::tr_lang(language, "Key", "PhÃ­m"));
                             ui.strong(Self::tr_lang(language, "Enabled", "BÃ¡ÂºÂ­t"));
                             ui.strong(Self::tr_lang(language, "Show", "HiÃ¡Â»â€¡n"));
                             ui.strong(Self::tr_lang(language, "Capture", "BÃ¡ÂºÂ¯t"));
@@ -8704,7 +8704,7 @@ impl CrosshairApp {
                                     CaptureRequest::MacroPresetHotkey(group.id, preset.id);
                                 if ui
                                     .add_sized(
-                                        [72.0, 22.0],
+                                        [64.0, 22.0],
                                         Button::new(Self::capture_button_text(
                                             language,
                                             capture_target_snapshot.as_ref() == Some(&capture_target),
@@ -8718,7 +8718,7 @@ impl CrosshairApp {
                                         next_capture_target = Some(capture_target);
                                     }
                                 }
-                                if Self::sized_button(ui, 56.0, Self::tr_lang(language, "Clear", "XÃƒÂ³a")).clicked() {
+                                if Self::sized_button(ui, 64.0, Self::tr_lang(language, "Clear", "XÃƒÂ³a")).clicked() {
                                     let mut changed = false;
                                     if !preset.trigger_keys.trim().is_empty() {
                                         changed |= Self::pop_key_list_entry(&mut preset.trigger_keys);
@@ -8737,7 +8737,7 @@ impl CrosshairApp {
                                     .add_enabled(
                                         self.macro_preset_clipboard.is_some(),
                                         Button::new(Self::tr_lang(language, "Paste", "DÃ¡ÂºÂ¡n"))
-                                            .min_size(egui::vec2(68.0, 24.0)),
+                                            .min_size(egui::vec2(64.0, 24.0)),
                                     )
                                     .clicked()
                                 {
@@ -8820,7 +8820,6 @@ impl CrosshairApp {
                                 .changed();
                             if preset.release_requires_all_inputs_released {
                                 ui.horizontal(|ui| {
-                                    ui.label(Self::tr_lang(language, "Wait key", "Wait key"));
                                     live_sync |= Self::render_key_list_chips(
                                         ui,
                                         language,
@@ -8831,7 +8830,7 @@ impl CrosshairApp {
                                         CaptureRequest::MacroPresetReleaseWaitKey(group.id, preset.id);
                                     if ui
                                         .add_sized(
-                                            [72.0, 22.0],
+                                            [64.0, 22.0],
                                             Button::new(Self::capture_button_text(
                                                 language,
                                                 capture_target_snapshot.as_ref()
