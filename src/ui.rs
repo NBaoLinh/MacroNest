@@ -8748,12 +8748,11 @@ impl CrosshairApp {
                                             [72.0, 22.0],
                                             Button::new(Self::capture_button_text(
                                                 language,
-                                                next_capture_target
-                                                    .as_ref()
+                                                capture_target_snapshot.as_ref()
                                                     == Some(&wait_capture_target),
                                             )),
                                         )
-                                        .clicked()
+                                    .clicked()
                                     {
                                         if capture_target_snapshot.as_ref() == Some(&wait_capture_target) {
                                             cancel_active_capture = true;
