@@ -1500,22 +1500,27 @@ mod windows_overlay {
         session.dirty = true;
     }
 
-    fn release_trigger_ready(released_key_name: &str, require_all_inputs_released: bool) -> bool {
+    fn release_trigger_ready(wait_key_spec: &str, require_all_inputs_released: bool) -> bool {
+        let wait_keys = parse_locked_keys(wait_key_spec);
+        let hook_state = HOOK_STATE.lock();
+        if wait_keys.iter().any(|wait_key| {
+            hook_state
+                .held_inputs
+                .iter()
+                .any(|held| held.eq_ignore_ascii_case(wait_key))
+                || hook_state
+                    .held_mouse_buttons
+                    .iter()
+                    .any(|held| held.eq_ignore_ascii_case(wait_key))
+        }) {
+            return false;
+        }
+
         if !require_all_inputs_released {
             return true;
         }
 
-        let hook_state = HOOK_STATE.lock();
-        let released_key_name = released_key_name.trim();
-        let other_keys_held = hook_state
-            .held_inputs
-            .iter()
-            .any(|held| !held.eq_ignore_ascii_case(released_key_name));
-        let other_mouse_held = hook_state
-            .held_mouse_buttons
-            .iter()
-            .any(|held| !held.eq_ignore_ascii_case(released_key_name));
-        !other_keys_held && !other_mouse_held
+        hook_state.held_inputs.is_empty() && hook_state.held_mouse_buttons.is_empty()
     }
 
     fn process_binding_press(binding: &HotkeyBinding, is_repeat: bool) -> Option<bool> {
@@ -1859,13 +1864,8 @@ mod windows_overlay {
             return true;
         }
 
-        let mut release_matches: Vec<(
-            MacroPreset,
-            Option<String>,
-            Vec<String>,
-            bool,
-            String,
-        )> = Vec::new();
+        let mut release_matches: Vec<(MacroPreset, Option<String>, Vec<String>, bool)> =
+            Vec::new();
         let preset_ids = {
             let hook_state = HOOK_STATE.lock();
             for group in &hook_state.macro_groups {
@@ -1900,7 +1900,6 @@ mod windows_overlay {
                         group.target_window_title.clone(),
                         group.extra_target_window_titles.clone(),
                         group.match_duplicate_window_titles,
-                        binding.key.clone(),
                     ));
                 }
             }
@@ -1927,13 +1926,9 @@ mod windows_overlay {
             target_window_title,
             extra_target_window_titles,
             match_duplicate_window_titles,
-            trigger_key,
         ) in release_matches
         {
-            if !release_trigger_ready(
-                &trigger_key,
-                preset.release_requires_all_inputs_released,
-            ) {
+            if !release_trigger_ready(&preset.release_wait_key, preset.release_requires_all_inputs_released) {
                 continue;
             }
             let hotkey_id = MACRO_PRESET_BASE_ID + preset.id as i32;
@@ -1946,7 +1941,7 @@ mod windows_overlay {
                 target_window_title,
                 extra_target_window_titles,
                 match_duplicate_window_titles,
-                trigger_key,
+                binding.key.clone(),
             );
         }
 

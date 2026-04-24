@@ -5059,6 +5059,27 @@ impl CrosshairApp {
                 self.sync_macro_presets();
             }
             (
+                CaptureRequest::MacroPresetReleaseWaitKey(group_id, preset_id),
+                CapturedInput::Binding(binding),
+            ) => {
+                if let Some(preset) = self
+                    .state
+                    .macro_groups
+                    .iter_mut()
+                    .find(|group| group.id == group_id)
+                    .and_then(|group| {
+                        group
+                            .presets
+                            .iter_mut()
+                            .find(|preset| preset.id == preset_id)
+                    })
+                {
+                    preset.release_wait_key = binding.key.clone();
+                    self.status = format!("Captured release wait key for macro {preset_id}.");
+                }
+                self.sync_macro_presets();
+            }
+            (
                 CaptureRequest::MacroSelectorHotkey(group_id, selector_id),
                 CapturedInput::Binding(binding),
             ) => {
@@ -8341,7 +8362,19 @@ impl CrosshairApp {
                             .num_columns(8)
                             .spacing([6.0, 4.0])
                             .show(ui, |ui| {
-                                ui.label(Self::tr_lang(language, "Trigger", "KÃ­ch hoáº¡t"));
+                                ui.label(Self::tr_lang(
+                                    language,
+                                    if preset.trigger_mode == MacroTriggerMode::Release {
+                                        "Release"
+                                    } else {
+                                        "Trigger"
+                                    },
+                                    if preset.trigger_mode == MacroTriggerMode::Release {
+                                        "Tháº£"
+                                    } else {
+                                        "KÃ­ch hoáº¡t"
+                                    },
+                                ));
                                 ui.add_sized(
                                     [148.0, 22.0],
                                     egui::Label::new(
@@ -8439,6 +8472,43 @@ impl CrosshairApp {
                                         }
                                     }
                                 });
+                            if preset.trigger_mode == MacroTriggerMode::Release {
+                                ui.horizontal(|ui| {
+                                    ui.label(Self::tr_lang(language, "Wait key", "Key chờ"));
+                                    let wait_key_response = ui.add_sized(
+                                        [160.0, 22.0],
+                                        egui::TextEdit::singleline(&mut preset.release_wait_key)
+                                            .hint_text(Self::tr_lang(
+                                                language,
+                                                "Optional, comma-separated keys",
+                                                "Tùy chọn, các phím cách nhau bằng dấu phẩy",
+                                            )),
+                                    );
+                                    if wait_key_response.changed() {
+                                        live_sync = true;
+                                    }
+                                    let wait_capture_target =
+                                        CaptureRequest::MacroPresetReleaseWaitKey(group.id, preset.id);
+                                    if ui
+                                        .add_sized(
+                                            [72.0, 22.0],
+                                            Button::new(Self::capture_button_text(
+                                                language,
+                                                next_capture_target
+                                                    .as_ref()
+                                                    == Some(&wait_capture_target),
+                                            )),
+                                        )
+                                        .clicked()
+                                    {
+                                        next_capture_target = Some(wait_capture_target);
+                                    }
+                                    if Self::sized_button(ui, 56.0, Self::tr_lang(language, "Clear", "Xóa")).clicked() {
+                                        preset.release_wait_key.clear();
+                                        live_sync = true;
+                                    }
+                                });
+                            }
                             if preset.trigger_mode == MacroTriggerMode::Press {
                                 live_sync |= ui
                                     .checkbox(

@@ -191,6 +191,7 @@ impl AppPaths {
                         trigger_mode: crate::model::MacroTriggerMode::Press,
                         stop_on_retrigger_immediate: false,
                         release_requires_all_inputs_released: false,
+                        release_wait_key: String::new(),
                         hotkey: legacy.hotkey,
                         hold_stop_step_enabled: false,
                         hold_stop_step: crate::model::MacroStep::default(),
