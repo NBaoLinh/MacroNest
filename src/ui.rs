@@ -7123,7 +7123,7 @@ impl CrosshairApp {
     fn render_zoom_panel(&mut self, ui: &mut egui::Ui) {
         let language = self.state.ui_language;
         ui.heading("Zoom");
-        ui.label("Source -> target. Shift keeps ratio.");
+        ui.label("Source -> target. Shift=ratio.");
         let screen_size = Self::screen_size();
         if ui.button("+ Add zoom preset").clicked() {
             self.add_zoom_preset();
@@ -9464,7 +9464,7 @@ impl CrosshairApp {
                                                     )
                                                     .on_hover_text(Self::tr_lang(
                                                         language,
-                                                        "Capture keyboard input for the hold-stop action",
+                                                        "Capture hold key",
                                                         "BÃƒÂ¡Ã‚ÂºÃ‚Â¯t phÃƒÆ’Ã‚Â­m cho action khi dÃƒÂ¡Ã‚Â»Ã‚Â«ng hold",
                                                     ))
                                                     .clicked()
@@ -10657,7 +10657,7 @@ impl CrosshairApp {
         ui.separator();
         ui.heading(self.tr("Mouse Driver", "Driver chuot"));
         ui.label(self.tr(
-            "Interception package. Per-path backend.",
+            "Interception. Per-path backend.",
             "Tai hoac xoa driver Interception. Tung preset duong chuot se tu chon backend rieng.",
         ));
         let driver_downloaded = self.mouse_interception_driver_downloaded();
