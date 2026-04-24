@@ -622,9 +622,7 @@ impl CrosshairApp {
 
     fn sync_macro_presets(&self) {
         let mut macro_groups = self.state.macro_groups.clone();
-        for group in &mut macro_groups {
-            Self::sort_macro_group_presets(group);
-        }
+        Self::sort_macro_groups(&mut macro_groups);
         let _ = self.overlay_tx.send(OverlayCommand::UpdateMacroPresets(
             macro_groups,
         ));
@@ -1568,8 +1566,8 @@ impl CrosshairApp {
             .contains(&needle.to_lowercase())
     }
 
-    fn sort_macro_group_presets(group: &mut MacroGroup) {
-        group.presets.sort_by(|left, right| {
+    fn sort_macro_groups(groups: &mut [MacroGroup]) {
+        groups.sort_by(|left, right| {
             right
                 .favorite
                 .cmp(&left.favorite)
@@ -1591,7 +1589,6 @@ impl CrosshairApp {
                 &hotkey::format_binding(preset.hotkey.as_ref()),
                 query,
             )
-            || preset.favorite && Self::contains_case_insensitive("favorite", query)
     }
 
     fn macro_group_matches_search_query(group: &MacroGroup, query: &str) -> bool {
@@ -7863,6 +7860,7 @@ impl CrosshairApp {
             ui.separator();
         }
         let search_query = self.macro_preset_search_query.trim().to_owned();
+        Self::sort_macro_groups(&mut self.state.macro_groups);
         let visible_group_indices: Vec<usize> = self
             .state
             .macro_groups
@@ -7901,8 +7899,7 @@ impl CrosshairApp {
             let drag_select_anchor_snapshot = self.macro_drag_select_anchor;
             let mut drag_select_anchor_update = None;
             let render_preset_indices = {
-                let group = &mut self.state.macro_groups[group_index];
-                Self::sort_macro_group_presets(group);
+                let group = &self.state.macro_groups[group_index];
                 let query = search_query.as_str();
                 if query.is_empty() || Self::contains_case_insensitive(&group.name, query) {
                     (0..group.presets.len()).collect::<Vec<_>>()
@@ -7928,10 +7925,44 @@ impl CrosshairApp {
                 Self::show_preset_card(ui, group.enabled, |ui| {
                     if group.collapsed {
                         egui::Grid::new((group.id, "group-collapsed-header"))
-                            .num_columns(3)
+                            .num_columns(4)
                             .min_col_width(140.0)
                             .spacing([12.0, 6.0])
                             .show(ui, |ui| {
+                                let star_text = if group.favorite { "★" } else { "☆" };
+                                let star_fill = if group.favorite {
+                                    Color32::from_rgb(104, 82, 18)
+                                } else {
+                                    Color32::from_rgba_premultiplied(52, 58, 70, 190)
+                                };
+                                let star_stroke = if group.favorite {
+                                    Color32::from_rgb(255, 220, 96)
+                                } else {
+                                    Color32::from_rgb(102, 110, 122)
+                                };
+                                if ui
+                                    .add_sized(
+                                        [28.0, 22.0],
+                                        Button::new(
+                                            RichText::new(star_text).color(if group.favorite {
+                                                Color32::from_rgb(255, 224, 110)
+                                            } else {
+                                                Color32::from_rgb(208, 214, 224)
+                                            }),
+                                        )
+                                        .fill(star_fill)
+                                        .stroke(egui::Stroke::new(1.0, star_stroke)),
+                                    )
+                                    .on_hover_text(Self::tr_lang(
+                                        language,
+                                        "Favorite group",
+                                        "Nhom yeu thich",
+                                    ))
+                                    .clicked()
+                                {
+                                    group.favorite = !group.favorite;
+                                    live_sync = true;
+                                }
                                 let mut selected = self.selected_macro_groups.contains(&group.id);
                                 if ui.checkbox(&mut selected, "").changed() {
                                     if selected {
@@ -7953,10 +7984,44 @@ impl CrosshairApp {
                         return;
                     }
                     egui::Grid::new((group.id, "group-toolbar"))
-                        .num_columns(3)
+                        .num_columns(4)
                         .min_col_width(140.0)
                         .spacing([12.0, 6.0])
                         .show(ui, |ui| {
+                            let star_text = if group.favorite { "★" } else { "☆" };
+                            let star_fill = if group.favorite {
+                                Color32::from_rgb(104, 82, 18)
+                            } else {
+                                Color32::from_rgba_premultiplied(52, 58, 70, 190)
+                            };
+                            let star_stroke = if group.favorite {
+                                Color32::from_rgb(255, 220, 96)
+                            } else {
+                                Color32::from_rgb(102, 110, 122)
+                            };
+                            if ui
+                                .add_sized(
+                                    [28.0, 22.0],
+                                    Button::new(
+                                        RichText::new(star_text).color(if group.favorite {
+                                            Color32::from_rgb(255, 224, 110)
+                                        } else {
+                                            Color32::from_rgb(208, 214, 224)
+                                        }),
+                                    )
+                                    .fill(star_fill)
+                                    .stroke(egui::Stroke::new(1.0, star_stroke)),
+                                )
+                                .on_hover_text(Self::tr_lang(
+                                    language,
+                                    "Favorite group",
+                                    "Nhom yeu thich",
+                                ))
+                                .clicked()
+                            {
+                                group.favorite = !group.favorite;
+                                live_sync = true;
+                            }
                             let mut selected = self.selected_macro_groups.contains(&group.id);
                             if ui.checkbox(&mut selected, "").changed() {
                                 if selected {
@@ -8255,10 +8320,9 @@ impl CrosshairApp {
                     }
 
                     egui::Grid::new((group.id, "preset-header-row"))
-                        .num_columns(9)
+                        .num_columns(8)
                         .spacing([6.0, 4.0])
                         .show(ui, |ui| {
-                            ui.strong(Self::tr_lang(language, "Fav", "YT"));
                             ui.strong(Self::tr_lang(language, "Trigger", "KÃ­ch hoáº¡t"));
                             ui.strong(Self::tr_lang(language, "Binding", "PhÃ­m"));
                             ui.strong(Self::tr_lang(language, "Enabled", "Báº­t"));
@@ -8273,43 +8337,9 @@ impl CrosshairApp {
                         let preset = &mut group.presets[preset_index];
                         Self::show_preset_card(ui, group.enabled && preset.enabled, |ui| {
                         egui::Grid::new((group.id, preset.id, "preset-summary-row"))
-                            .num_columns(9)
+                            .num_columns(8)
                             .spacing([6.0, 4.0])
                             .show(ui, |ui| {
-                                let star_text = if preset.favorite { "★" } else { "☆" };
-                                let star_fill = if preset.favorite {
-                                    Color32::from_rgb(104, 82, 18)
-                                } else {
-                                    Color32::from_rgba_premultiplied(52, 58, 70, 190)
-                                };
-                                let star_stroke = if preset.favorite {
-                                    Color32::from_rgb(255, 220, 96)
-                                } else {
-                                    Color32::from_rgb(102, 110, 122)
-                                };
-                                if ui
-                                    .add_sized(
-                                        [28.0, 22.0],
-                                        Button::new(
-                                            RichText::new(star_text).color(if preset.favorite {
-                                                Color32::from_rgb(255, 224, 110)
-                                            } else {
-                                                Color32::from_rgb(208, 214, 224)
-                                            }),
-                                        )
-                                        .fill(star_fill)
-                                        .stroke(egui::Stroke::new(1.0, star_stroke)),
-                                    )
-                                    .on_hover_text(Self::tr_lang(
-                                        language,
-                                        "Favorite preset",
-                                        "Preset yeu thich",
-                                    ))
-                                    .clicked()
-                                {
-                                    preset.favorite = !preset.favorite;
-                                    live_sync = true;
-                                }
                                 ui.label(Self::tr_lang(language, "Trigger", "KÃ­ch hoáº¡t"));
                                 ui.add_sized(
                                     [148.0, 22.0],

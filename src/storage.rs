@@ -187,7 +187,6 @@ impl AppPaths {
                     crate::model::MacroPreset {
                         id: preset_id,
                         enabled: legacy.enabled,
-                        favorite: false,
                         collapsed: legacy.collapsed,
                         trigger_mode: crate::model::MacroTriggerMode::Press,
                         stop_on_retrigger_immediate: false,
@@ -210,6 +209,7 @@ impl AppPaths {
                 name: "Migrated Macros".to_owned(),
                 enabled: true,
                 collapsed: false,
+                favorite: false,
                 folder_id: None,
                 target_window_title: None,
                 extra_target_window_titles: Vec::new(),

@@ -791,8 +791,6 @@ impl Default for MasterPreset {
 pub struct MacroPreset {
     pub id: u32,
     pub enabled: bool,
-    #[serde(default)]
-    pub favorite: bool,
     pub collapsed: bool,
     pub trigger_mode: MacroTriggerMode,
     pub stop_on_retrigger_immediate: bool,
@@ -807,7 +805,6 @@ impl MacroPreset {
         Self {
             id,
             enabled: true,
-            favorite: false,
             collapsed: true,
             trigger_mode: MacroTriggerMode::Press,
             stop_on_retrigger_immediate: false,
@@ -923,6 +920,8 @@ pub struct MacroGroup {
     pub name: String,
     pub enabled: bool,
     pub collapsed: bool,
+    #[serde(default)]
+    pub favorite: bool,
     pub folder_id: Option<u32>,
     pub target_window_title: Option<String>,
     pub extra_target_window_titles: Vec<String>,
@@ -939,6 +938,7 @@ impl MacroGroup {
             name: format!("Macro Group {id}"),
             enabled: true,
             collapsed: false,
+            favorite: false,
             folder_id: None,
             target_window_title: None,
             extra_target_window_titles: Vec::new(),
