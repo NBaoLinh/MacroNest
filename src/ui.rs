@@ -1741,6 +1741,65 @@ impl CrosshairApp {
         true
     }
 
+    fn short_key_chip_label(key: &str) -> String {
+        match key.trim().to_ascii_uppercase().as_str() {
+            "MOUSELEFT" => "LClick".to_owned(),
+            "MOUSERIGHT" => "RClick".to_owned(),
+            "MOUSEMIDDLE" => "MClick".to_owned(),
+            "MOUSEX1" => "X1".to_owned(),
+            "MOUSEX2" => "X2".to_owned(),
+            "MOUSEWHEELUP" => "WheelUp".to_owned(),
+            "MOUSEWHEELDOWN" => "WheelDn".to_owned(),
+            "ESCAPE" => "Esc".to_owned(),
+            "BACKSPACE" => "Bksp".to_owned(),
+            "PAGEUP" => "PgUp".to_owned(),
+            "PAGEDOWN" => "PgDn".to_owned(),
+            "CONTROL" => "Ctrl".to_owned(),
+            "WINDOWS" | "WIN" => "Win".to_owned(),
+            other => other.to_owned(),
+        }
+    }
+
+    fn render_key_list_chips(
+        ui: &mut egui::Ui,
+        language: UiLanguage,
+        spec: &mut String,
+        empty_text: &str,
+    ) -> bool {
+        let keys = hotkey::split_key_list(spec);
+        if keys.is_empty() {
+            ui.label(empty_text);
+            return false;
+        }
+
+        let mut remove_index = None;
+        ui.horizontal_wrapped(|ui| {
+            for (index, key) in keys.iter().enumerate() {
+                let label = Self::short_key_chip_label(key);
+                if ui
+                    .add(Button::new(RichText::new(label).monospace()).min_size(vec2(0.0, 22.0)))
+                    .on_hover_text(Self::tr_lang(
+                        language,
+                        "Click to remove this key",
+                        "Click to remove this key",
+                    ))
+                    .clicked()
+                {
+                    remove_index = Some(index);
+                }
+            }
+        });
+
+        if let Some(index) = remove_index {
+            let mut next_keys = keys;
+            next_keys.remove(index);
+            *spec = next_keys.join(", ");
+            true
+        } else {
+            false
+        }
+    }
+
     fn app_brand_title(&self) -> &'static str {
         "MacroNest"
     }
@@ -8561,7 +8620,7 @@ impl CrosshairApp {
                     }
 
                     egui::Grid::new((group.id, "preset-header-row"))
-                        .num_columns(8)
+                        .num_columns(9)
                         .spacing([6.0, 4.0])
                         .show(ui, |ui| {
                             ui.strong(Self::tr_lang(language, "Trigger", "KÃƒÂ­ch hoÃ¡ÂºÂ¡t"));
@@ -8570,7 +8629,8 @@ impl CrosshairApp {
                             ui.strong(Self::tr_lang(language, "Show", "HiÃ¡Â»â€¡n"));
                             ui.strong(Self::tr_lang(language, "Capture", "BÃ¡ÂºÂ¯t"));
                             ui.strong(Self::tr_lang(language, "Clear", "XÃƒÂ³a"));
-                            ui.strong(Self::tr_lang(language, "Mouse", "ChuÃ¡Â»â„¢t"));
+                            ui.strong(Self::tr_lang(language, "Copy", "Sao chÃƒÂ©p"));
+                            ui.strong(Self::tr_lang(language, "Paste", "DÃ¡ÂºÂ¡n"));
                             ui.strong(Self::tr_lang(language, "Remove", "XÃƒÂ³a"));
                             ui.end_row();
                     });
@@ -8578,7 +8638,7 @@ impl CrosshairApp {
                         let preset = &mut group.presets[preset_index];
                         Self::show_preset_card(ui, group.enabled && preset.enabled, |ui| {
                         egui::Grid::new((group.id, preset.id, "preset-summary-row"))
-                            .num_columns(8)
+                            .num_columns(9)
                             .spacing([6.0, 4.0])
                             .show(ui, |ui| {
                                 ui.label(Self::tr_lang(
@@ -8594,17 +8654,32 @@ impl CrosshairApp {
                                         "KÃƒÂ­ch hoÃ¡ÂºÂ¡t"
                                     },
                                 ));
-                                ui.add_sized(
-                                    [148.0, 22.0],
-                                    egui::Label::new(
-                                        RichText::new(
-                                            binding_labels
-                                                .get(&preset.id)
-                                                .cloned()
-                                                .unwrap_or_else(|| Self::format_macro_trigger_ui(language, preset)),
-                                        )
-                                            .monospace(),
-                                    ),
+                                ui.allocate_ui_with_layout(
+                                    egui::vec2(148.0, 22.0),
+                                    egui::Layout::left_to_right(egui::Align::Center),
+                                    |ui| {
+                                        if !preset.trigger_keys.trim().is_empty() {
+                                            live_sync |= Self::render_key_list_chips(
+                                                ui,
+                                                language,
+                                                &mut preset.trigger_keys,
+                                                Self::tr_lang(language, "Not set", "ChÃ†Â°a Ã„â€˜Ã¡ÂºÂ·t"),
+                                            );
+                                        } else {
+                                            ui.add_sized(
+                                                [148.0, 22.0],
+                                                egui::Label::new(
+                                                    RichText::new(
+                                                        binding_labels
+                                                            .get(&preset.id)
+                                                            .cloned()
+                                                            .unwrap_or_else(|| Self::format_macro_trigger_ui(language, preset)),
+                                                    )
+                                                        .monospace(),
+                                                ),
+                                            );
+                                        }
+                                    },
                                 );
                                 live_sync |= ui
                                     .add_sized([86.0, 22.0], egui::Checkbox::new(&mut preset.enabled, Self::tr_lang(language, "Enabled", "BÃ¡ÂºÂ­t")))
@@ -8641,6 +8716,20 @@ impl CrosshairApp {
                                         changed = true;
                                     }
                                     live_sync |= changed;
+                                }
+                                if Self::sized_button(ui, 64.0, Self::tr_lang(language, "Copy", "Sao chÃƒÂ©p")).clicked() {
+                                    self.macro_preset_clipboard = Some(preset.clone());
+                                    self.status = "Copied macro preset.".to_owned();
+                                }
+                                if ui
+                                    .add_enabled(
+                                        self.macro_preset_clipboard.is_some(),
+                                        Button::new(Self::tr_lang(language, "Paste", "DÃ¡ÂºÂ¡n"))
+                                            .min_size(egui::vec2(68.0, 24.0)),
+                                    )
+                                    .clicked()
+                                {
+                                    paste_preset_to_group = Some(group.id);
                                 }
                                 if Self::sized_button(ui, 64.0, Self::tr_lang(language, "Remove", "XÃƒÂ³a")).clicked() {
                                     remove_preset = Some(preset.id);
@@ -8698,24 +8787,6 @@ impl CrosshairApp {
                             } else {
                                 preset.stop_on_retrigger_immediate = false;
                             }
-                            ui.label(Self::tr_lang(language, "Steps", "Steps"));
-                            if Self::sized_button(ui, 68.0, Self::tr_lang(language, "Copy", "Copy")).clicked() {
-                                self.macro_preset_clipboard = Some(preset.clone());
-                                self.status = match language {
-                                    UiLanguage::Vietnamese => "Copied macro preset.".to_owned(),
-                                    _ => "Copied macro preset.".to_owned(),
-                                };
-                            }
-                            if ui
-                                .add_enabled(
-                                    self.macro_preset_clipboard.is_some(),
-                                    Button::new(Self::tr_lang(language, "Paste", "Paste"))
-                                        .min_size(egui::vec2(68.0, 24.0)),
-                                )
-                                .clicked()
-                            {
-                                paste_preset_to_group = Some(group.id);
-                            }
                         });
                         if preset.trigger_mode == MacroTriggerMode::Release {
                             live_sync |= ui
@@ -8738,18 +8809,12 @@ impl CrosshairApp {
                             if preset.release_requires_all_inputs_released {
                                 ui.horizontal(|ui| {
                                     ui.label(Self::tr_lang(language, "Wait key", "Wait key"));
-                                    let wait_key_response = ui.add_sized(
-                                        [160.0, 22.0],
-                                        egui::TextEdit::singleline(&mut preset.release_wait_key)
-                                            .hint_text(Self::tr_lang(
-                                                language,
-                                                "Optional, comma-separated keys",
-                                                "Optional, comma-separated keys",
-                                            )),
+                                    live_sync |= Self::render_key_list_chips(
+                                        ui,
+                                        language,
+                                        &mut preset.release_wait_key,
+                                        Self::tr_lang(language, "Not set", "ChÃ†Â°a Ã„â€˜Ã¡ÂºÂ·t"),
                                     );
-                                    if wait_key_response.changed() {
-                                        live_sync = true;
-                                    }
                                     let wait_capture_target =
                                         CaptureRequest::MacroPresetReleaseWaitKey(group.id, preset.id);
                                     if ui
@@ -8768,9 +8833,6 @@ impl CrosshairApp {
                                         } else {
                                             next_capture_target = Some(wait_capture_target);
                                         }
-                                    }
-                                    if Self::sized_button(ui, 56.0, Self::tr_lang(language, "Clear", "Clear")).clicked() {
-                                        live_sync |= Self::pop_key_list_entry(&mut preset.release_wait_key);
                                     }
                                 });
                             }
@@ -9399,11 +9461,6 @@ impl CrosshairApp {
                                     }
                                 });
                         }
-                        ui.label(Self::tr_lang(
-                            language,
-                            "Ctrl+click to multi-select, then drag with :: to move the whole selection.",
-                            "Ctrl+click Ã„â€˜Ã¡Â»Æ’ chÃ¡Â»Ân nhiÃ¡Â»Âu bÃ†Â°Ã¡Â»â€ºc, rÃ¡Â»â€œi kÃƒÂ©o bÃ¡ÂºÂ±ng :: Ã„â€˜Ã¡Â»Æ’ di chuyÃ¡Â»Æ’n cÃ¡ÂºÂ£ cÃ¡Â»Â¥m.",
-                        ));
                         ui.scope(|ui| {
                             Frame::new()
                                 .inner_margin(egui::Margin::symmetric(4, 2))
@@ -9426,7 +9483,7 @@ impl CrosshairApp {
                                         ui.add_sized([30.0, 18.0], egui::Label::new(RichText::new("#").strong()));
                                         ui.add_sized([54.0, 18.0], egui::Label::new(RichText::new(Self::tr_lang(language, "Delay", "TrÃ¡Â»â€¦")).strong()));
                                         ui.add_sized([154.0, 18.0], egui::Label::new(RichText::new(Self::tr_lang(language, "Action", "HÃƒÂ nh Ã„â€˜Ã¡Â»â„¢ng")).strong()));
-                                        ui.add_sized([146.0, 18.0], egui::Label::new(RichText::new(Self::tr_lang(language, "Input", "DÃ¡Â»Â¯ liÃ¡Â»â€¡u")).strong()));
+                                        ui.add_sized([146.0, 18.0], egui::Label::new(""));
                                         if Self::sized_button(ui, 112.0, Self::tr_lang(language, "Clear Steps", "Clear Steps")).clicked() {
                                             preset.steps.clear();
                                             live_sync = true;
