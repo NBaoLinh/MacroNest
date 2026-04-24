@@ -8658,7 +8658,7 @@ impl CrosshairApp {
                             ui.strong(Self::tr_lang(language, "Key", "PhÃ­m"));
                             ui.strong(Self::tr_lang(language, "On", "BÃ¡ÂºÂ­t"));
                             ui.strong(Self::tr_lang(language, "Vis", "HiÃ¡Â»â€¡n"));
-                            ui.strong(Self::tr_lang(language, "CAP", "CAP"));
+                            ui.strong(Self::material_icon_text(0xe312, 18.0));
                             ui.strong(Self::tr_lang(language, "Clr", "Clr"));
                             ui.strong(Self::tr_lang(language, "Copy", "Sao chÃƒÂ©p"));
                             ui.strong(Self::tr_lang(language, "Paste", "DÃ¡ÂºÂ¡n"));
@@ -9458,11 +9458,11 @@ impl CrosshairApp {
                                                                 preset.id,
                                                             ))
                                                         {
-                                                            RichText::new("CAP")
+                                                            Self::material_icon_text(0xe312, 18.0)
                                                                 .strong()
                                                                 .color(Color32::from_rgb(255, 232, 96))
                                                         } else {
-                                                            RichText::new("CAP")
+                                                            Self::material_icon_text(0xe312, 18.0)
                                                         })
                                                             .min_size(vec2(28.0, 22.0)),
                                                     )
@@ -10339,11 +10339,11 @@ impl CrosshairApp {
                                                                 step_index,
                                                             })
                                                         {
-                                                            RichText::new("CAP")
+                                                            Self::material_icon_text(0xe312, 18.0)
                                                                 .strong()
                                                                 .color(Color32::from_rgb(255, 232, 96))
                                                         } else {
-                                                            RichText::new("CAP")
+                                                            Self::material_icon_text(0xe312, 18.0)
                                                         })
                                                             .min_size(vec2(28.0, 18.0)),
                                                     )
