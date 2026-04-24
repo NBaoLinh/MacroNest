@@ -286,6 +286,7 @@ pub enum MacroAction {
     PlaySoundPreset,
     StartImageSearch,
     TriggerImageSearchMove,
+    StopImageSearchWait,
     StopImageSearch,
     LoopStart,
     LoopEnd,

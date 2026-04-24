@@ -147,6 +147,8 @@ mod windows_overlay {
         Lazy::new(|| Mutex::new(HashSet::new()));
     static STOP_REQUESTED_MACRO_PRESETS: Lazy<Mutex<HashSet<u32>>> =
         Lazy::new(|| Mutex::new(HashSet::new()));
+    static STOP_REQUESTED_IMAGE_SEARCH_WAITS: Lazy<Mutex<HashSet<u32>>> =
+        Lazy::new(|| Mutex::new(HashSet::new()));
     static TOOLBOX_DISPLAY: Lazy<Mutex<Option<ToolboxDisplayState>>> =
         Lazy::new(|| Mutex::new(None));
     static TOOLBOX_PREVIEW_DISPLAY: Lazy<Mutex<Option<ToolboxDisplayState>>> =
@@ -1253,12 +1255,27 @@ mod windows_overlay {
             .contains(&preset_id)
     }
 
+    fn image_search_wait_stop_requested(preset_id: u32) -> bool {
+        STOP_REQUESTED_IMAGE_SEARCH_WAITS
+            .lock()
+            .contains(&preset_id)
+    }
+
     fn set_image_search_following_active(preset_id: u32, active: bool) {
         let mut hook_state = HOOK_STATE.lock();
         if active {
             hook_state.image_search_following_presets.insert(preset_id);
         } else {
             hook_state.image_search_following_presets.remove(&preset_id);
+        }
+    }
+
+    fn set_image_search_wait_stop_requested(preset_id: u32, active: bool) {
+        let mut guard = STOP_REQUESTED_IMAGE_SEARCH_WAITS.lock();
+        if active {
+            guard.insert(preset_id);
+        } else {
+            guard.remove(&preset_id);
         }
     }
 
@@ -3859,6 +3876,9 @@ mod windows_overlay {
                     );
                 }
             }
+            MacroAction::StopImageSearchWait => {
+                let _ = stop_image_search_waiting(&step.key);
+            }
             MacroAction::StopImageSearch => {
                 let _ = stop_image_search_following(&step.key);
             }
@@ -4064,6 +4084,9 @@ mod windows_overlay {
                             return MacroRunFlow::StopExecution;
                         }
                     }
+                }
+                MacroAction::StopImageSearchWait => {
+                    let _ = stop_image_search_waiting(&step.key);
                 }
                 MacroAction::StopImageSearch => {
                     let _ = stop_image_search_following(&step.key);
@@ -4307,6 +4330,9 @@ mod windows_overlay {
                             return MacroRunFlow::StopExecution;
                         }
                     }
+                }
+                MacroAction::StopImageSearchWait => {
+                    let _ = stop_image_search_waiting(&step.key);
                 }
                 MacroAction::StopImageSearch => {
                     let _ = stop_image_search_following(&step.key);
@@ -4886,6 +4912,7 @@ mod windows_overlay {
                 | MacroAction::PlaySoundPreset
                 | MacroAction::StartImageSearch
                 | MacroAction::TriggerImageSearchMove
+                | MacroAction::StopImageSearchWait
                 | MacroAction::StopImageSearch => {}
                 MacroAction::LoopStart
                 | MacroAction::LoopEnd
@@ -5008,6 +5035,7 @@ mod windows_overlay {
             | MacroAction::PlaySoundPreset
             | MacroAction::StartImageSearch
             | MacroAction::TriggerImageSearchMove
+            | MacroAction::StopImageSearchWait
             | MacroAction::StopImageSearch => return Ok(()),
             MacroAction::LoopStart
             | MacroAction::LoopEnd
@@ -6653,6 +6681,8 @@ mod windows_overlay {
         extra_target_window_titles: &[String],
         match_duplicate_window_titles: bool,
     ) -> MacroRunFlow {
+        let ui_tx = HOOK_STATE.lock().ui_tx.clone();
+        let mut sent_wait_status = false;
         loop {
             if !macro_runtime_target_matches(
                 target_window_title,
@@ -6666,6 +6696,16 @@ mod windows_overlay {
             {
                 return MacroRunFlow::StopExecution;
             }
+            if image_search_wait_stop_requested(preset.id) {
+                set_image_search_wait_stop_requested(preset.id, false);
+                if let Some(tx) = ui_tx.as_ref() {
+                    let _ = tx.send(UiCommand::ImageSearchFinished(format!(
+                        "{}: waiting stopped.",
+                        preset.name
+                    )));
+                }
+                return MacroRunFlow::Continue;
+            }
 
             let outcome = match run_image_search_once_with_options(preset, move_cursor, false) {
                 Ok(outcome) => outcome,
@@ -6676,6 +6716,13 @@ mod windows_overlay {
             };
 
             if outcome.matched {
+                if let Some(tx) = ui_tx.as_ref() {
+                    let _ = tx.send(UiCommand::ImageSearchFinished(format!(
+                        "{}: {}",
+                        preset.name,
+                        outcome.status
+                    )));
+                }
                 if let Some(trigger_preset_id) = trigger_macro_preset_id {
                     let _ = trigger_nested_macro_preset(
                         &trigger_preset_id.to_string(),
@@ -6694,8 +6741,24 @@ mod windows_overlay {
                 return MacroRunFlow::Continue;
             }
 
+            if !sent_wait_status {
+                if let Some(tx) = ui_tx.as_ref() {
+                    let _ = tx.send(UiCommand::ImageSearchFinished(format!(
+                        "{}: waiting...",
+                        preset.name
+                    )));
+                }
+                sent_wait_status = true;
+            }
+
             thread::sleep(Duration::from_millis(25));
         }
+    }
+
+    fn stop_image_search_waiting(spec: &str) -> Result<()> {
+        let preset = image_search_preset_by_id(spec)?;
+        set_image_search_wait_stop_requested(preset.id, true);
+        Ok(())
     }
 
     fn is_extended_key(vk: u32) -> bool {

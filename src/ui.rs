@@ -2302,6 +2302,7 @@ impl CrosshairApp {
             MacroAction::PlaySoundPreset => "PlaySoundPreset",
             MacroAction::StartImageSearch => "StartImageSearch",
             MacroAction::TriggerImageSearchMove => "TriggerImageSearchMove",
+            MacroAction::StopImageSearchWait => "StopImageSearchWait",
             MacroAction::StopImageSearch => "StopImageSearch",
             MacroAction::LoopStart => "LoopStart",
             MacroAction::LoopEnd => "LoopEnd",
@@ -2368,6 +2369,9 @@ impl CrosshairApp {
             }
             MacroAction::TriggerImageSearchMove => {
                 "Move the mouse to the latest image-search match, or run one search now."
+            }
+            MacroAction::StopImageSearchWait => {
+                "Stop waiting for one image-search preset to match."
             }
             MacroAction::StopImageSearch => {
                 "Stop one image-search preset that is currently scanning."
@@ -2440,6 +2444,7 @@ impl CrosshairApp {
             MacroAction::PlaySoundPreset => 0xe050,
             MacroAction::StartImageSearch => 0xe8b6,
             MacroAction::TriggerImageSearchMove => 0xe8f9,
+            MacroAction::StopImageSearchWait => 0xe047,
             MacroAction::StopImageSearch => 0xe047,
             MacroAction::LoopStart => 0xe028,
             MacroAction::LoopEnd => 0xe040,
@@ -2501,6 +2506,7 @@ impl CrosshairApp {
                 MacroAction::PlaySoundPreset => "Ãƒâ€šm",
                 MacroAction::StartImageSearch => "Start",
                 MacroAction::TriggerImageSearchMove => "Move",
+                MacroAction::StopImageSearchWait => "Wait",
                 MacroAction::StopImageSearch => "Stop",
                 MacroAction::LoopStart => "LÃ¡ÂºÂ·p",
                 MacroAction::LoopEnd => "CuÃ¡Â»â€˜i",
@@ -2553,6 +2559,7 @@ impl CrosshairApp {
                 MacroAction::PlaySoundPreset => "Sound",
                 MacroAction::StartImageSearch => "Start",
                 MacroAction::TriggerImageSearchMove => "Move",
+                MacroAction::StopImageSearchWait => "Wait",
                 MacroAction::StopImageSearch => "Stop",
                 MacroAction::LoopStart => "Loop",
                 MacroAction::LoopEnd => "End",
@@ -2702,6 +2709,7 @@ impl CrosshairApp {
                 | MacroAction::DisableMacroPreset
                 | MacroAction::StartImageSearch
                 | MacroAction::TriggerImageSearchMove
+                | MacroAction::StopImageSearchWait
                 | MacroAction::StopImageSearch
                 | MacroAction::LoopStart
                 | MacroAction::StopIfKeyPressed
@@ -3715,6 +3723,7 @@ impl CrosshairApp {
         &[
             MacroAction::StartImageSearch,
             MacroAction::TriggerImageSearchMove,
+            MacroAction::StopImageSearchWait,
             MacroAction::StopImageSearch,
         ]
     }
@@ -8825,6 +8834,7 @@ impl CrosshairApp {
                                                             MacroAction::DisablePin,
                                                             MacroAction::PlaySoundPreset,
                                                             MacroAction::ApplyMouseSensitivityPreset,
+                                                            MacroAction::StopImageSearchWait,
                                                             MacroAction::LoopStart,
                                                             MacroAction::LoopEnd,
                                                             MacroAction::StopIfKeyPressed,
@@ -9592,6 +9602,7 @@ impl CrosshairApp {
                                                                 MacroAction::DisablePin,
                                                                 MacroAction::PlaySoundPreset,
                                                                 MacroAction::ApplyMouseSensitivityPreset,
+                                                                MacroAction::StopImageSearchWait,
                                                                 MacroAction::LoopStart,
                                                                 MacroAction::LoopEnd,
                                                                 MacroAction::StopIfKeyPressed,
