@@ -1,4 +1,4 @@
-﻿use std::{
+use std::{
     collections::{HashMap, HashSet},
     fs,
     path::PathBuf,
@@ -10804,10 +10804,6 @@ impl CrosshairApp {
 
         ui.separator();
         ui.heading(self.tr("Mouse Sensitivity", "Ã„ÂÃ¡Â»â„¢ nhÃ¡ÂºÂ¡y chuÃ¡Â»â„¢t"));
-        ui.label(self.tr(
-            "Change the Windows mouse speed, then bind it to a hotkey or macro step.",
-            "Ã„ÂÃ¡Â»â€¢i tÃ¡Â»â€˜c Ã„â€˜Ã¡Â»â„¢ chuÃ¡Â»â„¢t cÃ¡Â»Â§a Windows, sau Ã„â€˜ÃƒÂ³ gÃ¡ÂºÂ¯n vÃƒÂ o phÃƒÂ­m tÃ¡ÂºÂ¯t hoÃ¡ÂºÂ·c step macro.",
-        ));
         if ui
             .button(self.tr(
                 "+ Add mouse sensitivity preset",
@@ -11217,10 +11213,6 @@ impl CrosshairApp {
     fn render_image_search_panel(&mut self, ui: &mut egui::Ui, ctx: &egui::Context) {
         let language = self.state.ui_language;
         ui.heading(self.panel_label(AppPanel::ImageSearch));
-        ui.label(self.tr(
-            "Capture a template from the screen, bind a hotkey, and move the mouse to the first match in the chosen window.",
-            "Chup mau truc tiep tren man hinh, gan phim tat, va di chuot toi diem khop dau tien trong cua so da chon.",
-        ));
 
         ui.horizontal(|ui| {
             if ui.button(self.tr("+ Add preset", "+ Them preset")).clicked() {
@@ -11410,13 +11402,7 @@ impl CrosshairApp {
                                 .checkbox(
                                     &mut preset.show_search_region_overlay,
                                     Self::tr_lang(language, "Show overlay", "Hien overlay"),
-                                )
-                                .on_hover_text(Self::tr_lang(
-                                    language,
-                                    "Show the search region on the screen while the preset is enabled.",
-                                    "Hien vung tim tren man hinh khi preset dang bat.",
-                                ))
-                                .changed();
+                                ).changed();
                         });
                         ui.end_row();
 
@@ -13092,10 +13078,6 @@ impl CrosshairApp {
 
     fn render_settings_panel(&mut self, ui: &mut egui::Ui) {
         ui.heading(self.panel_label(AppPanel::Settings));
-        ui.label(self.tr(
-            "Toolbox presets control the base text style, colors, shape, and on-screen position used by the ShowToolbox macro action.",
-            "Preset toolbox Ã„â€˜iÃ¡Â»Âu khiÃ¡Â»Æ’n kiÃ¡Â»Æ’u chÃ¡Â»Â¯, mÃƒÂ u sÃ¡ÂºÂ¯c, hÃƒÂ¬nh nÃ¡Â»Ân vÃƒÂ  vÃ¡Â»â€¹ trÃƒÂ­ hiÃ¡Â»Æ’n thÃ¡Â»â€¹ cho action ShowToolbox.",
-        ));
         if ui
             .button(self.tr("+ Add toolbox preset", "+ ThÃƒÂªm preset toolbox"))
             .clicked()
