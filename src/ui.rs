@@ -408,6 +408,7 @@ pub struct CrosshairApp {
     macro_group_clipboard_is_cut: bool,
     macro_preset_clipboard: Option<MacroPreset>,
     confirm_delete_folder_id: Option<u32>,
+    confirm_delete_macro_group_id: Option<u32>,
     center_window_next_frame: bool,
     enforce_square_window_frames: u8,
     last_window_refresh_at: Instant,
@@ -500,6 +501,7 @@ impl CrosshairApp {
             macro_group_clipboard_is_cut: false,
             macro_preset_clipboard: None,
             confirm_delete_folder_id: None,
+            confirm_delete_macro_group_id: None,
             center_window_next_frame: true,
             enforce_square_window_frames: 8,
             last_window_refresh_at: Instant::now(),
@@ -7808,11 +7810,6 @@ impl CrosshairApp {
     fn render_macro_panel(&mut self, ui: &mut egui::Ui) {
         let language = self.state.ui_language;
         ui.heading(self.panel_label(AppPanel::Macros));
-        ui.label(Self::tr_lang(
-            language,
-            "Each macro group can contain multiple small macro presets.",
-            "MÃ¡Â»â€”i nhÃƒÂ³m macro cÃƒÂ³ thÃ¡Â»Æ’ chÃ¡Â»Â©a nhiÃ¡Â»Âu preset macro nhÃ¡Â»Â.",
-        ));
         ui.horizontal(|ui| {
             ui.label(Self::tr_lang(language, "Search", "Tim"));
             ui.add_sized(
@@ -7992,7 +7989,7 @@ impl CrosshairApp {
                 if ui
                     .add_enabled(
                         !self.macro_group_clipboard.is_empty(),
-                        Button::new(Self::tr_lang(language, "Paste Outside", "DÃƒÂ¡n ra ngoÃƒÂ i")),
+                        Button::new(Self::tr_lang(language, "Paste", "DÃƒÂ¡n")),
                     )
                     .clicked()
                 {
@@ -8025,16 +8022,6 @@ impl CrosshairApp {
                 {
                     self.remove_selected_macro_groups();
                 }
-            }
-            if ui
-                .button(Self::tr_lang(
-                    language,
-                    "Reload window list",
-                    "TÃ¡ÂºÂ£i lÃ¡ÂºÂ¡i danh sÃƒÂ¡ch cÃ¡Â»Â­a sÃ¡Â»â€¢",
-                ))
-                .clicked()
-            {
-                self.reload_open_windows();
             }
             let master_label = if self.state.macros_master_enabled {
                 Self::tr_lang(language, "Macro On", "Macro bÃ¡ÂºÂ­t")
@@ -8114,6 +8101,41 @@ impl CrosshairApp {
                     }
                 });
             });
+        }
+        if let Some(group_id) = self.confirm_delete_macro_group_id {
+            if let Some(group_name) = self
+                .state
+                .macro_groups
+                .iter()
+                .find(|group| group.id == group_id)
+                .map(|group| group.name.clone())
+            {
+                Frame::group(ui.style()).show(ui, |ui| {
+                    ui.horizontal_wrapped(|ui| {
+                        ui.label(format!(
+                            "{} {}?",
+                            Self::tr_lang(language, "Delete macro group", "Xoa macro group"),
+                            group_name
+                        ));
+                        if ui
+                            .button(Self::tr_lang(language, "Yes, Delete", "Dong y, xoa"))
+                            .clicked()
+                        {
+                            self.state.macro_groups.retain(|group| group.id != group_id);
+                            self.selected_macro_groups.remove(&group_id);
+                            self.macro_group_clipboard
+                                .retain(|clipboard_group_id| *clipboard_group_id != group_id);
+                            self.confirm_delete_macro_group_id = None;
+                            self.persist_macro_presets();
+                        }
+                        if ui.button(Self::tr_lang(language, "Cancel", "Huy")).clicked() {
+                            self.confirm_delete_macro_group_id = None;
+                        }
+                    });
+                });
+            } else {
+                self.confirm_delete_macro_group_id = None;
+            }
         }
 
         let mut remove_group = None;
@@ -10528,11 +10550,17 @@ impl CrosshairApp {
             }
         }
         if let Some(id) = remove_group {
-            self.state.macro_groups.retain(|group| group.id != id);
-            self.selected_macro_groups.remove(&id);
-            self.macro_group_clipboard
-                .retain(|group_id| *group_id != id);
-            self.persist_macro_presets();
+            let should_confirm = self.confirm_delete_macro_group_id != Some(id);
+            if should_confirm {
+                self.confirm_delete_macro_group_id = Some(id);
+            } else {
+                self.state.macro_groups.retain(|group| group.id != id);
+                self.selected_macro_groups.remove(&id);
+                self.macro_group_clipboard
+                    .retain(|group_id| *group_id != id);
+                self.confirm_delete_macro_group_id = None;
+                self.persist_macro_presets();
+            }
         }
     }
 
