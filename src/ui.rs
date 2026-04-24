@@ -10803,7 +10803,7 @@ impl CrosshairApp {
         });
 
         ui.separator();
-        ui.heading(self.tr("Mouse Sensitivity", "Ã„ÂÃ¡Â»â„¢ nhÃ¡ÂºÂ¡y chuÃ¡Â»â„¢t"));
+        ui.heading(self.tr("Mouse", "Ã„ÂÃ¡Â»â„¢ chuÃ¡Â»â„¢t"));
         if ui
             .button(self.tr(
                 "+ Add mouse sensitivity preset",
@@ -11401,7 +11401,7 @@ impl CrosshairApp {
                             live_sync |= ui
                                 .checkbox(
                                     &mut preset.show_search_region_overlay,
-                                    Self::tr_lang(language, "Show overlay", "Hien overlay"),
+                                    Self::tr_lang(language, "Overlay", "Overlay"),
                                 ).changed();
                         });
                         ui.end_row();
