@@ -9393,7 +9393,7 @@ impl CrosshairApp {
                                                         .changed();
                                                 }
                                             } else {
-                                                ui.add_sized([70.0, 22.0], egui::Label::new("-"));
+                                                ui.add_sized([70.0, 22.0], egui::Label::new(""));
                                             }
 
                                             if Self::macro_action_uses_position(step.action) {
@@ -9487,8 +9487,8 @@ impl CrosshairApp {
                                             preset.steps.insert(0, MacroStep::default());
                                             live_sync = true;
                                         }
-                                        ui.add_sized([24.0, 18.0], egui::Label::new(RichText::new(Self::tr_lang(language, "Sel", "ChÃ¡Â»Ân")).strong()));
-                                        ui.add_sized([24.0, 18.0], egui::Label::new(RichText::new(Self::tr_lang(language, "Drag", "KÃƒÂ©o")).strong()));
+                                        ui.add_sized([24.0, 18.0], egui::Label::new(""));
+                                        ui.add_sized([24.0, 18.0], egui::Label::new(""));
                                         ui.add_sized([30.0, 18.0], egui::Label::new(RichText::new("#").strong()));
                                         ui.add_sized([54.0, 18.0], egui::Label::new(RichText::new(Self::tr_lang(language, "Delay", "TrÃ¡Â»â€¦")).strong()));
                                         ui.add_sized([154.0, 18.0], egui::Label::new(RichText::new(Self::tr_lang(language, "Action", "HÃƒÂ nh Ã„â€˜Ã¡Â»â„¢ng")).strong()));
