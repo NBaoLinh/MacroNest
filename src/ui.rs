@@ -6766,9 +6766,9 @@ impl CrosshairApp {
                                     }
                                     if ui
                                         .button(if preset.collapsed {
-                                            Self::tr_lang(language, "Expand", "MÃ¡Â»Å¸")
+                                            Self::tr_lang(language, "Show", "HiÃ¡Â»â€¡n")
                                         } else {
-                                            Self::tr_lang(language, "Collapse", "Thu gÃ¡Â»Ân")
+                                            Self::tr_lang(language, "Hide", "Ã¡ÂºÂ¨n")
                                         })
                                         .clicked()
                                     {
@@ -6999,9 +6999,9 @@ impl CrosshairApp {
                         }
                         if ui
                             .button(if preset.collapsed {
-                                Self::tr_lang(language, "Expand", "MÃ¡Â»Å¸")
+                                Self::tr_lang(language, "Show", "HiÃ¡Â»â€¡n")
                             } else {
-                                Self::tr_lang(language, "Collapse", "Thu gÃ¡Â»Ân")
+                                Self::tr_lang(language, "Hide", "Ã¡ÂºÂ¨n")
                             })
                             .clicked()
                         {
@@ -7132,9 +7132,9 @@ impl CrosshairApp {
                         }
                         if ui
                             .button(if preset.collapsed {
-                                "Expand"
+                                "Show"
                             } else {
-                                "Collapse"
+                                "Hide"
                             })
                             .clicked()
                         {
@@ -7352,9 +7352,9 @@ impl CrosshairApp {
                         }
                         if ui
                             .button(if preset.collapsed {
-                                Self::tr_lang(language, "Expand", "MÃ¡Â»Å¸")
+                                Self::tr_lang(language, "Show", "HiÃ¡Â»â€¡n")
                             } else {
-                                Self::tr_lang(language, "Collapse", "Thu gÃ¡Â»Ân")
+                                Self::tr_lang(language, "Hide", "Ã¡ÂºÂ¨n")
                             })
                             .clicked()
                         {
@@ -9426,41 +9426,45 @@ impl CrosshairApp {
                                                         .changed();
                                                 });
                                             } else {
-                                                ui.add_sized([24.0, 22.0], egui::Label::new("X"));
-                                                ui.add_sized([24.0, 22.0], egui::Label::new("Y"));
+                                                ui.add_sized([24.0, 22.0], egui::Label::new(""));
+                                                ui.add_sized([24.0, 22.0], egui::Label::new(""));
                                             }
 
-                                            if ui
-                                                .add_enabled(
-                                                    action_supports_capture,
-                                                    Button::new(if capture_target_snapshot.as_ref()
-                                                        == Some(&CaptureRequest::MacroPresetHoldStopInput(
-                                                            group.id,
-                                                            preset.id,
-                                                        ))
-                                                    {
-                                                        RichText::new("CAP")
-                                                            .strong()
-                                                            .color(Color32::from_rgb(255, 232, 96))
+                                            if action_supports_capture {
+                                                if ui
+                                                    .add_sized(
+                                                        [28.0, 22.0],
+                                                        Button::new(if capture_target_snapshot.as_ref()
+                                                            == Some(&CaptureRequest::MacroPresetHoldStopInput(
+                                                                group.id,
+                                                                preset.id,
+                                                            ))
+                                                        {
+                                                            RichText::new("CAP")
+                                                                .strong()
+                                                                .color(Color32::from_rgb(255, 232, 96))
+                                                        } else {
+                                                            RichText::new("CAP")
+                                                        })
+                                                            .min_size(vec2(28.0, 22.0)),
+                                                    )
+                                                    .on_hover_text(Self::tr_lang(
+                                                        language,
+                                                        "Capture keyboard input for the hold-stop action",
+                                                        "BÃ¡ÂºÂ¯t phÃƒÂ­m cho action khi dÃ¡Â»Â«ng hold",
+                                                    ))
+                                                    .clicked()
+                                                {
+                                                    let hold_stop_capture_target =
+                                                        CaptureRequest::MacroPresetHoldStopInput(group.id, preset.id);
+                                                    if capture_target_snapshot.as_ref() == Some(&hold_stop_capture_target) {
+                                                        cancel_active_capture = true;
                                                     } else {
-                                                        RichText::new("CAP")
-                                                    })
-                                                        .min_size(vec2(28.0, 22.0)),
-                                                )
-                                                .on_hover_text(Self::tr_lang(
-                                                    language,
-                                                    "Capture keyboard input for the hold-stop action",
-                                                    "BÃ¡ÂºÂ¯t phÃƒÂ­m cho action khi dÃ¡Â»Â«ng hold",
-                                                ))
-                                                .clicked()
-                                            {
-                                                let hold_stop_capture_target =
-                                                    CaptureRequest::MacroPresetHoldStopInput(group.id, preset.id);
-                                                if capture_target_snapshot.as_ref() == Some(&hold_stop_capture_target) {
-                                                    cancel_active_capture = true;
-                                                } else {
-                                                    next_capture_target = Some(hold_stop_capture_target);
+                                                        next_capture_target = Some(hold_stop_capture_target);
+                                                    }
                                                 }
+                                            } else {
+                                                ui.add_sized([28.0, 22.0], egui::Label::new(""));
                                             }
                                             if ui.button(Self::tr_lang(language, "Clear", "XÃƒÂ³a")).clicked() {
                                                 clear_hold_stop_step = true;
@@ -9603,6 +9607,17 @@ impl CrosshairApp {
                                                     step_index,
                                                     ui.input(|input| input.modifiers.ctrl),
                                                 ));
+                                            }
+                                            if ui
+                                                .add_sized([28.0, 18.0], Button::new("X"))
+                                                .on_hover_text(Self::tr_lang(
+                                                    language,
+                                                    "Remove this step",
+                                                    "XÃƒÂ³a step nÃƒÂ y",
+                                                ))
+                                                .clicked()
+                                            {
+                                                remove_step = Some((preset.id, step_index));
                                             }
                                             let drag_handle = ui
                                                 .add_sized(
@@ -10266,7 +10281,7 @@ impl CrosshairApp {
                                                         language,
                                                         "Use timed display for this step",
                                                         "DÃƒÂ¹ng thÃ¡Â»Âi gian hiÃ¡Â»Æ’n thÃ¡Â»â€¹ riÃƒÂªng cho step nÃƒÂ y",
-                                                    ))
+                                                        ))
                                                     .changed();
                                                 ui.add_enabled_ui(step.timed_override, |ui| {
                                                     live_sync |= ui
@@ -10279,56 +10294,50 @@ impl CrosshairApp {
                                                         .changed();
                                                 });
                                             } else {
-                                                ui.add_sized([48.0, 18.0], egui::Label::new("-"));
-                                                ui.add_sized([48.0, 18.0], egui::Label::new("-"));
+                                                ui.add_sized([48.0, 18.0], egui::Label::new(""));
+                                                ui.add_sized([48.0, 18.0], egui::Label::new(""));
                                             }
 
-                                            if ui
-                                                .add_enabled(
-                                                    action_supports_capture,
-                                                    Button::new(if capture_target_snapshot.as_ref()
-                                                        == Some(&CaptureRequest::MacroStepInput {
-                                                            group_id: group.id,
-                                                            preset_id: preset.id,
-                                                            step_index,
+                                            if action_supports_capture
+                                            {
+                                                if ui
+                                                    .add_enabled(
+                                                        true,
+                                                        Button::new(if capture_target_snapshot.as_ref()
+                                                            == Some(&CaptureRequest::MacroStepInput {
+                                                                group_id: group.id,
+                                                                preset_id: preset.id,
+                                                                step_index,
+                                                            })
+                                                        {
+                                                            RichText::new("CAP")
+                                                                .strong()
+                                                                .color(Color32::from_rgb(255, 232, 96))
+                                                        } else {
+                                                            RichText::new("CAP")
                                                         })
-                                                    {
-                                                        RichText::new("CAP")
-                                                            .strong()
-                                                            .color(Color32::from_rgb(255, 232, 96))
+                                                            .min_size(vec2(28.0, 18.0)),
+                                                    )
+                                                    .on_hover_text(Self::tr_lang(
+                                                        language,
+                                                        "Capture keyboard input for this step",
+                                                        "BÃ¡ÂºÂ¯t phÃƒÂ­m cho step nÃƒÂ y",
+                                                    ))
+                                                    .clicked()
+                                                {
+                                                    let step_capture_target = CaptureRequest::MacroStepInput {
+                                                        group_id: group.id,
+                                                        preset_id: preset.id,
+                                                        step_index,
+                                                    };
+                                                    if capture_target_snapshot.as_ref() == Some(&step_capture_target) {
+                                                        cancel_active_capture = true;
                                                     } else {
-                                                        RichText::new("CAP")
-                                                    })
-                                                        .min_size(vec2(28.0, 18.0)),
-                                                )
-                                                .on_hover_text(Self::tr_lang(
-                                                    language,
-                                                    "Capture keyboard input for this step",
-                                                    "BÃ¡ÂºÂ¯t phÃƒÂ­m cho step nÃƒÂ y",
-                                                ))
-                                                .clicked()
-                                            {
-                                                let step_capture_target = CaptureRequest::MacroStepInput {
-                                                    group_id: group.id,
-                                                    preset_id: preset.id,
-                                                    step_index,
-                                                };
-                                                if capture_target_snapshot.as_ref() == Some(&step_capture_target) {
-                                                    cancel_active_capture = true;
-                                                } else {
-                                                    next_capture_target = Some(step_capture_target);
+                                                        next_capture_target = Some(step_capture_target);
+                                                    }
                                                 }
-                                            }
-                                            if ui
-                                                .add_sized([28.0, 18.0], Button::new("X"))
-                                                .on_hover_text(Self::tr_lang(
-                                                    language,
-                                                    "Remove this step",
-                                                    "XÃƒÂ³a step nÃƒÂ y",
-                                                ))
-                                                .clicked()
-                                            {
-                                                remove_step = Some((preset.id, step_index));
+                                            } else {
+                                                ui.add_sized([28.0, 18.0], egui::Label::new(""));
                                             }
                                         });
                                     })
@@ -10821,9 +10830,9 @@ impl CrosshairApp {
                     ));
                     if ui
                         .button(if preset.collapsed {
-                            Self::tr_lang(language, "Expand", "MÃ¡Â»Å¸")
+                            Self::tr_lang(language, "Show", "HiÃ¡Â»â€¡n")
                         } else {
-                            Self::tr_lang(language, "Collapse", "Thu gÃ¡Â»Ân")
+                            Self::tr_lang(language, "Hide", "Ã¡ÂºÂ¨n")
                         })
                         .clicked()
                     {
@@ -11005,9 +11014,9 @@ impl CrosshairApp {
                     ));
                     if ui
                         .button(if preset.collapsed {
-                            Self::tr_lang(language, "Expand", "MÃ¡Â»Å¸")
+                            Self::tr_lang(language, "Show", "HiÃ¡Â»â€¡n")
                         } else {
-                            Self::tr_lang(language, "Collapse", "Thu gÃ¡Â»Ân")
+                            Self::tr_lang(language, "Hide", "Ã¡ÂºÂ¨n")
                         })
                         .clicked()
                     {
