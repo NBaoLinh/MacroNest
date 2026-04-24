@@ -6883,7 +6883,7 @@ impl CrosshairApp {
                             });
                             ui.end_row();
 
-                            ui.label(Self::tr_lang(language, "Title Bar on Apply", "Thanh tiÃƒÆ’Ã‚Âªu Ãƒâ€žÃ¢â‚¬ËœÃƒÂ¡Ã‚Â»Ã‚Â khi ÃƒÆ’Ã‚Â¡p dÃƒÂ¡Ã‚Â»Ã‚Â¥ng"));
+                            ui.label(Self::tr_lang(language, "Title Bar", "Thanh tiÃƒÆ’Ã‚Âªu Ãƒâ€žÃ¢â‚¬ËœÃƒÂ¡Ã‚Â»Ã‚Â khi ÃƒÆ’Ã‚Â¡p dÃƒÂ¡Ã‚Â»Ã‚Â¥ng"));
                             live_sync |= ui
                                 .checkbox(&mut preset.remove_title_bar, Self::tr_lang(language, "Remove title bar", "XÃƒÆ’Ã‚Â³a thanh tiÃƒÆ’Ã‚Âªu Ãƒâ€žÃ¢â‚¬ËœÃƒÂ¡Ã‚Â»Ã‚Â"))
                                 .on_hover_text(
@@ -6935,7 +6935,7 @@ impl CrosshairApp {
                             });
                             ui.end_row();
 
-                            ui.label(Self::tr_lang(language, "Restore Title Bar", "KhÃƒÆ’Ã‚Â´i phÃƒÂ¡Ã‚Â»Ã‚Â¥c thanh tiÃƒÆ’Ã‚Âªu Ãƒâ€žÃ¢â‚¬ËœÃƒÂ¡Ã‚Â»Ã‚Â"));
+                            ui.label(Self::tr_lang(language, "Restore Bar", "KhÃƒÆ’Ã‚Â´i phÃƒÂ¡Ã‚Â»Ã‚Â¥c thanh tiÃƒÆ’Ã‚Âªu Ãƒâ€žÃ¢â‚¬ËœÃƒÂ¡Ã‚Â»Ã‚Â"));
                             live_sync |= ui
                                 .checkbox(
                                     &mut preset.restore_titlebar_enabled,
@@ -7085,13 +7085,13 @@ impl CrosshairApp {
                         );
                         ui.end_row();
 
-                        ui.label(Self::tr_lang(language, "Title Match", "KhÃƒÂ¡Ã‚Â»Ã¢â‚¬Âºp tiÃƒÆ’Ã‚Âªu Ãƒâ€žÃ¢â‚¬ËœÃƒÂ¡Ã‚Â»Ã‚Â"));
+                        ui.label(Self::tr_lang(language, "Title", "KhÃƒÂ¡Ã‚Â»Ã¢â‚¬Âºp tiÃƒÆ’Ã‚Âªu Ãƒâ€žÃ¢â‚¬ËœÃƒÂ¡Ã‚Â»Ã‚Â"));
                         live_sync |= ui
                             .checkbox(
                                 &mut preset.match_duplicate_window_titles,
                                 Self::tr_lang(
                                     language,
-                            "Match same titles too",
+                            "Match titles",
                                     "Coi cÃƒÆ’Ã‚Â¡c cÃƒÂ¡Ã‚Â»Ã‚Â­a sÃƒÂ¡Ã‚Â»Ã¢â‚¬Â¢ trÃƒÆ’Ã‚Â¹ng tiÃƒÆ’Ã‚Âªu Ãƒâ€žÃ¢â‚¬ËœÃƒÂ¡Ã‚Â»Ã‚Â cÃƒâ€¦Ã‚Â©ng lÃƒÆ’Ã‚Â  khÃƒÂ¡Ã‚Â»Ã¢â‚¬Âºp",
                                 ),
                             )
@@ -7444,13 +7444,13 @@ impl CrosshairApp {
                         live_sync |= target_changed;
                         ui.end_row();
 
-                        ui.label(Self::tr_lang(language, "Title Match", "KhÃƒÂ¡Ã‚Â»Ã¢â‚¬Âºp tiÃƒÆ’Ã‚Âªu Ãƒâ€žÃ¢â‚¬ËœÃƒÂ¡Ã‚Â»Ã‚Â"));
+                        ui.label(Self::tr_lang(language, "Title", "KhÃƒÂ¡Ã‚Â»Ã¢â‚¬Âºp tiÃƒÆ’Ã‚Âªu Ãƒâ€žÃ¢â‚¬ËœÃƒÂ¡Ã‚Â»Ã‚Â"));
                         live_sync |= ui
                             .checkbox(
                                 &mut preset.match_duplicate_window_titles,
                                 Self::tr_lang(
                                     language,
-                                    "Match same titles too",
+                                    "Match titles",
                                     "Coi cÃƒÆ’Ã‚Â¡c cÃƒÂ¡Ã‚Â»Ã‚Â­a sÃƒÂ¡Ã‚Â»Ã¢â‚¬Â¢ trÃƒÆ’Ã‚Â¹ng tiÃƒÆ’Ã‚Âªu Ãƒâ€žÃ¢â‚¬ËœÃƒÂ¡Ã‚Â»Ã‚Â cÃƒâ€¦Ã‚Â©ng lÃƒÆ’Ã‚Â  khÃƒÂ¡Ã‚Â»Ã¢â‚¬Âºp",
                                 ),
                             )
@@ -8461,7 +8461,7 @@ impl CrosshairApp {
                                     &mut group.match_duplicate_window_titles,
                                     Self::tr_lang(
                                         language,
-                                        "Match same titles too",
+                                        "Match titles",
                                         "Coi cÃƒÆ’Ã‚Â¡c cÃƒÂ¡Ã‚Â»Ã‚Â­a sÃƒÂ¡Ã‚Â»Ã¢â‚¬Â¢ trÃƒÆ’Ã‚Â¹ng tiÃƒÆ’Ã‚Âªu Ãƒâ€žÃ¢â‚¬ËœÃƒÂ¡Ã‚Â»Ã‚Â cÃƒâ€¦Ã‚Â©ng lÃƒÆ’Ã‚Â  khÃƒÂ¡Ã‚Â»Ã¢â‚¬Âºp",
                                     ),
                                 )
@@ -10964,7 +10964,7 @@ impl CrosshairApp {
                                 &mut preset.match_duplicate_window_titles,
                                 Self::tr_lang(
                                     language,
-                                    "Match same titles too",
+                                    "Match titles",
                                     "Coi cÃƒÆ’Ã‚Â¡c cÃƒÂ¡Ã‚Â»Ã‚Â­a sÃƒÂ¡Ã‚Â»Ã¢â‚¬Â¢ trÃƒÆ’Ã‚Â¹ng tiÃƒÆ’Ã‚Âªu Ãƒâ€žÃ¢â‚¬ËœÃƒÂ¡Ã‚Â»Ã‚Â cÃƒâ€¦Ã‚Â©ng lÃƒÆ’Ã‚Â  khÃƒÂ¡Ã‚Â»Ã¢â‚¬Âºp",
                                 ),
                             )
@@ -11798,7 +11798,7 @@ impl CrosshairApp {
                         live_sync |= ui
                             .checkbox(
                                 &mut preset.match_duplicate_window_titles,
-                                Self::tr_lang(language, "Match same titles too", "Khop ca tieu de trung"),
+                                Self::tr_lang(language, "Match titles", "Khop ca tieu de trung"),
                             )
                             .changed();
                         ui.end_row();
@@ -13928,6 +13928,9 @@ fn audio_duration(clip: &AudioClipSettings) -> Option<u64> {
         audio::load_duration_ms(&clip.file_path).ok()
     }
 }
+
+
+
 
 
 
