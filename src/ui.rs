@@ -10655,13 +10655,13 @@ impl CrosshairApp {
     fn render_mouse_panel(&mut self, ui: &mut egui::Ui) {
         ui.heading(self.panel_label(AppPanel::Mouse));
         ui.label(self.tr(
-            "Mouse macros, driver output, and arrow-key movement.",
+            "Macros, driver, arrows.",
             "Macro chuot, backend driver, va di chuot bang mui ten.",
         ));
         ui.separator();
         ui.heading(self.tr("Mouse Driver", "Driver chuot"));
         ui.label(self.tr(
-            "Download or remove the Interception driver. Each mouse path preset now chooses its own backend.",
+            "Download or remove Interception. Each path preset picks its own backend.",
             "Tai hoac xoa driver Interception. Tung preset duong chuot se tu chon backend rieng.",
         ));
         let driver_downloaded = self.mouse_interception_driver_downloaded();
@@ -13928,6 +13928,7 @@ fn audio_duration(clip: &AudioClipSettings) -> Option<u64> {
         audio::load_duration_ms(&clip.file_path).ok()
     }
 }
+
 
 
 
