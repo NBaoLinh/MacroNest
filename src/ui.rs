@@ -4629,7 +4629,7 @@ impl CrosshairApp {
     fn capture_request_accepts_mouse(&self, target: &CaptureRequest) -> bool {
         match target {
             CaptureRequest::MacroPresetHotkey(_, _)
-            | CaptureRequest::MacroPresetReleaseWaitKey(_, _) => false,
+            | CaptureRequest::MacroPresetReleaseWaitKey(_, _) => true,
             CaptureRequest::MacroPresetHoldStopInput(group_id, preset_id) => self
                 .state
                 .macro_groups
