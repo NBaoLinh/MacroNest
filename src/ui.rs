@@ -393,6 +393,7 @@ pub struct CrosshairApp {
     active_audio_editor: Option<AudioEditorTarget>,
     capture_ignored_keys: HashSet<u32>,
     capture_suppress_next_poll: bool,
+    capture_wait_for_mouse_release: bool,
     image_search_capture_active: bool,
     image_search_capture_target_preset_id: Option<u32>,
     image_search_capture_mode: Option<ImageSearchCaptureMode>,
@@ -484,6 +485,7 @@ impl CrosshairApp {
             active_audio_editor: None,
             capture_ignored_keys: HashSet::new(),
             capture_suppress_next_poll: false,
+            capture_wait_for_mouse_release: false,
             image_search_capture_active: false,
             image_search_capture_target_preset_id: None,
             image_search_capture_mode: None,
@@ -4562,6 +4564,8 @@ impl CrosshairApp {
     fn begin_capture(&mut self, target: CaptureRequest, status: String) {
         self.capture_target = Some(target.clone());
         self.capture_ignored_keys = self.snapshot_pressed_capture_keys();
+        self.capture_ignored_keys.extend([0x01, 0x02, 0x04, 0x05, 0x06]);
+        self.capture_wait_for_mouse_release = true;
         self.status = if self.capture_request_keeps_open(&target) {
             match self.state.ui_language {
                 UiLanguage::Vietnamese => {
@@ -4622,6 +4626,7 @@ impl CrosshairApp {
         self.capture_target = None;
         self.capture_ignored_keys.clear();
         self.capture_suppress_next_poll = true;
+        self.capture_wait_for_mouse_release = true;
         self.status = "Capture cancelled.".to_owned();
     }
 
@@ -5409,6 +5414,20 @@ impl CrosshairApp {
 
     #[cfg(windows)]
     fn capture_next_input(&mut self, ctx: &egui::Context) -> Option<crate::model::HotkeyBinding> {
+        if self.capture_wait_for_mouse_release {
+            if Self::is_vk_down(0x01)
+                || Self::is_vk_down(0x02)
+                || Self::is_vk_down(0x04)
+                || Self::is_vk_down(0x05)
+                || Self::is_vk_down(0x06)
+            {
+                return None;
+            }
+            for mouse_vk in [0x01, 0x02, 0x04, 0x05, 0x06] {
+                self.capture_ignored_keys.remove(&mouse_vk);
+            }
+            self.capture_wait_for_mouse_release = false;
+        }
         if let Some(binding) = self.capture_scroll_binding(ctx) {
             return Some(binding);
         }
