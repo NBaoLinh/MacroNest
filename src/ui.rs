@@ -9493,7 +9493,18 @@ impl CrosshairApp {
                                         ui.add_sized([54.0, 18.0], egui::Label::new(RichText::new(Self::tr_lang(language, "Delay", "TrÃ¡Â»â€¦")).strong()));
                                         ui.add_sized([154.0, 18.0], egui::Label::new(RichText::new(Self::tr_lang(language, "Action", "HÃƒÂ nh Ã„â€˜Ã¡Â»â„¢ng")).strong()));
                                         ui.add_sized([146.0, 18.0], egui::Label::new(""));
-                                        if Self::sized_button(ui, 112.0, Self::tr_lang(language, "Clear Steps", "Clear Steps")).clicked() {
+                                        if ui
+                                            .add_sized(
+                                                [34.0, 20.0],
+                                                Button::new(Self::material_icon_text(0xe872, 18.0)),
+                                            )
+                                            .on_hover_text(Self::tr_lang(
+                                                language,
+                                                "Clear all steps",
+                                                "Xóa toàn bộ steps",
+                                            ))
+                                            .clicked()
+                                        {
                                             preset.steps.clear();
                                             live_sync = true;
                                         }
