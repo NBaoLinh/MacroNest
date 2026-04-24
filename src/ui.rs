@@ -4568,6 +4568,7 @@ impl CrosshairApp {
         if !self.capture_request_accepts_mouse(&target) {
             self.capture_ignored_keys.extend([0x01, 0x02, 0x04, 0x05, 0x06]);
         }
+        self.capture_suppress_next_poll = true;
         self.capture_wait_for_mouse_release = true;
         self.status = if self.capture_request_keeps_open(&target) {
             match self.state.ui_language {
