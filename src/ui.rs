@@ -7815,15 +7815,9 @@ impl CrosshairApp {
         let language = self.state.ui_language;
         ui.heading(self.panel_label(AppPanel::Macros));
         ui.horizontal(|ui| {
-            ui.label(Self::tr_lang(language, "Search", "Tim"));
             ui.add_sized(
                 [260.0, 24.0],
-                TextEdit::singleline(&mut self.macro_preset_search_query)
-                    .hint_text(Self::tr_lang(
-                        language,
-                        "Preset or group name",
-                        "Ten preset hoac nhom",
-                    )),
+                TextEdit::singleline(&mut self.macro_preset_search_query),
             );
         });
 
