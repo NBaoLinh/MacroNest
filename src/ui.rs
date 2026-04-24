@@ -7123,7 +7123,7 @@ impl CrosshairApp {
     fn render_zoom_panel(&mut self, ui: &mut egui::Ui) {
         let language = self.state.ui_language;
         ui.heading("Zoom");
-        ui.label("Source -> target region. Hold Shift to keep aspect ratio.");
+        ui.label("Source -> target. Shift = same ratio.");
         let screen_size = Self::screen_size();
         if ui.button("+ Add zoom preset").clicked() {
             self.add_zoom_preset();
@@ -13928,6 +13928,7 @@ fn audio_duration(clip: &AudioClipSettings) -> Option<u64> {
         audio::load_duration_ms(&clip.file_path).ok()
     }
 }
+
 
 
 
