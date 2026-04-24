@@ -1868,7 +1868,6 @@ mod windows_overlay {
 
         let mut release_matches: Vec<(MacroPreset, Option<String>, Vec<String>, bool)> =
             Vec::new();
-        let mut triggered_release_macro = false;
         let preset_ids = {
             let hook_state = HOOK_STATE.lock();
             for group in &hook_state.macro_groups {
@@ -1936,7 +1935,6 @@ mod windows_overlay {
                 match_duplicate_window_titles,
                 binding.key.clone(),
             );
-            triggered_release_macro = true;
         }
 
         let had_hold_matches = !preset_ids.is_empty();
@@ -1946,7 +1944,11 @@ mod windows_overlay {
             }
         }
 
-        triggered_release_macro || suppressed_press_release || had_hold_matches
+        // Release triggers should not swallow the key-up event. They are meant to
+        // observe the release and run actions, not to lock the source key.
+        let _ = suppressed_press_release;
+        let _ = had_hold_matches;
+        false
     }
 
     fn increment_press_trigger_suppression(key_name: &str) {
