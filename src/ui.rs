@@ -7653,10 +7653,10 @@ impl CrosshairApp {
     fn render_modes_panel(&mut self, ui: &mut egui::Ui) {
         self.ensure_master_presets();
         self.reconcile_master_presets();
-        ui.heading("Modes");
-        ui.label("A mode can turn whole sets of hotkey-driven features on or off across Window Control, Zoom, and Macro. Only one mode can be active at a time.");
+        ui.heading("Mode");
+        ui.label("One active at a time.");
         ui.horizontal(|ui| {
-            if ui.button("+ Capture Current as Mode").clicked() {
+            if ui.button("+ Capture Current").clicked() {
                 self.add_master_preset_from_current();
             }
         });
@@ -7691,7 +7691,7 @@ impl CrosshairApp {
                                     if ui.button("Remove").clicked() {
                                         remove_id = Some(preset.id);
                                     }
-                                    if ui.button("Update From Current").clicked() {
+                                    if ui.button("Update Current").clicked() {
                                         update_from_current_id = Some(preset.id);
                                     }
                                     if ui.button(if active { "Active" } else { "Apply" }).clicked()
