@@ -1318,7 +1318,7 @@ impl CrosshairApp {
             UiLanguage::Vietnamese => {
                 "Ã„ÂÃƒÂ£ tÃ¡ÂºÂ£i vÃƒÂ  cÃƒÂ i Interception driver. NÃ¡ÂºÂ¿u Windows chÃ†Â°a nhÃ¡ÂºÂ­n ngay, hÃƒÂ£y khÃ¡Â»Å¸i Ã„â€˜Ã¡Â»â„¢ng lÃ¡ÂºÂ¡i mÃƒÂ¡y.".to_owned()
             }
-            _ => "Downloaded and installed the Interception driver. Restart Windows if it is not ready immediately.".to_owned(),
+            _ => "Interception installed. Restart Windows if needed.".to_owned(),
         })
     }
 
@@ -1348,7 +1348,7 @@ impl CrosshairApp {
             UiLanguage::Vietnamese => {
                 "Ã„ÂÃƒÂ£ gÃ¡Â»Â¡ Interception driver vÃƒÂ  xÃƒÂ³a bÃ¡Â»â„¢ cÃƒÂ i Ã„â€˜ÃƒÂ£ tÃ¡ÂºÂ£i. CÃƒÂ³ thÃ¡Â»Æ’ cÃ¡ÂºÂ§n khÃ¡Â»Å¸i Ã„â€˜Ã¡Â»â„¢ng lÃ¡ÂºÂ¡i Windows Ã„â€˜Ã¡Â»Æ’ gÃ¡Â»Â¡ hÃ¡ÂºÂ³n.".to_owned()
             }
-            _ => "Removed the Interception driver and deleted the downloaded package. Windows may need a restart to fully unload it.".to_owned(),
+            _ => "Removed Interception and deleted the package. Restart Windows if needed.".to_owned(),
         })
     }
 
@@ -2407,7 +2407,7 @@ impl CrosshairApp {
             MacroAction::TypeText => "Type the whole text from the Input field.",
             MacroAction::ApplyWindowPreset => "Run one Window Preset from the selected preset.",
             MacroAction::FocusWindowPreset => {
-                "Bring one target window to the foreground using the selected Window Focus preset."
+                "Bring one window forward with the selected focus preset."
             }
             MacroAction::TriggerMacroPreset => {
                 "Run another macro preset from the same macro group."
@@ -6889,7 +6889,7 @@ impl CrosshairApp {
                                 .on_hover_text(
                                     Self::tr_lang(
                                         language,
-                                        "If enabled, this preset removes the target window title bar before applying the size and position. If disabled, the title bar is restored.",
+                                        "Remove title bar before apply. Off restores it.",
                                         "NÃƒÂ¡Ã‚ÂºÃ‚Â¿u bÃƒÂ¡Ã‚ÂºÃ‚Â­t, preset sÃƒÂ¡Ã‚ÂºÃ‚Â½ xÃƒÆ’Ã‚Â³a thanh tiÃƒÆ’Ã‚Âªu Ãƒâ€žÃ¢â‚¬ËœÃƒÂ¡Ã‚Â»Ã‚Â trÃƒâ€ Ã‚Â°ÃƒÂ¡Ã‚Â»Ã¢â‚¬Âºc khi ÃƒÆ’Ã‚Â¡p dÃƒÂ¡Ã‚Â»Ã‚Â¥ng kÃƒÆ’Ã‚Â­ch thÃƒâ€ Ã‚Â°ÃƒÂ¡Ã‚Â»Ã¢â‚¬Âºc vÃƒÆ’Ã‚Â  vÃƒÂ¡Ã‚Â»Ã¢â‚¬Â¹ trÃƒÆ’Ã‚Â­. NÃƒÂ¡Ã‚ÂºÃ‚Â¿u tÃƒÂ¡Ã‚ÂºÃ‚Â¯t, thanh tiÃƒÆ’Ã‚Âªu Ãƒâ€žÃ¢â‚¬ËœÃƒÂ¡Ã‚Â»Ã‚Â sÃƒÂ¡Ã‚ÂºÃ‚Â½ Ãƒâ€žÃ¢â‚¬ËœÃƒâ€ Ã‚Â°ÃƒÂ¡Ã‚Â»Ã‚Â£c giÃƒÂ¡Ã‚Â»Ã‚Â¯ hoÃƒÂ¡Ã‚ÂºÃ‚Â·c khÃƒÆ’Ã‚Â´i phÃƒÂ¡Ã‚Â»Ã‚Â¥c.",
                                     ),
                                 )
@@ -6944,7 +6944,7 @@ impl CrosshairApp {
                                 .on_hover_text(
                                     Self::tr_lang(
                                         language,
-                                        "This does not change the normal Apply or Animated Apply action. It only enables a second hotkey that restores the title bar later.",
+                                        "Only adds a second restore hotkey.",
                                         "TÃƒÆ’Ã‚Â¹y chÃƒÂ¡Ã‚Â»Ã‚Ân nÃƒÆ’Ã‚Â y khÃƒÆ’Ã‚Â´ng Ãƒâ€žÃ¢â‚¬ËœÃƒÂ¡Ã‚Â»Ã¢â‚¬Â¢i hÃƒÆ’Ã‚Â nh Ãƒâ€žÃ¢â‚¬ËœÃƒÂ¡Ã‚Â»Ã¢â€žÂ¢ng Apply bÃƒÆ’Ã‚Â¬nh thÃƒâ€ Ã‚Â°ÃƒÂ¡Ã‚Â»Ã‚Âng hay Animated Apply. NÃƒÆ’Ã‚Â³ chÃƒÂ¡Ã‚Â»Ã¢â‚¬Â° bÃƒÂ¡Ã‚ÂºÃ‚Â­t thÃƒÆ’Ã‚Âªm mÃƒÂ¡Ã‚Â»Ã¢â€žÂ¢t phÃƒÆ’Ã‚Â­m tÃƒÂ¡Ã‚ÂºÃ‚Â¯t Ãƒâ€žÃ¢â‚¬ËœÃƒÂ¡Ã‚Â»Ã†â€™ khÃƒÆ’Ã‚Â´i phÃƒÂ¡Ã‚Â»Ã‚Â¥c thanh tiÃƒÆ’Ã‚Âªu Ãƒâ€žÃ¢â‚¬ËœÃƒÂ¡Ã‚Â»Ã‚Â vÃƒÂ¡Ã‚Â»Ã‚Â sau.",
                                     ),
                                 )
