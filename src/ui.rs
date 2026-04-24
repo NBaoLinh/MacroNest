@@ -8769,7 +8769,7 @@ impl CrosshairApp {
                             });
                         if !preset.collapsed {
                         ui.horizontal(|ui| {
-                            ui.label(Self::tr_lang(language, "Trigger Mode", "Trigger Mode"));
+                            ui.label(Self::tr_lang(language, "Mode", "Mode"));
                             egui::ComboBox::from_id_salt((group.id, preset.id, "trigger-mode"))
                                 .width(108.0)
                                 .selected_text(match (language, preset.trigger_mode) {
