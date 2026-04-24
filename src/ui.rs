@@ -4564,6 +4564,7 @@ impl CrosshairApp {
     fn begin_capture(&mut self, target: CaptureRequest, status: String) {
         self.capture_target = Some(target.clone());
         self.capture_ignored_keys = self.snapshot_pressed_capture_keys();
+        self.capture_ignored_keys.extend([0x01, 0x02, 0x04, 0x05, 0x06]);
         if !self.capture_request_accepts_mouse(&target) {
             self.capture_ignored_keys.extend([0x01, 0x02, 0x04, 0x05, 0x06]);
         }
@@ -5442,7 +5443,6 @@ impl CrosshairApp {
     fn poll_capture_input(&mut self, ctx: &egui::Context) {
         if self.capture_suppress_next_poll {
             self.capture_suppress_next_poll = false;
-            self.capture_ignored_keys.clear();
             return;
         }
         let Some(target) = self.capture_target.clone() else {
