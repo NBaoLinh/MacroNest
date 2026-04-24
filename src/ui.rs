@@ -7085,13 +7085,13 @@ impl CrosshairApp {
                         );
                         ui.end_row();
 
-                        ui.label(Self::tr_lang(language, "Title", "KhÃƒÂ¡Ã‚Â»Ã¢â‚¬Âºp tiÃƒÆ’Ã‚Âªu Ãƒâ€žÃ¢â‚¬ËœÃƒÂ¡Ã‚Â»Ã‚Â"));
+                        ui.label(Self::tr_lang(language, "Titles", "KhÃƒÂ¡Ã‚Â»Ã¢â‚¬Âºp tiÃƒÆ’Ã‚Âªu Ãƒâ€žÃ¢â‚¬ËœÃƒÂ¡Ã‚Â»Ã‚Â"));
                         live_sync |= ui
                             .checkbox(
                                 &mut preset.match_duplicate_window_titles,
                                 Self::tr_lang(
                                     language,
-                            "Match titles",
+                                    "Same titles",
                                     "Coi cÃƒÆ’Ã‚Â¡c cÃƒÂ¡Ã‚Â»Ã‚Â­a sÃƒÂ¡Ã‚Â»Ã¢â‚¬Â¢ trÃƒÆ’Ã‚Â¹ng tiÃƒÆ’Ã‚Âªu Ãƒâ€žÃ¢â‚¬ËœÃƒÂ¡Ã‚Â»Ã‚Â cÃƒâ€¦Ã‚Â©ng lÃƒÆ’Ã‚Â  khÃƒÂ¡Ã‚Â»Ã¢â‚¬Âºp",
                                 ),
                             )
@@ -7444,13 +7444,13 @@ impl CrosshairApp {
                         live_sync |= target_changed;
                         ui.end_row();
 
-                        ui.label(Self::tr_lang(language, "Title", "KhÃƒÂ¡Ã‚Â»Ã¢â‚¬Âºp tiÃƒÆ’Ã‚Âªu Ãƒâ€žÃ¢â‚¬ËœÃƒÂ¡Ã‚Â»Ã‚Â"));
+                        ui.label(Self::tr_lang(language, "Titles", "KhÃƒÂ¡Ã‚Â»Ã¢â‚¬Âºp tiÃƒÆ’Ã‚Âªu Ãƒâ€žÃ¢â‚¬ËœÃƒÂ¡Ã‚Â»Ã‚Â"));
                         live_sync |= ui
                             .checkbox(
                                 &mut preset.match_duplicate_window_titles,
                                 Self::tr_lang(
                                     language,
-                                    "Match titles",
+                                    "Same titles",
                                     "Coi cÃƒÆ’Ã‚Â¡c cÃƒÂ¡Ã‚Â»Ã‚Â­a sÃƒÂ¡Ã‚Â»Ã¢â‚¬Â¢ trÃƒÆ’Ã‚Â¹ng tiÃƒÆ’Ã‚Âªu Ãƒâ€žÃ¢â‚¬ËœÃƒÂ¡Ã‚Â»Ã‚Â cÃƒâ€¦Ã‚Â©ng lÃƒÆ’Ã‚Â  khÃƒÂ¡Ã‚Â»Ã¢â‚¬Âºp",
                                 ),
                             )
@@ -7656,7 +7656,7 @@ impl CrosshairApp {
         ui.heading("Mode");
         ui.label("One active.");
         ui.horizontal(|ui| {
-            if ui.button("+ Capture Current").clicked() {
+            if ui.button("+ Capture").clicked() {
                 self.add_master_preset_from_current();
             }
         });
@@ -7691,7 +7691,7 @@ impl CrosshairApp {
                                     if ui.button("Remove").clicked() {
                                         remove_id = Some(preset.id);
                                     }
-                                    if ui.button("Update Current").clicked() {
+                                    if ui.button("Update").clicked() {
                                         update_from_current_id = Some(preset.id);
                                     }
                                     if ui.button(if active { "Active" } else { "Apply" }).clicked()
@@ -8459,12 +8459,8 @@ impl CrosshairApp {
                             live_sync |= ui
                                 .checkbox(
                                     &mut group.match_duplicate_window_titles,
-                                    Self::tr_lang(
-                                        language,
-                                        "Match titles",
-                                        "Coi cÃƒÆ’Ã‚Â¡c cÃƒÂ¡Ã‚Â»Ã‚Â­a sÃƒÂ¡Ã‚Â»Ã¢â‚¬Â¢ trÃƒÆ’Ã‚Â¹ng tiÃƒÆ’Ã‚Âªu Ãƒâ€žÃ¢â‚¬ËœÃƒÂ¡Ã‚Â»Ã‚Â cÃƒâ€¦Ã‚Â©ng lÃƒÆ’Ã‚Â  khÃƒÂ¡Ã‚Â»Ã¢â‚¬Âºp",
-                                    ),
-                                )
+                                Self::tr_lang(language, "Same titles", "Coi cac cua so trung tieu de cung la khop"),
+                            )
                                 .changed();
                             ui.end_row();
                         });
@@ -10962,11 +10958,7 @@ impl CrosshairApp {
                         mouse_sensitivity_live_sync |= ui
                             .checkbox(
                                 &mut preset.match_duplicate_window_titles,
-                                Self::tr_lang(
-                                    language,
-                                    "Match titles",
-                                    "Coi cÃƒÆ’Ã‚Â¡c cÃƒÂ¡Ã‚Â»Ã‚Â­a sÃƒÂ¡Ã‚Â»Ã¢â‚¬Â¢ trÃƒÆ’Ã‚Â¹ng tiÃƒÆ’Ã‚Âªu Ãƒâ€žÃ¢â‚¬ËœÃƒÂ¡Ã‚Â»Ã‚Â cÃƒâ€¦Ã‚Â©ng lÃƒÆ’Ã‚Â  khÃƒÂ¡Ã‚Â»Ã¢â‚¬Âºp",
-                                ),
+                                Self::tr_lang(language, "Same titles", "Coi cac cua so trung tieu de cung la khop"),
                             )
                             .changed();
                         ui.end_row();
@@ -10983,7 +10975,7 @@ impl CrosshairApp {
 
                         ui.label(Self::tr_lang(
                             language,
-                            "Current",
+                            "Live",
                             "TÃƒÂ¡Ã‚Â»Ã¢â‚¬Ëœc Ãƒâ€žÃ¢â‚¬ËœÃƒÂ¡Ã‚Â»Ã¢â€žÂ¢ hiÃƒÂ¡Ã‚Â»Ã¢â‚¬Â¡n tÃƒÂ¡Ã‚ÂºÃ‚Â¡i",
                         ));
                         ui.horizontal_wrapped(|ui| match Self::current_mouse_speed() {
@@ -11798,7 +11790,7 @@ impl CrosshairApp {
                         live_sync |= ui
                             .checkbox(
                                 &mut preset.match_duplicate_window_titles,
-                                Self::tr_lang(language, "Match titles", "Khop ca tieu de trung"),
+                                Self::tr_lang(language, "Same titles", "Khop ca tieu de trung"),
                             )
                             .changed();
                         ui.end_row();
