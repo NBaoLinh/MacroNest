@@ -4622,6 +4622,50 @@ impl CrosshairApp {
         }
     }
 
+    fn capture_request_accepts_mouse(&self, target: &CaptureRequest) -> bool {
+        match target {
+            CaptureRequest::MacroPresetHotkey(_, _)
+            | CaptureRequest::MacroPresetReleaseWaitKey(_, _) => false,
+            CaptureRequest::MacroPresetHoldStopInput(group_id, preset_id) => self
+                .state
+                .macro_groups
+                .iter()
+                .find(|group| group.id == *group_id)
+                .and_then(|group| {
+                    group
+                        .presets
+                        .iter()
+                        .find(|preset| preset.id == *preset_id)
+                })
+                .is_some_and(|preset| {
+                    !matches!(
+                        preset.hold_stop_step.action,
+                        MacroAction::LockKeys | MacroAction::UnlockKeys
+                    )
+                }),
+            CaptureRequest::MacroStepInput {
+                group_id,
+                preset_id,
+                step_index,
+            } => self
+                .state
+                .macro_groups
+                .iter()
+                .find(|group| group.id == *group_id)
+                .and_then(|group| {
+                    group
+                        .presets
+                        .iter()
+                        .find(|preset| preset.id == *preset_id)
+                })
+                .and_then(|preset| preset.steps.get(*step_index))
+                .is_some_and(|step| {
+                    !matches!(step.action, MacroAction::LockKeys | MacroAction::UnlockKeys)
+                }),
+            _ => true,
+        }
+    }
+
     fn cancel_capture(&mut self) {
         self.capture_target = None;
         self.capture_ignored_keys.clear();
@@ -5414,6 +5458,10 @@ impl CrosshairApp {
 
     #[cfg(windows)]
     fn capture_next_input(&mut self, ctx: &egui::Context) -> Option<crate::model::HotkeyBinding> {
+        let accepts_mouse = self
+            .capture_target
+            .as_ref()
+            .is_none_or(|target| self.capture_request_accepts_mouse(target));
         if self.capture_wait_for_mouse_release {
             if Self::is_vk_down(0x01)
                 || Self::is_vk_down(0x02)
@@ -5428,10 +5476,13 @@ impl CrosshairApp {
             }
             self.capture_wait_for_mouse_release = false;
         }
-        if let Some(binding) = self.capture_scroll_binding(ctx) {
+        if accepts_mouse && let Some(binding) = self.capture_scroll_binding(ctx) {
             return Some(binding);
         }
         for vk in Self::capture_scan_keys() {
+            if !accepts_mouse && Self::capture_mouse_vk(vk) {
+                continue;
+            }
             let pressed = unsafe { (GetAsyncKeyState(vk as i32) as u16 & 0x8000) != 0 };
             if pressed {
                 if self.capture_ignored_keys.contains(&vk) {
