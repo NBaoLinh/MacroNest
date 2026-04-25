@@ -510,6 +510,14 @@ impl Default for ZoomPreset {
     }
 }
 
+#[derive(Debug, Clone, Copy, Serialize, Deserialize, PartialEq, Eq, Default)]
+pub enum PinOverlayStyle {
+    #[default]
+    Rectangle,
+    Circle,
+    HorizontalBar,
+}
+
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
 #[serde(default)]
 pub struct PinPreset {
@@ -528,6 +536,7 @@ pub struct PinPreset {
     pub y: i32,
     pub width: i32,
     pub height: i32,
+    pub overlay_style: PinOverlayStyle,
     pub use_source_crop: bool,
     pub source_crop_initialized: bool,
     pub source_crop_fit_version: u8,
@@ -554,6 +563,7 @@ impl PinPreset {
             y: 100,
             width: 640,
             height: 360,
+            overlay_style: PinOverlayStyle::Rectangle,
             use_source_crop: false,
             source_crop_initialized: false,
             source_crop_fit_version: 0,

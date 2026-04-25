@@ -101,14 +101,17 @@ mod windows_overlay {
         model::{
             AudioSettings, CrosshairStyle, HotkeyBinding, ImageSearchPreset, MacroAction,
             MacroGroup, MacroPreset, MacroStep, MacroTriggerMode, MousePathEvent,
-            MousePathEventKind, MousePathPreset, MouseSensitivityPreset, PinPreset, ProfileRecord,
-            RgbaColor, SoundLibraryItem, SoundPreset, ToolboxPreset, WindowAnchor,
-            WindowExpandControls, WindowExpandDirection, WindowFocusPreset, WindowPreset,
+            MousePathEventKind, MousePathPreset, MouseSensitivityPreset, PinOverlayStyle,
+            PinPreset, ProfileRecord, RgbaColor, SoundLibraryItem, SoundPreset, ToolboxPreset,
+            WindowAnchor, WindowExpandControls, WindowExpandDirection, WindowFocusPreset,
+            WindowPreset,
         },
-        platform, window_list,
+        platform,
         render::{RenderedCrosshair, render_crosshair},
         storage::AppPaths,
+        window_list,
     };
+    use image::{RgbaImage, imageops::FilterType};
 
     const HOTKEY_ID: i32 = 1001;
     const TIMER_ID: usize = 1;
@@ -431,13 +434,15 @@ mod windows_overlay {
             };
 
             if let Some(device) = preferred_device
-                && unsafe { (api.send)(context, device, strokes.as_ptr(), strokes.len() as u32) } > 0
+                && unsafe { (api.send)(context, device, strokes.as_ptr(), strokes.len() as u32) }
+                    > 0
             {
                 return true;
             }
 
             for device in INTERCEPTION_MOUSE_DEVICE_START..=INTERCEPTION_MOUSE_DEVICE_END {
-                if unsafe { (api.send)(context, device, strokes.as_ptr(), strokes.len() as u32) } > 0
+                if unsafe { (api.send)(context, device, strokes.as_ptr(), strokes.len() as u32) }
+                    > 0
                 {
                     self.mouse_device = Some(device);
                     return true;
@@ -541,7 +546,8 @@ mod windows_overlay {
     struct ActivePinThumbnail {
         preset_id: u32,
         source_hwnd: HWND,
-        thumbnail_id: isize,
+        thumbnail_id: Option<isize>,
+        overlay_style: PinOverlayStyle,
         last_target_bounds: (i32, i32, i32, i32),
         last_source_crop: Option<(i32, i32, i32, i32)>,
     }
@@ -1279,10 +1285,7 @@ mod windows_overlay {
         *generation = generation.saturating_add(1);
     }
 
-    fn run_image_search_follow_loop(
-        preset: ImageSearchPreset,
-        ui_tx: Option<Sender<UiCommand>>,
-    ) {
+    fn run_image_search_follow_loop(preset: ImageSearchPreset, ui_tx: Option<Sender<UiCommand>>) {
         if let Some(tx) = ui_tx.as_ref() {
             let _ = tx.send(UiCommand::ImageSearchFinished(format!(
                 "{}: repeat mode started. Press the hotkey again to stop.",
@@ -1358,7 +1361,10 @@ mod windows_overlay {
             if preset.repeat_until_triggered_again {
                 let active = {
                     let mut hook_state = HOOK_STATE.lock();
-                    if hook_state.image_search_following_presets.contains(&preset.id) {
+                    if hook_state
+                        .image_search_following_presets
+                        .contains(&preset.id)
+                    {
                         hook_state.image_search_following_presets.remove(&preset.id);
                         false
                     } else {
@@ -1770,16 +1776,13 @@ mod windows_overlay {
                 if preset.trigger_mode == MacroTriggerMode::Hold {
                     matched_any_macro = true;
                     if !hook_state.active_hold_macros.contains_key(&preset.id) {
-                        let trigger = preset
-                            .hotkey
-                            .clone()
-                            .unwrap_or_else(|| HotkeyBinding {
-                                ctrl: false,
-                                alt: false,
-                                shift: false,
-                                win: false,
-                                key: binding.key.clone(),
-                            });
+                        let trigger = preset.hotkey.clone().unwrap_or_else(|| HotkeyBinding {
+                            ctrl: false,
+                            alt: false,
+                            shift: false,
+                            win: false,
+                            key: binding.key.clone(),
+                        });
                         hold_matches.push((
                             preset.clone(),
                             trigger,
@@ -1892,8 +1895,7 @@ mod windows_overlay {
             decrement_press_trigger_suppression(&binding.key);
         }
 
-        let mut release_matches: Vec<(MacroPreset, Option<String>, Vec<String>, bool)> =
-            Vec::new();
+        let mut release_matches: Vec<(MacroPreset, Option<String>, Vec<String>, bool)> = Vec::new();
         let preset_ids = {
             let hook_state = HOOK_STATE.lock();
             for group in &hook_state.macro_groups {
@@ -2614,8 +2616,10 @@ mod windows_overlay {
 
         let Some(preset) = active else {
             unsafe {
-                if let Some(active) = runtime.active_pin_thumbnail.take() {
-                    let _ = DwmUnregisterThumbnail(active.thumbnail_id);
+                if let Some(active) = runtime.active_pin_thumbnail.take()
+                    && let Some(thumbnail_id) = active.thumbnail_id
+                {
+                    let _ = DwmUnregisterThumbnail(thumbnail_id);
                 }
                 let _ = ShowWindow(runtime.pin_hwnd, SW_HIDE);
             }
@@ -2636,6 +2640,7 @@ mod windows_overlay {
             false,
         )
         .context("Pin source window was not found")?;
+
         unsafe {
             let source_root = GetAncestor(source, GA_ROOT);
             if !source_root.0.is_null()
@@ -2647,27 +2652,10 @@ mod windows_overlay {
                 return Ok(());
             }
 
-            let needs_register = runtime
-                .active_pin_thumbnail
-                .as_ref()
-                .is_none_or(|active| active.preset_id != preset.id || active.source_hwnd != source);
-            if needs_register {
-                if let Some(active) = runtime.active_pin_thumbnail.take() {
-                    let _ = DwmUnregisterThumbnail(active.thumbnail_id);
-                }
-                let thumbnail_id = DwmRegisterThumbnail(runtime.pin_hwnd, source)?;
-                runtime.active_pin_thumbnail = Some(ActivePinThumbnail {
-                    preset_id: preset.id,
-                    source_hwnd: source,
-                    thumbnail_id,
-                    last_target_bounds: (i32::MIN, i32::MIN, i32::MIN, i32::MIN),
-                    last_source_crop: None,
-                });
-            }
-
             let mut source_rect = RECT::default();
             GetWindowRect(source, &mut source_rect)?;
-            let (target_x, target_y, target_w, target_h) = if preset.use_custom_bounds {
+
+            let target_bounds = if preset.use_custom_bounds {
                 (
                     preset.x,
                     preset.y,
@@ -2683,72 +2671,372 @@ mod windows_overlay {
                 )
             };
 
-            if let Some(active) = runtime.active_pin_thumbnail.as_ref() {
-                let mut source_flags = DWM_TNP_SOURCECLIENTAREAONLY;
-                let mut source_rect_crop = RECT::default();
-                let mut source_crop_key = None;
-                if preset.use_source_crop {
-                    let source_width = (source_rect.right - source_rect.left).max(1);
-                    let source_height = (source_rect.bottom - source_rect.top).max(1);
-                    let crop_x = preset.source_x.clamp(0, source_width.saturating_sub(1));
-                    let crop_y = preset.source_y.clamp(0, source_height.saturating_sub(1));
-                    let crop_w = preset
-                        .source_width
-                        .max(1)
-                        .min(source_width.saturating_sub(crop_x).max(1));
-                    let crop_h = preset
-                        .source_height
-                        .max(1)
-                        .min(source_height.saturating_sub(crop_y).max(1));
-                    source_rect_crop = RECT {
-                        left: crop_x,
-                        top: crop_y,
-                        right: crop_x + crop_w,
-                        bottom: crop_y + crop_h,
-                    };
-                    source_crop_key = Some((crop_x, crop_y, crop_w, crop_h));
-                    source_flags |= DWM_TNP_RECTSOURCE;
-                }
-                let target_bounds = (target_x, target_y, target_w, target_h);
-                let needs_apply = active.last_target_bounds != target_bounds
-                    || active.last_source_crop != source_crop_key;
-                if needs_apply {
-                    let _ = SetWindowPos(
-                        runtime.pin_hwnd,
-                        Some(HWND_TOPMOST),
-                        target_x,
-                        target_y,
-                        target_w,
-                        target_h,
-                        SWP_NOACTIVATE | SWP_SHOWWINDOW,
-                    );
-                    let properties = DWM_THUMBNAIL_PROPERTIES {
-                        dwFlags: DWM_TNP_RECTDESTINATION
-                            | DWM_TNP_VISIBLE
-                            | DWM_TNP_OPACITY
-                            | source_flags,
-                        rcDestination: RECT {
-                            left: 0,
-                            top: 0,
-                            right: target_w,
-                            bottom: target_h,
-                        },
-                        rcSource: source_rect_crop,
-                        opacity: 255,
-                        fVisible: true.into(),
-                        fSourceClientAreaOnly: false.into(),
-                        ..Default::default()
-                    };
-                    let _ = DwmUpdateThumbnailProperties(active.thumbnail_id, &properties);
-                    if let Some(active_mut) = runtime.active_pin_thumbnail.as_mut() {
-                        active_mut.last_target_bounds = target_bounds;
-                        active_mut.last_source_crop = source_crop_key;
+            let source_crop_key = if preset.use_source_crop {
+                let source_width = (source_rect.right - source_rect.left).max(1);
+                let source_height = (source_rect.bottom - source_rect.top).max(1);
+                let crop_x = preset.source_x.clamp(0, source_width.saturating_sub(1));
+                let crop_y = preset.source_y.clamp(0, source_height.saturating_sub(1));
+                let crop_w = preset
+                    .source_width
+                    .max(1)
+                    .min(source_width.saturating_sub(crop_x).max(1));
+                let crop_h = preset
+                    .source_height
+                    .max(1)
+                    .min(source_height.saturating_sub(crop_y).max(1));
+                Some((crop_x, crop_y, crop_w, crop_h))
+            } else {
+                None
+            };
+
+            if preset.overlay_style == PinOverlayStyle::Rectangle {
+                let needs_register = runtime.active_pin_thumbnail.as_ref().is_none_or(|active| {
+                    active.preset_id != preset.id
+                        || active.source_hwnd != source
+                        || active.overlay_style != PinOverlayStyle::Rectangle
+                        || active.thumbnail_id.is_none()
+                });
+                if needs_register {
+                    if let Some(active) = runtime.active_pin_thumbnail.take()
+                        && let Some(thumbnail_id) = active.thumbnail_id
+                    {
+                        let _ = DwmUnregisterThumbnail(thumbnail_id);
                     }
+                    let thumbnail_id = DwmRegisterThumbnail(runtime.pin_hwnd, source)?;
+                    runtime.active_pin_thumbnail = Some(ActivePinThumbnail {
+                        preset_id: preset.id,
+                        source_hwnd: source,
+                        thumbnail_id: Some(thumbnail_id),
+                        overlay_style: PinOverlayStyle::Rectangle,
+                        last_target_bounds: (i32::MIN, i32::MIN, i32::MIN, i32::MIN),
+                        last_source_crop: None,
+                    });
                 }
+
+                if let Some(active) = runtime.active_pin_thumbnail.as_ref() {
+                    let mut source_flags = DWM_TNP_SOURCECLIENTAREAONLY;
+                    let mut source_rect_crop = RECT::default();
+                    if let Some((crop_x, crop_y, crop_w, crop_h)) = source_crop_key {
+                        source_rect_crop = RECT {
+                            left: crop_x,
+                            top: crop_y,
+                            right: crop_x + crop_w,
+                            bottom: crop_y + crop_h,
+                        };
+                        source_flags |= DWM_TNP_RECTSOURCE;
+                    }
+                    let needs_apply = active.last_target_bounds != target_bounds
+                        || active.last_source_crop != source_crop_key;
+                    if needs_apply {
+                        let _ = SetWindowPos(
+                            runtime.pin_hwnd,
+                            Some(HWND_TOPMOST),
+                            target_bounds.0,
+                            target_bounds.1,
+                            target_bounds.2,
+                            target_bounds.3,
+                            SWP_NOACTIVATE | SWP_SHOWWINDOW,
+                        );
+                        let properties = DWM_THUMBNAIL_PROPERTIES {
+                            dwFlags: DWM_TNP_RECTDESTINATION
+                                | DWM_TNP_VISIBLE
+                                | DWM_TNP_OPACITY
+                                | source_flags,
+                            rcDestination: RECT {
+                                left: 0,
+                                top: 0,
+                                right: target_bounds.2,
+                                bottom: target_bounds.3,
+                            },
+                            rcSource: source_rect_crop,
+                            opacity: 255,
+                            fVisible: true.into(),
+                            fSourceClientAreaOnly: false.into(),
+                            ..Default::default()
+                        };
+                        if let Some(thumbnail_id) = active.thumbnail_id {
+                            let _ = DwmUpdateThumbnailProperties(thumbnail_id, &properties);
+                        }
+                        if let Some(active_mut) = runtime.active_pin_thumbnail.as_mut() {
+                            active_mut.last_target_bounds = target_bounds;
+                            active_mut.last_source_crop = source_crop_key;
+                            active_mut.overlay_style = PinOverlayStyle::Rectangle;
+                        }
+                    }
+                    let _ = ShowWindow(runtime.pin_hwnd, SW_SHOWNA);
+                }
+            } else {
+                if let Some(active) = runtime.active_pin_thumbnail.take()
+                    && let Some(thumbnail_id) = active.thumbnail_id
+                {
+                    let _ = DwmUnregisterThumbnail(thumbnail_id);
+                }
+
+                let capture = window_list::capture_window_region_with_candidates(
+                    preset.target_window_title.as_deref(),
+                    &preset.extra_target_window_titles,
+                    preset.match_duplicate_window_titles,
+                )
+                .context("Pin source window could not be captured")?;
+                let rendered = render_pin_overlay_bitmap(
+                    &capture,
+                    target_bounds.2,
+                    target_bounds.3,
+                    preset.overlay_style,
+                    source_crop_key,
+                )?;
+                paint_pin_overlay(
+                    runtime.pin_hwnd,
+                    target_bounds.0,
+                    target_bounds.1,
+                    target_bounds.2,
+                    target_bounds.3,
+                    &rendered,
+                )?;
+                runtime.active_pin_thumbnail = Some(ActivePinThumbnail {
+                    preset_id: preset.id,
+                    source_hwnd: source,
+                    thumbnail_id: None,
+                    overlay_style: preset.overlay_style,
+                    last_target_bounds: target_bounds,
+                    last_source_crop: source_crop_key,
+                });
             }
-            let _ = ShowWindow(runtime.pin_hwnd, SW_SHOWNA);
         }
+
         runtime.last_pin_update = Instant::now();
+        Ok(())
+    }
+
+    fn pin_overlay_shape_rect(
+        style: PinOverlayStyle,
+        target_w: i32,
+        target_h: i32,
+    ) -> (i32, i32, i32, i32) {
+        let target_w = target_w.max(1);
+        let target_h = target_h.max(1);
+        match style {
+            PinOverlayStyle::Rectangle => (0, 0, target_w, target_h),
+            PinOverlayStyle::Circle => {
+                let padding = ((target_w.min(target_h) as f32 * 0.04).round() as i32).max(4);
+                let size = (target_w.min(target_h) - padding * 2).max(1);
+                ((target_w - size) / 2, (target_h - size) / 2, size, size)
+            }
+            PinOverlayStyle::HorizontalBar => {
+                let width = (target_w - 12).max(1);
+                let min_height = ((target_h as f32 * 0.12).round() as i32).clamp(16, target_h);
+                let bar_height =
+                    ((target_h as f32 * 0.18).round() as i32).clamp(min_height, target_h);
+                (
+                    (target_w - width) / 2,
+                    (target_h - bar_height) / 2,
+                    width,
+                    bar_height,
+                )
+            }
+        }
+    }
+
+    fn point_in_rounded_rect(
+        x: i32,
+        y: i32,
+        left: i32,
+        top: i32,
+        width: i32,
+        height: i32,
+        radius: f32,
+    ) -> bool {
+        if width <= 0 || height <= 0 {
+            return false;
+        }
+        let radius = radius
+            .max(0.0)
+            .min(width as f32 * 0.5)
+            .min(height as f32 * 0.5);
+        if radius <= 0.0 {
+            return x >= left && x < left + width && y >= top && y < top + height;
+        }
+
+        let px = x as f32 + 0.5;
+        let py = y as f32 + 0.5;
+        let inner_left = left as f32 + radius;
+        let inner_right = left as f32 + width as f32 - radius;
+        let inner_top = top as f32 + radius;
+        let inner_bottom = top as f32 + height as f32 - radius;
+        if (px >= inner_left && px <= inner_right) || (py >= inner_top && py <= inner_bottom) {
+            return true;
+        }
+
+        let corner_x = if px < inner_left {
+            inner_left
+        } else {
+            inner_right
+        };
+        let corner_y = if py < inner_top {
+            inner_top
+        } else {
+            inner_bottom
+        };
+        let dx = px - corner_x;
+        let dy = py - corner_y;
+        (dx * dx) + (dy * dy) <= radius * radius
+    }
+
+    fn render_pin_overlay_bitmap(
+        capture: &window_list::ScreenCaptureFrame,
+        target_w: i32,
+        target_h: i32,
+        style: PinOverlayStyle,
+        source_crop: Option<(i32, i32, i32, i32)>,
+    ) -> Result<Vec<u8>> {
+        let target_w = target_w.max(1);
+        let target_h = target_h.max(1);
+        let source = RgbaImage::from_raw(
+            capture.width as u32,
+            capture.height as u32,
+            capture.rgba.clone(),
+        )
+        .context("Failed to decode pin capture")?;
+        let source = if let Some((crop_x, crop_y, crop_w, crop_h)) = source_crop {
+            image::imageops::crop_imm(
+                &source,
+                crop_x.max(0) as u32,
+                crop_y.max(0) as u32,
+                crop_w.max(1) as u32,
+                crop_h.max(1) as u32,
+            )
+            .to_image()
+        } else {
+            source
+        };
+
+        let (shape_left, shape_top, shape_w, shape_h) =
+            pin_overlay_shape_rect(style, target_w, target_h);
+        let resized = image::imageops::resize(
+            &source,
+            shape_w.max(1) as u32,
+            shape_h.max(1) as u32,
+            FilterType::CatmullRom,
+        );
+        let resized_pixels = resized.as_raw();
+        let mut output = vec![0u8; (target_w as usize) * (target_h as usize) * 4];
+
+        for y in 0..shape_h.max(1) {
+            for x in 0..shape_w.max(1) {
+                let dst_x = shape_left + x;
+                let dst_y = shape_top + y;
+                if dst_x < 0 || dst_y < 0 || dst_x >= target_w || dst_y >= target_h {
+                    continue;
+                }
+                let inside = match style {
+                    PinOverlayStyle::Rectangle => true,
+                    PinOverlayStyle::Circle => {
+                        point_in_ellipse(dst_x, dst_y, shape_left, shape_top, shape_w, shape_h)
+                    }
+                    PinOverlayStyle::HorizontalBar => point_in_rounded_rect(
+                        dst_x,
+                        dst_y,
+                        shape_left,
+                        shape_top,
+                        shape_w,
+                        shape_h,
+                        shape_h as f32 * 0.5,
+                    ),
+                };
+                if !inside {
+                    continue;
+                }
+                let src_index = ((y as usize) * (shape_w as usize) + x as usize) * 4;
+                let dst_index = ((dst_y as usize) * (target_w as usize) + dst_x as usize) * 4;
+                output[dst_index..dst_index + 4]
+                    .copy_from_slice(&resized_pixels[src_index..src_index + 4]);
+            }
+        }
+
+        Ok(output)
+    }
+
+    unsafe fn paint_pin_overlay(
+        hwnd: HWND,
+        x: i32,
+        y: i32,
+        width: i32,
+        height: i32,
+        rgba: &[u8],
+    ) -> Result<()> {
+        let width = width.max(1);
+        let height = height.max(1);
+
+        let screen_dc = GetDC(None);
+        if screen_dc.0.is_null() {
+            bail!("Failed to acquire the screen DC");
+        }
+        let mem_dc = CreateCompatibleDC(Some(screen_dc));
+        if mem_dc.0.is_null() {
+            let _ = ReleaseDC(None, screen_dc);
+            bail!("Failed to create a memory DC");
+        }
+
+        let mut bitmap_info = BITMAPINFO::default();
+        bitmap_info.bmiHeader = BITMAPINFOHEADER {
+            biSize: size_of::<BITMAPINFOHEADER>() as u32,
+            biWidth: width,
+            biHeight: -height,
+            biPlanes: 1,
+            biBitCount: 32,
+            biCompression: BI_RGB.0,
+            ..Default::default()
+        };
+
+        let mut bits = std::ptr::null_mut();
+        let bitmap = CreateDIBSection(
+            Some(mem_dc),
+            &bitmap_info,
+            DIB_RGB_COLORS,
+            &mut bits,
+            None,
+            0,
+        )?;
+        if bitmap.0.is_null() || bits.is_null() {
+            let _ = DeleteDC(mem_dc);
+            let _ = ReleaseDC(None, screen_dc);
+            bail!("Failed to create pin DIB");
+        }
+
+        let old_bitmap = SelectObject(mem_dc, HGDIOBJ(bitmap.0));
+        let bgra = rgba_to_bgra(rgba);
+        std::ptr::copy_nonoverlapping(bgra.as_ptr(), bits as *mut u8, bgra.len());
+
+        let destination = POINT { x, y };
+        let source = POINT { x: 0, y: 0 };
+        let size = SIZE {
+            cx: width,
+            cy: height,
+        };
+        let blend = BLENDFUNCTION {
+            BlendOp: AC_SRC_OVER as u8,
+            BlendFlags: 0,
+            SourceConstantAlpha: 255,
+            AlphaFormat: AC_SRC_ALPHA as u8,
+        };
+
+        let _ = UpdateLayeredWindow(
+            hwnd,
+            Some(screen_dc),
+            Some(&destination),
+            Some(&size),
+            Some(mem_dc),
+            Some(&source),
+            COLORREF(0),
+            Some(&blend),
+            ULW_ALPHA,
+        );
+
+        let _ = SelectObject(mem_dc, old_bitmap);
+        let _ = DeleteObject(HGDIOBJ(bitmap.0));
+        let _ = DeleteDC(mem_dc);
+        let _ = ReleaseDC(None, screen_dc);
+        let _ = ShowWindow(hwnd, SW_SHOWNA);
         Ok(())
     }
 
@@ -5200,11 +5488,7 @@ mod windows_overlay {
                 return Ok(());
             }
             MacroAction::MouseMoveRelative => {
-                send_mouse_move_relative_with_backend(
-                    step.x,
-                    step.y,
-                    prefer_interception,
-                )?;
+                send_mouse_move_relative_with_backend(step.x, step.y, prefer_interception)?;
                 return Ok(());
             }
             _ => {}
@@ -5453,11 +5737,7 @@ mod windows_overlay {
         send_mouse_move_absolute_backend(x, y, false)
     }
 
-    fn send_mouse_move_absolute_backend(
-        x: i32,
-        y: i32,
-        prefer_interception: bool,
-    ) -> Result<()> {
+    fn send_mouse_move_absolute_backend(x: i32, y: i32, prefer_interception: bool) -> Result<()> {
         let screen_w = unsafe { GetSystemMetrics(SM_CXSCREEN) }.max(1);
         let screen_h = unsafe { GetSystemMetrics(SM_CYSCREEN) }.max(1);
         let normalized_x =
@@ -5539,8 +5819,7 @@ mod windows_overlay {
         let mut prev_x = from_x;
         let mut prev_y = from_y;
         for index in 1..=steps {
-            if preset_id.is_some_and(|id| macro_stop_requested(id, stop_immediately_on_retrigger))
-            {
+            if preset_id.is_some_and(|id| macro_stop_requested(id, stop_immediately_on_retrigger)) {
                 return Ok(());
             }
             let t = index as f32 / steps as f32;
@@ -5600,10 +5879,13 @@ mod windows_overlay {
     }
 
     fn send_mouse_left_click() -> Result<()> {
-        if send_mouse_strokes_interception(false, &[
-            interception_mouse_stroke(INTERCEPTION_MOUSE_LEFT_BUTTON_DOWN, 0, 0, 0, 0),
-            interception_mouse_stroke(INTERCEPTION_MOUSE_LEFT_BUTTON_UP, 0, 0, 0, 0),
-        ]) {
+        if send_mouse_strokes_interception(
+            false,
+            &[
+                interception_mouse_stroke(INTERCEPTION_MOUSE_LEFT_BUTTON_DOWN, 0, 0, 0, 0),
+                interception_mouse_stroke(INTERCEPTION_MOUSE_LEFT_BUTTON_UP, 0, 0, 0, 0),
+            ],
+        ) {
             return Ok(());
         }
         let inputs = [
@@ -5644,10 +5926,13 @@ mod windows_overlay {
     }
 
     fn send_mouse_left_click_backend(prefer_interception: bool) -> Result<()> {
-        if send_mouse_strokes_interception(prefer_interception, &[
+        if send_mouse_strokes_interception(
+            prefer_interception,
+            &[
                 interception_mouse_stroke(INTERCEPTION_MOUSE_LEFT_BUTTON_DOWN, 0, 0, 0, 0),
                 interception_mouse_stroke(INTERCEPTION_MOUSE_LEFT_BUTTON_UP, 0, 0, 0, 0),
-            ]) {
+            ],
+        ) {
             return Ok(());
         }
         let inputs = [
@@ -5751,8 +6036,8 @@ mod windows_overlay {
             let candidate_center_y = candidate.y + candidate.height / 2;
             let current_center_x = current.x + current.width / 2;
             let current_center_y = current.y + current.height / 2;
-            let candidate_distance = (candidate_center_x - anchor_x).pow(2)
-                + (candidate_center_y - anchor_y).pow(2);
+            let candidate_distance =
+                (candidate_center_x - anchor_x).pow(2) + (candidate_center_y - anchor_y).pow(2);
             let current_distance =
                 (current_center_x - anchor_x).pow(2) + (current_center_y - anchor_y).pow(2);
             return candidate_distance < current_distance;
@@ -5780,9 +6065,8 @@ mod windows_overlay {
         } else {
             rgba_to_gray_mat(template_rgba, template_width, template_height)?
         };
-        let anchor_hint = anchor_hint_screen.map(|(screen_x, screen_y)| {
-            (screen_x - screen.screen_x, screen_y - screen.screen_y)
-        });
+        let anchor_hint = anchor_hint_screen
+            .map(|(screen_x, screen_y)| (screen_x - screen.screen_x, screen_y - screen.screen_y));
         let mut best_hit: Option<TemplateMatchHit> = None;
 
         for &scale in scales {
@@ -5857,21 +6141,13 @@ mod windows_overlay {
         Ok(best_hit)
     }
 
-    fn configured_image_search_region(
-        preset: &ImageSearchPreset,
-    ) -> Option<ImageSearchRegion> {
-        let (
-            Some(region_x),
-            Some(region_y),
-            Some(region_width),
-            Some(region_height),
-        ) = (
+    fn configured_image_search_region(preset: &ImageSearchPreset) -> Option<ImageSearchRegion> {
+        let (Some(region_x), Some(region_y), Some(region_width), Some(region_height)) = (
             preset.search_region_screen_x,
             preset.search_region_screen_y,
             preset.search_region_width,
             preset.search_region_height,
-        )
-        else {
+        ) else {
             return None;
         };
         if region_width <= 0 || region_height <= 0 {
@@ -6017,14 +6293,7 @@ mod windows_overlay {
         for y in 0..height {
             for x in x_start as i32..x_end as i32 {
                 let candidate = color_match_candidate_for_pixel(
-                    screen,
-                    targets,
-                    tolerance,
-                    x,
-                    y,
-                    center_x,
-                    center_y,
-                    region,
+                    screen, targets, tolerance, x, y, center_x, center_y, region,
                 );
                 if let Some(candidate) = candidate {
                     let replace = match best_hit {
@@ -6134,14 +6403,7 @@ mod windows_overlay {
             for x in left..=right {
                 for y in [top, bottom] {
                     if let Some(candidate) = color_match_candidate_for_pixel(
-                        screen,
-                        targets,
-                        tolerance,
-                        x,
-                        y,
-                        anchor_x,
-                        anchor_y,
-                        region,
+                        screen, targets, tolerance, x, y, anchor_x, anchor_y, region,
                     ) {
                         let replace = match best_in_radius {
                             None => true,
@@ -6162,14 +6424,7 @@ mod windows_overlay {
                 for y in (top + 1)..bottom {
                     for x in [left, right] {
                         if let Some(candidate) = color_match_candidate_for_pixel(
-                            screen,
-                            targets,
-                            tolerance,
-                            x,
-                            y,
-                            anchor_x,
-                            anchor_y,
-                            region,
+                            screen, targets, tolerance, x, y, anchor_x, anchor_y, region,
                         ) {
                             let replace = match best_in_radius {
                                 None => true,
@@ -6212,20 +6467,21 @@ mod windows_overlay {
     ) -> Option<ColorMatchHit> {
         let mid = (screen.width / 2).max(1);
         let (left_hit, right_hit) = thread::scope(|scope| {
-            let left = scope.spawn(|| find_color_match_in_range(screen, targets, tolerance, 0, mid, region));
-            let right = scope.spawn(|| find_color_match_in_range(screen, targets, tolerance, mid, screen.width, region));
+            let left = scope
+                .spawn(|| find_color_match_in_range(screen, targets, tolerance, 0, mid, region));
+            let right = scope.spawn(|| {
+                find_color_match_in_range(screen, targets, tolerance, mid, screen.width, region)
+            });
             (left.join().ok().flatten(), right.join().ok().flatten())
         });
         match (left_hit, right_hit) {
-            (Some(left), Some(right)) => {
-                Some(ColorMatchHit {
-                    x: ((left.x + right.x) / 2).max(0),
-                    y: ((left.y + right.y) / 2).max(0),
-                    score: left.score.min(right.score),
-                    distance_sq: left.distance_sq.min(right.distance_sq),
-                    matched_color: left.matched_color,
-                })
-            }
+            (Some(left), Some(right)) => Some(ColorMatchHit {
+                x: ((left.x + right.x) / 2).max(0),
+                y: ((left.y + right.y) / 2).max(0),
+                score: left.score.min(right.score),
+                distance_sq: left.distance_sq.min(right.distance_sq),
+                matched_color: left.matched_color,
+            }),
             (Some(hit), None) | (None, Some(hit)) => Some(hit),
             (None, None) => None,
         }
@@ -6297,11 +6553,14 @@ mod windows_overlay {
                     for col in 0..template_width {
                         let screen_idx = screen_row + col * 4;
                         let template_idx = template_row + col * 4;
-                        let dr = screen.rgba[screen_idx].abs_diff(template_rgba[template_idx]) as u64;
-                        let dg =
-                            screen.rgba[screen_idx + 1].abs_diff(template_rgba[template_idx + 1]) as u64;
-                        let db =
-                            screen.rgba[screen_idx + 2].abs_diff(template_rgba[template_idx + 2]) as u64;
+                        let dr =
+                            screen.rgba[screen_idx].abs_diff(template_rgba[template_idx]) as u64;
+                        let dg = screen.rgba[screen_idx + 1]
+                            .abs_diff(template_rgba[template_idx + 1])
+                            as u64;
+                        let db = screen.rgba[screen_idx + 2]
+                            .abs_diff(template_rgba[template_idx + 2])
+                            as u64;
                         total_diff += dr + dg + db;
                         let processed = ((row * template_width) + (col + 1)) as f32;
                         let average = total_diff as f32 / processed / 3.0;
@@ -6356,8 +6615,13 @@ mod windows_overlay {
             }
             let configured_region = configured_image_search_region(preset);
             let screen = if let Some(region) = configured_region {
-                window_list::capture_virtual_screen_region(region.left, region.top, region.width, region.height)
-                    .context("Failed to capture the selected search area")?
+                window_list::capture_virtual_screen_region(
+                    region.left,
+                    region.top,
+                    region.width,
+                    region.height,
+                )
+                .context("Failed to capture the selected search area")?
             } else if preset.target_window_title.is_some()
                 || !preset.extra_target_window_titles.is_empty()
             {
@@ -6444,16 +6708,12 @@ mod windows_overlay {
                 status: if anchor.is_some() {
                     format!(
                         "Matched colors from priority point at {moved_x}, {moved_y} with tolerance {} and offset {:+}, {:+}.",
-                        preset.color_tolerance,
-                        preset.move_offset_x,
-                        preset.move_offset_y
+                        preset.color_tolerance, preset.move_offset_x, preset.move_offset_y
                     )
                 } else if preset.dual_color_scan_midpoint {
                     format!(
                         "Matched colors midpoint at {moved_x}, {moved_y} with tolerance {} and offset {:+}, {:+}.",
-                        preset.color_tolerance,
-                        preset.move_offset_x,
-                        preset.move_offset_y
+                        preset.color_tolerance, preset.move_offset_x, preset.move_offset_y
                     )
                 } else {
                     format!(
@@ -6479,10 +6739,7 @@ mod windows_overlay {
         let template_width = template.width() as usize;
         let template_height = template.height() as usize;
         let template_rgba = template.into_raw();
-        let anchor_hint = match (
-            preset.last_capture_screen_x,
-            preset.last_capture_screen_y,
-        ) {
+        let anchor_hint = match (preset.last_capture_screen_x, preset.last_capture_screen_y) {
             (Some(x), Some(y)) => Some((x, y)),
             _ => None,
         };
@@ -6490,16 +6747,18 @@ mod windows_overlay {
 
         let used_roi_capture = configured_region.is_some()
             || (preset.target_window_title.is_none()
-            && preset.extra_target_window_titles.is_empty()
-            && anchor_hint.is_some());
+                && preset.extra_target_window_titles.is_empty()
+                && anchor_hint.is_some());
         let screen = if let Some(region) = configured_region {
-            let region = expand_search_region_to_fit(
-                region,
-                template_width as i32,
-                template_height as i32,
-            );
-            window_list::capture_virtual_screen_region(region.left, region.top, region.width, region.height)
-                .context("Failed to capture the selected search area")?
+            let region =
+                expand_search_region_to_fit(region, template_width as i32, template_height as i32);
+            window_list::capture_virtual_screen_region(
+                region.left,
+                region.top,
+                region.width,
+                region.height,
+            )
+            .context("Failed to capture the selected search area")?
         } else if preset.target_window_title.is_some()
             || !preset.extra_target_window_titles.is_empty()
         {
@@ -6523,9 +6782,8 @@ mod windows_overlay {
                 .context("Failed to capture the screen")?
         };
 
-        let fallback_average_diff = ((1.0 - preset.confidence_threshold.clamp(0.35, 0.99))
-            * 48.0)
-            .clamp(2.0, 18.0);
+        let fallback_average_diff =
+            ((1.0 - preset.confidence_threshold.clamp(0.35, 0.99)) * 48.0).clamp(2.0, 18.0);
         let exact_hit = if used_roi_capture
             || configured_region.is_some()
             || (screen.width <= 960 && screen.height <= 960)
@@ -6593,9 +6851,7 @@ mod windows_overlay {
                 matched: false,
                 status: format!(
                     "Best match near {moved_x}, {moved_y} scored {:.3} at scale {:.2}x, below threshold {:.2}.",
-                    hit.confidence,
-                    hit.scale,
-                    required_confidence
+                    hit.confidence, hit.scale, required_confidence
                 ),
             });
         }
@@ -6616,10 +6872,7 @@ mod windows_overlay {
             matched: true,
             status: format!(
                 "OpenCV matched at {moved_x}, {moved_y} with confidence {:.3} on {:.2}x (offset {:+}, {:+}).",
-                hit.confidence,
-                hit.scale,
-                preset.move_offset_x,
-                preset.move_offset_y
+                hit.confidence, hit.scale, preset.move_offset_x, preset.move_offset_y
             ),
         })
     }
@@ -6704,7 +6957,9 @@ mod windows_overlay {
                 return MacroRunFlow::StopExecution;
             }
             if stop_immediately_on_retrigger
-                && STOP_REQUESTED_MACRO_PRESETS.lock().contains(&macro_preset_id)
+                && STOP_REQUESTED_MACRO_PRESETS
+                    .lock()
+                    .contains(&macro_preset_id)
             {
                 return MacroRunFlow::StopExecution;
             }
@@ -6730,8 +6985,7 @@ mod windows_overlay {
                 if let Some(tx) = ui_tx.as_ref() {
                     let _ = tx.send(UiCommand::ImageSearchFinished(format!(
                         "{}: {}",
-                        preset.name,
-                        outcome.status
+                        preset.name, outcome.status
                     )));
                 }
                 if trigger_macro_enabled {
@@ -7485,7 +7739,9 @@ mod windows_overlay {
         let _ = unsafe { ShowWindow(runtime.toolbox_hwnd, SW_HIDE) };
         let _ = unsafe { ShowWindow(runtime.pin_hwnd, SW_HIDE) };
         if let Some(active) = &runtime.active_pin_thumbnail {
-            let _ = unsafe { DwmUnregisterThumbnail(active.thumbnail_id) };
+            if let Some(thumbnail_id) = active.thumbnail_id {
+                let _ = unsafe { DwmUnregisterThumbnail(thumbnail_id) };
+            }
         }
         if !runtime.keyboard_hook.0.is_null() {
             let _ = unsafe { UnhookWindowsHookEx(runtime.keyboard_hook) };
@@ -7836,10 +8092,7 @@ mod windows_overlay {
         Ok(())
     }
 
-    unsafe fn paint_search_area_overlay(
-        hwnd: HWND,
-        regions: &[ImageSearchRegion],
-    ) -> Result<()> {
+    unsafe fn paint_search_area_overlay(hwnd: HWND, regions: &[ImageSearchRegion]) -> Result<()> {
         let screen_width = GetSystemMetrics(SM_CXSCREEN).max(1);
         let screen_height = GetSystemMetrics(SM_CYSCREEN).max(1);
         let _ = SetWindowPos(
@@ -8013,14 +8266,7 @@ mod windows_overlay {
         }
     }
 
-    fn point_in_ellipse(
-        x: i32,
-        y: i32,
-        left: i32,
-        top: i32,
-        width: i32,
-        height: i32,
-    ) -> bool {
+    fn point_in_ellipse(x: i32, y: i32, left: i32, top: i32, width: i32, height: i32) -> bool {
         let center_x = left as f32 + width as f32 * 0.5;
         let center_y = top as f32 + height as f32 * 0.5;
         let radius_x = (width as f32 * 0.5).max(1.0);
