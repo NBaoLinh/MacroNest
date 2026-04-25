@@ -40,11 +40,13 @@ mod windows_overlay {
                 Gdi::{
                     AC_SRC_ALPHA, AC_SRC_OVER, ANTIALIASED_QUALITY, BI_RGB, BITMAPINFO,
                     BITMAPINFOHEADER, BLENDFUNCTION, BeginPaint, CLIP_DEFAULT_PRECIS,
-                    CreateCompatibleDC, CreateDIBSection, CreateFontW, DEFAULT_CHARSET,
-                    DIB_RGB_COLORS, DT_CENTER, DT_SINGLELINE, DT_VCENTER, DeleteDC, DeleteObject,
-                    DrawTextW, EndPaint, FF_DONTCARE, FW_MEDIUM, GetDC, GetMonitorInfoW, HGDIOBJ,
+                    CreateCompatibleDC, CreateDIBSection, CreateEllipticRgn, CreateFontW,
+                    CreateRectRgn, CreateRoundRectRgn, DEFAULT_CHARSET, DIB_RGB_COLORS, DT_CENTER,
+                    DT_SINGLELINE, DT_VCENTER, DeleteDC, DeleteObject, DrawTextW, EndPaint,
+                    FF_DONTCARE, FW_MEDIUM, GetDC, GetMonitorInfoW, HGDIOBJ,
                     MONITOR_DEFAULTTONEAREST, MONITORINFO, MonitorFromWindow, OUT_DEFAULT_PRECIS,
-                    PAINTSTRUCT, ReleaseDC, SelectObject, SetBkMode, SetTextColor, TRANSPARENT,
+                    PAINTSTRUCT, ReleaseDC, SelectObject, SetBkMode, SetTextColor, SetWindowRgn,
+                    TRANSPARENT,
                 },
             },
             System::{
@@ -2655,7 +2657,7 @@ mod windows_overlay {
             let mut source_rect = RECT::default();
             GetWindowRect(source, &mut source_rect)?;
 
-            let target_bounds = if preset.use_custom_bounds {
+            let base_bounds = if preset.use_custom_bounds {
                 (
                     preset.x,
                     preset.y,
@@ -2671,9 +2673,35 @@ mod windows_overlay {
                 )
             };
 
+            let target_bounds = match preset.overlay_style {
+                PinOverlayStyle::Rectangle => base_bounds,
+                PinOverlayStyle::Circle => {
+                    let size = base_bounds.2.min(base_bounds.3).max(1);
+                    (
+                        base_bounds.0 + (base_bounds.2 - size) / 2,
+                        base_bounds.1 + (base_bounds.3 - size) / 2,
+                        size,
+                        size,
+                    )
+                }
+                PinOverlayStyle::HorizontalBar => {
+                    let width = base_bounds.2.max(1);
+                    let mut height = ((width as f32 * 0.14).round() as i32).clamp(18, 64);
+                    if preset.use_custom_bounds {
+                        height = height.min(base_bounds.3.max(1));
+                    }
+                    (
+                        base_bounds.0,
+                        base_bounds.1 + (base_bounds.3 - height) / 2,
+                        width,
+                        height.max(1),
+                    )
+                }
+            };
+
+            let source_width = (source_rect.right - source_rect.left).max(1);
+            let source_height = (source_rect.bottom - source_rect.top).max(1);
             let source_crop_key = if preset.use_source_crop {
-                let source_width = (source_rect.right - source_rect.left).max(1);
-                let source_height = (source_rect.bottom - source_rect.top).max(1);
                 let crop_x = preset.source_x.clamp(0, source_width.saturating_sub(1));
                 let crop_y = preset.source_y.clamp(0, source_height.saturating_sub(1));
                 let crop_w = preset
@@ -2685,122 +2713,125 @@ mod windows_overlay {
                     .max(1)
                     .min(source_height.saturating_sub(crop_y).max(1));
                 Some((crop_x, crop_y, crop_w, crop_h))
-            } else {
+            } else if preset.overlay_style == PinOverlayStyle::Rectangle {
                 None
+            } else {
+                let target_ratio = target_bounds.2.max(1) as f32 / target_bounds.3.max(1) as f32;
+                if (source_width as f32 / source_height as f32) > target_ratio {
+                    let crop_h = source_height;
+                    let crop_w = (source_height as f32 * target_ratio).round().max(1.0) as i32;
+                    let crop_x = (source_width - crop_w).max(0) / 2;
+                    Some((crop_x, 0, crop_w.min(source_width), crop_h))
+                } else {
+                    let crop_w = source_width;
+                    let crop_h = (source_width as f32 / target_ratio).round().max(1.0) as i32;
+                    let crop_y = (source_height - crop_h).max(0) / 2;
+                    Some((0, crop_y, crop_w, crop_h.min(source_height)))
+                }
             };
 
-            if preset.overlay_style == PinOverlayStyle::Rectangle {
-                let needs_register = runtime.active_pin_thumbnail.as_ref().is_none_or(|active| {
-                    active.preset_id != preset.id
-                        || active.source_hwnd != source
-                        || active.overlay_style != PinOverlayStyle::Rectangle
-                        || active.thumbnail_id.is_none()
-                });
-                if needs_register {
-                    if let Some(active) = runtime.active_pin_thumbnail.take()
-                        && let Some(thumbnail_id) = active.thumbnail_id
-                    {
-                        let _ = DwmUnregisterThumbnail(thumbnail_id);
-                    }
-                    let thumbnail_id = DwmRegisterThumbnail(runtime.pin_hwnd, source)?;
-                    runtime.active_pin_thumbnail = Some(ActivePinThumbnail {
-                        preset_id: preset.id,
-                        source_hwnd: source,
-                        thumbnail_id: Some(thumbnail_id),
-                        overlay_style: PinOverlayStyle::Rectangle,
-                        last_target_bounds: (i32::MIN, i32::MIN, i32::MIN, i32::MIN),
-                        last_source_crop: None,
-                    });
-                }
-
-                if let Some(active) = runtime.active_pin_thumbnail.as_ref() {
-                    let mut source_flags = DWM_TNP_SOURCECLIENTAREAONLY;
-                    let mut source_rect_crop = RECT::default();
-                    if let Some((crop_x, crop_y, crop_w, crop_h)) = source_crop_key {
-                        source_rect_crop = RECT {
-                            left: crop_x,
-                            top: crop_y,
-                            right: crop_x + crop_w,
-                            bottom: crop_y + crop_h,
-                        };
-                        source_flags |= DWM_TNP_RECTSOURCE;
-                    }
-                    let needs_apply = active.last_target_bounds != target_bounds
-                        || active.last_source_crop != source_crop_key;
-                    if needs_apply {
-                        let _ = SetWindowPos(
-                            runtime.pin_hwnd,
-                            Some(HWND_TOPMOST),
-                            target_bounds.0,
-                            target_bounds.1,
-                            target_bounds.2,
-                            target_bounds.3,
-                            SWP_NOACTIVATE | SWP_SHOWWINDOW,
-                        );
-                        let properties = DWM_THUMBNAIL_PROPERTIES {
-                            dwFlags: DWM_TNP_RECTDESTINATION
-                                | DWM_TNP_VISIBLE
-                                | DWM_TNP_OPACITY
-                                | source_flags,
-                            rcDestination: RECT {
-                                left: 0,
-                                top: 0,
-                                right: target_bounds.2,
-                                bottom: target_bounds.3,
-                            },
-                            rcSource: source_rect_crop,
-                            opacity: 255,
-                            fVisible: true.into(),
-                            fSourceClientAreaOnly: false.into(),
-                            ..Default::default()
-                        };
-                        if let Some(thumbnail_id) = active.thumbnail_id {
-                            let _ = DwmUpdateThumbnailProperties(thumbnail_id, &properties);
-                        }
-                        if let Some(active_mut) = runtime.active_pin_thumbnail.as_mut() {
-                            active_mut.last_target_bounds = target_bounds;
-                            active_mut.last_source_crop = source_crop_key;
-                            active_mut.overlay_style = PinOverlayStyle::Rectangle;
-                        }
-                    }
-                    let _ = ShowWindow(runtime.pin_hwnd, SW_SHOWNA);
-                }
-            } else {
+            let needs_register = runtime.active_pin_thumbnail.as_ref().is_none_or(|active| {
+                active.preset_id != preset.id
+                    || active.source_hwnd != source
+                    || active.thumbnail_id.is_none()
+            });
+            if needs_register {
                 if let Some(active) = runtime.active_pin_thumbnail.take()
                     && let Some(thumbnail_id) = active.thumbnail_id
                 {
                     let _ = DwmUnregisterThumbnail(thumbnail_id);
                 }
-
-                let capture = window_list::capture_window_region_with_candidates(
-                    preset.target_window_title.as_deref(),
-                    &preset.extra_target_window_titles,
-                    preset.match_duplicate_window_titles,
-                )
-                .context("Pin source window could not be captured")?;
-                let rendered = render_pin_overlay_bitmap(
-                    &capture,
-                    target_bounds.2,
-                    target_bounds.3,
-                    preset.overlay_style,
-                    source_crop_key,
-                )?;
-                paint_pin_overlay(
-                    runtime.pin_hwnd,
-                    target_bounds.0,
-                    target_bounds.1,
-                    target_bounds.2,
-                    target_bounds.3,
-                    &rendered,
-                )?;
+                let thumbnail_id = DwmRegisterThumbnail(runtime.pin_hwnd, source)?;
                 runtime.active_pin_thumbnail = Some(ActivePinThumbnail {
                     preset_id: preset.id,
                     source_hwnd: source,
-                    thumbnail_id: None,
+                    thumbnail_id: Some(thumbnail_id),
                     overlay_style: preset.overlay_style,
-                    last_target_bounds: target_bounds,
-                    last_source_crop: source_crop_key,
+                    last_target_bounds: (i32::MIN, i32::MIN, i32::MIN, i32::MIN),
+                    last_source_crop: None,
                 });
+            }
+
+            if let Some(active) = runtime.active_pin_thumbnail.as_ref() {
+                let mut source_flags = DWM_TNP_SOURCECLIENTAREAONLY;
+                let mut source_rect_crop = RECT::default();
+                if let Some((crop_x, crop_y, crop_w, crop_h)) = source_crop_key {
+                    source_rect_crop = RECT {
+                        left: crop_x,
+                        top: crop_y,
+                        right: crop_x + crop_w,
+                        bottom: crop_y + crop_h,
+                    };
+                    source_flags |= DWM_TNP_RECTSOURCE;
+                }
+                let needs_apply = active.last_target_bounds != target_bounds
+                    || active.last_source_crop != source_crop_key
+                    || active.overlay_style != preset.overlay_style;
+                if needs_apply {
+                    let _ = SetWindowPos(
+                        runtime.pin_hwnd,
+                        Some(HWND_TOPMOST),
+                        target_bounds.0,
+                        target_bounds.1,
+                        target_bounds.2,
+                        target_bounds.3,
+                        SWP_NOACTIVATE | SWP_SHOWWINDOW,
+                    );
+                    let properties = DWM_THUMBNAIL_PROPERTIES {
+                        dwFlags: DWM_TNP_RECTDESTINATION
+                            | DWM_TNP_VISIBLE
+                            | DWM_TNP_OPACITY
+                            | source_flags,
+                        rcDestination: RECT {
+                            left: 0,
+                            top: 0,
+                            right: target_bounds.2,
+                            bottom: target_bounds.3,
+                        },
+                        rcSource: source_rect_crop,
+                        opacity: 255,
+                        fVisible: true.into(),
+                        fSourceClientAreaOnly: false.into(),
+                        ..Default::default()
+                    };
+                    if let Some(thumbnail_id) = active.thumbnail_id {
+                        let _ = DwmUpdateThumbnailProperties(thumbnail_id, &properties);
+                    }
+
+                    let region = match preset.overlay_style {
+                        PinOverlayStyle::Rectangle => {
+                            CreateRectRgn(0, 0, target_bounds.2, target_bounds.3)
+                        }
+                        PinOverlayStyle::Circle => {
+                            CreateEllipticRgn(0, 0, target_bounds.2, target_bounds.3)
+                        }
+                        PinOverlayStyle::HorizontalBar => {
+                            let radius = (target_bounds.3 / 2).max(1);
+                            CreateRoundRectRgn(
+                                0,
+                                0,
+                                target_bounds.2,
+                                target_bounds.3,
+                                radius,
+                                radius,
+                            )
+                        }
+                    };
+                    if region.0.is_null() {
+                        return Err(anyhow::anyhow!("Failed to create pin window region"));
+                    }
+                    if SetWindowRgn(runtime.pin_hwnd, Some(region), true) == 0 {
+                        let _ = DeleteObject(HGDIOBJ(region.0));
+                        return Err(anyhow::anyhow!("Failed to apply pin window region"));
+                    }
+
+                    if let Some(active_mut) = runtime.active_pin_thumbnail.as_mut() {
+                        active_mut.last_target_bounds = target_bounds;
+                        active_mut.last_source_crop = source_crop_key;
+                        active_mut.overlay_style = preset.overlay_style;
+                    }
+                }
+                let _ = ShowWindow(runtime.pin_hwnd, SW_SHOWNA);
             }
         }
 
