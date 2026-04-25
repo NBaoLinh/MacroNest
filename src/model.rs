@@ -35,6 +35,10 @@ pub struct CrosshairStyle {
     pub enabled: bool,
     pub x_offset: i32,
     pub y_offset: i32,
+    #[serde(default = "default_crosshair_length")]
+    pub horizontal_length: f32,
+    #[serde(default = "default_crosshair_length")]
+    pub vertical_length: f32,
     pub arm_length: f32,
     pub thickness: f32,
     pub gap: f32,
@@ -55,6 +59,8 @@ impl Default for CrosshairStyle {
             enabled: true,
             x_offset: 0,
             y_offset: 0,
+            horizontal_length: 10.0,
+            vertical_length: 10.0,
             arm_length: 10.0,
             thickness: 3.0,
             gap: 5.0,
@@ -75,6 +81,7 @@ impl Default for CrosshairStyle {
 #[serde(default)]
 pub struct ProfileRecord {
     pub name: String,
+    pub enabled: bool,
     pub style: CrosshairStyle,
     pub target_window_title: Option<String>,
     pub extra_target_window_titles: Vec<String>,
@@ -84,11 +91,16 @@ impl Default for ProfileRecord {
     fn default() -> Self {
         Self {
             name: "Default".to_owned(),
+            enabled: true,
             style: CrosshairStyle::default(),
             target_window_title: None,
             extra_target_window_titles: Vec::new(),
         }
     }
+}
+
+fn default_crosshair_length() -> f32 {
+    10.0
 }
 
 fn default_true() -> bool {
@@ -1290,6 +1302,7 @@ impl Default for AppState {
             active_style: CrosshairStyle::default(),
             profiles: vec![ProfileRecord {
                 name: "Default".to_owned(),
+                enabled: true,
                 style: CrosshairStyle::default(),
                 target_window_title: None,
                 extra_target_window_titles: Vec::new(),

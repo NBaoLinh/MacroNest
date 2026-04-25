@@ -208,6 +208,7 @@ mod windows_overlay {
         ShowWindow,
         Exit,
         SyncMacroGroups(Vec<MacroGroup>, String),
+        SyncCrosshairProfiles(Vec<ProfileRecord>, String),
         SetMacrosMasterEnabled(bool, String),
         MousePathRecordingStarted(u32, String),
         MousePathRecordingFinished(u32, Vec<MousePathEvent>, String),
@@ -277,6 +278,7 @@ mod windows_overlay {
         next_hold_run_token: u64,
         pending_tray_toggle: Option<bool>,
         tray_double_click_suppress_next_up: bool,
+        active_crosshair_profile_name: Option<String>,
         stop_ignore_keys: HashMap<u32, String>,
         press_trigger_suppression: HashMap<String, usize>,
         ctrl: bool,
@@ -324,6 +326,7 @@ mod windows_overlay {
                 next_hold_run_token: 1,
                 pending_tray_toggle: None,
                 tray_double_click_suppress_next_up: false,
+                active_crosshair_profile_name: None,
                 stop_ignore_keys: HashMap::new(),
                 press_trigger_suppression: HashMap::new(),
                 ctrl: false,
@@ -2673,31 +2676,12 @@ mod windows_overlay {
                 )
             };
 
-            let target_bounds = match preset.overlay_style {
-                PinOverlayStyle::Rectangle => base_bounds,
-                PinOverlayStyle::Circle => {
-                    let size = base_bounds.2.min(base_bounds.3).max(1);
-                    (
-                        base_bounds.0 + (base_bounds.2 - size) / 2,
-                        base_bounds.1 + (base_bounds.3 - size) / 2,
-                        size,
-                        size,
-                    )
-                }
-                PinOverlayStyle::HorizontalBar => {
-                    let width = base_bounds.2.max(1);
-                    let mut height = ((width as f32 * 0.14).round() as i32).clamp(18, 64);
-                    if preset.use_custom_bounds {
-                        height = height.min(base_bounds.3.max(1));
-                    }
-                    (
-                        base_bounds.0,
-                        base_bounds.1 + (base_bounds.3 - height) / 2,
-                        width,
-                        height.max(1),
-                    )
-                }
-            };
+            let target_bounds = base_bounds;
+            let shape_rect = pin_overlay_shape_rect(
+                preset.overlay_style,
+                target_bounds.2,
+                target_bounds.3,
+            );
 
             let source_width = (source_rect.right - source_rect.left).max(1);
             let source_height = (source_rect.bottom - source_rect.top).max(1);
@@ -2802,16 +2786,19 @@ mod windows_overlay {
                         PinOverlayStyle::Rectangle => {
                             CreateRectRgn(0, 0, target_bounds.2, target_bounds.3)
                         }
-                        PinOverlayStyle::Circle => {
-                            CreateEllipticRgn(0, 0, target_bounds.2, target_bounds.3)
-                        }
+                        PinOverlayStyle::Circle => CreateEllipticRgn(
+                            shape_rect.0,
+                            shape_rect.1,
+                            shape_rect.0 + shape_rect.2,
+                            shape_rect.1 + shape_rect.3,
+                        ),
                         PinOverlayStyle::HorizontalBar => {
-                            let radius = (target_bounds.3 / 2).max(1);
+                            let radius = (shape_rect.3 / 2).max(1);
                             CreateRoundRectRgn(
-                                0,
-                                0,
-                                target_bounds.2,
-                                target_bounds.3,
+                                shape_rect.0,
+                                shape_rect.1,
+                                shape_rect.0 + shape_rect.2,
+                                shape_rect.1 + shape_rect.3,
                                 radius,
                                 radius,
                             )
@@ -3495,6 +3482,12 @@ mod windows_overlay {
         }
     }
 
+    fn send_ui_command(command: UiCommand) {
+        if let Some(tx) = HOOK_STATE.lock().ui_tx.clone() {
+            let _ = tx.send(command);
+        }
+    }
+
     fn apply_window_preset_by_id(spec: &str) -> Result<()> {
         let preset_id = spec
             .trim()
@@ -3691,26 +3684,51 @@ mod windows_overlay {
         if profile_name.is_empty() {
             bail!("Crosshair profile name is empty");
         }
-        let profile = {
-            let hook_state = HOOK_STATE.lock();
-            hook_state
-                .profiles
-                .iter()
-                .find(|profile| profile.name == profile_name)
-                .cloned()
-        }
-        .context("Crosshair profile was not found")?;
-        let mut style = profile.style;
+        let mut hook_state = HOOK_STATE.lock();
+        let profile_index = hook_state
+            .profiles
+            .iter()
+            .position(|profile| profile.name == profile_name)
+            .context("Crosshair profile was not found")?;
+        let profile_name_owned = hook_state.profiles[profile_index].name.clone();
+        hook_state.profiles[profile_index].enabled = true;
+        let mut style = hook_state.profiles[profile_index].style.clone();
         style.enabled = true;
-        HOOK_STATE.lock().current_style = style.clone();
+        hook_state.current_style = style.clone();
+        hook_state.active_crosshair_profile_name = Some(profile_name_owned.clone());
+        let profiles = hook_state.profiles.clone();
+        drop(hook_state);
         send_overlay_command(OverlayCommand::Update(style));
+        send_ui_command(UiCommand::SyncCrosshairProfiles(
+            profiles,
+            format!("Enabled crosshair profile {}.", profile_name_owned),
+        ));
         Ok(())
     }
 
     fn disable_crosshair_overlay() {
-        let mut style = HOOK_STATE.lock().current_style.clone();
+        let mut hook_state = HOOK_STATE.lock();
+        let mut style = hook_state.current_style.clone();
         style.enabled = false;
-        HOOK_STATE.lock().current_style = style.clone();
+        hook_state.current_style = style.clone();
+        let active_profile = hook_state.active_crosshair_profile_name.take();
+        if let Some(active_profile) = active_profile {
+            if let Some(profile) = hook_state
+                .profiles
+                .iter_mut()
+                .find(|profile| profile.name == active_profile)
+            {
+                profile.enabled = false;
+            }
+            let profiles = hook_state.profiles.clone();
+            drop(hook_state);
+            send_ui_command(UiCommand::SyncCrosshairProfiles(
+                profiles,
+                "Disabled crosshair overlay.".to_owned(),
+            ));
+        } else {
+            drop(hook_state);
+        }
         send_overlay_command(OverlayCommand::Update(style));
     }
 

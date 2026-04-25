@@ -711,6 +711,7 @@ impl CrosshairApp {
         } else {
             self.state.profiles.push(ProfileRecord {
                 name: name.clone(),
+                enabled: self.state.active_style.enabled,
                 style: self.state.active_style.clone(),
                 target_window_title: None,
                 extra_target_window_titles: Vec::new(),
@@ -741,6 +742,7 @@ impl CrosshairApp {
         };
         self.state.profiles.push(ProfileRecord {
             name: name.clone(),
+            enabled: self.state.active_style.enabled,
             style: self.state.active_style.clone(),
             target_window_title: None,
             extra_target_window_titles: Vec::new(),
@@ -763,6 +765,7 @@ impl CrosshairApp {
         if self.state.profiles.is_empty() {
             self.state.profiles.push(ProfileRecord {
                 name: "Default".to_owned(),
+                enabled: true,
                 style: CrosshairStyle::default(),
                 target_window_title: None,
                 extra_target_window_titles: Vec::new(),
@@ -5727,9 +5730,7 @@ impl CrosshairApp {
     fn persist_mouse_sensitivity_presets(&mut self) {
         self.sync_mouse_sensitivity_presets();
         self.persist();
-    }
-
-    fn render_crosshair_panel(&mut self, ui: &mut egui::Ui) {
+    }    fn render_crosshair_panel(&mut self, ui: &mut egui::Ui) {
         ui.spacing_mut().slider_width = 260.0;
         let mut changed = false;
         Self::show_preset_card(ui, self.state.active_style.enabled, |ui| {
@@ -5738,11 +5739,7 @@ impl CrosshairApp {
                     .checkbox(&mut self.state.active_style.enabled, "Enabled")
                     .changed();
                 if ui
-                    .button(if self.crosshair_panel_collapsed {
-                        "Show"
-                    } else {
-                        "Hide"
-                    })
+                    .button(if self.crosshair_panel_collapsed { "Show" } else { "Hide" })
                     .clicked()
                 {
                     self.crosshair_panel_collapsed = !self.crosshair_panel_collapsed;
@@ -5759,49 +5756,34 @@ impl CrosshairApp {
         egui::ScrollArea::vertical()
             .auto_shrink([false, false])
             .show(ui, |ui| {
-                ui.heading(self.tr("Quick Controls", "Ãƒâ€žÃ‚ÂiÃƒÂ¡Ã‚Â»Ã‚Âu khiÃƒÂ¡Ã‚Â»Ã†â€™n nhanh"));
+                ui.heading("Quick Controls");
                 egui::Grid::new("crosshair-quick-controls")
                     .num_columns(2)
                     .spacing([14.0, 8.0])
                     .show(ui, |ui| {
-                        ui.label(self.tr("Actions", "HÃƒÆ’Ã‚Â nh Ãƒâ€žÃ¢â‚¬ËœÃƒÂ¡Ã‚Â»Ã¢â€žÂ¢ng"));
+                        ui.label("Actions");
                         ui.horizontal_wrapped(|ui| {
-                            if ui
-                                .button(self.tr("Center on screen", "Ãƒâ€žÃ‚ÂÃƒâ€ Ã‚Â°a vÃƒÂ¡Ã‚Â»Ã‚Â giÃƒÂ¡Ã‚Â»Ã‚Â¯a mÃƒÆ’Ã‚Â n hÃƒÆ’Ã‚Â¬nh"))
-                                .clicked()
-                            {
+                            if ui.button("Center on screen").clicked() {
                                 self.state.active_style.x_offset = 0;
                                 self.state.active_style.y_offset = 0;
                                 changed = true;
                             }
-                            if ui
-                                .button(
-                                    self.tr("Export code and copy", "XuÃƒÂ¡Ã‚ÂºÃ‚Â¥t code vÃƒÆ’Ã‚Â  sao chÃƒÆ’Ã‚Â©p"),
-                                )
-                                .clicked()
-                            {
-                                self.export_code();
-                            }
-                            if ui.button(self.tr("Import code", "NhÃƒÂ¡Ã‚ÂºÃ‚Â­p code")).clicked() {
-                                self.import_code();
-                            }
                         });
                         ui.end_row();
-
                     });
 
                 ui.separator();
-                let selected = self
-                    .state
-                    .selected_profile
-                    .clone()
-                    .unwrap_or_else(|| "Default".to_owned());
-                ui.heading(self.tr("Profiles", "Profile"));
+                ui.heading("Crosshair Presets");
                 egui::Grid::new("crosshair-profiles")
                     .num_columns(2)
                     .spacing([14.0, 8.0])
                     .show(ui, |ui| {
-                        ui.label(self.tr("Saved Profile", "Profile Ãƒâ€žÃ¢â‚¬ËœÃƒÆ’Ã‚Â£ lÃƒâ€ Ã‚Â°u"));
+                        let selected = self
+                            .state
+                            .selected_profile
+                            .clone()
+                            .unwrap_or_else(|| "Default".to_owned());
+                        ui.label("Selected preset");
                         egui::ComboBox::from_id_salt("saved-crosshair-profiles")
                             .width(260.0)
                             .selected_text(selected)
@@ -5817,6 +5799,7 @@ impl CrosshairApp {
                                     {
                                         self.state.selected_profile = Some(profile.name.clone());
                                         self.state.active_style = profile.style.clone();
+                                        self.state.active_style.enabled = profile.enabled;
                                         self.save_name = profile.name;
                                         changed = true;
                                     }
@@ -5824,67 +5807,108 @@ impl CrosshairApp {
                             });
                         ui.end_row();
 
-                        ui.label(self.tr("Profile Name", "TÃƒÆ’Ã‚Âªn profile"));
+                        ui.label("Preset name");
                         ui.horizontal_wrapped(|ui| {
                             ui.add_sized([220.0, 24.0], TextEdit::singleline(&mut self.save_name));
-                            if ui
-                                .button(self.tr("+ New Profile", "+ TÃƒÂ¡Ã‚ÂºÃ‚Â¡o profile"))
-                                .clicked()
-                            {
+                            if ui.button("+ New Preset").clicked() {
                                 self.add_profile();
                             }
-                            if ui.button(self.tr("Save", "LÃƒâ€ Ã‚Â°u")).clicked() {
+                            if ui.button("Save").clicked() {
                                 self.save_profile();
                             }
-                            if ui.button(self.tr("Delete", "XÃƒÆ’Ã‚Â³a")).clicked() {
+                            if ui.button("Delete").clicked() {
                                 self.delete_profile();
                             }
                         });
                         ui.end_row();
-
                     });
 
                 ui.add_space(6.0);
-                ui.label(self.tr("Saved Profiles", "Danh sach profile"));
-                for profile in self.state.profiles.clone() {
-                    let is_selected =
-                        self.state.selected_profile.as_deref() == Some(profile.name.as_str());
-                    Self::show_preset_card(ui, is_selected, |ui| {
-                        ui.horizontal(|ui| {
-                            ui.label(Self::preset_title_text(
-                                self.state.ui_theme == UiThemeMode::Dark,
-                                &profile.name,
-                                is_selected,
-                            ));
-                            if is_selected {
-                                ui.label(RichText::new(self.tr("Active", "Dang bat")).strong());
-                            } else if ui.button(self.tr("Show", "Hien")).clicked() {
-                                self.state.selected_profile = Some(profile.name.clone());
-                                self.state.active_style = profile.style.clone();
-                                self.save_name = profile.name.clone();
-                                changed = true;
-                            }
+                let dark_mode = self.state.ui_theme == UiThemeMode::Dark;
+                for index in 0..self.state.profiles.len() {
+                    let is_selected = self.state.selected_profile.as_deref()
+                        == Some(self.state.profiles[index].name.as_str());
+                    let mut activate = false;
+                    let mut remove = false;
+                    {
+                        let preset = &mut self.state.profiles[index];
+                        Self::show_preset_card(ui, preset.enabled, |ui| {
+                            ui.horizontal(|ui| {
+                                changed |= ui.checkbox(&mut preset.enabled, "").changed();
+                                ui.label(Self::preset_title_text(dark_mode, &preset.name, preset.enabled));
+                                if is_selected {
+                                    ui.label(RichText::new("Active").strong());
+                                }
+                                ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
+                                    if ui.button("Delete").clicked() {
+                                        remove = true;
+                                    }
+                                    if ui
+                                        .button(if is_selected { "Current" } else { "Apply" })
+                                        .clicked()
+                                    {
+                                        activate = true;
+                                    }
+                                });
+                            });
                         });
-                    });
+                    }
+                    if activate {
+                        let preset = self.state.profiles[index].clone();
+                        self.state.selected_profile = Some(preset.name.clone());
+                        self.state.active_style = preset.style;
+                        self.state.active_style.enabled = preset.enabled;
+                        self.save_name = preset.name;
+                        changed = true;
+                    }
+                    if remove {
+                        let remove_name = self.state.profiles[index].name.clone();
+                        self.state.profiles.retain(|profile| profile.name != remove_name);
+                        if self.state.profiles.is_empty() {
+                            self.state.profiles.push(ProfileRecord::default());
+                        }
+                        let next = self.state.profiles[0].clone();
+                        self.state.selected_profile = Some(next.name.clone());
+                        self.state.active_style = next.style;
+                        self.state.active_style.enabled = next.enabled;
+                        self.save_name = next.name;
+                        changed = true;
+                        break;
+                    }
                     ui.add_space(4.0);
                 }
 
                 ui.separator();
-                ui.heading(self.tr("Crosshair Settings", "CÃƒÆ’Ã‚Â i Ãƒâ€žÃ¢â‚¬ËœÃƒÂ¡Ã‚ÂºÃ‚Â·t tÃƒÆ’Ã‚Â¢m ngÃƒÂ¡Ã‚ÂºÃ‚Â¯m"));
+                ui.heading("Crosshair Settings");
                 egui::Grid::new("crosshair-settings-grid")
                     .num_columns(2)
                     .spacing([14.0, 8.0])
                     .show(ui, |ui| {
-                        ui.label(self.tr("Length", "Ãƒâ€žÃ‚ÂÃƒÂ¡Ã‚Â»Ã¢â€žÂ¢ dÃƒÆ’Ã‚Â i"));
+                        ui.label("Horizontal length");
                         changed |= ui
                             .add_sized(
                                 [340.0, 20.0],
-                                Slider::new(&mut self.state.active_style.arm_length, 1.0..=80.0),
+                                Slider::new(
+                                    &mut self.state.active_style.horizontal_length,
+                                    1.0..=80.0,
+                                ),
                             )
                             .changed();
                         ui.end_row();
 
-                        ui.label(self.tr("Thickness", "Ãƒâ€žÃ‚ÂÃƒÂ¡Ã‚Â»Ã¢â€žÂ¢ dÃƒÆ’Ã‚Â y"));
+                        ui.label("Vertical length");
+                        changed |= ui
+                            .add_sized(
+                                [340.0, 20.0],
+                                Slider::new(
+                                    &mut self.state.active_style.vertical_length,
+                                    1.0..=80.0,
+                                ),
+                            )
+                            .changed();
+                        ui.end_row();
+
+                        ui.label("Thickness");
                         changed |= ui
                             .add_sized(
                                 [340.0, 20.0],
@@ -5893,7 +5917,7 @@ impl CrosshairApp {
                             .changed();
                         ui.end_row();
 
-                        ui.label(self.tr("Gap", "KhoÃƒÂ¡Ã‚ÂºÃ‚Â£ng hÃƒÂ¡Ã‚Â»Ã…Â¸"));
+                        ui.label("Gap");
                         changed |= ui
                             .add_sized(
                                 [340.0, 20.0],
@@ -5902,7 +5926,7 @@ impl CrosshairApp {
                             .changed();
                         ui.end_row();
 
-                        ui.label(self.tr("Horizontal Offset", "LÃƒÂ¡Ã‚Â»Ã¢â‚¬Â¡ch ngang"));
+                        ui.label("Horizontal offset");
                         changed |= ui
                             .add_sized(
                                 [340.0, 20.0],
@@ -5911,7 +5935,7 @@ impl CrosshairApp {
                             .changed();
                         ui.end_row();
 
-                        ui.label(self.tr("Vertical Offset", "LÃƒÂ¡Ã‚Â»Ã¢â‚¬Â¡ch dÃƒÂ¡Ã‚Â»Ã‚Âc"));
+                        ui.label("Vertical offset");
                         changed |= ui
                             .add_sized(
                                 [340.0, 20.0],
@@ -5920,7 +5944,7 @@ impl CrosshairApp {
                             .changed();
                         ui.end_row();
 
-                        ui.label(self.tr("Opacity", "Ãƒâ€žÃ‚ÂÃƒÂ¡Ã‚Â»Ã¢â€žÂ¢ mÃƒÂ¡Ã‚Â»Ã‚Â"));
+                        ui.label("Opacity");
                         changed |= ui
                             .add_sized(
                                 [340.0, 20.0],
@@ -5931,23 +5955,16 @@ impl CrosshairApp {
                     });
 
                 ui.separator();
-                ui.heading(self.tr("Outline and Center Dot", "ViÃƒÂ¡Ã‚Â»Ã‚Ân vÃƒÆ’Ã‚Â  chÃƒÂ¡Ã‚ÂºÃ‚Â¥m giÃƒÂ¡Ã‚Â»Ã‚Â¯a"));
-                let enable_outline_label = self.tr("Enable outline", "BÃƒÂ¡Ã‚ÂºÃ‚Â­t viÃƒÂ¡Ã‚Â»Ã‚Ân");
-                let enable_center_dot_label = self.tr("Enable center dot", "BÃƒÂ¡Ã‚ÂºÃ‚Â­t chÃƒÂ¡Ã‚ÂºÃ‚Â¥m giÃƒÂ¡Ã‚Â»Ã‚Â¯a");
+                ui.heading("Outline and Center Dot");
                 egui::Grid::new("crosshair-outline-grid")
                     .num_columns(2)
                     .spacing([14.0, 8.0])
                     .show(ui, |ui| {
-                        ui.label(self.tr("Outline", "ViÃƒÂ¡Ã‚Â»Ã‚Ân"));
-                        changed |= ui
-                            .checkbox(
-                                &mut self.state.active_style.outline_enabled,
-                                enable_outline_label,
-                            )
-                            .changed();
+                        ui.label("Outline");
+                        changed |= ui.checkbox(&mut self.state.active_style.outline_enabled, "Enabled").changed();
                         ui.end_row();
 
-                        ui.label(self.tr("Outline thickness", "Ãƒâ€žÃ‚ÂÃƒÂ¡Ã‚Â»Ã¢â€žÂ¢ dÃƒÆ’Ã‚Â y viÃƒÂ¡Ã‚Â»Ã‚Ân"));
+                        ui.label("Outline thickness");
                         changed |= ui
                             .add_sized(
                                 [340.0, 20.0],
@@ -5959,16 +5976,11 @@ impl CrosshairApp {
                             .changed();
                         ui.end_row();
 
-                        ui.label(self.tr("Center dot", "ChÃƒÂ¡Ã‚ÂºÃ‚Â¥m giÃƒÂ¡Ã‚Â»Ã‚Â¯a"));
-                        changed |= ui
-                            .checkbox(
-                                &mut self.state.active_style.center_dot,
-                                enable_center_dot_label,
-                            )
-                            .changed();
+                        ui.label("Center dot");
+                        changed |= ui.checkbox(&mut self.state.active_style.center_dot, "Enabled").changed();
                         ui.end_row();
 
-                        ui.label(self.tr("Center dot size", "KÃƒÆ’Ã‚Â­ch thÃƒâ€ Ã‚Â°ÃƒÂ¡Ã‚Â»Ã¢â‚¬Âºc chÃƒÂ¡Ã‚ÂºÃ‚Â¥m giÃƒÂ¡Ã‚Â»Ã‚Â¯a"));
+                        ui.label("Center dot size");
                         changed |= ui
                             .add_sized(
                                 [340.0, 20.0],
@@ -5982,12 +5994,12 @@ impl CrosshairApp {
                     });
 
                 ui.separator();
-                ui.heading(self.tr("Colors", "MÃƒÆ’Ã‚Â u sÃƒÂ¡Ã‚ÂºÃ‚Â¯c"));
+                ui.heading("Colors");
                 egui::Grid::new("crosshair-colors-grid")
                     .num_columns(2)
                     .spacing([14.0, 8.0])
                     .show(ui, |ui| {
-                        ui.label(self.tr("Crosshair color", "MÃƒÆ’Ã‚Â u tÃƒÆ’Ã‚Â¢m ngÃƒÂ¡Ã‚ÂºÃ‚Â¯m"));
+                        ui.label("Crosshair color");
                         let mut crosshair_rgba = [
                             self.state.active_style.color.r,
                             self.state.active_style.color.g,
@@ -6006,7 +6018,7 @@ impl CrosshairApp {
                         }
                         ui.end_row();
 
-                        ui.label(self.tr("Outline color", "MÃƒÆ’Ã‚Â u viÃƒÂ¡Ã‚Â»Ã‚Ân"));
+                        ui.label("Outline color");
                         let mut outline_rgba = [
                             self.state.active_style.outline_color.r,
                             self.state.active_style.outline_color.g,
@@ -6025,127 +6037,10 @@ impl CrosshairApp {
                         }
                         ui.end_row();
                     });
-
-                ui.separator();
-                ui.heading(self.tr("Custom Crosshair Assets", "TÃƒÆ’Ã‚Â i nguyÃƒÆ’Ã‚Âªn tÃƒÆ’Ã‚Â¢m ngÃƒÂ¡Ã‚ÂºÃ‚Â¯m"));
-                egui::Grid::new("crosshair-assets-grid")
-                    .num_columns(2)
-                    .spacing([14.0, 8.0])
-                    .show(ui, |ui| {
-                        ui.label(self.tr("Data folder", "ThÃƒâ€ Ã‚Â° mÃƒÂ¡Ã‚Â»Ã‚Â¥c dÃƒÂ¡Ã‚Â»Ã‚Â¯ liÃƒÂ¡Ã‚Â»Ã¢â‚¬Â¡u"));
-                        ui.monospace(self.paths.root.display().to_string());
-                        ui.end_row();
-
-                        ui.label(self.tr("Asset folder", "ThÃƒâ€ Ã‚Â° mÃƒÂ¡Ã‚Â»Ã‚Â¥c asset"));
-                        ui.monospace(self.paths.custom_dir.display().to_string());
-                        ui.end_row();
-
-                        ui.label(self.tr("Folder actions", "HÃƒÆ’Ã‚Â nh Ãƒâ€žÃ¢â‚¬ËœÃƒÂ¡Ã‚Â»Ã¢â€žÂ¢ng thÃƒâ€ Ã‚Â° mÃƒÂ¡Ã‚Â»Ã‚Â¥c"));
-                        ui.horizontal_wrapped(|ui| {
-                            if ui
-                                .button(self.tr("Open data folder", "MÃƒÂ¡Ã‚Â»Ã…Â¸ thÃƒâ€ Ã‚Â° mÃƒÂ¡Ã‚Â»Ã‚Â¥c dÃƒÂ¡Ã‚Â»Ã‚Â¯ liÃƒÂ¡Ã‚Â»Ã¢â‚¬Â¡u"))
-                                .clicked()
-                            {
-                                let _ = Command::new("explorer").arg(&self.paths.root).spawn();
-                            }
-                            if ui
-                                .button(self.tr("Open asset folder", "MÃƒÂ¡Ã‚Â»Ã…Â¸ thÃƒâ€ Ã‚Â° mÃƒÂ¡Ã‚Â»Ã‚Â¥c asset"))
-                                .clicked()
-                            {
-                                let _ =
-                                    Command::new("explorer").arg(&self.paths.custom_dir).spawn();
-                            }
-                            if ui
-                                .button(self.tr("Reload assets", "TÃƒÂ¡Ã‚ÂºÃ‚Â£i lÃƒÂ¡Ã‚ÂºÃ‚Â¡i asset"))
-                                .clicked()
-                            {
-                                self.reload_custom_assets();
-                            }
-                        });
-                        ui.end_row();
-                    });
-
-                let selected_asset = self
-                    .state
-                    .active_style
-                    .custom_asset
-                    .clone()
-                    .unwrap_or_else(|| "Built-in".to_owned());
-                egui::Grid::new("crosshair-assets-select-grid")
-                    .num_columns(2)
-                    .spacing([14.0, 8.0])
-                    .show(ui, |ui| {
-                        ui.label(self.tr("Custom Asset", "Asset tÃƒÆ’Ã‚Â¹y chÃƒÂ¡Ã‚Â»Ã¢â‚¬Â°nh"));
-                        egui::ComboBox::from_id_salt("crosshair-custom-asset")
-                            .width(260.0)
-                            .selected_text(selected_asset)
-                            .show_ui(ui, |ui| {
-                                if ui
-                                    .selectable_label(
-                                        self.state.active_style.custom_asset.is_none(),
-                                        self.tr("Built-in", "MÃƒÂ¡Ã‚ÂºÃ‚Â·c Ãƒâ€žÃ¢â‚¬ËœÃƒÂ¡Ã‚Â»Ã¢â‚¬Â¹nh"),
-                                    )
-                                    .clicked()
-                                {
-                                    self.state.active_style.custom_asset = None;
-                                    changed = true;
-                                }
-                                for asset in self.custom_assets.clone() {
-                                    if ui
-                                        .selectable_label(
-                                            self.state.active_style.custom_asset.as_deref()
-                                                == Some(&asset),
-                                            &asset,
-                                        )
-                                        .clicked()
-                                    {
-                                        self.state.active_style.custom_asset = Some(asset);
-                                        changed = true;
-                                    }
-                                }
-                            });
-                        ui.end_row();
-
-                        ui.label("Asset size");
-                        changed |= ui
-                            .add_sized(
-                                [340.0, 20.0],
-                                Slider::new(
-                                    &mut self.state.active_style.custom_scale,
-                                    16.0..=512.0,
-                                ),
-                            )
-                            .changed();
-                        ui.end_row();
-                    });
-
-                ui.separator();
-                ui.heading(self.tr("Crosshair Code", "Code tÃƒÆ’Ã‚Â¢m ngÃƒÂ¡Ã‚ÂºÃ‚Â¯m"));
-                egui::Grid::new("crosshair-code-grid")
-                    .num_columns(2)
-                    .spacing([14.0, 8.0])
-                    .show(ui, |ui| {
-                        ui.label("Export");
-                        ui.add(
-                            TextEdit::multiline(&mut self.export_code_buffer)
-                                .desired_rows(3)
-                                .desired_width(420.0),
-                        );
-                        ui.end_row();
-
-                        ui.label("Import");
-                        ui.add(
-                            TextEdit::multiline(&mut self.import_code_buffer)
-                                .desired_rows(3)
-                                .desired_width(420.0),
-                        );
-                        ui.end_row();
-                    });
             });
 
         if changed {
             self.sync_crosshair();
-            self.sync_audio_settings();
             self.persist();
         }
     }
@@ -6172,471 +6067,19 @@ impl CrosshairApp {
             .show(ctx, |ui| {
                 let rect = ui.max_rect();
                 let painter = ui.painter_at(rect);
-                let time = ctx.input(|input| input.time) as f32;
-                let fade = (1.0 - (progress - 0.84).max(0.0) / 0.16).clamp(0.0, 1.0);
-                let center = rect.center();
-                let neon_cyan = Color32::from_rgb(108, 244, 226);
-                let neon_pink = Color32::from_rgb(255, 120, 186);
-                let neon_blue = Color32::from_rgb(112, 170, 255);
-                let neon_gold = Color32::from_rgb(255, 214, 108);
-                let stage_size = rect.width().min(rect.height()).clamp(260.0, 420.0);
-                let stage_rect =
-                    egui::Rect::from_center_size(center, vec2(stage_size, stage_size * 0.92));
-                let orbit_center = egui::pos2(
-                    stage_rect.center().x,
-                    stage_rect.top() + stage_rect.height() * 0.34,
+                let alpha = ((1.0 - progress).clamp(0.0, 1.0) * 255.0) as u8;
+                painter.rect_filled(
+                    rect,
+                    0.0,
+                    Color32::from_rgba_premultiplied(8, 10, 14, alpha.saturating_div(2)),
                 );
-                let square_morph = ((progress - 0.72) / 0.28).clamp(0.0, 1.0);
-                let square_morph = 1.0 - (1.0 - square_morph).powi(3);
-                let aura_layers = [
-                    (
-                        egui::pos2(orbit_center.x, orbit_center.y + stage_rect.height() * 0.16),
-                        stage_rect.width() * 0.27,
-                        stage_rect.height() * 0.40,
-                        Color32::from_rgba_premultiplied(3, 5, 10, (236.0 * fade) as u8),
-                        Color32::from_rgba_premultiplied(26, 38, 70, (142.0 * fade) as u8),
-                    ),
-                    (
-                        egui::pos2(
-                            orbit_center.x - stage_rect.width() * 0.028,
-                            orbit_center.y + stage_rect.height() * 0.15,
-                        ),
-                        stage_rect.width() * 0.36,
-                        stage_rect.height() * 0.46,
-                        Color32::from_rgba_premultiplied(8, 12, 22, (202.0 * fade) as u8),
-                        Color32::from_rgba_premultiplied(
-                            neon_blue.r(),
-                            neon_blue.g(),
-                            neon_blue.b(),
-                            (94.0 * fade) as u8,
-                        ),
-                    ),
-                    (
-                        egui::pos2(
-                            orbit_center.x + stage_rect.width() * 0.034,
-                            orbit_center.y + stage_rect.height() * 0.165,
-                        ),
-                        stage_rect.width() * 0.43,
-                        stage_rect.height() * 0.54,
-                        Color32::from_rgba_premultiplied(14, 10, 22, (148.0 * fade) as u8),
-                        Color32::from_rgba_premultiplied(
-                            neon_pink.r(),
-                            neon_pink.g(),
-                            neon_pink.b(),
-                            (82.0 * fade) as u8,
-                        ),
-                    ),
-                ];
-                for (layer_index, (layer_center, radius_x, radius_y, fill, stroke)) in
-                    aura_layers.into_iter().enumerate()
-                {
-                    let target_rect = rect.shrink(10.0 + layer_index as f32 * 10.0);
-                    let mut points = Vec::with_capacity(96);
-                    for step in 0..96 {
-                        let angle = step as f32 / 96.0 * std::f32::consts::TAU;
-                        let wobble = 1.0
-                            + 0.14
-                                * (angle * 3.0 + time * (0.82 + layer_index as f32 * 0.18)).sin()
-                            + 0.08
-                                * (angle * 5.0 - time * (0.56 + layer_index as f32 * 0.12)).cos()
-                            + 0.03 * (angle * 9.0 + time * 0.7).sin();
-                        let blob_point = egui::pos2(
-                            layer_center.x + angle.cos() * radius_x * wobble,
-                            layer_center.y + angle.sin() * radius_y * wobble,
-                        );
-                        let side = step / 24;
-                        let side_t = (step % 24) as f32 / 24.0;
-                        let square_point = match side {
-                            0 => egui::pos2(
-                                egui::lerp(target_rect.left()..=target_rect.right(), side_t),
-                                target_rect.top(),
-                            ),
-                            1 => egui::pos2(
-                                target_rect.right(),
-                                egui::lerp(target_rect.top()..=target_rect.bottom(), side_t),
-                            ),
-                            2 => egui::pos2(
-                                egui::lerp(target_rect.right()..=target_rect.left(), side_t),
-                                target_rect.bottom(),
-                            ),
-                            _ => egui::pos2(
-                                target_rect.left(),
-                                egui::lerp(target_rect.bottom()..=target_rect.top(), side_t),
-                            ),
-                        };
-                        points.push(egui::pos2(
-                            egui::lerp(blob_point.x..=square_point.x, square_morph),
-                            egui::lerp(blob_point.y..=square_point.y, square_morph),
-                        ));
-                    }
-                    painter.add(egui::Shape::convex_polygon(
-                        points,
-                        fill,
-                        egui::Stroke::new(
-                            (1.9 - layer_index as f32 * 0.28) * (1.0 - square_morph * 0.35),
-                            stroke,
-                        ),
-                    ));
-                }
-                for star_index in 0..18 {
-                    let seed = star_index as f32 * 12.971;
-                    let px =
-                        rect.left() + rect.width() * (0.16 + ((seed.sin() * 0.5 + 0.5) * 0.68));
-                    let py = rect.top()
-                        + rect.height() * (0.12 + (((seed * 1.7).cos() * 0.5 + 0.5) * 0.6));
-                    let twinkle = 0.55 + ((time * 1.5 + seed).sin() * 0.45).abs();
-                    painter.circle_filled(
-                        egui::pos2(px, py),
-                        0.9 + (star_index % 3) as f32 * 0.3,
-                        Color32::from_rgba_premultiplied(
-                            240,
-                            245,
-                            255,
-                            (38.0 * twinkle * fade) as u8,
-                        ),
-                    );
-                }
-
-                let prism_center = egui::pos2(
-                    stage_rect.center().x,
-                    stage_rect.top() + stage_rect.height() * 0.34,
+                painter.text(
+                    rect.center(),
+                    egui::Align2::CENTER_CENTER,
+                    "Crosshair",
+                    egui::FontId::proportional(28.0),
+                    Color32::from_rgba_premultiplied(240, 244, 248, alpha),
                 );
-                let scale = stage_rect.height().min(stage_rect.width()) * 0.5;
-                let cube = [
-                    (-1.0, -1.0, -1.0),
-                    (1.0, -1.0, -1.0),
-                    (1.0, 1.0, -1.0),
-                    (-1.0, 1.0, -1.0),
-                    (-1.0, -1.0, 1.0),
-                    (1.0, -1.0, 1.0),
-                    (1.0, 1.0, 1.0),
-                    (-1.0, 1.0, 1.0),
-                ];
-                let project_cube = |time_offset: f32, scale_mul: f32| {
-                    let angle_y = (time + time_offset) * 1.32 + 0.34;
-                    let angle_x = 0.58 + ((time + time_offset) * 0.92).sin() * 0.16;
-                    let angle_z = (time + time_offset) * 0.46;
-                    let mut projected = Vec::with_capacity(cube.len());
-                    for (x, y, z) in cube {
-                        let rz_x = x * angle_z.cos() - y * angle_z.sin();
-                        let rz_y = x * angle_z.sin() + y * angle_z.cos();
-                        let ry_x = rz_x * angle_y.cos() - z * angle_y.sin();
-                        let ry_z = rz_x * angle_y.sin() + z * angle_y.cos();
-                        let rx_y = rz_y * angle_x.cos() - ry_z * angle_x.sin();
-                        let rx_z = rz_y * angle_x.sin() + ry_z * angle_x.cos();
-                        let depth = rx_z + 4.4;
-                        let perspective = 1.0 / depth;
-                        projected.push((
-                            egui::pos2(
-                                prism_center.x + ry_x * scale * scale_mul * perspective * 1.82,
-                                prism_center.y + rx_y * scale * scale_mul * perspective * 1.82,
-                            ),
-                            depth,
-                        ));
-                    }
-                    projected
-                };
-                let edges = [
-                    (0, 1),
-                    (1, 2),
-                    (2, 3),
-                    (3, 0),
-                    (4, 5),
-                    (5, 6),
-                    (6, 7),
-                    (7, 4),
-                    (0, 4),
-                    (1, 5),
-                    (2, 6),
-                    (3, 7),
-                ];
-                let projected = project_cube(0.0, 1.0);
-                let mut faces = vec![
-                    (
-                        [0, 1, 2, 3],
-                        Color32::from_rgba_premultiplied(72, 112, 255, (74.0 * fade) as u8),
-                        Color32::from_rgba_premultiplied(132, 176, 255, (120.0 * fade) as u8),
-                    ),
-                    (
-                        [4, 5, 6, 7],
-                        Color32::from_rgba_premultiplied(255, 112, 180, (84.0 * fade) as u8),
-                        Color32::from_rgba_premultiplied(255, 168, 214, (128.0 * fade) as u8),
-                    ),
-                    (
-                        [0, 1, 5, 4],
-                        Color32::from_rgba_premultiplied(92, 232, 214, (64.0 * fade) as u8),
-                        Color32::from_rgba_premultiplied(148, 255, 236, (110.0 * fade) as u8),
-                    ),
-                    (
-                        [1, 2, 6, 5],
-                        Color32::from_rgba_premultiplied(76, 202, 255, (70.0 * fade) as u8),
-                        Color32::from_rgba_premultiplied(144, 225, 255, (118.0 * fade) as u8),
-                    ),
-                    (
-                        [2, 3, 7, 6],
-                        Color32::from_rgba_premultiplied(255, 160, 92, (62.0 * fade) as u8),
-                        Color32::from_rgba_premultiplied(255, 208, 134, (106.0 * fade) as u8),
-                    ),
-                    (
-                        [3, 0, 4, 7],
-                        Color32::from_rgba_premultiplied(140, 102, 255, (64.0 * fade) as u8),
-                        Color32::from_rgba_premultiplied(186, 154, 255, (112.0 * fade) as u8),
-                    ),
-                ];
-                faces.sort_by(|(a, _, _), (b, _, _)| {
-                    let a_depth = a.iter().map(|&idx| projected[idx].1).sum::<f32>() / 4.0;
-                    let b_depth = b.iter().map(|&idx| projected[idx].1).sum::<f32>() / 4.0;
-                    b_depth
-                        .partial_cmp(&a_depth)
-                        .unwrap_or(std::cmp::Ordering::Equal)
-                });
-                for (indices, fill, stroke) in faces {
-                    painter.add(egui::Shape::convex_polygon(
-                        vec![
-                            projected[indices[0]].0,
-                            projected[indices[1]].0,
-                            projected[indices[2]].0,
-                            projected[indices[3]].0,
-                        ],
-                        fill,
-                        egui::Stroke::new(1.0, stroke),
-                    ));
-                }
-                for &(a, b) in &edges {
-                    let stroke = if a >= 4 || b >= 4 {
-                        egui::Stroke::new(
-                            2.0,
-                            Color32::from_rgba_premultiplied(
-                                neon_pink.r(),
-                                neon_pink.g(),
-                                neon_pink.b(),
-                                (220.0 * fade) as u8,
-                            ),
-                        )
-                    } else if a % 2 == 0 {
-                        egui::Stroke::new(
-                            1.7,
-                            Color32::from_rgba_premultiplied(
-                                neon_blue.r(),
-                                neon_blue.g(),
-                                neon_blue.b(),
-                                (184.0 * fade) as u8,
-                            ),
-                        )
-                    } else {
-                        egui::Stroke::new(
-                            1.5,
-                            Color32::from_rgba_premultiplied(
-                                neon_cyan.r(),
-                                neon_cyan.g(),
-                                neon_cyan.b(),
-                                (164.0 * fade) as u8,
-                            ),
-                        )
-                    };
-                    painter.line_segment([projected[a].0, projected[b].0], stroke);
-                }
-                for (point, _) in &projected {
-                    painter.circle_filled(
-                        *point,
-                        3.2,
-                        Color32::from_rgba_premultiplied(250, 246, 255, (228.0 * fade) as u8),
-                    );
-                }
-
-                let earth_angle = time * 0.82 + 0.6;
-                let earth_orbit = egui::pos2(
-                    prism_center.x + earth_angle.cos() * stage_rect.width() * 0.26,
-                    prism_center.y + earth_angle.sin() * stage_rect.height() * 0.11,
-                );
-                let earth_radius = stage_rect.width() * 0.024;
-                painter.circle_filled(
-                    earth_orbit,
-                    earth_radius * 1.8,
-                    Color32::from_rgba_premultiplied(
-                        neon_cyan.r(),
-                        neon_cyan.g(),
-                        neon_cyan.b(),
-                        (28.0 * fade) as u8,
-                    ),
-                );
-                painter.circle_filled(
-                    earth_orbit,
-                    earth_radius,
-                    Color32::from_rgba_premultiplied(78, 170, 255, (220.0 * fade) as u8),
-                );
-                painter.circle_filled(
-                    egui::pos2(
-                        earth_orbit.x - earth_radius * 0.25,
-                        earth_orbit.y - earth_radius * 0.15,
-                    ),
-                    earth_radius * 0.38,
-                    Color32::from_rgba_premultiplied(130, 255, 192, (210.0 * fade) as u8),
-                );
-                painter.circle_filled(
-                    egui::pos2(
-                        earth_orbit.x + earth_radius * 0.22,
-                        earth_orbit.y + earth_radius * 0.12,
-                    ),
-                    earth_radius * 0.22,
-                    Color32::from_rgba_premultiplied(16, 34, 74, (150.0 * fade) as u8),
-                );
-
-                let moon_angle = time * 1.96 + 1.4;
-                let moon_pos = egui::pos2(
-                    earth_orbit.x + moon_angle.cos() * earth_radius * 2.0,
-                    earth_orbit.y + moon_angle.sin() * earth_radius * 1.45,
-                );
-                painter.circle_filled(
-                    moon_pos,
-                    earth_radius * 0.42,
-                    Color32::from_rgba_premultiplied(220, 228, 242, (220.0 * fade) as u8),
-                );
-                painter.circle_filled(
-                    egui::pos2(
-                        moon_pos.x + earth_radius * 0.1,
-                        moon_pos.y + earth_radius * 0.08,
-                    ),
-                    earth_radius * 0.14,
-                    Color32::from_rgba_premultiplied(88, 96, 124, (140.0 * fade) as u8),
-                );
-
-                let star_angle = time * 0.58 + 2.1;
-                let star_pos = egui::pos2(
-                    prism_center.x + star_angle.cos() * stage_rect.width() * 0.33,
-                    prism_center.y + star_angle.sin() * stage_rect.height() * 0.18,
-                );
-                let star_radius = stage_rect.width() * 0.02;
-                painter.circle_filled(
-                    star_pos,
-                    star_radius * 2.4,
-                    Color32::from_rgba_premultiplied(
-                        neon_gold.r(),
-                        neon_gold.g(),
-                        neon_gold.b(),
-                        (34.0 * fade) as u8,
-                    ),
-                );
-                let star_points: Vec<egui::Pos2> = (0..10)
-                    .map(|i| {
-                        let angle =
-                            i as f32 / 10.0 * std::f32::consts::TAU - std::f32::consts::FRAC_PI_2;
-                        let radius = if i % 2 == 0 {
-                            star_radius
-                        } else {
-                            star_radius * 0.46
-                        };
-                        egui::pos2(
-                            star_pos.x + angle.cos() * radius,
-                            star_pos.y + angle.sin() * radius,
-                        )
-                    })
-                    .collect();
-                painter.add(egui::Shape::convex_polygon(
-                    star_points,
-                    Color32::from_rgba_premultiplied(255, 224, 116, (232.0 * fade) as u8),
-                    egui::Stroke::new(
-                        1.0,
-                        Color32::from_rgba_premultiplied(255, 245, 190, (220.0 * fade) as u8),
-                    ),
-                ));
-
-                let title = self.app_brand_title();
-                let letter_count = title.chars().count().max(1);
-                let base_font =
-                    egui::FontId::proportional((stage_rect.width() * 0.075).clamp(28.0, 38.0));
-                let step_x = (stage_rect.width() * 0.068).clamp(20.0, 28.0);
-                let total_width = step_x * (letter_count.saturating_sub(1)) as f32;
-                let start_x = stage_rect.center().x - total_width * 0.5;
-                let title_y = stage_rect.bottom() - stage_rect.height() * 0.18;
-                for (index, ch) in title.chars().enumerate() {
-                    let reveal_start = 0.08 + index as f32 * 0.055;
-                    let local = ((progress - reveal_start) / 0.2).clamp(0.0, 1.0);
-                    let alpha = (local * fade * 255.0) as u8;
-                    let glow_alpha = (local * fade * 70.0) as u8;
-                    let x = start_x + index as f32 * step_x;
-                    let y = title_y + (1.0 - local) * 12.0;
-                    let accent = if index % 3 == 0 {
-                        neon_pink
-                    } else if index % 3 == 1 {
-                        neon_blue
-                    } else {
-                        neon_cyan
-                    };
-                    let glitch = ((time * 34.0 + index as f32 * 5.7).sin() * 2.8) * (1.0 - local);
-                    for scan_step in 0..2 {
-                        let offset = (scan_step as f32 + 1.0) * 1.4;
-                        let trail_alpha =
-                            (glow_alpha as f32 * (0.42 - scan_step as f32 * 0.16)).max(0.0) as u8;
-                        painter.text(
-                            egui::pos2(
-                                x - offset - glitch * (1.0 + scan_step as f32 * 0.4),
-                                y + scan_step as f32 * 0.55,
-                            ),
-                            egui::Align2::CENTER_CENTER,
-                            ch,
-                            egui::FontId::proportional(base_font.size + 1.0 + scan_step as f32),
-                            Color32::from_rgba_premultiplied(
-                                neon_cyan.r(),
-                                neon_cyan.g(),
-                                neon_cyan.b(),
-                                trail_alpha,
-                            ),
-                        );
-                        painter.text(
-                            egui::pos2(
-                                x + offset * 0.65 + glitch * 0.7,
-                                y - scan_step as f32 * 0.45,
-                            ),
-                            egui::Align2::CENTER_CENTER,
-                            ch,
-                            egui::FontId::proportional(
-                                base_font.size + 0.5 + scan_step as f32 * 0.4,
-                            ),
-                            Color32::from_rgba_premultiplied(
-                                neon_pink.r(),
-                                neon_pink.g(),
-                                neon_pink.b(),
-                                (trail_alpha as f32 * 0.82) as u8,
-                            ),
-                        );
-                    }
-                    let scan_y = y - base_font.size * 0.32
-                        + ((time * 6.0 + index as f32 * 0.3).sin() * base_font.size * 0.12);
-                    let scan_rect = egui::Rect::from_center_size(
-                        egui::pos2(x, scan_y),
-                        vec2(step_x * 0.92, base_font.size * 0.13),
-                    );
-                    painter.rect_filled(
-                        scan_rect,
-                        1.0,
-                        Color32::from_rgba_premultiplied(
-                            accent.r(),
-                            accent.g(),
-                            accent.b(),
-                            (glow_alpha as f32 * 0.55) as u8,
-                        ),
-                    );
-                    painter.text(
-                        egui::pos2(x + glitch * 0.15, y + 1.0),
-                        egui::Align2::CENTER_CENTER,
-                        ch,
-                        egui::FontId::proportional(base_font.size + 5.0),
-                        Color32::from_rgba_premultiplied(
-                            accent.r(),
-                            accent.g(),
-                            accent.b(),
-                            glow_alpha,
-                        ),
-                    );
-                    painter.text(
-                        egui::pos2(x, y),
-                        egui::Align2::CENTER_CENTER,
-                        ch,
-                        base_font.clone(),
-                        Color32::from_rgba_premultiplied(245, 247, 255, alpha),
-                    );
-                }
             });
     }
 
@@ -6644,135 +6087,16 @@ impl CrosshairApp {
         let rect = ctx.content_rect();
         let painter = ctx.layer_painter(egui::LayerId::new(
             egui::Order::Foreground,
-            egui::Id::new(if opening {
-                "open-tray-blob"
-            } else {
-                "close-tray-blob"
-            }),
+            egui::Id::new(if opening { "open-tray-blob" } else { "close-tray-blob" }),
         ));
-        let time = ctx.input(|input| input.time) as f32;
-        let center = rect.center();
-        let neon_cyan = Color32::from_rgb(108, 244, 226);
-        let neon_pink = Color32::from_rgb(255, 120, 186);
         let eased = if opening {
             let p = progress.clamp(0.0, 1.0);
-            p * p * p * (p * (p * 6.0 - 15.0) + 10.0)
+            p * p * (3.0 - 2.0 * p)
         } else {
-            1.0 - (1.0 - progress).powi(3)
+            1.0 - (1.0 - progress).clamp(0.0, 1.0).powi(2)
         };
-        let scale = if opening {
-            egui::lerp(0.02..=1.28, eased)
-        } else {
-            egui::lerp(1.18..=0.08, eased)
-        };
-        let square_morph = if opening {
-            let p = ((progress - 0.34) / 0.66).clamp(0.0, 1.0);
-            p * p * p * (p * (p * 6.0 - 15.0) + 10.0)
-        } else {
-            0.0
-        };
-        let alpha_scale = if opening {
-            (1.0 - progress * 0.28).clamp(0.0, 1.0)
-        } else {
-            (1.0 - progress * 0.18).clamp(0.0, 1.0)
-        };
-        let aura_layers = [
-            (
-                center,
-                rect.width() * 0.27 * scale,
-                rect.height() * 0.34 * scale,
-                Color32::from_rgba_premultiplied(4, 6, 12, (228.0 * alpha_scale) as u8),
-                Color32::from_rgba_premultiplied(28, 40, 76, (146.0 * alpha_scale) as u8),
-            ),
-            (
-                egui::pos2(
-                    center.x - rect.width() * 0.012 * scale,
-                    center.y + rect.height() * 0.01 * scale,
-                ),
-                rect.width() * 0.33 * scale,
-                rect.height() * 0.42 * scale,
-                Color32::from_rgba_premultiplied(8, 12, 22, (190.0 * alpha_scale) as u8),
-                Color32::from_rgba_premultiplied(
-                    neon_cyan.r(),
-                    neon_cyan.g(),
-                    neon_cyan.b(),
-                    (82.0 * alpha_scale) as u8,
-                ),
-            ),
-            (
-                egui::pos2(
-                    center.x + rect.width() * 0.016 * scale,
-                    center.y + rect.height() * 0.02 * scale,
-                ),
-                rect.width() * 0.39 * scale,
-                rect.height() * 0.5 * scale,
-                Color32::from_rgba_premultiplied(16, 10, 22, (132.0 * alpha_scale) as u8),
-                Color32::from_rgba_premultiplied(
-                    neon_pink.r(),
-                    neon_pink.g(),
-                    neon_pink.b(),
-                    (76.0 * alpha_scale) as u8,
-                ),
-            ),
-        ];
-        for (layer_index, (layer_center, radius_x, radius_y, fill, stroke)) in
-            aura_layers.into_iter().enumerate()
-        {
-            let rect_scale = if opening {
-                egui::lerp(0.035..=1.0, eased)
-            } else {
-                egui::lerp(1.0..=0.08, eased)
-            };
-            let base_size = vec2(
-                (rect.width() - (24.0 + layer_index as f32 * 22.0)).max(32.0),
-                (rect.height() - (24.0 + layer_index as f32 * 22.0)).max(32.0),
-            );
-            let target_rect = egui::Rect::from_center_size(center, base_size * rect_scale);
-            let mut points = Vec::with_capacity(96);
-            for step in 0..96 {
-                let angle = step as f32 / 96.0 * std::f32::consts::TAU;
-                let wobble = 1.0
-                    + 0.14 * (angle * 3.0 + time * (0.82 + layer_index as f32 * 0.18)).sin()
-                    + 0.08 * (angle * 5.0 - time * (0.56 + layer_index as f32 * 0.12)).cos()
-                    + 0.03 * (angle * 9.0 + time * 0.7).sin();
-                let blob_point = egui::pos2(
-                    layer_center.x + angle.cos() * radius_x * wobble,
-                    layer_center.y + angle.sin() * radius_y * wobble,
-                );
-                let side = step / 24;
-                let side_t = (step % 24) as f32 / 24.0;
-                let square_point = match side {
-                    0 => egui::pos2(
-                        egui::lerp(target_rect.left()..=target_rect.right(), side_t),
-                        target_rect.top(),
-                    ),
-                    1 => egui::pos2(
-                        target_rect.right(),
-                        egui::lerp(target_rect.top()..=target_rect.bottom(), side_t),
-                    ),
-                    2 => egui::pos2(
-                        egui::lerp(target_rect.right()..=target_rect.left(), side_t),
-                        target_rect.bottom(),
-                    ),
-                    _ => egui::pos2(
-                        target_rect.left(),
-                        egui::lerp(target_rect.bottom()..=target_rect.top(), side_t),
-                    ),
-                };
-                points.push(egui::pos2(
-                    egui::lerp(blob_point.x..=square_point.x, square_morph),
-                    egui::lerp(blob_point.y..=square_point.y, square_morph),
-                ));
-            }
-            painter.add(egui::Shape::convex_polygon(
-                points,
-                fill,
-                egui::Stroke::new(
-                    (1.8 - layer_index as f32 * 0.26) * (1.0 - square_morph * 0.38),
-                    stroke,
-                ),
-            ));
-        }
+        let alpha = ((1.0 - eased).clamp(0.0, 1.0) * 180.0) as u8;
+        painter.rect_filled(rect, 0.0, Color32::from_rgba_premultiplied(6, 8, 12, alpha));
     }
 
     fn render_window_presets_panel(&mut self, ui: &mut egui::Ui) {
@@ -10751,7 +10075,7 @@ impl CrosshairApp {
             "Macro chuot, backend driver, va di chuot bang mui ten.",
         ));
         ui.separator();
-        ui.heading(self.tr("Driver", "Driver chuot"));
+        ui.heading(self.tr("Mouse Driver", "Driver chuot"));
         ui.label(self.tr(
             "Interception. Per-path backend.",
             "Tai hoac xoa driver Interception. Tung preset duong chuot se tu chon backend rieng.",
@@ -10830,7 +10154,7 @@ impl CrosshairApp {
         });
 
         ui.separator();
-        ui.heading(self.tr("Arrow Mouse", "Chuot bang phim mui ten"));
+        ui.heading(self.tr("Mouse Sensitivity", "Do nhay chuot"));
         ui.label(self.tr(
             "Hold the arrow keys to move the pointer.",
             "Giu cac phim mui ten de di chuot.",
@@ -10876,6 +10200,7 @@ impl CrosshairApp {
         }
 
         ui.separator();
+        ui.heading(self.tr("Mouse Path", "Duong chuot"));
         ui.horizontal(|ui| {
             if ui
                 .button(self.tr(
@@ -10900,7 +10225,7 @@ impl CrosshairApp {
         });
 
         ui.separator();
-        ui.heading(self.tr("Mouse", "Ãƒâ€žÃ‚ÂÃƒÂ¡Ã‚Â»Ã¢â€žÂ¢ chuÃƒÂ¡Ã‚Â»Ã¢â€žÂ¢t"));
+        ui.heading(self.tr("Mouse Sensitivity", "Do nhay chuot"));
         if ui
             .button(self.tr("+ Add preset", "+ Them preset"))
             .clicked()
@@ -10911,6 +10236,7 @@ impl CrosshairApp {
 
         let mut remove_mouse_sensitivity_id = None;
         let mut next_mouse_sensitivity_capture_target = None;
+        let mut cancel_active_capture = false;
         let mut mouse_sensitivity_live_sync = false;
         ui.horizontal_wrapped(|ui| {
             ui.label(
@@ -11010,22 +10336,24 @@ impl CrosshairApp {
                             ui.monospace(Self::format_binding_ui(language, preset.hotkey.as_ref()));
                             let capture_target =
                                 CaptureRequest::MouseSensitivityPresetHotkey(preset.id);
+                            let hotkey_active = self.capture_target.as_ref() == Some(&capture_target);
                             if ui
-                                .button(Self::capture_button_text(
-                                    language,
-                                    self.capture_target.as_ref() == Some(&capture_target),
-                                ))
+                                .button(Self::capture_button_text(language, hotkey_active))
                                 .clicked()
                             {
-                                next_mouse_sensitivity_capture_target = Some((
-                                    capture_target,
-                                    match language {
-                                        UiLanguage::Vietnamese => {
-                                            format!("Ãƒâ€žÃ‚Âang bÃƒÂ¡Ã‚ÂºÃ‚Â¯t phÃƒÆ’Ã‚Â­m tÃƒÂ¡Ã‚ÂºÃ‚Â¯t cho {}.", preset.name)
-                                        }
-                                        _ => format!("Capturing hotkey for {}.", preset.name),
-                                    },
-                                ));
+                                if hotkey_active {
+                                    cancel_active_capture = true;
+                                } else {
+                                    next_mouse_sensitivity_capture_target = Some((
+                                        capture_target,
+                                        match language {
+                                            UiLanguage::Vietnamese => {
+                                                format!("Dang bat phim tat cho {}.", preset.name)
+                                            }
+                                            _ => format!("Capturing hotkey for {}.", preset.name),
+                                        },
+                                    ));
+                                }
                             }
                             if ui
                                 .button(Self::tr_lang(language, "Clear", "XÃƒÆ’Ã‚Â³a"))
@@ -11116,6 +10444,9 @@ impl CrosshairApp {
             self.persist_mouse_sensitivity_presets();
             self.sync_mouse_sensitivity_settings();
             self.persist();
+        }
+        if cancel_active_capture {
+            self.cancel_capture();
         }
 
         let mut remove_id = None;
@@ -13649,6 +12980,14 @@ impl eframe::App for CrosshairApp {
                     self.persist_macro_presets();
                     self.status = status;
                 }
+                UiCommand::SyncCrosshairProfiles(profiles, status) => {
+                    self.state.profiles = profiles;
+                    if self.state.profiles.is_empty() {
+                        self.state.profiles.push(ProfileRecord::default());
+                    }
+                    self.persist();
+                    self.status = status;
+                }
                 UiCommand::SetMacrosMasterEnabled(enabled, status) => {
                     self.state.macros_master_enabled = enabled;
                     self.persist();
@@ -14081,3 +13420,4 @@ fn audio_duration(clip: &AudioClipSettings) -> Option<u64> {
         audio::load_duration_ms(&clip.file_path).ok()
     }
 }
+

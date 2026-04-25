@@ -31,7 +31,12 @@ pub fn decode_style(code: &str) -> Result<CrosshairStyle> {
     let style: CrosshairStyle =
         serde_json::from_slice(&json).context("The crosshair code contents are invalid")?;
 
-    if style.arm_length < 0.0 || style.thickness < 0.0 || style.gap < 0.0 {
+    if style.horizontal_length < 0.0
+        || style.vertical_length < 0.0
+        || style.arm_length < 0.0
+        || style.thickness < 0.0
+        || style.gap < 0.0
+    {
         bail!("The crosshair code contains invalid values");
     }
 

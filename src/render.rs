@@ -30,8 +30,10 @@ fn render_builtin(style: &CrosshairStyle) -> Result<RenderedCrosshair> {
     } else {
         0.0
     };
+    let horizontal_length = style.horizontal_length.max(0.0);
+    let vertical_length = style.vertical_length.max(0.0);
     let extent = style.gap.max(0.0)
-        + style.arm_length.max(0.0)
+        + horizontal_length.max(vertical_length)
         + style.thickness.max(1.0)
         + outline
         + style.center_dot_size.max(0.0);
@@ -43,14 +45,23 @@ fn render_builtin(style: &CrosshairStyle) -> Result<RenderedCrosshair> {
     let fill_color = style.color.with_alpha(style.opacity);
     let outline_color = style.outline_color.with_alpha(style.opacity);
     let thickness = style.thickness.max(1.0);
-    let length = style.arm_length.max(0.0);
     let gap = style.gap.max(0.0);
 
     let arms = [
-        (cx - gap - length, cy - thickness / 2.0, length, thickness),
-        (cx + gap, cy - thickness / 2.0, length, thickness),
-        (cx - thickness / 2.0, cy - gap - length, thickness, length),
-        (cx - thickness / 2.0, cy + gap, thickness, length),
+        (
+            cx - gap - horizontal_length,
+            cy - thickness / 2.0,
+            horizontal_length,
+            thickness,
+        ),
+        (cx + gap, cy - thickness / 2.0, horizontal_length, thickness),
+        (
+            cx - thickness / 2.0,
+            cy - gap - vertical_length,
+            thickness,
+            vertical_length,
+        ),
+        (cx - thickness / 2.0, cy + gap, thickness, vertical_length),
     ];
 
     if style.outline_enabled && outline > 0.0 {
