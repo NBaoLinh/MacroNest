@@ -147,8 +147,8 @@ mod windows_overlay {
         Lazy::new(|| Mutex::new(HashSet::new()));
     static STOP_REQUESTED_MACRO_PRESETS: Lazy<Mutex<HashSet<u32>>> =
         Lazy::new(|| Mutex::new(HashSet::new()));
-    static STOP_REQUESTED_IMAGE_SEARCH_WAITS: Lazy<Mutex<HashSet<u32>>> =
-        Lazy::new(|| Mutex::new(HashSet::new()));
+    static IMAGE_SEARCH_WAIT_GENERATIONS: Lazy<Mutex<HashMap<u32, u64>>> =
+        Lazy::new(|| Mutex::new(HashMap::new()));
     static TOOLBOX_DISPLAY: Lazy<Mutex<Option<ToolboxDisplayState>>> =
         Lazy::new(|| Mutex::new(None));
     static TOOLBOX_PREVIEW_DISPLAY: Lazy<Mutex<Option<ToolboxDisplayState>>> =
@@ -185,6 +185,7 @@ mod windows_overlay {
             step_px: u32,
         },
         UpdateImageSearchPresets(Vec<ImageSearchPreset>),
+        InvalidateImageSearchWaits(Vec<u32>),
         ApplyMouseSensitivityPreset(u32),
         RestoreMouseSensitivity,
         UpdateToolboxPresets(Vec<ToolboxPreset>),
@@ -1255,10 +1256,12 @@ mod windows_overlay {
             .contains(&preset_id)
     }
 
-    fn image_search_wait_stop_requested(preset_id: u32) -> bool {
-        STOP_REQUESTED_IMAGE_SEARCH_WAITS
+    fn image_search_wait_generation(preset_id: u32) -> u64 {
+        IMAGE_SEARCH_WAIT_GENERATIONS
             .lock()
-            .contains(&preset_id)
+            .get(&preset_id)
+            .copied()
+            .unwrap_or(0)
     }
 
     fn set_image_search_following_active(preset_id: u32, active: bool) {
@@ -1270,13 +1273,10 @@ mod windows_overlay {
         }
     }
 
-    fn set_image_search_wait_stop_requested(preset_id: u32, active: bool) {
-        let mut guard = STOP_REQUESTED_IMAGE_SEARCH_WAITS.lock();
-        if active {
-            guard.insert(preset_id);
-        } else {
-            guard.remove(&preset_id);
-        }
+    fn bump_image_search_wait_generation(preset_id: u32) {
+        let mut guard = IMAGE_SEARCH_WAIT_GENERATIONS.lock();
+        let generation = guard.entry(preset_id).or_insert(0);
+        *generation = generation.saturating_add(1);
     }
 
     fn run_image_search_follow_loop(
@@ -2331,6 +2331,13 @@ mod windows_overlay {
                             .retain(|preset_id| valid_ids.contains(preset_id));
                     }
                     let _ = refresh_search_area_overlay(runtime);
+                }
+                OverlayCommand::InvalidateImageSearchWaits(preset_ids) => {
+                    let mut guard = IMAGE_SEARCH_WAIT_GENERATIONS.lock();
+                    for preset_id in preset_ids {
+                        let generation = guard.entry(preset_id).or_insert(0);
+                        *generation = generation.saturating_add(1);
+                    }
                 }
                 OverlayCommand::ApplyMouseSensitivityPreset(preset_id) => {
                     if let Some(preset) = HOOK_STATE
@@ -6686,6 +6693,7 @@ mod windows_overlay {
         match_duplicate_window_titles: bool,
     ) -> MacroRunFlow {
         let ui_tx = HOOK_STATE.lock().ui_tx.clone();
+        let wait_generation = image_search_wait_generation(preset.id);
         let mut sent_wait_status = false;
         loop {
             if !macro_runtime_target_matches(
@@ -6700,11 +6708,10 @@ mod windows_overlay {
             {
                 return MacroRunFlow::StopExecution;
             }
-            if image_search_wait_stop_requested(preset.id) {
-                set_image_search_wait_stop_requested(preset.id, false);
+            if image_search_wait_generation(preset.id) != wait_generation {
                 if let Some(tx) = ui_tx.as_ref() {
                     let _ = tx.send(UiCommand::ImageSearchFinished(format!(
-                        "{}: waiting stopped.",
+                        "{}: waiting cancelled.",
                         preset.name
                     )));
                 }
@@ -6763,7 +6770,7 @@ mod windows_overlay {
 
     fn stop_image_search_waiting(spec: &str) -> Result<()> {
         let preset = image_search_preset_by_id(spec)?;
-        set_image_search_wait_stop_requested(preset.id, true);
+        bump_image_search_wait_generation(preset.id);
         Ok(())
     }
 

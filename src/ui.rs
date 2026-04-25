@@ -613,6 +613,15 @@ impl CrosshairApp {
     }
 
     fn sync_image_search_presets(&self) {
+        let preset_ids = self
+            .state
+            .image_search_presets
+            .iter()
+            .map(|preset| preset.id)
+            .collect::<Vec<_>>();
+        let _ = self
+            .overlay_tx
+            .send(OverlayCommand::InvalidateImageSearchWaits(preset_ids));
         let _ = self
             .overlay_tx
             .send(OverlayCommand::UpdateImageSearchPresets(
@@ -8653,7 +8662,7 @@ impl CrosshairApp {
                             ui.strong(Self::tr_lang(language, "Trig", "Trig"));
                             ui.strong(Self::tr_lang(language, "Key", "PhÃƒÂ­m"));
                             ui.strong(Self::tr_lang(language, "On", "BÃƒÂ¡Ã‚ÂºÃ‚Â­t"));
-                            ui.strong(Self::tr_lang(language, "Vis", "HiÃƒÂ¡Ã‚Â»Ã¢â‚¬Â¡n"));
+                            ui.strong(Self::tr_lang(language, "Show", "HiÃƒÂ¡Ã‚Â»Ã¢â‚¬Â¡n"));
                             ui.strong(Self::material_icon_text(0xe312, 18.0));
                             ui.strong(Self::tr_lang(language, "Clr", "Clr"));
                             ui.strong(Self::tr_lang(language, "Copy", "Sao chÃƒÆ’Ã‚Â©p"));
@@ -9516,14 +9525,10 @@ impl CrosshairApp {
                                         ui.add_sized([146.0, 18.0], egui::Label::new(""));
                                         if ui
                                             .add_sized(
-                                                [34.0, 20.0],
-                                                Button::new(Self::material_icon_text(0xe872, 18.0)),
+                                                [64.0, 20.0],
+                                                Button::new(Self::tr_lang(language, "Clear all", "Xoa tat ca")),
                                             )
-                                            .on_hover_text(Self::tr_lang(
-                                                language,
-                                                "Clear steps",
-                                                "XÃ³a toÃ n bá»™ steps",
-                                            ))
+                                            .on_hover_text(Self::tr_lang(language, "Clear all steps", "Xoa toan bo steps"))
                                             .clicked()
                                         {
                                             preset.steps.clear();
@@ -9634,7 +9639,10 @@ impl CrosshairApp {
                                                 ));
                                             }
                                             if ui
-                                                .add_sized([28.0, 18.0], Button::new("X"))
+                                                .add_sized(
+                                                    [28.0, 18.0],
+                                                    Button::new(Self::material_icon_text(0xe872, 18.0)),
+                                                )
                                                 .on_hover_text(Self::tr_lang(
                                                     language,
                                                     "Remove this step",
