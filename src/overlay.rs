@@ -2544,7 +2544,7 @@ mod windows_overlay {
         let pin_active = runtime.active_pin_thumbnail.is_some()
             || HOOK_STATE.lock().active_pin_preset_id.is_some();
         if pin_active {
-            return 100;
+            return 33;
         }
 
         if keyboard_arrow_mouse_is_active() {
@@ -2628,7 +2628,7 @@ mod windows_overlay {
         };
 
         if runtime.active_pin_thumbnail.is_some()
-            && runtime.last_pin_update.elapsed() < Duration::from_millis(100)
+            && runtime.last_pin_update.elapsed() < Duration::from_millis(33)
         {
             return Ok(());
         }
@@ -2823,10 +2823,10 @@ mod windows_overlay {
                 ((target_w - size) / 2, (target_h - size) / 2, size, size)
             }
             PinOverlayStyle::HorizontalBar => {
-                let width = (target_w - 12).max(1);
-                let min_height = ((target_h as f32 * 0.12).round() as i32).clamp(16, target_h);
+                let width = target_w.max(1);
+                let min_height = ((target_h as f32 * 0.12).round() as i32).clamp(18, target_h);
                 let bar_height =
-                    ((target_h as f32 * 0.18).round() as i32).clamp(min_height, target_h);
+                    ((target_h as f32 * 0.24).round() as i32).clamp(min_height, target_h.max(1));
                 (
                     (target_w - width) / 2,
                     (target_h - bar_height) / 2,
@@ -2912,19 +2912,24 @@ mod windows_overlay {
 
         let (shape_left, shape_top, shape_w, shape_h) =
             pin_overlay_shape_rect(style, target_w, target_h);
-        let resized = image::imageops::resize(
-            &source,
-            shape_w.max(1) as u32,
-            shape_h.max(1) as u32,
-            FilterType::CatmullRom,
-        );
-        let resized_pixels = resized.as_raw();
         let mut output = vec![0u8; (target_w as usize) * (target_h as usize) * 4];
 
-        for y in 0..shape_h.max(1) {
-            for x in 0..shape_w.max(1) {
-                let dst_x = shape_left + x;
-                let dst_y = shape_top + y;
+        let source_w = source.width().max(1);
+        let source_h = source.height().max(1);
+        let scale = (shape_w.max(1) as f32 / source_w as f32)
+            .min(shape_h.max(1) as f32 / source_h as f32)
+            .max(0.01);
+        let fit_w = (source_w as f32 * scale).round().max(1.0) as u32;
+        let fit_h = (source_h as f32 * scale).round().max(1.0) as u32;
+        let fit_x = shape_left + ((shape_w - fit_w as i32) / 2).max(0);
+        let fit_y = shape_top + ((shape_h - fit_h as i32) / 2).max(0);
+        let resized = image::imageops::resize(&source, fit_w, fit_h, FilterType::CatmullRom);
+        let resized_pixels = resized.as_raw();
+
+        for y in 0..fit_h as i32 {
+            for x in 0..fit_w as i32 {
+                let dst_x = fit_x + x;
+                let dst_y = fit_y + y;
                 if dst_x < 0 || dst_y < 0 || dst_x >= target_w || dst_y >= target_h {
                     continue;
                 }
@@ -2946,7 +2951,7 @@ mod windows_overlay {
                 if !inside {
                     continue;
                 }
-                let src_index = ((y as usize) * (shape_w as usize) + x as usize) * 4;
+                let src_index = ((y as usize) * (fit_w as usize) + x as usize) * 4;
                 let dst_index = ((dst_y as usize) * (target_w as usize) + dst_x as usize) * 4;
                 output[dst_index..dst_index + 4]
                     .copy_from_slice(&resized_pixels[src_index..src_index + 4]);
