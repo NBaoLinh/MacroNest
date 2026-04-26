@@ -2825,6 +2825,33 @@ mod windows_overlay {
                 }
             };
 
+            if preset.overlay_style != PinOverlayStyle::Rectangle {
+                let capture = window_list::capture_window_region_with_candidates(
+                    preset.target_window_title.as_deref(),
+                    &preset.extra_target_window_titles,
+                    preset.match_duplicate_window_titles,
+                )
+                .context("Pin source window was not found")?;
+                let rgba = render_pin_overlay_bitmap(
+                    &capture,
+                    target_bounds.2,
+                    target_bounds.3,
+                    preset.overlay_style,
+                    source_crop_key,
+                )?;
+                paint_pin_overlay(
+                    runtime.pin_hwnd,
+                    target_bounds.0,
+                    target_bounds.1,
+                    target_bounds.2,
+                    target_bounds.3,
+                    &rgba,
+                )?;
+                let _ = ShowWindow(runtime.pin_hwnd, SW_SHOWNA);
+                runtime.last_pin_update = Instant::now();
+                return Ok(());
+            }
+
             let needs_register = runtime.active_pin_thumbnail.as_ref().is_none_or(|active| {
                 active.preset_id != preset.id
                     || active.source_hwnd != source
