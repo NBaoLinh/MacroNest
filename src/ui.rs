@@ -9252,8 +9252,42 @@ impl CrosshairApp {
                                                                     step.key = preset_option_id.to_string();
                                                                     live_sync = true;
                                                                 }
+                                                        }
+                                                    });
+                                                } else if step.action
+                                                    == MacroAction::TriggerImageSearchTiming
+                                                {
+                                                    let selected_id =
+                                                        step.key.trim().parse::<u32>().ok();
+                                                    let selected_label =
+                                                        Self::image_search_timing_preset_label(
+                                                            &image_search_timing_preset_options,
+                                                            selected_id,
+                                                            "Select timing preset",
+                                                        );
+                                                    egui::ComboBox::from_id_salt((
+                                                        group.id,
+                                                        preset.id,
+                                                        "hold-stop-image-search-timing",
+                                                    ))
+                                                    .width(180.0)
+                                                    .selected_text(selected_label)
+                                                    .show_ui(ui, |ui| {
+                                                        for (preset_option_id, preset_option_label) in
+                                                            &image_search_timing_preset_options
+                                                        {
+                                                            if ui
+                                                                .selectable_label(
+                                                                    selected_id == Some(*preset_option_id),
+                                                                    preset_option_label,
+                                                                )
+                                                                .clicked()
+                                                            {
+                                                                step.key = preset_option_id.to_string();
+                                                                live_sync = true;
                                                             }
-                                                        });
+                                                        }
+                                                    });
                                                 } else if step.action == MacroAction::ApplyMouseSensitivityPreset {
                                                     let selected_id = step.key.trim().parse::<u32>().ok();
                                                     let selected_label = selected_id
