@@ -1710,13 +1710,30 @@ impl CrosshairApp {
         Self::tr_lang(self.state.ui_language, english, vietnamese)
     }
 
+    fn normalize_vietnamese(text: &'static str) -> &'static str {
+        if !text
+            .chars()
+            .any(|ch| matches!(ch, 'Ã' | 'Ä' | 'Æ' | 'Ð' | 'Õ' | 'Ø'))
+        {
+            return text;
+        }
+
+        let bytes: Vec<u8> = text.chars().map(|ch| ch as u32 as u8).collect();
+        match String::from_utf8(bytes) {
+            Ok(decoded) => Box::leak(decoded.into_boxed_str()),
+            Err(_) => text,
+        }
+    }
+
     fn tr_lang(
         language: UiLanguage,
         english: &'static str,
         _vietnamese: &'static str,
     ) -> &'static str {
         match language {
-            UiLanguage::Vietnamese => crate::lang::translate(language, english).unwrap_or(english),
+            UiLanguage::Vietnamese => Self::normalize_vietnamese(
+                crate::lang::translate(language, english).unwrap_or(english),
+            ),
             UiLanguage::English | UiLanguage::Icon => english,
         }
     }
@@ -2293,13 +2310,13 @@ impl CrosshairApp {
                         Self::tr_lang(
                             language,
                             "Stop preview",
-                            "DÃƒÆ’Ã‚Â¡Ãƒâ€šÃ‚Â»Ãƒâ€šÃ‚Â«ng nghe thÃƒÆ’Ã‚Â¡Ãƒâ€šÃ‚Â»Ãƒâ€šÃ‚Â­",
+                            "Dừng nghe thử",
                         )
                     } else {
                         Self::tr_lang(
                             language,
                             "Preview audio",
-                            "Nghe thÃƒÆ’Ã‚Â¡Ãƒâ€šÃ‚Â»Ãƒâ€šÃ‚Â­ ÃƒÆ’Ã†â€™Ãƒâ€šÃ‚Â¢m thanh",
+                            "Nghe thử âm thanh",
                         )
                     })
                     .clicked()
@@ -2308,7 +2325,7 @@ impl CrosshairApp {
                         Ok(true) => {
                             outcome.status = Some(match language {
                                 UiLanguage::Vietnamese => {
-                                    format!("ÃƒÆ’Ã¢â‚¬Å¾Ãƒâ€šÃ‚Âang nghe thÃƒÆ’Ã‚Â¡Ãƒâ€šÃ‚Â»Ãƒâ€šÃ‚Â­ {title}.")
+                                    format!("Đang nghe thử {title}.")
                                 }
                                 _ => format!("Previewing {title}."),
                             })
@@ -2316,7 +2333,7 @@ impl CrosshairApp {
                         Ok(false) => {
                             outcome.status = Some(match language {
                                 UiLanguage::Vietnamese => format!(
-                                    "ÃƒÆ’Ã¢â‚¬Å¾Ãƒâ€šÃ‚ÂÃƒÆ’Ã†â€™Ãƒâ€šÃ‚Â£ dÃƒÆ’Ã‚Â¡Ãƒâ€šÃ‚Â»Ãƒâ€šÃ‚Â«ng nghe thÃƒÆ’Ã‚Â¡Ãƒâ€šÃ‚Â»Ãƒâ€šÃ‚Â­ {title}."
+                                    "Đã dừng nghe thử {title}."
                                 ),
                                 _ => format!("Stopped {title} preview."),
                             })
@@ -2325,7 +2342,7 @@ impl CrosshairApp {
                             outcome.status = Some(match language {
                                 UiLanguage::Vietnamese => {
                                     format!(
-                                        "Nghe thÃƒÆ’Ã‚Â¡Ãƒâ€šÃ‚Â»Ãƒâ€šÃ‚Â­ thÃƒÆ’Ã‚Â¡Ãƒâ€šÃ‚ÂºÃƒâ€šÃ‚Â¥t bÃƒÆ’Ã‚Â¡Ãƒâ€šÃ‚ÂºÃƒâ€šÃ‚Â¡i: {error}"
+                                        "Nghe thử thất bại: {error}"
                                     )
                                 }
                                 _ => format!("Preview failed: {error}"),
@@ -2596,59 +2613,59 @@ impl CrosshairApp {
 
     fn macro_action_short_label(action: MacroAction, language: UiLanguage) -> &'static str {
         match language {
-            UiLanguage::Vietnamese => match action {
-                MacroAction::KeyPress => "NhÃƒÆ’Ã‚Â¡Ãƒâ€šÃ‚ÂºÃƒâ€šÃ‚Â¥n",
-                MacroAction::KeyDown => "GiÃƒÆ’Ã‚Â¡Ãƒâ€šÃ‚Â»Ãƒâ€šÃ‚Â¯",
-                MacroAction::KeyUp => "NhÃƒÆ’Ã‚Â¡Ãƒâ€šÃ‚ÂºÃƒâ€šÃ‚Â£",
-                MacroAction::TypeText => "ChÃƒÆ’Ã‚Â¡Ãƒâ€šÃ‚Â»Ãƒâ€šÃ‚Â¯",
-                MacroAction::ApplyWindowPreset => "SÃƒÆ’Ã‚Â¡Ãƒâ€šÃ‚Â»ÃƒÂ¢Ã¢â€šÂ¬Ã‚Â¢",
-                MacroAction::FocusWindowPreset => "Focus",
-                MacroAction::TriggerMacroPreset => "Macro",
-                MacroAction::EnableCrosshairProfile => "TNg",
-                MacroAction::DisableCrosshair => "TÃƒÆ’Ã‚Â¡Ãƒâ€šÃ‚ÂºÃƒâ€šÃ‚Â¯tTN",
+            UiLanguage::Vietnamese => Self::normalize_vietnamese(match action {
+                MacroAction::KeyPress => "Nhấn",
+                MacroAction::KeyDown => "Giữ",
+                MacroAction::KeyUp => "Nhả",
+                MacroAction::TypeText => "Chữ",
+                MacroAction::ApplyWindowPreset => "Áp cửa sổ",
+                MacroAction::FocusWindowPreset => "Cửa sổ",
+                MacroAction::TriggerMacroPreset => "Tự động",
+                MacroAction::EnableCrosshairProfile => "Tâm ngắm",
+                MacroAction::DisableCrosshair => "Tắt tâm ngắm",
                 MacroAction::EnablePinPreset => "Ghim",
-                MacroAction::DisablePin => "BÃƒÆ’Ã‚Â¡Ãƒâ€šÃ‚Â»Ãƒâ€šÃ‚ÂGhim",
-                MacroAction::PlayMousePathPreset => "ÃƒÆ’Ã¢â‚¬Å¾Ãƒâ€šÃ‚ÂChuÃƒÆ’Ã‚Â¡Ãƒâ€šÃ‚Â»ÃƒÂ¢Ã¢â‚¬Å¾Ã‚Â¢t",
-                MacroAction::ApplyMouseSensitivityPreset => "NhÃƒÆ’Ã‚Â¡Ãƒâ€šÃ‚ÂºÃƒâ€šÃ‚Â¡y",
-                MacroAction::EnableZoomPreset => "Zoom",
-                MacroAction::DisableZoom => "TÃƒÆ’Ã‚Â¡Ãƒâ€šÃ‚ÂºÃƒâ€šÃ‚Â¯tZm",
-                MacroAction::PlaySoundPreset => "ÃƒÆ’Ã†â€™ÃƒÂ¢Ã¢â€šÂ¬Ã…Â¡m",
-                MacroAction::StartImageSearch => "Start",
-                MacroAction::TriggerImageSearchMove => "Move",
-                MacroAction::StopImageSearchWait => "Wait",
-                MacroAction::StopImageSearch => "Stop",
-                MacroAction::LoopStart => "LÃƒÆ’Ã‚Â¡Ãƒâ€šÃ‚ÂºÃƒâ€šÃ‚Â·p",
-                MacroAction::LoopEnd => "CuÃƒÆ’Ã‚Â¡Ãƒâ€šÃ‚Â»ÃƒÂ¢Ã¢â€šÂ¬Ã‹Å“i",
-                MacroAction::StopIfTriggerPressedAgain => "DÃƒÆ’Ã‚Â¡Ãƒâ€šÃ‚Â»Ãƒâ€šÃ‚Â«ng",
-                MacroAction::StopIfKeyPressed => "ThoÃƒÆ’Ã†â€™Ãƒâ€šÃ‚Â¡t",
-                MacroAction::ShowToolbox => "Tool",
-                MacroAction::HideToolbox => "ÃƒÆ’Ã‚Â¡Ãƒâ€šÃ‚ÂºÃƒâ€šÃ‚Â¨n",
-                MacroAction::LockKeys => "KhÃƒÆ’Ã†â€™Ãƒâ€šÃ‚Â³aP",
-                MacroAction::UnlockKeys => "MÃƒÆ’Ã‚Â¡Ãƒâ€šÃ‚Â»Ãƒâ€¦Ã‚Â¸P",
-                MacroAction::LockMouse => "KhÃƒÆ’Ã†â€™Ãƒâ€šÃ‚Â³aC",
-                MacroAction::UnlockMouse => "MÃƒÆ’Ã‚Â¡Ãƒâ€šÃ‚Â»Ãƒâ€¦Ã‚Â¸C",
-                MacroAction::EnableMacroPreset => "BÃƒÆ’Ã‚Â¡Ãƒâ€šÃ‚ÂºÃƒâ€šÃ‚Â­tPre",
-                MacroAction::DisableMacroPreset => "TÃƒÆ’Ã‚Â¡Ãƒâ€šÃ‚ÂºÃƒâ€šÃ‚Â¯tPre",
-                MacroAction::MouseLeftClick => "TrÃƒÆ’Ã†â€™Ãƒâ€šÃ‚Â¡i",
-                MacroAction::MouseLeftDown => "TrÃƒÆ’Ã†â€™Ãƒâ€šÃ‚Â¡iG",
-                MacroAction::MouseLeftUp => "TrÃƒÆ’Ã†â€™Ãƒâ€šÃ‚Â¡iN",
-                MacroAction::MouseRightClick => "PhÃƒÆ’Ã‚Â¡Ãƒâ€šÃ‚ÂºÃƒâ€šÃ‚Â£i",
-                MacroAction::MouseRightDown => "PhÃƒÆ’Ã‚Â¡Ãƒâ€šÃ‚ÂºÃƒâ€šÃ‚Â£iG",
-                MacroAction::MouseRightUp => "PhÃƒÆ’Ã‚Â¡Ãƒâ€šÃ‚ÂºÃƒâ€šÃ‚Â£iN",
-                MacroAction::MouseMiddleClick => "GiÃƒÆ’Ã‚Â¡Ãƒâ€šÃ‚Â»Ãƒâ€šÃ‚Â¯a",
-                MacroAction::MouseMiddleDown => "GiÃƒÆ’Ã‚Â¡Ãƒâ€šÃ‚Â»Ãƒâ€šÃ‚Â¯aG",
-                MacroAction::MouseMiddleUp => "GiÃƒÆ’Ã‚Â¡Ãƒâ€šÃ‚Â»Ãƒâ€šÃ‚Â¯aN",
+                MacroAction::DisablePin => "Bỏ ghim",
+                MacroAction::PlayMousePathPreset => "Đường chuột",
+                MacroAction::ApplyMouseSensitivityPreset => "Độ nhạy",
+                MacroAction::EnableZoomPreset => "Phóng",
+                MacroAction::DisableZoom => "Tắt phóng",
+                MacroAction::PlaySoundPreset => "Âm thanh",
+                MacroAction::StartImageSearch => "Tìm ảnh",
+                MacroAction::TriggerImageSearchMove => "Di chuyển",
+                MacroAction::StopImageSearchWait => "Chờ",
+                MacroAction::StopImageSearch => "Dừng",
+                MacroAction::LoopStart => "Lặp",
+                MacroAction::LoopEnd => "Kết thúc",
+                MacroAction::StopIfTriggerPressedAgain => "Dừng",
+                MacroAction::StopIfKeyPressed => "Thoát",
+                MacroAction::ShowToolbox => "Công cụ",
+                MacroAction::HideToolbox => "Ẩn",
+                MacroAction::LockKeys => "Khóa phím",
+                MacroAction::UnlockKeys => "Mở phím",
+                MacroAction::LockMouse => "Khóa chuột",
+                MacroAction::UnlockMouse => "Mở chuột",
+                MacroAction::EnableMacroPreset => "Bật preset",
+                MacroAction::DisableMacroPreset => "Tắt preset",
+                MacroAction::MouseLeftClick => "Trái",
+                MacroAction::MouseLeftDown => "Trái↓",
+                MacroAction::MouseLeftUp => "Trái↑",
+                MacroAction::MouseRightClick => "Phải",
+                MacroAction::MouseRightDown => "Phải↓",
+                MacroAction::MouseRightUp => "Phải↑",
+                MacroAction::MouseMiddleClick => "Giữa",
+                MacroAction::MouseMiddleDown => "Giữa↓",
+                MacroAction::MouseMiddleUp => "Giữa↑",
                 MacroAction::MouseX1Click => "X1",
                 MacroAction::MouseX1Down => "X1G",
                 MacroAction::MouseX1Up => "X1N",
                 MacroAction::MouseX2Click => "X2",
                 MacroAction::MouseX2Down => "X2G",
                 MacroAction::MouseX2Up => "X2N",
-                MacroAction::MouseWheelUp => "LÃƒÆ’Ã†â€™Ãƒâ€šÃ‚Âªn",
-                MacroAction::MouseWheelDown => "XuÃƒÆ’Ã‚Â¡Ãƒâ€šÃ‚Â»ÃƒÂ¢Ã¢â€šÂ¬Ã‹Å“ng",
-                MacroAction::MouseMoveAbsolute => "TÃƒÆ’Ã‚Â¡Ãƒâ€šÃ‚Â»ÃƒÂ¢Ã¢â€šÂ¬Ã‚Âºi",
-                MacroAction::MouseMoveRelative => "DÃƒÆ’Ã‚Â¡Ãƒâ€šÃ‚Â»Ãƒâ€šÃ‚Âi",
-            },
+                MacroAction::MouseWheelUp => "Lên",
+                MacroAction::MouseWheelDown => "Xuống",
+                MacroAction::MouseMoveAbsolute => "Tuyệt đối",
+                MacroAction::MouseMoveRelative => "Tương đối",
+            }),
             UiLanguage::English | UiLanguage::Icon => match action {
                 MacroAction::KeyPress => "Press",
                 MacroAction::KeyDown => "KEY Dn",
@@ -2842,9 +2859,9 @@ impl CrosshairApp {
 
     fn macro_trigger_mode_label(mode: MacroTriggerMode) -> &'static str {
         match mode {
-            MacroTriggerMode::Press => "Press",
-            MacroTriggerMode::Hold => "Hold",
-            MacroTriggerMode::Release => "Release",
+            MacroTriggerMode::Press => "Nhấn",
+            MacroTriggerMode::Hold => "Giữ",
+            MacroTriggerMode::Release => "Thả",
         }
     }
 
@@ -7810,7 +7827,7 @@ impl CrosshairApp {
                             open_folder_id = Some(folder_id);
                         }
                         ui.label(match language {
-                            UiLanguage::Vietnamese => format!("{folder_group_count} group"),
+                            UiLanguage::Vietnamese => format!("{folder_group_count} nhóm"),
                             _ => format!("{folder_group_count} group(s)"),
                         });
                         if ui
@@ -8387,9 +8404,9 @@ impl CrosshairApp {
                             egui::ComboBox::from_id_salt((group.id, preset.id, "trigger-mode"))
                                 .width(108.0)
                                 .selected_text(match (language, preset.trigger_mode) {
-                                    (UiLanguage::Vietnamese, MacroTriggerMode::Press) => "Press",
-                                    (UiLanguage::Vietnamese, MacroTriggerMode::Hold) => "Hold",
-                                    (UiLanguage::Vietnamese, MacroTriggerMode::Release) => "Release",
+                                    (UiLanguage::Vietnamese, MacroTriggerMode::Press) => "Nhấn",
+                                    (UiLanguage::Vietnamese, MacroTriggerMode::Hold) => "Giữ",
+                                    (UiLanguage::Vietnamese, MacroTriggerMode::Release) => "Thả",
                                     (_, _) => Self::macro_trigger_mode_label(preset.trigger_mode),
                                 })
                                 .show_ui(ui, |ui| {
@@ -8402,9 +8419,9 @@ impl CrosshairApp {
                                             .selectable_label(
                                                 preset.trigger_mode == mode,
                                                 match (language, mode) {
-                                                    (UiLanguage::Vietnamese, MacroTriggerMode::Press) => "Press",
-                                                    (UiLanguage::Vietnamese, MacroTriggerMode::Hold) => "Hold",
-                                                    (UiLanguage::Vietnamese, MacroTriggerMode::Release) => "Release",
+                                                    (UiLanguage::Vietnamese, MacroTriggerMode::Press) => "Nhấn",
+                                                    (UiLanguage::Vietnamese, MacroTriggerMode::Hold) => "Giữ",
+                                                    (UiLanguage::Vietnamese, MacroTriggerMode::Release) => "Thả",
                                                     (_, _) => Self::macro_trigger_mode_label(mode),
                                                 },
                                             )
@@ -8983,9 +9000,14 @@ impl CrosshairApp {
                                                         })
                                                         .unwrap_or_else(|| {
                                                             if step.key.trim().is_empty() {
-                                                                "Select toolbox preset".to_owned()
+                                                                Self::tr_lang(
+                                                                    language,
+                                                                    "Select toolbox preset",
+                                                                    "Chọn preset hộp công cụ",
+                                                                )
+                                                                .to_owned()
                                                             } else {
-                                                                format!("Legacy: {}", step.key)
+                                                                format!("Cũ: {}", step.key)
                                                             }
                                                         });
                                                     ui.horizontal(|ui| {
@@ -9082,8 +9104,8 @@ impl CrosshairApp {
                                                     )
                                                     .on_hover_text(Self::tr_lang(
                                                         language,
-                                                        "Capture hold key",
-                                                        "BÃƒÆ’Ã‚Â¡Ãƒâ€šÃ‚ÂºÃƒâ€šÃ‚Â¯t phÃƒÆ’Ã†â€™Ãƒâ€šÃ‚Â­m cho action khi dÃƒÆ’Ã‚Â¡Ãƒâ€šÃ‚Â»Ãƒâ€šÃ‚Â«ng hold",
+                                                        "Bắt phím giữ",
+                                                        "Bắt phím cho action khi dừng giữ",
                                                     ))
                                                     .clicked()
                                                 {
@@ -9825,10 +9847,15 @@ impl CrosshairApp {
                                                         })
                                                         .unwrap_or_else(|| {
                                                             if step.key.trim().is_empty() {
-                                                                Self::tr_lang(language, "Select toolbox preset", "ChÃƒÆ’Ã‚Â¡Ãƒâ€šÃ‚Â»Ãƒâ€šÃ‚Ân preset toolbox").to_owned()
+                                                                Self::tr_lang(
+                                                                    language,
+                                                                    "Select toolbox preset",
+                                                                    "Chọn preset hộp công cụ",
+                                                                )
+                                                                .to_owned()
                                                             } else {
                                                                 match language {
-                                                                    UiLanguage::Vietnamese => format!("CÃƒÆ’Ã¢â‚¬Â¦Ãƒâ€šÃ‚Â©: {}", step.key),
+                                                                    UiLanguage::Vietnamese => format!("Cũ: {}", step.key),
                                                                     _ => format!("Legacy: {}", step.key),
                                                                 }
                                                             }
@@ -9962,8 +9989,8 @@ impl CrosshairApp {
                                                     )
                                                     .on_hover_text(Self::tr_lang(
                                                         language,
-                                                        "Capture input",
-                                                        "BÃƒÆ’Ã‚Â¡Ãƒâ€šÃ‚ÂºÃƒâ€šÃ‚Â¯t phÃƒÆ’Ã†â€™Ãƒâ€šÃ‚Â­m cho step nÃƒÆ’Ã†â€™Ãƒâ€šÃ‚Â y",
+                                                        "Bắt input",
+                                                        "Bắt phím cho bước này",
                                                     ))
                                                     .clicked()
                                                 {
@@ -10380,7 +10407,7 @@ impl CrosshairApp {
         });
         ui.label(if self.state.keyboard_arrow_mouse_enabled {
             match self.state.ui_language {
-                UiLanguage::Vietnamese => "Dang bat. Backend: SendInput.".to_owned(),
+                UiLanguage::Vietnamese => "Đang bật. Backend: SendInput.".to_owned(),
                 _ => "Active. Backend: SendInput.".to_owned(),
             }
         } else {
@@ -10412,7 +10439,7 @@ impl CrosshairApp {
             if let Some(active_id) = self.active_mouse_record_preset_id {
                 ui.label(
                     RichText::new(match self.state.ui_language {
-                        UiLanguage::Vietnamese => format!("ÃƒÆ’Ã¢â‚¬Å¾Ãƒâ€šÃ‚Âang ghi preset #{active_id}"),
+                        UiLanguage::Vietnamese => format!("Đang ghi preset #{active_id}"),
                         _ => format!("Recording preset #{active_id}"),
                     })
                     .strong()
@@ -10545,7 +10572,7 @@ impl CrosshairApp {
                                         capture_target,
                                         match language {
                                             UiLanguage::Vietnamese => {
-                                                format!("Dang bat phim tat cho {}.", preset.name)
+                                                format!("Đang bật phím tắt cho {}.", preset.name)
                                             }
                                             _ => format!("Capturing hotkey for {}.", preset.name),
                                         },
@@ -10711,7 +10738,7 @@ impl CrosshairApp {
                                         match language {
                                             UiLanguage::Vietnamese => {
                                                 format!(
-                                                    "Dang bat phím tat ghi cho {}.",
+                                                    "Đang bật phím tắt ghi cho {}.",
                                                     preset.name
                                                 )
                                             }
@@ -11071,7 +11098,7 @@ impl CrosshairApp {
                                 RichText::new(Self::tr_lang(
                                     language,
                                     "Move only while active",
-                                    "Chi di chuot khi dang bat",
+                                    "Chỉ di chuột khi đang bật",
                                 ))
                                 .small(),
                             );
@@ -12446,7 +12473,7 @@ impl CrosshairApp {
                         Ok(true) => {
                             self.status = match language {
                                 UiLanguage::Vietnamese => {
-                                    "ÃƒÆ’Ã¢â‚¬Å¾Ãƒâ€šÃ‚Âang nghe thÃƒÆ’Ã‚Â¡Ãƒâ€šÃ‚Â»Ãƒâ€šÃ‚Â­ ÃƒÆ’Ã†â€™Ãƒâ€šÃ‚Â¢m thanh mÃƒÆ’Ã‚Â¡Ãƒâ€šÃ‚Â»Ãƒâ€¦Ã‚Â¸ app.".to_owned()
+                                    "Đang nghe thử âm thanh mở app.".to_owned()
                                 }
                                 _ => "Previewing Startup Sound.".to_owned(),
                             }
@@ -12454,7 +12481,7 @@ impl CrosshairApp {
                         Ok(false) => {
                             self.status = match language {
                                 UiLanguage::Vietnamese => {
-                                    "ÃƒÆ’Ã¢â‚¬Å¾Ãƒâ€šÃ‚ÂÃƒÆ’Ã†â€™Ãƒâ€šÃ‚Â£ dÃƒÆ’Ã‚Â¡Ãƒâ€šÃ‚Â»Ãƒâ€šÃ‚Â«ng nghe thÃƒÆ’Ã‚Â¡Ãƒâ€šÃ‚Â»Ãƒâ€šÃ‚Â­ ÃƒÆ’Ã†â€™Ãƒâ€šÃ‚Â¢m thanh mÃƒÆ’Ã‚Â¡Ãƒâ€šÃ‚Â»Ãƒâ€¦Ã‚Â¸ app.".to_owned()
+                                    "Đã dừng nghe thử âm thanh mở app.".to_owned()
                                 }
                                 _ => "Stopped Startup Sound preview.".to_owned(),
                             }
@@ -12507,7 +12534,7 @@ impl CrosshairApp {
                         Ok(true) => {
                             self.status = match language {
                                 UiLanguage::Vietnamese => {
-                                    "ÃƒÆ’Ã¢â‚¬Å¾Ãƒâ€šÃ‚Âang nghe thÃƒÆ’Ã‚Â¡Ãƒâ€šÃ‚Â»Ãƒâ€šÃ‚Â­ ÃƒÆ’Ã†â€™Ãƒâ€šÃ‚Â¢m thanh tÃƒÆ’Ã‚Â¡Ãƒâ€šÃ‚ÂºÃƒâ€šÃ‚Â¯t app.".to_owned()
+                                    "Đang nghe thử âm thanh tắt app.".to_owned()
                                 }
                                 _ => "Previewing Exit Sound.".to_owned(),
                             }
@@ -12515,7 +12542,7 @@ impl CrosshairApp {
                         Ok(false) => {
                             self.status = match language {
                                 UiLanguage::Vietnamese => {
-                                    "ÃƒÆ’Ã¢â‚¬Å¾Ãƒâ€šÃ‚ÂÃƒÆ’Ã†â€™Ãƒâ€šÃ‚Â£ dÃƒÆ’Ã‚Â¡Ãƒâ€šÃ‚Â»Ãƒâ€šÃ‚Â«ng nghe thÃƒÆ’Ã‚Â¡Ãƒâ€šÃ‚Â»Ãƒâ€šÃ‚Â­ ÃƒÆ’Ã†â€™Ãƒâ€šÃ‚Â¢m thanh tÃƒÆ’Ã‚Â¡Ãƒâ€šÃ‚ÂºÃƒâ€šÃ‚Â¯t app.".to_owned()
+                                    "Đã dừng nghe thử âm thanh tắt app.".to_owned()
                                 }
                                 _ => "Stopped Exit Sound preview.".to_owned(),
                             }
@@ -12607,8 +12634,8 @@ impl CrosshairApp {
                         Ok(true) => {
                             self.status = match language {
                                 UiLanguage::Vietnamese => format!(
-                                    "ÃƒÆ’Ã¢â‚¬Å¾Ãƒâ€šÃ‚Âang nghe thÃƒÆ’Ã‚Â¡Ãƒâ€šÃ‚Â»Ãƒâ€šÃ‚Â­ {}.",
-                                    preview_label.unwrap_or_else(|| "ÃƒÆ’Ã†â€™Ãƒâ€šÃ‚Â¢m thanh".to_owned())
+                                    "Đang nghe thử {}.",
+                                    preview_label.unwrap_or_else(|| "Âm thanh".to_owned())
                                 ),
                                 _ => format!(
                                     "Previewing {}.",
@@ -12619,8 +12646,8 @@ impl CrosshairApp {
                         Ok(false) => {
                             self.status = match language {
                                 UiLanguage::Vietnamese => format!(
-                                    "ÃƒÆ’Ã¢â‚¬Å¾Ãƒâ€šÃ‚ÂÃƒÆ’Ã†â€™Ãƒâ€šÃ‚Â£ dÃƒÆ’Ã‚Â¡Ãƒâ€šÃ‚Â»Ãƒâ€šÃ‚Â«ng nghe thÃƒÆ’Ã‚Â¡Ãƒâ€šÃ‚Â»Ãƒâ€šÃ‚Â­ {}.",
-                                    preview_label.unwrap_or_else(|| "ÃƒÆ’Ã†â€™Ãƒâ€šÃ‚Â¢m thanh".to_owned())
+                                    "Đã dừng nghe thử {}.",
+                                    preview_label.unwrap_or_else(|| "Âm thanh".to_owned())
                                 ),
                                 _ => format!(
                                     "Stopped {} preview.",
@@ -12632,7 +12659,7 @@ impl CrosshairApp {
                             self.status = match language {
                                 UiLanguage::Vietnamese => {
                                     format!(
-                                        "Nghe thÃƒÆ’Ã‚Â¡Ãƒâ€šÃ‚Â»Ãƒâ€šÃ‚Â­ thÃƒÆ’Ã‚Â¡Ãƒâ€šÃ‚ÂºÃƒâ€šÃ‚Â¥t bÃƒÆ’Ã‚Â¡Ãƒâ€šÃ‚ÂºÃƒâ€šÃ‚Â¡i: {error}"
+                                    "Nghe thử thất bại: {error}"
                                     )
                                 }
                                 _ => format!("Preview failed: {error}"),
