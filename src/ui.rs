@@ -8303,20 +8303,6 @@ impl CrosshairApp {
                                     egui::vec2(148.0, 22.0),
                                     egui::Layout::left_to_right(egui::Align::Center),
                                     |ui| {
-                                        ui.add_sized(
-                                            [148.0, 18.0],
-                                            egui::Label::new(
-                                                RichText::new(
-                                                    binding_labels
-                                                        .get(&preset.id)
-                                                        .cloned()
-                                                        .unwrap_or_else(|| {
-                                                            Self::format_macro_trigger_ui(language, preset)
-                                                        }),
-                                                )
-                                                .monospace(),
-                                            ),
-                                        );
                                         if !preset.trigger_keys.trim().is_empty() {
                                             live_sync |= Self::render_key_list_chips(
                                                 ui,
