@@ -10,8 +10,9 @@ use std::{
 use arboard::Clipboard;
 use crossbeam_channel::{Receiver, Sender};
 use eframe::egui::{
-    self, Button, Color32, ColorImage, DragValue, FontData, FontDefinitions, FontFamily, Frame,
-    RichText, Sense, Slider, TextEdit, TextureHandle, TextureOptions, vec2,
+    self, pos2, Button, Color32, ColorImage, DragValue, FontData, FontDefinitions, FontFamily,
+    Frame, RichText, Sense, Slider, Stroke, StrokeKind, TextEdit, TextureHandle, TextureOptions,
+    vec2,
 };
 
 use crate::{
@@ -513,7 +514,7 @@ impl CrosshairApp {
             open_from_tray_animation: None,
             startup_splash: StartupSplashState {
                 started_at: None,
-                duration_sec: 1.8,
+                duration_sec: 2.2,
             },
             hidden_window_inner_size: None,
             hidden_window_outer_pos: None,
@@ -6095,33 +6096,89 @@ impl CrosshairApp {
     }
 
     fn render_startup_splash(&self, ctx: &egui::Context, progress: f32) {
+        let time = ctx.input(|input| input.time) as f32;
         egui::CentralPanel::default()
             .frame(Frame::new().fill(Color32::TRANSPARENT).inner_margin(0.0))
             .show(ctx, |ui| {
                 let rect = ui.max_rect();
                 let painter = ui.painter_at(rect);
-                let alpha = ((1.0 - progress).clamp(0.0, 1.0) * 255.0) as u8;
-                let scale = 0.92 + progress * 0.08;
-                let title_font = egui::FontId::proportional(30.0 * scale);
+                let fade = (1.0 - progress).clamp(0.0, 1.0);
+                let alpha = (fade * 255.0) as u8;
+                let pulse = (time * 2.6).sin() * 0.5 + 0.5;
+                let scale = 0.94 + progress * 0.06 + pulse * 0.015;
+                let title_font = egui::FontId::proportional(32.0 * scale);
                 let subtitle_font = egui::FontId::proportional(15.0 * scale);
+                let panel_size = vec2(rect.width().min(420.0), 168.0);
+                let panel_rect = egui::Rect::from_center_size(rect.center(), panel_size);
+                let panel_alpha = alpha.saturating_div(3);
                 painter.rect_filled(
                     rect,
                     0.0,
                     Color32::from_rgba_premultiplied(8, 10, 14, alpha.saturating_div(2)),
                 );
+                painter.rect_filled(
+                    panel_rect,
+                    16.0,
+                    Color32::from_rgba_premultiplied(18, 22, 30, panel_alpha),
+                );
+                painter.rect_stroke(
+                    panel_rect,
+                    16.0,
+                    Stroke::new(1.0, Color32::from_rgba_premultiplied(88, 132, 198, panel_alpha)),
+                    StrokeKind::Outside,
+                );
+                let bar_w = 18.0 * scale;
+                let bar_h = 36.0 * scale;
+                let bar_gap = 10.0 * scale;
+                let bars_total_w = bar_w * 3.0 + bar_gap * 2.0;
+                let bars_left = panel_rect.center().x - bars_total_w * 0.5;
+                let bars_top = panel_rect.top() + 22.0 * scale;
+                for i in 0..3 {
+                    let n = i as f32;
+                    let bar_phase = (time * 4.0 + n * 0.7).sin() * 0.5 + 0.5;
+                    let bar_alpha = (90.0 + bar_phase * 140.0) as u8;
+                    let bar_rect = egui::Rect::from_min_size(
+                        pos2(bars_left + n * (bar_w + bar_gap), bars_top + (1.0 - bar_phase) * 10.0 * scale),
+                        vec2(bar_w, bar_h - (1.0 - bar_phase) * 10.0 * scale),
+                    );
+                    painter.rect_filled(
+                        bar_rect,
+                        8.0,
+                        Color32::from_rgba_premultiplied(94, 220, 176, bar_alpha),
+                    );
+                }
                 painter.text(
-                    rect.center() - vec2(0.0, 8.0 * scale),
+                    panel_rect.center() - vec2(0.0, 8.0 * scale),
                     egui::Align2::CENTER_CENTER,
                     self.app_brand_title(),
                     title_font,
                     Color32::from_rgba_premultiplied(240, 244, 248, alpha),
                 );
                 painter.text(
-                    rect.center() + vec2(0.0, 22.0 * scale),
+                    panel_rect.center() + vec2(0.0, 22.0 * scale),
                     egui::Align2::CENTER_CENTER,
                     self.startup_loading_text(),
                     subtitle_font,
                     Color32::from_rgba_premultiplied(208, 220, 255, alpha),
+                );
+                let track_rect = egui::Rect::from_center_size(
+                    pos2(panel_rect.center().x, panel_rect.bottom() - 28.0 * scale),
+                    vec2(panel_rect.width() - 56.0 * scale, 6.0 * scale),
+                );
+                painter.rect_filled(
+                    track_rect,
+                    999.0,
+                    Color32::from_rgba_premultiplied(44, 52, 64, panel_alpha),
+                );
+                let fill_w = track_rect.width() * progress.clamp(0.0, 1.0);
+                let fill_rect = egui::Rect::from_min_size(
+                    track_rect.min,
+                    vec2(fill_w, track_rect.height()),
+                );
+                painter.rect_filled(
+                    fill_rect,
+                    999.0,
+                    Color32::from_rgba_premultiplied(94, 220, 176, alpha),
                 );
             });
     }
