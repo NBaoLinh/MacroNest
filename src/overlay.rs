@@ -273,6 +273,7 @@ mod windows_overlay {
         image_search_presets: Vec<ImageSearchPreset>,
         image_search_timing_presets: Vec<ImageSearchTimingPreset>,
         image_search_following_presets: HashSet<u32>,
+        image_search_timing_active_presets: HashSet<u32>,
         image_search_dir: PathBuf,
         interception_dll_path: PathBuf,
         mouse_sensitivity_restore_on_exit: bool,
@@ -322,6 +323,7 @@ mod windows_overlay {
                 image_search_presets: Vec::new(),
                 image_search_timing_presets: Vec::new(),
                 image_search_following_presets: HashSet::new(),
+                image_search_timing_active_presets: HashSet::new(),
                 image_search_dir: PathBuf::new(),
                 interception_dll_path: PathBuf::new(),
                 mouse_sensitivity_restore_on_exit: false,
@@ -1282,6 +1284,13 @@ mod windows_overlay {
             .contains(&preset_id)
     }
 
+    fn image_search_timing_loop_is_active(preset_id: u32) -> bool {
+        HOOK_STATE
+            .lock()
+            .image_search_timing_active_presets
+            .contains(&preset_id)
+    }
+
     fn image_search_wait_generation(preset_id: u32) -> u64 {
         IMAGE_SEARCH_WAIT_GENERATIONS
             .lock()
@@ -1304,6 +1313,17 @@ mod windows_overlay {
             hook_state.image_search_following_presets.insert(preset_id);
         } else {
             hook_state.image_search_following_presets.remove(&preset_id);
+        }
+    }
+
+    fn set_image_search_timing_loop_active(preset_id: u32, active: bool) {
+        let mut hook_state = HOOK_STATE.lock();
+        if active {
+            hook_state
+                .image_search_timing_active_presets
+                .insert(preset_id);
+        } else {
+            hook_state.image_search_timing_active_presets.remove(&preset_id);
         }
     }
 
@@ -7280,6 +7300,170 @@ mod windows_overlay {
         Ok(())
     }
 
+    fn run_image_search_timing_loop(
+        preset: ImageSearchTimingPreset,
+        macro_preset_id: u32,
+        stop_immediately_on_retrigger: bool,
+        target_window_title: Option<String>,
+        extra_target_window_titles: Vec<String>,
+        match_duplicate_window_titles: bool,
+        ui_tx: Option<Sender<UiCommand>>,
+    ) {
+        let wait_generation = image_search_timing_wait_generation(preset.id);
+        let poll_interval_ms = (1000u64 / preset.color_scan_rate_hz.max(1) as u64).clamp(8, 100);
+        let loop_deadline = if preset.loop_forever {
+            None
+        } else {
+            Some(Instant::now() + Duration::from_secs(preset.loop_duration_secs.max(1) as u64))
+        };
+        let mut sent_wait_status = false;
+        let wait_for_loop_delay = |delay_ms: u64| -> bool {
+            if delay_ms == 0 {
+                return !image_search_timing_loop_is_active(preset.id)
+                    || image_search_timing_wait_generation(preset.id) != wait_generation;
+            }
+
+            let mut remaining_ms = delay_ms;
+            while remaining_ms > 0 {
+                if !image_search_timing_loop_is_active(preset.id) {
+                    return true;
+                }
+                if image_search_timing_wait_generation(preset.id) != wait_generation {
+                    return true;
+                }
+                if stop_immediately_on_retrigger
+                    && STOP_REQUESTED_MACRO_PRESETS
+                        .lock()
+                        .contains(&macro_preset_id)
+                {
+                    return true;
+                }
+                if !macro_runtime_target_matches(
+                    target_window_title.as_deref(),
+                    &extra_target_window_titles,
+                    match_duplicate_window_titles,
+                ) {
+                    return true;
+                }
+                let chunk_ms = remaining_ms.min(10);
+                thread::sleep(Duration::from_millis(chunk_ms));
+                remaining_ms = remaining_ms.saturating_sub(chunk_ms);
+            }
+            false
+        };
+
+        if let Some(tx) = ui_tx.as_ref() {
+            let mode_label = if preset.loop_forever {
+                "forever".to_owned()
+            } else {
+                format!("{} s", preset.loop_duration_secs.max(1))
+            };
+            let _ = tx.send(UiCommand::ImageSearchFinished(format!(
+                "{}: loop started for {}.",
+                preset.name, mode_label
+            )));
+        }
+
+        while image_search_timing_loop_is_active(preset.id) {
+            if image_search_timing_wait_generation(preset.id) != wait_generation {
+                if let Some(tx) = ui_tx.as_ref() {
+                    let _ = tx.send(UiCommand::ImageSearchFinished(format!(
+                        "{}: loop cancelled.",
+                        preset.name
+                    )));
+                }
+                break;
+            }
+            if let Some(deadline) = loop_deadline {
+                if Instant::now() >= deadline {
+                    if let Some(tx) = ui_tx.as_ref() {
+                        let _ = tx.send(UiCommand::ImageSearchFinished(format!(
+                            "{}: loop duration ended.",
+                            preset.name
+                        )));
+                    }
+                    break;
+                }
+            }
+            if !macro_runtime_target_matches(
+                target_window_title.as_deref(),
+                &extra_target_window_titles,
+                match_duplicate_window_titles,
+            ) {
+                break;
+            }
+            if stop_immediately_on_retrigger
+                && STOP_REQUESTED_MACRO_PRESETS
+                    .lock()
+                    .contains(&macro_preset_id)
+            {
+                break;
+            }
+
+            let hit = match find_image_search_timing_hit(&preset) {
+                Ok(hit) => hit,
+                Err(error) => {
+                    eprintln!("Image search timing preset failed: {error}");
+                    if let Some(tx) = ui_tx.as_ref() {
+                        let _ = tx.send(UiCommand::ImageSearchFinished(format!(
+                            "{}: timing loop failed: {error}",
+                            preset.name
+                        )));
+                    }
+                    break;
+                }
+            };
+
+            let Some(hit) = hit else {
+                if !sent_wait_status {
+                    if let Some(tx) = ui_tx.as_ref() {
+                        let _ = tx.send(UiCommand::ImageSearchFinished(format!(
+                            "{}: waiting...",
+                            preset.name
+                        )));
+                    }
+                    sent_wait_status = true;
+                }
+                thread::sleep(Duration::from_millis(poll_interval_ms));
+                continue;
+            };
+
+            let trigger_status = format!(
+                "Matched color #{:02X}{:02X}{:02X} at {}, {}; timing {}% -> {} ms.",
+                hit.matched_color.r,
+                hit.matched_color.g,
+                hit.matched_color.b,
+                hit.screen_x,
+                hit.screen_y,
+                hit.position_percent.min(100),
+                hit.delay_ms
+            );
+            if let Some(tx) = ui_tx.as_ref() {
+                let _ = tx.send(UiCommand::ImageSearchFinished(format!(
+                    "{}: {}",
+                    preset.name, trigger_status
+                )));
+            }
+            if wait_for_loop_delay(hit.delay_ms) {
+                break;
+            }
+
+            let cycle_ms = preset.timing_cycle_ms.max(1);
+            let remaining_cycle_ms = cycle_ms.saturating_sub(hit.delay_ms.min(cycle_ms));
+            if remaining_cycle_ms > 0 && wait_for_loop_delay(remaining_cycle_ms) {
+                break;
+            }
+        }
+
+        set_image_search_timing_loop_active(preset.id, false);
+        if let Some(tx) = ui_tx {
+            let _ = tx.send(UiCommand::ImageSearchFinished(format!(
+                "{}: loop stopped.",
+                preset.name
+            )));
+        }
+    }
+
     fn trigger_image_search_timing_with_options(
         preset: &ImageSearchTimingPreset,
         macro_preset_id: u32,
@@ -7288,7 +7472,38 @@ mod windows_overlay {
         extra_target_window_titles: &[String],
         match_duplicate_window_titles: bool,
     ) -> MacroRunFlow {
+        if image_search_timing_loop_is_active(preset.id) {
+            set_image_search_timing_loop_active(preset.id, false);
+            bump_image_search_timing_wait_generation(preset.id);
+            if let Some(tx) = HOOK_STATE.lock().ui_tx.clone() {
+                let _ = tx.send(UiCommand::ImageSearchFinished(format!(
+                    "{}: loop stopped.",
+                    preset.name
+                )));
+            }
+            return MacroRunFlow::Continue;
+        }
         if !preset.enabled {
+            return MacroRunFlow::Continue;
+        }
+        if preset.loop_enabled {
+            set_image_search_timing_loop_active(preset.id, true);
+            bump_image_search_timing_wait_generation(preset.id);
+            let ui_tx = HOOK_STATE.lock().ui_tx.clone();
+            let preset = preset.clone();
+            let target_window_title = target_window_title.map(|title| title.to_owned());
+            let extra_target_window_titles = extra_target_window_titles.to_vec();
+            thread::spawn(move || {
+                run_image_search_timing_loop(
+                    preset,
+                    macro_preset_id,
+                    stop_immediately_on_retrigger,
+                    target_window_title,
+                    extra_target_window_titles,
+                    match_duplicate_window_titles,
+                    ui_tx,
+                )
+            });
             return MacroRunFlow::Continue;
         }
         let ui_tx = HOOK_STATE.lock().ui_tx.clone();

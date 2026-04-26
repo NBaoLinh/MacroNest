@@ -1102,8 +1102,17 @@ impl CrosshairApp {
         } else {
             "No area"
         };
+        let loop_text = if preset.loop_enabled {
+            if preset.loop_forever {
+                "Loop forever".to_owned()
+            } else {
+                format!("Loop {} s", preset.loop_duration_secs.max(1))
+            }
+        } else {
+            "One-shot".to_owned()
+        };
         format!(
-            "{area} | {color_text} | {} ms",
+            "{area} | {color_text} | {} ms | {loop_text}",
             preset.timing_cycle_ms.max(1)
         )
     }
@@ -1112,12 +1121,7 @@ impl CrosshairApp {
         self.state
             .image_search_timing_presets
             .iter()
-            .map(|preset| {
-                (
-                    preset.id,
-                    format!("{} / {}", preset.id, preset.name.clone()),
-                )
-            })
+            .map(|preset| (preset.id, preset.name.clone()))
             .collect()
     }
 
@@ -2629,7 +2633,7 @@ impl CrosshairApp {
                 "Move the mouse to the latest image-search match, or run one search now."
             }
             MacroAction::TriggerImageSearchTiming => {
-                "Wait for one timing preset to reach the trigger point, then continue with the next step."
+                "Toggle a timing preset loop on or off. It can run for a set number of seconds or forever until you trigger it again."
             }
             MacroAction::StopImageSearchWait => {
                 "Stop waiting for one image-search preset to match."
@@ -2822,7 +2826,7 @@ impl CrosshairApp {
                 MacroAction::PlaySoundPreset => "Sound",
                 MacroAction::StartImageSearch => "Start",
                 MacroAction::TriggerImageSearchMove => "Move",
-                MacroAction::TriggerImageSearchTiming => "Time",
+                MacroAction::TriggerImageSearchTiming => "Timing",
                 MacroAction::StopImageSearchWait => "Wait",
                 MacroAction::StopImageSearch => "Stop",
                 MacroAction::LoopStart => "Loop",
@@ -2996,11 +3000,18 @@ impl CrosshairApp {
         )
     }
 
-    fn macro_trigger_mode_label(mode: MacroTriggerMode) -> &'static str {
-        match mode {
-            MacroTriggerMode::Press => "Nhấn",
-            MacroTriggerMode::Hold => "Giữ",
-            MacroTriggerMode::Release => "Thả",
+    fn macro_trigger_mode_label(mode: MacroTriggerMode, language: UiLanguage) -> &'static str {
+        match language {
+            UiLanguage::Vietnamese => match mode {
+                MacroTriggerMode::Press => "Nhấn",
+                MacroTriggerMode::Hold => "Giữ",
+                MacroTriggerMode::Release => "Thả",
+            },
+            UiLanguage::English | UiLanguage::Icon => match mode {
+                MacroTriggerMode::Press => "Press",
+                MacroTriggerMode::Hold => "Hold",
+                MacroTriggerMode::Release => "Release",
+            },
         }
     }
 
@@ -8804,7 +8815,7 @@ impl CrosshairApp {
                                     (UiLanguage::Vietnamese, MacroTriggerMode::Press) => "Nhấn",
                                     (UiLanguage::Vietnamese, MacroTriggerMode::Hold) => "Giữ",
                                     (UiLanguage::Vietnamese, MacroTriggerMode::Release) => "Thả",
-                                    (_, _) => Self::macro_trigger_mode_label(preset.trigger_mode),
+                                     (_, _) => Self::macro_trigger_mode_label(preset.trigger_mode, language),
                                 })
                                 .show_ui(ui, |ui| {
                                     for mode in [
@@ -8819,7 +8830,7 @@ impl CrosshairApp {
                                                     (UiLanguage::Vietnamese, MacroTriggerMode::Press) => "Nhấn",
                                                     (UiLanguage::Vietnamese, MacroTriggerMode::Hold) => "Giữ",
                                                     (UiLanguage::Vietnamese, MacroTriggerMode::Release) => "Thả",
-                                                    (_, _) => Self::macro_trigger_mode_label(mode),
+                                                     (_, _) => Self::macro_trigger_mode_label(mode, language),
                                                 },
                                             )
                                             .clicked()
@@ -10105,7 +10116,7 @@ impl CrosshairApp {
                                                                 "Select timing preset",
                                                             );
                                                         egui::ComboBox::from_id_salt((group.id, preset.id, step_index, "image-search-timing-preset-step"))
-                                                            .width(146.0)
+                                                            .width(180.0)
                                                             .selected_text(selected_label)
                                                             .show_ui(ui, |ui| {
                                                                 for (preset_option_id, preset_option_label) in &image_search_timing_preset_options {
@@ -12138,12 +12149,41 @@ impl CrosshairApp {
                             .changed();
                         ui.end_row();
 
+                        ui.label(Self::tr_lang(language, "Loop", "Loop"));
+                        ui.horizontal_wrapped(|ui| {
+                            timing_live_sync |= ui
+                                .checkbox(
+                                    &mut preset.loop_enabled,
+                                    Self::tr_lang(language, "Enable loop", "Bat loop"),
+                                )
+                                .changed();
+                            if preset.loop_enabled {
+                                timing_live_sync |= ui
+                                    .checkbox(
+                                        &mut preset.loop_forever,
+                                        Self::tr_lang(language, "Infinite", "Vo han"),
+                                    )
+                                    .changed();
+                                if !preset.loop_forever {
+                                    ui.label(Self::tr_lang(language, "Seconds", "Giay"));
+                                    timing_live_sync |= ui
+                                        .add(
+                                            DragValue::new(&mut preset.loop_duration_secs)
+                                                .range(1..=86400)
+                                                .suffix(" s"),
+                                        )
+                                        .changed();
+                                }
+                            }
+                        });
+                        ui.end_row();
+
                         ui.label(Self::tr_lang(language, "Match", "Khop"));
                         ui.label(
                             RichText::new(Self::tr_lang(
                                 language,
-                                "The macro step waits for the matched color position, then continues with the next action.",
-                                "Buoc macro se doi vi tri mau khop xong roi moi chay tiep action ke tiep.",
+                                "The macro step toggles this timing loop on or off. A loop can run forever or stop after the chosen duration.",
+                                "Buoc macro se bat/tat loop timing nay. Loop co the chay vo han hoac dung sau thoi gian da chon.",
                             ))
                             .small(),
                         );
