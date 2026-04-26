@@ -8,6 +8,7 @@ mod windows_overlay {
         ffi::c_void,
         mem::size_of,
         path::{Path, PathBuf},
+        ptr::null_mut,
         sync::{
             Arc,
             atomic::{AtomicBool, AtomicIsize, Ordering},
@@ -2266,6 +2267,7 @@ mod windows_overlay {
                 }
                 OverlayCommand::UpdateProfiles(profiles) => {
                     HOOK_STATE.lock().profiles = profiles;
+                    let _ = refresh_overlay(runtime);
                 }
                 OverlayCommand::UpdateWindowPresets(presets) => {
                     runtime.window_presets = presets;
@@ -2422,20 +2424,129 @@ mod windows_overlay {
     }
 
     unsafe fn refresh_overlay(runtime: &mut Runtime) -> Result<()> {
-        if !runtime.style.enabled {
+        let visible_profiles = {
+            let hook_state = HOOK_STATE.lock();
+            hook_state
+                .profiles
+                .iter()
+                .filter(|profile| profile.enabled)
+                .cloned()
+                .collect::<Vec<_>>()
+        };
+
+        if visible_profiles.is_empty() {
             let _ = ShowWindow(runtime.overlay_hwnd, SW_HIDE);
             return Ok(());
         }
 
-        let custom_path = runtime
-            .style
-            .custom_asset
-            .as_ref()
-            .map(|name| runtime.paths.asset_path(name));
+        let screen_width = GetSystemMetrics(SM_CXSCREEN).max(1) as u32;
+        let screen_height = GetSystemMetrics(SM_CYSCREEN).max(1) as u32;
+        let mut canvas = RgbaImage::from_pixel(
+            screen_width,
+            screen_height,
+            image::Rgba([0, 0, 0, 0]),
+        );
+        let screen_center_x = (screen_width / 2) as i32;
+        let screen_center_y = (screen_height / 2) as i32;
 
-        let rendered = render_crosshair(&runtime.style, custom_path.as_deref())?;
-        paint_overlay(runtime.overlay_hwnd, &runtime.style, rendered)?;
+        for profile in visible_profiles {
+            let custom_path = profile
+                .style
+                .custom_asset
+                .as_ref()
+                .map(|name| runtime.paths.asset_path(name));
+            let rendered = render_crosshair(&profile.style, custom_path.as_deref())?;
+            let layer = RgbaImage::from_raw(rendered.width, rendered.height, rendered.rgba)
+                .context("Failed to build crosshair layer")?;
+            let left = (screen_center_x + profile.style.x_offset - rendered.center_x) as i64;
+            let top = (screen_center_y + profile.style.y_offset - rendered.center_y) as i64;
+            image::imageops::overlay(&mut canvas, &layer, left, top);
+        }
+
+        paint_crosshair_canvas(runtime.overlay_hwnd, canvas)?;
         let _ = ShowWindow(runtime.overlay_hwnd, SW_SHOWNA);
+        Ok(())
+    }
+
+    unsafe fn paint_crosshair_canvas(hwnd: HWND, canvas: RgbaImage) -> Result<()> {
+        let width = canvas.width().max(1);
+        let height = canvas.height().max(1);
+
+        let _ = SetWindowPos(
+            hwnd,
+            Some(HWND_TOPMOST),
+            0,
+            0,
+            width as i32,
+            height as i32,
+            SWP_NOACTIVATE | SWP_SHOWWINDOW,
+        );
+
+        let screen_dc = GetDC(None);
+        if screen_dc.0.is_null() {
+            bail!("Failed to acquire the screen DC");
+        }
+        let mem_dc = CreateCompatibleDC(Some(screen_dc));
+        if mem_dc.0.is_null() {
+            let _ = ReleaseDC(None, screen_dc);
+            bail!("Failed to create a memory DC");
+        }
+
+        let mut bitmap_info = BITMAPINFO::default();
+        bitmap_info.bmiHeader = BITMAPINFOHEADER {
+            biSize: size_of::<BITMAPINFOHEADER>() as u32,
+            biWidth: width as i32,
+            biHeight: -(height as i32),
+            biPlanes: 1,
+            biBitCount: 32,
+            biCompression: BI_RGB.0,
+            ..Default::default()
+        };
+
+        let mut bits: *mut c_void = null_mut();
+        let bitmap = CreateDIBSection(
+            Some(screen_dc),
+            &bitmap_info,
+            DIB_RGB_COLORS,
+            &mut bits,
+            None,
+            0,
+        )
+        .context("Failed to create a DIB section")?;
+        if bits.is_null() {
+            let _ = DeleteObject(HGDIOBJ(bitmap.0));
+            let _ = DeleteDC(mem_dc);
+            let _ = ReleaseDC(None, screen_dc);
+            bail!("Failed to map the DIB section");
+        }
+
+        let _previous = SelectObject(mem_dc, HGDIOBJ(bitmap.0));
+        std::ptr::copy_nonoverlapping(canvas.as_raw().as_ptr(), bits as *mut u8, canvas.as_raw().len());
+
+        let blend = BLENDFUNCTION {
+            BlendOp: AC_SRC_OVER as u8,
+            BlendFlags: 0,
+            SourceConstantAlpha: 255,
+            AlphaFormat: AC_SRC_ALPHA as u8,
+        };
+        let _ = UpdateLayeredWindow(
+            hwnd,
+            Some(screen_dc),
+            None,
+            Some(&SIZE {
+                cx: width as i32,
+                cy: height as i32,
+            }),
+            Some(mem_dc),
+            Some(&POINT { x: 0, y: 0 }),
+            COLORREF(0),
+            Some(&blend),
+            ULW_ALPHA,
+        );
+
+        let _ = DeleteObject(HGDIOBJ(bitmap.0));
+        let _ = DeleteDC(mem_dc);
+        let _ = ReleaseDC(None, screen_dc);
         Ok(())
     }
 
@@ -3711,24 +3822,16 @@ mod windows_overlay {
         let mut style = hook_state.current_style.clone();
         style.enabled = false;
         hook_state.current_style = style.clone();
-        let active_profile = hook_state.active_crosshair_profile_name.take();
-        if let Some(active_profile) = active_profile {
-            if let Some(profile) = hook_state
-                .profiles
-                .iter_mut()
-                .find(|profile| profile.name == active_profile)
-            {
-                profile.enabled = false;
-            }
-            let profiles = hook_state.profiles.clone();
-            drop(hook_state);
-            send_ui_command(UiCommand::SyncCrosshairProfiles(
-                profiles,
-                "Disabled crosshair overlay.".to_owned(),
-            ));
-        } else {
-            drop(hook_state);
+        hook_state.active_crosshair_profile_name = None;
+        for profile in &mut hook_state.profiles {
+            profile.enabled = false;
         }
+        let profiles = hook_state.profiles.clone();
+        drop(hook_state);
+        send_ui_command(UiCommand::SyncCrosshairProfiles(
+            profiles,
+            "Disabled crosshair overlay.".to_owned(),
+        ));
         send_overlay_command(OverlayCommand::Update(style));
     }
 

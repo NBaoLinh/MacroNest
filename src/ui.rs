@@ -558,7 +558,7 @@ impl CrosshairApp {
     fn sync_crosshair(&self) {
         let _ = self
             .overlay_tx
-            .send(OverlayCommand::Update(self.state.active_style.clone()));
+            .send(OverlayCommand::UpdateProfiles(self.state.profiles.clone()));
     }
 
     fn sync_window_presets(&self) {
@@ -5730,7 +5730,12 @@ impl CrosshairApp {
     fn persist_mouse_sensitivity_presets(&mut self) {
         self.sync_mouse_sensitivity_presets();
         self.persist();
-    }    fn render_crosshair_panel(&mut self, ui: &mut egui::Ui) {
+    }
+
+    #[allow(unreachable_code)]
+    fn render_crosshair_panel(&mut self, ui: &mut egui::Ui) {
+        self.render_crosshair_presets_panel(ui);
+        return;
         ui.spacing_mut().slider_width = 260.0;
         let mut changed = false;
         Self::show_preset_card(ui, self.state.active_style.enabled, |ui| {
@@ -6097,6 +6102,185 @@ impl CrosshairApp {
         };
         let alpha = ((1.0 - eased).clamp(0.0, 1.0) * 180.0) as u8;
         painter.rect_filled(rect, 0.0, Color32::from_rgba_premultiplied(6, 8, 12, alpha));
+    }
+
+    fn render_crosshair_style_editor<H: std::hash::Hash>(
+        ui: &mut egui::Ui,
+        grid_id: H,
+        style: &mut CrosshairStyle,
+    ) -> bool {
+        let mut changed = false;
+        egui::Grid::new(grid_id)
+            .num_columns(2)
+            .spacing([14.0, 8.0])
+            .show(ui, |ui| {
+                ui.label("Horizontal length");
+                changed |= ui
+                    .add_sized(
+                        [340.0, 20.0],
+                        Slider::new(&mut style.horizontal_length, 1.0..=80.0),
+                    )
+                    .changed();
+                ui.end_row();
+
+                ui.label("Vertical length");
+                changed |= ui
+                    .add_sized(
+                        [340.0, 20.0],
+                        Slider::new(&mut style.vertical_length, 1.0..=80.0),
+                    )
+                    .changed();
+                ui.end_row();
+
+                ui.label("Thickness");
+                changed |= ui
+                    .add_sized([340.0, 20.0], Slider::new(&mut style.thickness, 1.0..=20.0))
+                    .changed();
+                ui.end_row();
+
+                ui.label("Gap");
+                changed |= ui
+                    .add_sized([340.0, 20.0], Slider::new(&mut style.gap, 0.0..=48.0))
+                    .changed();
+                ui.end_row();
+
+                ui.label("Horizontal offset");
+                changed |= ui
+                    .add_sized(
+                        [340.0, 20.0],
+                        Slider::new(&mut style.x_offset, -1000..=1000),
+                    )
+                    .changed();
+                ui.end_row();
+
+                ui.label("Vertical offset");
+                changed |= ui
+                    .add_sized(
+                        [340.0, 20.0],
+                        Slider::new(&mut style.y_offset, -1000..=1000),
+                    )
+                    .changed();
+                ui.end_row();
+
+                ui.label("Opacity");
+                changed |= ui
+                    .add_sized(
+                        [340.0, 20.0],
+                        Slider::new(&mut style.opacity, 0.05..=1.0),
+                    )
+                    .changed();
+                ui.end_row();
+
+                ui.label("Outline");
+                changed |= ui.checkbox(&mut style.outline_enabled, "Enabled").changed();
+                ui.end_row();
+
+                ui.label("Outline thickness");
+                changed |= ui
+                    .add_sized(
+                        [340.0, 20.0],
+                        Slider::new(&mut style.outline_thickness, 0.0..=8.0),
+                    )
+                    .changed();
+                ui.end_row();
+
+                ui.label("Center dot");
+                changed |= ui.checkbox(&mut style.center_dot, "Enabled").changed();
+                ui.end_row();
+
+                ui.label("Center dot size");
+                changed |= ui
+                    .add_sized(
+                        [340.0, 20.0],
+                        Slider::new(&mut style.center_dot_size, 1.0..=24.0),
+                    )
+                    .changed();
+                ui.end_row();
+            });
+        changed
+    }
+
+    fn render_crosshair_presets_panel(&mut self, ui: &mut egui::Ui) {
+        let language = self.state.ui_language;
+        ui.spacing_mut().slider_width = 260.0;
+        ui.horizontal_wrapped(|ui| {
+            ui.heading(self.panel_label(AppPanel::Crosshair));
+            if ui
+                .button(Self::tr_lang(language, "+ Add preset", "+ Them preset"))
+                .clicked()
+            {
+                self.add_profile();
+            }
+        });
+        ui.separator();
+
+        let mut changed = false;
+        let mut remove_index = None;
+        for index in 0..self.state.profiles.len() {
+            let mut remove = false;
+            let mut preset_changed = false;
+            {
+                let preset = &mut self.state.profiles[index];
+                Self::show_preset_card(ui, preset.enabled, |ui| {
+                    ui.horizontal(|ui| {
+                        preset_changed |= ui
+                            .add_sized([220.0, 24.0], TextEdit::singleline(&mut preset.name))
+                            .changed();
+                        if ui
+                            .button(if preset.enabled {
+                                Self::tr_lang(language, "Hide", "An")
+                            } else {
+                                Self::tr_lang(language, "Show", "Hien")
+                            })
+                            .clicked()
+                        {
+                            preset.enabled = !preset.enabled;
+                            preset.style.enabled = preset.enabled;
+                            preset_changed = true;
+                        }
+                        if ui
+                            .button(Self::tr_lang(language, "Delete", "Xoa"))
+                            .clicked()
+                        {
+                            remove = true;
+                        }
+                    });
+                    ui.add_space(4.0);
+                    preset_changed |= Self::render_crosshair_style_editor(
+                        ui,
+                        (index, "crosshair-style-grid"),
+                        &mut preset.style,
+                    );
+                });
+            }
+
+            if remove {
+                remove_index = Some(index);
+                break;
+            }
+            if preset_changed {
+                changed = true;
+            }
+            ui.add_space(6.0);
+        }
+
+        if let Some(index) = remove_index {
+            let remove_name = self.state.profiles[index].name.clone();
+            self.state.profiles.retain(|profile| profile.name != remove_name);
+            if self.state.profiles.is_empty() {
+                self.state.profiles.push(ProfileRecord::default());
+            }
+            let next = self.state.profiles[0].clone();
+            self.state.selected_profile = Some(next.name.clone());
+            self.state.active_style = next.style;
+            self.save_name = next.name;
+            changed = true;
+        }
+
+        if changed {
+            self.sync_profiles();
+            self.persist();
+        }
     }
 
     fn render_window_presets_panel(&mut self, ui: &mut egui::Ui) {
@@ -8106,6 +8290,20 @@ impl CrosshairApp {
                                     egui::vec2(148.0, 22.0),
                                     egui::Layout::left_to_right(egui::Align::Center),
                                     |ui| {
+                                        ui.add_sized(
+                                            [148.0, 18.0],
+                                            egui::Label::new(
+                                                RichText::new(
+                                                    binding_labels
+                                                        .get(&preset.id)
+                                                        .cloned()
+                                                        .unwrap_or_else(|| {
+                                                            Self::format_macro_trigger_ui(language, preset)
+                                                        }),
+                                                )
+                                                .monospace(),
+                                            ),
+                                        );
                                         if !preset.trigger_keys.trim().is_empty() {
                                             live_sync |= Self::render_key_list_chips(
                                                 ui,
