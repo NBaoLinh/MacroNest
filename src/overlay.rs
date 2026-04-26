@@ -41,8 +41,8 @@ mod windows_overlay {
                 Gdi::{
                     AC_SRC_ALPHA, AC_SRC_OVER, ANTIALIASED_QUALITY, BI_RGB, BITMAPINFO,
                     BITMAPINFOHEADER, BLENDFUNCTION, BeginPaint, CLIP_DEFAULT_PRECIS,
-                    CreateCompatibleDC, CreateDIBSection, CreateEllipticRgn, CreateFontW,
-                    CreateRectRgn, CreateRoundRectRgn, DEFAULT_CHARSET, DIB_RGB_COLORS, DT_CENTER,
+                    CreateCompatibleDC, CreateDIBSection, CreateFontW, CreateRectRgn,
+                    DEFAULT_CHARSET, DIB_RGB_COLORS, DT_CENTER,
                     DT_SINGLELINE, DT_VCENTER, DeleteDC, DeleteObject, DrawTextW, EndPaint,
                     FF_DONTCARE, FW_MEDIUM, GetDC, GetMonitorInfoW, HGDIOBJ,
                     MONITOR_DEFAULTTONEAREST, MONITORINFO, MonitorFromWindow, OUT_DEFAULT_PRECIS,
@@ -2788,11 +2788,6 @@ mod windows_overlay {
             };
 
             let target_bounds = base_bounds;
-            let shape_rect = pin_overlay_shape_rect(
-                preset.overlay_style,
-                target_bounds.2,
-                target_bounds.3,
-            );
 
             let source_width = (source_rect.right - source_rect.left).max(1);
             let source_height = (source_rect.bottom - source_rect.top).max(1);
@@ -2808,49 +2803,9 @@ mod windows_overlay {
                     .max(1)
                     .min(source_height.saturating_sub(crop_y).max(1));
                 Some((crop_x, crop_y, crop_w, crop_h))
-            } else if preset.overlay_style == PinOverlayStyle::Rectangle {
-                None
             } else {
-                let target_ratio = target_bounds.2.max(1) as f32 / target_bounds.3.max(1) as f32;
-                if (source_width as f32 / source_height as f32) > target_ratio {
-                    let crop_h = source_height;
-                    let crop_w = (source_height as f32 * target_ratio).round().max(1.0) as i32;
-                    let crop_x = (source_width - crop_w).max(0) / 2;
-                    Some((crop_x, 0, crop_w.min(source_width), crop_h))
-                } else {
-                    let crop_w = source_width;
-                    let crop_h = (source_width as f32 / target_ratio).round().max(1.0) as i32;
-                    let crop_y = (source_height - crop_h).max(0) / 2;
-                    Some((0, crop_y, crop_w, crop_h.min(source_height)))
-                }
+                None
             };
-
-            if preset.overlay_style != PinOverlayStyle::Rectangle {
-                let capture = window_list::capture_window_region_with_candidates(
-                    preset.target_window_title.as_deref(),
-                    &preset.extra_target_window_titles,
-                    preset.match_duplicate_window_titles,
-                )
-                .context("Pin source window was not found")?;
-                let rgba = render_pin_overlay_bitmap(
-                    &capture,
-                    target_bounds.2,
-                    target_bounds.3,
-                    preset.overlay_style,
-                    source_crop_key,
-                )?;
-                paint_pin_overlay(
-                    runtime.pin_hwnd,
-                    target_bounds.0,
-                    target_bounds.1,
-                    target_bounds.2,
-                    target_bounds.3,
-                    &rgba,
-                )?;
-                let _ = ShowWindow(runtime.pin_hwnd, SW_SHOWNA);
-                runtime.last_pin_update = Instant::now();
-                return Ok(());
-            }
 
             let needs_register = runtime.active_pin_thumbnail.as_ref().is_none_or(|active| {
                 active.preset_id != preset.id
@@ -2920,28 +2875,7 @@ mod windows_overlay {
                         let _ = DwmUpdateThumbnailProperties(thumbnail_id, &properties);
                     }
 
-                    let region = match preset.overlay_style {
-                        PinOverlayStyle::Rectangle => {
-                            CreateRectRgn(0, 0, target_bounds.2, target_bounds.3)
-                        }
-                        PinOverlayStyle::Circle => CreateEllipticRgn(
-                            shape_rect.0,
-                            shape_rect.1,
-                            shape_rect.0 + shape_rect.2,
-                            shape_rect.1 + shape_rect.3,
-                        ),
-                        PinOverlayStyle::HorizontalBar => {
-                            let radius = (shape_rect.3 / 2).max(1);
-                            CreateRoundRectRgn(
-                                shape_rect.0,
-                                shape_rect.1,
-                                shape_rect.0 + shape_rect.2,
-                                shape_rect.1 + shape_rect.3,
-                                radius,
-                                radius,
-                            )
-                        }
-                    };
+                    let region = CreateRectRgn(0, 0, target_bounds.2, target_bounds.3);
                     if region.0.is_null() {
                         return Err(anyhow::anyhow!("Failed to create pin window region"));
                     }

@@ -82,6 +82,8 @@ impl Default for CrosshairStyle {
 pub struct ProfileRecord {
     pub name: String,
     pub enabled: bool,
+    #[serde(default = "default_true")]
+    pub collapsed: bool,
     pub style: CrosshairStyle,
     pub target_window_title: Option<String>,
     pub extra_target_window_titles: Vec<String>,
@@ -92,6 +94,7 @@ impl Default for ProfileRecord {
         Self {
             name: "Default".to_owned(),
             enabled: true,
+            collapsed: true,
             style: CrosshairStyle::default(),
             target_window_title: None,
             extra_target_window_titles: Vec::new(),
@@ -1303,6 +1306,7 @@ impl Default for AppState {
             profiles: vec![ProfileRecord {
                 name: "Default".to_owned(),
                 enabled: true,
+                collapsed: true,
                 style: CrosshairStyle::default(),
                 target_window_title: None,
                 extra_target_window_titles: Vec::new(),

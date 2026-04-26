@@ -10,8 +10,8 @@ use std::{
 use arboard::Clipboard;
 use crossbeam_channel::{Receiver, Sender};
 use eframe::egui::{
-    self, Button, Color32, ColorImage, ComboBox, DragValue, FontData, FontDefinitions, FontFamily,
-    Frame, RichText, Sense, Slider, TextEdit, TextureHandle, TextureOptions, vec2,
+    self, Button, Color32, ColorImage, DragValue, FontData, FontDefinitions, FontFamily, Frame,
+    RichText, Sense, Slider, TextEdit, TextureHandle, TextureOptions, vec2,
 };
 
 use crate::{
@@ -712,6 +712,7 @@ impl CrosshairApp {
             self.state.profiles.push(ProfileRecord {
                 name: name.clone(),
                 enabled: self.state.active_style.enabled,
+                collapsed: true,
                 style: self.state.active_style.clone(),
                 target_window_title: None,
                 extra_target_window_titles: Vec::new(),
@@ -743,6 +744,7 @@ impl CrosshairApp {
         self.state.profiles.push(ProfileRecord {
             name: name.clone(),
             enabled: self.state.active_style.enabled,
+            collapsed: true,
             style: self.state.active_style.clone(),
             target_window_title: None,
             extra_target_window_titles: Vec::new(),
@@ -766,6 +768,7 @@ impl CrosshairApp {
             self.state.profiles.push(ProfileRecord {
                 name: "Default".to_owned(),
                 enabled: true,
+                collapsed: true,
                 style: CrosshairStyle::default(),
                 target_window_title: None,
                 extra_target_window_titles: Vec::new(),
@@ -1960,21 +1963,29 @@ impl CrosshairApp {
             .corner_radius(8.0)
     }
 
-    fn top_tab_button(&self, text: RichText, selected: bool) -> Button<'static> {
-        let (fill, stroke) = match (self.state.ui_theme, selected) {
-            (UiThemeMode::Dark, true) => (
+    fn top_tab_button(&self, text: RichText, selected: bool, emphasized: bool) -> Button<'static> {
+        let (fill, stroke) = match (self.state.ui_theme, selected, emphasized) {
+            (UiThemeMode::Dark, true, _) => (
                 Color32::from_rgba_premultiplied(58, 120, 96, 164),
                 Color32::from_rgb(126, 224, 182),
             ),
-            (UiThemeMode::Dark, false) => (
+            (UiThemeMode::Dark, false, true) => (
+                Color32::from_rgba_premultiplied(42, 58, 46, 118),
+                Color32::from_rgb(92, 180, 148),
+            ),
+            (UiThemeMode::Dark, false, false) => (
                 Color32::from_rgba_premultiplied(34, 42, 56, 72),
                 Color32::from_rgb(56, 68, 88),
             ),
-            (UiThemeMode::Light, true) => (
+            (UiThemeMode::Light, true, _) => (
                 Color32::from_rgba_premultiplied(90, 180, 132, 98),
                 Color32::from_rgb(34, 122, 88),
             ),
-            (UiThemeMode::Light, false) => (
+            (UiThemeMode::Light, false, true) => (
+                Color32::from_rgba_premultiplied(214, 238, 226, 208),
+                Color32::from_rgb(58, 146, 110),
+            ),
+            (UiThemeMode::Light, false, false) => (
                 Color32::from_rgba_premultiplied(230, 236, 242, 165),
                 Color32::from_rgb(202, 212, 224),
             ),
@@ -6073,17 +6084,27 @@ impl CrosshairApp {
                 let rect = ui.max_rect();
                 let painter = ui.painter_at(rect);
                 let alpha = ((1.0 - progress).clamp(0.0, 1.0) * 255.0) as u8;
+                let scale = 0.92 + progress * 0.08;
+                let title_font = egui::FontId::proportional(30.0 * scale);
+                let subtitle_font = egui::FontId::proportional(15.0 * scale);
                 painter.rect_filled(
                     rect,
                     0.0,
                     Color32::from_rgba_premultiplied(8, 10, 14, alpha.saturating_div(2)),
                 );
                 painter.text(
-                    rect.center(),
+                    rect.center() - vec2(0.0, 8.0 * scale),
                     egui::Align2::CENTER_CENTER,
-                    "Crosshair",
-                    egui::FontId::proportional(28.0),
+                    self.app_brand_title(),
+                    title_font,
                     Color32::from_rgba_premultiplied(240, 244, 248, alpha),
+                );
+                painter.text(
+                    rect.center() + vec2(0.0, 22.0 * scale),
+                    egui::Align2::CENTER_CENTER,
+                    self.startup_loading_text(),
+                    subtitle_font,
+                    Color32::from_rgba_premultiplied(208, 220, 255, alpha),
                 );
             });
     }
@@ -6106,6 +6127,7 @@ impl CrosshairApp {
 
     fn render_crosshair_style_editor<H: std::hash::Hash>(
         ui: &mut egui::Ui,
+        language: UiLanguage,
         grid_id: H,
         style: &mut CrosshairStyle,
     ) -> bool {
@@ -6114,7 +6136,7 @@ impl CrosshairApp {
             .num_columns(2)
             .spacing([14.0, 8.0])
             .show(ui, |ui| {
-                ui.label("Horizontal length");
+                ui.label(Self::tr_lang(language, "Horizontal length", "Độ dài ngang"));
                 changed |= ui
                     .add_sized(
                         [340.0, 20.0],
@@ -6123,7 +6145,7 @@ impl CrosshairApp {
                     .changed();
                 ui.end_row();
 
-                ui.label("Vertical length");
+                ui.label(Self::tr_lang(language, "Vertical length", "Độ dài dọc"));
                 changed |= ui
                     .add_sized(
                         [340.0, 20.0],
@@ -6132,19 +6154,19 @@ impl CrosshairApp {
                     .changed();
                 ui.end_row();
 
-                ui.label("Thickness");
+                ui.label(Self::tr_lang(language, "Thickness", "Độ dày"));
                 changed |= ui
                     .add_sized([340.0, 20.0], Slider::new(&mut style.thickness, 1.0..=20.0))
                     .changed();
                 ui.end_row();
 
-                ui.label("Gap");
+                ui.label(Self::tr_lang(language, "Gap", "Khoảng cách"));
                 changed |= ui
                     .add_sized([340.0, 20.0], Slider::new(&mut style.gap, 0.0..=48.0))
                     .changed();
                 ui.end_row();
 
-                ui.label("Horizontal offset");
+                ui.label(Self::tr_lang(language, "Horizontal offset", "Độ lệch ngang"));
                 changed |= ui
                     .add_sized(
                         [340.0, 20.0],
@@ -6153,7 +6175,7 @@ impl CrosshairApp {
                     .changed();
                 ui.end_row();
 
-                ui.label("Vertical offset");
+                ui.label(Self::tr_lang(language, "Vertical offset", "Độ lệch dọc"));
                 changed |= ui
                     .add_sized(
                         [340.0, 20.0],
@@ -6162,7 +6184,7 @@ impl CrosshairApp {
                     .changed();
                 ui.end_row();
 
-                ui.label("Opacity");
+                ui.label(Self::tr_lang(language, "Opacity", "Độ trong suốt"));
                 changed |= ui
                     .add_sized(
                         [340.0, 20.0],
@@ -6171,11 +6193,13 @@ impl CrosshairApp {
                     .changed();
                 ui.end_row();
 
-                ui.label("Outline");
-                changed |= ui.checkbox(&mut style.outline_enabled, "Enabled").changed();
+                ui.label(Self::tr_lang(language, "Outline", "Viền"));
+                changed |= ui
+                    .checkbox(&mut style.outline_enabled, Self::tr_lang(language, "Enabled", "Bật"))
+                    .changed();
                 ui.end_row();
 
-                ui.label("Outline thickness");
+                ui.label(Self::tr_lang(language, "Outline thickness", "Độ dày viền"));
                 changed |= ui
                     .add_sized(
                         [340.0, 20.0],
@@ -6184,11 +6208,13 @@ impl CrosshairApp {
                     .changed();
                 ui.end_row();
 
-                ui.label("Center dot");
-                changed |= ui.checkbox(&mut style.center_dot, "Enabled").changed();
+                ui.label(Self::tr_lang(language, "Center dot", "Chấm giữa"));
+                changed |= ui
+                    .checkbox(&mut style.center_dot, Self::tr_lang(language, "Enabled", "Bật"))
+                    .changed();
                 ui.end_row();
 
-                ui.label("Center dot size");
+                ui.label(Self::tr_lang(language, "Center dot size", "Kích thước chấm giữa"));
                 changed |= ui
                     .add_sized(
                         [340.0, 20.0],
@@ -6206,7 +6232,7 @@ impl CrosshairApp {
         ui.horizontal_wrapped(|ui| {
             ui.heading(self.panel_label(AppPanel::Crosshair));
             if ui
-                .button(Self::tr_lang(language, "+ Add preset", "+ Them preset"))
+                .button(Self::tr_lang(language, "+ Add preset", "+ Thêm preset"))
                 .clicked()
             {
                 self.add_profile();
@@ -6227,10 +6253,21 @@ impl CrosshairApp {
                             .add_sized([220.0, 24.0], TextEdit::singleline(&mut preset.name))
                             .changed();
                         if ui
-                            .button(if preset.enabled {
-                                Self::tr_lang(language, "Hide", "An")
+                            .button(if preset.collapsed {
+                                Self::tr_lang(language, "Show", "Hiện")
                             } else {
-                                Self::tr_lang(language, "Show", "Hien")
+                                Self::tr_lang(language, "Hide", "Ẩn")
+                            })
+                            .clicked()
+                        {
+                            preset.collapsed = !preset.collapsed;
+                            preset_changed = true;
+                        }
+                        if ui
+                            .button(if preset.enabled {
+                                Self::tr_lang(language, "Unapply", "Bỏ áp dụng")
+                            } else {
+                                Self::tr_lang(language, "Apply", "Áp dụng")
                             })
                             .clicked()
                         {
@@ -6245,12 +6282,20 @@ impl CrosshairApp {
                             remove = true;
                         }
                     });
-                    ui.add_space(4.0);
-                    preset_changed |= Self::render_crosshair_style_editor(
-                        ui,
-                        (index, "crosshair-style-grid"),
-                        &mut preset.style,
-                    );
+                    if !preset.collapsed {
+                        ui.add_space(4.0);
+                        ui.label(Self::tr_lang(
+                            language,
+                            "Crosshair Settings",
+                            "Cài đặt tâm ngắm",
+                        ));
+                        preset_changed |= Self::render_crosshair_style_editor(
+                            ui,
+                            language,
+                            (index, "crosshair-style-grid"),
+                            &mut preset.style,
+                        );
+                    }
                 });
             }
 
@@ -7014,44 +7059,12 @@ impl CrosshairApp {
                             .changed();
                         ui.end_row();
 
-                        ui.label(Self::tr_lang(language, "Overlay Shape", "Kiá»ƒu overlay"));
-                        let mut overlay_style_changed = false;
-                        ComboBox::from_id_salt((preset.id, "pin-overlay-style"))
-                            .selected_text(match preset.overlay_style {
-                                PinOverlayStyle::Rectangle => {
-                                    Self::tr_lang(language, "Rectangle", "Rectangle")
-                                }
-                                PinOverlayStyle::Circle => {
-                                    Self::tr_lang(language, "Circle", "Circle")
-                                }
-                                PinOverlayStyle::HorizontalBar => {
-                                    Self::tr_lang(language, "Horizontal Bar", "Horizontal Bar")
-                                }
-                            })
-                            .show_ui(ui, |ui| {
-                                overlay_style_changed |= ui
-                                    .selectable_value(
-                                        &mut preset.overlay_style,
-                                        PinOverlayStyle::Rectangle,
-                                        Self::tr_lang(language, "Rectangle", "Rectangle"),
-                                    )
-                                    .changed();
-                                overlay_style_changed |= ui
-                                    .selectable_value(
-                                        &mut preset.overlay_style,
-                                        PinOverlayStyle::Circle,
-                                        Self::tr_lang(language, "Circle", "Circle"),
-                                    )
-                                    .changed();
-                                overlay_style_changed |= ui
-                                    .selectable_value(
-                                        &mut preset.overlay_style,
-                                        PinOverlayStyle::HorizontalBar,
-                                        Self::tr_lang(language, "Horizontal Bar", "Horizontal Bar"),
-                                    )
-                                    .changed();
-                            });
-                        live_sync |= overlay_style_changed;
+                        ui.label(Self::tr_lang(language, "Overlay Shape", "Kiểu overlay"));
+                        if preset.overlay_style != PinOverlayStyle::Rectangle {
+                            preset.overlay_style = PinOverlayStyle::Rectangle;
+                            live_sync = true;
+                        }
+                        ui.label(Self::tr_lang(language, "Rectangle", "Hình chữ nhật"));
                         ui.end_row();
 
                         ui.label(Self::tr_lang(language, "Preview", "Xem trÃƒÆ’Ã¢â‚¬Â Ãƒâ€šÃ‚Â°ÃƒÆ’Ã‚Â¡Ãƒâ€šÃ‚Â»ÃƒÂ¢Ã¢â€šÂ¬Ã‚Âºc"));
@@ -13508,23 +13521,24 @@ impl eframe::App for CrosshairApp {
                 ui.add_space(4.0);
                 ui.horizontal_wrapped(|ui| {
                     let panels = [
+                        AppPanel::Macros,
                         AppPanel::Crosshair,
                         AppPanel::WindowPresets,
                         AppPanel::Pin,
                         AppPanel::Mouse,
                         AppPanel::ImageSearch,
-                        AppPanel::Macros,
                         AppPanel::Sound,
                     ];
                     for panel in panels {
                         let selected = self.state.active_panel == panel;
+                        let emphasized = panel == AppPanel::Macros;
                         let text = if self.state.ui_language == UiLanguage::Icon {
                             Self::material_icon_text(Self::panel_icon(panel), 18.0)
                         } else {
                             RichText::new(self.panel_label(panel))
                         };
                         let response = Self::hover_if(
-                            ui.add(self.top_tab_button(text, selected)),
+                            ui.add(self.top_tab_button(text, selected, emphasized)),
                             show_icon_tooltips,
                             self.panel_label(panel),
                         );
@@ -13543,6 +13557,7 @@ impl eframe::App for CrosshairApp {
                                 ui.add(self.top_tab_button(
                                     text,
                                     self.state.active_panel == AppPanel::Media,
+                                    false,
                                 )),
                                 show_icon_tooltips,
                                 self.panel_label(AppPanel::Media),
@@ -13561,6 +13576,7 @@ impl eframe::App for CrosshairApp {
                             ui.add(self.top_tab_button(
                                 text,
                                 self.state.active_panel == AppPanel::Settings,
+                                false,
                             )),
                             show_icon_tooltips,
                             self.panel_label(AppPanel::Settings),
