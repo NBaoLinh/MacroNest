@@ -42,12 +42,11 @@ mod windows_overlay {
                     AC_SRC_ALPHA, AC_SRC_OVER, ANTIALIASED_QUALITY, BI_RGB, BITMAPINFO,
                     BITMAPINFOHEADER, BLENDFUNCTION, BeginPaint, CLIP_DEFAULT_PRECIS,
                     CreateCompatibleDC, CreateDIBSection, CreateFontW, CreateRectRgn,
-                    DEFAULT_CHARSET, DIB_RGB_COLORS, DT_CENTER,
-                    DT_SINGLELINE, DT_VCENTER, DeleteDC, DeleteObject, DrawTextW, EndPaint,
-                    FF_DONTCARE, FW_MEDIUM, GetDC, GetMonitorInfoW, HGDIOBJ,
-                    MONITOR_DEFAULTTONEAREST, MONITORINFO, MonitorFromWindow, OUT_DEFAULT_PRECIS,
-                    PAINTSTRUCT, ReleaseDC, SelectObject, SetBkMode, SetTextColor, SetWindowRgn,
-                    TRANSPARENT,
+                    DEFAULT_CHARSET, DIB_RGB_COLORS, DT_CENTER, DT_SINGLELINE, DT_VCENTER,
+                    DeleteDC, DeleteObject, DrawTextW, EndPaint, FF_DONTCARE, FW_MEDIUM, GetDC,
+                    GetMonitorInfoW, HGDIOBJ, MONITOR_DEFAULTTONEAREST, MONITORINFO,
+                    MonitorFromWindow, OUT_DEFAULT_PRECIS, PAINTSTRUCT, ReleaseDC, SelectObject,
+                    SetBkMode, SetTextColor, SetWindowRgn, TRANSPARENT,
                 },
             },
             System::{
@@ -102,12 +101,12 @@ mod windows_overlay {
     use crate::{
         audio, hotkey,
         model::{
-            AudioSettings, CrosshairStyle, HotkeyBinding, ImageSearchPreset, MacroAction,
-            MacroGroup, MacroPreset, MacroStep, MacroTriggerMode, MousePathEvent,
-            MousePathEventKind, MousePathPreset, MouseSensitivityPreset, PinOverlayStyle,
-            PinPreset, ProfileRecord, RgbaColor, SoundLibraryItem, SoundPreset, ToolboxPreset,
-            WindowAnchor, WindowExpandControls, WindowExpandDirection, WindowFocusPreset,
-            WindowPreset,
+            AudioSettings, CrosshairStyle, HotkeyBinding, ImageSearchPreset,
+            ImageSearchTimingPreset, MacroAction, MacroGroup, MacroPreset, MacroStep,
+            MacroTriggerMode, MousePathEvent, MousePathEventKind, MousePathPreset,
+            MouseSensitivityPreset, PinOverlayStyle, PinPreset, ProfileRecord, RgbaColor,
+            SoundLibraryItem, SoundPreset, ToolboxPreset, WindowAnchor, WindowExpandControls,
+            WindowExpandDirection, WindowFocusPreset, WindowPreset,
         },
         platform,
         render::{RenderedCrosshair, render_crosshair},
@@ -129,6 +128,15 @@ mod windows_overlay {
     struct ImageSearchRunOutcome {
         matched: bool,
         status: String,
+    }
+
+    #[derive(Debug, Clone)]
+    struct ImageSearchTimingHit {
+        screen_x: i32,
+        screen_y: i32,
+        matched_color: RgbaColor,
+        position_percent: u32,
+        delay_ms: u64,
     }
     const INTERCEPTION_MOUSE_DEVICE_START: i32 = 11;
     const INTERCEPTION_MOUSE_DEVICE_END: i32 = 20;
@@ -154,6 +162,8 @@ mod windows_overlay {
     static STOP_REQUESTED_MACRO_PRESETS: Lazy<Mutex<HashSet<u32>>> =
         Lazy::new(|| Mutex::new(HashSet::new()));
     static IMAGE_SEARCH_WAIT_GENERATIONS: Lazy<Mutex<HashMap<u32, u64>>> =
+        Lazy::new(|| Mutex::new(HashMap::new()));
+    static IMAGE_SEARCH_TIMING_WAIT_GENERATIONS: Lazy<Mutex<HashMap<u32, u64>>> =
         Lazy::new(|| Mutex::new(HashMap::new()));
     static TOOLBOX_DISPLAY: Lazy<Mutex<Option<ToolboxDisplayState>>> =
         Lazy::new(|| Mutex::new(None));
@@ -191,7 +201,9 @@ mod windows_overlay {
             step_px: u32,
         },
         UpdateImageSearchPresets(Vec<ImageSearchPreset>),
+        UpdateImageSearchTimingPresets(Vec<ImageSearchTimingPreset>),
         InvalidateImageSearchWaits(Vec<u32>),
+        InvalidateImageSearchTimingWaits(Vec<u32>),
         ApplyMouseSensitivityPreset(u32),
         RestoreMouseSensitivity,
         UpdateToolboxPresets(Vec<ToolboxPreset>),
@@ -259,6 +271,7 @@ mod windows_overlay {
         keyboard_arrow_mouse_enabled: bool,
         keyboard_arrow_mouse_step_px: u32,
         image_search_presets: Vec<ImageSearchPreset>,
+        image_search_timing_presets: Vec<ImageSearchTimingPreset>,
         image_search_following_presets: HashSet<u32>,
         image_search_dir: PathBuf,
         interception_dll_path: PathBuf,
@@ -307,6 +320,7 @@ mod windows_overlay {
                 keyboard_arrow_mouse_enabled: false,
                 keyboard_arrow_mouse_step_px: 12,
                 image_search_presets: Vec::new(),
+                image_search_timing_presets: Vec::new(),
                 image_search_following_presets: HashSet::new(),
                 image_search_dir: PathBuf::new(),
                 interception_dll_path: PathBuf::new(),
@@ -1276,6 +1290,14 @@ mod windows_overlay {
             .unwrap_or(0)
     }
 
+    fn image_search_timing_wait_generation(preset_id: u32) -> u64 {
+        IMAGE_SEARCH_TIMING_WAIT_GENERATIONS
+            .lock()
+            .get(&preset_id)
+            .copied()
+            .unwrap_or(0)
+    }
+
     fn set_image_search_following_active(preset_id: u32, active: bool) {
         let mut hook_state = HOOK_STATE.lock();
         if active {
@@ -1287,6 +1309,12 @@ mod windows_overlay {
 
     fn bump_image_search_wait_generation(preset_id: u32) {
         let mut guard = IMAGE_SEARCH_WAIT_GENERATIONS.lock();
+        let generation = guard.entry(preset_id).or_insert(0);
+        *generation = generation.saturating_add(1);
+    }
+
+    fn bump_image_search_timing_wait_generation(preset_id: u32) {
+        let mut guard = IMAGE_SEARCH_TIMING_WAIT_GENERATIONS.lock();
         let generation = guard.entry(preset_id).or_insert(0);
         *generation = generation.saturating_add(1);
     }
@@ -2341,8 +2369,19 @@ mod windows_overlay {
                     }
                     let _ = refresh_search_area_overlay(runtime);
                 }
+                OverlayCommand::UpdateImageSearchTimingPresets(presets) => {
+                    HOOK_STATE.lock().image_search_timing_presets = presets;
+                    let _ = refresh_search_area_overlay(runtime);
+                }
                 OverlayCommand::InvalidateImageSearchWaits(preset_ids) => {
                     let mut guard = IMAGE_SEARCH_WAIT_GENERATIONS.lock();
+                    for preset_id in preset_ids {
+                        let generation = guard.entry(preset_id).or_insert(0);
+                        *generation = generation.saturating_add(1);
+                    }
+                }
+                OverlayCommand::InvalidateImageSearchTimingWaits(preset_ids) => {
+                    let mut guard = IMAGE_SEARCH_TIMING_WAIT_GENERATIONS.lock();
                     for preset_id in preset_ids {
                         let generation = guard.entry(preset_id).or_insert(0);
                         *generation = generation.saturating_add(1);
@@ -2441,11 +2480,8 @@ mod windows_overlay {
 
         let screen_width = GetSystemMetrics(SM_CXSCREEN).max(1) as u32;
         let screen_height = GetSystemMetrics(SM_CYSCREEN).max(1) as u32;
-        let mut canvas = RgbaImage::from_pixel(
-            screen_width,
-            screen_height,
-            image::Rgba([0, 0, 0, 0]),
-        );
+        let mut canvas =
+            RgbaImage::from_pixel(screen_width, screen_height, image::Rgba([0, 0, 0, 0]));
         let screen_center_x = (screen_width / 2) as i32;
         let screen_center_y = (screen_height / 2) as i32;
 
@@ -2521,7 +2557,11 @@ mod windows_overlay {
         }
 
         let _previous = SelectObject(mem_dc, HGDIOBJ(bitmap.0));
-        std::ptr::copy_nonoverlapping(canvas.as_raw().as_ptr(), bits as *mut u8, canvas.as_raw().len());
+        std::ptr::copy_nonoverlapping(
+            canvas.as_raw().as_ptr(),
+            bits as *mut u8,
+            canvas.as_raw().len(),
+        );
 
         let blend = BLENDFUNCTION {
             BlendOp: AC_SRC_OVER as u8,
@@ -2622,12 +2662,21 @@ mod windows_overlay {
     fn refresh_search_area_overlay(runtime: &mut Runtime) -> Result<()> {
         let regions = {
             let hook_state = HOOK_STATE.lock();
-            hook_state
+            let mut regions = hook_state
                 .image_search_presets
                 .iter()
                 .filter(|preset| preset.enabled && preset.show_search_region_overlay)
                 .filter_map(|preset| configured_image_search_region(preset))
-                .collect::<Vec<_>>()
+                .collect::<Vec<_>>();
+            regions.extend(
+                hook_state
+                    .image_search_timing_presets
+                    .iter()
+                    .filter(|preset| preset.enabled && preset.show_search_region_overlay)
+                    .filter_map(|preset| configured_image_search_timing_region(preset))
+                    .collect::<Vec<_>>(),
+            );
+            regions
         };
 
         if regions.is_empty() {
@@ -4290,6 +4339,7 @@ mod windows_overlay {
                     );
                 }
             }
+            MacroAction::TriggerImageSearchTiming => {}
             MacroAction::StopImageSearchWait => {
                 let _ = stop_image_search_waiting(&step.key);
             }
@@ -4496,6 +4546,22 @@ mod windows_overlay {
                             extra_target_window_titles,
                             match_duplicate_window_titles,
                         ) {
+                            return MacroRunFlow::StopExecution;
+                        }
+                    }
+                }
+                MacroAction::TriggerImageSearchTiming => {
+                    if let Some(preset) = image_search_timing_preset_by_id(&step.key).ok() {
+                        if let MacroRunFlow::StopExecution =
+                            trigger_image_search_timing_with_options(
+                                &preset,
+                                preset_id,
+                                stop_immediately_on_retrigger,
+                                target_window_title,
+                                extra_target_window_titles,
+                                match_duplicate_window_titles,
+                            )
+                        {
                             return MacroRunFlow::StopExecution;
                         }
                     }
@@ -4743,6 +4809,22 @@ mod windows_overlay {
                             extra_target_window_titles,
                             match_duplicate_window_titles,
                         ) {
+                            return MacroRunFlow::StopExecution;
+                        }
+                    }
+                }
+                MacroAction::TriggerImageSearchTiming => {
+                    if let Some(preset) = image_search_timing_preset_by_id(&step.key).ok() {
+                        if let MacroRunFlow::StopExecution =
+                            trigger_image_search_timing_with_options(
+                                &preset,
+                                preset_id,
+                                stop_immediately_on_retrigger,
+                                target_window_title,
+                                extra_target_window_titles,
+                                match_duplicate_window_titles,
+                            )
+                        {
                             return MacroRunFlow::StopExecution;
                         }
                     }
@@ -5328,6 +5410,7 @@ mod windows_overlay {
                 | MacroAction::PlaySoundPreset
                 | MacroAction::StartImageSearch
                 | MacroAction::TriggerImageSearchMove
+                | MacroAction::TriggerImageSearchTiming
                 | MacroAction::StopImageSearchWait
                 | MacroAction::StopImageSearch => {}
                 MacroAction::LoopStart
@@ -5451,6 +5534,7 @@ mod windows_overlay {
             | MacroAction::PlaySoundPreset
             | MacroAction::StartImageSearch
             | MacroAction::TriggerImageSearchMove
+            | MacroAction::TriggerImageSearchTiming
             | MacroAction::StopImageSearchWait
             | MacroAction::StopImageSearch => return Ok(()),
             MacroAction::LoopStart
@@ -6721,6 +6805,153 @@ mod windows_overlay {
             .join(format!("preset-{preset_id}.png"))
     }
 
+    fn image_search_timing_preset_by_id(spec: &str) -> Result<ImageSearchTimingPreset> {
+        let preset_id = spec
+            .trim()
+            .parse::<u32>()
+            .context("Image search timing preset id is invalid")?;
+        HOOK_STATE
+            .lock()
+            .image_search_timing_presets
+            .iter()
+            .find(|preset| preset.id == preset_id)
+            .cloned()
+            .context("Image search timing preset was not found")
+    }
+
+    fn configured_image_search_timing_region(
+        preset: &ImageSearchTimingPreset,
+    ) -> Option<ImageSearchRegion> {
+        let (Some(region_x), Some(region_y), Some(region_width), Some(region_height)) = (
+            preset.search_region_screen_x,
+            preset.search_region_screen_y,
+            preset.search_region_width,
+            preset.search_region_height,
+        ) else {
+            return None;
+        };
+        if region_width <= 0 || region_height <= 0 {
+            return None;
+        }
+
+        let (virtual_left, virtual_top, virtual_width, virtual_height) =
+            window_list::virtual_screen_bounds();
+        let virtual_right = virtual_left + virtual_width;
+        let virtual_bottom = virtual_top + virtual_height;
+        let left = region_x.max(virtual_left);
+        let top = region_y.max(virtual_top);
+        let right = (region_x + region_width).min(virtual_right);
+        let bottom = (region_y + region_height).min(virtual_bottom);
+        let width = right - left;
+        let height = bottom - top;
+        if width <= 0 || height <= 0 {
+            return None;
+        }
+        Some(ImageSearchRegion {
+            left,
+            top,
+            width,
+            height,
+            is_circle: preset.search_region_is_circle,
+        })
+    }
+
+    fn image_search_timing_target_colors(preset: &ImageSearchTimingPreset) -> Vec<RgbaColor> {
+        if !preset.target_colors.is_empty() {
+            return preset.target_colors.clone();
+        }
+        preset.target_color.into_iter().collect()
+    }
+
+    fn image_search_timing_position_percent(
+        screen: &window_list::ScreenCaptureFrame,
+        hit: &ColorMatchHit,
+        region: Option<&ImageSearchRegion>,
+    ) -> u32 {
+        let Some(region) = region else {
+            return 0;
+        };
+        let hit_screen_x = screen.screen_x + hit.x;
+        let relative_x = (hit_screen_x - region.left).clamp(0, region.width.saturating_sub(1));
+        if region.width <= 1 {
+            return 0;
+        }
+        ((relative_x as u64 * 100) / region.width as u64).min(100) as u32
+    }
+
+    fn image_search_timing_delay_ms(
+        preset: &ImageSearchTimingPreset,
+        position_percent: u32,
+    ) -> u64 {
+        let cycle_ms = preset.timing_cycle_ms.max(1);
+        cycle_ms.saturating_mul(position_percent.min(100) as u64) / 100
+    }
+
+    fn find_image_search_timing_hit(
+        preset: &ImageSearchTimingPreset,
+    ) -> Result<Option<ImageSearchTimingHit>> {
+        let target_colors = image_search_timing_target_colors(preset);
+        if target_colors.is_empty() {
+            bail!("No target colors have been picked yet.");
+        }
+        let configured_region = configured_image_search_timing_region(preset);
+        let screen = if let Some(region) = configured_region {
+            window_list::capture_virtual_screen_region(
+                region.left,
+                region.top,
+                region.width,
+                region.height,
+            )
+            .context("Failed to capture the selected search area")?
+        } else if preset.target_window_title.is_some()
+            || !preset.extra_target_window_titles.is_empty()
+        {
+            window_list::capture_window_region_with_candidates(
+                preset.target_window_title.as_deref(),
+                &preset.extra_target_window_titles,
+                preset.match_duplicate_window_titles,
+            )
+            .context("Failed to capture the target window")?
+        } else {
+            let (left, top, width, height) = window_list::virtual_screen_bounds();
+            window_list::capture_virtual_screen_region(left, top, width, height)
+                .context("Failed to capture the screen")?
+        };
+
+        let hit = if preset.dual_color_scan_midpoint {
+            find_dual_color_midpoint_match(
+                &screen,
+                &target_colors,
+                preset.color_tolerance,
+                configured_region.as_ref(),
+            )
+        } else {
+            find_color_match(
+                &screen,
+                &target_colors,
+                preset.color_tolerance,
+                configured_region.as_ref(),
+            )
+        };
+
+        let Some(hit) = hit else {
+            return Ok(None);
+        };
+
+        let screen_x = screen.screen_x + hit.x;
+        let screen_y = screen.screen_y + hit.y;
+        let position_percent =
+            image_search_timing_position_percent(&screen, &hit, configured_region.as_ref());
+        let delay_ms = image_search_timing_delay_ms(preset, position_percent);
+        Ok(Some(ImageSearchTimingHit {
+            screen_x,
+            screen_y,
+            matched_color: hit.matched_color,
+            position_percent,
+            delay_ms,
+        }))
+    }
+
     fn run_image_search_once_with_options(
         preset: &ImageSearchPreset,
         move_cursor: bool,
@@ -7047,6 +7278,99 @@ mod windows_overlay {
             )));
         }
         Ok(())
+    }
+
+    fn trigger_image_search_timing_with_options(
+        preset: &ImageSearchTimingPreset,
+        macro_preset_id: u32,
+        stop_immediately_on_retrigger: bool,
+        target_window_title: Option<&str>,
+        extra_target_window_titles: &[String],
+        match_duplicate_window_titles: bool,
+    ) -> MacroRunFlow {
+        if !preset.enabled {
+            return MacroRunFlow::Continue;
+        }
+        let ui_tx = HOOK_STATE.lock().ui_tx.clone();
+        let wait_generation = image_search_timing_wait_generation(preset.id);
+        let mut sent_wait_status = false;
+        let poll_interval_ms = (1000u64 / preset.color_scan_rate_hz.max(1) as u64).clamp(8, 100);
+
+        loop {
+            if !macro_runtime_target_matches(
+                target_window_title,
+                extra_target_window_titles,
+                match_duplicate_window_titles,
+            ) {
+                return MacroRunFlow::StopExecution;
+            }
+            if stop_immediately_on_retrigger
+                && STOP_REQUESTED_MACRO_PRESETS
+                    .lock()
+                    .contains(&macro_preset_id)
+            {
+                return MacroRunFlow::StopExecution;
+            }
+            if image_search_timing_wait_generation(preset.id) != wait_generation {
+                if let Some(tx) = ui_tx.as_ref() {
+                    let _ = tx.send(UiCommand::ImageSearchFinished(format!(
+                        "{}: waiting cancelled.",
+                        preset.name
+                    )));
+                }
+                return MacroRunFlow::Continue;
+            }
+
+            let hit = match find_image_search_timing_hit(preset) {
+                Ok(hit) => hit,
+                Err(error) => {
+                    eprintln!("Image search timing preset failed: {error}");
+                    return MacroRunFlow::Continue;
+                }
+            };
+
+            let Some(hit) = hit else {
+                if !sent_wait_status {
+                    if let Some(tx) = ui_tx.as_ref() {
+                        let _ = tx.send(UiCommand::ImageSearchFinished(format!(
+                            "{}: waiting...",
+                            preset.name
+                        )));
+                    }
+                    sent_wait_status = true;
+                }
+                thread::sleep(Duration::from_millis(poll_interval_ms));
+                continue;
+            };
+
+            let trigger_status = format!(
+                "Matched color #{:02X}{:02X}{:02X} at {}, {}; timing {}% -> {} ms.",
+                hit.matched_color.r,
+                hit.matched_color.g,
+                hit.matched_color.b,
+                hit.screen_x,
+                hit.screen_y,
+                hit.position_percent.min(100),
+                hit.delay_ms
+            );
+            if let Some(tx) = ui_tx.as_ref() {
+                let _ = tx.send(UiCommand::ImageSearchFinished(format!(
+                    "{}: {}",
+                    preset.name, trigger_status
+                )));
+            }
+            if sleep_for_macro_delay(
+                macro_preset_id,
+                hit.delay_ms,
+                stop_immediately_on_retrigger,
+                target_window_title,
+                extra_target_window_titles,
+                match_duplicate_window_titles,
+            ) {
+                return MacroRunFlow::StopExecution;
+            }
+            return MacroRunFlow::Continue;
+        }
     }
 
     fn trigger_image_search_move_with_options(

@@ -10,8 +10,8 @@ use std::{
 use arboard::Clipboard;
 use crossbeam_channel::{Receiver, Sender};
 use eframe::egui::{
-    self, pos2, Button, Color32, ColorImage, DragValue, FontData, FontDefinitions, FontFamily,
-    Frame, RichText, Sense, Slider, Stroke, StrokeKind, TextEdit, TextureHandle, TextureOptions,
+    self, Button, Color32, ColorImage, DragValue, FontData, FontDefinitions, FontFamily, Frame,
+    RichText, Sense, Slider, Stroke, StrokeKind, TextEdit, TextureHandle, TextureOptions, pos2,
     vec2,
 };
 
@@ -19,9 +19,9 @@ use crate::{
     audio, hotkey,
     model::{
         AppPanel, AppState, AudioClipSettings, CaptureRequest, CapturedInput, CrosshairStyle,
-        HotkeyBinding, ImageSearchPreset, MacroAction, MacroFolder, MacroGroup, MacroPreset,
-        MacroSelectorPreset, MacroStep, MacroTriggerMode, MasterMacroGroupState,
-        MasterMacroPresetState, MasterPreset, MasterWindowFocusPresetState,
+        HotkeyBinding, ImageSearchPreset, ImageSearchTimingPreset, MacroAction, MacroFolder,
+        MacroGroup, MacroPreset, MacroSelectorPreset, MacroStep, MacroTriggerMode,
+        MasterMacroGroupState, MasterMacroPresetState, MasterPreset, MasterWindowFocusPresetState,
         MasterWindowPresetState, MasterZoomPresetState, MousePathEvent, MousePathEventKind,
         MousePathPreset, MouseSensitivityPreset, PinOverlayStyle, PinPreset, ProfileRecord,
         RgbaColor, SoundLibraryItem, SoundPreset, ToolboxPreset, UiLanguage, UiThemeMode,
@@ -64,6 +64,12 @@ enum ImageSearchCaptureMode {
     SearchRegion,
     ColorSample,
     ColorPriorityAnchor,
+}
+
+#[derive(Clone, Copy, PartialEq, Eq)]
+enum ImageSearchCaptureTarget {
+    Preset(u32),
+    TimingPreset(u32),
 }
 
 #[derive(Clone)]
@@ -396,7 +402,7 @@ pub struct CrosshairApp {
     capture_suppress_next_poll: bool,
     capture_wait_for_mouse_release: bool,
     image_search_capture_active: bool,
-    image_search_capture_target_preset_id: Option<u32>,
+    image_search_capture_target: Option<ImageSearchCaptureTarget>,
     image_search_capture_mode: Option<ImageSearchCaptureMode>,
     image_search_capture_anchor: Option<egui::Pos2>,
     image_search_capture_current: Option<egui::Pos2>,
@@ -489,7 +495,7 @@ impl CrosshairApp {
             capture_suppress_next_poll: false,
             capture_wait_for_mouse_release: false,
             image_search_capture_active: false,
-            image_search_capture_target_preset_id: None,
+            image_search_capture_target: None,
             image_search_capture_mode: None,
             image_search_capture_anchor: None,
             image_search_capture_current: None,
@@ -550,6 +556,7 @@ impl CrosshairApp {
         app.sync_macro_presets();
         app.sync_audio_settings();
         app.sync_image_search_presets();
+        app.sync_image_search_timing_presets();
         app.sync_toolbox_presets();
         app.sync_macro_master_enabled();
         app.play_startup_sound_once();
@@ -627,6 +634,23 @@ impl CrosshairApp {
             .overlay_tx
             .send(OverlayCommand::UpdateImageSearchPresets(
                 self.state.image_search_presets.clone(),
+            ));
+    }
+
+    fn sync_image_search_timing_presets(&self) {
+        let preset_ids = self
+            .state
+            .image_search_timing_presets
+            .iter()
+            .map(|preset| preset.id)
+            .collect::<Vec<_>>();
+        let _ = self
+            .overlay_tx
+            .send(OverlayCommand::InvalidateImageSearchTimingWaits(preset_ids));
+        let _ = self
+            .overlay_tx
+            .send(OverlayCommand::UpdateImageSearchTimingPresets(
+                self.state.image_search_timing_presets.clone(),
             ));
     }
 
@@ -1010,6 +1034,106 @@ impl CrosshairApp {
                 rest.len()
             ),
         }
+    }
+
+    fn image_search_timing_color_text(preset: &ImageSearchTimingPreset) -> String {
+        let colors = if !preset.target_colors.is_empty() {
+            preset.target_colors.clone()
+        } else {
+            preset.target_color.into_iter().collect()
+        };
+        match colors.as_slice() {
+            [] => "None".to_owned(),
+            [color] => format!("#{:02X}{:02X}{:02X}", color.r, color.g, color.b),
+            [first, rest @ ..] => format!(
+                "#{:02X}{:02X}{:02X} +{}",
+                first.r,
+                first.g,
+                first.b,
+                rest.len()
+            ),
+        }
+    }
+
+    fn image_search_timing_area_text(preset: &ImageSearchTimingPreset) -> String {
+        match (
+            preset.search_region_screen_x,
+            preset.search_region_screen_y,
+            preset.search_region_width,
+            preset.search_region_height,
+        ) {
+            (Some(x), Some(y), Some(width), Some(height)) if width > 0 && height > 0 => {
+                let shape = if preset.search_region_is_circle {
+                    "Circle"
+                } else {
+                    "Rect"
+                };
+                format!("{shape} {x}, {y}  {width}x{height}")
+            }
+            _ => "Any screen".to_owned(),
+        }
+    }
+
+    fn image_search_timing_preset_text(preset: &ImageSearchTimingPreset) -> String {
+        let colors = if !preset.target_colors.is_empty() {
+            preset.target_colors.clone()
+        } else {
+            preset.target_color.into_iter().collect()
+        };
+        let color_text = match colors.as_slice() {
+            [] => "No color".to_owned(),
+            [color] => format!("#{:02X}{:02X}{:02X}", color.r, color.g, color.b),
+            [first, rest @ ..] => format!(
+                "#{:02X}{:02X}{:02X} +{}",
+                first.r,
+                first.g,
+                first.b,
+                rest.len()
+            ),
+        };
+        let area = if preset
+            .search_region_screen_x
+            .zip(preset.search_region_screen_y)
+            .zip(preset.search_region_width)
+            .zip(preset.search_region_height)
+            .is_some()
+        {
+            "Area set"
+        } else {
+            "No area"
+        };
+        format!(
+            "{area} | {color_text} | {} ms",
+            preset.timing_cycle_ms.max(1)
+        )
+    }
+
+    fn image_search_timing_preset_options(&self) -> Vec<(u32, String)> {
+        self.state
+            .image_search_timing_presets
+            .iter()
+            .map(|preset| {
+                (
+                    preset.id,
+                    format!("{} / {}", preset.id, preset.name.clone()),
+                )
+            })
+            .collect()
+    }
+
+    fn image_search_timing_preset_label(
+        options: &[(u32, String)],
+        selected_id: Option<u32>,
+        empty_label: &'static str,
+    ) -> String {
+        selected_id
+            .and_then(|id| {
+                options
+                    .iter()
+                    .find(|(preset_id, _)| *preset_id == id)
+                    .map(|(_, label)| label.clone())
+            })
+            .unwrap_or_else(|| empty_label.to_owned())
     }
 
     fn image_search_target_colors(preset: &ImageSearchPreset) -> Vec<RgbaColor> {
@@ -1935,14 +2059,20 @@ impl CrosshairApp {
 
     fn titlebar_maximize_tooltip(&self, maximized: bool) -> &'static str {
         if maximized {
-            self.tr("Restore", "KhÃƒÆ’Ã†â€™Ãƒâ€šÃ‚Â´i phÃƒÆ’Ã‚Â¡Ãƒâ€šÃ‚Â»Ãƒâ€šÃ‚Â¥c")
+            self.tr(
+                "Restore",
+                "KhÃƒÆ’Ã†â€™Ãƒâ€šÃ‚Â´i phÃƒÆ’Ã‚Â¡Ãƒâ€šÃ‚Â»Ãƒâ€šÃ‚Â¥c",
+            )
         } else {
             self.tr("Maximize", "PhÃƒÆ’Ã†â€™Ãƒâ€šÃ‚Â³ng to")
         }
     }
 
     fn titlebar_hide_tooltip(&self) -> &'static str {
-        self.tr("Hide to tray", "ÃƒÆ’Ã‚Â¡Ãƒâ€šÃ‚ÂºÃƒâ€šÃ‚Â¨n xuÃƒÆ’Ã‚Â¡Ãƒâ€šÃ‚Â»ÃƒÂ¢Ã¢â€šÂ¬Ã‹Å“ng khay")
+        self.tr(
+            "Hide to tray",
+            "ÃƒÆ’Ã‚Â¡Ãƒâ€šÃ‚ÂºÃƒâ€šÃ‚Â¨n xuÃƒÆ’Ã‚Â¡Ãƒâ€šÃ‚Â»ÃƒÂ¢Ã¢â€šÂ¬Ã‹Å“ng khay",
+        )
     }
 
     fn capture_hint_text(&self) -> &'static str {
@@ -2429,6 +2559,7 @@ impl CrosshairApp {
             MacroAction::PlaySoundPreset => "PlaySoundPreset",
             MacroAction::StartImageSearch => "StartImageSearch",
             MacroAction::TriggerImageSearchMove => "TriggerImageSearchMove",
+            MacroAction::TriggerImageSearchTiming => "TriggerImageSearchTiming",
             MacroAction::StopImageSearchWait => "StopImageSearchWait",
             MacroAction::StopImageSearch => "StopImageSearch",
             MacroAction::LoopStart => "LoopStart",
@@ -2496,6 +2627,9 @@ impl CrosshairApp {
             }
             MacroAction::TriggerImageSearchMove => {
                 "Move the mouse to the latest image-search match, or run one search now."
+            }
+            MacroAction::TriggerImageSearchTiming => {
+                "Wait for one timing preset to reach the trigger point, then continue with the next step."
             }
             MacroAction::StopImageSearchWait => {
                 "Stop waiting for one image-search preset to match."
@@ -2571,6 +2705,7 @@ impl CrosshairApp {
             MacroAction::PlaySoundPreset => 0xe050,
             MacroAction::StartImageSearch => 0xe8b6,
             MacroAction::TriggerImageSearchMove => 0xe8f9,
+            MacroAction::TriggerImageSearchTiming => 0xe8f9,
             MacroAction::StopImageSearchWait => 0xe047,
             MacroAction::StopImageSearch => 0xe047,
             MacroAction::LoopStart => 0xe028,
@@ -2633,6 +2768,7 @@ impl CrosshairApp {
                 MacroAction::PlaySoundPreset => "Âm thanh",
                 MacroAction::StartImageSearch => "Tìm ảnh",
                 MacroAction::TriggerImageSearchMove => "Di chuyển",
+                MacroAction::TriggerImageSearchTiming => "Timing",
                 MacroAction::StopImageSearchWait => "Chờ",
                 MacroAction::StopImageSearch => "Dừng",
                 MacroAction::LoopStart => "Lặp",
@@ -2686,6 +2822,7 @@ impl CrosshairApp {
                 MacroAction::PlaySoundPreset => "Sound",
                 MacroAction::StartImageSearch => "Start",
                 MacroAction::TriggerImageSearchMove => "Move",
+                MacroAction::TriggerImageSearchTiming => "Time",
                 MacroAction::StopImageSearchWait => "Wait",
                 MacroAction::StopImageSearch => "Stop",
                 MacroAction::LoopStart => "Loop",
@@ -2836,6 +2973,7 @@ impl CrosshairApp {
                 | MacroAction::DisableMacroPreset
                 | MacroAction::StartImageSearch
                 | MacroAction::TriggerImageSearchMove
+                | MacroAction::TriggerImageSearchTiming
                 | MacroAction::StopImageSearchWait
                 | MacroAction::StopImageSearch
                 | MacroAction::LoopStart
@@ -3832,9 +3970,13 @@ impl CrosshairApp {
                     ui.visuals().text_color()
                 };
                 ui.label(
-                    RichText::new(Self::tr_lang(language, "Mouse", "ChuÃƒÆ’Ã‚Â¡Ãƒâ€šÃ‚Â»ÃƒÂ¢Ã¢â‚¬Å¾Ã‚Â¢t"))
-                        .size(9.0)
-                        .color(label_color),
+                    RichText::new(Self::tr_lang(
+                        language,
+                        "Mouse",
+                        "ChuÃƒÆ’Ã‚Â¡Ãƒâ€šÃ‚Â»ÃƒÂ¢Ã¢â‚¬Å¾Ã‚Â¢t",
+                    ))
+                    .size(9.0)
+                    .color(label_color),
                 );
                 response
             },
@@ -3857,6 +3999,7 @@ impl CrosshairApp {
         &[
             MacroAction::StartImageSearch,
             MacroAction::TriggerImageSearchMove,
+            MacroAction::TriggerImageSearchTiming,
             MacroAction::StopImageSearchWait,
             MacroAction::StopImageSearch,
         ]
@@ -4819,13 +4962,13 @@ impl CrosshairApp {
     fn begin_image_search_capture(
         &mut self,
         ctx: &egui::Context,
-        preset_id: u32,
+        target: ImageSearchCaptureTarget,
         mode: ImageSearchCaptureMode,
     ) {
         if self.image_search_capture_active {
             return;
         }
-        self.image_search_capture_target_preset_id = Some(preset_id);
+        self.image_search_capture_target = Some(target);
         self.image_search_capture_mode = Some(mode);
         let viewport = ctx.input(|input| input.viewport().clone());
         self.image_search_restore_inner_size = viewport
@@ -4874,7 +5017,7 @@ impl CrosshairApp {
             .image_search_capture_mode
             .unwrap_or(ImageSearchCaptureMode::Template);
         self.image_search_capture_active = false;
-        self.image_search_capture_target_preset_id = None;
+        self.image_search_capture_target = None;
         self.image_search_capture_mode = None;
         self.image_search_capture_anchor = None;
         self.image_search_capture_current = None;
@@ -4893,6 +5036,40 @@ impl CrosshairApp {
         ctx.request_repaint();
     }
 
+    fn image_search_capture_target_name(&self, target: ImageSearchCaptureTarget) -> Option<String> {
+        match target {
+            ImageSearchCaptureTarget::Preset(preset_id) => self
+                .state
+                .image_search_presets
+                .iter()
+                .find(|preset| preset.id == preset_id)
+                .map(|preset| preset.name.clone()),
+            ImageSearchCaptureTarget::TimingPreset(preset_id) => self
+                .state
+                .image_search_timing_presets
+                .iter()
+                .find(|preset| preset.id == preset_id)
+                .map(|preset| preset.name.clone()),
+        }
+    }
+
+    fn image_search_capture_target_is_circle(&self, target: ImageSearchCaptureTarget) -> bool {
+        match target {
+            ImageSearchCaptureTarget::Preset(preset_id) => self
+                .state
+                .image_search_presets
+                .iter()
+                .find(|preset| preset.id == preset_id)
+                .is_some_and(|preset| preset.search_region_is_circle),
+            ImageSearchCaptureTarget::TimingPreset(preset_id) => self
+                .state
+                .image_search_timing_presets
+                .iter()
+                .find(|preset| preset.id == preset_id)
+                .is_some_and(|preset| preset.search_region_is_circle),
+        }
+    }
+
     fn restore_image_search_viewport(&mut self, ctx: &egui::Context) {
         if let Some(size) = self.image_search_restore_inner_size.take() {
             ctx.send_viewport_cmd(egui::ViewportCommand::InnerSize(size));
@@ -4903,7 +5080,7 @@ impl CrosshairApp {
     }
 
     fn finish_image_search_capture(&mut self, ctx: &egui::Context, rect: egui::Rect) {
-        let Some(preset_id) = self.image_search_capture_target_preset_id else {
+        let Some(target) = self.image_search_capture_target else {
             self.cancel_image_search_capture(ctx);
             self.status = "No image search preset is active.".to_owned();
             return;
@@ -4913,7 +5090,7 @@ impl CrosshairApp {
             .unwrap_or(ImageSearchCaptureMode::Template);
 
         self.image_search_capture_active = false;
-        self.image_search_capture_target_preset_id = None;
+        self.image_search_capture_target = None;
         self.image_search_capture_mode = None;
         self.image_search_capture_anchor = None;
         self.image_search_capture_current = None;
@@ -4935,63 +5112,126 @@ impl CrosshairApp {
                     return;
                 };
 
-                let template_file = self.image_search_template_file_for_preset(preset_id);
-                if let Some(parent) = template_file.parent() {
-                    let _ = fs::create_dir_all(parent);
-                }
-                let save_result = image::save_buffer(
-                    &template_file,
-                    &capture.rgba,
-                    capture.width as u32,
-                    capture.height as u32,
-                    image::ColorType::Rgba8,
-                );
+                let (status, sync_required) = match target {
+                    ImageSearchCaptureTarget::Preset(preset_id) => {
+                        let template_file = self.image_search_template_file_for_preset(preset_id);
+                        if let Some(parent) = template_file.parent() {
+                            let _ = fs::create_dir_all(parent);
+                        }
+                        let save_result = image::save_buffer(
+                            &template_file,
+                            &capture.rgba,
+                            capture.width as u32,
+                            capture.height as u32,
+                            image::ColorType::Rgba8,
+                        );
 
-                if let Some(preset) = self
-                    .state
-                    .image_search_presets
-                    .iter_mut()
-                    .find(|preset| preset.id == preset_id)
-                {
-                    preset.enabled = true;
-                    preset.collapsed = false;
-                    preset.last_capture_screen_x = Some(capture.screen_x);
-                    preset.last_capture_screen_y = Some(capture.screen_y);
-                }
-                self.image_search_preview_cache.remove(&preset_id);
-                self.sync_image_search_presets();
-                self.persist();
-                self.status = match save_result {
-                    Ok(()) => format!(
-                        "Saved template {}x{} for preset #{}.",
-                        capture.width, capture.height, preset_id
-                    ),
-                    Err(error) => format!("Captured template but could not save it: {error}"),
+                        if let Some(preset) = self
+                            .state
+                            .image_search_presets
+                            .iter_mut()
+                            .find(|preset| preset.id == preset_id)
+                        {
+                            preset.enabled = true;
+                            preset.collapsed = false;
+                            preset.last_capture_screen_x = Some(capture.screen_x);
+                            preset.last_capture_screen_y = Some(capture.screen_y);
+                        }
+                        self.image_search_preview_cache.remove(&preset_id);
+                        (
+                            match save_result {
+                                Ok(()) => format!(
+                                    "Saved template {}x{} for preset #{}.",
+                                    capture.width, capture.height, preset_id
+                                ),
+                                Err(error) => {
+                                    format!("Captured template but could not save it: {error}")
+                                }
+                            },
+                            true,
+                        )
+                    }
+                    ImageSearchCaptureTarget::TimingPreset(preset_id) => {
+                        if let Some(preset) = self
+                            .state
+                            .image_search_timing_presets
+                            .iter_mut()
+                            .find(|preset| preset.id == preset_id)
+                        {
+                            preset.enabled = true;
+                            preset.collapsed = false;
+                            preset.search_region_screen_x = Some(capture.screen_x);
+                            preset.search_region_screen_y = Some(capture.screen_y);
+                            preset.search_region_width = Some(capture.width as i32);
+                            preset.search_region_height = Some(capture.height as i32);
+                        }
+                        (
+                            format!(
+                                "Saved timing area {}x{} at {}, {} for preset #{}.",
+                                capture.width,
+                                capture.height,
+                                capture.screen_x,
+                                capture.screen_y,
+                                preset_id
+                            ),
+                            true,
+                        )
+                    }
                 };
+                if sync_required {
+                    self.sync_image_search_presets();
+                    self.sync_image_search_timing_presets();
+                    self.persist();
+                }
+                self.status = status;
                 ctx.request_repaint();
             }
             ImageSearchCaptureMode::SearchRegion => {
                 let region = self.screen_region_from_rect(ctx, rect, ctx.pixels_per_point());
                 self.restore_image_search_viewport(ctx);
                 if let Some((screen_x, screen_y, width, height)) = region {
-                    if let Some(preset) = self
-                        .state
-                        .image_search_presets
-                        .iter_mut()
-                        .find(|preset| preset.id == preset_id)
-                    {
-                        preset.collapsed = false;
-                        preset.search_region_screen_x = Some(screen_x);
-                        preset.search_region_screen_y = Some(screen_y);
-                        preset.search_region_width = Some(width);
-                        preset.search_region_height = Some(height);
+                    match target {
+                        ImageSearchCaptureTarget::Preset(preset_id) => {
+                            if let Some(preset) = self
+                                .state
+                                .image_search_presets
+                                .iter_mut()
+                                .find(|preset| preset.id == preset_id)
+                            {
+                                preset.collapsed = false;
+                                preset.search_region_screen_x = Some(screen_x);
+                                preset.search_region_screen_y = Some(screen_y);
+                                preset.search_region_width = Some(width);
+                                preset.search_region_height = Some(height);
+                            }
+                            self.sync_image_search_presets();
+                            self.persist();
+                            self.status = format!(
+                                "Saved search area {}x{} at {}, {} for preset #{}.",
+                                width, height, screen_x, screen_y, preset_id
+                            );
+                        }
+                        ImageSearchCaptureTarget::TimingPreset(preset_id) => {
+                            if let Some(preset) = self
+                                .state
+                                .image_search_timing_presets
+                                .iter_mut()
+                                .find(|preset| preset.id == preset_id)
+                            {
+                                preset.collapsed = false;
+                                preset.search_region_screen_x = Some(screen_x);
+                                preset.search_region_screen_y = Some(screen_y);
+                                preset.search_region_width = Some(width);
+                                preset.search_region_height = Some(height);
+                            }
+                            self.sync_image_search_timing_presets();
+                            self.persist();
+                            self.status = format!(
+                                "Saved timing area {}x{} at {}, {} for preset #{}.",
+                                width, height, screen_x, screen_y, preset_id
+                            );
+                        }
                     }
-                    self.sync_image_search_presets();
-                    self.persist();
-                    self.status = format!(
-                        "Saved search area {}x{} at {}, {} for preset #{}.",
-                        width, height, screen_x, screen_y, preset_id
-                    );
                 } else {
                     self.status = "Failed to save the selected search area.".to_owned();
                 }
@@ -5062,14 +5302,14 @@ impl CrosshairApp {
     }
 
     fn finish_image_search_color_pick(&mut self, ctx: &egui::Context, pos: egui::Pos2) {
-        let Some(preset_id) = self.image_search_capture_target_preset_id else {
+        let Some(target) = self.image_search_capture_target else {
             self.cancel_image_search_capture(ctx);
             self.status = "No image search preset is active.".to_owned();
             return;
         };
 
         self.image_search_capture_active = false;
-        self.image_search_capture_target_preset_id = None;
+        self.image_search_capture_target = None;
         self.image_search_capture_mode = None;
         self.image_search_capture_anchor = None;
         self.image_search_capture_current = None;
@@ -5104,28 +5344,55 @@ impl CrosshairApp {
             b: capture.rgba[2],
             a: 255,
         };
-        if let Some(preset) = self
-            .state
-            .image_search_presets
-            .iter_mut()
-            .find(|preset| preset.id == preset_id)
-        {
-            preset.collapsed = false;
-            preset.use_color_matching = true;
-            if preset.target_colors.is_empty() {
-                if let Some(existing) = preset.target_color {
-                    preset.target_colors.push(existing);
+        let status = match target {
+            ImageSearchCaptureTarget::Preset(preset_id) => {
+                if let Some(preset) = self
+                    .state
+                    .image_search_presets
+                    .iter_mut()
+                    .find(|preset| preset.id == preset_id)
+                {
+                    preset.collapsed = false;
+                    preset.use_color_matching = true;
+                    if preset.target_colors.is_empty() {
+                        if let Some(existing) = preset.target_color {
+                            preset.target_colors.push(existing);
+                        }
+                    }
+                    preset.target_colors.push(color);
+                    preset.target_color = preset.target_colors.first().copied();
                 }
+                self.sync_image_search_presets();
+                format!(
+                    "Picked color #{:02X}{:02X}{:02X} for preset #{}.",
+                    color.r, color.g, color.b, preset_id
+                )
             }
-            preset.target_colors.push(color);
-            preset.target_color = preset.target_colors.first().copied();
-        }
-        self.sync_image_search_presets();
+            ImageSearchCaptureTarget::TimingPreset(preset_id) => {
+                if let Some(preset) = self
+                    .state
+                    .image_search_timing_presets
+                    .iter_mut()
+                    .find(|preset| preset.id == preset_id)
+                {
+                    preset.collapsed = false;
+                    if preset.target_colors.is_empty() {
+                        if let Some(existing) = preset.target_color {
+                            preset.target_colors.push(existing);
+                        }
+                    }
+                    preset.target_colors.push(color);
+                    preset.target_color = preset.target_colors.first().copied();
+                }
+                self.sync_image_search_timing_presets();
+                format!(
+                    "Picked color #{:02X}{:02X}{:02X} for timing preset #{}.",
+                    color.r, color.g, color.b, preset_id
+                )
+            }
+        };
         self.persist();
-        self.status = format!(
-            "Picked color #{:02X}{:02X}{:02X} for preset #{}.",
-            color.r, color.g, color.b, preset_id
-        );
+        self.status = status;
         ctx.request_repaint();
     }
 
@@ -5134,14 +5401,14 @@ impl CrosshairApp {
         ctx: &egui::Context,
         pos: egui::Pos2,
     ) {
-        let Some(preset_id) = self.image_search_capture_target_preset_id else {
+        let Some(target) = self.image_search_capture_target else {
             self.cancel_image_search_capture(ctx);
             self.status = "No image search preset is active.".to_owned();
             return;
         };
 
         self.image_search_capture_active = false;
-        self.image_search_capture_target_preset_id = None;
+        self.image_search_capture_target = None;
         self.image_search_capture_mode = None;
         self.image_search_capture_anchor = None;
         self.image_search_capture_current = None;
@@ -5159,23 +5426,30 @@ impl CrosshairApp {
             return;
         };
 
-        if let Some(preset) = self
-            .state
-            .image_search_presets
-            .iter_mut()
-            .find(|preset| preset.id == preset_id)
-        {
-            preset.color_priority_from_anchor = true;
-            preset.color_priority_anchor_screen_x = Some(screen_x);
-            preset.color_priority_anchor_screen_y = Some(screen_y);
-            preset.collapsed = false;
+        match target {
+            ImageSearchCaptureTarget::Preset(preset_id) => {
+                if let Some(preset) = self
+                    .state
+                    .image_search_presets
+                    .iter_mut()
+                    .find(|preset| preset.id == preset_id)
+                {
+                    preset.color_priority_from_anchor = true;
+                    preset.color_priority_anchor_screen_x = Some(screen_x);
+                    preset.color_priority_anchor_screen_y = Some(screen_y);
+                    preset.collapsed = false;
+                }
+                self.sync_image_search_presets();
+                self.persist();
+                self.status = format!(
+                    "Saved priority point at {}, {} for preset #{}.",
+                    screen_x, screen_y, preset_id
+                );
+            }
+            ImageSearchCaptureTarget::TimingPreset(_) => {
+                self.status = "Priority point capture is not used for timing presets.".to_owned();
+            }
         }
-        self.sync_image_search_presets();
-        self.persist();
-        self.status = format!(
-            "Saved priority point at {}, {} for preset #{}.",
-            screen_x, screen_y, preset_id
-        );
         ctx.request_repaint();
     }
 
@@ -5773,7 +6047,11 @@ impl CrosshairApp {
                     .checkbox(&mut self.state.active_style.enabled, "Enabled")
                     .changed();
                 if ui
-                    .button(if self.crosshair_panel_collapsed { "Show" } else { "Hide" })
+                    .button(if self.crosshair_panel_collapsed {
+                        "Show"
+                    } else {
+                        "Hide"
+                    })
                     .clicked()
                 {
                     self.crosshair_panel_collapsed = !self.crosshair_panel_collapsed;
@@ -5869,21 +6147,28 @@ impl CrosshairApp {
                         Self::show_preset_card(ui, preset.enabled, |ui| {
                             ui.horizontal(|ui| {
                                 changed |= ui.checkbox(&mut preset.enabled, "").changed();
-                                ui.label(Self::preset_title_text(dark_mode, &preset.name, preset.enabled));
+                                ui.label(Self::preset_title_text(
+                                    dark_mode,
+                                    &preset.name,
+                                    preset.enabled,
+                                ));
                                 if is_selected {
                                     ui.label(RichText::new("Active").strong());
                                 }
-                                ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
-                                    if ui.button("Delete").clicked() {
-                                        remove = true;
-                                    }
-                                    if ui
-                                        .button(if is_selected { "Current" } else { "Apply" })
-                                        .clicked()
-                                    {
-                                        activate = true;
-                                    }
-                                });
+                                ui.with_layout(
+                                    egui::Layout::right_to_left(egui::Align::Center),
+                                    |ui| {
+                                        if ui.button("Delete").clicked() {
+                                            remove = true;
+                                        }
+                                        if ui
+                                            .button(if is_selected { "Current" } else { "Apply" })
+                                            .clicked()
+                                        {
+                                            activate = true;
+                                        }
+                                    },
+                                );
                             });
                         });
                     }
@@ -5897,7 +6182,9 @@ impl CrosshairApp {
                     }
                     if remove {
                         let remove_name = self.state.profiles[index].name.clone();
-                        self.state.profiles.retain(|profile| profile.name != remove_name);
+                        self.state
+                            .profiles
+                            .retain(|profile| profile.name != remove_name);
                         if self.state.profiles.is_empty() {
                             self.state.profiles.push(ProfileRecord::default());
                         }
@@ -5995,7 +6282,9 @@ impl CrosshairApp {
                     .spacing([14.0, 8.0])
                     .show(ui, |ui| {
                         ui.label("Outline");
-                        changed |= ui.checkbox(&mut self.state.active_style.outline_enabled, "Enabled").changed();
+                        changed |= ui
+                            .checkbox(&mut self.state.active_style.outline_enabled, "Enabled")
+                            .changed();
                         ui.end_row();
 
                         ui.label("Outline thickness");
@@ -6011,7 +6300,9 @@ impl CrosshairApp {
                         ui.end_row();
 
                         ui.label("Center dot");
-                        changed |= ui.checkbox(&mut self.state.active_style.center_dot, "Enabled").changed();
+                        changed |= ui
+                            .checkbox(&mut self.state.active_style.center_dot, "Enabled")
+                            .changed();
                         ui.end_row();
 
                         ui.label("Center dot size");
@@ -6124,7 +6415,10 @@ impl CrosshairApp {
                 painter.rect_stroke(
                     panel_rect,
                     16.0,
-                    Stroke::new(1.0, Color32::from_rgba_premultiplied(88, 132, 198, panel_alpha)),
+                    Stroke::new(
+                        1.0,
+                        Color32::from_rgba_premultiplied(88, 132, 198, panel_alpha),
+                    ),
                     StrokeKind::Outside,
                 );
                 let bar_w = 18.0 * scale;
@@ -6138,7 +6432,10 @@ impl CrosshairApp {
                     let bar_phase = (time * 4.0 + n * 0.7).sin() * 0.5 + 0.5;
                     let bar_alpha = (90.0 + bar_phase * 140.0) as u8;
                     let bar_rect = egui::Rect::from_min_size(
-                        pos2(bars_left + n * (bar_w + bar_gap), bars_top + (1.0 - bar_phase) * 10.0 * scale),
+                        pos2(
+                            bars_left + n * (bar_w + bar_gap),
+                            bars_top + (1.0 - bar_phase) * 10.0 * scale,
+                        ),
                         vec2(bar_w, bar_h - (1.0 - bar_phase) * 10.0 * scale),
                     );
                     painter.rect_filled(
@@ -6171,10 +6468,8 @@ impl CrosshairApp {
                     Color32::from_rgba_premultiplied(44, 52, 64, panel_alpha),
                 );
                 let fill_w = track_rect.width() * progress.clamp(0.0, 1.0);
-                let fill_rect = egui::Rect::from_min_size(
-                    track_rect.min,
-                    vec2(fill_w, track_rect.height()),
-                );
+                let fill_rect =
+                    egui::Rect::from_min_size(track_rect.min, vec2(fill_w, track_rect.height()));
                 painter.rect_filled(
                     fill_rect,
                     999.0,
@@ -6187,7 +6482,11 @@ impl CrosshairApp {
         let rect = ctx.content_rect();
         let painter = ctx.layer_painter(egui::LayerId::new(
             egui::Order::Foreground,
-            egui::Id::new(if opening { "open-tray-blob" } else { "close-tray-blob" }),
+            egui::Id::new(if opening {
+                "open-tray-blob"
+            } else {
+                "close-tray-blob"
+            }),
         ));
         let eased = if opening {
             let p = progress.clamp(0.0, 1.0);
@@ -6240,7 +6539,11 @@ impl CrosshairApp {
                     .changed();
                 ui.end_row();
 
-                ui.label(Self::tr_lang(language, "Horizontal offset", "Độ lệch ngang"));
+                ui.label(Self::tr_lang(
+                    language,
+                    "Horizontal offset",
+                    "Độ lệch ngang",
+                ));
                 changed |= ui
                     .add_sized(
                         [340.0, 20.0],
@@ -6260,16 +6563,16 @@ impl CrosshairApp {
 
                 ui.label(Self::tr_lang(language, "Opacity", "Độ trong suốt"));
                 changed |= ui
-                    .add_sized(
-                        [340.0, 20.0],
-                        Slider::new(&mut style.opacity, 0.05..=1.0),
-                    )
+                    .add_sized([340.0, 20.0], Slider::new(&mut style.opacity, 0.05..=1.0))
                     .changed();
                 ui.end_row();
 
                 ui.label(Self::tr_lang(language, "Outline", "Viền"));
                 changed |= ui
-                    .checkbox(&mut style.outline_enabled, Self::tr_lang(language, "Enabled", "Bật"))
+                    .checkbox(
+                        &mut style.outline_enabled,
+                        Self::tr_lang(language, "Enabled", "Bật"),
+                    )
                     .changed();
                 ui.end_row();
 
@@ -6284,11 +6587,18 @@ impl CrosshairApp {
 
                 ui.label(Self::tr_lang(language, "Center dot", "Chấm giữa"));
                 changed |= ui
-                    .checkbox(&mut style.center_dot, Self::tr_lang(language, "Enabled", "Bật"))
+                    .checkbox(
+                        &mut style.center_dot,
+                        Self::tr_lang(language, "Enabled", "Bật"),
+                    )
                     .changed();
                 ui.end_row();
 
-                ui.label(Self::tr_lang(language, "Center dot size", "Kích thước chấm giữa"));
+                ui.label(Self::tr_lang(
+                    language,
+                    "Center dot size",
+                    "Kích thước chấm giữa",
+                ));
                 changed |= ui
                     .add_sized(
                         [340.0, 20.0],
@@ -6385,7 +6695,9 @@ impl CrosshairApp {
 
         if let Some(index) = remove_index {
             let remove_name = self.state.profiles[index].name.clone();
-            self.state.profiles.retain(|profile| profile.name != remove_name);
+            self.state
+                .profiles
+                .retain(|profile| profile.name != remove_name);
             if self.state.profiles.is_empty() {
                 self.state.profiles.push(ProfileRecord::default());
             }
@@ -6417,7 +6729,10 @@ impl CrosshairApp {
                 self.persist();
             }
             if ui
-                .button(self.tr("+ Add window focus preset", "+ ThÃƒÆ’Ã†â€™Ãƒâ€šÃ‚Âªm preset focus"))
+                .button(self.tr(
+                    "+ Add window focus preset",
+                    "+ ThÃƒÆ’Ã†â€™Ãƒâ€šÃ‚Âªm preset focus",
+                ))
                 .clicked()
             {
                 self.add_window_focus_preset();
@@ -6454,9 +6769,17 @@ impl CrosshairApp {
                                     }
                                     if ui
                                         .button(if preset.collapsed {
-                                            Self::tr_lang(language, "Show", "HiÃƒÆ’Ã‚Â¡Ãƒâ€šÃ‚Â»ÃƒÂ¢Ã¢â€šÂ¬Ã‚Â¡n")
+                                            Self::tr_lang(
+                                                language,
+                                                "Show",
+                                                "HiÃƒÆ’Ã‚Â¡Ãƒâ€šÃ‚Â»ÃƒÂ¢Ã¢â€šÂ¬Ã‚Â¡n",
+                                            )
                                         } else {
-                                            Self::tr_lang(language, "Hide", "ÃƒÆ’Ã‚Â¡Ãƒâ€šÃ‚ÂºÃƒâ€šÃ‚Â¨n")
+                                            Self::tr_lang(
+                                                language,
+                                                "Hide",
+                                                "ÃƒÆ’Ã‚Â¡Ãƒâ€šÃ‚ÂºÃƒâ€šÃ‚Â¨n",
+                                            )
                                         })
                                         .clicked()
                                     {
@@ -6687,7 +7010,11 @@ impl CrosshairApp {
                         }
                         if ui
                             .button(if preset.collapsed {
-                                Self::tr_lang(language, "Show", "HiÃƒÆ’Ã‚Â¡Ãƒâ€šÃ‚Â»ÃƒÂ¢Ã¢â€šÂ¬Ã‚Â¡n")
+                                Self::tr_lang(
+                                    language,
+                                    "Show",
+                                    "HiÃƒÆ’Ã‚Â¡Ãƒâ€šÃ‚Â»ÃƒÂ¢Ã¢â€šÂ¬Ã‚Â¡n",
+                                )
                             } else {
                                 Self::tr_lang(language, "Hide", "ÃƒÆ’Ã‚Â¡Ãƒâ€šÃ‚ÂºÃƒâ€šÃ‚Â¨n")
                             })
@@ -7036,7 +7363,11 @@ impl CrosshairApp {
                         }
                         if ui
                             .button(if preset.collapsed {
-                                Self::tr_lang(language, "Show", "HiÃƒÆ’Ã‚Â¡Ãƒâ€šÃ‚Â»ÃƒÂ¢Ã¢â€šÂ¬Ã‚Â¡n")
+                                Self::tr_lang(
+                                    language,
+                                    "Show",
+                                    "HiÃƒÆ’Ã‚Â¡Ãƒâ€šÃ‚Â»ÃƒÂ¢Ã¢â€šÂ¬Ã‚Â¡n",
+                                )
                             } else {
                                 Self::tr_lang(language, "Hide", "ÃƒÆ’Ã‚Â¡Ãƒâ€šÃ‚ÂºÃƒâ€šÃ‚Â¨n")
                             })
@@ -7888,13 +8219,21 @@ impl CrosshairApp {
                             _ => format!("{folder_group_count} group(s)"),
                         });
                         if ui
-                            .button(Self::tr_lang(language, "Open", "MÃƒÆ’Ã‚Â¡Ãƒâ€šÃ‚Â»Ãƒâ€¦Ã‚Â¸"))
+                            .button(Self::tr_lang(
+                                language,
+                                "Open",
+                                "MÃƒÆ’Ã‚Â¡Ãƒâ€šÃ‚Â»Ãƒâ€¦Ã‚Â¸",
+                            ))
                             .clicked()
                         {
                             open_folder_id = Some(folder_id);
                         }
                         if ui
-                            .button(Self::tr_lang(language, "Release", "NhÃƒÆ’Ã‚Â¡Ãƒâ€šÃ‚ÂºÃƒâ€šÃ‚Â£"))
+                            .button(Self::tr_lang(
+                                language,
+                                "Release",
+                                "NhÃƒÆ’Ã‚Â¡Ãƒâ€šÃ‚ÂºÃƒâ€šÃ‚Â£",
+                            ))
                             .clicked()
                         {
                             release_folder_id = Some(folder_id);
@@ -7976,6 +8315,7 @@ impl CrosshairApp {
                 continue;
             }
 
+            let image_search_timing_preset_options = self.image_search_timing_preset_options();
             ui.separator();
             {
                 let group = &mut self.state.macro_groups[group_index];
@@ -8615,6 +8955,7 @@ impl CrosshairApp {
                                                             MacroAction::PlaySoundPreset,
                                                             MacroAction::ApplyMouseSensitivityPreset,
                                                             MacroAction::StopImageSearchWait,
+                                                            MacroAction::TriggerImageSearchTiming,
                                                             MacroAction::LoopStart,
                                                             MacroAction::LoopEnd,
                                                             MacroAction::StopIfKeyPressed,
@@ -9388,6 +9729,7 @@ impl CrosshairApp {
                                                                 MacroAction::PlaySoundPreset,
                                                                 MacroAction::ApplyMouseSensitivityPreset,
                                                                 MacroAction::StopImageSearchWait,
+                                                                MacroAction::TriggerImageSearchTiming,
                                                                 MacroAction::LoopStart,
                                                                 MacroAction::LoopEnd,
                                                                 MacroAction::StopIfKeyPressed,
@@ -9748,10 +10090,38 @@ impl CrosshairApp {
                                                                             step.image_search_trigger_macro_preset_id =
                                                                                 Some(*preset_option_id);
                                                                             live_sync = true;
-                                                                        }
-                                                                    }
-                                                                });
+                                                                }
                                                             }
+                                                        });
+                                                    } else if step.action
+                                                        == MacroAction::TriggerImageSearchTiming
+                                                    {
+                                                        let selected_id =
+                                                            step.key.trim().parse::<u32>().ok();
+                                                        let selected_label =
+                                                            Self::image_search_timing_preset_label(
+                                                                &image_search_timing_preset_options,
+                                                                selected_id,
+                                                                "Select timing preset",
+                                                            );
+                                                        egui::ComboBox::from_id_salt((group.id, preset.id, step_index, "image-search-timing-preset-step"))
+                                                            .width(146.0)
+                                                            .selected_text(selected_label)
+                                                            .show_ui(ui, |ui| {
+                                                                for (preset_option_id, preset_option_label) in &image_search_timing_preset_options {
+                                                                    if ui
+                                                                        .selectable_label(
+                                                                            selected_id == Some(*preset_option_id),
+                                                                            preset_option_label,
+                                                                        )
+                                                                        .clicked()
+                                                                    {
+                                                                        step.key = preset_option_id.to_string();
+                                                                        live_sync = true;
+                                                                    }
+                                                                }
+                                                            });
+                                                    }
                                                         });
                                                     }
                                                 } else if step.action == MacroAction::EnableZoomPreset {
@@ -10583,7 +10953,11 @@ impl CrosshairApp {
                         }
                         if ui
                             .button(if preset.collapsed {
-                                Self::tr_lang(language, "Show", "HiÃƒÆ’Ã‚Â¡Ãƒâ€šÃ‚Â»ÃƒÂ¢Ã¢â€šÂ¬Ã‚Â¡n")
+                                Self::tr_lang(
+                                    language,
+                                    "Show",
+                                    "HiÃƒÆ’Ã‚Â¡Ãƒâ€šÃ‚Â»ÃƒÂ¢Ã¢â€šÂ¬Ã‚Â¡n",
+                                )
                             } else {
                                 Self::tr_lang(language, "Hide", "ÃƒÆ’Ã‚Â¡Ãƒâ€šÃ‚ÂºÃƒâ€šÃ‚Â¨n")
                             })
@@ -10755,7 +11129,11 @@ impl CrosshairApp {
                         }
                         if ui
                             .button(if preset.collapsed {
-                                Self::tr_lang(language, "Show", "HiÃƒÆ’Ã‚Â¡Ãƒâ€šÃ‚Â»ÃƒÂ¢Ã¢â€šÂ¬Ã‚Â¡n")
+                                Self::tr_lang(
+                                    language,
+                                    "Show",
+                                    "HiÃƒÆ’Ã‚Â¡Ãƒâ€šÃ‚Â»ÃƒÂ¢Ã¢â€šÂ¬Ã‚Â¡n",
+                                )
                             } else {
                                 Self::tr_lang(language, "Hide", "ÃƒÆ’Ã‚Â¡Ãƒâ€šÃ‚ÂºÃƒâ€šÃ‚Â¨n")
                             })
@@ -10947,6 +11325,8 @@ impl CrosshairApp {
         ui.add_space(4.0);
         let mut remove_id = None;
         let mut live_sync = false;
+        let mut remove_timing_id = None;
+        let mut timing_live_sync = false;
 
         for index in 0..self.state.image_search_presets.len() {
             let preset_snapshot = self.state.image_search_presets[index].clone();
@@ -11155,7 +11535,7 @@ impl CrosshairApp {
                                 RichText::new(Self::tr_lang(
                                     language,
                                     "Move only while active",
-                                    "Chỉ di chuột khi đang bật",
+                                    "Chi di chuot khi dang bat",
                                 ))
                                 .small(),
                             );
@@ -11553,31 +11933,237 @@ impl CrosshairApp {
                 self.begin_capture(target, status);
             }
             if let Some(preset_id) = start_image_search_capture {
-                self.begin_image_search_capture(ctx, preset_id, ImageSearchCaptureMode::Template);
+                self.begin_image_search_capture(
+                    ctx,
+                    ImageSearchCaptureTarget::Preset(preset_id),
+                    ImageSearchCaptureMode::Template,
+                );
             }
             if let Some(preset_id) = start_search_region_capture {
                 self.begin_image_search_capture(
                     ctx,
-                    preset_id,
+                    ImageSearchCaptureTarget::Preset(preset_id),
                     ImageSearchCaptureMode::SearchRegion,
                 );
             }
             if let Some(preset_id) = start_color_pick_capture {
                 self.begin_image_search_capture(
                     ctx,
-                    preset_id,
+                    ImageSearchCaptureTarget::Preset(preset_id),
                     ImageSearchCaptureMode::ColorSample,
                 );
             }
             if let Some(preset_id) = start_color_priority_anchor_capture {
                 self.begin_image_search_capture(
                     ctx,
-                    preset_id,
+                    ImageSearchCaptureTarget::Preset(preset_id),
                     ImageSearchCaptureMode::ColorPriorityAnchor,
                 );
             }
             if cancel_active_capture {
                 self.cancel_capture();
+            }
+        }
+
+        ui.add_space(10.0);
+        ui.separator();
+        ui.horizontal(|ui| {
+            ui.heading(self.tr("Timing Presets", "Timing Presets"));
+            if ui
+                .button(self.tr("+ Add timing preset", "+ Them timing preset"))
+                .clicked()
+            {
+                let id = self.state.next_image_search_timing_preset_id.max(1);
+                self.state.next_image_search_timing_preset_id = id + 1;
+                self.state
+                    .image_search_timing_presets
+                    .push(ImageSearchTimingPreset::new(id));
+                timing_live_sync = true;
+            }
+        });
+        ui.label(
+            RichText::new(self.tr(
+                "Pick a region and a color. The macro step will infer timing from the color position inside that region.",
+                "Chon vung va mau. Buoc macro se tu suy ra timing tu vi tri mau trong vung do.",
+            ))
+            .small(),
+        );
+
+        for index in 0..self.state.image_search_timing_presets.len() {
+            let mut start_search_region_capture = None;
+            let mut start_color_pick_capture = None;
+            let dark_mode = self.state.ui_theme == UiThemeMode::Dark;
+            let preset = &mut self.state.image_search_timing_presets[index];
+
+            Self::show_preset_card(ui, preset.enabled, |ui| {
+                ui.horizontal(|ui| {
+                    timing_live_sync |= ui.checkbox(&mut preset.enabled, "").changed();
+                    ui.label(Self::preset_title_text(
+                        dark_mode,
+                        &preset.name,
+                        preset.enabled,
+                    ));
+                    ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
+                        if ui
+                            .button(Self::tr_lang(language, "Delete", "Xoa"))
+                            .clicked()
+                        {
+                            remove_timing_id = Some(preset.id);
+                        }
+                        if ui
+                            .button(if preset.collapsed {
+                                Self::tr_lang(language, "Show", "Hien")
+                            } else {
+                                Self::tr_lang(language, "Hide", "An")
+                            })
+                            .clicked()
+                        {
+                            preset.collapsed = !preset.collapsed;
+                            timing_live_sync = true;
+                        }
+                    });
+                });
+
+                ui.label(RichText::new(Self::image_search_timing_preset_text(preset)).small());
+
+                if preset.collapsed {
+                    return;
+                }
+
+                egui::Grid::new((preset.id, "image-search-timing-grid"))
+                    .num_columns(2)
+                    .spacing([14.0, 8.0])
+                    .show(ui, |ui| {
+                        ui.label(Self::tr_lang(language, "Preset Name", "Ten preset"));
+                        timing_live_sync |= ui
+                            .add_sized([260.0, 24.0], TextEdit::singleline(&mut preset.name))
+                            .changed();
+                        ui.end_row();
+
+                        ui.label(Self::tr_lang(language, "Area", "Vung tim"));
+                        ui.horizontal_wrapped(|ui| {
+                            ui.monospace(Self::image_search_timing_area_text(preset));
+                            if ui
+                                .button(Self::tr_lang(language, "Pick area", "Chon vung"))
+                                .clicked()
+                            {
+                                start_search_region_capture = Some(preset.id);
+                            }
+                            if ui
+                                .button(Self::tr_lang(language, "Clear area", "Xoa vung"))
+                                .clicked()
+                            {
+                                preset.search_region_screen_x = None;
+                                preset.search_region_screen_y = None;
+                                preset.search_region_width = None;
+                                preset.search_region_height = None;
+                                timing_live_sync = true;
+                            }
+                        });
+                        ui.end_row();
+
+                        ui.label(Self::tr_lang(language, "Shape", "Hinh"));
+                        ui.horizontal_wrapped(|ui| {
+                            timing_live_sync |= ui
+                                .checkbox(
+                                    &mut preset.search_region_is_circle,
+                                    Self::tr_lang(language, "Circle area", "Vung tron"),
+                                )
+                                .on_hover_text(Self::tr_lang(
+                                    language,
+                                    "Use a circular search region inside the selected box.",
+                                    "Dung vung tim hinh tron nam trong khung da chon.",
+                                ))
+                                .changed();
+                            timing_live_sync |= ui
+                                .checkbox(
+                                    &mut preset.show_search_region_overlay,
+                                    Self::tr_lang(language, "Overlay", "Overlay"),
+                                )
+                                .changed();
+                        });
+                        ui.end_row();
+
+                        ui.label(Self::tr_lang(language, "Color", "Mau"));
+                        ui.horizontal_wrapped(|ui| {
+                            Self::image_search_target_color_swatch(
+                                ui,
+                                preset.target_color.or_else(|| preset.target_colors.first().copied()),
+                            );
+                            ui.monospace(Self::image_search_timing_color_text(preset));
+                            if ui
+                                .button(Self::tr_lang(language, "Pick color", "Chon mau"))
+                                .clicked()
+                            {
+                                start_color_pick_capture = Some(preset.id);
+                            }
+                            if ui
+                                .button(Self::tr_lang(language, "Clear color", "Xoa mau"))
+                                .clicked()
+                            {
+                                preset.target_color = None;
+                                preset.target_colors.clear();
+                                timing_live_sync = true;
+                            }
+                        });
+                        ui.end_row();
+
+                        ui.label(Self::tr_lang(language, "Tolerance", "Do lech"));
+                        timing_live_sync |= ui
+                            .add(
+                                DragValue::new(&mut preset.color_tolerance)
+                                    .range(0..=255)
+                                    .suffix(" / 255"),
+                            )
+                            .changed();
+                        ui.end_row();
+
+                        ui.label(Self::tr_lang(language, "Scan rate", "Toc do"));
+                        timing_live_sync |= ui
+                            .add(
+                                DragValue::new(&mut preset.color_scan_rate_hz)
+                                    .range(1..=240)
+                                    .suffix(" Hz"),
+                            )
+                            .changed();
+                        ui.end_row();
+
+                        ui.label(Self::tr_lang(language, "Cycle", "Chu ky"));
+                        timing_live_sync |= ui
+                            .add(
+                                DragValue::new(&mut preset.timing_cycle_ms)
+                                    .range(100..=60_000)
+                                    .suffix(" ms"),
+                            )
+                            .changed();
+                        ui.end_row();
+
+                        ui.label(Self::tr_lang(language, "Match", "Khop"));
+                        ui.label(
+                            RichText::new(Self::tr_lang(
+                                language,
+                                "The macro step waits for the matched color position, then continues with the next action.",
+                                "Buoc macro se doi vi tri mau khop xong roi moi chay tiep action ke tiep.",
+                            ))
+                            .small(),
+                        );
+                        ui.end_row();
+                    });
+            });
+
+            if let Some(preset_id) = start_search_region_capture {
+                self.begin_image_search_capture(
+                    ctx,
+                    ImageSearchCaptureTarget::TimingPreset(preset_id),
+                    ImageSearchCaptureMode::SearchRegion,
+                );
+            }
+            if let Some(preset_id) = start_color_pick_capture {
+                self.begin_image_search_capture(
+                    ctx,
+                    ImageSearchCaptureTarget::TimingPreset(preset_id),
+                    ImageSearchCaptureMode::ColorSample,
+                );
             }
         }
 
@@ -11598,8 +12184,16 @@ impl CrosshairApp {
             live_sync = true;
         }
 
-        if live_sync {
+        if let Some(remove_timing_id) = remove_timing_id {
+            self.state
+                .image_search_timing_presets
+                .retain(|preset| preset.id != remove_timing_id);
+            timing_live_sync = true;
+        }
+
+        if live_sync || timing_live_sync {
             self.sync_image_search_presets();
+            self.sync_image_search_timing_presets();
             self.persist();
         }
     }
@@ -11645,18 +12239,19 @@ impl CrosshairApp {
                     egui::FontId::proportional(18.0),
                     Color32::WHITE,
                 );
-                if let Some(preset_id) = self.image_search_capture_target_preset_id
-                    && let Some(name) = self
-                        .state
-                        .image_search_presets
-                        .iter()
-                        .find(|preset| preset.id == preset_id)
-                        .map(|preset| preset.name.clone())
+                if let Some(target) = self.image_search_capture_target
+                    && let Some(name) = self.image_search_capture_target_name(target)
                 {
+                    let target_label = match target {
+                        ImageSearchCaptureTarget::Preset(_) => self.tr("Preset", "Preset"),
+                        ImageSearchCaptureTarget::TimingPreset(_) => {
+                            self.tr("Timing preset", "Timing preset")
+                        }
+                    };
                     painter.text(
                         rect.left_top() + vec2(18.0, 44.0),
                         egui::Align2::LEFT_TOP,
-                        format!("{}: {}", self.tr("Preset", "Preset"), name),
+                        format!("{target_label}: {name}"),
                         egui::FontId::proportional(14.0),
                         Color32::from_rgb(210, 228, 255),
                     );
@@ -11776,15 +12371,9 @@ impl CrosshairApp {
                 ) {
                     let selection = egui::Rect::from_two_pos(anchor, current);
                     let use_circle = capture_mode == ImageSearchCaptureMode::SearchRegion
-                        && self
-                            .image_search_capture_target_preset_id
-                            .and_then(|preset_id| {
-                                self.state
-                                    .image_search_presets
-                                    .iter()
-                                    .find(|preset| preset.id == preset_id)
-                            })
-                            .is_some_and(|preset| preset.search_region_is_circle);
+                        && self.image_search_capture_target.is_some_and(|target| {
+                            self.image_search_capture_target_is_circle(target)
+                        });
                     if use_circle {
                         painter.circle_stroke(
                             selection.center(),
@@ -12070,9 +12659,15 @@ impl CrosshairApp {
 
         ui.separator();
         ui.horizontal(|ui| {
-            ui.label(RichText::new(self.tr("Sound Presets", "Preset ÃƒÆ’Ã†â€™Ãƒâ€šÃ‚Â¢m thanh")).strong());
+            ui.label(
+                RichText::new(self.tr("Sound Presets", "Preset ÃƒÆ’Ã†â€™Ãƒâ€šÃ‚Â¢m thanh"))
+                    .strong(),
+            );
             if ui
-                .button(self.tr("+ Add Sound Preset", "+ ThÃƒÆ’Ã†â€™Ãƒâ€šÃ‚Âªm preset ÃƒÆ’Ã†â€™Ãƒâ€šÃ‚Â¢m thanh"))
+                .button(self.tr(
+                    "+ Add Sound Preset",
+                    "+ ThÃƒÆ’Ã†â€™Ãƒâ€šÃ‚Âªm preset ÃƒÆ’Ã†â€™Ãƒâ€šÃ‚Â¢m thanh",
+                ))
                 .clicked()
             {
                 let id = self.state.audio_settings.next_preset_id;
@@ -12227,7 +12822,11 @@ impl CrosshairApp {
                             changed = true;
                         }
                         if ui
-                            .button(Self::tr_lang(language, "Down", "XuÃƒÆ’Ã‚Â¡Ãƒâ€šÃ‚Â»ÃƒÂ¢Ã¢â€šÂ¬Ã‹Å“ng"))
+                            .button(Self::tr_lang(
+                                language,
+                                "Down",
+                                "XuÃƒÆ’Ã‚Â¡Ãƒâ€šÃ‚Â»ÃƒÂ¢Ã¢â€šÂ¬Ã‹Å“ng",
+                            ))
                             .clicked()
                             && sequence_index + 1 < preset.sequence_library_ids.len()
                         {
@@ -12481,7 +13080,10 @@ impl CrosshairApp {
         };
 
         ui.horizontal(|ui| {
-            if ui.button(self.tr("Back", "Quay lÃƒÆ’Ã‚Â¡Ãƒâ€šÃ‚ÂºÃƒâ€šÃ‚Â¡i")).clicked() {
+            if ui
+                .button(self.tr("Back", "Quay lÃƒÆ’Ã‚Â¡Ãƒâ€šÃ‚ÂºÃƒâ€šÃ‚Â¡i"))
+                .clicked()
+            {
                 self.close_audio_editor();
             }
         });
@@ -12546,7 +13148,9 @@ impl CrosshairApp {
                         Err(error) => {
                             self.status = match language {
                                 UiLanguage::Vietnamese => {
-                                    format!("Nghe thÃƒÆ’Ã‚Â¡Ãƒâ€šÃ‚Â»Ãƒâ€šÃ‚Â­ thÃƒÆ’Ã‚Â¡Ãƒâ€šÃ‚ÂºÃƒâ€šÃ‚Â¥t bÃƒÆ’Ã‚Â¡Ãƒâ€šÃ‚ÂºÃƒâ€šÃ‚Â¡i: {error}")
+                                    format!(
+                                        "Nghe thÃƒÆ’Ã‚Â¡Ãƒâ€šÃ‚Â»Ãƒâ€šÃ‚Â­ thÃƒÆ’Ã‚Â¡Ãƒâ€šÃ‚ÂºÃƒâ€šÃ‚Â¥t bÃƒÆ’Ã‚Â¡Ãƒâ€šÃ‚ÂºÃƒâ€šÃ‚Â¡i: {error}"
+                                    )
                                 }
                                 _ => format!("Preview failed: {error}"),
                             }
@@ -12607,7 +13211,9 @@ impl CrosshairApp {
                         Err(error) => {
                             self.status = match language {
                                 UiLanguage::Vietnamese => {
-                                    format!("Nghe thÃƒÆ’Ã‚Â¡Ãƒâ€šÃ‚Â»Ãƒâ€šÃ‚Â­ thÃƒÆ’Ã‚Â¡Ãƒâ€šÃ‚ÂºÃƒâ€šÃ‚Â¥t bÃƒÆ’Ã‚Â¡Ãƒâ€šÃ‚ÂºÃƒâ€šÃ‚Â¡i: {error}")
+                                    format!(
+                                        "Nghe thÃƒÆ’Ã‚Â¡Ãƒâ€šÃ‚Â»Ãƒâ€šÃ‚Â­ thÃƒÆ’Ã‚Â¡Ãƒâ€šÃ‚ÂºÃƒâ€šÃ‚Â¥t bÃƒÆ’Ã‚Â¡Ãƒâ€šÃ‚ÂºÃƒâ€šÃ‚Â¡i: {error}"
+                                    )
                                 }
                                 _ => format!("Preview failed: {error}"),
                             }
@@ -12715,9 +13321,7 @@ impl CrosshairApp {
                         Err(error) => {
                             self.status = match language {
                                 UiLanguage::Vietnamese => {
-                                    format!(
-                                    "Nghe thử thất bại: {error}"
-                                    )
+                                    format!("Nghe thử thất bại: {error}")
                                 }
                                 _ => format!("Preview failed: {error}"),
                             }
@@ -12766,7 +13370,11 @@ impl CrosshairApp {
                         ("preset", preset.id),
                         &format!(
                             "{}: {}",
-                            Self::tr_lang(language, "Sound Preset", "Preset ÃƒÆ’Ã†â€™Ãƒâ€šÃ‚Â¢m thanh"),
+                            Self::tr_lang(
+                                language,
+                                "Sound Preset",
+                                "Preset ÃƒÆ’Ã†â€™Ãƒâ€šÃ‚Â¢m thanh"
+                            ),
                             preset.name
                         ),
                         &mut preset.clip,
@@ -12798,7 +13406,8 @@ impl CrosshairApp {
                             self.status = match language {
                                 UiLanguage::Vietnamese => format!(
                                     "ÃƒÆ’Ã¢â‚¬Å¾Ãƒâ€šÃ‚Âang nghe thÃƒÆ’Ã‚Â¡Ãƒâ€šÃ‚Â»Ãƒâ€šÃ‚Â­ {}.",
-                                    preview_label.unwrap_or_else(|| "ÃƒÆ’Ã†â€™Ãƒâ€šÃ‚Â¢m thanh".to_owned())
+                                    preview_label
+                                        .unwrap_or_else(|| "ÃƒÆ’Ã†â€™Ãƒâ€šÃ‚Â¢m thanh".to_owned())
                                 ),
                                 _ => format!(
                                     "Previewing {}.",
@@ -12810,7 +13419,8 @@ impl CrosshairApp {
                             self.status = match language {
                                 UiLanguage::Vietnamese => format!(
                                     "ÃƒÆ’Ã¢â‚¬Å¾Ãƒâ€šÃ‚ÂÃƒÆ’Ã†â€™Ãƒâ€šÃ‚Â£ dÃƒÆ’Ã‚Â¡Ãƒâ€šÃ‚Â»Ãƒâ€šÃ‚Â«ng nghe thÃƒÆ’Ã‚Â¡Ãƒâ€šÃ‚Â»Ãƒâ€šÃ‚Â­ {}.",
-                                    preview_label.unwrap_or_else(|| "ÃƒÆ’Ã†â€™Ãƒâ€šÃ‚Â¢m thanh".to_owned())
+                                    preview_label
+                                        .unwrap_or_else(|| "ÃƒÆ’Ã†â€™Ãƒâ€šÃ‚Â¢m thanh".to_owned())
                                 ),
                                 _ => format!(
                                     "Stopped {} preview.",
@@ -12843,7 +13453,10 @@ impl CrosshairApp {
     fn render_settings_panel(&mut self, ui: &mut egui::Ui) {
         ui.heading(self.panel_label(AppPanel::Settings));
         if ui
-            .button(self.tr("+ Add toolbox preset", "+ ThÃƒÆ’Ã†â€™Ãƒâ€šÃ‚Âªm preset toolbox"))
+            .button(self.tr(
+                "+ Add toolbox preset",
+                "+ ThÃƒÆ’Ã†â€™Ãƒâ€šÃ‚Âªm preset toolbox",
+            ))
             .clicked()
         {
             self.add_toolbox_preset();
@@ -12871,7 +13484,11 @@ impl CrosshairApp {
                         }
                         if ui
                             .button(if preset.collapsed {
-                                Self::tr_lang(language, "Show", "HiÃƒÆ’Ã‚Â¡Ãƒâ€šÃ‚Â»ÃƒÂ¢Ã¢â€šÂ¬Ã‚Â¡n")
+                                Self::tr_lang(
+                                    language,
+                                    "Show",
+                                    "HiÃƒÆ’Ã‚Â¡Ãƒâ€šÃ‚Â»ÃƒÂ¢Ã¢â€šÂ¬Ã‚Â¡n",
+                                )
                             } else {
                                 Self::tr_lang(language, "Hide", "ÃƒÆ’Ã‚Â¡Ãƒâ€šÃ‚ÂºÃƒâ€šÃ‚Â¨n")
                             })
@@ -13622,16 +14239,15 @@ impl eframe::App for CrosshairApp {
                         } else {
                             RichText::new(self.panel_label(AppPanel::Media))
                         };
-                        let response =
-                            Self::hover_if(
-                                ui.add(self.top_tab_button(
-                                    text,
-                                    self.state.active_panel == AppPanel::Media,
-                                    false,
-                                )),
-                                show_icon_tooltips,
-                                self.panel_label(AppPanel::Media),
-                            );
+                        let response = Self::hover_if(
+                            ui.add(self.top_tab_button(
+                                text,
+                                self.state.active_panel == AppPanel::Media,
+                                false,
+                            )),
+                            show_icon_tooltips,
+                            self.panel_label(AppPanel::Media),
+                        );
                         if response.clicked() {
                             self.state.active_panel = AppPanel::Media;
                         }
@@ -13641,16 +14257,15 @@ impl eframe::App for CrosshairApp {
                     } else {
                         RichText::new(self.panel_label(AppPanel::Settings))
                     };
-                    let response =
-                        Self::hover_if(
-                            ui.add(self.top_tab_button(
-                                text,
-                                self.state.active_panel == AppPanel::Settings,
-                                false,
-                            )),
-                            show_icon_tooltips,
-                            self.panel_label(AppPanel::Settings),
-                        );
+                    let response = Self::hover_if(
+                        ui.add(self.top_tab_button(
+                            text,
+                            self.state.active_panel == AppPanel::Settings,
+                            false,
+                        )),
+                        show_icon_tooltips,
+                        self.panel_label(AppPanel::Settings),
+                    );
                     if response.clicked() {
                         self.state.active_panel = AppPanel::Settings;
                     }
@@ -13714,4 +14329,3 @@ fn audio_duration(clip: &AudioClipSettings) -> Option<u64> {
         audio::load_duration_ms(&clip.file_path).ok()
     }
 }
-

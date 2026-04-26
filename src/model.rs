@@ -134,6 +134,74 @@ fn default_image_search_move_delay_ms() -> u64 {
     10
 }
 
+fn default_image_search_timing_cycle_ms() -> u64 {
+    1500
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
+#[serde(default)]
+pub struct ImageSearchTimingPreset {
+    pub id: u32,
+    pub name: String,
+    pub enabled: bool,
+    pub collapsed: bool,
+    pub target_window_title: Option<String>,
+    pub extra_target_window_titles: Vec<String>,
+    #[serde(default = "default_true")]
+    pub match_duplicate_window_titles: bool,
+    pub target_color: Option<RgbaColor>,
+    #[serde(default)]
+    pub target_colors: Vec<RgbaColor>,
+    #[serde(default)]
+    pub search_region_is_circle: bool,
+    #[serde(default)]
+    pub show_search_region_overlay: bool,
+    #[serde(default)]
+    pub color_tolerance: u8,
+    #[serde(default = "default_image_search_color_scan_rate_hz")]
+    pub color_scan_rate_hz: u32,
+    #[serde(default)]
+    pub dual_color_scan_midpoint: bool,
+    #[serde(default = "default_image_search_timing_cycle_ms")]
+    pub timing_cycle_ms: u64,
+    pub search_region_screen_x: Option<i32>,
+    pub search_region_screen_y: Option<i32>,
+    pub search_region_width: Option<i32>,
+    pub search_region_height: Option<i32>,
+}
+
+impl ImageSearchTimingPreset {
+    pub fn new(id: u32) -> Self {
+        Self {
+            id,
+            name: format!("Timing Preset {id}"),
+            enabled: true,
+            collapsed: true,
+            target_window_title: None,
+            extra_target_window_titles: Vec::new(),
+            match_duplicate_window_titles: true,
+            target_color: None,
+            target_colors: Vec::new(),
+            search_region_is_circle: true,
+            show_search_region_overlay: false,
+            color_tolerance: default_image_search_color_tolerance(),
+            color_scan_rate_hz: default_image_search_color_scan_rate_hz(),
+            dual_color_scan_midpoint: false,
+            timing_cycle_ms: default_image_search_timing_cycle_ms(),
+            search_region_screen_x: None,
+            search_region_screen_y: None,
+            search_region_width: None,
+            search_region_height: None,
+        }
+    }
+}
+
+impl Default for ImageSearchTimingPreset {
+    fn default() -> Self {
+        Self::new(1)
+    }
+}
+
 #[derive(Debug, Clone, Copy, Serialize, Deserialize, PartialEq, Eq, Default)]
 pub enum AppPanel {
     #[default]
@@ -301,6 +369,7 @@ pub enum MacroAction {
     PlaySoundPreset,
     StartImageSearch,
     TriggerImageSearchMove,
+    TriggerImageSearchTiming,
     StopImageSearchWait,
     StopImageSearch,
     LoopStart,
@@ -1294,6 +1363,8 @@ pub struct AppState {
     pub macros_master_enabled: bool,
     pub image_search_presets: Vec<ImageSearchPreset>,
     pub next_image_search_preset_id: u32,
+    pub image_search_timing_presets: Vec<ImageSearchTimingPreset>,
+    pub next_image_search_timing_preset_id: u32,
     pub ai_settings: AiSettings,
     pub audio_settings: AudioSettings,
     pub image_search_settings: ImageSearchSettings,
@@ -1350,6 +1421,8 @@ impl Default for AppState {
             macros_master_enabled: true,
             image_search_presets: vec![ImageSearchPreset::default()],
             next_image_search_preset_id: 2,
+            image_search_timing_presets: vec![ImageSearchTimingPreset::default()],
+            next_image_search_timing_preset_id: 2,
             ai_settings: AiSettings::default(),
             audio_settings: AudioSettings::default(),
             image_search_settings: ImageSearchSettings::default(),
