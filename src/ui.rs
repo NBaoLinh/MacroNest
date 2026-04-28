@@ -8089,7 +8089,6 @@ impl CrosshairApp {
             if let Some(folder_id) = open_folder_id {
                 self.set_active_macro_folder_view(Some(folder_id));
             }
-            ui.separator();
         }
         let search_query = self.macro_preset_search_query.trim().to_owned();
         Self::sort_macro_groups(&mut self.state.macro_groups);
@@ -8105,7 +8104,6 @@ impl CrosshairApp {
             .filter(|(_, group)| Self::macro_group_matches_search_query(group, &search_query))
             .map(|(index, _)| index)
             .collect();
-        ui.separator();
         egui::ScrollArea::vertical()
             .auto_shrink([false, false])
             .show(ui, |ui| {
@@ -8150,7 +8148,6 @@ impl CrosshairApp {
             }
 
             let image_search_timing_preset_options = self.image_search_timing_preset_options();
-            ui.separator();
             {
                 let group = &mut self.state.macro_groups[group_index];
                 Self::show_preset_card(ui, group.enabled, |ui| {
