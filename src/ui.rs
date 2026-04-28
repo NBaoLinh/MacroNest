@@ -8713,21 +8713,6 @@ impl CrosshairApp {
                         }
                     }
 
-                    egui::Grid::new((group.id, "preset-header-row"))
-                        .num_columns(9)
-                        .spacing([6.0, 4.0])
-                        .show(ui, |ui| {
-                            ui.strong(Self::tr_lang(language, "Trig", "Trig"));
-                            ui.strong(Self::tr_lang(language, "Key", "PhÃƒÆ’Ã†â€™Ãƒâ€šÃ‚Â­m"));
-                            ui.strong(Self::tr_lang(language, "On", "BÃƒÆ’Ã†â€™Ãƒâ€šÃ‚Â¡ÃƒÆ’Ã¢â‚¬Å¡Ãƒâ€šÃ‚ÂºÃƒÆ’Ã¢â‚¬Å¡Ãƒâ€šÃ‚Â­t"));
-                            ui.strong(Self::tr_lang(language, "Show", "HiÃƒÆ’Ã†â€™Ãƒâ€šÃ‚Â¡ÃƒÆ’Ã¢â‚¬Å¡Ãƒâ€šÃ‚Â»ÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â‚¬Å¡Ã‚Â¬Ãƒâ€šÃ‚Â¡n"));
-                            ui.strong(Self::material_icon_text(0xe312, 18.0));
-                            ui.strong(Self::tr_lang(language, "Clr", "Clr"));
-                            ui.strong(Self::tr_lang(language, "Copy", "Sao chÃƒÆ’Ã†â€™Ãƒâ€ Ã¢â‚¬â„¢ÃƒÆ’Ã¢â‚¬Å¡Ãƒâ€šÃ‚Â©p"));
-                            ui.strong(Self::tr_lang(language, "Paste", "DÃƒÆ’Ã†â€™Ãƒâ€šÃ‚Â¡ÃƒÆ’Ã¢â‚¬Å¡Ãƒâ€šÃ‚ÂºÃƒÆ’Ã¢â‚¬Å¡Ãƒâ€šÃ‚Â¡n"));
-                            ui.strong(Self::tr_lang(language, "Del", "XÃƒÆ’Ã†â€™Ãƒâ€ Ã¢â‚¬â„¢ÃƒÆ’Ã¢â‚¬Å¡Ãƒâ€šÃ‚Â³a"));
-                            ui.end_row();
-                    });
                     for preset_index in render_preset_indices.iter().copied() {
                         let preset = &mut group.presets[preset_index];
                         Self::show_preset_card(ui, group.enabled && preset.enabled, |ui| {
@@ -8782,24 +8767,43 @@ impl CrosshairApp {
                                     preset.collapsed = !preset.collapsed;
                                     live_sync = true;
                                 }
-                                let capture_target =
-                                    CaptureRequest::MacroPresetHotkey(group.id, preset.id);
-                                if ui
-                                    .add_sized(
-                                        [64.0, 22.0],
-                                        Button::new(Self::capture_button_text(
-                                            language,
-                                            capture_target_snapshot.as_ref() == Some(&capture_target),
-                                        )),
-                                )
-                                    .clicked()
-                                {
-                                    if capture_target_snapshot.as_ref() == Some(&capture_target) {
-                                        cancel_active_capture = true;
-                                    } else {
-                                        next_capture_target = Some(capture_target);
-                                    }
-                                }
+                                let mouse_trigger_options = [
+                                    ("MouseLeft", Self::tr_lang(language, "LClick", "Trai")),
+                                    ("MouseRight", Self::tr_lang(language, "RClick", "Phai")),
+                                    ("MouseMiddle", Self::tr_lang(language, "MClick", "Giua")),
+                                    ("MouseX1", Self::tr_lang(language, "X1", "X1")),
+                                    ("MouseX2", Self::tr_lang(language, "X2", "X2")),
+                                    ("MouseWheelUp", Self::tr_lang(language, "WhUp", "Len")),
+                                    ("MouseWheelDown", Self::tr_lang(language, "WhDn", "Xuong")),
+                                ];
+                                let selected_mouse_key = hotkey::split_key_list(&preset.trigger_keys)
+                                    .into_iter()
+                                    .find(|key| hotkey::is_mouse_key_name(key));
+                                let selected_mouse_label = selected_mouse_key
+                                    .as_deref()
+                                    .and_then(|key| mouse_trigger_options.iter().find(|(option_key, _)| option_key.eq_ignore_ascii_case(key)))
+                                    .map(|(_, label)| *label)
+                                    .unwrap_or_else(|| Self::tr_lang(language, "Mouse", "Chuot"));
+                                egui::ComboBox::from_id_salt((group.id, preset.id, "mouse-trigger-dropdown"))
+                                    .width(64.0)
+                                    .selected_text(selected_mouse_label)
+                                    .show_ui(ui, |ui| {
+                                        for (option_key, option_label) in mouse_trigger_options {
+                                            if ui
+                                                .selectable_label(
+                                                    selected_mouse_key
+                                                        .as_ref()
+                                                        .is_some_and(|current| current.eq_ignore_ascii_case(option_key)),
+                                                    option_label,
+                                                )
+                                                .clicked()
+                                            {
+                                                preset.trigger_keys = option_key.to_owned();
+                                                preset.hotkey = None;
+                                                live_sync = true;
+                                            }
+                                        }
+                                    });
                                 if Self::sized_button(ui, 64.0, Self::tr_lang(language, "Clear", "XÃƒÆ’Ã†â€™Ãƒâ€ Ã¢â‚¬â„¢ÃƒÆ’Ã¢â‚¬Å¡Ãƒâ€šÃ‚Â³a")).clicked() {
                                     let mut changed = false;
                                     if !preset.trigger_keys.trim().is_empty() {
@@ -11667,14 +11671,14 @@ impl CrosshairApp {
                                             ))
                                             .small());
                                             live_sync |= ui
-                                                    .add(
-                                                        Slider::new(
-                                                            &mut preset.image_search_distance_near_speed,
-                                                            0.10..=20.0,
-                                                        )
-                                                        .show_value(true),
-                                                    )
-                                                    .changed();
+                                            .add(
+                                                Slider::new(
+                                                    &mut preset.image_search_distance_near_speed,
+                                                    0.10..=500.0,
+                                                )
+                                                .show_value(true),
+                                            )
+                                            .changed();
                                         });
                                         ui.horizontal_wrapped(|ui| {
                                             ui.label(RichText::new(Self::tr_lang(
@@ -11684,13 +11688,13 @@ impl CrosshairApp {
                                             ))
                                             .small());
                                             live_sync |= ui
-                                                .add(
-                                                    Slider::new(
-                                                        &mut preset.image_search_distance_far_speed,
-                                                        0.10..=20.0,
-                                                    )
-                                                    .show_value(true),
+                                            .add(
+                                                Slider::new(
+                                                    &mut preset.image_search_distance_far_speed,
+                                                    0.10..=1000.0,
                                                 )
+                                                .show_value(true),
+                                            )
                                                 .changed();
                                         });
                                         ui.label(
