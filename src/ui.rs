@@ -8412,48 +8412,55 @@ impl CrosshairApp {
 
                                 ui.allocate_ui_with_layout(
                                     vec2(right_width, 0.0),
-                                    egui::Layout::left_to_right(egui::Align::Center),
+                                    egui::Layout::right_to_left(egui::Align::Center),
                                     |ui| {
-                                        live_sync |= ui
-                                            .add_sized(
-                                                [86.0, 22.0],
-                                                egui::Checkbox::new(
-                                                    &mut preset.enabled,
-                                                    Self::tr_lang(language, "Enabled", "BÃƒÆ’Ã†â€™Ãƒâ€šÃ‚Â¡ÃƒÆ’Ã¢â‚¬Å¡Ãƒâ€šÃ‚ÂºÃƒÆ’Ã¢â‚¬Å¡Ãƒâ€šÃ‚Â­t"),
-                                                ),
-                                            )
-                                            .changed();
                                         if Self::sized_button(
                                             ui,
-                                            58.0,
-                                            if preset.collapsed {
-                                                Self::tr_lang(language, "Show", "HiÃƒÆ’Ã†â€™Ãƒâ€šÃ‚Â¡ÃƒÆ’Ã¢â‚¬Å¡Ãƒâ€šÃ‚Â»ÃƒÆ’Ã¢â‚¬Â¢ÃƒÂ¢Ã¢â‚¬Å¡Ã‚Â¬Ãƒâ€šÃ‚Â¡n")
-                                            } else {
-                                                Self::tr_lang(language, "Hide", "ÃƒÆ’Ã†â€™Ãƒâ€šÃ‚Â¡Ãƒâ€šÃ‚ÂºÃƒÆ’Ã¢â‚¬Å¡Ãƒâ€šÃ‚Â¨n")
-                                            },
+                                            64.0,
+                                            Self::tr_lang(language, "Remove", "XÃƒÆ’Ã†â€™Ãƒâ€ Ã¢â‚¬â„¢ÃƒÆ’Ã¢â‚¬Å¡Ãƒâ€šÃ‚Â³a"),
                                         )
                                         .clicked()
                                         {
-                                            preset.collapsed = !preset.collapsed;
-                                            live_sync = true;
+                                            remove_preset = Some(preset.id);
                                         }
-                                        let capture_target =
-                                            CaptureRequest::MacroPresetHotkey(group.id, preset.id);
                                         if ui
-                                            .add_sized(
-                                                [64.0, 24.0],
-                                                Button::new(Self::capture_button_text(
-                                                    language,
-                                                    capture_target_snapshot.as_ref() == Some(&capture_target),
-                                                )),
+                                            .add_enabled(
+                                                self.macro_preset_clipboard.is_some(),
+                                                Button::new(
+                                                    Self::tr_lang(language, "Paste", "DÃƒÆ’Ã†â€™Ãƒâ€šÃ‚Â¡ÃƒÆ’Ã¢â‚¬Å¡Ãƒâ€šÃ‚ÂºÃƒÆ’Ã¢â‚¬Å¡Ãƒâ€šÃ‚Â¡n")
+                                                )
+                                                .min_size(egui::vec2(64.0, 24.0)),
                                             )
                                             .clicked()
                                         {
-                                            if capture_target_snapshot.as_ref() == Some(&capture_target) {
-                                                cancel_active_capture = true;
-                                            } else {
-                                                next_capture_target = Some(capture_target);
+                                            paste_preset_to_group = Some(group.id);
+                                        }
+                                        if Self::sized_button(
+                                            ui,
+                                            64.0,
+                                            Self::tr_lang(language, "Copy", "Sao chÃƒÆ’Ã†â€™Ãƒâ€ Ã¢â‚¬â„¢Ãƒâ€šÃ‚Â©p"),
+                                        )
+                                        .clicked()
+                                        {
+                                            self.macro_preset_clipboard = Some(preset.clone());
+                                            self.status = "Copied macro preset.".to_owned();
+                                        }
+                                        if Self::sized_button(
+                                            ui,
+                                            64.0,
+                                            Self::tr_lang(language, "Clear", "XÃƒÆ’Ã†â€™Ãƒâ€ Ã¢â‚¬â„¢ÃƒÆ’Ã¢â‚¬Å¡Ãƒâ€šÃ‚Â³a"),
+                                        )
+                                        .clicked()
+                                        {
+                                            let mut changed = false;
+                                            if !preset.trigger_keys.trim().is_empty() {
+                                                changed |= Self::pop_key_list_entry(&mut preset.trigger_keys);
                                             }
+                                            if preset.hotkey.is_some() {
+                                                preset.hotkey = None;
+                                                changed = true;
+                                            }
+                                            live_sync |= changed;
                                         }
                                         let mouse_trigger_options = [
                                             ("MouseLeft", Self::tr_lang(language, "LClick", "Trai")),
@@ -8511,34 +8518,47 @@ impl CrosshairApp {
                                         mouse_trigger_response
                                             .response
                                             .on_hover_text(selected_mouse_label);
-                                        if Self::sized_button(ui, 64.0, Self::tr_lang(language, "Clear", "XÃƒÆ’Ã†â€™Ãƒâ€ Ã¢â‚¬â„¢ÃƒÆ’Ã¢â‚¬Å¡Ãƒâ€šÃ‚Â³a")).clicked() {
-                                            let mut changed = false;
-                                            if !preset.trigger_keys.trim().is_empty() {
-                                                changed |= Self::pop_key_list_entry(&mut preset.trigger_keys);
-                                            }
-                                            if preset.hotkey.is_some() {
-                                                preset.hotkey = None;
-                                                changed = true;
-                                            }
-                                            live_sync |= changed;
-                                        }
-                                        if Self::sized_button(ui, 64.0, Self::tr_lang(language, "Copy", "Sao chÃƒÆ’Ã†â€™Ãƒâ€ Ã¢â‚¬â„¢Ãƒâ€šÃ‚Â©p")).clicked() {
-                                            self.macro_preset_clipboard = Some(preset.clone());
-                                            self.status = "Copied macro preset.".to_owned();
-                                        }
+                                        let capture_target =
+                                            CaptureRequest::MacroPresetHotkey(group.id, preset.id);
                                         if ui
-                                            .add_enabled(
-                                                self.macro_preset_clipboard.is_some(),
-                                                Button::new(Self::tr_lang(language, "Paste", "DÃƒÆ’Ã†â€™Ãƒâ€šÃ‚Â¡ÃƒÆ’Ã¢â‚¬Å¡Ãƒâ€šÃ‚ÂºÃƒÆ’Ã¢â‚¬Å¡Ãƒâ€šÃ‚Â¡n"))
-                                                    .min_size(egui::vec2(64.0, 24.0)),
+                                            .add_sized(
+                                                [64.0, 24.0],
+                                                Button::new(Self::capture_button_text(
+                                                    language,
+                                                    capture_target_snapshot.as_ref() == Some(&capture_target),
+                                                )),
                                             )
                                             .clicked()
                                         {
-                                            paste_preset_to_group = Some(group.id);
+                                            if capture_target_snapshot.as_ref() == Some(&capture_target) {
+                                                cancel_active_capture = true;
+                                            } else {
+                                                next_capture_target = Some(capture_target);
+                                            }
                                         }
-                                        if Self::sized_button(ui, 64.0, Self::tr_lang(language, "Remove", "XÃƒÆ’Ã†â€™Ãƒâ€ Ã¢â‚¬â„¢ÃƒÆ’Ã¢â‚¬Å¡Ãƒâ€šÃ‚Â³a")).clicked() {
-                                            remove_preset = Some(preset.id);
+                                        if Self::sized_button(
+                                            ui,
+                                            58.0,
+                                            if preset.collapsed {
+                                                Self::tr_lang(language, "Show", "HiÃƒÆ’Ã†â€™Ãƒâ€šÃ‚Â¡ÃƒÆ’Ã¢â‚¬Å¡Ãƒâ€šÃ‚Â»ÃƒÆ’Ã¢â‚¬Â¢ÃƒÂ¢Ã¢â‚¬Å¡Ã‚Â¬Ãƒâ€šÃ‚Â¡n")
+                                            } else {
+                                                Self::tr_lang(language, "Hide", "ÃƒÆ’Ã†â€™Ãƒâ€šÃ‚Â¡Ãƒâ€šÃ‚ÂºÃƒÆ’Ã¢â‚¬Å¡Ãƒâ€šÃ‚Â¨n")
+                                            },
+                                        )
+                                        .clicked()
+                                        {
+                                            preset.collapsed = !preset.collapsed;
+                                            live_sync = true;
                                         }
+                                        live_sync |= ui
+                                            .add_sized(
+                                                [86.0, 22.0],
+                                                egui::Checkbox::new(
+                                                    &mut preset.enabled,
+                                                    Self::tr_lang(language, "Enabled", "BÃƒÆ’Ã†â€™Ãƒâ€šÃ‚Â¡ÃƒÆ’Ã¢â‚¬Å¡Ãƒâ€šÃ‚ÂºÃƒÆ’Ã¢â‚¬Å¡Ãƒâ€šÃ‚Â­t"),
+                                                ),
+                                            )
+                                            .changed();
                                     },
                                 );
                             });
