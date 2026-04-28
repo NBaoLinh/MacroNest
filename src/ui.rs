@@ -8802,9 +8802,9 @@ impl CrosshairApp {
                                     .and_then(|key| mouse_trigger_options.iter().find(|(option_key, _)| option_key.eq_ignore_ascii_case(key)))
                                     .map(|(_, label)| *label)
                                     .unwrap_or_else(|| Self::tr_lang(language, "Mouse", "Chuot"));
-                                egui::ComboBox::from_id_salt((group.id, preset.id, "mouse-trigger-dropdown"))
+                                let mouse_trigger_response = egui::ComboBox::from_id_salt((group.id, preset.id, "mouse-trigger-dropdown"))
                                     .width(58.0)
-                                    .selected_text(selected_mouse_label)
+                                    .selected_text(Self::tr_lang(language, "M", "M"))
                                     .show_ui(ui, |ui| {
                                         for (option_key, option_label) in mouse_trigger_options {
                                             if ui
@@ -8822,6 +8822,9 @@ impl CrosshairApp {
                                             }
                                         }
                                     });
+                                mouse_trigger_response
+                                    .response
+                                    .on_hover_text(selected_mouse_label);
                                 if Self::sized_button(ui, 64.0, Self::tr_lang(language, "Clear", "XÃƒÆ’Ã†â€™Ãƒâ€ Ã¢â‚¬â„¢ÃƒÆ’Ã¢â‚¬Å¡Ãƒâ€šÃ‚Â³a")).clicked() {
                                     let mut changed = false;
                                     if !preset.trigger_keys.trim().is_empty() {
@@ -10654,10 +10657,10 @@ impl CrosshairApp {
                     self.selected_macro_steps
                         .insert((group_id, preset_id, moved_index));
                 }
-            }
-        }
-        }
-            });
+                                                }
+                                            }
+                                        }
+                                    });
 
         if let Some(group_id) = add_preset_to_group {
             self.add_macro_preset_to_group(group_id);
