@@ -8771,7 +8771,7 @@ impl CrosshairApp {
                                     CaptureRequest::MacroPresetHotkey(group.id, preset.id);
                                 if ui
                                     .add_sized(
-                                        [64.0, 22.0],
+                                        [64.0, 24.0],
                                         Button::new(Self::capture_button_text(
                                             language,
                                             capture_target_snapshot.as_ref() == Some(&capture_target),
@@ -8804,7 +8804,7 @@ impl CrosshairApp {
                                     .unwrap_or_else(|| Self::tr_lang(language, "Mouse", "Chuot"));
                                 let mouse_trigger_response = egui::ComboBox::from_id_salt((group.id, preset.id, "mouse-trigger-dropdown"))
                                     .width(58.0)
-                                    .selected_text(Self::tr_lang(language, "M", "M"))
+                                    .selected_text(selected_mouse_label)
                                     .show_ui(ui, |ui| {
                                         for (option_key, option_label) in mouse_trigger_options {
                                             if ui
