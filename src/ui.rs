@@ -4881,7 +4881,7 @@ impl CrosshairApp {
 
     fn capture_request_keeps_open(&self, target: &CaptureRequest) -> bool {
         match target {
-            CaptureRequest::MacroPresetHotkey(_, _) => false,
+            CaptureRequest::MacroPresetHotkey(_, _) => true,
             CaptureRequest::MacroPresetReleaseWaitKey(_, _) => true,
             CaptureRequest::MacroPresetHoldStopInput(group_id, preset_id) => self
                 .state
@@ -8787,9 +8787,11 @@ impl CrosshairApp {
                                             {
                                                 let mut trigger_keys =
                                                     hotkey::split_key_list(&preset.trigger_keys);
-                                                trigger_keys
-                                                    .retain(|key| !hotkey::is_mouse_key_name(key));
-                                                trigger_keys.push(option_key.to_owned());
+                                                if !trigger_keys.iter().any(|key| {
+                                                    key.eq_ignore_ascii_case(option_key)
+                                                }) {
+                                                    trigger_keys.push(option_key.to_owned());
+                                                }
                                                 preset.trigger_keys = trigger_keys.join(", ");
                                                 preset.hotkey = None;
                                                 live_sync = true;
