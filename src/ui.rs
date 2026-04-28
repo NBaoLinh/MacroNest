@@ -8357,54 +8357,66 @@ impl CrosshairApp {
                         let preset = &mut group.presets[preset_index];
                         Self::show_preset_card(ui, group.enabled && preset.enabled, |ui| {
                             ui.horizontal_top(|ui| {
-                                ui.vertical(|ui| {
-                                    ui.horizontal(|ui| {
-                                        ui.label(Self::tr_lang(
-                                            language,
-                                            if preset.trigger_mode == MacroTriggerMode::Release {
-                                                "Release"
-                                            } else {
-                                                "Trigger"
-                                            },
-                                            if preset.trigger_mode == MacroTriggerMode::Release {
-                                                "ThÃƒÆ’Ã†â€™Ãƒâ€šÃ‚Â¡ÃƒÆ’Ã¢â‚¬Å¡Ãƒâ€šÃ‚ÂºÃƒÆ’Ã¢â‚¬Å¡Ãƒâ€šÃ‚Â£"
-                                            } else {
-                                                "KÃƒÆ’Ã†â€™Ãƒâ€ Ã¢â‚¬â„¢ÃƒÆ’Ã¢â‚¬Å¡Ãƒâ€šÃ‚Â­ch hoÃƒÆ’Ã†â€™Ãƒâ€šÃ‚Â¡ÃƒÆ’Ã¢â‚¬Å¡Ãƒâ€šÃ‚ÂºÃƒÆ’Ã¢â‚¬Å¡Ãƒâ€šÃ‚Â¡t"
-                                            },
-                                        ));
-                                        ui.add_space(6.0);
-                                        if !preset.trigger_keys.trim().is_empty() {
-                                            live_sync |= Self::render_key_list_chips(
-                                                ui,
+                                let available_width = ui.available_width();
+                                let right_width = 576.0;
+                                let left_width = (available_width - right_width - 8.0).max(160.0);
+
+                                ui.allocate_ui_with_layout(
+                                    vec2(left_width, 0.0),
+                                    egui::Layout::top_down(egui::Align::LEFT),
+                                    |ui| {
+                                        ui.horizontal(|ui| {
+                                            ui.label(Self::tr_lang(
                                                 language,
-                                                &mut preset.trigger_keys,
-                                                Self::tr_lang(
+                                                if preset.trigger_mode == MacroTriggerMode::Release {
+                                                    "Release"
+                                                } else {
+                                                    "Trigger"
+                                                },
+                                                if preset.trigger_mode == MacroTriggerMode::Release {
+                                                    "ThÃƒÆ’Ã†â€™Ãƒâ€šÃ‚Â¡ÃƒÆ’Ã¢â‚¬Å¡Ãƒâ€šÃ‚ÂºÃƒÆ’Ã¢â‚¬Å¡Ãƒâ€šÃ‚Â£"
+                                                } else {
+                                                    "KÃƒÆ’Ã†â€™Ãƒâ€ Ã¢â‚¬â„¢ÃƒÆ’Ã¢â‚¬Å¡Ãƒâ€šÃ‚Â­ch hoÃƒÆ’Ã†â€™Ãƒâ€šÃ‚Â¡ÃƒÆ’Ã¢â‚¬Å¡Ãƒâ€šÃ‚ÂºÃƒÆ’Ã¢â‚¬Å¡Ãƒâ€šÃ‚Â¡t"
+                                                },
+                                            ));
+                                            ui.add_space(6.0);
+                                            if !preset.trigger_keys.trim().is_empty() {
+                                                live_sync |= Self::render_key_list_chips(
+                                                    ui,
                                                     language,
-                                                    "Not set",
-                                                    "ChÃƒÆ’Ã†â€™ÃƒÂ¢Ã¢â€šÂ¬Ã‚Â ÃƒÆ’Ã¢â‚¬Å¡Ãƒâ€šÃ‚Â°a ÃƒÆ’Ã†â€™ÃƒÂ¢Ã¢â€šÂ¬Ã…Â¾ÃƒÆ’Ã¢â‚¬â„¢Ãƒâ€šÃ‚Â¬ÃƒÆ’Ã†â€™Ãƒâ€šÃ‚Â¥Ãƒâ€šÃ‚Â¡ÃƒÆ’Ã¢â‚¬Å¡Ãƒâ€šÃ‚ÂºÃƒÆ’Ã¢â‚¬Å¡Ãƒâ€šÃ‚Â·t",
-                                                ),
-                                            );
-                                        } else {
-                                            ui.add_sized(
-                                                [148.0, 22.0],
-                                                egui::Label::new(
-                                                    RichText::new(
-                                                        binding_labels
-                                                            .get(&preset.id)
-                                                            .cloned()
-                                                            .unwrap_or_else(|| {
-                                                                Self::format_macro_trigger_ui(language, preset)
-                                                            }),
-                                                    )
-                                                    .monospace(),
-                                                ),
-                                            );
-                                        }
-                                    });
-                                });
+                                                    &mut preset.trigger_keys,
+                                                    Self::tr_lang(
+                                                        language,
+                                                        "Not set",
+                                                        "ChÃƒÆ’Ã†â€™ÃƒÂ¢Ã¢â€šÂ¬Ã‚Â ÃƒÆ’Ã¢â‚¬Å¡Ãƒâ€šÃ‚Â°a ÃƒÆ’Ã†â€™ÃƒÂ¢Ã¢â€šÂ¬Ã…Â¾ÃƒÆ’Ã¢â‚¬â„¢Ãƒâ€šÃ‚Â¬ÃƒÆ’Ã†â€™Ãƒâ€šÃ‚Â¥Ãƒâ€šÃ‚Â¡ÃƒÆ’Ã¢â‚¬Å¡Ãƒâ€šÃ‚ÂºÃƒÆ’Ã¢â‚¬Å¡Ãƒâ€šÃ‚Â·t",
+                                                    ),
+                                                );
+                                            } else {
+                                                ui.add_sized(
+                                                    [148.0, 22.0],
+                                                    egui::Label::new(
+                                                        RichText::new(
+                                                            binding_labels
+                                                                .get(&preset.id)
+                                                                .cloned()
+                                                                .unwrap_or_else(|| {
+                                                                    Self::format_macro_trigger_ui(language, preset)
+                                                                }),
+                                                        )
+                                                        .monospace(),
+                                                    ),
+                                                );
+                                            }
+                                        });
+                                    },
+                                );
+
                                 ui.add_space(8.0);
-                                ui.vertical(|ui| {
-                                    ui.horizontal(|ui| {
+
+                                ui.allocate_ui_with_layout(
+                                    vec2(right_width, 0.0),
+                                    egui::Layout::left_to_right(egui::Align::Center),
+                                    |ui| {
                                         live_sync |= ui
                                             .add_sized(
                                                 [86.0, 22.0],
@@ -8530,8 +8542,8 @@ impl CrosshairApp {
                                         if Self::sized_button(ui, 64.0, Self::tr_lang(language, "Remove", "XÃƒÆ’Ã†â€™Ãƒâ€ Ã¢â‚¬â„¢ÃƒÆ’Ã¢â‚¬Å¡Ãƒâ€šÃ‚Â³a")).clicked() {
                                             remove_preset = Some(preset.id);
                                         }
-                                    });
-                                });
+                                    },
+                                );
                             });
                         if !preset.collapsed {
                         ui.horizontal(|ui| {
