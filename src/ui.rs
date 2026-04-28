@@ -20,7 +20,7 @@ use crate::{
     model::{
         AppPanel, AppState, AudioClipSettings, CaptureRequest, CapturedInput, CrosshairStyle,
         HotkeyBinding, ImageSearchPreset, ImageSearchTimingPreset, MacroAction, MacroFolder,
-        MacroGroup, MacroPreset, MacroSelectorPreset, MacroStep, MacroTriggerMode,
+        MacroGroup, MacroPreset, MacroStep, MacroTriggerMode,
         MasterMacroGroupState, MasterMacroPresetState, MasterPreset, MasterWindowFocusPresetState,
         MasterWindowPresetState, MasterZoomPresetState, MousePathEvent, MousePathEventKind,
         MousePathPreset, MouseSensitivityPreset, PinOverlayStyle, PinPreset, ProfileRecord,
@@ -2910,51 +2910,6 @@ impl CrosshairApp {
         }
     }
 
-    fn render_selector_preset_targets(
-        ui: &mut egui::Ui,
-        id_source: impl std::hash::Hash + Copy,
-        selected_ids: &mut Vec<u32>,
-        preset_options: &[(u32, String)],
-    ) -> bool {
-        let mut changed = false;
-        ui.vertical(|ui| {
-            let mut remove_index = None;
-            for (index, preset_id) in selected_ids.clone().into_iter().enumerate() {
-                ui.horizontal_wrapped(|ui| {
-                    let label = preset_options
-                        .iter()
-                        .find(|(id, _)| *id == preset_id)
-                        .map(|(_, label)| label.clone())
-                        .unwrap_or_else(|| format!("Preset #{preset_id}"));
-                    ui.label(label);
-                    if ui.button("x").clicked() {
-                        remove_index = Some(index);
-                    }
-                });
-            }
-            if let Some(index) = remove_index {
-                selected_ids.remove(index);
-                changed = true;
-            }
-
-            egui::ComboBox::from_id_salt((id_source, "selector-targets-add"))
-                .width(180.0)
-                .selected_text("+ Preset")
-                .show_ui(ui, |ui| {
-                    for (preset_id, label) in preset_options {
-                        if selected_ids.contains(preset_id) {
-                            continue;
-                        }
-                        if ui.selectable_label(false, label).clicked() {
-                            selected_ids.push(*preset_id);
-                            changed = true;
-                        }
-                    }
-                });
-        });
-        changed
-    }
-
     fn macro_action_uses_key(action: MacroAction) -> bool {
         matches!(
             action,
@@ -4634,46 +4589,6 @@ impl CrosshairApp {
         self.status = format!("Added macro group {id} to folder.");
     }
 
-    fn add_selector_to_group(&mut self, group_id: u32) {
-        let selector_id = self.state.next_macro_selector_preset_id.max(1);
-        self.state.next_macro_selector_preset_id = selector_id + 1;
-        if let Some(group) = self
-            .state
-            .macro_groups
-            .iter_mut()
-            .find(|group| group.id == group_id)
-        {
-            group
-                .selector_presets
-                .push(MacroSelectorPreset::new(selector_id));
-            self.sync_macro_presets();
-            self.status = format!("Added selector preset {selector_id}.");
-        }
-    }
-
-    fn add_selector_option_to_group(&mut self, group_id: u32, selector_id: u32) {
-        let option_id = self.state.next_macro_selector_option_id.max(1);
-        self.state.next_macro_selector_option_id = option_id + 1;
-        if let Some(selector) = self
-            .state
-            .macro_groups
-            .iter_mut()
-            .find(|group| group.id == group_id)
-            .and_then(|group| {
-                group
-                    .selector_presets
-                    .iter_mut()
-                    .find(|selector| selector.id == selector_id)
-            })
-        {
-            selector
-                .options
-                .push(crate::model::MacroSelectorOption::new(option_id, ""));
-            self.sync_macro_presets();
-            self.status = format!("Added selector choice {option_id}.");
-        }
-    }
-
     fn clone_macro_preset_with_new_id(&mut self, source: &MacroPreset) -> MacroPreset {
         let new_preset_id = self.state.next_macro_preset_id.max(1);
         self.state.next_macro_preset_id = new_preset_id + 1;
@@ -4728,30 +4643,6 @@ impl CrosshairApp {
             Self::remap_macro_step_group_refs(&mut preset.hold_stop_step, &preset_id_map);
             for step in &mut preset.steps {
                 Self::remap_macro_step_group_refs(step, &preset_id_map);
-            }
-        }
-
-        for selector in &mut copied_group.selector_presets {
-            let new_selector_id = self.state.next_macro_selector_preset_id.max(1);
-            self.state.next_macro_selector_preset_id = new_selector_id + 1;
-            selector.id = new_selector_id;
-            selector.collapsed = true;
-            selector.active_option_id = None;
-            for option in &mut selector.options {
-                let new_option_id = self.state.next_macro_selector_option_id.max(1);
-                self.state.next_macro_selector_option_id = new_option_id + 1;
-                option.id = new_option_id;
-                option.enable_preset_ids = option
-                    .enable_preset_ids
-                    .iter()
-                    .filter_map(|id| preset_id_map.get(id).copied())
-                    .collect();
-                option.disable_preset_ids = option
-                    .disable_preset_ids
-                    .iter()
-                    .filter_map(|id| preset_id_map.get(id).copied())
-                    .collect();
-                option.legacy_target_preset_id = None;
             }
         }
 
@@ -5644,54 +5535,6 @@ impl CrosshairApp {
                         self.status =
                             format!("Added release wait key {key} for macro {preset_id}.");
                     }
-                }
-                self.sync_macro_presets();
-            }
-            (
-                CaptureRequest::MacroSelectorHotkey(group_id, selector_id),
-                CapturedInput::Binding(binding),
-            ) => {
-                if let Some(selector) = self
-                    .state
-                    .macro_groups
-                    .iter_mut()
-                    .find(|group| group.id == group_id)
-                    .and_then(|group| {
-                        group
-                            .selector_presets
-                            .iter_mut()
-                            .find(|selector| selector.id == selector_id)
-                    })
-                {
-                    selector.hotkey = Some(binding);
-                    self.status = format!("Captured selector hotkey for {}.", selector.name);
-                }
-                self.sync_macro_presets();
-            }
-            (
-                CaptureRequest::MacroSelectorOptionKey(group_id, selector_id, option_id),
-                CapturedInput::Binding(binding),
-            ) => {
-                if let Some(option) = self
-                    .state
-                    .macro_groups
-                    .iter_mut()
-                    .find(|group| group.id == group_id)
-                    .and_then(|group| {
-                        group
-                            .selector_presets
-                            .iter_mut()
-                            .find(|selector| selector.id == selector_id)
-                    })
-                    .and_then(|selector| {
-                        selector
-                            .options
-                            .iter_mut()
-                            .find(|option| option.id == option_id)
-                    })
-                {
-                    option.choice_key = binding.key.clone();
-                    self.status = format!("Captured selector choice key {}.", binding.key);
                 }
                 self.sync_macro_presets();
             }
@@ -8171,8 +8014,6 @@ impl CrosshairApp {
         let mut remove_group = None;
         let mut live_sync = false;
         let mut add_preset_to_group = None;
-        let mut add_selector_to_group = None;
-        let mut add_selector_option = None;
         let mut paste_preset_to_group: Option<u32> = None;
 
         ui.separator();
@@ -8203,11 +8044,7 @@ impl CrosshairApp {
                 let folder_has_enabled_content = self.state.macro_groups.iter().any(|group| {
                     group.folder_id == Some(folder.id)
                         && group.enabled
-                        && (group
-                            .selector_presets
-                            .iter()
-                            .any(|selector| selector.enabled)
-                            || group.presets.iter().any(|preset| preset.enabled))
+                        && group.presets.iter().any(|preset| preset.enabled)
                 });
                 let folder_id = folder.id;
                 let folder_name = folder.name.clone();
@@ -8426,9 +8263,6 @@ impl CrosshairApp {
                         if Self::sized_button(ui, 92.0, Self::tr_lang(language, "+ Preset", "+ Preset con")).clicked() {
                             add_preset_to_group = Some(group.id);
                         }
-                        if Self::sized_button(ui, 94.0, Self::tr_lang(language, "+ Selector", "+ BÃƒÆ’Ã†â€™Ãƒâ€šÃ‚Â¡ÃƒÆ’Ã¢â‚¬Å¡Ãƒâ€šÃ‚Â»ÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â€šÂ¬Ã…Â¾Ãƒâ€šÃ‚Â¢ chÃƒÆ’Ã†â€™Ãƒâ€šÃ‚Â¡ÃƒÆ’Ã¢â‚¬Å¡Ãƒâ€šÃ‚Â»ÃƒÆ’Ã¢â‚¬Å¡Ãƒâ€šÃ‚Ân")).clicked() {
-                            add_selector_to_group = Some(group.id);
-                        }
                         if Self::sized_button(ui, 86.0, Self::tr_lang(language, "Remove", "XÃƒÆ’Ã†â€™Ãƒâ€ Ã¢â‚¬â„¢ÃƒÆ’Ã¢â‚¬Å¡Ãƒâ€šÃ‚Â³a")).clicked() {
                             remove_group = Some(group.id);
                         }
@@ -8527,162 +8361,6 @@ impl CrosshairApp {
                             )
                         })
                         .collect::<Vec<_>>();
-
-                    if !group.selector_presets.is_empty() {
-                        ui.separator();
-                        ui.label(RichText::new(Self::tr_lang(language, "Selector Presets", "Preset chÃƒÆ’Ã†â€™Ãƒâ€šÃ‚Â¡ÃƒÆ’Ã¢â‚¬Å¡Ãƒâ€šÃ‚Â»ÃƒÆ’Ã¢â‚¬Å¡Ãƒâ€šÃ‚Ân")).strong());
-                        ui.label(
-                            Self::tr_lang(
-                                language,
-                                "A selector waits for one choice key, then enables and disables the presets you pick for that choice.",
-                                "Selector sÃƒÆ’Ã†â€™Ãƒâ€šÃ‚Â¡ÃƒÆ’Ã¢â‚¬Å¡Ãƒâ€šÃ‚ÂºÃƒÆ’Ã¢â‚¬Å¡Ãƒâ€šÃ‚Â½ chÃƒÆ’Ã†â€™Ãƒâ€šÃ‚Â¡ÃƒÆ’Ã¢â‚¬Å¡Ãƒâ€šÃ‚Â»ÃƒÆ’Ã¢â‚¬Å¡Ãƒâ€šÃ‚Â mÃƒÆ’Ã†â€™Ãƒâ€šÃ‚Â¡ÃƒÆ’Ã¢â‚¬Å¡Ãƒâ€šÃ‚Â»ÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â€šÂ¬Ã…Â¾Ãƒâ€šÃ‚Â¢t phÃƒÆ’Ã†â€™Ãƒâ€ Ã¢â‚¬â„¢ÃƒÆ’Ã¢â‚¬Å¡Ãƒâ€šÃ‚Â­m lÃƒÆ’Ã†â€™Ãƒâ€šÃ‚Â¡ÃƒÆ’Ã¢â‚¬Å¡Ãƒâ€šÃ‚Â»ÃƒÆ’Ã¢â‚¬Å¡Ãƒâ€šÃ‚Â±a chÃƒÆ’Ã†â€™Ãƒâ€šÃ‚Â¡ÃƒÆ’Ã¢â‚¬Å¡Ãƒâ€šÃ‚Â»ÃƒÆ’Ã¢â‚¬Å¡Ãƒâ€šÃ‚Ân, rÃƒÆ’Ã†â€™Ãƒâ€šÃ‚Â¡ÃƒÆ’Ã¢â‚¬Å¡Ãƒâ€šÃ‚Â»ÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â‚¬Å¡Ã‚Â¬Ãƒâ€¦Ã¢â‚¬Å“i bÃƒÆ’Ã†â€™Ãƒâ€šÃ‚Â¡ÃƒÆ’Ã¢â‚¬Å¡Ãƒâ€šÃ‚ÂºÃƒÆ’Ã¢â‚¬Å¡Ãƒâ€šÃ‚Â­t hoÃƒÆ’Ã†â€™Ãƒâ€šÃ‚Â¡ÃƒÆ’Ã¢â‚¬Å¡Ãƒâ€šÃ‚ÂºÃƒÆ’Ã¢â‚¬Å¡Ãƒâ€šÃ‚Â·c tÃƒÆ’Ã†â€™Ãƒâ€šÃ‚Â¡ÃƒÆ’Ã¢â‚¬Å¡Ãƒâ€šÃ‚ÂºÃƒÆ’Ã¢â‚¬Å¡Ãƒâ€šÃ‚Â¯t cÃƒÆ’Ã†â€™Ãƒâ€ Ã¢â‚¬â„¢ÃƒÆ’Ã¢â‚¬Å¡Ãƒâ€šÃ‚Â¡c preset bÃƒÆ’Ã†â€™Ãƒâ€šÃ‚Â¡ÃƒÆ’Ã¢â‚¬Å¡Ãƒâ€šÃ‚ÂºÃƒÆ’Ã¢â‚¬Å¡Ãƒâ€šÃ‚Â¡n gÃƒÆ’Ã†â€™Ãƒâ€ Ã¢â‚¬â„¢ÃƒÆ’Ã¢â‚¬Å¡Ãƒâ€šÃ‚Â¡n cho lÃƒÆ’Ã†â€™Ãƒâ€šÃ‚Â¡ÃƒÆ’Ã¢â‚¬Å¡Ãƒâ€šÃ‚Â»ÃƒÆ’Ã¢â‚¬Å¡Ãƒâ€šÃ‚Â±a chÃƒÆ’Ã†â€™Ãƒâ€šÃ‚Â¡ÃƒÆ’Ã¢â‚¬Å¡Ãƒâ€šÃ‚Â»ÃƒÆ’Ã¢â‚¬Å¡Ãƒâ€šÃ‚Ân ÃƒÆ’Ã†â€™ÃƒÂ¢Ã¢â€šÂ¬Ã…Â¾ÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â‚¬Å¡Ã‚Â¬Ãƒâ€¹Ã…â€œÃƒÆ’Ã†â€™Ãƒâ€ Ã¢â‚¬â„¢ÃƒÆ’Ã¢â‚¬Å¡Ãƒâ€šÃ‚Â³.",
-                            ),
-                        );
-                        let mut remove_selector_id = None;
-                        for selector in &mut group.selector_presets {
-                            Self::show_preset_card(ui, group.enabled && selector.enabled, |ui| {
-                                ui.horizontal(|ui| {
-                                    ui.label(Self::preset_title_text(self.state.ui_theme == UiThemeMode::Dark, &selector.name, selector.enabled));
-                                    ui.add_sized([180.0, 24.0], TextEdit::singleline(&mut selector.name));
-                                    live_sync |= ui
-                                        .checkbox(&mut selector.enabled, Self::tr_lang(language, "Enabled", "BÃƒÆ’Ã†â€™Ãƒâ€šÃ‚Â¡ÃƒÆ’Ã¢â‚¬Å¡Ãƒâ€šÃ‚ÂºÃƒÆ’Ã¢â‚¬Å¡Ãƒâ€šÃ‚Â­t"))
-                                        .changed();
-                                    if ui
-                                        .button(if selector.collapsed {
-                                            Self::tr_lang(language, "Show", "HiÃƒÆ’Ã†â€™Ãƒâ€šÃ‚Â¡ÃƒÆ’Ã¢â‚¬Å¡Ãƒâ€šÃ‚Â»ÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â‚¬Å¡Ã‚Â¬Ãƒâ€šÃ‚Â¡n")
-                                        } else {
-                                            Self::tr_lang(language, "Hide", "ÃƒÆ’Ã†â€™Ãƒâ€šÃ‚Â¡ÃƒÆ’Ã¢â‚¬Å¡Ãƒâ€šÃ‚ÂºÃƒÆ’Ã¢â‚¬Å¡Ãƒâ€šÃ‚Â¨n")
-                                        })
-                                        .clicked()
-                                    {
-                                        selector.collapsed = !selector.collapsed;
-                                        live_sync = true;
-                                    }
-                                    if ui.button(Self::tr_lang(language, "Remove", "XÃƒÆ’Ã†â€™Ãƒâ€ Ã¢â‚¬â„¢ÃƒÆ’Ã¢â‚¬Å¡Ãƒâ€šÃ‚Â³a")).clicked() {
-                                        remove_selector_id = Some(selector.id);
-                                    }
-                                });
-                                if selector.collapsed {
-                                    return;
-                                }
-                                egui::Grid::new((group.id, selector.id, "selector-grid"))
-                                    .num_columns(2)
-                                    .spacing([10.0, 6.0])
-                                    .show(ui, |ui| {
-                                        ui.label(Self::tr_lang(language, "Hotkey", "PhÃƒÆ’Ã†â€™Ãƒâ€ Ã¢â‚¬â„¢ÃƒÆ’Ã¢â‚¬Å¡Ãƒâ€šÃ‚Â­m tÃƒÆ’Ã†â€™Ãƒâ€šÃ‚Â¡ÃƒÆ’Ã¢â‚¬Å¡Ãƒâ€šÃ‚ÂºÃƒÆ’Ã¢â‚¬Å¡Ãƒâ€šÃ‚Â¯t"));
-                                            ui.horizontal_wrapped(|ui| {
-                                                ui.monospace(Self::format_binding_ui(language, selector.hotkey.as_ref()));
-                                            if ui.button(Self::tr_lang(language, "Capture", "BÃƒÆ’Ã†â€™Ãƒâ€šÃ‚Â¡ÃƒÆ’Ã¢â‚¬Å¡Ãƒâ€šÃ‚ÂºÃƒÆ’Ã¢â‚¬Å¡Ãƒâ€šÃ‚Â¯t phÃƒÆ’Ã†â€™Ãƒâ€ Ã¢â‚¬â„¢ÃƒÆ’Ã¢â‚¬Å¡Ãƒâ€šÃ‚Â­m")).clicked() {
-                                                next_capture_target =
-                                                    Some(CaptureRequest::MacroSelectorHotkey(group.id, selector.id));
-                                            }
-                                            if ui.button(Self::tr_lang(language, "Clear", "XÃƒÆ’Ã†â€™Ãƒâ€ Ã¢â‚¬â„¢ÃƒÆ’Ã¢â‚¬Å¡Ãƒâ€šÃ‚Â³a")).clicked() {
-                                                selector.hotkey = None;
-                                                live_sync = true;
-                                            }
-                                        });
-                                        ui.end_row();
-
-                                        ui.label(Self::tr_lang(language, "Prompt", "NhÃƒÆ’Ã†â€™Ãƒâ€šÃ‚Â¡ÃƒÆ’Ã¢â‚¬Å¡Ãƒâ€šÃ‚ÂºÃƒÆ’Ã¢â‚¬Å¡Ãƒâ€šÃ‚Â¯c chÃƒÆ’Ã†â€™Ãƒâ€šÃ‚Â¡ÃƒÆ’Ã¢â‚¬Å¡Ãƒâ€šÃ‚Â»ÃƒÆ’Ã¢â‚¬Å¡Ãƒâ€šÃ‚Ân"));
-                                        live_sync |= ui
-                                            .add_sized([280.0, 22.0], TextEdit::singleline(&mut selector.prompt_text))
-                                            .changed();
-                                        ui.end_row();
-                                    });
-                                ui.horizontal_wrapped(|ui| {
-                                    if ui.button(Self::tr_lang(language, "+ Choice", "+ LÃƒÆ’Ã†â€™Ãƒâ€šÃ‚Â¡ÃƒÆ’Ã¢â‚¬Å¡Ãƒâ€šÃ‚Â»ÃƒÆ’Ã¢â‚¬Å¡Ãƒâ€šÃ‚Â±a chÃƒÆ’Ã†â€™Ãƒâ€šÃ‚Â¡ÃƒÆ’Ã¢â‚¬Å¡Ãƒâ€šÃ‚Â»ÃƒÆ’Ã¢â‚¬Å¡Ãƒâ€šÃ‚Ân")).clicked() {
-                                        add_selector_option = Some((group.id, selector.id));
-                                    }
-                                });
-                                let mut remove_option_id = None;
-                                for option in &mut selector.options {
-                                    Frame::group(ui.style()).show(ui, |ui| {
-                                        ui.horizontal_wrapped(|ui| {
-                                            ui.label(Self::tr_lang(language, "Choice", "LÃƒÆ’Ã†â€™Ãƒâ€šÃ‚Â¡ÃƒÆ’Ã¢â‚¬Å¡Ãƒâ€šÃ‚Â»ÃƒÆ’Ã¢â‚¬Å¡Ãƒâ€šÃ‚Â±a chÃƒÆ’Ã†â€™Ãƒâ€šÃ‚Â¡ÃƒÆ’Ã¢â‚¬Å¡Ãƒâ€šÃ‚Â»ÃƒÆ’Ã¢â‚¬Å¡Ãƒâ€šÃ‚Ân"));
-                                            ui.monospace(if option.choice_key.trim().is_empty() {
-                                                "-".to_owned()
-                                            } else {
-                                                option.choice_key.clone()
-                                            });
-                                            let capture_target = CaptureRequest::MacroSelectorOptionKey(
-                                                group.id,
-                                                selector.id,
-                                                option.id,
-                                            );
-                                            if ui
-                                                .button(Self::capture_button_text(
-                                                    language,
-                                                    capture_target_snapshot.as_ref() == Some(&capture_target),
-                                                ))
-                                                .clicked()
-                                            {
-                                                next_capture_target = Some(capture_target);
-                                            }
-                                            if ui.button(Self::tr_lang(language, "Clear", "XÃƒÆ’Ã†â€™Ãƒâ€ Ã¢â‚¬â„¢ÃƒÆ’Ã¢â‚¬Å¡Ãƒâ€šÃ‚Â³a")).clicked() {
-                                                option.choice_key.clear();
-                                                live_sync = true;
-                                            }
-                                            if ui.button(Self::tr_lang(language, "Remove Choice", "XÃƒÆ’Ã†â€™Ãƒâ€ Ã¢â‚¬â„¢ÃƒÆ’Ã¢â‚¬Å¡Ãƒâ€šÃ‚Â³a lÃƒÆ’Ã†â€™Ãƒâ€šÃ‚Â¡ÃƒÆ’Ã¢â‚¬Å¡Ãƒâ€šÃ‚Â»ÃƒÆ’Ã¢â‚¬Å¡Ãƒâ€šÃ‚Â±a chÃƒÆ’Ã†â€™Ãƒâ€šÃ‚Â¡ÃƒÆ’Ã¢â‚¬Å¡Ãƒâ€šÃ‚Â»ÃƒÆ’Ã¢â‚¬Å¡Ãƒâ€šÃ‚Ân")).clicked() {
-                                                remove_option_id = Some(option.id);
-                                            }
-                                            if selector.active_option_id == Some(option.id) {
-                                                ui.label(
-                                                    RichText::new(Self::tr_lang(language, "Active", "ÃƒÆ’Ã†â€™ÃƒÂ¢Ã¢â€šÂ¬Ã…Â¾ÃƒÆ’Ã¢â‚¬Å¡Ãƒâ€šÃ‚Âang bÃƒÆ’Ã†â€™Ãƒâ€šÃ‚Â¡ÃƒÆ’Ã¢â‚¬Å¡Ãƒâ€šÃ‚ÂºÃƒÆ’Ã¢â‚¬Å¡Ãƒâ€šÃ‚Â­t"))
-                                                        .color(Color32::from_rgb(32, 128, 64)),
-                                                );
-                                            }
-                                        });
-                                        egui::Grid::new((group.id, selector.id, option.id, "selector-option-grid"))
-                                            .num_columns(2)
-                                            .spacing([10.0, 6.0])
-                                            .show(ui, |ui| {
-                                                ui.label(Self::tr_lang(language, "Enable", "BÃƒÆ’Ã†â€™Ãƒâ€šÃ‚Â¡ÃƒÆ’Ã¢â‚¬Å¡Ãƒâ€šÃ‚ÂºÃƒÆ’Ã¢â‚¬Å¡Ãƒâ€šÃ‚Â­t"));
-                                                live_sync |= Self::render_selector_preset_targets(
-                                                    ui,
-                                                    (group.id, selector.id, option.id, "enable"),
-                                                    &mut option.enable_preset_ids,
-                                                    &group_preset_options,
-                                                );
-                                                ui.end_row();
-
-                                                ui.label(Self::tr_lang(language, "Disable", "TÃƒÆ’Ã†â€™Ãƒâ€šÃ‚Â¡ÃƒÆ’Ã¢â‚¬Å¡Ãƒâ€šÃ‚ÂºÃƒÆ’Ã¢â‚¬Å¡Ãƒâ€šÃ‚Â¯t"));
-                                                live_sync |= Self::render_selector_preset_targets(
-                                                    ui,
-                                                    (group.id, selector.id, option.id, "disable"),
-                                                    &mut option.disable_preset_ids,
-                                                    &group_preset_options,
-                                                );
-                                                ui.end_row();
-
-                                                ui.label(Self::tr_lang(language, "Toolbox", "Toolbox"));
-                                                live_sync |= ui
-                                                    .add_sized(
-                                                        [260.0, 22.0],
-                                                            TextEdit::singleline(&mut option.toolbox_text)
-                                                            .hint_text(Self::tr_lang(language, "Toolbox text", "ChÃƒÆ’Ã†â€™Ãƒâ€šÃ‚Â¡ÃƒÆ’Ã¢â‚¬Å¡Ãƒâ€šÃ‚Â»ÃƒÆ’Ã¢â‚¬Å¡Ãƒâ€šÃ‚Â¯ toolbox")),
-                                                    )
-                                                    .changed();
-                                                ui.end_row();
-                                            });
-                                    });
-                                    ui.add_space(4.0);
-                                }
-                                if let Some(option_id) = remove_option_id {
-                                    selector.options.retain(|option| option.id != option_id);
-                                    if selector.active_option_id == Some(option_id) {
-                                        selector.active_option_id = None;
-                                    }
-                                    live_sync = true;
-                                }
-                            });
-                            ui.add_space(4.0);
-                        }
-                        if let Some(selector_id) = remove_selector_id {
-                            group.selector_presets.retain(|selector| selector.id != selector_id);
-                            live_sync = true;
-                        }
-                    }
-
                     for preset_index in render_preset_indices.iter().copied() {
                         let preset = &mut group.presets[preset_index];
                         Self::show_preset_card(ui, group.enabled && preset.enabled, |ui| {
@@ -10650,14 +10328,6 @@ impl CrosshairApp {
 
         if let Some(group_id) = add_preset_to_group {
             self.add_macro_preset_to_group(group_id);
-            self.persist();
-        }
-        if let Some(group_id) = add_selector_to_group {
-            self.add_selector_to_group(group_id);
-            self.persist();
-        }
-        if let Some((group_id, selector_id)) = add_selector_option {
-            self.add_selector_option_to_group(group_id, selector_id);
             self.persist();
         }
         if let Some(group_id) = paste_preset_to_group
@@ -14448,4 +14118,5 @@ fn audio_duration(clip: &AudioClipSettings) -> Option<u64> {
         audio::load_duration_ms(&clip.file_path).ok()
     }
 }
+
 

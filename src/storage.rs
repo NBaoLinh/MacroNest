@@ -41,8 +41,7 @@ impl AppPaths {
         let interception_zip_file = interception_dir.join("Interception.zip");
         let interception_extract_dir = interception_dir.join("package");
         let interception_package_root = interception_extract_dir.join("Interception");
-        let interception_installer_dir =
-            interception_package_root.join("command line installer");
+        let interception_installer_dir = interception_package_root.join("command line installer");
         let interception_installer_exe =
             interception_installer_dir.join("install-interception.exe");
         let interception_dll_file = interception_package_root
@@ -78,7 +77,8 @@ impl AppPaths {
     }
 
     pub fn image_search_template_file_for(&self, preset_id: u32) -> PathBuf {
-        self.image_search_dir.join(format!("preset-{preset_id}.png"))
+        self.image_search_dir
+            .join(format!("preset-{preset_id}.png"))
     }
 
     pub fn load_state(&self) -> Result<AppState> {
@@ -137,8 +137,8 @@ impl AppPaths {
         }
         if state.image_search_presets.is_empty() {
             let mut preset = ImageSearchPreset::default();
-            preset.enabled = state.image_search_settings.enabled
-                || self.image_search_template_file.exists();
+            preset.enabled =
+                state.image_search_settings.enabled || self.image_search_template_file.exists();
             preset.hotkey = state.image_search_settings.trigger_hotkey.clone();
             preset.click_after_move = state.image_search_settings.click_after_move;
             state.image_search_presets.push(preset);
@@ -230,7 +230,6 @@ impl AppPaths {
                 target_window_title: None,
                 extra_target_window_titles: Vec::new(),
                 match_duplicate_window_titles: false,
-                selector_presets: Vec::new(),
                 presets: migrated_presets,
             });
             state.macro_presets.clear();
@@ -293,44 +292,9 @@ impl AppPaths {
             state.next_macro_preset_id = next_macro_preset_id;
         }
         for group in &mut state.macro_groups {
-            for selector in &mut group.selector_presets {
-                selector.collapsed = true;
-                for option in &mut selector.options {
-                    if option.enable_preset_ids.is_empty()
-                        && let Some(legacy_target) = option.legacy_target_preset_id.take()
-                    {
-                        option.enable_preset_ids.push(legacy_target);
-                    }
-                }
-            }
             for preset in &mut group.presets {
                 preset.collapsed = true;
             }
-        }
-        let next_selector_preset_id = state
-            .macro_groups
-            .iter()
-            .flat_map(|group| group.selector_presets.iter().map(|selector| selector.id))
-            .max()
-            .unwrap_or(0)
-            + 1;
-        if state.next_macro_selector_preset_id < next_selector_preset_id {
-            state.next_macro_selector_preset_id = next_selector_preset_id;
-        }
-        let next_selector_option_id = state
-            .macro_groups
-            .iter()
-            .flat_map(|group| {
-                group
-                    .selector_presets
-                    .iter()
-                    .flat_map(|selector| selector.options.iter().map(|option| option.id))
-            })
-            .max()
-            .unwrap_or(0)
-            + 1;
-        if state.next_macro_selector_option_id < next_selector_option_id {
-            state.next_macro_selector_option_id = next_selector_option_id;
         }
         let next_sound_preset_id = state
             .audio_settings

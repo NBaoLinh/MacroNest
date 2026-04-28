@@ -288,7 +288,6 @@ mod windows_overlay {
         sound_presets: Vec<SoundPreset>,
         sound_library: Vec<SoundLibraryItem>,
         active_hold_macros: HashMap<u32, ActiveHoldMacro>,
-        pending_selector: Option<PendingMacroSelector>,
         next_hold_run_token: u64,
         pending_tray_toggle: Option<bool>,
         tray_double_click_suppress_next_up: bool,
@@ -338,7 +337,6 @@ mod windows_overlay {
                 sound_presets: Vec::new(),
                 sound_library: Vec::new(),
                 active_hold_macros: HashMap::new(),
-                pending_selector: None,
                 next_hold_run_token: 1,
                 pending_tray_toggle: None,
                 tray_double_click_suppress_next_up: false,
@@ -509,23 +507,6 @@ mod windows_overlay {
         last_event_at: Instant,
         events: Vec<MousePathEvent>,
         dirty: bool,
-    }
-
-    #[derive(Clone)]
-    struct PendingMacroSelector {
-        group_id: u32,
-        selector_id: u32,
-        prompt_text: String,
-        options: Vec<PendingSelectorOption>,
-    }
-
-    #[derive(Clone)]
-    struct PendingSelectorOption {
-        option_id: u32,
-        choice_key: String,
-        enable_preset_ids: Vec<u32>,
-        disable_preset_ids: Vec<u32>,
-        toolbox_text: String,
     }
 
     enum MacroRunFlow {
@@ -1622,16 +1603,6 @@ mod windows_overlay {
             return Some(swallow);
         }
 
-        if !binding.ctrl
-            && !binding.alt
-            && !binding.shift
-            && !binding.win
-            && let Ok(consumed) = apply_selector_choice(&binding.key)
-            && consumed
-        {
-            return Some(true);
-        }
-
         let hook_state = HOOK_STATE.lock();
         let mut matched_any_window = false;
         let mut window_actions = Vec::new();
@@ -1790,33 +1761,12 @@ mod windows_overlay {
         )> = Vec::new();
         let mut press_matches: Vec<(MacroPreset, Option<String>, Vec<String>, bool, String)> =
             Vec::new();
-        let mut selector_matches: Vec<(u32, u32)> = Vec::new();
-
         for group in &hook_state.macro_groups {
             if !group.enabled {
                 continue;
             }
             if !macro_target_matches(group) {
                 continue;
-            }
-            for selector in &group.selector_presets {
-                if !selector.enabled {
-                    continue;
-                }
-                if let Some(hotkey) = selector.hotkey.as_ref()
-                    && hotkey::binding_matches(
-                        hotkey,
-                        &binding.key,
-                        binding.ctrl,
-                        binding.alt,
-                        binding.shift,
-                        binding.win,
-                    )
-                    && !is_repeat
-                {
-                    matched_any_macro = true;
-                    selector_matches.push((group.id, selector.id));
-                }
             }
             for preset in &group.presets {
                 if !preset.enabled {
@@ -1868,10 +1818,6 @@ mod windows_overlay {
         }
 
         drop(hook_state);
-
-        for (group_id, selector_id) in selector_matches {
-            let _ = activate_selector_prompt(group_id, selector_id);
-        }
 
         for action in window_actions {
             match action {
@@ -4144,145 +4090,6 @@ mod windows_overlay {
             }
         }
         bail!("Macro preset was not found")
-    }
-
-    fn activate_selector_prompt(group_id: u32, selector_id: u32) -> Result<()> {
-        let pending = {
-            let hook_state = HOOK_STATE.lock();
-            let group = hook_state
-                .macro_groups
-                .iter()
-                .find(|group| group.id == group_id)
-                .context("Macro group was not found")?;
-            let selector = group
-                .selector_presets
-                .iter()
-                .find(|selector| selector.id == selector_id)
-                .cloned()
-                .context("Selector preset was not found")?;
-            PendingMacroSelector {
-                group_id,
-                selector_id,
-                prompt_text: selector.prompt_text.clone(),
-                options: selector
-                    .options
-                    .iter()
-                    .map(|option| PendingSelectorOption {
-                        option_id: option.id,
-                        choice_key: option.choice_key.clone(),
-                        enable_preset_ids: option.enable_preset_ids.clone(),
-                        disable_preset_ids: option.disable_preset_ids.clone(),
-                        toolbox_text: option.toolbox_text.clone(),
-                    })
-                    .collect(),
-            }
-        };
-        HOOK_STATE.lock().pending_selector = Some(pending.clone());
-        let prompt = if pending.prompt_text.trim().is_empty() {
-            "Choose an option".to_owned()
-        } else {
-            pending.prompt_text
-        };
-        show_selector_toolbox_message(prompt);
-        Ok(())
-    }
-
-    fn apply_selector_choice(binding_key: &str) -> Result<bool> {
-        let pending = HOOK_STATE.lock().pending_selector.clone();
-        let Some(pending) = pending else {
-            return Ok(false);
-        };
-        let Some(option) = pending
-            .options
-            .iter()
-            .find(|option| option.choice_key.eq_ignore_ascii_case(binding_key))
-            .cloned()
-        else {
-            return Ok(false);
-        };
-
-        let mut status = "Selector choice applied.".to_owned();
-        let updated_groups = {
-            let mut hook_state = HOOK_STATE.lock();
-            let group = hook_state
-                .macro_groups
-                .iter_mut()
-                .find(|group| group.id == pending.group_id)
-                .context("Macro group was not found")?;
-            for selector in &mut group.selector_presets {
-                if selector.id == pending.selector_id {
-                    selector.active_option_id = Some(option.option_id);
-                }
-            }
-            for preset in &mut group.presets {
-                if option.enable_preset_ids.contains(&preset.id) {
-                    preset.enabled = true;
-                }
-                if option.disable_preset_ids.contains(&preset.id) {
-                    preset.enabled = false;
-                }
-            }
-            let enabled_labels = option
-                .enable_preset_ids
-                .iter()
-                .filter_map(|id| {
-                    group
-                        .presets
-                        .iter()
-                        .find(|preset| preset.id == *id)
-                        .map(|preset| hotkey::format_binding(preset.hotkey.as_ref()))
-                })
-                .collect::<Vec<_>>();
-            if !enabled_labels.is_empty() {
-                status = format!("Selected {} in {}.", enabled_labels.join(", "), group.name);
-            }
-            hook_state.pending_selector = None;
-            hook_state.macro_groups.clone()
-        };
-
-        let message = if option.toolbox_text.trim().is_empty() {
-            status.clone()
-        } else {
-            option.toolbox_text.clone()
-        };
-        show_selector_toolbox_message(message);
-        if let Some(tx) = HOOK_STATE.lock().ui_tx.clone() {
-            let _ = tx.send(UiCommand::SyncMacroGroups(updated_groups, status));
-        }
-        Ok(true)
-    }
-
-    fn show_selector_toolbox_message(text: String) {
-        let trimmed = text.trim().to_owned();
-        if trimmed.is_empty() {
-            return;
-        }
-        *TOOLBOX_DISPLAY.lock() = Some(ToolboxDisplayState {
-            owner_preset_id: None,
-            preset_id: None,
-            text: trimmed,
-            text_color: RgbaColor {
-                r: 244,
-                g: 244,
-                b: 244,
-                a: 255,
-            },
-            background_color: RgbaColor {
-                r: 34,
-                g: 34,
-                b: 34,
-                a: 255,
-            },
-            background_opacity: 0.78,
-            rounded_background: true,
-            font_size: 28.0,
-            x: 660,
-            y: 36,
-            width: 600,
-            height: 80,
-            auto_hide_on_owner_completion: false,
-            expires_at: Some(Instant::now() + Duration::from_millis(1800)),
-        });
     }
 
     fn execute_hold_abort_step(preset_id: u32, step: &MacroStep) {

@@ -491,8 +491,6 @@ pub enum CaptureRequest {
     ImageSearchPresetHotkey(u32),
     MacroPresetHotkey(u32, u32),
     MacroPresetReleaseWaitKey(u32, u32),
-    MacroSelectorHotkey(u32, u32),
-    MacroSelectorOptionKey(u32, u32, u32),
     MacroPresetHoldStopInput(u32, u32),
     MacroStepInput {
         group_id: u32,
@@ -960,71 +958,6 @@ impl Default for MacroPreset {
 
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
 #[serde(default)]
-pub struct MacroSelectorOption {
-    pub id: u32,
-    pub choice_key: String,
-    pub enable_preset_ids: Vec<u32>,
-    pub disable_preset_ids: Vec<u32>,
-    #[serde(default, alias = "target_preset_id", skip_serializing)]
-    pub legacy_target_preset_id: Option<u32>,
-    pub toolbox_text: String,
-}
-
-impl MacroSelectorOption {
-    pub fn new(id: u32, key: &str) -> Self {
-        Self {
-            id,
-            choice_key: key.to_owned(),
-            enable_preset_ids: Vec::new(),
-            disable_preset_ids: Vec::new(),
-            legacy_target_preset_id: None,
-            toolbox_text: String::new(),
-        }
-    }
-}
-
-impl Default for MacroSelectorOption {
-    fn default() -> Self {
-        Self::new(1, "1")
-    }
-}
-
-#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
-#[serde(default)]
-pub struct MacroSelectorPreset {
-    pub id: u32,
-    pub name: String,
-    pub enabled: bool,
-    pub collapsed: bool,
-    pub hotkey: Option<HotkeyBinding>,
-    pub prompt_text: String,
-    pub active_option_id: Option<u32>,
-    pub options: Vec<MacroSelectorOption>,
-}
-
-impl MacroSelectorPreset {
-    pub fn new(id: u32) -> Self {
-        Self {
-            id,
-            name: format!("Selector {id}"),
-            enabled: true,
-            collapsed: true,
-            hotkey: None,
-            prompt_text: "Choose an option".to_owned(),
-            active_option_id: None,
-            options: Vec::new(),
-        }
-    }
-}
-
-impl Default for MacroSelectorPreset {
-    fn default() -> Self {
-        Self::new(1)
-    }
-}
-
-#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
-#[serde(default)]
 pub struct MacroFolder {
     pub id: u32,
     pub name: String,
@@ -1063,7 +996,6 @@ pub struct MacroGroup {
     pub extra_target_window_titles: Vec<String>,
     #[serde(default = "default_true")]
     pub match_duplicate_window_titles: bool,
-    pub selector_presets: Vec<MacroSelectorPreset>,
     pub presets: Vec<MacroPreset>,
 }
 
@@ -1079,7 +1011,6 @@ impl MacroGroup {
             target_window_title: None,
             extra_target_window_titles: Vec::new(),
             match_duplicate_window_titles: true,
-            selector_presets: Vec::new(),
             presets: vec![MacroPreset::new(1)],
         }
     }
@@ -1388,8 +1319,6 @@ pub struct AppState {
     pub next_macro_group_id: u32,
     pub macro_presets: Vec<MacroPreset>,
     pub next_macro_preset_id: u32,
-    pub next_macro_selector_preset_id: u32,
-    pub next_macro_selector_option_id: u32,
     pub macros_master_enabled: bool,
     pub image_search_presets: Vec<ImageSearchPreset>,
     pub next_image_search_preset_id: u32,
@@ -1446,8 +1375,6 @@ impl Default for AppState {
             next_macro_group_id: 1,
             macro_presets: Vec::new(),
             next_macro_preset_id: 1,
-            next_macro_selector_preset_id: 1,
-            next_macro_selector_option_id: 1,
             macros_master_enabled: true,
             image_search_presets: vec![ImageSearchPreset::default()],
             next_image_search_preset_id: 2,
