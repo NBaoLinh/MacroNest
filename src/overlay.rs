@@ -6006,7 +6006,30 @@ mod windows_overlay {
         prefer_interception: bool,
         move_passes: u8,
         move_delay_ms: u64,
+        smooth_move: bool,
+        smooth_move_speed: f32,
     ) -> Result<()> {
+        if smooth_move {
+            let mut point = POINT::default();
+            unsafe {
+                if GetCursorPos(&mut point).is_err() {
+                    send_mouse_move_absolute_backend(x, y, prefer_interception)?;
+                    return Ok(());
+                }
+            }
+            let speed = smooth_move_speed.max(0.1);
+            settle_mouse_path_relative_segment(
+                point.x,
+                point.y,
+                x,
+                y,
+                speed,
+                prefer_interception,
+                None,
+                false,
+            )?;
+            return Ok(());
+        }
         let attempts = if prefer_interception {
             1
         } else {
@@ -7066,6 +7089,8 @@ mod windows_overlay {
                     preset.use_interception_driver,
                     preset.non_interception_move_passes,
                     preset.non_interception_move_delay_ms,
+                    preset.image_search_smooth_move,
+                    preset.image_search_move_speed,
                 )?;
             }
             if fire_click {
@@ -7231,6 +7256,8 @@ mod windows_overlay {
                 preset.use_interception_driver,
                 preset.non_interception_move_passes,
                 preset.non_interception_move_delay_ms,
+                preset.image_search_smooth_move,
+                preset.image_search_move_speed,
             )?;
         }
         if fire_click {
