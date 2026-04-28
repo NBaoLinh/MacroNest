@@ -6007,7 +6007,6 @@ mod windows_overlay {
         move_passes: u8,
         move_delay_ms: u64,
         smooth_move: bool,
-        smooth_move_speed: f32,
     ) -> Result<()> {
         if smooth_move {
             let mut point = POINT::default();
@@ -6017,7 +6016,10 @@ mod windows_overlay {
                     return Ok(());
                 }
             }
-            let speed = smooth_move_speed.max(0.1);
+            let dx = x - point.x;
+            let dy = y - point.y;
+            let distance = (((dx * dx + dy * dy) as f32).sqrt()).max(1.0);
+            let speed = (distance / 240.0).clamp(0.35, 5.0);
             settle_mouse_path_relative_segment(
                 point.x,
                 point.y,
@@ -7090,7 +7092,6 @@ mod windows_overlay {
                     preset.non_interception_move_passes,
                     preset.non_interception_move_delay_ms,
                     preset.image_search_smooth_move,
-                    preset.image_search_move_speed,
                 )?;
             }
             if fire_click {
@@ -7257,7 +7258,6 @@ mod windows_overlay {
                 preset.non_interception_move_passes,
                 preset.non_interception_move_delay_ms,
                 preset.image_search_smooth_move,
-                preset.image_search_move_speed,
             )?;
         }
         if fire_click {

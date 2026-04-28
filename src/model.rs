@@ -134,10 +134,6 @@ fn default_image_search_move_delay_ms() -> u64 {
     10
 }
 
-fn default_image_search_move_speed() -> f32 {
-    1.0
-}
-
 fn default_image_search_timing_cycle_ms() -> u64 {
     1500
 }
@@ -1140,8 +1136,6 @@ pub struct ImageSearchPreset {
     pub non_interception_move_delay_ms: u64,
     #[serde(default)]
     pub image_search_smooth_move: bool,
-    #[serde(default = "default_image_search_move_speed")]
-    pub image_search_move_speed: f32,
     #[serde(default = "default_image_search_confidence_threshold")]
     pub confidence_threshold: f32,
     #[serde(default)]
@@ -1195,7 +1189,6 @@ impl ImageSearchPreset {
             non_interception_move_passes: default_image_search_move_passes(),
             non_interception_move_delay_ms: default_image_search_move_delay_ms(),
             image_search_smooth_move: false,
-            image_search_move_speed: default_image_search_move_speed(),
             confidence_threshold: default_image_search_confidence_threshold(),
             use_color_matching: false,
             repeat_until_triggered_again: false,

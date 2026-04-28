@@ -402,6 +402,7 @@ pub struct CrosshairApp {
     capture_suppress_next_poll: bool,
     capture_wait_for_mouse_release: bool,
     capture_ignore_mouse_until_release: bool,
+    capture_suppress_polls_remaining: u8,
     image_search_capture_active: bool,
     image_search_capture_target: Option<ImageSearchCaptureTarget>,
     image_search_capture_mode: Option<ImageSearchCaptureMode>,
@@ -496,6 +497,7 @@ impl CrosshairApp {
             capture_suppress_next_poll: false,
             capture_wait_for_mouse_release: false,
             capture_ignore_mouse_until_release: false,
+            capture_suppress_polls_remaining: 0,
             image_search_capture_active: false,
             image_search_capture_target: None,
             image_search_capture_mode: None,
@@ -4870,6 +4872,7 @@ impl CrosshairApp {
         self.capture_suppress_next_poll = true;
         self.capture_wait_for_mouse_release = true;
         self.capture_ignore_mouse_until_release = true;
+        self.capture_suppress_polls_remaining = 3;
         self.status = if self.capture_request_keeps_open(&target) {
             match self.state.ui_language {
                 UiLanguage::Vietnamese => {
@@ -4956,6 +4959,7 @@ impl CrosshairApp {
         self.capture_suppress_next_poll = true;
         self.capture_wait_for_mouse_release = true;
         self.capture_ignore_mouse_until_release = true;
+        self.capture_suppress_polls_remaining = 3;
         self.status = "Capture cancelled.".to_owned();
     }
 
@@ -5861,6 +5865,10 @@ impl CrosshairApp {
     }
 
     fn poll_capture_input(&mut self, ctx: &egui::Context) {
+        if self.capture_suppress_polls_remaining > 0 {
+            self.capture_suppress_polls_remaining -= 1;
+            return;
+        }
         if self.capture_suppress_next_poll {
             self.capture_suppress_next_poll = false;
             return;
@@ -11625,15 +11633,15 @@ impl CrosshairApp {
                         ui.end_row();
 
                         if preset.image_search_move_advanced_open {
-                            ui.label(Self::tr_lang(language, "Move speed", "Toc do di chuot"));
+                            ui.label(Self::tr_lang(language, "Move behavior", "Kieu di chuot"));
                             ui.horizontal_wrapped(|ui| {
                                 live_sync |= ui
                                     .checkbox(
                                         &mut preset.image_search_smooth_move,
                                         Self::tr_lang(
                                             language,
-                                            "Smooth move",
-                                            "Di muot theo khoang cach",
+                                            "Distance-based move",
+                                            "Di theo khoang cach",
                                         ),
                                     )
                                     .changed();
@@ -11641,26 +11649,17 @@ impl CrosshairApp {
                                     ui.label(
                                         RichText::new(Self::tr_lang(
                                             language,
-                                            "Speed",
-                                            "Toc do",
+                                            "Near = slower, far = faster.",
+                                            "Gan = cham hon, xa = nhanh hon.",
                                         ))
                                         .small(),
                                     );
-                                    live_sync |= ui
-                                        .add(
-                                            Slider::new(
-                                                &mut preset.image_search_move_speed,
-                                                0.25..=3.0,
-                                            )
-                                            .show_value(true),
-                                        )
-                                        .changed();
                                 } else {
                                     ui.label(
                                         RichText::new(Self::tr_lang(
                                             language,
-                                            "Uses existing move passes and delay.",
-                                            "Dung so lan di va do tre hien co.",
+                                            "Uses repeated absolute move.",
+                                            "Dung di chuot tuyet doi lap lai.",
                                         ))
                                         .small(),
                                     );
