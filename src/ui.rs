@@ -4958,12 +4958,11 @@ impl CrosshairApp {
 
     fn cancel_capture(&mut self) {
         self.capture_target = None;
-        self.capture_ignored_keys.clear();
         self.capture_suppress_next_poll = true;
         self.capture_wait_for_mouse_release = true;
         self.capture_ignore_mouse_until_release = true;
-        self.capture_suppress_polls_remaining = 3;
-        self.capture_mouse_guard_until = Some(Instant::now() + Duration::from_millis(500));
+        self.capture_suppress_polls_remaining = 5;
+        self.capture_mouse_guard_until = Some(Instant::now() + Duration::from_millis(650));
         self.status = "Capture cancelled.".to_owned();
     }
 
@@ -5894,6 +5893,7 @@ impl CrosshairApp {
                 return;
             }
             self.capture_ignore_mouse_until_release = false;
+            return;
         }
         let Some(target) = self.capture_target.clone() else {
             self.capture_ignored_keys.clear();
@@ -5934,6 +5934,7 @@ impl CrosshairApp {
                 }
             }
             self.capture_wait_for_mouse_release = false;
+            return None;
         }
         if accepts_mouse && let Some(binding) = self.capture_scroll_binding(ctx) {
             return Some(binding);
@@ -11666,14 +11667,14 @@ impl CrosshairApp {
                                             ))
                                             .small());
                                             live_sync |= ui
-                                                .add(
-                                                    Slider::new(
-                                                        &mut preset.image_search_distance_near_speed,
-                                                        0.10..=10.0,
+                                                    .add(
+                                                        Slider::new(
+                                                            &mut preset.image_search_distance_near_speed,
+                                                            0.10..=20.0,
+                                                        )
+                                                        .show_value(true),
                                                     )
-                                                    .show_value(true),
-                                                )
-                                                .changed();
+                                                    .changed();
                                         });
                                         ui.horizontal_wrapped(|ui| {
                                             ui.label(RichText::new(Self::tr_lang(
