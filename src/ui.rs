@@ -8353,53 +8353,63 @@ impl CrosshairApp {
                     for preset_index in render_preset_indices.iter().copied() {
                         let preset = &mut group.presets[preset_index];
                         Self::show_preset_card(ui, group.enabled && preset.enabled, |ui| {
-                            ui.vertical(|ui| {
-                                ui.horizontal(|ui| {
-                                    ui.label(Self::tr_lang(
-                                        language,
-                                        if preset.trigger_mode == MacroTriggerMode::Release {
-                                            "Release"
-                                        } else {
-                                            "Trigger"
-                                        },
-                                        if preset.trigger_mode == MacroTriggerMode::Release {
-                                            "Thả"
-                                        } else {
-                                            "Kích hoạt"
-                                        },
-                                    ));
-                                    ui.add_space(6.0);
-                                    if !preset.trigger_keys.trim().is_empty() {
-                                        live_sync |= Self::render_key_list_chips(
-                                            ui,
-                                            language,
-                                            &mut preset.trigger_keys,
-                                            Self::tr_lang(
-                                                language,
-                                                "Not set",
-                                                "Chưa được đặt",
-                                            ),
-                                        );
-                                    } else {
-                                        ui.add_sized(
-                                            [148.0, 22.0],
-                                            egui::Label::new(
-                                                RichText::new(
-                                                    binding_labels
-                                                        .get(&preset.id)
-                                                        .cloned()
-                                                        .unwrap_or_else(|| {
-                                                            Self::format_macro_trigger_ui(language, preset)
-                                                        }),
-                                                )
-                                                .monospace(),
-                                            ),
-                                        );
-                                    }
-                                });
+                            ui.horizontal_top(|ui| {
+                                let available_width = ui.available_width();
+                                let right_width = 660.0;
+                                let left_width = (available_width - right_width - 8.0).max(140.0);
 
                                 ui.allocate_ui_with_layout(
-                                    vec2(ui.available_width(), 0.0),
+                                    vec2(left_width, 0.0),
+                                    egui::Layout::top_down(egui::Align::LEFT),
+                                    |ui| {
+                                        ui.horizontal(|ui| {
+                                            ui.label(Self::tr_lang(
+                                                language,
+                                                if preset.trigger_mode == MacroTriggerMode::Release {
+                                                    "Release"
+                                                } else {
+                                                    "Trigger"
+                                                },
+                                                if preset.trigger_mode == MacroTriggerMode::Release {
+                                                    "Thả"
+                                                } else {
+                                                    "Kích hoạt"
+                                                },
+                                            ));
+                                            ui.add_space(6.0);
+                                            if !preset.trigger_keys.trim().is_empty() {
+                                                live_sync |= Self::render_key_list_chips(
+                                                    ui,
+                                                    language,
+                                                    &mut preset.trigger_keys,
+                                                    Self::tr_lang(
+                                                        language,
+                                                        "Not set",
+                                                        "Chưa được đặt",
+                                                    ),
+                                                );
+                                            } else {
+                                                ui.add_sized(
+                                                    [148.0, 22.0],
+                                                    egui::Label::new(
+                                                        RichText::new(
+                                                            binding_labels
+                                                                .get(&preset.id)
+                                                                .cloned()
+                                                                .unwrap_or_else(|| {
+                                                                    Self::format_macro_trigger_ui(language, preset)
+                                                                }),
+                                                        )
+                                                        .monospace(),
+                                                    ),
+                                                );
+                                            }
+                                        });
+                                    },
+                                );
+
+                                ui.allocate_ui_with_layout(
+                                    vec2(right_width, 0.0),
                                     egui::Layout::right_to_left(egui::Align::Center),
                                     |ui| {
                                         ui.spacing_mut().item_spacing.x = 4.0;
