@@ -526,7 +526,7 @@ impl CrosshairApp {
             open_from_tray_animation: None,
             startup_splash: StartupSplashState {
                 started_at: None,
-                duration_sec: 2.2,
+                duration_sec: 0.0,
             },
             hidden_window_inner_size: None,
             hidden_window_outer_pos: None,
@@ -13855,9 +13855,6 @@ impl CrosshairApp {
     }
 
     fn begin_close_to_tray_animation(&mut self, ctx: &egui::Context) {
-        if self.close_to_tray_animation.is_some() {
-            return;
-        }
         let viewport = ctx.input(|input| input.viewport().clone());
         if let Some(outer_rect) = viewport.outer_rect {
             let inner_size = viewport
@@ -13892,21 +13889,21 @@ impl CrosshairApp {
         end_inner_size: egui::Vec2,
     ) {
         let end_inner_size = Self::square_window_size(end_inner_size);
-        let start_inner_size = Self::animation_min_size();
-        let end_center = end_outer_pos + end_inner_size * 0.5;
-        let start_outer_pos = end_center - start_inner_size * 0.5;
-
-        ctx.send_viewport_cmd(egui::ViewportCommand::InnerSize(start_inner_size));
-        ctx.send_viewport_cmd(egui::ViewportCommand::OuterPosition(start_outer_pos));
-        self.open_from_tray_animation = Some(OpenFromTrayAnimation {
-            start_outer_pos,
-            start_inner_size,
-            end_outer_pos,
-            end_inner_size,
-            started_at: ctx.input(|input| input.time),
-            duration_sec: 0.34,
-        });
-        ctx.request_repaint();
+        self.close_to_tray_animation = None;
+        self.open_from_tray_animation = None;
+        self.state.show_window = true;
+        self.enforce_square_window_frames = 8;
+        self.center_window_next_frame = false;
+        ctx.send_viewport_cmd(egui::ViewportCommand::InnerSize(end_inner_size));
+        ctx.send_viewport_cmd(egui::ViewportCommand::OuterPosition(end_outer_pos));
+        ctx.send_viewport_cmd(egui::ViewportCommand::Visible(true));
+        ctx.send_viewport_cmd(egui::ViewportCommand::Minimized(false));
+        ctx.send_viewport_cmd(egui::ViewportCommand::Focus);
+        ctx.send_viewport_cmd(egui::ViewportCommand::RequestUserAttention(
+            egui::UserAttentionType::Informational,
+        ));
+        let _ = self.overlay_tx.send(OverlayCommand::SetUiVisible(true));
+        crate::overlay::wake_command_queue();
     }
 
     fn update_open_from_tray_animation(&mut self, ctx: &egui::Context) {
