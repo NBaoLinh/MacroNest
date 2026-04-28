@@ -403,6 +403,7 @@ pub struct CrosshairApp {
     capture_wait_for_mouse_release: bool,
     capture_ignore_mouse_until_release: bool,
     capture_suppress_polls_remaining: u8,
+    capture_mouse_guard_until: Option<Instant>,
     image_search_capture_active: bool,
     image_search_capture_target: Option<ImageSearchCaptureTarget>,
     image_search_capture_mode: Option<ImageSearchCaptureMode>,
@@ -498,6 +499,7 @@ impl CrosshairApp {
             capture_wait_for_mouse_release: false,
             capture_ignore_mouse_until_release: false,
             capture_suppress_polls_remaining: 0,
+            capture_mouse_guard_until: None,
             image_search_capture_active: false,
             image_search_capture_target: None,
             image_search_capture_mode: None,
@@ -4873,6 +4875,7 @@ impl CrosshairApp {
         self.capture_wait_for_mouse_release = true;
         self.capture_ignore_mouse_until_release = true;
         self.capture_suppress_polls_remaining = 3;
+        self.capture_mouse_guard_until = Some(Instant::now() + Duration::from_millis(500));
         self.status = if self.capture_request_keeps_open(&target) {
             match self.state.ui_language {
                 UiLanguage::Vietnamese => {
@@ -4960,6 +4963,7 @@ impl CrosshairApp {
         self.capture_wait_for_mouse_release = true;
         self.capture_ignore_mouse_until_release = true;
         self.capture_suppress_polls_remaining = 3;
+        self.capture_mouse_guard_until = Some(Instant::now() + Duration::from_millis(500));
         self.status = "Capture cancelled.".to_owned();
     }
 
@@ -5865,6 +5869,13 @@ impl CrosshairApp {
     }
 
     fn poll_capture_input(&mut self, ctx: &egui::Context) {
+        if self
+            .capture_mouse_guard_until
+            .is_some_and(|until| Instant::now() < until)
+        {
+            return;
+        }
+        self.capture_mouse_guard_until = None;
         if self.capture_suppress_polls_remaining > 0 {
             self.capture_suppress_polls_remaining -= 1;
             return;
@@ -11646,14 +11657,50 @@ impl CrosshairApp {
                                     )
                                     .changed();
                                 if preset.image_search_smooth_move {
-                                    ui.label(
-                                        RichText::new(Self::tr_lang(
-                                            language,
-                                            "Near = slower, far = faster.",
-                                            "Gan = cham hon, xa = nhanh hon.",
-                                        ))
-                                        .small(),
-                                    );
+                                    ui.vertical(|ui| {
+                                        ui.horizontal_wrapped(|ui| {
+                                            ui.label(RichText::new(Self::tr_lang(
+                                                language,
+                                                "Near speed",
+                                                "Toc do gan",
+                                            ))
+                                            .small());
+                                            live_sync |= ui
+                                                .add(
+                                                    Slider::new(
+                                                        &mut preset.image_search_distance_near_speed,
+                                                        0.10..=10.0,
+                                                    )
+                                                    .show_value(true),
+                                                )
+                                                .changed();
+                                        });
+                                        ui.horizontal_wrapped(|ui| {
+                                            ui.label(RichText::new(Self::tr_lang(
+                                                language,
+                                                "Far speed",
+                                                "Toc do xa",
+                                            ))
+                                            .small());
+                                            live_sync |= ui
+                                                .add(
+                                                    Slider::new(
+                                                        &mut preset.image_search_distance_far_speed,
+                                                        0.10..=20.0,
+                                                    )
+                                                    .show_value(true),
+                                                )
+                                                .changed();
+                                        });
+                                        ui.label(
+                                            RichText::new(Self::tr_lang(
+                                                language,
+                                                "Close = slower. Far = faster.",
+                                                "Gan = cham hon. Xa = nhanh hon.",
+                                            ))
+                                            .small(),
+                                        );
+                                    });
                                 } else {
                                     ui.label(
                                         RichText::new(Self::tr_lang(
