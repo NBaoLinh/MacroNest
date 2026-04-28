@@ -6006,37 +6006,7 @@ mod windows_overlay {
         prefer_interception: bool,
         move_passes: u8,
         move_delay_ms: u64,
-        smooth_move: bool,
-        smooth_move_near_speed: f32,
-        smooth_move_far_speed: f32,
     ) -> Result<()> {
-        if smooth_move {
-            let mut point = POINT::default();
-            unsafe {
-                if GetCursorPos(&mut point).is_err() {
-                    send_mouse_move_absolute_backend(x, y, prefer_interception)?;
-                    return Ok(());
-                }
-            }
-            let dx = x - point.x;
-            let dy = y - point.y;
-            let distance = (((dx * dx + dy * dy) as f32).sqrt()).max(1.0);
-            let travel_factor = (distance / 700.0).clamp(0.0, 1.0);
-            let near_speed = smooth_move_near_speed.max(0.1);
-            let far_speed = smooth_move_far_speed.max(near_speed);
-            let speed = near_speed + (far_speed - near_speed) * travel_factor;
-            settle_mouse_path_relative_segment(
-                point.x,
-                point.y,
-                x,
-                y,
-                speed,
-                prefer_interception,
-                None,
-                false,
-            )?;
-            return Ok(());
-        }
         let attempts = if prefer_interception {
             1
         } else {
@@ -7096,9 +7066,6 @@ mod windows_overlay {
                     preset.use_interception_driver,
                     preset.non_interception_move_passes,
                     preset.non_interception_move_delay_ms,
-                    preset.image_search_smooth_move,
-                    preset.image_search_distance_near_speed,
-                    preset.image_search_distance_far_speed,
                 )?;
             }
             if fire_click {
@@ -7264,9 +7231,6 @@ mod windows_overlay {
                 preset.use_interception_driver,
                 preset.non_interception_move_passes,
                 preset.non_interception_move_delay_ms,
-                preset.image_search_smooth_move,
-                preset.image_search_distance_near_speed,
-                preset.image_search_distance_far_speed,
             )?;
         }
         if fire_click {

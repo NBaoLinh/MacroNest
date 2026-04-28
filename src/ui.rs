@@ -8767,6 +8767,24 @@ impl CrosshairApp {
                                     preset.collapsed = !preset.collapsed;
                                     live_sync = true;
                                 }
+                                let capture_target =
+                                    CaptureRequest::MacroPresetHotkey(group.id, preset.id);
+                                if ui
+                                    .add_sized(
+                                        [64.0, 22.0],
+                                        Button::new(Self::capture_button_text(
+                                            language,
+                                            capture_target_snapshot.as_ref() == Some(&capture_target),
+                                        )),
+                                    )
+                                    .clicked()
+                                {
+                                    if capture_target_snapshot.as_ref() == Some(&capture_target) {
+                                        cancel_active_capture = true;
+                                    } else {
+                                        next_capture_target = Some(capture_target);
+                                    }
+                                }
                                 let mouse_trigger_options = [
                                     ("MouseLeft", Self::tr_lang(language, "LClick", "Trai")),
                                     ("MouseRight", Self::tr_lang(language, "RClick", "Phai")),
@@ -8785,7 +8803,7 @@ impl CrosshairApp {
                                     .map(|(_, label)| *label)
                                     .unwrap_or_else(|| Self::tr_lang(language, "Mouse", "Chuot"));
                                 egui::ComboBox::from_id_salt((group.id, preset.id, "mouse-trigger-dropdown"))
-                                    .width(64.0)
+                                    .width(92.0)
                                     .selected_text(selected_mouse_label)
                                     .show_ui(ui, |ui| {
                                         for (option_key, option_label) in mouse_trigger_options {
@@ -11651,71 +11669,14 @@ impl CrosshairApp {
                         if preset.image_search_move_advanced_open {
                             ui.label(Self::tr_lang(language, "Move behavior", "Kieu di chuot"));
                             ui.horizontal_wrapped(|ui| {
-                                live_sync |= ui
-                                    .checkbox(
-                                        &mut preset.image_search_smooth_move,
-                                        Self::tr_lang(
-                                            language,
-                                            "Distance-based move",
-                                            "Di theo khoang cach",
-                                        ),
-                                    )
-                                    .changed();
-                                if preset.image_search_smooth_move {
-                                    ui.vertical(|ui| {
-                                        ui.horizontal_wrapped(|ui| {
-                                            ui.label(RichText::new(Self::tr_lang(
-                                                language,
-                                                "Near speed",
-                                                "Toc do gan",
-                                            ))
-                                            .small());
-                                            live_sync |= ui
-                                            .add(
-                                                Slider::new(
-                                                    &mut preset.image_search_distance_near_speed,
-                                                    0.10..=500.0,
-                                                )
-                                                .show_value(true),
-                                            )
-                                            .changed();
-                                        });
-                                        ui.horizontal_wrapped(|ui| {
-                                            ui.label(RichText::new(Self::tr_lang(
-                                                language,
-                                                "Far speed",
-                                                "Toc do xa",
-                                            ))
-                                            .small());
-                                            live_sync |= ui
-                                            .add(
-                                                Slider::new(
-                                                    &mut preset.image_search_distance_far_speed,
-                                                    0.10..=1000.0,
-                                                )
-                                                .show_value(true),
-                                            )
-                                                .changed();
-                                        });
-                                        ui.label(
-                                            RichText::new(Self::tr_lang(
-                                                language,
-                                                "Close = slower. Far = faster.",
-                                                "Gan = cham hon. Xa = nhanh hon.",
-                                            ))
-                                            .small(),
-                                        );
-                                    });
-                                } else {
-                                    ui.label(
-                                        RichText::new(Self::tr_lang(
-                                            language,
-                                            "Uses repeated absolute move.",
-                                            "Dung di chuot tuyet doi lap lai.",
-                                        ))
-                                        .small(),
-                                    );
-                                }
+                                ui.label(
+                                    RichText::new(Self::tr_lang(
+                                        language,
+                                        "Uses repeated absolute move.",
+                                        "Dung di chuot tuyet doi lap lai.",
+                                    ))
+                                    .small(),
+                                );
                             });
                             ui.end_row();
 
