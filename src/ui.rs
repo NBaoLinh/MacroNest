@@ -1930,30 +1930,22 @@ impl CrosshairApp {
         }
 
         let mut remove_index = None;
-        egui::ScrollArea::horizontal()
-            .id_salt(("macro-trigger-chips", spec.as_str()))
-            .max_height(22.0)
-            .show(ui, |ui| {
-                ui.horizontal(|ui| {
-                    for (index, key) in keys.iter().enumerate() {
-                        let label = Self::short_key_chip_label(key);
-                        if ui
-                            .add(
-                                Button::new(RichText::new(label).monospace())
-                                    .min_size(vec2(0.0, 22.0)),
-                            )
-                            .on_hover_text(Self::tr_lang(
-                                language,
-                                "Click to remove this key",
-                                "Click to remove this key",
-                            ))
-                            .clicked()
-                        {
-                            remove_index = Some(index);
-                        }
-                    }
-                });
-            });
+        ui.horizontal_wrapped(|ui| {
+            for (index, key) in keys.iter().enumerate() {
+                let label = Self::short_key_chip_label(key);
+                if ui
+                    .add(Button::new(RichText::new(label).monospace()).min_size(vec2(0.0, 22.0)))
+                    .on_hover_text(Self::tr_lang(
+                        language,
+                        "Click to remove this key",
+                        "Click to remove this key",
+                    ))
+                    .clicked()
+                {
+                    remove_index = Some(index);
+                }
+            }
+        });
 
         if let Some(index) = remove_index {
             let mut next_keys = keys;
