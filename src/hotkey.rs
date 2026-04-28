@@ -198,7 +198,10 @@ fn normalize_key_name(key: &str) -> String {
 #[allow(dead_code)]
 pub fn to_windows_registration(
     binding: &HotkeyBinding,
-) -> Option<(windows::Win32::UI::Input::KeyboardAndMouse::HOT_KEY_MODIFIERS, u32)> {
+) -> Option<(
+    windows::Win32::UI::Input::KeyboardAndMouse::HOT_KEY_MODIFIERS,
+    u32,
+)> {
     use windows::Win32::UI::Input::KeyboardAndMouse::{
         HOT_KEY_MODIFIERS, MOD_ALT, MOD_CONTROL, MOD_SHIFT, MOD_WIN,
     };

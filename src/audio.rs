@@ -1,10 +1,4 @@
-use std::{
-    fs::File,
-    io::BufReader,
-    path::Path,
-    thread,
-    time::Duration,
-};
+use std::{fs::File, io::BufReader, path::Path, thread, time::Duration};
 
 use anyhow::{Context, Result, bail};
 use once_cell::sync::Lazy;
@@ -167,8 +161,8 @@ pub fn load_waveform(path: &str, buckets: usize) -> Result<Vec<f32>> {
     let mut decoder = open_decoder(path)?;
     let bucket_count = buckets.max(32);
     let estimated_total_samples = decoder.total_duration().map(|duration| {
-        (duration.as_secs_f64() * decoder.sample_rate() as f64 * decoder.channels() as f64)
-            .round() as usize
+        (duration.as_secs_f64() * decoder.sample_rate() as f64 * decoder.channels() as f64).round()
+            as usize
     });
     let samples_per_bucket = estimated_total_samples
         .map(|total| (total / bucket_count).max(1))
@@ -225,7 +219,10 @@ fn open_decoder(path: &str) -> Result<Decoder<BufReader<File>>> {
 }
 
 fn cleanup_preview(playback: &mut Option<PreviewPlayback>) {
-    if playback.as_ref().is_some_and(|current| current.sink.empty()) {
+    if playback
+        .as_ref()
+        .is_some_and(|current| current.sink.empty())
+    {
         *playback = None;
     }
 }

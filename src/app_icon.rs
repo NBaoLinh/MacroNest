@@ -78,7 +78,11 @@ fn ensure_ico_file_variant(path: &Path, size: u32, disabled: bool) -> Result<()>
 
 fn render_pixmap(size: u32, disabled: bool) -> Result<Pixmap> {
     let options = resvg::usvg::Options::default();
-    let svg = if disabled { APP_ICON_DISABLED_SVG } else { APP_ICON_SVG };
+    let svg = if disabled {
+        APP_ICON_DISABLED_SVG
+    } else {
+        APP_ICON_SVG
+    };
     let tree = resvg::usvg::Tree::from_str(svg, &options)
         .context("Failed to parse the embedded icon SVG")?;
     let scale = (size as f32 / tree.size().width()).min(size as f32 / tree.size().height());

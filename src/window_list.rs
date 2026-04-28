@@ -3,22 +3,21 @@
 #[cfg(windows)]
 mod windows_impl {
     use windows::{
-        core::BOOL,
         Win32::{
             Foundation::{HWND, LPARAM, RECT},
             Graphics::Gdi::{
-                BitBlt, BI_RGB, BITMAPINFO, BITMAPINFOHEADER, CreateCompatibleDC,
-                CreateDIBSection, DIB_RGB_COLORS, DeleteDC, DeleteObject, GetDC, GetWindowDC,
-                HGDIOBJ, HALFTONE, ReleaseDC, SRCCOPY, SelectObject, SetStretchBltMode,
-                StretchBlt,
-            },
-            UI::WindowsAndMessaging::{
-                EnumWindows, GetForegroundWindow, GetWindowRect, GetWindowTextLengthW,
-                GetWindowTextW, GetSystemMetrics, IsWindowVisible, PW_RENDERFULLCONTENT,
-                SM_CXVIRTUALSCREEN, SM_CYVIRTUALSCREEN, SM_XVIRTUALSCREEN, SM_YVIRTUALSCREEN,
+                BI_RGB, BITMAPINFO, BITMAPINFOHEADER, BitBlt, CreateCompatibleDC, CreateDIBSection,
+                DIB_RGB_COLORS, DeleteDC, DeleteObject, GetDC, GetWindowDC, HALFTONE, HGDIOBJ,
+                ReleaseDC, SRCCOPY, SelectObject, SetStretchBltMode, StretchBlt,
             },
             Storage::Xps::{PRINT_WINDOW_FLAGS, PrintWindow},
+            UI::WindowsAndMessaging::{
+                EnumWindows, GetForegroundWindow, GetSystemMetrics, GetWindowRect,
+                GetWindowTextLengthW, GetWindowTextW, IsWindowVisible, PW_RENDERFULLCONTENT,
+                SM_CXVIRTUALSCREEN, SM_CYVIRTUALSCREEN, SM_XVIRTUALSCREEN, SM_YVIRTUALSCREEN,
+            },
         },
+        core::BOOL,
     };
 
     #[derive(Debug, Clone)]
@@ -125,7 +124,9 @@ mod windows_impl {
         let mut buffer = vec![0u16; length as usize + 1];
         let copied = GetWindowTextW(hwnd, &mut buffer);
         if copied > 0 {
-            let title = String::from_utf16_lossy(&buffer[..copied as usize]).trim().to_owned();
+            let title = String::from_utf16_lossy(&buffer[..copied as usize])
+                .trim()
+                .to_owned();
             if !title.is_empty() {
                 let windows = &mut *(lparam.0 as *mut Vec<WindowInfo>);
                 windows.push(WindowInfo {
@@ -152,7 +153,8 @@ mod windows_impl {
         }
 
         if let Some(title_or_selector) = primary_title
-            && let Some(hwnd) = find_window_by_candidate(title_or_selector, match_duplicate_window_titles)
+            && let Some(hwnd) =
+                find_window_by_candidate(title_or_selector, match_duplicate_window_titles)
         {
             return Some(hwnd);
         }
@@ -348,41 +350,42 @@ mod windows_impl {
         let _ = SetStretchBltMode(full_dc, HALFTONE);
         let _ = SetStretchBltMode(scaled_dc, HALFTONE);
 
-        let copied_full = if PrintWindow(hwnd, full_dc, PRINT_WINDOW_FLAGS(PW_RENDERFULLCONTENT)).as_bool() {
-            true
-        } else if !window_dc.0.is_null() {
-            StretchBlt(
-                full_dc,
-                0,
-                0,
-                screen_width,
-                screen_height,
-                Some(window_dc),
-                0,
-                0,
-                screen_width,
-                screen_height,
-                SRCCOPY,
-            )
-            .as_bool()
-        } else if !screen_dc.0.is_null() {
-            StretchBlt(
-                full_dc,
-                0,
-                0,
-                screen_width,
-                screen_height,
-                Some(screen_dc),
-                rect.left,
-                rect.top,
-                screen_width,
-                screen_height,
-                SRCCOPY,
-            )
-            .as_bool()
-        } else {
-            false
-        };
+        let copied_full =
+            if PrintWindow(hwnd, full_dc, PRINT_WINDOW_FLAGS(PW_RENDERFULLCONTENT)).as_bool() {
+                true
+            } else if !window_dc.0.is_null() {
+                StretchBlt(
+                    full_dc,
+                    0,
+                    0,
+                    screen_width,
+                    screen_height,
+                    Some(window_dc),
+                    0,
+                    0,
+                    screen_width,
+                    screen_height,
+                    SRCCOPY,
+                )
+                .as_bool()
+            } else if !screen_dc.0.is_null() {
+                StretchBlt(
+                    full_dc,
+                    0,
+                    0,
+                    screen_width,
+                    screen_height,
+                    Some(screen_dc),
+                    rect.left,
+                    rect.top,
+                    screen_width,
+                    screen_height,
+                    SRCCOPY,
+                )
+                .as_bool()
+            } else {
+                false
+            };
 
         let copied = if copied_full {
             StretchBlt(
@@ -487,8 +490,8 @@ mod windows_impl {
         info.bmiHeader.biCompression = BI_RGB.0;
 
         let mut bits: *mut core::ffi::c_void = std::ptr::null_mut();
-        let bitmap = CreateDIBSection(Some(screen_dc), &info, DIB_RGB_COLORS, &mut bits, None, 0)
-            .ok()?;
+        let bitmap =
+            CreateDIBSection(Some(screen_dc), &info, DIB_RGB_COLORS, &mut bits, None, 0).ok()?;
         if bitmap.0.is_null() || bits.is_null() {
             let _ = DeleteDC(compat_dc);
             let _ = ReleaseDC(None, screen_dc);

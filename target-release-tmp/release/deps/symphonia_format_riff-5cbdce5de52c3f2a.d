@@ -1,0 +1,10 @@
+D:\app\Crosshair\target-release-tmp\release\deps\symphonia_format_riff-5cbdce5de52c3f2a.d: C:\Users\ngbal\.cargo\registry\src\index.crates.io-1949cf8c6b5b557f\symphonia-format-riff-0.5.5\src\lib.rs C:\Users\ngbal\.cargo\registry\src\index.crates.io-1949cf8c6b5b557f\symphonia-format-riff-0.5.5\src\common.rs C:\Users\ngbal\.cargo\registry\src\index.crates.io-1949cf8c6b5b557f\symphonia-format-riff-0.5.5\src\wave\mod.rs C:\Users\ngbal\.cargo\registry\src\index.crates.io-1949cf8c6b5b557f\symphonia-format-riff-0.5.5\src\wave\chunks.rs
+
+D:\app\Crosshair\target-release-tmp\release\deps\libsymphonia_format_riff-5cbdce5de52c3f2a.rlib: C:\Users\ngbal\.cargo\registry\src\index.crates.io-1949cf8c6b5b557f\symphonia-format-riff-0.5.5\src\lib.rs C:\Users\ngbal\.cargo\registry\src\index.crates.io-1949cf8c6b5b557f\symphonia-format-riff-0.5.5\src\common.rs C:\Users\ngbal\.cargo\registry\src\index.crates.io-1949cf8c6b5b557f\symphonia-format-riff-0.5.5\src\wave\mod.rs C:\Users\ngbal\.cargo\registry\src\index.crates.io-1949cf8c6b5b557f\symphonia-format-riff-0.5.5\src\wave\chunks.rs
+
+D:\app\Crosshair\target-release-tmp\release\deps\libsymphonia_format_riff-5cbdce5de52c3f2a.rmeta: C:\Users\ngbal\.cargo\registry\src\index.crates.io-1949cf8c6b5b557f\symphonia-format-riff-0.5.5\src\lib.rs C:\Users\ngbal\.cargo\registry\src\index.crates.io-1949cf8c6b5b557f\symphonia-format-riff-0.5.5\src\common.rs C:\Users\ngbal\.cargo\registry\src\index.crates.io-1949cf8c6b5b557f\symphonia-format-riff-0.5.5\src\wave\mod.rs C:\Users\ngbal\.cargo\registry\src\index.crates.io-1949cf8c6b5b557f\symphonia-format-riff-0.5.5\src\wave\chunks.rs
+
+C:\Users\ngbal\.cargo\registry\src\index.crates.io-1949cf8c6b5b557f\symphonia-format-riff-0.5.5\src\lib.rs:
+C:\Users\ngbal\.cargo\registry\src\index.crates.io-1949cf8c6b5b557f\symphonia-format-riff-0.5.5\src\common.rs:
+C:\Users\ngbal\.cargo\registry\src\index.crates.io-1949cf8c6b5b557f\symphonia-format-riff-0.5.5\src\wave\mod.rs:
+C:\Users\ngbal\.cargo\registry\src\index.crates.io-1949cf8c6b5b557f\symphonia-format-riff-0.5.5\src\wave\chunks.rs:
