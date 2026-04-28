@@ -8356,23 +8356,23 @@ impl CrosshairApp {
                     for preset_index in render_preset_indices.iter().copied() {
                         let preset = &mut group.presets[preset_index];
                         Self::show_preset_card(ui, group.enabled && preset.enabled, |ui| {
-                            ui.vertical(|ui| {
-                                ui.horizontal(|ui| {
-                                    ui.label(Self::tr_lang(
-                                        language,
-                                        if preset.trigger_mode == MacroTriggerMode::Release {
-                                            "Release"
-                                        } else {
-                                            "Trigger"
-                                        },
-                                        if preset.trigger_mode == MacroTriggerMode::Release {
-                                            "ThÃƒÆ’Ã†â€™Ãƒâ€šÃ‚Â¡ÃƒÆ’Ã¢â‚¬Å¡Ãƒâ€šÃ‚ÂºÃƒÆ’Ã¢â‚¬Å¡Ãƒâ€šÃ‚Â£"
-                                        } else {
-                                            "KÃƒÆ’Ã†â€™Ãƒâ€ Ã¢â‚¬â„¢ÃƒÆ’Ã¢â‚¬Å¡Ãƒâ€šÃ‚Â­ch hoÃƒÆ’Ã†â€™Ãƒâ€šÃ‚Â¡ÃƒÆ’Ã¢â‚¬Å¡Ãƒâ€šÃ‚ÂºÃƒÆ’Ã¢â‚¬Å¡Ãƒâ€šÃ‚Â¡t"
-                                        },
-                                    ));
-                                    ui.add_space(6.0);
-                                    ui.vertical(|ui| {
+                            ui.horizontal_top(|ui| {
+                                ui.vertical(|ui| {
+                                    ui.horizontal(|ui| {
+                                        ui.label(Self::tr_lang(
+                                            language,
+                                            if preset.trigger_mode == MacroTriggerMode::Release {
+                                                "Release"
+                                            } else {
+                                                "Trigger"
+                                            },
+                                            if preset.trigger_mode == MacroTriggerMode::Release {
+                                                "ThÃƒÆ’Ã†â€™Ãƒâ€šÃ‚Â¡ÃƒÆ’Ã¢â‚¬Å¡Ãƒâ€šÃ‚ÂºÃƒÆ’Ã¢â‚¬Å¡Ãƒâ€šÃ‚Â£"
+                                            } else {
+                                                "KÃƒÆ’Ã†â€™Ãƒâ€ Ã¢â‚¬â„¢ÃƒÆ’Ã¢â‚¬Å¡Ãƒâ€šÃ‚Â­ch hoÃƒÆ’Ã†â€™Ãƒâ€šÃ‚Â¡ÃƒÆ’Ã¢â‚¬Å¡Ãƒâ€šÃ‚ÂºÃƒÆ’Ã¢â‚¬Å¡Ãƒâ€šÃ‚Â¡t"
+                                            },
+                                        ));
+                                        ui.add_space(6.0);
                                         if !preset.trigger_keys.trim().is_empty() {
                                             live_sync |= Self::render_key_list_chips(
                                                 ui,
@@ -8401,121 +8401,138 @@ impl CrosshairApp {
                                             );
                                         }
                                     });
-                                    ui.add_space(8.0);
-                                    ui.vertical(|ui| {
-                                        ui.horizontal(|ui| {
-                                            live_sync |= ui
-                                                .add_sized([86.0, 22.0], egui::Checkbox::new(&mut preset.enabled, Self::tr_lang(language, "Enabled", "BÃƒÆ’Ã†â€™Ãƒâ€šÃ‚Â¡ÃƒÆ’Ã¢â‚¬Å¡Ãƒâ€šÃ‚ÂºÃƒÆ’Ã¢â‚¬Å¡Ãƒâ€šÃ‚Â­t")))
-                                                .changed();
-                                            if Self::sized_button(ui, 58.0, if preset.collapsed { Self::tr_lang(language, "Show", "HiÃƒÆ’Ã†â€™Ãƒâ€šÃ‚Â¡ÃƒÆ’Ã¢â‚¬Å¡Ãƒâ€šÃ‚Â»ÃƒÆ’Ã¢â‚¬Â¢ÃƒÂ¢Ã¢â‚¬Å¡Ã‚Â¬Ãƒâ€šÃ‚Â¡n") } else { Self::tr_lang(language, "Hide", "ÃƒÆ’Ã†â€™Ãƒâ€šÃ‚Â¡Ãƒâ€šÃ‚ÂºÃƒÆ’Ã¢â‚¬Å¡Ãƒâ€šÃ‚Â¨n") }).clicked() {
-                                                preset.collapsed = !preset.collapsed;
-                                                live_sync = true;
+                                });
+                                ui.add_space(8.0);
+                                ui.vertical(|ui| {
+                                    ui.horizontal(|ui| {
+                                        live_sync |= ui
+                                            .add_sized(
+                                                [86.0, 22.0],
+                                                egui::Checkbox::new(
+                                                    &mut preset.enabled,
+                                                    Self::tr_lang(language, "Enabled", "BÃƒÆ’Ã†â€™Ãƒâ€šÃ‚Â¡ÃƒÆ’Ã¢â‚¬Å¡Ãƒâ€šÃ‚ÂºÃƒÆ’Ã¢â‚¬Å¡Ãƒâ€šÃ‚Â­t"),
+                                                ),
+                                            )
+                                            .changed();
+                                        if Self::sized_button(
+                                            ui,
+                                            58.0,
+                                            if preset.collapsed {
+                                                Self::tr_lang(language, "Show", "HiÃƒÆ’Ã†â€™Ãƒâ€šÃ‚Â¡ÃƒÆ’Ã¢â‚¬Å¡Ãƒâ€šÃ‚Â»ÃƒÆ’Ã¢â‚¬Â¢ÃƒÂ¢Ã¢â‚¬Å¡Ã‚Â¬Ãƒâ€šÃ‚Â¡n")
+                                            } else {
+                                                Self::tr_lang(language, "Hide", "ÃƒÆ’Ã†â€™Ãƒâ€šÃ‚Â¡Ãƒâ€šÃ‚ÂºÃƒÆ’Ã¢â‚¬Å¡Ãƒâ€šÃ‚Â¨n")
+                                            },
+                                        )
+                                        .clicked()
+                                        {
+                                            preset.collapsed = !preset.collapsed;
+                                            live_sync = true;
+                                        }
+                                        let capture_target =
+                                            CaptureRequest::MacroPresetHotkey(group.id, preset.id);
+                                        if ui
+                                            .add_sized(
+                                                [64.0, 24.0],
+                                                Button::new(Self::capture_button_text(
+                                                    language,
+                                                    capture_target_snapshot.as_ref() == Some(&capture_target),
+                                                )),
+                                            )
+                                            .clicked()
+                                        {
+                                            if capture_target_snapshot.as_ref() == Some(&capture_target) {
+                                                cancel_active_capture = true;
+                                            } else {
+                                                next_capture_target = Some(capture_target);
                                             }
-                                            let capture_target =
-                                                CaptureRequest::MacroPresetHotkey(group.id, preset.id);
-                                            if ui
-                                                .add_sized(
-                                                    [64.0, 24.0],
-                                                    Button::new(Self::capture_button_text(
-                                                        language,
-                                                        capture_target_snapshot.as_ref() == Some(&capture_target),
-                                                    )),
-                                                )
-                                                .clicked()
-                                            {
-                                                if capture_target_snapshot.as_ref() == Some(&capture_target) {
-                                                    cancel_active_capture = true;
-                                                } else {
-                                                    next_capture_target = Some(capture_target);
-                                                }
-                                            }
-                                            let mouse_trigger_options = [
-                                                ("MouseLeft", Self::tr_lang(language, "LClick", "Trai")),
-                                                ("MouseRight", Self::tr_lang(language, "RClick", "Phai")),
-                                                ("MouseMiddle", Self::tr_lang(language, "MClick", "Giua")),
-                                                ("MouseX1", Self::tr_lang(language, "X1", "X1")),
-                                                ("MouseX2", Self::tr_lang(language, "X2", "X2")),
-                                                ("MouseWheelUp", Self::tr_lang(language, "WhUp", "Len")),
-                                                ("MouseWheelDown", Self::tr_lang(language, "WhDn", "Xuong")),
-                                            ];
-                                            let selected_mouse_key = hotkey::split_key_list(&preset.trigger_keys)
-                                                .into_iter()
-                                                .find(|key| hotkey::is_mouse_key_name(key));
-                                            let selected_mouse_label = selected_mouse_key
-                                                .as_deref()
-                                                .and_then(|key| mouse_trigger_options.iter().find(|(option_key, _)| option_key.eq_ignore_ascii_case(key)))
-                                                .map(|(_, label)| *label)
-                                                .unwrap_or_else(|| Self::tr_lang(language, "Mouse", "Chuot"));
-                                            let mouse_trigger_response = ui
-                                                .scope(|ui| {
-                                                    ui.spacing_mut().interact_size.y = 24.0;
-                                                    egui::ComboBox::from_id_salt((
-                                                        group.id,
-                                                        preset.id,
-                                                        "mouse-trigger-dropdown",
-                                                    ))
-                                                    .width(58.0)
-                                                    .selected_text(selected_mouse_label)
-                                                    .show_ui(ui, |ui| {
-                                                        for (option_key, option_label) in mouse_trigger_options {
-                                                            if ui
-                                                                .selectable_label(
-                                                                    selected_mouse_key
-                                                                        .as_ref()
-                                                                        .is_some_and(|current| current.eq_ignore_ascii_case(option_key)),
-                                                                    option_label,
-                                                                )
-                                                                .clicked()
-                                                            {
-                                                                let mut trigger_keys =
-                                                                    hotkey::split_key_list(&preset.trigger_keys);
-                                                                if !trigger_keys.iter().any(|key| {
-                                                                    key.eq_ignore_ascii_case(option_key)
-                                                                }) {
-                                                                    trigger_keys.push(option_key.to_owned());
-                                                                }
-                                                                preset.trigger_keys = trigger_keys.join(", ");
-                                                                preset.hotkey = None;
-                                                                live_sync = true;
+                                        }
+                                        let mouse_trigger_options = [
+                                            ("MouseLeft", Self::tr_lang(language, "LClick", "Trai")),
+                                            ("MouseRight", Self::tr_lang(language, "RClick", "Phai")),
+                                            ("MouseMiddle", Self::tr_lang(language, "MClick", "Giua")),
+                                            ("MouseX1", Self::tr_lang(language, "X1", "X1")),
+                                            ("MouseX2", Self::tr_lang(language, "X2", "X2")),
+                                            ("MouseWheelUp", Self::tr_lang(language, "WhUp", "Len")),
+                                            ("MouseWheelDown", Self::tr_lang(language, "WhDn", "Xuong")),
+                                        ];
+                                        let selected_mouse_key = hotkey::split_key_list(&preset.trigger_keys)
+                                            .into_iter()
+                                            .find(|key| hotkey::is_mouse_key_name(key));
+                                        let selected_mouse_label = selected_mouse_key
+                                            .as_deref()
+                                            .and_then(|key| mouse_trigger_options.iter().find(|(option_key, _)| option_key.eq_ignore_ascii_case(key)))
+                                            .map(|(_, label)| *label)
+                                            .unwrap_or_else(|| Self::tr_lang(language, "Mouse", "Chuot"));
+                                        let mouse_trigger_response = ui
+                                            .scope(|ui| {
+                                                ui.spacing_mut().interact_size.y = 24.0;
+                                                egui::ComboBox::from_id_salt((
+                                                    group.id,
+                                                    preset.id,
+                                                    "mouse-trigger-dropdown",
+                                                ))
+                                                .width(58.0)
+                                                .selected_text(selected_mouse_label)
+                                                .show_ui(ui, |ui| {
+                                                    for (option_key, option_label) in mouse_trigger_options {
+                                                        if ui
+                                                            .selectable_label(
+                                                                selected_mouse_key
+                                                                    .as_ref()
+                                                                    .is_some_and(|current| current.eq_ignore_ascii_case(option_key)),
+                                                                option_label,
+                                                            )
+                                                            .clicked()
+                                                        {
+                                                            let mut trigger_keys =
+                                                                hotkey::split_key_list(&preset.trigger_keys);
+                                                            if !trigger_keys.iter().any(|key| {
+                                                                key.eq_ignore_ascii_case(option_key)
+                                                            }) {
+                                                                trigger_keys.push(option_key.to_owned());
                                                             }
+                                                            preset.trigger_keys = trigger_keys.join(", ");
+                                                            preset.hotkey = None;
+                                                            live_sync = true;
                                                         }
-                                                    })
+                                                    }
                                                 })
-                                                .inner;
-                                            mouse_trigger_response
-                                                .response
-                                                .on_hover_text(selected_mouse_label);
-                                            if Self::sized_button(ui, 64.0, Self::tr_lang(language, "Clear", "XÃƒÆ’Ã†â€™Ãƒâ€ Ã¢â‚¬â„¢ÃƒÆ’Ã¢â‚¬Å¡Ãƒâ€šÃ‚Â³a")).clicked() {
-                                                let mut changed = false;
-                                                if !preset.trigger_keys.trim().is_empty() {
-                                                    changed |= Self::pop_key_list_entry(&mut preset.trigger_keys);
-                                                }
-                                                if preset.hotkey.is_some() {
-                                                    preset.hotkey = None;
-                                                    changed = true;
-                                                }
-                                                live_sync |= changed;
+                                            })
+                                            .inner;
+                                        mouse_trigger_response
+                                            .response
+                                            .on_hover_text(selected_mouse_label);
+                                        if Self::sized_button(ui, 64.0, Self::tr_lang(language, "Clear", "XÃƒÆ’Ã†â€™Ãƒâ€ Ã¢â‚¬â„¢ÃƒÆ’Ã¢â‚¬Å¡Ãƒâ€šÃ‚Â³a")).clicked() {
+                                            let mut changed = false;
+                                            if !preset.trigger_keys.trim().is_empty() {
+                                                changed |= Self::pop_key_list_entry(&mut preset.trigger_keys);
                                             }
-                                            if Self::sized_button(ui, 64.0, Self::tr_lang(language, "Copy", "Sao chÃƒÆ’Ã†â€™Ãƒâ€ Ã¢â‚¬â„¢Ãƒâ€šÃ‚Â©p")).clicked() {
-                                                self.macro_preset_clipboard = Some(preset.clone());
-                                                self.status = "Copied macro preset.".to_owned();
+                                            if preset.hotkey.is_some() {
+                                                preset.hotkey = None;
+                                                changed = true;
                                             }
-                                            if ui
-                                                .add_enabled(
-                                                    self.macro_preset_clipboard.is_some(),
-                                                    Button::new(Self::tr_lang(language, "Paste", "DÃƒÆ’Ã†â€™Ãƒâ€šÃ‚Â¡ÃƒÆ’Ã¢â‚¬Å¡Ãƒâ€šÃ‚ÂºÃƒÆ’Ã¢â‚¬Å¡Ãƒâ€šÃ‚Â¡n"))
-                                                        .min_size(egui::vec2(64.0, 24.0)),
-                                                )
-                                                .clicked()
-                                            {
-                                                paste_preset_to_group = Some(group.id);
-                                            }
-                                            if Self::sized_button(ui, 64.0, Self::tr_lang(language, "Remove", "XÃƒÆ’Ã†â€™Ãƒâ€ Ã¢â‚¬â„¢ÃƒÆ’Ã¢â‚¬Å¡Ãƒâ€šÃ‚Â³a")).clicked() {
-                                                remove_preset = Some(preset.id);
-                                            }
-                                        });
+                                            live_sync |= changed;
+                                        }
+                                        if Self::sized_button(ui, 64.0, Self::tr_lang(language, "Copy", "Sao chÃƒÆ’Ã†â€™Ãƒâ€ Ã¢â‚¬â„¢Ãƒâ€šÃ‚Â©p")).clicked() {
+                                            self.macro_preset_clipboard = Some(preset.clone());
+                                            self.status = "Copied macro preset.".to_owned();
+                                        }
+                                        if ui
+                                            .add_enabled(
+                                                self.macro_preset_clipboard.is_some(),
+                                                Button::new(Self::tr_lang(language, "Paste", "DÃƒÆ’Ã†â€™Ãƒâ€šÃ‚Â¡ÃƒÆ’Ã¢â‚¬Å¡Ãƒâ€šÃ‚ÂºÃƒÆ’Ã¢â‚¬Å¡Ãƒâ€šÃ‚Â¡n"))
+                                                    .min_size(egui::vec2(64.0, 24.0)),
+                                            )
+                                            .clicked()
+                                        {
+                                            paste_preset_to_group = Some(group.id);
+                                        }
+                                        if Self::sized_button(ui, 64.0, Self::tr_lang(language, "Remove", "XÃƒÆ’Ã†â€™Ãƒâ€ Ã¢â‚¬â„¢ÃƒÆ’Ã¢â‚¬Å¡Ãƒâ€šÃ‚Â³a")).clicked() {
+                                            remove_preset = Some(preset.id);
+                                        }
                                     });
                                 });
+                            });
                         if !preset.collapsed {
                         ui.horizontal(|ui| {
                             ui.label(Self::tr_lang(language, "Mode", "Mode"));
