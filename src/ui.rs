@@ -8408,6 +8408,10 @@ impl CrosshairApp {
                                     },
                                 );
 
+                                let right_spacer = (ui.available_width() - right_width).max(0.0);
+                                if right_spacer > 0.0 {
+                                    ui.add_space(right_spacer);
+                                }
                                 ui.allocate_ui_with_layout(
                                     vec2(right_width, 0.0),
                                     egui::Layout::right_to_left(egui::Align::Center),
