@@ -8803,7 +8803,7 @@ impl CrosshairApp {
                                     .map(|(_, label)| *label)
                                     .unwrap_or_else(|| Self::tr_lang(language, "Mouse", "Chuot"));
                                 egui::ComboBox::from_id_salt((group.id, preset.id, "mouse-trigger-dropdown"))
-                                    .width(92.0)
+                                    .width(58.0)
                                     .selected_text(selected_mouse_label)
                                     .show_ui(ui, |ui| {
                                         for (option_key, option_label) in mouse_trigger_options {
