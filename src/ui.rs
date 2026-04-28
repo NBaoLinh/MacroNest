@@ -8802,26 +8802,35 @@ impl CrosshairApp {
                                     .and_then(|key| mouse_trigger_options.iter().find(|(option_key, _)| option_key.eq_ignore_ascii_case(key)))
                                     .map(|(_, label)| *label)
                                     .unwrap_or_else(|| Self::tr_lang(language, "Mouse", "Chuot"));
-                                let mouse_trigger_response = egui::ComboBox::from_id_salt((group.id, preset.id, "mouse-trigger-dropdown"))
-                                    .width(58.0)
-                                    .selected_text(selected_mouse_label)
-                                    .show_ui(ui, |ui| {
-                                        for (option_key, option_label) in mouse_trigger_options {
-                                            if ui
-                                                .selectable_label(
-                                                    selected_mouse_key
-                                                        .as_ref()
-                                                        .is_some_and(|current| current.eq_ignore_ascii_case(option_key)),
-                                                    option_label,
-                                                )
-                                                .clicked()
-                                            {
-                                                preset.trigger_keys = option_key.to_owned();
-                                                preset.hotkey = None;
-                                                live_sync = true;
+                                let mouse_trigger_response = ui
+                                    .scope(|ui| {
+                                        ui.spacing_mut().interact_size.y = 24.0;
+                                        egui::ComboBox::from_id_salt((
+                                            group.id,
+                                            preset.id,
+                                            "mouse-trigger-dropdown",
+                                        ))
+                                        .width(58.0)
+                                        .selected_text(selected_mouse_label)
+                                        .show_ui(ui, |ui| {
+                                            for (option_key, option_label) in mouse_trigger_options {
+                                                if ui
+                                                    .selectable_label(
+                                                        selected_mouse_key
+                                                            .as_ref()
+                                                            .is_some_and(|current| current.eq_ignore_ascii_case(option_key)),
+                                                        option_label,
+                                                    )
+                                                    .clicked()
+                                                {
+                                                    preset.trigger_keys = option_key.to_owned();
+                                                    preset.hotkey = None;
+                                                    live_sync = true;
+                                                }
                                             }
-                                        }
-                                    });
+                                        })
+                                    })
+                                    .inner;
                                 mouse_trigger_response
                                     .response
                                     .on_hover_text(selected_mouse_label);
