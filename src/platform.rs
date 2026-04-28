@@ -9,8 +9,9 @@ mod windows_platform {
         Win32::{
             Foundation::{CloseHandle, GetLastError, HANDLE, HWND},
             Graphics::Dwm::{
-                DWMWA_NCRENDERING_POLICY, DWMWA_WINDOW_CORNER_PREFERENCE, DWMNCRP_DISABLED,
-                DWMNCRP_ENABLED, DWMWCP_DEFAULT, DWMWCP_ROUND, DwmSetWindowAttribute,
+                DWMNCRP_DISABLED, DWMNCRP_ENABLED, DWMWA_NCRENDERING_POLICY,
+                DWMWA_WINDOW_CORNER_PREFERENCE, DWMWCP_DEFAULT, DWMWCP_ROUND,
+                DwmSetWindowAttribute,
             },
             System::Threading::{
                 CreateMutexW, GetCurrentProcess, HIGH_PRIORITY_CLASS, SetPriorityClass,
@@ -82,7 +83,8 @@ mod windows_platform {
     pub fn acquire_single_instance() -> Result<Option<SingleInstanceGuard>> {
         let name = widestring(MUTEX_NAME);
         let handle = unsafe { CreateMutexW(None, false, PCWSTR(name.as_ptr()))? };
-        let already_exists = unsafe { GetLastError().0 } == windows::Win32::Foundation::ERROR_ALREADY_EXISTS.0;
+        let already_exists =
+            unsafe { GetLastError().0 } == windows::Win32::Foundation::ERROR_ALREADY_EXISTS.0;
         if already_exists {
             spawn_popup_arg("--already-running-popup");
             unsafe {
@@ -98,10 +100,6 @@ mod windows_platform {
         unsafe {
             let _ = SetPriorityClass(GetCurrentProcess(), HIGH_PRIORITY_CLASS);
         }
-    }
-
-    pub fn show_goodbye_popup() {
-        spawn_popup_arg("--goodbye-popup");
     }
 
     pub fn set_native_window_shadow(frame: &Frame, enabled: bool) {
@@ -126,7 +124,11 @@ mod windows_platform {
                 std::mem::size_of_val(&policy) as u32,
             );
 
-            let corner = if enabled { DWMWCP_ROUND } else { DWMWCP_DEFAULT };
+            let corner = if enabled {
+                DWMWCP_ROUND
+            } else {
+                DWMWCP_DEFAULT
+            };
             let _ = DwmSetWindowAttribute(
                 hwnd,
                 DWMWA_WINDOW_CORNER_PREFERENCE,

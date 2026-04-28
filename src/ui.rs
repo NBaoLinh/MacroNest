@@ -183,7 +183,6 @@ pub fn configure_fonts(ctx: &egui::Context) {
 #[derive(Clone, Copy)]
 pub enum PopupBlobKind {
     AlreadyRunning,
-    Goodbye,
 }
 
 pub struct PopupBlobApp {
@@ -200,10 +199,7 @@ impl PopupBlobApp {
             kind,
             theme,
             started_at: None,
-            duration_sec: match kind {
-                PopupBlobKind::AlreadyRunning => 1.55,
-                PopupBlobKind::Goodbye => 1.8,
-            },
+            duration_sec: 1.55,
             center_next_frame: true,
         }
     }
@@ -243,7 +239,6 @@ impl PopupBlobApp {
         let (neon_cyan, neon_pink, neon_blue, dark_fill, mid_fill) = self.popup_palette();
         let (title, message) = match self.kind {
             PopupBlobKind::AlreadyRunning => ("MacroNest", "Already running in tray"),
-            PopupBlobKind::Goodbye => ("MacroNest", "Goodbye, see you soon"),
         };
 
         for layer in 0..3 {

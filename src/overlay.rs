@@ -108,7 +108,6 @@ mod windows_overlay {
             SoundLibraryItem, SoundPreset, ToolboxPreset, WindowAnchor, WindowExpandControls,
             WindowExpandDirection, WindowFocusPreset, WindowPreset,
         },
-        platform,
         render::{RenderedCrosshair, render_crosshair},
         storage::AppPaths,
         window_list,
@@ -967,7 +966,6 @@ mod windows_overlay {
                             let _ = runtime.ui_tx.send(UiCommand::ShowWindow);
                         }
                         MENU_EXIT => {
-                            platform::show_goodbye_popup();
                             let _ = runtime.ui_tx.send(UiCommand::Exit);
                             let _ = shutdown_application(hwnd, runtime);
                         }

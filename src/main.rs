@@ -29,9 +29,6 @@ fn main() -> Result<()> {
     if std::env::args().any(|arg| arg == "--already-running-popup") {
         return run_popup_blob(PopupBlobKind::AlreadyRunning);
     }
-    if std::env::args().any(|arg| arg == "--goodbye-popup") {
-        return run_popup_blob(PopupBlobKind::Goodbye);
-    }
 
     if platform::relaunch_as_admin_if_needed()? {
         return Ok(());
