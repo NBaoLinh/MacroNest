@@ -4867,15 +4867,11 @@ impl CrosshairApp {
         self.capture_ignored_keys = self.snapshot_pressed_capture_keys();
         self.capture_ignored_keys
             .extend([0x01, 0x02, 0x04, 0x05, 0x06]);
-        if !self.capture_request_accepts_mouse(&target) {
-            self.capture_ignored_keys
-                .extend([0x01, 0x02, 0x04, 0x05, 0x06]);
-        }
-        self.capture_suppress_next_poll = true;
+        self.capture_suppress_next_poll = false;
         self.capture_wait_for_mouse_release = true;
         self.capture_ignore_mouse_until_release = true;
-        self.capture_suppress_polls_remaining = 3;
-        self.capture_mouse_guard_until = Some(Instant::now() + Duration::from_millis(500));
+        self.capture_suppress_polls_remaining = 0;
+        self.capture_mouse_guard_until = None;
         self.status = if self.capture_request_keeps_open(&target) {
             match self.state.ui_language {
                 UiLanguage::Vietnamese => {
@@ -4890,8 +4886,8 @@ impl CrosshairApp {
 
     fn capture_request_keeps_open(&self, target: &CaptureRequest) -> bool {
         match target {
-            CaptureRequest::MacroPresetHotkey(_, _)
-            | CaptureRequest::MacroPresetReleaseWaitKey(_, _) => true,
+            CaptureRequest::MacroPresetHotkey(_, _) => false,
+            CaptureRequest::MacroPresetReleaseWaitKey(_, _) => true,
             CaptureRequest::MacroPresetHoldStopInput(group_id, preset_id) => self
                 .state
                 .macro_groups
@@ -4923,46 +4919,17 @@ impl CrosshairApp {
     }
 
     fn capture_request_accepts_mouse(&self, target: &CaptureRequest) -> bool {
-        match target {
-            CaptureRequest::MacroPresetHotkey(_, _)
-            | CaptureRequest::MacroPresetReleaseWaitKey(_, _) => true,
-            CaptureRequest::MacroPresetHoldStopInput(group_id, preset_id) => self
-                .state
-                .macro_groups
-                .iter()
-                .find(|group| group.id == *group_id)
-                .and_then(|group| group.presets.iter().find(|preset| preset.id == *preset_id))
-                .is_some_and(|preset| {
-                    !matches!(
-                        preset.hold_stop_step.action,
-                        MacroAction::LockKeys | MacroAction::UnlockKeys
-                    )
-                }),
-            CaptureRequest::MacroStepInput {
-                group_id,
-                preset_id,
-                step_index,
-            } => self
-                .state
-                .macro_groups
-                .iter()
-                .find(|group| group.id == *group_id)
-                .and_then(|group| group.presets.iter().find(|preset| preset.id == *preset_id))
-                .and_then(|preset| preset.steps.get(*step_index))
-                .is_some_and(|step| {
-                    !matches!(step.action, MacroAction::LockKeys | MacroAction::UnlockKeys)
-                }),
-            _ => true,
-        }
+        let _ = target;
+        false
     }
 
     fn cancel_capture(&mut self) {
         self.capture_target = None;
-        self.capture_suppress_next_poll = true;
+        self.capture_suppress_next_poll = false;
         self.capture_wait_for_mouse_release = true;
         self.capture_ignore_mouse_until_release = true;
-        self.capture_suppress_polls_remaining = 5;
-        self.capture_mouse_guard_until = Some(Instant::now() + Duration::from_millis(650));
+        self.capture_suppress_polls_remaining = 0;
+        self.capture_mouse_guard_until = None;
         self.status = "Capture cancelled.".to_owned();
     }
 
@@ -8814,19 +8781,24 @@ impl CrosshairApp {
                                         .selected_text(selected_mouse_label)
                                         .show_ui(ui, |ui| {
                                             for (option_key, option_label) in mouse_trigger_options {
-                                                if ui
-                                                    .selectable_label(
-                                                        selected_mouse_key
-                                                            .as_ref()
-                                                            .is_some_and(|current| current.eq_ignore_ascii_case(option_key)),
-                                                        option_label,
-                                                    )
-                                                    .clicked()
-                                                {
-                                                    preset.trigger_keys = option_key.to_owned();
-                                                    preset.hotkey = None;
-                                                    live_sync = true;
-                                                }
+                                            if ui
+                                                .selectable_label(
+                                                    selected_mouse_key
+                                                        .as_ref()
+                                                        .is_some_and(|current| current.eq_ignore_ascii_case(option_key)),
+                                                    option_label,
+                                                )
+                                                .clicked()
+                                            {
+                                                let mut trigger_keys =
+                                                    hotkey::split_key_list(&preset.trigger_keys);
+                                                trigger_keys
+                                                    .retain(|key| !hotkey::is_mouse_key_name(key));
+                                                trigger_keys.push(option_key.to_owned());
+                                                preset.trigger_keys = trigger_keys.join(", ");
+                                                preset.hotkey = None;
+                                                live_sync = true;
+                                            }
                                             }
                                         })
                                     })
