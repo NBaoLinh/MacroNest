@@ -8414,9 +8414,10 @@ impl CrosshairApp {
                                     vec2(right_width, 0.0),
                                     egui::Layout::right_to_left(egui::Align::Center),
                                     |ui| {
+                                        ui.spacing_mut().item_spacing.x = 4.0;
                                         if Self::sized_button(
                                             ui,
-                                            64.0,
+                                            60.0,
                                             Self::tr_lang(language, "Remove", "XÃƒÆ’Ã†â€™Ãƒâ€ Ã¢â‚¬â„¢ÃƒÆ’Ã¢â‚¬Å¡Ãƒâ€šÃ‚Â³a"),
                                         )
                                         .clicked()
@@ -8429,7 +8430,7 @@ impl CrosshairApp {
                                                 Button::new(
                                                     Self::tr_lang(language, "Paste", "DÃƒÆ’Ã†â€™Ãƒâ€šÃ‚Â¡ÃƒÆ’Ã¢â‚¬Å¡Ãƒâ€šÃ‚ÂºÃƒÆ’Ã¢â‚¬Å¡Ãƒâ€šÃ‚Â¡n")
                                                 )
-                                                .min_size(egui::vec2(64.0, 24.0)),
+                                                .min_size(egui::vec2(60.0, 24.0)),
                                             )
                                             .clicked()
                                         {
@@ -8437,7 +8438,7 @@ impl CrosshairApp {
                                         }
                                         if Self::sized_button(
                                             ui,
-                                            64.0,
+                                            60.0,
                                             Self::tr_lang(language, "Copy", "Sao chÃƒÆ’Ã†â€™Ãƒâ€ Ã¢â‚¬â„¢Ãƒâ€šÃ‚Â©p"),
                                         )
                                         .clicked()
@@ -8447,7 +8448,7 @@ impl CrosshairApp {
                                         }
                                         if Self::sized_button(
                                             ui,
-                                            64.0,
+                                            60.0,
                                             Self::tr_lang(language, "Clear", "XÃƒÆ’Ã†â€™Ãƒâ€ Ã¢â‚¬â„¢ÃƒÆ’Ã¢â‚¬Å¡Ãƒâ€šÃ‚Â³a"),
                                         )
                                         .clicked()
@@ -8487,7 +8488,7 @@ impl CrosshairApp {
                                                     preset.id,
                                                     "mouse-trigger-dropdown",
                                                 ))
-                                                .width(58.0)
+                                                .width(56.0)
                                                 .selected_text(selected_mouse_label)
                                                 .show_ui(ui, |ui| {
                                                     for (option_key, option_label) in mouse_trigger_options {
@@ -8538,7 +8539,7 @@ impl CrosshairApp {
                                         }
                                         if Self::sized_button(
                                             ui,
-                                            58.0,
+                                            56.0,
                                             if preset.collapsed {
                                                 Self::tr_lang(language, "Show", "HiÃƒÆ’Ã†â€™Ãƒâ€šÃ‚Â¡ÃƒÆ’Ã¢â‚¬Å¡Ãƒâ€šÃ‚Â»ÃƒÆ’Ã¢â‚¬Â¢ÃƒÂ¢Ã¢â‚¬Å¡Ã‚Â¬Ãƒâ€šÃ‚Â¡n")
                                             } else {
@@ -8552,7 +8553,7 @@ impl CrosshairApp {
                                         }
                                         live_sync |= ui
                                             .add_sized(
-                                                [86.0, 22.0],
+                                                [80.0, 22.0],
                                                 egui::Checkbox::new(
                                                     &mut preset.enabled,
                                                     Self::tr_lang(language, "Enabled", "BÃƒÆ’Ã†â€™Ãƒâ€šÃ‚Â¡ÃƒÆ’Ã¢â‚¬Å¡Ãƒâ€šÃ‚ÂºÃƒÆ’Ã¢â‚¬Å¡Ãƒâ€šÃ‚Â­t"),
