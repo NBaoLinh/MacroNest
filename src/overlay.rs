@@ -1778,16 +1778,9 @@ mod windows_overlay {
                 if preset.trigger_mode == MacroTriggerMode::Hold {
                     matched_any_macro = true;
                     if !hook_state.active_hold_macros.contains_key(&preset.id) {
-                        let trigger = preset.hotkey.clone().unwrap_or_else(|| HotkeyBinding {
-                            ctrl: false,
-                            alt: false,
-                            shift: false,
-                            win: false,
-                            key: binding.key.clone(),
-                        });
                         hold_matches.push((
                             preset.clone(),
-                            trigger,
+                            binding.clone(),
                             group.target_window_title.clone(),
                             group.extra_target_window_titles.clone(),
                             group.match_duplicate_window_titles,
@@ -1925,16 +1918,7 @@ mod windows_overlay {
             hook_state
                 .active_hold_macros
                 .iter()
-                .filter(|(_, active)| {
-                    hotkey::binding_matches(
-                        &active.trigger,
-                        &binding.key,
-                        binding.ctrl,
-                        binding.alt,
-                        binding.shift,
-                        binding.win,
-                    )
-                })
+                .filter(|(_, active)| active.trigger.key.eq_ignore_ascii_case(&binding.key))
                 .map(|(preset_id, _)| *preset_id)
                 .collect::<Vec<_>>()
         };
