@@ -409,6 +409,8 @@ pub struct CrosshairApp {
     mouse_move_absolute_capture_target: Option<MouseMoveAbsoluteCaptureTarget>,
     mouse_move_absolute_capture_wait_for_mouse_release: bool,
     mouse_move_absolute_capture_raise_window: bool,
+    mouse_move_absolute_restore_inner_size: Option<egui::Vec2>,
+    mouse_move_absolute_restore_outer_pos: Option<egui::Pos2>,
     image_search_capture_active: bool,
     image_search_capture_target: Option<ImageSearchCaptureTarget>,
     image_search_capture_mode: Option<ImageSearchCaptureMode>,
@@ -508,6 +510,8 @@ impl CrosshairApp {
             mouse_move_absolute_capture_target: None,
             mouse_move_absolute_capture_wait_for_mouse_release: false,
             mouse_move_absolute_capture_raise_window: false,
+            mouse_move_absolute_restore_inner_size: None,
+            mouse_move_absolute_restore_outer_pos: None,
             image_search_capture_active: false,
             image_search_capture_target: None,
             image_search_capture_mode: None,
@@ -4845,6 +4849,24 @@ impl CrosshairApp {
     ) {
         self.mouse_move_absolute_capture_target = Some(target);
         self.mouse_move_absolute_capture_wait_for_mouse_release = true;
+        let viewport = ctx.input(|input| input.viewport().clone());
+        self.mouse_move_absolute_restore_inner_size = viewport
+            .inner_rect
+            .map(|rect| rect.size())
+            .or(Some(Self::desired_window_size()));
+        self.mouse_move_absolute_restore_outer_pos = viewport.outer_rect.map(|rect| rect.min);
+        self.center_window_next_frame = false;
+        self.enforce_square_window_frames = 0;
+        let (left, top, width, height) = window_list::virtual_screen_bounds();
+        let ppp = ctx.pixels_per_point().max(0.5);
+        ctx.send_viewport_cmd(egui::ViewportCommand::OuterPosition(egui::pos2(
+            left as f32 / ppp,
+            top as f32 / ppp,
+        )));
+        ctx.send_viewport_cmd(egui::ViewportCommand::InnerSize(vec2(
+            width as f32 / ppp,
+            height as f32 / ppp,
+        )));
         self.status = Self::tr_lang(
             self.state.ui_language,
             "Click anywhere on screen to capture X/Y. Press Esc to cancel.",
@@ -4865,6 +4887,7 @@ impl CrosshairApp {
         }
         self.mouse_move_absolute_capture_target = None;
         self.mouse_move_absolute_capture_wait_for_mouse_release = false;
+        self.restore_mouse_move_absolute_viewport(ctx);
         self.mouse_move_absolute_capture_raise_window = true;
         self.status = Self::tr_lang(
             self.state.ui_language,
@@ -4915,6 +4938,7 @@ impl CrosshairApp {
         step.action = MacroAction::MouseMoveAbsolute;
         self.mouse_move_absolute_capture_target = None;
         self.mouse_move_absolute_capture_wait_for_mouse_release = false;
+        self.restore_mouse_move_absolute_viewport(ctx);
         self.mouse_move_absolute_capture_raise_window = true;
         self.status = match self.state.ui_language {
             UiLanguage::Vietnamese => {
@@ -4930,6 +4954,15 @@ impl CrosshairApp {
         ctx.request_repaint();
         self.persist();
         self.sync_macro_presets();
+    }
+
+    fn restore_mouse_move_absolute_viewport(&mut self, ctx: &egui::Context) {
+        if let Some(size) = self.mouse_move_absolute_restore_inner_size.take() {
+            ctx.send_viewport_cmd(egui::ViewportCommand::InnerSize(size));
+        }
+        if let Some(pos) = self.mouse_move_absolute_restore_outer_pos.take() {
+            ctx.send_viewport_cmd(egui::ViewportCommand::OuterPosition(pos));
+        }
     }
 
     #[cfg(windows)]
@@ -12442,83 +12475,61 @@ impl CrosshairApp {
             return false;
         }
 
-        let (left, top, width, height) = window_list::virtual_screen_bounds();
-        let ppp = ctx.pixels_per_point().max(0.5);
-        let viewport_id = egui::ViewportId::from_hash_of("mouse-move-absolute-capture");
-        let builder = egui::ViewportBuilder::default()
-            .with_title("MacroNest Mouse Picker")
-            .with_position(egui::pos2(left as f32 / ppp, top as f32 / ppp))
-            .with_inner_size(vec2(width as f32 / ppp, height as f32 / ppp))
-            .with_visible(true)
-            .with_active(true)
-            .with_decorations(false)
-            .with_transparent(true)
-            .with_resizable(false)
-            .with_taskbar(false)
-            .with_has_shadow(false)
-            .with_always_on_top()
-            .with_mouse_passthrough(false);
-        ctx.show_viewport_immediate(viewport_id, builder, |ctx, viewport_class| {
-            let use_embedded_fallback = matches!(viewport_class, egui::ViewportClass::Embedded);
-            egui::CentralPanel::default()
-                .frame(Frame::new().fill(Color32::from_rgba_premultiplied(8, 12, 18, 224)))
-                .show(ctx, |ui| {
-                    let rect = ui.max_rect();
-                    let painter = ui.painter_at(rect);
-                    let instruction = self.tr(
-                        "Click a point to capture the mouse X/Y. Press Esc to cancel.",
-                        "Bấm vào điểm muốn lấy tọa độ chuột X/Y. Nhấn Esc để hủy.",
-                    );
-                    painter.text(
-                        rect.left_top() + vec2(18.0, 18.0),
-                        egui::Align2::LEFT_TOP,
-                        instruction,
-                        egui::FontId::proportional(18.0),
-                        Color32::WHITE,
-                    );
-                    if let Some(pointer) = self.precise_image_search_capture_pointer(ctx) {
-                        let sampled_color =
-                            self.update_image_search_cursor_preview(ctx, pointer, 21);
-                        let screen_point =
-                            self.screen_point_from_pos(ctx, pointer, ctx.pixels_per_point());
-                        self.render_image_search_cursor_preview_panel(
-                            &painter,
-                            rect,
-                            pointer,
-                            sampled_color,
-                            screen_point,
-                        );
-                        painter.circle_stroke(
-                            pointer,
-                            9.0,
-                            egui::Stroke::new(2.0, Color32::from_rgb(120, 220, 255)),
-                        );
-                        painter.line_segment(
-                            [pointer + vec2(-14.0, 0.0), pointer + vec2(-4.0, 0.0)],
-                            egui::Stroke::new(1.0, Color32::from_rgb(120, 220, 255)),
-                        );
-                        painter.line_segment(
-                            [pointer + vec2(4.0, 0.0), pointer + vec2(14.0, 0.0)],
-                            egui::Stroke::new(1.0, Color32::from_rgb(120, 220, 255)),
-                        );
-                        painter.line_segment(
-                            [pointer + vec2(0.0, -14.0), pointer + vec2(0.0, -4.0)],
-                            egui::Stroke::new(1.0, Color32::from_rgb(120, 220, 255)),
-                        );
-                        painter.line_segment(
-                            [pointer + vec2(0.0, 4.0), pointer + vec2(0.0, 14.0)],
-                            egui::Stroke::new(1.0, Color32::from_rgb(120, 220, 255)),
-                        );
-                    }
-                    if ctx.input(|input| input.key_pressed(egui::Key::Escape)) {
-                        self.cancel_mouse_move_absolute_capture(ctx);
-                    }
-                    if use_embedded_fallback {
-                        ui.ctx().request_repaint();
-                    }
-                });
-        });
         ctx.request_repaint();
+        egui::CentralPanel::default()
+            .frame(Frame::new().fill(Color32::TRANSPARENT))
+            .show(ctx, |ui| {
+                let rect = ui.max_rect();
+                let _response = ui.allocate_rect(rect, Sense::click_and_drag());
+                let painter = ui.painter_at(rect);
+                let instruction = self.tr(
+                    "Click a point to capture the mouse X/Y. Press Esc to cancel.",
+                    "Bấm vào điểm muốn lấy tọa độ chuột X/Y. Nhấn Esc để hủy.",
+                );
+                painter.text(
+                    rect.left_top() + vec2(18.0, 18.0),
+                    egui::Align2::LEFT_TOP,
+                    instruction,
+                    egui::FontId::proportional(18.0),
+                    Color32::WHITE,
+                );
+                if let Some(pointer) = self.precise_image_search_capture_pointer(ctx) {
+                    let sampled_color = self.update_image_search_cursor_preview(ctx, pointer, 21);
+                    let screen_point =
+                        self.screen_point_from_pos(ctx, pointer, ctx.pixels_per_point());
+                    self.render_image_search_cursor_preview_panel(
+                        &painter,
+                        rect,
+                        pointer,
+                        sampled_color,
+                        screen_point,
+                    );
+                    painter.circle_stroke(
+                        pointer,
+                        9.0,
+                        egui::Stroke::new(2.0, Color32::from_rgb(120, 220, 255)),
+                    );
+                    painter.line_segment(
+                        [pointer + vec2(-14.0, 0.0), pointer + vec2(-4.0, 0.0)],
+                        egui::Stroke::new(1.0, Color32::from_rgb(120, 220, 255)),
+                    );
+                    painter.line_segment(
+                        [pointer + vec2(4.0, 0.0), pointer + vec2(14.0, 0.0)],
+                        egui::Stroke::new(1.0, Color32::from_rgb(120, 220, 255)),
+                    );
+                    painter.line_segment(
+                        [pointer + vec2(0.0, -14.0), pointer + vec2(0.0, -4.0)],
+                        egui::Stroke::new(1.0, Color32::from_rgb(120, 220, 255)),
+                    );
+                    painter.line_segment(
+                        [pointer + vec2(0.0, 4.0), pointer + vec2(0.0, 14.0)],
+                        egui::Stroke::new(1.0, Color32::from_rgb(120, 220, 255)),
+                    );
+                }
+                if ctx.input(|input| input.key_pressed(egui::Key::Escape)) {
+                    self.cancel_mouse_move_absolute_capture(ctx);
+                }
+            });
         true
     }
 
