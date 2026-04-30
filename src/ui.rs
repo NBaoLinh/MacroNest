@@ -3837,6 +3837,8 @@ impl CrosshairApp {
             MacroAction::MouseWheelDown,
             MacroAction::MouseMoveAbsolute,
             MacroAction::MouseMoveRelative,
+            MacroAction::LockMouse,
+            MacroAction::UnlockMouse,
             MacroAction::PlayMousePathPreset,
         ]
     }
@@ -9157,7 +9159,8 @@ impl CrosshairApp {
                                                                 "Infinite",
                                                                 "Infinite",
                                                             ))
-                                                            .color(Color32::from_rgb(20, 20, 20)),
+                                                            .color(Color32::BLACK)
+                                                            .strong(),
                                                         )
                                                         .changed()
                                                     {
@@ -9479,8 +9482,11 @@ impl CrosshairApp {
                                             }
                                             live_sync |= ui
                                                 .add_sized(
-                                                    [18.0, 18.0],
-                                                    egui::Checkbox::new(&mut step.enabled, ""),
+                                                    [84.0, 18.0],
+                                                    egui::Checkbox::new(
+                                                        &mut step.enabled,
+                                                        Self::tr_lang(language, "Enabled", "Enabled"),
+                                                    ),
                                                 )
                                                 .on_hover_text(Self::tr_lang(
                                                     language,
