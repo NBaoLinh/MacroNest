@@ -72,6 +72,13 @@ enum ImageSearchCaptureTarget {
     TimingPreset(u32),
 }
 
+#[derive(Clone, Copy, PartialEq, Eq)]
+struct MouseMoveAbsoluteCaptureTarget {
+    group_id: u32,
+    preset_id: u32,
+    step_index: usize,
+}
+
 #[derive(Clone)]
 struct MacroStepDragPayload {
     group_id: u32,
@@ -399,6 +406,8 @@ pub struct CrosshairApp {
     capture_ignore_mouse_until_release: bool,
     capture_suppress_polls_remaining: u8,
     capture_mouse_guard_until: Option<Instant>,
+    mouse_move_absolute_capture_target: Option<MouseMoveAbsoluteCaptureTarget>,
+    mouse_move_absolute_capture_wait_for_mouse_release: bool,
     image_search_capture_active: bool,
     image_search_capture_target: Option<ImageSearchCaptureTarget>,
     image_search_capture_mode: Option<ImageSearchCaptureMode>,
@@ -495,6 +504,8 @@ impl CrosshairApp {
             capture_ignore_mouse_until_release: false,
             capture_suppress_polls_remaining: 0,
             capture_mouse_guard_until: None,
+            mouse_move_absolute_capture_target: None,
+            mouse_move_absolute_capture_wait_for_mouse_release: false,
             image_search_capture_active: false,
             image_search_capture_target: None,
             image_search_capture_mode: None,
@@ -4821,6 +4832,126 @@ impl CrosshairApp {
         self.status = "Capture cancelled.".to_owned();
     }
 
+    fn begin_mouse_move_absolute_capture(
+        &mut self,
+        ctx: &egui::Context,
+        target: MouseMoveAbsoluteCaptureTarget,
+    ) {
+        self.mouse_move_absolute_capture_target = Some(target);
+        self.mouse_move_absolute_capture_wait_for_mouse_release = true;
+        self.status = Self::tr_lang(
+            self.state.ui_language,
+            "Click anywhere on screen to capture X/Y. Press Esc to cancel.",
+            "Bấm vào bất kỳ vị trí nào trên màn hình để lấy X/Y. Nhấn Esc để hủy.",
+        )
+        .to_owned();
+        ctx.send_viewport_cmd(egui::ViewportCommand::Minimized(true));
+        ctx.request_repaint();
+    }
+
+    fn cancel_mouse_move_absolute_capture(&mut self, ctx: &egui::Context) {
+        if self.mouse_move_absolute_capture_target.is_none() {
+            return;
+        }
+        self.mouse_move_absolute_capture_target = None;
+        self.mouse_move_absolute_capture_wait_for_mouse_release = false;
+        self.status = Self::tr_lang(
+            self.state.ui_language,
+            "Mouse position capture cancelled.",
+            "Đã hủy bắt tọa độ chuột.",
+        )
+        .to_owned();
+        ctx.send_viewport_cmd(egui::ViewportCommand::Minimized(false));
+        ctx.request_repaint();
+    }
+
+    fn finish_mouse_move_absolute_capture(
+        &mut self,
+        ctx: &egui::Context,
+        target: MouseMoveAbsoluteCaptureTarget,
+        screen_x: i32,
+        screen_y: i32,
+    ) {
+        let Some(step) = self
+            .state
+            .macro_groups
+            .iter_mut()
+            .find(|group| group.id == target.group_id)
+            .and_then(|group| {
+                group
+                    .presets
+                    .iter_mut()
+                    .find(|preset| preset.id == target.preset_id)
+            })
+            .and_then(|preset| preset.steps.get_mut(target.step_index))
+        else {
+            self.cancel_mouse_move_absolute_capture(ctx);
+            self.status = Self::tr_lang(
+                self.state.ui_language,
+                "Mouse position capture target was not found.",
+                "Không tìm thấy step để bắt tọa độ chuột.",
+            )
+            .to_owned();
+            return;
+        };
+
+        step.x = screen_x;
+        step.y = screen_y;
+        step.action = MacroAction::MouseMoveAbsolute;
+        self.mouse_move_absolute_capture_target = None;
+        self.mouse_move_absolute_capture_wait_for_mouse_release = false;
+        self.status = match self.state.ui_language {
+            UiLanguage::Vietnamese => {
+                format!("Đã lấy tọa độ chuột {}, {}.", screen_x, screen_y)
+            }
+            _ => format!("Captured mouse position {}, {}.", screen_x, screen_y),
+        };
+        ctx.send_viewport_cmd(egui::ViewportCommand::Minimized(false));
+        ctx.request_repaint();
+        self.persist();
+        self.sync_macro_presets();
+    }
+
+    #[cfg(windows)]
+    fn poll_mouse_move_absolute_capture(&mut self, ctx: &egui::Context) {
+        let Some(target) = self.mouse_move_absolute_capture_target else {
+            return;
+        };
+        ctx.request_repaint_after(Duration::from_millis(16));
+        if Self::is_vk_down(0x1B) {
+            self.cancel_mouse_move_absolute_capture(ctx);
+            return;
+        }
+        if self.mouse_move_absolute_capture_wait_for_mouse_release {
+            if Self::is_vk_down(0x01) {
+                return;
+            }
+            self.mouse_move_absolute_capture_wait_for_mouse_release = false;
+            ctx.request_repaint();
+            return;
+        }
+        if !Self::is_vk_down(0x01) {
+            return;
+        }
+        let mut point = POINT::default();
+        if unsafe { GetCursorPos(&mut point) }.is_ok() {
+            self.finish_mouse_move_absolute_capture(ctx, target, point.x, point.y);
+        }
+    }
+
+    #[cfg(not(windows))]
+    fn poll_mouse_move_absolute_capture(&mut self, _ctx: &egui::Context) {}
+
+    fn pick_point_button_text(language: UiLanguage, active: bool) -> RichText {
+        if active {
+            RichText::new(Self::tr_lang(language, "Picking...", "Đang chọn..."))
+                .strong()
+                .color(Color32::from_rgb(255, 232, 96))
+        } else {
+            RichText::new(Self::tr_lang(language, "Pick", "Pick"))
+        }
+    }
+
     fn image_search_template_file_for_preset(&self, preset_id: u32) -> PathBuf {
         self.paths.image_search_template_file_for(preset_id)
     }
@@ -7692,6 +7823,8 @@ impl CrosshairApp {
 
         let mut release_folder_id = None;
         let mut delete_folder_id = None;
+        let mut begin_mouse_move_absolute_capture_target = None;
+        let mut cancel_mouse_move_absolute_capture = false;
         let capture_target_snapshot = self.capture_target.clone();
         let active_folder_name = self.active_macro_folder_view.and_then(|folder_id| {
             self.state
@@ -10175,6 +10308,38 @@ impl CrosshairApp {
                                                         DragValue::new(&mut step.y).range(-30000..=30000),
                                                     )
                                                     .changed();
+                                                if step.action == MacroAction::MouseMoveAbsolute {
+                                                    let capture_target = MouseMoveAbsoluteCaptureTarget {
+                                                        group_id: group.id,
+                                                        preset_id: preset.id,
+                                                        step_index,
+                                                    };
+                                                    let capture_active = self
+                                                        .mouse_move_absolute_capture_target
+                                                        == Some(capture_target);
+                                                    if ui
+                                                        .add_sized(
+                                                            [62.0, 18.0],
+                                                            Button::new(Self::pick_point_button_text(
+                                                                language,
+                                                                capture_active,
+                                                            )),
+                                                        )
+                                                        .on_hover_text(Self::tr_lang(
+                                                            language,
+                                                            "Minimize the app and click anywhere on screen to capture screen X/Y.",
+                                                            "Thu nhỏ app rồi bấm vào bất kỳ vị trí nào trên màn hình để lấy X/Y.",
+                                                        ))
+                                                    .clicked()
+                                                    {
+                                                        if capture_active {
+                                                            cancel_mouse_move_absolute_capture = true;
+                                                        } else {
+                                                            begin_mouse_move_absolute_capture_target =
+                                                                Some(capture_target);
+                                                        }
+                                                    }
+                                                }
                                             } else if step.action == MacroAction::PlayMousePathPreset {
                                                 live_sync |= ui
                                                     .checkbox(&mut step.smooth_mouse_path, "S")
@@ -10349,6 +10514,12 @@ impl CrosshairApp {
             });
             if cancel_active_capture {
                 self.cancel_capture();
+            }
+            if cancel_mouse_move_absolute_capture {
+                self.cancel_mouse_move_absolute_capture(ui.ctx());
+            }
+            if let Some(target) = begin_mouse_move_absolute_capture_target {
+                self.begin_mouse_move_absolute_capture(ui.ctx(), target);
             }
             if let Some(target) = next_capture_target {
                 self.begin_capture(target, "Capturing macro input.".to_owned());
@@ -13853,6 +14024,9 @@ impl eframe::App for CrosshairApp {
             && ctx.input(|input| input.viewport().focused == Some(false))
         {
             self.cancel_image_search_capture(ctx);
+        }
+        if self.mouse_move_absolute_capture_target.is_some() {
+            self.poll_mouse_move_absolute_capture(ctx);
         }
 
         if ctx.input(|input| input.viewport().close_requested()) && !self.quit_requested {
