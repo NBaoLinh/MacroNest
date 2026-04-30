@@ -9607,11 +9607,8 @@ impl CrosshairApp {
                                             }
                                             live_sync |= ui
                                                 .add_sized(
-                                                    [84.0, 18.0],
-                                                    egui::Checkbox::new(
-                                                        &mut step.enabled,
-                                                        Self::tr_lang(language, "Enabled", "Enabled"),
-                                                    ),
+                                                    [18.0, 18.0],
+                                                    egui::Checkbox::new(&mut step.enabled, ""),
                                                 )
                                                 .on_hover_text(Self::tr_lang(
                                                     language,
