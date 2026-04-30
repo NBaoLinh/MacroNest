@@ -3888,11 +3888,11 @@ impl CrosshairApp {
                     .open_bool(&mut open)
                     .align(egui::RectAlign::BOTTOM_START)
                     .layout(egui::Layout::top_down_justified(egui::Align::Min))
-                    .width(312.0)
+                    .width(372.0)
                     .close_behavior(egui::PopupCloseBehavior::IgnoreClicks)
                     .show(|ui| {
                         egui::Grid::new((id_source, "mouse-action-grid"))
-                            .num_columns(5)
+                            .num_columns(6)
                             .spacing([6.0, 6.0])
                             .show(ui, |ui| {
                                 for (index, action) in
