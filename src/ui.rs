@@ -8214,18 +8214,10 @@ impl CrosshairApp {
                         return;
                     }
                     egui::Grid::new((group.id, "group-toolbar"))
-                        .num_columns(4)
+                        .num_columns(3)
                         .min_col_width(140.0)
                         .spacing([12.0, 6.0])
                         .show(ui, |ui| {
-                            let mut selected = self.selected_macro_groups.contains(&group.id);
-                            if ui.checkbox(&mut selected, "").changed() {
-                                if selected {
-                                    self.selected_macro_groups.insert(group.id);
-                                } else {
-                                    self.selected_macro_groups.remove(&group.id);
-                                }
-                            }
                             live_sync |= ui
                                 .add_sized(
                                     [86.0, 22.0],
@@ -8241,7 +8233,7 @@ impl CrosshairApp {
                                     Self::tr_lang(language, "Group Name", "Group Name"),
                                     group.enabled,
                                 ));
-                                ui.add_sized([240.0, 24.0], TextEdit::singleline(&mut group.name));
+                            ui.add_sized([240.0, 24.0], TextEdit::singleline(&mut group.name));
                             });
                             ui.add_space(0.0);
                             ui.end_row();
