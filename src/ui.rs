@@ -10563,11 +10563,16 @@ impl CrosshairApp {
                                             } else {
                                                 ui.add_sized([28.0, 18.0], egui::Label::new(""));
                                             }
+                                            let paste_button_width = 56.0;
+                                            let right_gap = (ui.available_width() - paste_button_width).max(0.0);
+                                            if right_gap > 0.0 {
+                                                ui.add_space(right_gap);
+                                            }
                                             if ui
                                                 .add_enabled(
                                                     !self.macro_step_clipboard.is_empty(),
                                                     Button::new(Self::tr_lang(language, "Paste", "Paste"))
-                                                        .min_size(vec2(56.0, 18.0)),
+                                                        .min_size(vec2(paste_button_width, 18.0)),
                                                 )
                                                 .on_hover_text(Self::tr_lang(
                                                     language,
