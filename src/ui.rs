@@ -1340,8 +1340,12 @@ impl CrosshairApp {
             }
         }
         let scale = ctx.pixels_per_point().max(0.5);
-        let viewport_min =
-            ctx.input(|input| input.viewport().inner_rect.map(|viewport| viewport.min))?;
+        let viewport_min = ctx
+            .input(|input| input.viewport().inner_rect.map(|viewport| viewport.min))
+            .unwrap_or_else(|| {
+                let (left, top, _width, _height) = window_list::virtual_screen_bounds();
+                egui::pos2(left as f32 / scale, top as f32 / scale)
+            });
         Some(egui::pos2(
             point.x as f32 / scale - viewport_min.x,
             point.y as f32 / scale - viewport_min.y,
@@ -12417,6 +12421,68 @@ impl CrosshairApp {
         true
     }
 
+    fn render_mouse_move_absolute_capture_overlay(&mut self, ctx: &egui::Context) -> bool {
+        if self.mouse_move_absolute_capture_target.is_none() {
+            return false;
+        }
+
+        ctx.request_repaint();
+        egui::CentralPanel::default()
+            .frame(Frame::new().fill(Color32::TRANSPARENT))
+            .show(ctx, |ui| {
+                let rect = ui.max_rect();
+                let painter = ui.painter_at(rect);
+                let instruction = self.tr(
+                    "Click a point to capture the mouse X/Y. Press Esc to cancel.",
+                    "Bấm vào điểm muốn lấy tọa độ chuột X/Y. Nhấn Esc để hủy.",
+                );
+                painter.text(
+                    rect.left_top() + vec2(18.0, 18.0),
+                    egui::Align2::LEFT_TOP,
+                    instruction,
+                    egui::FontId::proportional(18.0),
+                    Color32::WHITE,
+                );
+                if let Some(pointer) = self.precise_image_search_capture_pointer(ctx) {
+                    let sampled_color = self.update_image_search_cursor_preview(ctx, pointer, 21);
+                    let screen_point =
+                        self.screen_point_from_pos(ctx, pointer, ctx.pixels_per_point());
+                    self.render_image_search_cursor_preview_panel(
+                        &painter,
+                        rect,
+                        pointer,
+                        sampled_color,
+                        screen_point,
+                    );
+                    painter.circle_stroke(
+                        pointer,
+                        9.0,
+                        egui::Stroke::new(2.0, Color32::from_rgb(120, 220, 255)),
+                    );
+                    painter.line_segment(
+                        [pointer + vec2(-14.0, 0.0), pointer + vec2(-4.0, 0.0)],
+                        egui::Stroke::new(1.0, Color32::from_rgb(120, 220, 255)),
+                    );
+                    painter.line_segment(
+                        [pointer + vec2(4.0, 0.0), pointer + vec2(14.0, 0.0)],
+                        egui::Stroke::new(1.0, Color32::from_rgb(120, 220, 255)),
+                    );
+                    painter.line_segment(
+                        [pointer + vec2(0.0, -14.0), pointer + vec2(0.0, -4.0)],
+                        egui::Stroke::new(1.0, Color32::from_rgb(120, 220, 255)),
+                    );
+                    painter.line_segment(
+                        [pointer + vec2(0.0, 4.0), pointer + vec2(0.0, 14.0)],
+                        egui::Stroke::new(1.0, Color32::from_rgb(120, 220, 255)),
+                    );
+                }
+                if ctx.input(|input| input.key_pressed(egui::Key::Escape)) {
+                    self.cancel_mouse_move_absolute_capture(ctx);
+                }
+            });
+        true
+    }
+
     fn render_sound_panel(&mut self, ui: &mut egui::Ui) {
         let language = self.state.ui_language;
         ui.heading(self.panel_label(AppPanel::Sound));
@@ -14053,6 +14119,9 @@ impl eframe::App for CrosshairApp {
         }
 
         if self.render_image_search_capture_overlay(ctx) {
+            return;
+        }
+        if self.render_mouse_move_absolute_capture_overlay(ctx) {
             return;
         }
 
