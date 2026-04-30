@@ -18,7 +18,11 @@ mod windows_platform {
             },
             UI::{
                 Shell::{IsUserAnAdmin, ShellExecuteW},
-                WindowsAndMessaging::SW_SHOWNORMAL,
+                WindowsAndMessaging::{
+                    BringWindowToTop, SetForegroundWindow, SetWindowPos, ShowWindow,
+                    HWND_NOTOPMOST, HWND_TOPMOST, SW_RESTORE, SW_SHOWNORMAL, SWP_NOMOVE,
+                    SWP_NOSIZE, SWP_SHOWWINDOW,
+                },
             },
         },
         core::{PCWSTR, w},
@@ -135,6 +139,40 @@ mod windows_platform {
                 &corner as *const _ as *const _,
                 std::mem::size_of_val(&corner) as u32,
             );
+        }
+    }
+
+    pub fn bring_native_window_to_front(frame: &Frame) {
+        let Ok(window_handle) = frame.window_handle() else {
+            return;
+        };
+        let hwnd = match window_handle.as_raw() {
+            RawWindowHandle::Win32(handle) => HWND(handle.hwnd.get() as *mut _),
+            _ => return,
+        };
+
+        unsafe {
+            let _ = ShowWindow(hwnd, SW_RESTORE);
+            let _ = SetWindowPos(
+                hwnd,
+                Some(HWND_TOPMOST),
+                0,
+                0,
+                0,
+                0,
+                SWP_NOMOVE | SWP_NOSIZE | SWP_SHOWWINDOW,
+            );
+            let _ = SetWindowPos(
+                hwnd,
+                Some(HWND_NOTOPMOST),
+                0,
+                0,
+                0,
+                0,
+                SWP_NOMOVE | SWP_NOSIZE | SWP_SHOWWINDOW,
+            );
+            let _ = BringWindowToTop(hwnd);
+            let _ = SetForegroundWindow(hwnd);
         }
     }
 

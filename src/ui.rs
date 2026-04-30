@@ -408,6 +408,7 @@ pub struct CrosshairApp {
     capture_mouse_guard_until: Option<Instant>,
     mouse_move_absolute_capture_target: Option<MouseMoveAbsoluteCaptureTarget>,
     mouse_move_absolute_capture_wait_for_mouse_release: bool,
+    mouse_move_absolute_capture_raise_window: bool,
     image_search_capture_active: bool,
     image_search_capture_target: Option<ImageSearchCaptureTarget>,
     image_search_capture_mode: Option<ImageSearchCaptureMode>,
@@ -506,6 +507,7 @@ impl CrosshairApp {
             capture_mouse_guard_until: None,
             mouse_move_absolute_capture_target: None,
             mouse_move_absolute_capture_wait_for_mouse_release: false,
+            mouse_move_absolute_capture_raise_window: false,
             image_search_capture_active: false,
             image_search_capture_target: None,
             image_search_capture_mode: None,
@@ -4849,7 +4851,11 @@ impl CrosshairApp {
             "Bấm vào bất kỳ vị trí nào trên màn hình để lấy X/Y. Nhấn Esc để hủy.",
         )
         .to_owned();
-        ctx.send_viewport_cmd(egui::ViewportCommand::Minimized(true));
+        ctx.send_viewport_cmd(egui::ViewportCommand::Visible(true));
+        ctx.send_viewport_cmd(egui::ViewportCommand::Focus);
+        ctx.send_viewport_cmd(egui::ViewportCommand::RequestUserAttention(
+            egui::UserAttentionType::Informational,
+        ));
         ctx.request_repaint();
     }
 
@@ -4859,13 +4865,18 @@ impl CrosshairApp {
         }
         self.mouse_move_absolute_capture_target = None;
         self.mouse_move_absolute_capture_wait_for_mouse_release = false;
+        self.mouse_move_absolute_capture_raise_window = true;
         self.status = Self::tr_lang(
             self.state.ui_language,
             "Mouse position capture cancelled.",
             "Đã hủy bắt tọa độ chuột.",
         )
         .to_owned();
-        ctx.send_viewport_cmd(egui::ViewportCommand::Minimized(false));
+        ctx.send_viewport_cmd(egui::ViewportCommand::Visible(true));
+        ctx.send_viewport_cmd(egui::ViewportCommand::Focus);
+        ctx.send_viewport_cmd(egui::ViewportCommand::RequestUserAttention(
+            egui::UserAttentionType::Informational,
+        ));
         ctx.request_repaint();
     }
 
@@ -4904,13 +4915,18 @@ impl CrosshairApp {
         step.action = MacroAction::MouseMoveAbsolute;
         self.mouse_move_absolute_capture_target = None;
         self.mouse_move_absolute_capture_wait_for_mouse_release = false;
+        self.mouse_move_absolute_capture_raise_window = true;
         self.status = match self.state.ui_language {
             UiLanguage::Vietnamese => {
                 format!("Đã lấy tọa độ chuột {}, {}.", screen_x, screen_y)
             }
             _ => format!("Captured mouse position {}, {}.", screen_x, screen_y),
         };
-        ctx.send_viewport_cmd(egui::ViewportCommand::Minimized(false));
+        ctx.send_viewport_cmd(egui::ViewportCommand::Visible(true));
+        ctx.send_viewport_cmd(egui::ViewportCommand::Focus);
+        ctx.send_viewport_cmd(egui::ViewportCommand::RequestUserAttention(
+            egui::UserAttentionType::Informational,
+        ));
         ctx.request_repaint();
         self.persist();
         self.sync_macro_presets();
@@ -14090,6 +14106,17 @@ impl eframe::App for CrosshairApp {
         }
         if self.mouse_move_absolute_capture_target.is_some() {
             self.poll_mouse_move_absolute_capture(ctx);
+        }
+
+        if self.mouse_move_absolute_capture_raise_window {
+            self.mouse_move_absolute_capture_raise_window = false;
+            ctx.send_viewport_cmd(egui::ViewportCommand::Visible(true));
+            ctx.send_viewport_cmd(egui::ViewportCommand::Minimized(false));
+            ctx.send_viewport_cmd(egui::ViewportCommand::Focus);
+            ctx.send_viewport_cmd(egui::ViewportCommand::RequestUserAttention(
+                egui::UserAttentionType::Informational,
+            ));
+            crate::platform::bring_native_window_to_front(frame);
         }
 
         if ctx.input(|input| input.viewport().close_requested()) && !self.quit_requested {
