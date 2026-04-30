@@ -424,6 +424,7 @@ pub struct CrosshairApp {
     macro_group_clipboard: Vec<u32>,
     macro_group_clipboard_is_cut: bool,
     macro_preset_clipboard: Option<MacroPreset>,
+    macro_step_clipboard: Vec<MacroStep>,
     confirm_delete_folder_id: Option<u32>,
     confirm_delete_macro_group_id: Option<u32>,
     center_window_next_frame: bool,
@@ -525,6 +526,7 @@ impl CrosshairApp {
             macro_group_clipboard: Vec::new(),
             macro_group_clipboard_is_cut: false,
             macro_preset_clipboard: None,
+            macro_step_clipboard: Vec::new(),
             confirm_delete_folder_id: None,
             confirm_delete_macro_group_id: None,
             center_window_next_frame: true,
@@ -4697,6 +4699,78 @@ impl CrosshairApp {
         );
     }
 
+    fn copy_selected_macro_steps_for_preset(&mut self, group_id: u32, preset_id: u32) {
+        let mut selected_indices = self
+            .selected_macro_steps
+            .iter()
+            .filter_map(|(selected_group, selected_preset, selected_index)| {
+                (*selected_group == group_id && *selected_preset == preset_id)
+                    .then_some(*selected_index)
+            })
+            .collect::<Vec<_>>();
+        selected_indices.sort_unstable();
+        selected_indices.dedup();
+
+        let Some(group) = self
+            .state
+            .macro_groups
+            .iter()
+            .find(|group| group.id == group_id)
+        else {
+            self.status = "Macro group not found.".to_owned();
+            return;
+        };
+        let Some(preset) = group.presets.iter().find(|preset| preset.id == preset_id) else {
+            self.status = "Macro preset not found.".to_owned();
+            return;
+        };
+
+        self.macro_step_clipboard = selected_indices
+            .into_iter()
+            .filter_map(|step_index| preset.steps.get(step_index).cloned())
+            .collect::<Vec<_>>();
+        if self.macro_step_clipboard.is_empty() {
+            self.status = "No selected steps to copy.".to_owned();
+        } else {
+            self.status = format!("Copied {} step(s).", self.macro_step_clipboard.len());
+        }
+    }
+
+    fn paste_macro_steps_after(
+        &mut self,
+        group_id: u32,
+        preset_id: u32,
+        step_index: usize,
+    ) -> Option<Vec<usize>> {
+        if self.macro_step_clipboard.is_empty() {
+            self.status = "No steps in clipboard.".to_owned();
+            return None;
+        }
+
+        let Some(group) = self
+            .state
+            .macro_groups
+            .iter_mut()
+            .find(|group| group.id == group_id)
+        else {
+            self.status = "Macro group not found.".to_owned();
+            return None;
+        };
+        let Some(preset) = group.presets.iter_mut().find(|preset| preset.id == preset_id) else {
+            self.status = "Macro preset not found.".to_owned();
+            return None;
+        };
+
+        let insert_at = (step_index + 1).min(preset.steps.len());
+        let clipboard_steps = self.macro_step_clipboard.clone();
+        let pasted_count = clipboard_steps.len();
+        for (offset, step) in clipboard_steps.into_iter().enumerate() {
+            preset.steps.insert(insert_at + offset, step);
+        }
+        self.status = format!("Pasted {} step(s).", pasted_count);
+        Some((insert_at..insert_at + pasted_count).collect::<Vec<_>>())
+    }
+
     fn cut_selected_macro_groups(&mut self) {
         let mut ids = self
             .selected_macro_groups
@@ -8312,7 +8386,10 @@ impl CrosshairApp {
             let mut remove_preset = None;
             let mut pending_step_selection = None;
             let mut selection_after_move = None;
+            let mut selection_after_paste = None;
             let mut clear_step_selection = None;
+            let mut copy_selected_steps = None;
+            let mut paste_step_after = None;
             let selected_steps_snapshot = self.selected_macro_steps.clone();
             let render_preset_indices = {
                 let group = &self.state.macro_groups[group_index];
@@ -9551,6 +9628,20 @@ impl CrosshairApp {
                                             preset.steps.clear();
                                             live_sync = true;
                                         }
+                                        if ui
+                                            .add_sized(
+                                                [56.0, 20.0],
+                                                Button::new(Self::tr_lang(language, "Copy", "Copy")),
+                                            )
+                                            .on_hover_text(Self::tr_lang(
+                                                language,
+                                                "Copy the selected steps in this preset.",
+                                                "Copy selected steps in this preset.",
+                                            ))
+                                            .clicked()
+                                        {
+                                            copy_selected_steps = Some((group.id, preset.id));
+                                        }
                                     });
                                 });
 
@@ -10472,6 +10563,21 @@ impl CrosshairApp {
                                             } else {
                                                 ui.add_sized([28.0, 18.0], egui::Label::new(""));
                                             }
+                                            if ui
+                                                .add_enabled(
+                                                    !self.macro_step_clipboard.is_empty(),
+                                                    Button::new(Self::tr_lang(language, "Paste", "Paste"))
+                                                        .min_size(vec2(56.0, 18.0)),
+                                                )
+                                                .on_hover_text(Self::tr_lang(
+                                                    language,
+                                                    "Paste the copied steps below this step.",
+                                                    "Paste copied steps below this step.",
+                                                ))
+                                                .clicked()
+                                            {
+                                                paste_step_after = Some((group.id, preset.id, step_index));
+                                            }
                                         });
                                     })
                                     .response;
@@ -10574,6 +10680,17 @@ impl CrosshairApp {
             if let Some(target) = next_capture_target {
                 self.begin_capture(target, "Capturing macro input.".to_owned());
             }
+            if let Some((group_id, preset_id)) = copy_selected_steps {
+                self.copy_selected_macro_steps_for_preset(group_id, preset_id);
+            }
+            if let Some((group_id, preset_id, step_index)) = paste_step_after
+                && let Some(selection) =
+                    self.paste_macro_steps_after(group_id, preset_id, step_index)
+            {
+                clear_step_selection = Some((group_id, preset_id));
+                selection_after_paste = Some((group_id, preset_id, selection));
+                live_sync = true;
+            }
             if let Some((group_id, preset_id, step_index, additive)) = pending_step_selection {
                 let currently_selected = self
                     .selected_macro_steps
@@ -10607,6 +10724,13 @@ impl CrosshairApp {
                         .insert((group_id, preset_id, moved_index));
                 }
                                                 }
+            if let Some((group_id, preset_id, pasted_indices)) = selection_after_paste {
+                self.clear_macro_step_selection_for_preset(group_id, preset_id);
+                for pasted_index in pasted_indices {
+                    self.selected_macro_steps
+                        .insert((group_id, preset_id, pasted_index));
+                }
+            }
                                             }
                                         }
                                     });
