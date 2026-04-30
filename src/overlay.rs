@@ -4245,6 +4245,7 @@ mod windows_overlay {
                         continue;
                     };
                     let loop_body = &steps[index + 1..loop_end];
+                    let loop_end_delay_ms = steps[loop_end].delay_ms;
                     if is_infinite_loop_marker(&step.key) {
                         loop {
                             match execute_macro_sequence(
@@ -4260,6 +4261,18 @@ mod windows_overlay {
                                 MacroRunFlow::BreakLoop => break,
                                 MacroRunFlow::StopExecution => return MacroRunFlow::StopExecution,
                                 MacroRunFlow::Continue => {}
+                            }
+                            if loop_end_delay_ms > 0
+                                && sleep_for_macro_delay(
+                                    preset_id,
+                                    loop_end_delay_ms,
+                                    stop_immediately_on_retrigger,
+                                    target_window_title,
+                                    extra_target_window_titles,
+                                    match_duplicate_window_titles,
+                                )
+                            {
+                                return MacroRunFlow::StopExecution;
                             }
                         }
                     } else {
@@ -4278,6 +4291,18 @@ mod windows_overlay {
                                 MacroRunFlow::BreakLoop => break,
                                 MacroRunFlow::StopExecution => return MacroRunFlow::StopExecution,
                                 MacroRunFlow::Continue => {}
+                            }
+                            if loop_end_delay_ms > 0
+                                && sleep_for_macro_delay(
+                                    preset_id,
+                                    loop_end_delay_ms,
+                                    stop_immediately_on_retrigger,
+                                    target_window_title,
+                                    extra_target_window_titles,
+                                    match_duplicate_window_titles,
+                                )
+                            {
+                                return MacroRunFlow::StopExecution;
                             }
                         }
                     }
@@ -4516,6 +4541,7 @@ mod windows_overlay {
                         continue;
                     };
                     let loop_body = &steps[index + 1..loop_end];
+                    let loop_end_delay_ms = steps[loop_end].delay_ms;
                     if is_infinite_loop_marker(&step.key) {
                         loop {
                             match execute_hold_macro_sequence(
@@ -4530,6 +4556,19 @@ mod windows_overlay {
                                 MacroRunFlow::BreakLoop => break,
                                 MacroRunFlow::StopExecution => return MacroRunFlow::StopExecution,
                                 MacroRunFlow::Continue => {}
+                            }
+                            if loop_end_delay_ms > 0
+                                && sleep_for_hold_delay(
+                                    preset_id,
+                                    loop_end_delay_ms,
+                                    stop_immediately_on_retrigger,
+                                    run_token,
+                                    target_window_title,
+                                    extra_target_window_titles,
+                                    match_duplicate_window_titles,
+                                )
+                            {
+                                return MacroRunFlow::StopExecution;
                             }
                         }
                     } else {
@@ -4547,6 +4586,19 @@ mod windows_overlay {
                                 MacroRunFlow::BreakLoop => break,
                                 MacroRunFlow::StopExecution => return MacroRunFlow::StopExecution,
                                 MacroRunFlow::Continue => {}
+                            }
+                            if loop_end_delay_ms > 0
+                                && sleep_for_hold_delay(
+                                    preset_id,
+                                    loop_end_delay_ms,
+                                    stop_immediately_on_retrigger,
+                                    run_token,
+                                    target_window_title,
+                                    extra_target_window_titles,
+                                    match_duplicate_window_titles,
+                                )
+                            {
+                                return MacroRunFlow::StopExecution;
                             }
                         }
                     }
