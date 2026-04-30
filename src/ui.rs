@@ -8733,10 +8733,8 @@ impl CrosshairApp {
                                                             MacroAction::HideToolbox,
                                                             MacroAction::LockKeys,
                                                             MacroAction::UnlockKeys,
-                                                            MacroAction::LockMouse,
-                                                            MacroAction::UnlockMouse,
-                                                            MacroAction::EnableMacroPreset,
-                                                            MacroAction::DisableMacroPreset,
+                                                             MacroAction::EnableMacroPreset,
+                                                             MacroAction::DisableMacroPreset,
                                                         ]
                                                         .into_iter()
                                                         .enumerate()
@@ -9154,7 +9152,12 @@ impl CrosshairApp {
                                                     if ui
                                                         .checkbox(
                                                             &mut infinite,
-                                                            Self::tr_lang(language, "Infinite", "Infinite"),
+                                                            RichText::new(Self::tr_lang(
+                                                                language,
+                                                                "Infinite",
+                                                                "Infinite",
+                                                            ))
+                                                            .color(Color32::from_rgb(20, 20, 20)),
                                                         )
                                                         .changed()
                                                     {
@@ -9433,7 +9436,7 @@ impl CrosshairApp {
                                 } else {
                                     vec![step_index]
                                 };
-                                let row_fill = if is_selected {
+                                let mut row_fill = if is_selected {
                                     Color32::from_rgba_premultiplied(88, 148, 220, 130)
                                 } else if let Some(color) =
                                     loop_colors.get(step_index).and_then(|color| *color)
@@ -9442,6 +9445,9 @@ impl CrosshairApp {
                                 } else {
                                     ui.visuals().faint_bg_color
                                 };
+                                if !step.enabled {
+                                    row_fill = row_fill.linear_multiply(0.72);
+                                }
                                 let drag_payload = MacroStepDragPayload {
                                     group_id: group.id,
                                     preset_id: preset.id,
@@ -9471,6 +9477,17 @@ impl CrosshairApp {
                                                     ui.input(|input| input.modifiers.ctrl),
                                                 ));
                                             }
+                                            live_sync |= ui
+                                                .add_sized(
+                                                    [18.0, 18.0],
+                                                    egui::Checkbox::new(&mut step.enabled, ""),
+                                                )
+                                                .on_hover_text(Self::tr_lang(
+                                                    language,
+                                                    "Enable this step",
+                                                    "Bật step này",
+                                                ))
+                                                .changed();
                                             if ui
                                                 .add_sized(
                                                     [28.0, 18.0],
@@ -9541,10 +9558,8 @@ impl CrosshairApp {
                                                                 MacroAction::HideToolbox,
                                                                 MacroAction::LockKeys,
                                                                 MacroAction::UnlockKeys,
-                                                                MacroAction::LockMouse,
-                                                                MacroAction::UnlockMouse,
-                                                                MacroAction::EnableMacroPreset,
-                                                                MacroAction::DisableMacroPreset,
+                                                                 MacroAction::EnableMacroPreset,
+                                                                 MacroAction::DisableMacroPreset,
                                                             ]
                                                             .into_iter()
                                                             .enumerate()
@@ -10033,7 +10048,12 @@ impl CrosshairApp {
                                                     if ui
                                                         .checkbox(
                                                             &mut infinite,
-                                                            Self::tr_lang(language, "Infinite", "Infinite"),
+                                                            RichText::new(Self::tr_lang(
+                                                                language,
+                                                                "Infinite",
+                                                                "Infinite",
+                                                            ))
+                                                            .color(Color32::from_rgb(20, 20, 20)),
                                                         )
                                                         .changed()
                                                     {

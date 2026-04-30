@@ -432,6 +432,8 @@ pub struct MacroStep {
     pub key: String,
     pub action: MacroAction,
     pub delay_ms: u64,
+    #[serde(default = "default_true")]
+    pub enabled: bool,
     pub x: i32,
     pub y: i32,
     pub text_override: String,
@@ -454,6 +456,7 @@ impl Default for MacroStep {
             key: String::new(),
             action: MacroAction::KeyPress,
             delay_ms: 0,
+            enabled: true,
             x: 0,
             y: 0,
             text_override: String::new(),

@@ -4077,6 +4077,9 @@ mod windows_overlay {
     }
 
     fn execute_hold_abort_step(preset_id: u32, step: &MacroStep) {
+        if !step.enabled {
+            return;
+        }
         match step.action {
             MacroAction::LoopStart
             | MacroAction::LoopEnd
@@ -4210,11 +4213,19 @@ mod windows_overlay {
                 return MacroRunFlow::StopExecution;
             }
             let step = &steps[index];
+            if !step.enabled {
+                index += 1;
+                continue;
+            }
             let hold_duration_ms = if step.action == MacroAction::KeyDown {
                 step.delay_ms
             } else {
                 0
             };
+            if !step.enabled {
+                index += 1;
+                continue;
+            }
             if step.action != MacroAction::KeyDown
                 && sleep_for_macro_delay(
                     preset_id,
@@ -4472,11 +4483,19 @@ mod windows_overlay {
                 return MacroRunFlow::StopExecution;
             }
             let step = &steps[index];
+            if !step.enabled {
+                index += 1;
+                continue;
+            }
             let hold_duration_ms = if step.action == MacroAction::KeyDown {
                 step.delay_ms
             } else {
                 0
             };
+            if !step.enabled {
+                index += 1;
+                continue;
+            }
             if step.action != MacroAction::KeyDown
                 && sleep_for_hold_delay(
                     preset_id,
@@ -5197,6 +5216,9 @@ mod windows_overlay {
         let mut held_mouse = HashSet::new();
 
         for step in steps {
+            if !step.enabled {
+                continue;
+            }
             match step.action {
                 MacroAction::KeyDown => {
                     held_keys.insert(step.key.clone());
@@ -5298,6 +5320,9 @@ mod windows_overlay {
     fn collect_macro_image_search_start_ids(steps: &[MacroStep]) -> Vec<u32> {
         let mut ids = HashSet::new();
         for step in steps {
+            if !step.enabled {
+                continue;
+            }
             if step.action == MacroAction::StartImageSearch
                 && let Ok(preset_id) = step.key.trim().parse::<u32>()
             {
