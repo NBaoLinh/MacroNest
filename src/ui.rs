@@ -9449,7 +9449,7 @@ impl CrosshairApp {
                                     ui.visuals().faint_bg_color
                                 };
                                 if !step.enabled {
-                                    row_fill = row_fill.linear_multiply(0.72);
+                                    row_fill = Color32::from_rgba_unmultiplied(62, 62, 62, 220);
                                 }
                                 let drag_payload = MacroStepDragPayload {
                                     group_id: group.id,
