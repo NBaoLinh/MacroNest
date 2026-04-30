@@ -8535,7 +8535,7 @@ impl CrosshairApp {
                         Self::show_preset_card(ui, group.enabled && preset.enabled, |ui| {
                             ui.horizontal_top(|ui| {
                                 let available_width = ui.available_width();
-                                let right_width = 516.0;
+                                let right_width = 540.0;
                                 let left_width = (available_width - right_width - 8.0).max(140.0);
 
                                 ui.allocate_ui_with_layout(
@@ -8594,7 +8594,7 @@ impl CrosshairApp {
                                 }
                                 ui.allocate_ui_with_layout(
                                     vec2(right_width, 0.0),
-                                    egui::Layout::right_to_left(egui::Align::Center),
+                                    egui::Layout::right_to_left(egui::Align::TOP),
                                     |ui| {
                                         ui.spacing_mut().item_spacing.x = 4.0;
                                         if Self::sized_button(
@@ -8943,9 +8943,9 @@ impl CrosshairApp {
                                                             (group.id, preset.id, "hold-stop-image-search-group"),
                                                             &mut step.action,
                                                             &mut live_sync,
-                                                        );
-                                                    });
-                                            });
+                                );
+                                });
+                            });
                                             Self::show_instant_hover_tooltip(
                                                 ui,
                                                 &hold_stop_combo.response,
