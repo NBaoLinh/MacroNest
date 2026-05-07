@@ -13439,40 +13439,17 @@ impl CrosshairApp {
         ui.label(RichText::new(title).strong());
         ui.add_space(3.0);
 
-        if (space_pressed || s_pressed) && !clip.file_path.trim().is_empty() {
-            if previewing {
-                audio::stop_preview();
-                outcome.status = Some(match language {
-                    UiLanguage::Vietnamese => format!("Đã dừng nghe thử {title}."),
-                    _ => format!("Stopped {title} preview."),
-                });
-            } else {
-                let preview_start_ms = if s_pressed {
-                    clip.start_ms
-                } else {
-                    preview_cursor_ms
-                };
+        if !clip.file_path.trim().is_empty() {
+            if s_pressed {
+                let preview_start_ms = clip.start_ms;
                 Self::set_preview_cursor_ms(preview_cursor, target, preview_start_ms, clip);
-                let preview_result = if s_pressed {
-                    audio::toggle_preview(clip.clone())
-                } else {
-                    audio::toggle_preview_from_ms(clip.clone(), preview_start_ms)
-                };
-                match preview_result {
-                    Ok(true) => {
+                match audio::start_preview_from_ms(clip.clone(), preview_start_ms) {
+                    Ok(()) => {
                         outcome.status = Some(match language {
                             UiLanguage::Vietnamese => {
-                                format!("Đang nghe thử {title}.")
+                                format!("Đang nghe lại {title} từ đầu.")
                             }
-                            _ => format!("Previewing {title}."),
-                        })
-                    }
-                    Ok(false) => {
-                        outcome.status = Some(match language {
-                            UiLanguage::Vietnamese => {
-                                format!("Đã dừng nghe thử {title}.")
-                            }
-                            _ => format!("Stopped {title} preview."),
+                            _ => format!("Restarting {title} from the start."),
                         })
                     }
                     Err(error) => {
@@ -13482,6 +13459,43 @@ impl CrosshairApp {
                             }
                             _ => format!("Preview failed: {error}"),
                         })
+                    }
+                }
+            } else if space_pressed {
+                if previewing {
+                    audio::stop_preview();
+                    outcome.status = Some(match language {
+                        UiLanguage::Vietnamese => format!("Đã dừng nghe thử {title}."),
+                        _ => format!("Stopped {title} preview."),
+                    });
+                } else {
+                    let preview_start_ms = preview_cursor_ms;
+                    Self::set_preview_cursor_ms(preview_cursor, target, preview_start_ms, clip);
+                    match audio::toggle_preview_from_ms(clip.clone(), preview_start_ms) {
+                        Ok(true) => {
+                            outcome.status = Some(match language {
+                                UiLanguage::Vietnamese => {
+                                    format!("Đang nghe thử {title}.")
+                                }
+                                _ => format!("Previewing {title}."),
+                            })
+                        }
+                        Ok(false) => {
+                            outcome.status = Some(match language {
+                                UiLanguage::Vietnamese => {
+                                    format!("Đã dừng nghe thử {title}.")
+                                }
+                                _ => format!("Stopped {title} preview."),
+                            })
+                        }
+                        Err(error) => {
+                            outcome.status = Some(match language {
+                                UiLanguage::Vietnamese => {
+                                    format!("Nghe thử thất bại: {error}")
+                                }
+                                _ => format!("Preview failed: {error}"),
+                            })
+                        }
                     }
                 }
             }

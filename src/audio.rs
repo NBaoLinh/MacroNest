@@ -104,6 +104,14 @@ pub fn toggle_preview(clip: AudioClipSettings) -> Result<bool> {
     toggle_preview_from_ms(clip, start_ms)
 }
 
+pub fn start_preview_from_ms(clip: AudioClipSettings, start_position_ms: u64) -> Result<()> {
+    if !clip.enabled || clip.file_path.trim().is_empty() {
+        bail!("Choose an audio file first");
+    }
+    start_preview_from_ms_inner(clip, start_position_ms)?;
+    Ok(())
+}
+
 pub fn toggle_preview_from_ms(mut clip: AudioClipSettings, start_position_ms: u64) -> Result<bool> {
     if !clip.enabled || clip.file_path.trim().is_empty() {
         bail!("Choose an audio file first");
@@ -124,6 +132,22 @@ pub fn toggle_preview_from_ms(mut clip: AudioClipSettings, start_position_ms: u6
         return Ok(false);
     }
 
+    start_preview_from_ms_inner_locked(playback, clip, start_position_ms)?;
+    Ok(true)
+}
+
+fn start_preview_from_ms_inner(clip: AudioClipSettings, start_position_ms: u64) -> Result<()> {
+    let start_position_ms = start_position_ms.clamp(clip.start_ms, clip.end_ms.max(clip.start_ms + 1));
+    let mut playback = PREVIEW_PLAYBACK.lock();
+    cleanup_preview(&mut playback);
+    start_preview_from_ms_inner_locked(playback, clip, start_position_ms)
+}
+
+fn start_preview_from_ms_inner_locked(
+    mut playback: parking_lot::MutexGuard<'_, Option<PreviewPlayback>>,
+    clip: AudioClipSettings,
+    start_position_ms: u64,
+) -> Result<()> {
     if let Some(current) = playback.take() {
         current.sink.stop();
     }
@@ -142,7 +166,7 @@ pub fn toggle_preview_from_ms(mut clip: AudioClipSettings, start_position_ms: u6
         _stream: stream,
         sink,
     });
-    Ok(true)
+    Ok(())
 }
 
 pub fn stop_preview() {
