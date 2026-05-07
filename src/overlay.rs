@@ -61,8 +61,8 @@ mod windows_overlay {
                     MOUSEEVENTF_LEFTDOWN, MOUSEEVENTF_LEFTUP, MOUSEEVENTF_MIDDLEDOWN,
                     MOUSEEVENTF_MIDDLEUP, MOUSEEVENTF_MOVE, MOUSEEVENTF_RIGHTDOWN,
                     MOUSEEVENTF_RIGHTUP, MOUSEEVENTF_WHEEL, MOUSEEVENTF_XDOWN, MOUSEEVENTF_XUP,
-                    MOUSEINPUT, MapVirtualKeyW, RegisterHotKey, SendInput, SetActiveWindow,
-                    SetFocus, UnregisterHotKey, VIRTUAL_KEY,
+                    MOUSE_EVENT_FLAGS, MOUSEINPUT, MapVirtualKeyW, RegisterHotKey, SendInput,
+                    SetActiveWindow, SetFocus, UnregisterHotKey, VIRTUAL_KEY,
                 },
                 Shell::{
                     NIF_ICON, NIF_MESSAGE, NIF_TIP, NIM_ADD, NIM_DELETE, NIM_MODIFY,
@@ -5566,7 +5566,56 @@ mod windows_overlay {
     }
 
     fn send_mouse_event(step: &MacroStep) -> Result<()> {
-        send_mouse_event_with_backend(step, false)
+        let prefer_interception = HOOK_STATE.lock().mouse_use_interception_driver;
+        send_mouse_event_with_backend(step, prefer_interception)
+    }
+
+    fn send_mouse_input(dw_flags: MOUSE_EVENT_FLAGS, mouse_data: u32) -> Result<()> {
+        let input = INPUT {
+            r#type: INPUT_MOUSE,
+            Anonymous: INPUT_0 {
+                mi: MOUSEINPUT {
+                    dx: 0,
+                    dy: 0,
+                    mouseData: mouse_data,
+                    dwFlags: dw_flags,
+                    time: 0,
+                    dwExtraInfo: 0,
+                },
+            },
+        };
+
+        unsafe {
+            let sent = SendInput(&[input], size_of::<INPUT>() as i32);
+            if sent == 0 {
+                bail!("SendInput failed");
+            }
+        }
+
+        Ok(())
+    }
+
+    fn send_mouse_click_with_backend(
+        prefer_interception: bool,
+        down_stroke: InterceptionMouseStroke,
+        up_stroke: InterceptionMouseStroke,
+        down_flags: MOUSE_EVENT_FLAGS,
+        up_flags: MOUSE_EVENT_FLAGS,
+        mouse_data: u32,
+    ) -> Result<()> {
+        const CLICK_HOLD_MS: u64 = 12;
+
+        if send_mouse_strokes_interception(prefer_interception, &[down_stroke]) {
+            thread::sleep(Duration::from_millis(CLICK_HOLD_MS));
+            if send_mouse_strokes_interception(prefer_interception, &[up_stroke]) {
+                return Ok(());
+            }
+            return send_mouse_input(up_flags, mouse_data);
+        }
+
+        send_mouse_input(down_flags, mouse_data)?;
+        thread::sleep(Duration::from_millis(CLICK_HOLD_MS));
+        send_mouse_input(up_flags, mouse_data)
     }
 
     fn send_mouse_event_with_backend(step: &MacroStep, prefer_interception: bool) -> Result<()> {
@@ -5579,19 +5628,60 @@ mod windows_overlay {
                 send_mouse_move_relative_with_backend(step.x, step.y, prefer_interception)?;
                 return Ok(());
             }
+            MacroAction::MouseLeftClick => {
+                return send_mouse_click_with_backend(
+                    prefer_interception,
+                    interception_mouse_stroke(INTERCEPTION_MOUSE_LEFT_BUTTON_DOWN, 0, 0, 0, 0),
+                    interception_mouse_stroke(INTERCEPTION_MOUSE_LEFT_BUTTON_UP, 0, 0, 0, 0),
+                    MOUSEEVENTF_LEFTDOWN,
+                    MOUSEEVENTF_LEFTUP,
+                    0,
+                );
+            }
+            MacroAction::MouseRightClick => {
+                return send_mouse_click_with_backend(
+                    prefer_interception,
+                    interception_mouse_stroke(INTERCEPTION_MOUSE_RIGHT_BUTTON_DOWN, 0, 0, 0, 0),
+                    interception_mouse_stroke(INTERCEPTION_MOUSE_RIGHT_BUTTON_UP, 0, 0, 0, 0),
+                    MOUSEEVENTF_RIGHTDOWN,
+                    MOUSEEVENTF_RIGHTUP,
+                    0,
+                );
+            }
+            MacroAction::MouseMiddleClick => {
+                return send_mouse_click_with_backend(
+                    prefer_interception,
+                    interception_mouse_stroke(INTERCEPTION_MOUSE_MIDDLE_BUTTON_DOWN, 0, 0, 0, 0),
+                    interception_mouse_stroke(INTERCEPTION_MOUSE_MIDDLE_BUTTON_UP, 0, 0, 0, 0),
+                    MOUSEEVENTF_MIDDLEDOWN,
+                    MOUSEEVENTF_MIDDLEUP,
+                    0,
+                );
+            }
+            MacroAction::MouseX1Click => {
+                return send_mouse_click_with_backend(
+                    prefer_interception,
+                    interception_mouse_stroke(INTERCEPTION_MOUSE_BUTTON_4_DOWN, 0, 0, 0, 0),
+                    interception_mouse_stroke(INTERCEPTION_MOUSE_BUTTON_4_UP, 0, 0, 0, 0),
+                    MOUSEEVENTF_XDOWN,
+                    MOUSEEVENTF_XUP,
+                    XBUTTON1_DATA as u32,
+                );
+            }
+            MacroAction::MouseX2Click => {
+                return send_mouse_click_with_backend(
+                    prefer_interception,
+                    interception_mouse_stroke(INTERCEPTION_MOUSE_BUTTON_5_DOWN, 0, 0, 0, 0),
+                    interception_mouse_stroke(INTERCEPTION_MOUSE_BUTTON_5_UP, 0, 0, 0, 0),
+                    MOUSEEVENTF_XDOWN,
+                    MOUSEEVENTF_XUP,
+                    XBUTTON2_DATA as u32,
+                );
+            }
             _ => {}
         }
 
         let (flags, mouse_data, repeat_up, interception_strokes) = match step.action {
-            MacroAction::MouseLeftClick => (
-                MOUSEEVENTF_LEFTDOWN,
-                0,
-                Some(MOUSEEVENTF_LEFTUP),
-                Some(vec![
-                    interception_mouse_stroke(INTERCEPTION_MOUSE_LEFT_BUTTON_DOWN, 0, 0, 0, 0),
-                    interception_mouse_stroke(INTERCEPTION_MOUSE_LEFT_BUTTON_UP, 0, 0, 0, 0),
-                ]),
-            ),
             MacroAction::MouseLeftDown => (
                 MOUSEEVENTF_LEFTDOWN,
                 0,
@@ -5615,15 +5705,6 @@ mod windows_overlay {
                     0,
                     0,
                 )]),
-            ),
-            MacroAction::MouseRightClick => (
-                MOUSEEVENTF_RIGHTDOWN,
-                0,
-                Some(MOUSEEVENTF_RIGHTUP),
-                Some(vec![
-                    interception_mouse_stroke(INTERCEPTION_MOUSE_RIGHT_BUTTON_DOWN, 0, 0, 0, 0),
-                    interception_mouse_stroke(INTERCEPTION_MOUSE_RIGHT_BUTTON_UP, 0, 0, 0, 0),
-                ]),
             ),
             MacroAction::MouseRightDown => (
                 MOUSEEVENTF_RIGHTDOWN,
@@ -5649,15 +5730,6 @@ mod windows_overlay {
                     0,
                 )]),
             ),
-            MacroAction::MouseMiddleClick => (
-                MOUSEEVENTF_MIDDLEDOWN,
-                0,
-                Some(MOUSEEVENTF_MIDDLEUP),
-                Some(vec![
-                    interception_mouse_stroke(INTERCEPTION_MOUSE_MIDDLE_BUTTON_DOWN, 0, 0, 0, 0),
-                    interception_mouse_stroke(INTERCEPTION_MOUSE_MIDDLE_BUTTON_UP, 0, 0, 0, 0),
-                ]),
-            ),
             MacroAction::MouseMiddleDown => (
                 MOUSEEVENTF_MIDDLEDOWN,
                 0,
@@ -5682,15 +5754,6 @@ mod windows_overlay {
                     0,
                 )]),
             ),
-            MacroAction::MouseX1Click => (
-                MOUSEEVENTF_XDOWN,
-                XBUTTON1_DATA as u32,
-                Some(MOUSEEVENTF_XUP),
-                Some(vec![
-                    interception_mouse_stroke(INTERCEPTION_MOUSE_BUTTON_4_DOWN, 0, 0, 0, 0),
-                    interception_mouse_stroke(INTERCEPTION_MOUSE_BUTTON_4_UP, 0, 0, 0, 0),
-                ]),
-            ),
             MacroAction::MouseX1Down => (
                 MOUSEEVENTF_XDOWN,
                 XBUTTON1_DATA as u32,
@@ -5714,15 +5777,6 @@ mod windows_overlay {
                     0,
                     0,
                 )]),
-            ),
-            MacroAction::MouseX2Click => (
-                MOUSEEVENTF_XDOWN,
-                XBUTTON2_DATA as u32,
-                Some(MOUSEEVENTF_XUP),
-                Some(vec![
-                    interception_mouse_stroke(INTERCEPTION_MOUSE_BUTTON_5_DOWN, 0, 0, 0, 0),
-                    interception_mouse_stroke(INTERCEPTION_MOUSE_BUTTON_5_UP, 0, 0, 0, 0),
-                ]),
             ),
             MacroAction::MouseX2Down => (
                 MOUSEEVENTF_XDOWN,
@@ -5967,97 +6021,25 @@ mod windows_overlay {
     }
 
     fn send_mouse_left_click() -> Result<()> {
-        if send_mouse_strokes_interception(
+        send_mouse_click_with_backend(
             false,
-            &[
-                interception_mouse_stroke(INTERCEPTION_MOUSE_LEFT_BUTTON_DOWN, 0, 0, 0, 0),
-                interception_mouse_stroke(INTERCEPTION_MOUSE_LEFT_BUTTON_UP, 0, 0, 0, 0),
-            ],
-        ) {
-            return Ok(());
-        }
-        let inputs = [
-            INPUT {
-                r#type: INPUT_MOUSE,
-                Anonymous: INPUT_0 {
-                    mi: MOUSEINPUT {
-                        dx: 0,
-                        dy: 0,
-                        mouseData: 0,
-                        dwFlags: MOUSEEVENTF_LEFTDOWN,
-                        time: 0,
-                        dwExtraInfo: 0,
-                    },
-                },
-            },
-            INPUT {
-                r#type: INPUT_MOUSE,
-                Anonymous: INPUT_0 {
-                    mi: MOUSEINPUT {
-                        dx: 0,
-                        dy: 0,
-                        mouseData: 0,
-                        dwFlags: MOUSEEVENTF_LEFTUP,
-                        time: 0,
-                        dwExtraInfo: 0,
-                    },
-                },
-            },
-        ];
-        unsafe {
-            let sent = SendInput(&inputs, size_of::<INPUT>() as i32);
-            if sent == 0 {
-                bail!("SendInput failed");
-            }
-        }
-        Ok(())
+            interception_mouse_stroke(INTERCEPTION_MOUSE_LEFT_BUTTON_DOWN, 0, 0, 0, 0),
+            interception_mouse_stroke(INTERCEPTION_MOUSE_LEFT_BUTTON_UP, 0, 0, 0, 0),
+            MOUSEEVENTF_LEFTDOWN,
+            MOUSEEVENTF_LEFTUP,
+            0,
+        )
     }
 
     fn send_mouse_left_click_backend(prefer_interception: bool) -> Result<()> {
-        if send_mouse_strokes_interception(
+        send_mouse_click_with_backend(
             prefer_interception,
-            &[
-                interception_mouse_stroke(INTERCEPTION_MOUSE_LEFT_BUTTON_DOWN, 0, 0, 0, 0),
-                interception_mouse_stroke(INTERCEPTION_MOUSE_LEFT_BUTTON_UP, 0, 0, 0, 0),
-            ],
-        ) {
-            return Ok(());
-        }
-        let inputs = [
-            INPUT {
-                r#type: INPUT_MOUSE,
-                Anonymous: INPUT_0 {
-                    mi: MOUSEINPUT {
-                        dx: 0,
-                        dy: 0,
-                        mouseData: 0,
-                        dwFlags: MOUSEEVENTF_LEFTDOWN,
-                        time: 0,
-                        dwExtraInfo: 0,
-                    },
-                },
-            },
-            INPUT {
-                r#type: INPUT_MOUSE,
-                Anonymous: INPUT_0 {
-                    mi: MOUSEINPUT {
-                        dx: 0,
-                        dy: 0,
-                        mouseData: 0,
-                        dwFlags: MOUSEEVENTF_LEFTUP,
-                        time: 0,
-                        dwExtraInfo: 0,
-                    },
-                },
-            },
-        ];
-        unsafe {
-            let sent = SendInput(&inputs, size_of::<INPUT>() as i32);
-            if sent == 0 {
-                bail!("SendInput failed");
-            }
-        }
-        Ok(())
+            interception_mouse_stroke(INTERCEPTION_MOUSE_LEFT_BUTTON_DOWN, 0, 0, 0, 0),
+            interception_mouse_stroke(INTERCEPTION_MOUSE_LEFT_BUTTON_UP, 0, 0, 0, 0),
+            MOUSEEVENTF_LEFTDOWN,
+            MOUSEEVENTF_LEFTUP,
+            0,
+        )
     }
 
     #[derive(Clone, Copy, Debug)]
