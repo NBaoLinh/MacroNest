@@ -12729,9 +12729,6 @@ impl CrosshairApp {
                         }
                     });
                 });
-
-                ui.label(RichText::new(Self::image_search_timing_preset_text(preset)).small());
-
                 if preset.collapsed {
                     return;
                 }
