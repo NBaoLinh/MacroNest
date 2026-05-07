@@ -7838,7 +7838,7 @@ mod windows_overlay {
             let target = resolve_window_target(
                 preset.target_window_title.as_deref(),
                 &preset.extra_target_window_titles,
-                false,
+                preset.match_duplicate_window_titles,
                 false,
             );
             if target.0.is_null() {
@@ -7882,7 +7882,7 @@ mod windows_overlay {
             let target = resolve_window_target(
                 preset.target_window_title.as_deref(),
                 &preset.extra_target_window_titles,
-                false,
+                preset.match_duplicate_window_titles,
                 false,
             );
             if target.0.is_null() {
@@ -7920,7 +7920,7 @@ mod windows_overlay {
             let target = resolve_window_target(
                 preset.target_window_title.as_deref(),
                 &preset.extra_target_window_titles,
-                false,
+                preset.match_duplicate_window_titles,
                 false,
             );
             if target.0.is_null() {

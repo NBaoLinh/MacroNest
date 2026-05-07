@@ -8126,12 +8126,13 @@ impl CrosshairApp {
                             ui.end_row();
 
                             ui.label(Self::tr_lang(language, "Target Window", "Target Window"));
-                            live_sync |= Self::render_multi_window_targets(
+                            live_sync |= Self::render_multi_window_targets_with_duplicate_mode(
                                 ui,
                                 (preset.id, "window-target"),
                                 "Focus",
                                 &mut preset.target_window_title,
                                 &mut preset.extra_target_window_titles,
+                                &mut preset.match_duplicate_window_titles,
                                 &self.open_windows,
                             );
                             ui.end_row();
@@ -8224,27 +8225,15 @@ impl CrosshairApp {
                         ui.end_row();
 
                         ui.label(Self::tr_lang(language, "Target Window", "Cá»­a sá»• má»¥c tiÃªu"));
-                        live_sync |= Self::render_multi_window_targets(
+                        live_sync |= Self::render_multi_window_targets_with_duplicate_mode(
                             ui,
                             (preset.id, "window-focus-target"),
                             Self::tr_lang(language, "Focus", "Focus"),
                             &mut preset.target_window_title,
                             &mut preset.extra_target_window_titles,
+                            &mut preset.match_duplicate_window_titles,
                             &self.open_windows,
                         );
-                        ui.end_row();
-
-                        ui.label(Self::tr_lang(language, "Titles", "Titles"));
-                        live_sync |= ui
-                            .checkbox(
-                                &mut preset.match_duplicate_window_titles,
-                                Self::tr_lang(
-                                    language,
-                                    "Same titles",
-                                    "Coi cÃ¡c cá»­a sá»• trÃ¹ng tiÃªu Ä‘á» cÅ©ng lÃ  khá»›p",
-                                ),
-                            )
-                            .changed();
                         ui.end_row();
                     });
             });
@@ -8577,12 +8566,13 @@ impl CrosshairApp {
                         ui.end_row();
 
                         ui.label(Self::tr_lang(language, "Target Window", "Cá»­a sá»• má»¥c tiÃªu"));
-                        let target_changed = Self::render_multi_window_targets(
+                        let target_changed = Self::render_multi_window_targets_with_duplicate_mode(
                             ui,
                             (preset.id, "pin-target-window"),
                             Self::tr_lang(language, "Focus", "Focus"),
                             &mut preset.target_window_title,
                             &mut preset.extra_target_window_titles,
+                            &mut preset.match_duplicate_window_titles,
                             &self.open_windows,
                         );
                         if target_changed {
@@ -8590,19 +8580,6 @@ impl CrosshairApp {
                             preset.source_crop_fit_version = 0;
                         }
                         live_sync |= target_changed;
-                        ui.end_row();
-
-                        ui.label(Self::tr_lang(language, "Titles", "Titles"));
-                        live_sync |= ui
-                            .checkbox(
-                                &mut preset.match_duplicate_window_titles,
-                                Self::tr_lang(
-                                    language,
-                                    "Same titles",
-                                    "Coi cÃ¡c cá»­a sá»• trÃ¹ng tiÃªu Ä‘á» cÅ©ng lÃ  khá»›p",
-                                ),
-                            )
-                            .changed();
                         ui.end_row();
 
                         ui.label(Self::tr_lang(language, "Custom Bounds", "Khung tÃ¹y chá»‰nh"));
@@ -12355,23 +12332,15 @@ impl CrosshairApp {
                                     "Target Window",
                                     "Cá»­a sá»• má»¥c tiÃªu",
                                 ));
-                                mouse_sensitivity_live_sync |= Self::render_multi_window_targets(
+                                mouse_sensitivity_live_sync |= Self::render_multi_window_targets_with_duplicate_mode(
                                     ui,
                                     (preset.id, "mouse-sensitivity-target"),
                                     Self::tr_lang(language, "Any window", "Any window"),
                                     &mut preset.target_window_title,
                                     &mut preset.extra_target_window_titles,
+                                    &mut preset.match_duplicate_window_titles,
                                     &self.open_windows,
                                 );
-                                ui.end_row();
-
-                                ui.label(Self::tr_lang(language, "Titles", "TiÃªu Ä‘á» trÃ¹ng"));
-                                mouse_sensitivity_live_sync |= ui
-                                    .checkbox(
-                                        &mut preset.match_duplicate_window_titles,
-                                        Self::tr_lang(language, "Same titles", "Same titles"),
-                                    )
-                                    .changed();
                                 ui.end_row();
 
                                 ui.label(Self::tr_lang(language, "Speed", "Tá»‘c Ä‘á»™ chuá»™t"));
@@ -13161,27 +13130,15 @@ impl CrosshairApp {
                         }
 
                         ui.label(Self::tr_lang(language, "Target window", "Target window"));
-                        live_sync |= Self::render_multi_window_targets(
+                        live_sync |= Self::render_multi_window_targets_with_duplicate_mode(
                             ui,
                             (preset.id, "image-search-target"),
                             Self::tr_lang(language, "Any screen", "Any screen"),
                             &mut preset.target_window_title,
                             &mut preset.extra_target_window_titles,
+                            &mut preset.match_duplicate_window_titles,
                             &open_windows,
                         );
-                        ui.end_row();
-
-                        ui.label(Self::tr_lang(
-                            language,
-                            "Duplicate titles",
-                            "Duplicate titles",
-                        ));
-                        live_sync |= ui
-                            .checkbox(
-                                &mut preset.match_duplicate_window_titles,
-                                Self::tr_lang(language, "Same titles", "Same titles"),
-                            )
-                            .changed();
                         ui.end_row();
 
                         ui.label(Self::tr_lang(language, "Mouse", "Mouse"));

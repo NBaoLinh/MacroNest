@@ -288,6 +288,8 @@ pub struct WindowPreset {
     pub titlebar_hotkey: Option<HotkeyBinding>,
     pub target_window_title: Option<String>,
     pub extra_target_window_titles: Vec<String>,
+    #[serde(default = "default_true")]
+    pub match_duplicate_window_titles: bool,
 }
 
 impl WindowPreset {
@@ -311,6 +313,7 @@ impl WindowPreset {
             titlebar_hotkey: None,
             target_window_title: None,
             extra_target_window_titles: Vec::new(),
+            match_duplicate_window_titles: true,
         }
     }
 }
