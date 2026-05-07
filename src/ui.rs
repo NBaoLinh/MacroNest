@@ -9221,12 +9221,10 @@ impl CrosshairApp {
                             }
                             live_sync |= ui.checkbox(&mut group.enabled, "").changed();
                             ui.label(Self::tr_lang(language, "Enabled", "Enabled"));
-                            live_sync |= ui
-                                .add_sized(
-                                    [(ui.available_width() - 140.0).max(180.0), 24.0],
-                                    TextEdit::singleline(&mut group.name),
-                                )
-                                .changed();
+                            ui.add_sized(
+                                [(ui.available_width() - 140.0).max(180.0), 24.0],
+                                egui::Label::new(group.name.as_str()),
+                            );
                             if Self::sized_button(
                                 ui,
                                 56.0,
