@@ -26,13 +26,15 @@ use crate::{
 compile_error!("This application currently supports Windows only.");
 
 fn main() -> Result<()> {
-    if std::env::args().any(|arg| arg == "--already-running-popup") {
+    let args = std::env::args().collect::<Vec<_>>();
+    if args.iter().any(|arg| arg == "--already-running-popup") {
         return run_popup_blob(PopupBlobKind::AlreadyRunning);
     }
 
-    if platform::relaunch_as_admin_if_needed()? {
+    if args.iter().any(|arg| arg == "--admin") && platform::relaunch_as_admin_if_needed()? {
         return Ok(());
     }
+
     let _single_instance = match platform::acquire_single_instance()? {
         Some(guard) => guard,
         None => return Ok(()),
