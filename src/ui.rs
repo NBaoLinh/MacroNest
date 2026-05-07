@@ -2470,13 +2470,13 @@ impl CrosshairApp {
 
         ui.horizontal(|ui| {
             ui.label(Self::material_icon_text(0xe14e, 14.0));
-            ui.add_space(6.0);
+            ui.add_space(4.0);
             ui.label(
                 RichText::new(Self::tr_lang(language, "Trim", "Trim"))
                     .size(13.0)
                     .strong(),
             );
-            ui.add_space(6.0);
+            ui.add_space(4.0);
             let help = ui.add_sized(
                 [24.0, 24.0],
                 Button::new(Self::material_icon_text(0xe887, 16.0))
@@ -2510,7 +2510,7 @@ impl CrosshairApp {
             });
         });
 
-        ui.add_space(8.0);
+        ui.add_space(4.0);
         let viewport_width = (ui.available_width() - 24.0).max(296.0);
         let zoom_scroll_offset_id = egui::Id::new((id_source, "trim-zoom-offset"));
         let trim_adjusting_id = egui::Id::new((id_source, "trim-adjusting"));
@@ -2529,7 +2529,7 @@ impl CrosshairApp {
         let total_ms_f32 = total_ms.max(1) as f32;
 
         ui.allocate_ui_with_layout(
-            vec2(viewport_width, timeline_size.y + 10.0),
+            vec2(viewport_width, timeline_size.y + 6.0),
             egui::Layout::top_down(egui::Align::Min),
             |ui| {
                 let mut scroll_area = egui::ScrollArea::horizontal()
@@ -3023,31 +3023,6 @@ impl CrosshairApp {
                             })
                         }
                     }
-                }
-                if ui
-                    .add_enabled(
-                        !clip.file_path.trim().is_empty(),
-                        Button::new(Self::material_icon_text(0xe15b, 18.0)),
-                    )
-                    .on_hover_text(Self::tr_lang(
-                        language,
-                        "Clear audio file",
-                        "Xóa file âm thanh",
-                    ))
-                    .clicked()
-                {
-                    audio::stop_preview();
-                    clip.file_path.clear();
-                    clip.start_ms = 0;
-                    clip.end_ms = 0;
-                    clip.volume = 1.0;
-                    *duration_ms = None;
-                    *editor_open = false;
-                    outcome.changed = true;
-                    outcome.status = Some(match language {
-                        UiLanguage::Vietnamese => format!("Đã xóa {title}."),
-                        _ => format!("Cleared {title}."),
-                    });
                 }
             });
 
@@ -13204,7 +13179,9 @@ impl CrosshairApp {
 
     fn render_sound_panel(&mut self, ui: &mut egui::Ui) {
         let language = self.state.ui_language;
-        ui.add_space(2.0);
+        let previous_item_spacing = ui.spacing().item_spacing;
+        ui.spacing_mut().item_spacing = vec2(6.0, 4.0);
+        ui.add_space(0.0);
         let mut changed = false;
 
         ui.horizontal(|ui| {
@@ -13226,7 +13203,7 @@ impl CrosshairApp {
             }
         });
 
-        ui.add_space(8.0);
+        ui.add_space(4.0);
         let drop_fill = if ui.visuals().dark_mode {
             Color32::from_rgba_premultiplied(34, 40, 52, 170)
         } else {
@@ -13241,9 +13218,9 @@ impl CrosshairApp {
             .fill(drop_fill)
             .stroke(Stroke::new(1.0, drop_stroke))
             .corner_radius(12.0)
-            .inner_margin(egui::Margin::symmetric(14, 12))
+            .inner_margin(egui::Margin::symmetric(10, 8))
             .show(ui, |ui| {
-                ui.set_min_height(52.0);
+                ui.set_min_height(44.0);
                 ui.vertical_centered(|ui| {
                     ui.label(
                         RichText::new(Self::tr_lang(
@@ -13307,7 +13284,7 @@ impl CrosshairApp {
                 changed = true;
             }
 
-            ui.add_space(6.0);
+            ui.add_space(2.0);
             ui.vertical(|ui| {
                 ui.set_min_width(ui.available_width());
                 ui.horizontal(|ui| {
@@ -13402,6 +13379,7 @@ impl CrosshairApp {
             self.sync_audio_settings();
             self.persist();
         }
+        ui.spacing_mut().item_spacing = previous_item_spacing;
     }
 
     fn render_audio_media_editor(
@@ -13418,6 +13396,8 @@ impl CrosshairApp {
     ) -> AudioCardOutcome {
         let mut outcome = AudioCardOutcome::default();
         let previewing = audio::is_previewing(clip);
+        let previous_item_spacing = ui.spacing().item_spacing;
+        ui.spacing_mut().item_spacing = vec2(6.0, 4.0);
         let space_pressed = ui.input(|input| input.key_pressed(egui::Key::Space));
         let s_pressed = ui.input(|input| input.key_pressed(egui::Key::S));
         let mut preview_cursor_ms = Self::preview_cursor_ms_for(preview_cursor, target, clip);
@@ -13428,7 +13408,7 @@ impl CrosshairApp {
 
         ui.heading(Self::tr_lang(language, "Media", "Media"));
         ui.label(RichText::new(title).strong());
-        ui.add_space(6.0);
+        ui.add_space(3.0);
 
         if (space_pressed || s_pressed) && !clip.file_path.trim().is_empty() {
             if previewing {
@@ -13494,7 +13474,7 @@ impl CrosshairApp {
                 .fill(ui.visuals().faint_bg_color)
                 .stroke(Stroke::new(1.0, ui.visuals().widgets.noninteractive.bg_stroke.color))
                 .corner_radius(16.0)
-                .inner_margin(egui::Margin::same(16))
+                .inner_margin(egui::Margin::same(12))
                 .show(ui, |ui| {
                     ui.label(format!(
                         "{} {}  |  {} {}",
@@ -13503,7 +13483,7 @@ impl CrosshairApp {
                         Self::tr_lang(language, "Slice", "Slice"),
                         Self::format_ms(clip.end_ms.saturating_sub(clip.start_ms))
                     ));
-                    ui.add_space(8.0);
+                    ui.add_space(2.0);
                     outcome.changed |= Self::render_audio_trim_timeline(
                         ui,
                         language,
@@ -13514,9 +13494,9 @@ impl CrosshairApp {
                         &mut preview_cursor_ms,
                         trim_timeline_zoom,
                         true,
-                        180.0,
+                        140.0,
                     );
-                    ui.add_space(8.0);
+                    ui.add_space(2.0);
                     ui.horizontal(|ui| {
                         ui.label(Self::tr_lang(language, "Start", "Bắt đầu"));
                         outcome.changed |= ui
@@ -13531,7 +13511,7 @@ impl CrosshairApp {
             Self::trim_audio_bounds(clip, total_ms);
         }
 
-        ui.add_space(8.0);
+        ui.add_space(4.0);
         ui.horizontal_centered(|ui| {
             if ui
                 .add_enabled(
@@ -13586,7 +13566,7 @@ impl CrosshairApp {
             }
         });
 
-        ui.add_space(8.0);
+        ui.add_space(4.0);
         ui.horizontal(|ui| {
             ui.label(Self::tr_lang(
                 language,
@@ -13621,6 +13601,7 @@ impl CrosshairApp {
         } else {
             *preview_cursor = Some((target, preview_cursor_ms));
         }
+        ui.spacing_mut().item_spacing = previous_item_spacing;
         outcome
     }
 
