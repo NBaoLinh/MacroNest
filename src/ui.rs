@@ -2046,12 +2046,12 @@ impl CrosshairApp {
 
     fn app_brand_subtitle(&self) -> &'static str {
         match self.state.ui_language {
-            UiLanguage::English => "Macro control, pin, toolbox, sound, and window tools",
+            UiLanguage::English => "Macro control, pin, settings, sound, and window tools",
             UiLanguage::Vietnamese => self.tr(
-                "Macro control, pin, toolbox, sound, and window tools",
-                "Macro control, pin, toolbox, sound, and window tools",
+                "Macro control, pin, settings, sound, and window tools",
+                "Macro control, pin, settings, sound, and window tools",
             ),
-            UiLanguage::Icon => "Macro control, pin, toolbox, sound, and window tools",
+            UiLanguage::Icon => "Macro control, pin, settings, sound, and window tools",
         }
     }
 
@@ -2078,7 +2078,7 @@ impl CrosshairApp {
             AppPanel::Macros | AppPanel::Modes => "Macro",
             AppPanel::Sound => "Sound",
             AppPanel::Media => "Media",
-            AppPanel::Settings => "Toolbox",
+            AppPanel::Settings => "Settings",
         };
         Self::tr_lang(self.state.ui_language, english, english)
     }
