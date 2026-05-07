@@ -2048,6 +2048,70 @@ impl CrosshairApp {
         false
     }
 
+    fn macro_trigger_remove_binding(preset: &mut MacroPreset, binding: &HotkeyBinding) -> bool {
+        if preset
+            .hotkey
+            .as_ref()
+            .is_some_and(|existing| hotkey::binding_matches(existing, binding))
+        {
+            preset.hotkey = None;
+            return true;
+        }
+
+        let mut removed = false;
+        let mut remaining = Vec::new();
+        for entry in hotkey::split_binding_list(&preset.trigger_keys) {
+            let matches_binding = hotkey::parse_binding(&entry)
+                .is_some_and(|existing| hotkey::binding_matches(&existing, binding));
+            if !removed && matches_binding {
+                removed = true;
+                continue;
+            }
+            remaining.push(entry);
+        }
+
+        if removed {
+            preset.trigger_keys = remaining.join(", ");
+        }
+        removed
+    }
+
+    fn render_macro_trigger_chips(
+        ui: &mut egui::Ui,
+        language: UiLanguage,
+        preset: &mut MacroPreset,
+    ) -> bool {
+        let bindings = Self::macro_trigger_bindings(preset);
+        if bindings.is_empty() {
+            ui.label(Self::tr_lang(language, "Not set", "Not set"));
+            return false;
+        }
+
+        let mut remove_binding = None;
+        ui.horizontal_wrapped(|ui| {
+            for binding in &bindings {
+                let label = hotkey::format_binding(Some(binding));
+                if ui
+                    .add(Button::new(RichText::new(label).monospace()).min_size(vec2(0.0, 22.0)))
+                    .on_hover_text(Self::tr_lang(
+                        language,
+                        "Click to remove this trigger",
+                        "Click to remove this trigger",
+                    ))
+                    .clicked()
+                {
+                    remove_binding = Some(binding.clone());
+                }
+            }
+        });
+
+        if let Some(binding) = remove_binding {
+            Self::macro_trigger_remove_binding(preset, &binding)
+        } else {
+            false
+        }
+    }
+
     fn format_macro_trigger_ui(language: UiLanguage, preset: &MacroPreset) -> String {
         let bindings = Self::macro_trigger_bindings(preset);
         let label = hotkey::format_binding_list(&bindings);
@@ -9376,7 +9440,7 @@ impl CrosshairApp {
                                     vec2(left_width, 0.0),
                                     egui::Layout::top_down(egui::Align::LEFT),
                                     |ui| {
-                                        ui.horizontal(|ui| {
+                                        ui.horizontal_wrapped(|ui| {
                                             ui.label(Self::tr_lang(
                                                 language,
                                                 if preset.trigger_mode == MacroTriggerMode::Release
@@ -9393,21 +9457,8 @@ impl CrosshairApp {
                                                 },
                                             ));
                                             ui.add_space(6.0);
-                                            ui.add_sized(
-                                                [260.0, 22.0],
-                                                egui::Label::new(
-                                                    RichText::new(
-                                                        binding_labels
-                                                            .get(&preset.id)
-                                                            .cloned()
-                                                            .unwrap_or_else(|| {
-                                                                Self::format_macro_trigger_ui(
-                                                                    language, preset,
-                                                                )
-                                                            }),
-                                                    )
-                                                    .monospace(),
-                                                ),
+                                            live_sync |= Self::render_macro_trigger_chips(
+                                                ui, language, preset,
                                             );
                                         });
                                     },
