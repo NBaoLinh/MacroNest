@@ -14461,9 +14461,6 @@ impl CrosshairApp {
         ctx.send_viewport_cmd(egui::ViewportCommand::Visible(true));
         ctx.send_viewport_cmd(egui::ViewportCommand::Minimized(false));
         ctx.send_viewport_cmd(egui::ViewportCommand::Focus);
-        ctx.send_viewport_cmd(egui::ViewportCommand::RequestUserAttention(
-            egui::UserAttentionType::Informational,
-        ));
         let _ = self.overlay_tx.send(OverlayCommand::SetUiVisible(true));
         crate::overlay::wake_command_queue();
     }
@@ -14509,33 +14506,22 @@ impl eframe::App for CrosshairApp {
         while let Ok(command) = self.ui_rx.try_recv() {
             match command {
                 UiCommand::ShowWindow => {
-                    if self.state.show_window || self.open_from_tray_animation.is_some() {
-                        self.tray_close_request_consumed = false;
+                    self.tray_close_request_consumed = false;
+                    self.close_to_tray_animation = None;
+                    self.open_from_tray_animation = None;
+                    if self.state.show_window {
                         ctx.send_viewport_cmd(egui::ViewportCommand::Visible(true));
                         ctx.send_viewport_cmd(egui::ViewportCommand::Minimized(false));
                         ctx.send_viewport_cmd(egui::ViewportCommand::Focus);
-                        ctx.send_viewport_cmd(egui::ViewportCommand::RequestUserAttention(
-                            egui::UserAttentionType::Informational,
-                        ));
-                        let _ = self.overlay_tx.send(OverlayCommand::SetUiVisible(true));
                         ctx.request_repaint();
                         continue;
                     }
-                    self.close_to_tray_animation = None;
-                    self.tray_close_request_consumed = false;
                     let target_size = Self::desired_window_size();
                     let target_pos = Self::centered_outer_position_for_size(target_size);
                     crate::platform::set_native_window_shadow(frame, false);
                     self.native_shadow_applied = false;
-                    ctx.send_viewport_cmd(egui::ViewportCommand::Visible(true));
-                    ctx.send_viewport_cmd(egui::ViewportCommand::Minimized(false));
                     self.center_window_next_frame = false;
                     self.begin_open_from_tray_animation(ctx, target_pos, target_size);
-                    ctx.send_viewport_cmd(egui::ViewportCommand::Focus);
-                    ctx.send_viewport_cmd(egui::ViewportCommand::RequestUserAttention(
-                        egui::UserAttentionType::Informational,
-                    ));
-                    let _ = self.overlay_tx.send(OverlayCommand::SetUiVisible(true));
                     ctx.request_repaint();
                 }
                 UiCommand::Exit => {

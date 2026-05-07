@@ -2313,11 +2313,6 @@ mod windows_overlay {
         hook_state.held_mouse_buttons.clear();
     }
 
-    fn schedule_pending_tray_toggle(previous_enabled: bool) {
-        let mut hook_state = HOOK_STATE.lock();
-        hook_state.pending_tray_toggle = Some(previous_enabled);
-    }
-
     fn cancel_pending_tray_toggle() {
         let mut hook_state = HOOK_STATE.lock();
         hook_state.pending_tray_toggle = None;
@@ -2563,7 +2558,6 @@ mod windows_overlay {
                     if visible {
                         cancel_pending_tray_toggle();
                         let _ = set_input_hooks_enabled(runtime, desired_hooks_enabled(runtime));
-                        restore_ui_window_native();
                         let _ = ShowWindow(runtime.pin_hwnd, SW_HIDE);
                         let _ = ShowWindow(runtime.toolbox_hwnd, SW_HIDE);
                         let _ = ShowWindow(runtime.mouse_trail_hwnd, SW_HIDE);
