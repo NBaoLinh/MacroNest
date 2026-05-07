@@ -1708,8 +1708,12 @@ impl CrosshairApp {
             return false;
         }
 
-        let pointer_pos = ctx.input(|input| input.pointer.hover_pos().or(input.pointer.latest_pos()));
-        let accept_drop = self.audio_drop_armed
+        let pointer_pos =
+            ctx.input(|input| input.pointer.hover_pos().or(input.pointer.latest_pos()));
+        let panel_accepts_audio_drop =
+            matches!(self.state.active_panel, AppPanel::Sound | AppPanel::Media);
+        let accept_drop = panel_accepts_audio_drop
+            || self.audio_drop_armed
             || self
                 .audio_drop_rect
                 .is_some_and(|rect| pointer_pos.is_some_and(|pos| rect.contains(pos)));

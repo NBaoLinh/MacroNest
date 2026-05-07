@@ -102,6 +102,7 @@ fn main() -> Result<()> {
             .with_min_inner_size([900.0, 900.0])
             .with_decorations(false)
             .with_transparent(true)
+            .with_drag_and_drop(true)
             .with_icon(std::sync::Arc::new(app_icon::icon_data(128)?)),
         ..Default::default()
     };

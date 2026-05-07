@@ -153,7 +153,6 @@ mod windows_overlay {
     const INTERCEPTION_MOUSE_WHEEL: u16 = 0x400;
     const INTERCEPTION_MOUSE_MOVE_ABSOLUTE: u16 = 0x001;
 
-    const MENU_TOGGLE: usize = 2001;
     const MENU_SHOW: usize = 2002;
     const MENU_EXIT: usize = 2003;
 
@@ -706,7 +705,6 @@ mod windows_overlay {
             )?;
 
             let tray_menu = CreatePopupMenu()?;
-            let _ = AppendMenuW(tray_menu, MF_STRING, MENU_TOGGLE, w!("Toggle crosshair"));
             let _ = AppendMenuW(tray_menu, MF_STRING, MENU_SHOW, w!("Open settings"));
             let _ = AppendMenuW(tray_menu, MF_SEPARATOR, 0, PCWSTR::null());
             let _ = AppendMenuW(tray_menu, MF_STRING, MENU_EXIT, w!("Exit"));
@@ -943,10 +941,6 @@ mod windows_overlay {
             WM_COMMAND => {
                 if let Some(runtime) = runtime_mut(hwnd) {
                     match wparam.0 {
-                        MENU_TOGGLE => {
-                            runtime.style.enabled = !runtime.style.enabled;
-                            let _ = refresh_overlay(runtime);
-                        }
                         MENU_SHOW => {
                             mark_ui_visible(runtime, true);
                             refresh_overlay_timer(hwnd, runtime);
