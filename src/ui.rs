@@ -426,6 +426,7 @@ pub struct CrosshairApp {
     macro_preset_clipboard: Option<MacroPreset>,
     macro_step_clipboard: Vec<MacroStep>,
     confirm_delete_folder_id: Option<u32>,
+    confirm_release_folder_id: Option<u32>,
     confirm_delete_macro_group_id: Option<u32>,
     center_window_next_frame: bool,
     enforce_square_window_frames: u8,
@@ -528,6 +529,7 @@ impl CrosshairApp {
             macro_preset_clipboard: None,
             macro_step_clipboard: Vec::new(),
             confirm_delete_folder_id: None,
+            confirm_release_folder_id: None,
             confirm_delete_macro_group_id: None,
             center_window_next_frame: true,
             enforce_square_window_frames: 8,
@@ -1836,9 +1838,9 @@ impl CrosshairApp {
 
     fn cycle_language(&mut self) {
         self.state.ui_language = match self.state.ui_language {
-            UiLanguage::English => UiLanguage::Icon,
-            UiLanguage::Icon => UiLanguage::Vietnamese,
+            UiLanguage::English => UiLanguage::Vietnamese,
             UiLanguage::Vietnamese => UiLanguage::English,
+            UiLanguage::Icon => UiLanguage::English,
         };
         self.persist();
     }
@@ -1987,7 +1989,7 @@ impl CrosshairApp {
                 "Macro control, pin, toolbox, sound, and window tools",
                 "Macro control, pin, toolbox, sound, and window tools",
             ),
-            UiLanguage::Icon => "",
+            UiLanguage::Icon => "Macro control, pin, toolbox, sound, and window tools",
         }
     }
 
@@ -2005,9 +2007,6 @@ impl CrosshairApp {
     }
 
     fn panel_label(&self, panel: AppPanel) -> &'static str {
-        if self.state.ui_language == UiLanguage::Icon {
-            return "";
-        }
         let english = match panel {
             AppPanel::Crosshair => "Crosshair",
             AppPanel::WindowPresets => "Window Control",
@@ -2026,7 +2025,7 @@ impl CrosshairApp {
         match self.state.ui_language {
             UiLanguage::English => RichText::new("EN").strong(),
             UiLanguage::Vietnamese => RichText::new("VI").strong(),
-            UiLanguage::Icon => Self::material_icon_text(0xe8e2, 18.0),
+            UiLanguage::Icon => RichText::new("EN").strong(),
         }
     }
 
@@ -2044,7 +2043,7 @@ impl CrosshairApp {
                 "loading macro tools, overlays, and UI",
                 "loading macro tools, overlays, and UI",
             ),
-            UiLanguage::Icon => "",
+            UiLanguage::Icon => "loading macro tools, overlays, and UI",
         }
     }
 
@@ -2812,7 +2811,61 @@ impl CrosshairApp {
                 MacroAction::MouseMoveAbsolute => "Tuyệt đối",
                 MacroAction::MouseMoveRelative => "Tương đối",
             }),
-            UiLanguage::English | UiLanguage::Icon => match action {
+            UiLanguage::English => match action {
+                MacroAction::KeyPress => "Press",
+                MacroAction::KeyDown => "KEY Dn",
+                MacroAction::KeyUp => "KEY Up",
+                MacroAction::TypeText => "Text",
+                MacroAction::ApplyWindowPreset => "Wnd",
+                MacroAction::FocusWindowPreset => "Focus",
+                MacroAction::TriggerMacroPreset => "Macro",
+                MacroAction::EnableCrosshairProfile => "Cross",
+                MacroAction::DisableCrosshair => "NoCross",
+                MacroAction::EnablePinPreset => "Pin",
+                MacroAction::DisablePin => "NoPin",
+                MacroAction::PlayMousePathPreset => "Path",
+                MacroAction::ApplyMouseSensitivityPreset => "Sense",
+                MacroAction::EnableZoomPreset => "Zoom",
+                MacroAction::DisableZoom => "NoZoom",
+                MacroAction::PlaySoundPreset => "Sound",
+                MacroAction::StartImageSearch => "Start",
+                MacroAction::TriggerImageSearchMove => "Move",
+                MacroAction::TriggerImageSearchTiming => "Timing",
+                MacroAction::StopImageSearchWait => "Wait",
+                MacroAction::StopImageSearch => "Stop",
+                MacroAction::LoopStart => "Loop",
+                MacroAction::LoopEnd => "End",
+                MacroAction::StopIfTriggerPressedAgain => "Stop",
+                MacroAction::StopIfKeyPressed => "Break",
+                MacroAction::ShowToolbox => "Tool",
+                MacroAction::HideToolbox => "Hide",
+                MacroAction::LockKeys => "KL On",
+                MacroAction::UnlockKeys => "KL Off",
+                MacroAction::LockMouse => "ML On",
+                MacroAction::UnlockMouse => "ML Off",
+                MacroAction::EnableMacroPreset => "PresetOn",
+                MacroAction::DisableMacroPreset => "PresetOff",
+                MacroAction::MouseLeftClick => "LClick",
+                MacroAction::MouseLeftDown => "LDown",
+                MacroAction::MouseLeftUp => "LUp",
+                MacroAction::MouseRightClick => "RClick",
+                MacroAction::MouseRightDown => "RDown",
+                MacroAction::MouseRightUp => "RUp",
+                MacroAction::MouseMiddleClick => "MClick",
+                MacroAction::MouseMiddleDown => "MDown",
+                MacroAction::MouseMiddleUp => "MUp",
+                MacroAction::MouseX1Click => "X1",
+                MacroAction::MouseX1Down => "X1Dn",
+                MacroAction::MouseX1Up => "X1Up",
+                MacroAction::MouseX2Click => "X2",
+                MacroAction::MouseX2Down => "X2Dn",
+                MacroAction::MouseX2Up => "X2Up",
+                MacroAction::MouseWheelUp => "WhUp",
+                MacroAction::MouseWheelDown => "WhDn",
+                MacroAction::MouseMoveAbsolute => "MoveTo",
+                MacroAction::MouseMoveRelative => "MoveBy",
+            },
+            UiLanguage::Icon => match action {
                 MacroAction::KeyPress => "Press",
                 MacroAction::KeyDown => "KEY Dn",
                 MacroAction::KeyUp => "KEY Up",
@@ -2887,7 +2940,10 @@ impl CrosshairApp {
                         Self::macro_action_short_label(action, language)
                     )
                 }
-                UiLanguage::English | UiLanguage::Icon => {
+                UiLanguage::English => {
+                    format!("[{tag}] {}", Self::macro_action_label(action))
+                }
+                UiLanguage::Icon => {
                     format!("[{tag}] {}", Self::macro_action_label(action))
                 }
             }
@@ -2896,9 +2952,10 @@ impl CrosshairApp {
                 UiLanguage::Vietnamese => {
                     Self::macro_action_short_label(action, language).to_owned()
                 }
-                UiLanguage::English | UiLanguage::Icon => {
+                UiLanguage::English => {
                     Self::macro_action_label(action).to_owned()
                 }
+                UiLanguage::Icon => Self::macro_action_label(action).to_owned(),
             }
         }
     }
@@ -2967,7 +3024,12 @@ impl CrosshairApp {
                 MacroTriggerMode::Hold => "Giữ",
                 MacroTriggerMode::Release => "Thả",
             },
-            UiLanguage::English | UiLanguage::Icon => match mode {
+            UiLanguage::English => match mode {
+                MacroTriggerMode::Press => "Press",
+                MacroTriggerMode::Hold => "Hold",
+                MacroTriggerMode::Release => "Release",
+            },
+            UiLanguage::Icon => match mode {
                 MacroTriggerMode::Press => "Press",
                 MacroTriggerMode::Hold => "Hold",
                 MacroTriggerMode::Release => "Release",
@@ -8028,7 +8090,9 @@ impl CrosshairApp {
                         ))
                         .clicked()
                     {
-                        release_folder_id = self.active_macro_folder_view;
+                        if let Some(folder_id) = self.active_macro_folder_view {
+                            self.confirm_release_folder_id = Some(folder_id);
+                        }
                     }
                     if ui
                         .button(Self::tr_lang(
@@ -8226,6 +8290,47 @@ impl CrosshairApp {
                 });
             });
         }
+        if let Some(folder_id) = self.confirm_release_folder_id {
+            let group_count = self
+                .state
+                .macro_groups
+                .iter()
+                .filter(|group| group.folder_id == Some(folder_id))
+                .count();
+            let folder_name = self
+                .state
+                .macro_folders
+                .iter()
+                .find(|folder| folder.id == folder_id)
+                .map(|folder| folder.name.clone())
+                .unwrap_or_else(|| format!("Folder {folder_id}"));
+            Frame::group(ui.style()).show(ui, |ui| {
+                ui.horizontal_wrapped(|ui| {
+                    ui.label(format!(
+                        "{} {folder_name} {} {group_count} {}?",
+                        Self::tr_lang(language, "Release", "Release"),
+                        Self::tr_lang(language, "and move", "và chuyển"),
+                        Self::tr_lang(
+                            language,
+                            "macro group(s) out of it",
+                            "macro group ra khỏi nó",
+                        )
+                    ));
+                    if ui
+                        .button(Self::tr_lang(language, "Yes, Release", "Yes, Release"))
+                        .clicked()
+                    {
+                        release_folder_id = Some(folder_id);
+                    }
+                    if ui
+                        .button(Self::tr_lang(language, "Cancel", "Cancel"))
+                        .clicked()
+                    {
+                        self.confirm_release_folder_id = None;
+                    }
+                });
+            });
+        }
         if let Some(group_id) = self.confirm_delete_macro_group_id {
             if let Some(group_name) = self
                 .state
@@ -8303,48 +8408,62 @@ impl CrosshairApp {
                 let folder_id = folder.id;
                 let folder_name = folder.name.clone();
                 Self::show_preset_card(ui, folder_has_enabled_content, |ui| {
-                    ui.horizontal_wrapped(|ui| {
-                        if ui.button(Self::folder_icon_text(false, 20.0)).clicked() {
-                            open_folder_id = Some(folder_id);
-                        }
-                        if ui.selectable_label(false, &folder_name).clicked() {
-                            open_folder_id = Some(folder_id);
-                        }
-                        ui.label(match language {
-                            UiLanguage::Vietnamese => format!("{folder_group_count} nhóm"),
-                            _ => format!("{folder_group_count} group(s)"),
-                        });
-                        if ui
-                            .button(Self::tr_lang(
-                                language,
-                                "Open",
-                                "Mở",
-                            ))
-                            .clicked()
-                        {
-                            open_folder_id = Some(folder_id);
-                        }
-                        if ui
-                            .button(Self::tr_lang(
-                                language,
-                                "Release",
-                                "Nhả",
-                            ))
-                            .clicked()
-                        {
-                            release_folder_id = Some(folder_id);
-                        }
-                        if ui
-                            .button(Self::tr_lang(language, "Delete", "Delete"))
-                            .clicked()
-                        {
-                            if folder_group_count > 0 {
-                                self.confirm_delete_folder_id = Some(folder_id);
-                            } else {
-                                delete_folder_id = Some(folder_id);
+                    egui::Grid::new((folder_id, "macro-folder-row"))
+                        .num_columns(6)
+                        .spacing([8.0, 6.0])
+                        .show(ui, |ui| {
+                            if ui
+                                .add_sized([28.0, 24.0], Button::new(Self::folder_icon_text(false, 18.0)))
+                                .clicked()
+                            {
+                                open_folder_id = Some(folder_id);
                             }
-                        }
-                    });
+                            if ui
+                                .add_sized([220.0, 24.0], Button::new(folder_name.clone()))
+                                .clicked()
+                            {
+                                open_folder_id = Some(folder_id);
+                            }
+                            ui.add_sized(
+                                [96.0, 24.0],
+                                egui::Label::new(match language {
+                                    UiLanguage::Vietnamese => format!("{folder_group_count} nhóm"),
+                                    _ => format!("{folder_group_count} group(s)"),
+                                }),
+                            );
+                            if ui
+                                .add_sized(
+                                    [70.0, 24.0],
+                                    Button::new(Self::tr_lang(language, "Open", "Mở")),
+                                )
+                                .clicked()
+                            {
+                                open_folder_id = Some(folder_id);
+                            }
+                            if ui
+                                .add_sized(
+                                    [82.0, 24.0],
+                                    Button::new(Self::tr_lang(language, "Release", "Nhả")),
+                                )
+                                .clicked()
+                            {
+                                self.confirm_release_folder_id = Some(folder_id);
+                            }
+                            if ui
+                                .add_sized(
+                                    [70.0, 24.0],
+                                    Button::new(Self::tr_lang(language, "Delete", "Delete")),
+                                )
+                                .clicked()
+                            {
+                                if folder_group_count > 0 {
+                                    self.confirm_delete_folder_id = Some(folder_id);
+                                } else {
+                                    delete_folder_id = Some(folder_id);
+                                }
+                            }
+                            ui.end_row();
+                        });
                 });
                 ui.add_space(4.0);
             }
@@ -10770,7 +10889,7 @@ impl CrosshairApp {
                     group.folder_id = None;
                 }
             }
-            self.confirm_delete_folder_id = None;
+            self.confirm_release_folder_id = None;
             if self.active_macro_folder_view == Some(folder_id) {
                 self.set_active_macro_folder_view(None);
             }
@@ -10793,6 +10912,7 @@ impl CrosshairApp {
                     .macro_folders
                     .retain(|folder| folder.id != folder_id);
                 self.confirm_delete_folder_id = None;
+                self.confirm_release_folder_id = None;
                 if self.active_macro_folder_view == Some(folder_id) {
                     self.set_active_macro_folder_view(None);
                 }
@@ -13657,7 +13777,7 @@ impl eframe::App for CrosshairApp {
             )
             .show(ctx, |ui| {
                 let maximized = ctx.input(|input| input.viewport().maximized.unwrap_or(false));
-                let show_icon_tooltips = self.state.ui_language != UiLanguage::Icon;
+                let show_icon_tooltips = true;
                 let hide_window_controls = self.close_to_tray_animation.is_some();
                 ui.allocate_ui_with_layout(
                     vec2(ui.available_width(), 42.0),
@@ -13763,34 +13883,28 @@ impl eframe::App for CrosshairApp {
                                         .inner_margin(egui::Margin::symmetric(12, 8))
                                         .show(ui, |ui| {
                                             ui.horizontal(|ui| {
-                                                if self.state.ui_language == UiLanguage::Icon {
-                                                    ui.label(Self::material_icon_text(
-                                                        0xe312, 22.0,
-                                                    ));
-                                                } else {
-                                                    ui.label(
-                                                        RichText::new(self.app_brand_title())
-                                                            .strong()
-                                                            .size(20.0),
-                                                    );
-                                                    ui.add_space(6.0);
-                                                    ui.label(
-                                                        RichText::new(format!(
-                                                            "v{}",
-                                                            self.app_version_label()
-                                                        ))
-                                                        .size(11.0)
-                                                        .color(
-                                                            if self.state.ui_theme
-                                                                == UiThemeMode::Dark
-                                                            {
-                                                                Color32::from_rgb(175, 194, 221)
-                                                            } else {
-                                                                Color32::from_rgb(80, 96, 128)
-                                                            },
-                                                        ),
-                                                    );
-                                                }
+                                                ui.label(
+                                                    RichText::new(self.app_brand_title())
+                                                        .strong()
+                                                        .size(20.0),
+                                                );
+                                                ui.add_space(6.0);
+                                                ui.label(
+                                                    RichText::new(format!(
+                                                        "v{}",
+                                                        self.app_version_label()
+                                                    ))
+                                                    .size(11.0)
+                                                    .color(
+                                                        if self.state.ui_theme
+                                                            == UiThemeMode::Dark
+                                                        {
+                                                            Color32::from_rgb(175, 194, 221)
+                                                        } else {
+                                                            Color32::from_rgb(80, 96, 128)
+                                                        },
+                                                    ),
+                                                );
                                             });
                                         });
                                     ui.interact(
@@ -13824,11 +13938,7 @@ impl eframe::App for CrosshairApp {
                     for panel in panels {
                         let selected = self.state.active_panel == panel;
                         let emphasized = panel == AppPanel::Macros;
-                        let text = if self.state.ui_language == UiLanguage::Icon {
-                            Self::material_icon_text(Self::panel_icon(panel), 18.0)
-                        } else {
-                            RichText::new(self.panel_label(panel))
-                        };
+                        let text = RichText::new(self.panel_label(panel));
                         let response = Self::hover_if(
                             ui.add(self.top_tab_button(text, selected, emphasized)),
                             show_icon_tooltips,
@@ -13839,11 +13949,7 @@ impl eframe::App for CrosshairApp {
                         }
                     }
                     if self.active_audio_editor.is_some() {
-                        let text = if self.state.ui_language == UiLanguage::Icon {
-                            Self::material_icon_text(Self::panel_icon(AppPanel::Media), 18.0)
-                        } else {
-                            RichText::new(self.panel_label(AppPanel::Media))
-                        };
+                        let text = RichText::new(self.panel_label(AppPanel::Media));
                         let response = Self::hover_if(
                             ui.add(self.top_tab_button(
                                 text,
@@ -13857,11 +13963,7 @@ impl eframe::App for CrosshairApp {
                             self.state.active_panel = AppPanel::Media;
                         }
                     }
-                    let text = if self.state.ui_language == UiLanguage::Icon {
-                        Self::material_icon_text(Self::panel_icon(AppPanel::Settings), 18.0)
-                    } else {
-                        RichText::new(self.panel_label(AppPanel::Settings))
-                    };
+                    let text = RichText::new(self.panel_label(AppPanel::Settings));
                     let response = Self::hover_if(
                         ui.add(self.top_tab_button(
                             text,
