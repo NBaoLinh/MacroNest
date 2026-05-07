@@ -99,6 +99,9 @@ impl AppPaths {
         if state.selected_profile.is_none() {
             state.selected_profile = state.profiles.first().map(|p| p.name.clone());
         }
+        for profile in &mut state.profiles {
+            profile.collapsed = true;
+        }
         let next_preset_id = state
             .window_presets
             .iter()
@@ -150,6 +153,7 @@ impl AppPaths {
                 preset.use_color_matching = false;
             }
         }
+        state.active_panel = crate::model::AppPanel::Macros;
         let legacy_image_search_template = self.image_search_template_file.exists();
         if legacy_image_search_template {
             let first_template = state
@@ -333,6 +337,33 @@ impl AppPaths {
         }
         if state.selected_master_preset_id.is_none() {
             state.selected_master_preset_id = state.master_presets.first().map(|preset| preset.id);
+        }
+        for preset in &mut state.pin_presets {
+            preset.collapsed = true;
+        }
+        for preset in &mut state.mouse_path_presets {
+            preset.collapsed = true;
+        }
+        for preset in &mut state.mouse_sensitivity_presets {
+            preset.collapsed = true;
+        }
+        for preset in &mut state.toolbox_presets {
+            preset.collapsed = true;
+        }
+        for preset in &mut state.zoom_presets {
+            preset.collapsed = true;
+        }
+        for group in &mut state.macro_groups {
+            group.collapsed = true;
+            for preset in &mut group.presets {
+                preset.collapsed = true;
+            }
+        }
+        for preset in &mut state.audio_settings.presets {
+            preset.collapsed = true;
+        }
+        for item in &mut state.audio_settings.library {
+            item.collapsed = true;
         }
         Ok(state)
     }

@@ -1,5 +1,5 @@
 use eframe::egui::{Key, Modifiers};
-use std::collections::BTreeSet;
+use std::collections::HashSet;
 
 use crate::model::HotkeyBinding;
 
@@ -192,9 +192,8 @@ pub fn binding_key_names(binding: &HotkeyBinding) -> Vec<String> {
         binding.combo_keys.clone()
     };
 
-    let mut seen = BTreeSet::new();
-    let mut keys = keys
-        .into_iter()
+    let mut seen = HashSet::new();
+    keys.into_iter()
         .filter_map(|key| {
             let normalized = normalize_key_name(&key);
             let lower = normalized.trim().to_ascii_lowercase();
@@ -204,33 +203,22 @@ pub fn binding_key_names(binding: &HotkeyBinding) -> Vec<String> {
                 Some(normalized)
             }
         })
-        .collect::<Vec<_>>();
-    keys.sort_by(|a, b| {
-        let rank_a = binding_key_rank(a);
-        let rank_b = binding_key_rank(b);
-        rank_a
-            .cmp(&rank_b)
-            .then_with(|| a.to_ascii_lowercase().cmp(&b.to_ascii_lowercase()))
-    });
-    keys
+        .collect()
 }
 
 pub fn binding_matches(expected: &HotkeyBinding, observed: &HotkeyBinding) -> bool {
-    let expected_keys = binding_key_names(expected);
-    let observed_keys = binding_key_names(observed);
+    let expected_keys = binding_key_signature(expected);
+    let observed_keys = binding_key_signature(observed);
     !expected_keys.is_empty() && expected_keys == observed_keys
 }
 
-fn binding_key_rank(name: &str) -> (u8, String) {
-    let normalized = normalize_key_name(name);
-    let rank = match normalized.to_ascii_lowercase().as_str() {
-        "ctrl" | "control" => 0,
-        "alt" => 1,
-        "shift" => 2,
-        "win" | "meta" => 3,
-        _ => 4,
-    };
-    (rank, normalized.to_ascii_lowercase())
+fn binding_key_signature(binding: &HotkeyBinding) -> Vec<String> {
+    let mut keys = binding_key_names(binding)
+        .into_iter()
+        .map(|key| key.to_ascii_lowercase())
+        .collect::<Vec<_>>();
+    keys.sort();
+    keys
 }
 
 fn binding_from_keys(mut combo_keys: Vec<String>) -> Option<HotkeyBinding> {
@@ -238,14 +226,8 @@ fn binding_from_keys(mut combo_keys: Vec<String>) -> Option<HotkeyBinding> {
     if combo_keys.is_empty() {
         return None;
     }
-    combo_keys.sort_by(|a, b| {
-        let rank_a = binding_key_rank(a);
-        let rank_b = binding_key_rank(b);
-        rank_a
-            .cmp(&rank_b)
-            .then_with(|| a.to_ascii_lowercase().cmp(&b.to_ascii_lowercase()))
-    });
-    combo_keys.dedup_by(|a, b| a.eq_ignore_ascii_case(b));
+    let mut seen = HashSet::new();
+    combo_keys.retain(|key| seen.insert(key.to_ascii_lowercase()));
     let key = combo_keys
         .iter()
         .rev()

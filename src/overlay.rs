@@ -69,10 +69,11 @@ mod windows_overlay {
                     NOTIFYICONDATAW, Shell_NotifyIconW,
                 },
                 WindowsAndMessaging::{
-                    AppendMenuW, BringWindowToTop, CREATESTRUCTW, CallNextHookEx, CreatePopupMenu,
-                    CreateWindowExW, DefWindowProcW, DestroyIcon, DestroyMenu, DispatchMessageW,
-                    GA_ROOT, GW_OWNER, GWLP_USERDATA, GetAncestor, GetClassNameW, GetClientRect,
-                    GetCursorPos, GetForegroundWindow, GetMessageW, GetSystemMetrics, GetWindow,
+                AppendMenuW, BringWindowToTop, CREATESTRUCTW, CallNextHookEx, CreatePopupMenu,
+                CreateWindowExW, DefWindowProcW, DestroyIcon, DestroyMenu, DispatchMessageW,
+                GA_ROOT, GW_OWNER, GWLP_USERDATA, GetAncestor, GetClassNameW, GetClientRect,
+                    GetCursorPos, GetForegroundWindow, GetMessageW,
+                    GetSystemMetrics, GetWindow,
                     GetWindowLongPtrW, GetWindowRect, GetWindowThreadProcessId, HC_ACTION, HHOOK,
                     HMENU, HTTRANSPARENT, HWND_NOTOPMOST, HWND_TOPMOST, IDC_ARROW, IMAGE_ICON,
                     IsIconic, IsZoomed, KBDLLHOOKSTRUCT, KillTimer, LR_LOADFROMFILE, LoadCursorW,
@@ -296,6 +297,7 @@ mod windows_overlay {
         active_crosshair_profile_name: Option<String>,
         stop_ignore_keys: HashMap<u32, String>,
         press_trigger_suppression: HashMap<String, usize>,
+        pending_press_trigger_keys: HashSet<String>,
         ctrl: bool,
         alt: bool,
         shift: bool,
@@ -346,6 +348,7 @@ mod windows_overlay {
                 active_crosshair_profile_name: None,
                 stop_ignore_keys: HashMap::new(),
                 press_trigger_suppression: HashMap::new(),
+                pending_press_trigger_keys: HashSet::new(),
                 ctrl: false,
                 alt: false,
                 shift: false,
@@ -844,6 +847,7 @@ mod windows_overlay {
                             let _ = ShowWindow(runtime.toolbox_hwnd, SW_HIDE);
                             let _ = ShowWindow(runtime.mouse_trail_hwnd, SW_HIDE);
                         } else {
+                            clear_transient_input_state();
                             let _ = refresh_pin_overlay(runtime);
                             let _ = refresh_toolbox(runtime);
                             let _ = refresh_mouse_record_trail(runtime);
@@ -990,14 +994,12 @@ mod windows_overlay {
                             if suppress_next_up {
                                 return LRESULT(0);
                             }
-                            let ui_visible = runtime.ui_visible;
-                            if ui_visible {
+                            if runtime.ui_visible {
                                 let (enabled, previous) = {
                                     let mut hook_state = HOOK_STATE.lock();
                                     let previous = hook_state.macros_master_enabled;
                                     hook_state.macros_master_enabled =
                                         !hook_state.macros_master_enabled;
-                                    hook_state.pending_tray_toggle = Some(previous);
                                     (hook_state.macros_master_enabled, previous)
                                 };
                                 let _ = previous;
@@ -1012,8 +1014,25 @@ mod windows_overlay {
                                     .send(UiCommand::SetMacrosMasterEnabled(enabled, status));
                                 request_ui_repaint();
                             } else {
-                                let _ = runtime.ui_tx.send(UiCommand::ShowWindow);
-                                wake_command_queue();
+                                let (enabled, previous) = {
+                                    let mut hook_state = HOOK_STATE.lock();
+                                    let previous = hook_state.macros_master_enabled;
+                                    hook_state.macros_master_enabled =
+                                        !hook_state.macros_master_enabled;
+                                    hook_state.pending_tray_toggle = Some(previous);
+                                    (hook_state.macros_master_enabled, previous)
+                                };
+                                let _ = previous;
+                                let _ = unsafe { update_tray_icon(hwnd, enabled) };
+                                let status = if enabled {
+                                    "Enabled all macros globally.".to_owned()
+                                } else {
+                                    "Disabled all macros globally.".to_owned()
+                                };
+                                let _ = runtime
+                                    .ui_tx
+                                    .send(UiCommand::SetMacrosMasterEnabled(enabled, status));
+                                request_ui_repaint();
                             }
                         }
                     }
@@ -1023,7 +1042,7 @@ mod windows_overlay {
                                 let mut hook_state = HOOK_STATE.lock();
                                 if let Some(previous) = hook_state.pending_tray_toggle.take() {
                                     hook_state.macros_master_enabled = previous;
-                                    let _ = update_tray_icon(hwnd, previous);
+                                    let _ = unsafe { update_tray_icon(hwnd, previous) };
                                     let status = if previous {
                                         "Enabled all macros globally.".to_owned()
                                     } else {
@@ -1035,9 +1054,9 @@ mod windows_overlay {
                                 }
                                 hook_state.tray_double_click_suppress_next_up = true;
                             }
+                            show_ui_window_native();
                             mark_ui_visible(runtime, true);
                             refresh_overlay_timer(hwnd, runtime);
-                            show_ui_window_native();
                             let _ = runtime.ui_tx.send(UiCommand::ShowWindow);
                             request_ui_repaint();
                             wake_command_queue();
@@ -1120,14 +1139,6 @@ mod windows_overlay {
                 if let Some(key_name) = key_name.clone() {
                     let binding = binding_from_event(&key_name);
                     if key_name.eq_ignore_ascii_case("Tab") && binding.alt {
-                        update_held_key(&key_name, is_key_down, is_key_up);
-                        update_modifier_state(info.vkCode, is_key_down);
-                        return CallNextHookEx(None, code, wparam, lparam);
-                    }
-                    if matches!(
-                        key_name.as_str(),
-                        "Ctrl" | "Control" | "Alt" | "Shift" | "Win" | "Meta"
-                    ) {
                         update_held_key(&key_name, is_key_down, is_key_up);
                         update_modifier_state(info.vkCode, is_key_down);
                         return CallNextHookEx(None, code, wparam, lparam);
@@ -1620,6 +1631,109 @@ mod windows_overlay {
         hook_state.held_inputs.is_empty() && hook_state.held_mouse_buttons.is_empty()
     }
 
+    fn binding_is_single_key(binding: &HotkeyBinding) -> bool {
+        hotkey::binding_key_names(binding).len() == 1
+    }
+
+    fn hold_macro_release_matches(active: &ActiveHoldMacro, binding: &HotkeyBinding) -> bool {
+        if binding_is_single_key(&active.trigger)
+            && active.trigger.key.eq_ignore_ascii_case(&binding.key)
+        {
+            return true;
+        }
+        hotkey::binding_matches(&active.trigger, binding)
+    }
+
+    fn remove_pending_press_trigger_key(key_name: &str) -> Option<String> {
+        let mut hook_state = HOOK_STATE.lock();
+        let pending = hook_state
+            .pending_press_trigger_keys
+            .iter()
+            .find(|pending| pending.eq_ignore_ascii_case(key_name))
+            .cloned()?;
+        hook_state.pending_press_trigger_keys.remove(&pending);
+        Some(pending)
+    }
+
+    fn consume_pending_press_trigger_keys(binding: &HotkeyBinding) -> Vec<String> {
+        let combo_keys = hotkey::binding_key_names(binding);
+        let mut hook_state = HOOK_STATE.lock();
+        let mut consumed = Vec::new();
+        for key in combo_keys {
+            if let Some(pending) = hook_state
+                .pending_press_trigger_keys
+                .iter()
+                .find(|pending| pending.eq_ignore_ascii_case(&key))
+                .cloned()
+            {
+                hook_state.pending_press_trigger_keys.remove(&pending);
+                consumed.push(pending);
+            }
+        }
+        consumed
+    }
+
+    fn fire_pending_press_triggers(binding: &HotkeyBinding) -> bool {
+        let Some(_) = remove_pending_press_trigger_key(&binding.key) else {
+            return false;
+        };
+
+        let press_matches = {
+            let hook_state = HOOK_STATE.lock();
+            let mut press_matches: Vec<(MacroPreset, Option<String>, Vec<String>, bool, String)> =
+                Vec::new();
+            for group in &hook_state.macro_groups {
+                if !group.enabled {
+                    continue;
+                }
+                if !macro_target_matches(group) {
+                    continue;
+                }
+                for preset in &group.presets {
+                    if !preset.enabled
+                        || preset.trigger_mode != MacroTriggerMode::Press
+                        || !macro_preset_trigger_matches(preset, binding)
+                    {
+                        continue;
+                    }
+                    press_matches.push((
+                        preset.clone(),
+                        group.target_window_title.clone(),
+                        group.extra_target_window_titles.clone(),
+                        group.match_duplicate_window_titles,
+                        binding.key.clone(),
+                    ));
+                }
+            }
+            press_matches
+        };
+
+        for (
+            preset,
+            target_window_title,
+            extra_target_window_titles,
+            match_duplicate_window_titles,
+            trigger_key,
+        ) in press_matches
+        {
+            let hotkey_id = MACRO_PRESET_BASE_ID + preset.id as i32;
+            if !SUPPRESSED_MACRO_HOTKEYS.lock().contains(&hotkey_id) {
+                let _ = play_macro_preset(
+                    hotkey_id,
+                    preset,
+                    target_window_title,
+                    extra_target_window_titles,
+                    match_duplicate_window_titles,
+                    trigger_key,
+                );
+            } else {
+                STOP_REQUESTED_MACRO_PRESETS.lock().insert(preset.id);
+            }
+        }
+
+        true
+    }
+
     fn process_binding_press(binding: &HotkeyBinding, is_repeat: bool) -> Option<bool> {
         if let Some(swallow) = process_mouse_sensitivity_hotkey(binding, is_repeat) {
             return Some(swallow);
@@ -1659,6 +1773,7 @@ mod windows_overlay {
             return Some(swallow);
         }
 
+        let is_single_key_binding = binding_is_single_key(binding);
         let hook_state = HOOK_STATE.lock();
         let mut matched_any_window = false;
         let mut window_actions = Vec::new();
@@ -1782,6 +1897,7 @@ mod windows_overlay {
         )> = Vec::new();
         let mut press_matches: Vec<(MacroPreset, Option<String>, Vec<String>, bool, String)> =
             Vec::new();
+        let mut matched_any_press = false;
         for group in &hook_state.macro_groups {
             if !group.enabled {
                 continue;
@@ -1816,8 +1932,13 @@ mod windows_overlay {
                 }
 
                 matched_any_macro = true;
+                matched_any_press = true;
 
                 if is_repeat {
+                    continue;
+                }
+
+                if is_single_key_binding {
                     continue;
                 }
 
@@ -1832,6 +1953,12 @@ mod windows_overlay {
         }
 
         drop(hook_state);
+
+        if !is_single_key_binding && matched_any_press {
+            for key_name in consume_pending_press_trigger_keys(binding) {
+                increment_press_trigger_suppression(&key_name);
+            }
+        }
 
         for action in window_actions {
             match action {
@@ -1894,6 +2021,13 @@ mod windows_overlay {
             }
         }
 
+        if is_single_key_binding && matched_any_press {
+            let mut hook_state = HOOK_STATE.lock();
+            hook_state
+                .pending_press_trigger_keys
+                .insert(binding.key.clone());
+        }
+
         if matched_any_macro {
             return Some(true);
         }
@@ -1937,12 +2071,12 @@ mod windows_overlay {
             }
 
             hook_state
-                .active_hold_macros
-                .iter()
-                .filter(|(_, active)| hotkey::binding_matches(&active.trigger, binding))
-                .map(|(preset_id, _)| *preset_id)
-                .collect::<Vec<_>>()
-        };
+            .active_hold_macros
+            .iter()
+            .filter(|(_, active)| hold_macro_release_matches(active, binding))
+            .map(|(preset_id, _)| *preset_id)
+            .collect::<Vec<_>>()
+    };
 
         for (
             preset,
@@ -1972,6 +2106,8 @@ mod windows_overlay {
             );
         }
 
+        let pending_press_trigger = fire_pending_press_triggers(binding);
+
         let had_hold_matches = !preset_ids.is_empty();
         if had_hold_matches {
             for preset_id in preset_ids {
@@ -1988,7 +2124,7 @@ mod windows_overlay {
         // Release triggers should not swallow the key-up event. They are meant to
         // observe the release and run actions, not to lock the source key.
         let _ = had_hold_matches;
-        false
+        pending_press_trigger
     }
 
     fn increment_press_trigger_suppression(key_name: &str) {
@@ -2165,6 +2301,26 @@ mod windows_overlay {
         } else {
             hook_state.held_mouse_buttons.remove(key_name);
         }
+    }
+
+    fn clear_transient_input_state() {
+        let mut hook_state = HOOK_STATE.lock();
+        hook_state.ctrl = false;
+        hook_state.alt = false;
+        hook_state.shift = false;
+        hook_state.win = false;
+        hook_state.held_inputs.clear();
+        hook_state.held_mouse_buttons.clear();
+    }
+
+    fn schedule_pending_tray_toggle(previous_enabled: bool) {
+        let mut hook_state = HOOK_STATE.lock();
+        hook_state.pending_tray_toggle = Some(previous_enabled);
+    }
+
+    fn cancel_pending_tray_toggle() {
+        let mut hook_state = HOOK_STATE.lock();
+        hook_state.pending_tray_toggle = None;
     }
 
     fn stop_key_triggered(preset_id: u32, key_name: &str) -> bool {
@@ -2405,16 +2561,15 @@ mod windows_overlay {
                 OverlayCommand::SetUiVisible(visible) => {
                     runtime.ui_visible = visible;
                     if visible {
+                        cancel_pending_tray_toggle();
                         let _ = set_input_hooks_enabled(runtime, desired_hooks_enabled(runtime));
                         restore_ui_window_native();
-                        let _ = runtime.ui_tx.send(UiCommand::ShowWindow);
                         let _ = ShowWindow(runtime.pin_hwnd, SW_HIDE);
                         let _ = ShowWindow(runtime.toolbox_hwnd, SW_HIDE);
                         let _ = ShowWindow(runtime.mouse_trail_hwnd, SW_HIDE);
                     } else {
                         *TOOLBOX_PREVIEW_DISPLAY.lock() = None;
                         let _ = set_input_hooks_enabled(runtime, desired_hooks_enabled(runtime));
-                        hide_ui_window_native();
                         let _ = refresh_overlay(runtime);
                         let _ = refresh_pin_overlay(runtime);
                         let _ = refresh_toolbox(runtime);
@@ -7670,26 +7825,6 @@ mod windows_overlay {
             };
             if app.0.is_null() {
                 return;
-            }
-            let mut rect = RECT::default();
-            if GetWindowRect(app, &mut rect).is_ok() {
-                let width = (rect.right - rect.left).max(1);
-                let height = (rect.bottom - rect.top).max(1);
-                let center_x = rect.left + width / 2;
-                let center_y = rect.top + height / 2;
-                let start_w = width.min(160).max(96);
-                let start_h = height.min(160).max(96);
-                let start_x = center_x - start_w / 2;
-                let start_y = center_y - start_h / 2;
-                let _ = SetWindowPos(
-                    app,
-                    None,
-                    start_x,
-                    start_y,
-                    start_w,
-                    start_h,
-                    SWP_NOZORDER | SWP_NOACTIVATE,
-                );
             }
             let _ = ShowWindow(app, SW_SHOWNA);
         }

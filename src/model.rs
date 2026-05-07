@@ -1357,7 +1357,7 @@ impl Default for AppState {
             }],
             selected_profile: Some("Default".to_owned()),
             show_window: true,
-            active_panel: AppPanel::Crosshair,
+            active_panel: AppPanel::Macros,
             ui_language: UiLanguage::English,
             ui_theme: UiThemeMode::Light,
             window_presets: Vec::new(),
