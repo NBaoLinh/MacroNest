@@ -2494,8 +2494,8 @@ impl CrosshairApp {
                         .strong(),
                 );
                 ui.add_space(4.0);
-                ui.label("Space: preview or stop");
-                ui.label("S: preview from the left trim");
+                ui.label("Space: preview or stop at playhead");
+                ui.label("S: preview from the trim start");
                 ui.label("Q: move the left trim to the mouse");
                 ui.label("W: move the right trim to the mouse");
                 ui.label("A / D: pan timeline left or right");
@@ -13428,11 +13428,18 @@ impl CrosshairApp {
                     _ => format!("Stopped {title} preview."),
                 });
             } else {
-                if s_pressed || preview_cursor_ms >= clip.end_ms.saturating_sub(20) {
-                    preview_cursor_ms = clip.start_ms;
-                }
-                Self::set_preview_cursor_ms(preview_cursor, target, preview_cursor_ms, clip);
-                match audio::toggle_preview(clip.clone()) {
+                let preview_start_ms = if s_pressed {
+                    clip.start_ms
+                } else {
+                    preview_cursor_ms
+                };
+                Self::set_preview_cursor_ms(preview_cursor, target, preview_start_ms, clip);
+                let preview_result = if s_pressed {
+                    audio::toggle_preview(clip.clone())
+                } else {
+                    audio::toggle_preview_from_ms(clip.clone(), preview_start_ms)
+                };
+                match preview_result {
                     Ok(true) => {
                         outcome.status = Some(match language {
                             UiLanguage::Vietnamese => {

@@ -10,6 +10,7 @@ use crate::model::AudioClipSettings;
 struct PreviewPlayback {
     clip: AudioClipSettings,
     started_at: Instant,
+    start_position_ms: u64,
     _stream: rodio::OutputStream,
     sink: Sink,
 }
@@ -56,7 +57,7 @@ pub fn try_play_clip_sequence_async(clips: Vec<AudioClipSettings>) -> Result<()>
     let sink = Sink::connect_new(stream.mixer());
     for clip in &clips {
         sink.set_volume(clip.volume.clamp(0.0, 2.0));
-        sink.append(clipped_source(clip)?);
+        sink.append(clipped_source_from_ms(clip, clip.start_ms)?);
     }
     sink.play();
     thread::spawn(move || {
@@ -92,24 +93,30 @@ pub fn play_clip_sequence_blocking(clips: &[AudioClipSettings]) -> Result<()> {
     let sink = Sink::connect_new(stream.mixer());
     for clip in &clips {
         sink.set_volume(clip.volume.clamp(0.0, 2.0));
-        sink.append(clipped_source(clip)?);
+        sink.append(clipped_source_from_ms(clip, clip.start_ms)?);
     }
     sink.sleep_until_end();
     Ok(())
 }
 
-pub fn toggle_preview(mut clip: AudioClipSettings) -> Result<bool> {
+pub fn toggle_preview(clip: AudioClipSettings) -> Result<bool> {
+    let start_ms = clip.start_ms;
+    toggle_preview_from_ms(clip, start_ms)
+}
+
+pub fn toggle_preview_from_ms(mut clip: AudioClipSettings, start_position_ms: u64) -> Result<bool> {
     if !clip.enabled || clip.file_path.trim().is_empty() {
         bail!("Choose an audio file first");
     }
     clip.enabled = true;
+    let start_position_ms = start_position_ms.clamp(clip.start_ms, clip.end_ms.max(clip.start_ms + 1));
 
     let mut playback = PREVIEW_PLAYBACK.lock();
     cleanup_preview(&mut playback);
 
     if playback
         .as_ref()
-        .is_some_and(|current| current.clip == clip)
+        .is_some_and(|current| current.clip == clip && current.start_position_ms == start_position_ms)
     {
         if let Some(current) = playback.take() {
             current.sink.stop();
@@ -125,12 +132,13 @@ pub fn toggle_preview(mut clip: AudioClipSettings) -> Result<bool> {
         .context("Could not open the default audio output")?;
     let sink = Sink::connect_new(stream.mixer());
     sink.set_volume(clip.volume.clamp(0.0, 2.0));
-    sink.append(clipped_source(&clip)?);
+    sink.append(clipped_source_from_ms(&clip, start_position_ms)?);
     sink.play();
 
     *playback = Some(PreviewPlayback {
         clip,
         started_at: Instant::now(),
+        start_position_ms,
         _stream: stream,
         sink,
     });
@@ -162,7 +170,12 @@ pub fn preview_position_ms(clip: &AudioClipSettings) -> Option<u64> {
     let elapsed_ms = current.started_at.elapsed().as_millis() as u64;
     let speed = current.clip.speed.clamp(0.25, 3.0);
     let played_ms = ((elapsed_ms as f32) * speed).round().max(0.0) as u64;
-    Some(current.clip.start_ms.saturating_add(played_ms))
+    Some(
+        current
+            .start_position_ms
+            .saturating_add(played_ms)
+            .min(current.clip.end_ms.max(current.clip.start_ms + 1)),
+    )
 }
 
 pub fn load_waveform(path: &str, buckets: usize) -> Result<Vec<f32>> {
@@ -209,14 +222,27 @@ pub fn load_waveform(path: &str, buckets: usize) -> Result<Vec<f32>> {
     Ok(peaks)
 }
 
-fn clipped_source(
+fn clipped_source_from_ms(
     clip: &AudioClipSettings,
+    start_ms: u64,
 ) -> Result<Box<dyn Source<Item = rodio::Sample> + Send>> {
     let decoder = open_decoder(&clip.file_path)?;
-    let start = Duration::from_millis(clip.start_ms);
+    let start = Duration::from_millis(start_ms.max(clip.start_ms));
     let speed = clip.speed.clamp(0.25, 3.0);
-    if clip.end_ms <= clip.start_ms {
-        Ok(Box::new(decoder.skip_duration(start).speed(speed)))
+    if clip.end_ms <= start_ms {
+        Ok(Box::new(
+            decoder
+                .skip_duration(start)
+                .take_duration(Duration::ZERO)
+                .speed(speed),
+        ))
+    } else if clip.end_ms <= clip.start_ms {
+        Ok(Box::new(
+            decoder
+                .skip_duration(start)
+                .take_duration(Duration::ZERO)
+                .speed(speed),
+        ))
     } else {
         let end = Duration::from_millis(clip.end_ms);
         let length = end.saturating_sub(start);
