@@ -13156,7 +13156,6 @@ impl CrosshairApp {
         ui.add_space(10.0);
         ui.separator();
         ui.horizontal(|ui| {
-            ui.heading(self.tr("Timing Presets", "Timing Presets"));
             if ui
                 .button(self.tr("+ Add timing preset", "+ Add timing preset"))
                 .clicked()
