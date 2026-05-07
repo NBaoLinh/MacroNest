@@ -470,19 +470,12 @@ impl CrosshairApp {
         let exit_clip_duration_ms = audio_duration(&state.audio_settings.exit);
         let initial_active_panel = state.active_panel;
 
-        let ready_status = match state.ui_language {
-            UiLanguage::Vietnamese => crate::lang::translate(UiLanguage::Vietnamese, "Ready")
-                .unwrap_or("Ready")
-                .to_owned(),
-            _ => "Ready".to_owned(),
-        };
-
         let mut app = Self {
             paths,
             state,
             overlay_tx,
             ui_rx,
-            status: ready_status,
+            status: String::new(),
             save_name,
             import_code_buffer: String::new(),
             export_code_buffer: String::new(),
@@ -11055,31 +11048,6 @@ impl CrosshairApp {
                 }
             }
         });
-        ui.horizontal_wrapped(|ui| {
-            ui.label(
-                RichText::new(format!(
-                    "Package: {}",
-                    if driver_downloaded {
-                        "ready"
-                    } else {
-                        "missing"
-                    }
-                ))
-                .small(),
-            );
-            ui.label(
-                RichText::new(format!(
-                    "Driver: {}",
-                    if driver_installed {
-                        "installed"
-                    } else {
-                        "not installed"
-                    }
-                ))
-                .small(),
-            );
-        });
-
         ui.add_space(6.0);
         Frame::group(ui.style()).show(ui, |ui| {
             ui.vertical(|ui| {
@@ -11430,7 +11398,6 @@ impl CrosshairApp {
                         });
                         ui.end_row();
 
-                        ui.label(Self::tr_lang(language, "Status", "Status"));
                         ui.horizontal_wrapped(|ui| {
                             if self.active_mouse_record_preset_id == Some(preset.id) {
                                 ui.label(
@@ -11442,8 +11409,6 @@ impl CrosshairApp {
                                     .color(Color32::from_rgb(255, 96, 96))
                                     .strong(),
                                 );
-                            } else {
-                                ui.label(Self::tr_lang(language, "Ready", "Ready"));
                             }
                             if ui
                                 .button(Self::tr_lang(
@@ -11574,7 +11539,6 @@ impl CrosshairApp {
             let mut start_color_pick_capture = None;
             let mut start_color_priority_anchor_capture = None;
             let template_file = self.image_search_template_file_for_preset(preset_snapshot.id);
-            let template_ready = template_file.exists();
             let dark_mode = self.state.ui_theme == UiThemeMode::Dark;
             let open_windows = self.open_windows.clone();
             let hotkey_text = preset_snapshot
@@ -11660,11 +11624,6 @@ impl CrosshairApp {
 
                         ui.label(Self::tr_lang(language, "Template", "Template"));
                         ui.horizontal_wrapped(|ui| {
-                            ui.label(if template_ready {
-                                Self::tr_lang(language, "ready", "ready")
-                            } else {
-                                Self::tr_lang(language, "missing", "missing")
-                            });
                             if ui
                                 .button(Self::tr_lang(
                                     language,
@@ -14011,7 +13970,6 @@ impl eframe::App for CrosshairApp {
                     if self.capture_target.is_some() {
                         ui.label(self.capture_hint_text());
                     }
-                    ui.label(RichText::new(&self.status).strong());
                 });
         });
 
