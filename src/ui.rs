@@ -404,6 +404,7 @@ pub struct CrosshairApp {
     preview_cursor: Option<(AudioEditorTarget, u64)>,
     capture_ignored_keys: HashSet<u32>,
     capture_hotkey_combo_keys: Option<Vec<String>>,
+    capture_hotkey_combo_finalize_delay: u8,
     capture_suppress_next_poll: bool,
     capture_wait_for_mouse_release: bool,
     capture_ignore_mouse_until_release: bool,
@@ -505,6 +506,7 @@ impl CrosshairApp {
             preview_cursor: None,
             capture_ignored_keys: HashSet::new(),
             capture_hotkey_combo_keys: None,
+            capture_hotkey_combo_finalize_delay: 0,
             capture_suppress_next_poll: false,
             capture_wait_for_mouse_release: false,
             capture_ignore_mouse_until_release: false,
@@ -2597,6 +2599,21 @@ impl CrosshairApp {
                         StrokeKind::Outside,
                     );
 
+                    let start_t = clip.start_ms as f32 / total_ms_f32;
+                    let end_t = clip.end_ms as f32 / total_ms_f32;
+                    let start_x = rect.left() + rect.width() * start_t.clamp(0.0, 1.0);
+                    let end_x = rect.left() + rect.width() * end_t.clamp(0.0, 1.0);
+
+                    let selected_rect = egui::Rect::from_min_max(
+                        egui::pos2(start_x, rect.top()),
+                        egui::pos2(end_x.max(start_x + 2.0), rect.bottom()),
+                    );
+                    painter.rect_filled(
+                        selected_rect,
+                        8.0,
+                        Color32::from_rgba_premultiplied(72, 198, 120, 70),
+                    );
+
                     if let Some(waveform) = waveform.filter(|waveform| !waveform.is_empty()) {
                         let bar_width = rect.width() / waveform.len().max(1) as f32;
                         for (index, level) in waveform.iter().enumerate() {
@@ -2629,20 +2646,6 @@ impl CrosshairApp {
                         );
                     }
 
-                    let start_t = clip.start_ms as f32 / total_ms_f32;
-                    let end_t = clip.end_ms as f32 / total_ms_f32;
-                    let start_x = rect.left() + rect.width() * start_t.clamp(0.0, 1.0);
-                    let end_x = rect.left() + rect.width() * end_t.clamp(0.0, 1.0);
-
-                    let selected_rect = egui::Rect::from_min_max(
-                        egui::pos2(start_x, rect.top()),
-                        egui::pos2(end_x.max(start_x + 2.0), rect.bottom()),
-                    );
-                    painter.rect_filled(
-                        selected_rect,
-                        8.0,
-                        Color32::from_rgba_premultiplied(72, 198, 120, 70),
-                    );
                     painter.line_segment(
                         [egui::pos2(start_x, rect.top()), egui::pos2(start_x, rect.bottom())],
                         Stroke::new(2.0, Color32::from_rgb(255, 232, 96)),
@@ -5458,6 +5461,7 @@ impl CrosshairApp {
         self.capture_ignored_keys
             .extend([0x01, 0x02, 0x04, 0x05, 0x06]);
         self.capture_hotkey_combo_keys = None;
+        self.capture_hotkey_combo_finalize_delay = 0;
         self.capture_suppress_next_poll = false;
         self.capture_wait_for_mouse_release = waits_for_mouse_release;
         self.capture_ignore_mouse_until_release = waits_for_mouse_release;
@@ -5519,6 +5523,7 @@ impl CrosshairApp {
     fn cancel_capture(&mut self) {
         self.capture_target = None;
         self.capture_hotkey_combo_keys = None;
+        self.capture_hotkey_combo_finalize_delay = 0;
         self.capture_suppress_next_poll = false;
         self.capture_wait_for_mouse_release = true;
         self.capture_ignore_mouse_until_release = true;
@@ -6628,11 +6633,19 @@ impl CrosshairApp {
             }
         }
         if current_combo_keys.is_empty() {
+            if self.capture_hotkey_combo_keys.is_some() {
+                self.capture_hotkey_combo_finalize_delay =
+                    self.capture_hotkey_combo_finalize_delay.saturating_add(1);
+                if self.capture_hotkey_combo_finalize_delay < 3 {
+                    return None;
+                }
+            }
             return self
                 .capture_hotkey_combo_keys
                 .take()
                 .map(Self::hotkey_binding_from_combo_keys);
         }
+        self.capture_hotkey_combo_finalize_delay = 0;
         if let Some(pending) = self.capture_hotkey_combo_keys.as_mut() {
             for key in current_combo_keys {
                 if !pending.iter().any(|existing| existing.eq_ignore_ascii_case(&key)) {
@@ -13211,8 +13224,6 @@ impl CrosshairApp {
         ui.spacing_mut().item_spacing = vec2(6.0, 4.0);
         ui.add_space(0.0);
         let mut changed = false;
-        changed |= self.consume_dropped_audio_files(ui.ctx());
-
         ui.horizontal(|ui| {
             ui.label(
                 RichText::new(self.tr("Sound Presets", "Sound Presets")).strong(),
@@ -13298,12 +13309,18 @@ impl CrosshairApp {
         for index in 0..self.state.audio_settings.presets.len() {
             let mut choose_file_for = None;
             let mut open_editor_target = None;
+            let preset_id = self.state.audio_settings.presets[index].id;
+            let waveform_path = self.state.audio_settings.presets[index]
+                .clip
+                .file_path
+                .trim()
+                .to_owned();
+            self.refresh_audio_waveform_for_path(&waveform_path);
             let preset = &mut self.state.audio_settings.presets[index];
-            let waveform_path = preset.clip.file_path.trim().to_owned();
             let waveform = self.audio_waveforms.get(&waveform_path).cloned();
             let mut duration = self
                 .sound_preset_clip_duration_ms
-                .get(&preset.id)
+                .get(&preset_id)
                 .copied()
                 .flatten()
                 .or_else(|| audio_duration(&preset.clip));
@@ -13647,7 +13664,6 @@ impl CrosshairApp {
 
     fn render_media_panel(&mut self, ui: &mut egui::Ui) {
         let language = self.state.ui_language;
-        let _ = self.consume_dropped_audio_files(ui.ctx());
         let Some(target) = self.active_audio_editor else {
             self.state.active_panel = AppPanel::Sound;
             self.render_sound_panel(ui);
@@ -13676,6 +13692,7 @@ impl CrosshairApp {
                     .find(|preset| preset.id == preset_id)
                     .map(|preset| preset.clip.file_path.trim().to_owned())
                     .unwrap_or_default();
+                self.refresh_audio_waveform_for_path(&waveform_path);
                 let waveform = self.audio_waveforms.get(&waveform_path).cloned();
                 let mut choose_file_for = None;
                 if let Some(preset) = self
@@ -14165,6 +14182,7 @@ impl eframe::App for CrosshairApp {
             crate::platform::set_native_window_shadow(frame, wants_native_shadow);
             self.native_shadow_applied = wants_native_shadow;
         }
+        let _ = self.consume_dropped_audio_files(ctx);
         while let Ok(command) = self.ui_rx.try_recv() {
             match command {
                 UiCommand::ShowWindow => {
