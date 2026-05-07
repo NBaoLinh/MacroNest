@@ -210,6 +210,7 @@ mod windows_overlay {
         UpdateMacroPresets(Vec<MacroGroup>),
         UpdateAudioSettings(AudioSettings),
         SetMacrosMasterEnabled(bool),
+        UpdateMacrosMasterHotkey(Option<HotkeyBinding>),
         RefreshPinOverlay,
         SetUiVisible(bool),
         Exit,
@@ -281,6 +282,7 @@ mod windows_overlay {
         toolbox_presets: Vec<ToolboxPreset>,
         macro_groups: Vec<MacroGroup>,
         macros_master_enabled: bool,
+        macros_master_hotkey: Option<HotkeyBinding>,
         locked_inputs: HashMap<String, usize>,
         locked_mouse_count: usize,
         current_style: CrosshairStyle,
@@ -330,6 +332,7 @@ mod windows_overlay {
                 toolbox_presets: Vec::new(),
                 macro_groups: Vec::new(),
                 macros_master_enabled: true,
+                macros_master_hotkey: None,
                 locked_inputs: HashMap::new(),
                 locked_mouse_count: 0,
                 current_style: CrosshairStyle::default(),
@@ -1594,6 +1597,42 @@ mod windows_overlay {
         if let Some(swallow) = process_image_search_hotkey(binding, is_repeat) {
             return Some(swallow);
         }
+        if hotkey::is_modifier_key_name(&binding.key) {
+            return Some(false);
+        }
+        let master_toggle = {
+            let mut hook_state = HOOK_STATE.lock();
+            let matches_master_hotkey = hook_state
+                .macros_master_hotkey
+                .as_ref()
+                .is_some_and(|hotkey| {
+                    hotkey::binding_matches(
+                        hotkey,
+                        &binding.key,
+                        binding.ctrl,
+                        binding.alt,
+                        binding.shift,
+                        binding.win,
+                    )
+                });
+            if matches_master_hotkey {
+                hook_state.macros_master_enabled = !hook_state.macros_master_enabled;
+                let enabled = hook_state.macros_master_enabled;
+                let status = if enabled {
+                    "Enabled macros globally.".to_owned()
+                } else {
+                    "Disabled macros globally.".to_owned()
+                };
+                Some((enabled, status))
+            } else {
+                None
+            }
+        };
+        if let Some((enabled, status)) = master_toggle {
+            send_ui_command(UiCommand::SetMacrosMasterEnabled(enabled, status));
+            send_overlay_command(OverlayCommand::SetMacrosMasterEnabled(enabled));
+            return Some(true);
+        }
         if is_ui_in_foreground() {
             return Some(false);
         }
@@ -2368,6 +2407,9 @@ mod windows_overlay {
                 OverlayCommand::SetMacrosMasterEnabled(enabled) => {
                     HOOK_STATE.lock().macros_master_enabled = enabled;
                     let _ = update_tray_icon(hwnd, enabled);
+                }
+                OverlayCommand::UpdateMacrosMasterHotkey(binding) => {
+                    HOOK_STATE.lock().macros_master_hotkey = binding;
                 }
                 OverlayCommand::RefreshPinOverlay => {
                     let _ = refresh_pin_overlay(runtime);

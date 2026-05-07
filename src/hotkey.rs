@@ -52,6 +52,13 @@ pub fn format_key_list(spec: &str) -> String {
     }
 }
 
+pub fn is_modifier_key_name(name: &str) -> bool {
+    matches!(
+        name.trim().to_ascii_lowercase().as_str(),
+        "ctrl" | "control" | "alt" | "shift" | "win" | "meta"
+    )
+}
+
 pub fn split_key_list(spec: &str) -> Vec<String> {
     let trimmed = spec.trim();
     if trimmed.is_empty() {

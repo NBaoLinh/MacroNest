@@ -422,6 +422,7 @@ pub struct CrosshairApp {
     image_search_restore_outer_pos: Option<egui::Pos2>,
     selected_macro_steps: HashSet<(u32, u32, usize)>,
     selected_macro_groups: HashSet<u32>,
+    macro_groups_favorites_only: bool,
     macro_preset_search_query: String,
     macro_group_clipboard: Vec<u32>,
     macro_group_clipboard_is_cut: bool,
@@ -520,6 +521,7 @@ impl CrosshairApp {
             image_search_restore_outer_pos: None,
             selected_macro_steps: HashSet::new(),
             selected_macro_groups: HashSet::new(),
+            macro_groups_favorites_only: false,
             macro_preset_search_query: String::new(),
             macro_group_clipboard: Vec::new(),
             macro_group_clipboard_is_cut: false,
@@ -571,6 +573,7 @@ impl CrosshairApp {
         app.sync_image_search_timing_presets();
         app.sync_toolbox_presets();
         app.sync_macro_master_enabled();
+        app.sync_macro_master_hotkey();
         app
     }
 
@@ -682,6 +685,12 @@ impl CrosshairApp {
     fn sync_macro_master_enabled(&self) {
         let _ = self.overlay_tx.send(OverlayCommand::SetMacrosMasterEnabled(
             self.state.macros_master_enabled,
+        ));
+    }
+
+    fn sync_macro_master_hotkey(&self) {
+        let _ = self.overlay_tx.send(OverlayCommand::UpdateMacrosMasterHotkey(
+            self.state.macros_master_hotkey.clone(),
         ));
     }
 
@@ -1759,12 +1768,7 @@ impl CrosshairApp {
     }
 
     fn sort_macro_groups(groups: &mut [MacroGroup]) {
-        groups.sort_by(|left, right| {
-            right
-                .favorite
-                .cmp(&left.favorite)
-                .then(right.id.cmp(&left.id))
-        });
+        groups.sort_by_key(|group| group.id);
     }
 
     fn macro_preset_matches_search_query(
@@ -5428,6 +5432,7 @@ impl CrosshairApp {
         match target {
             CaptureRequest::MacroPresetHotkey(_, _) => true,
             CaptureRequest::MacroPresetReleaseWaitKey(_, _) => true,
+            CaptureRequest::MacrosMasterHotkey => false,
             CaptureRequest::MacroPresetHoldStopInput(group_id, preset_id) => self
                 .state
                 .macro_groups
@@ -6233,6 +6238,15 @@ impl CrosshairApp {
                 self.sync_image_search_presets();
                 self.persist();
             }
+            (CaptureRequest::MacrosMasterHotkey, CapturedInput::Binding(binding)) => {
+                self.state.macros_master_hotkey = Some(binding);
+                self.sync_macro_master_hotkey();
+                self.persist();
+                self.status = match self.state.ui_language {
+                    UiLanguage::Vietnamese => "Đã gán hotkey bật/tắt macro.".to_owned(),
+                    _ => "Captured the macro master hotkey.".to_owned(),
+                };
+            }
             (CaptureRequest::PinPresetHotkey(preset_id), CapturedInput::Binding(binding)) => {
                 if let Some(preset) = self
                     .state
@@ -6571,6 +6585,9 @@ impl CrosshairApp {
                     continue;
                 }
                 let key_name = hotkey::vk_to_key_name(vk)?.to_owned();
+                if hotkey::is_modifier_key_name(&key_name) {
+                    continue;
+                }
                 self.capture_ignored_keys.insert(vk);
                 let ctrl =
                     Self::is_vk_down(0x11) || Self::is_vk_down(0xA2) || Self::is_vk_down(0xA3);
@@ -8503,6 +8520,32 @@ impl CrosshairApp {
                     .weak(),
                 ),
             );
+            if ui
+                .add(
+                    Button::new(Self::material_icon_text(0xe838, 18.0))
+                        .fill(if self.macro_groups_favorites_only {
+                            Color32::from_rgb(124, 96, 28)
+                        } else {
+                            ui.visuals().faint_bg_color
+                        })
+                        .stroke(egui::Stroke::new(
+                            1.0,
+                            if self.macro_groups_favorites_only {
+                                Color32::from_rgb(255, 220, 96)
+                            } else {
+                                ui.visuals().widgets.noninteractive.bg_stroke.color
+                            },
+                        )),
+                )
+                .on_hover_text(Self::tr_lang(
+                    language,
+                    "Show favorites only",
+                    "Chỉ hiện nhóm đã favorite",
+                ))
+                .clicked()
+            {
+                self.macro_groups_favorites_only = !self.macro_groups_favorites_only;
+            }
         });
 
         let mut release_folder_id = None;
@@ -8744,6 +8787,42 @@ impl CrosshairApp {
                 self.sync_macro_master_enabled();
                 self.persist();
             }
+            ui.add_space(6.0);
+            ui.horizontal_wrapped(|ui| {
+                ui.label(Self::tr_lang(language, "Macro hotkey", "Macro hotkey"));
+                ui.monospace(Self::format_binding_ui(
+                    language,
+                    self.state.macros_master_hotkey.as_ref(),
+                ));
+                let capture_target = CaptureRequest::MacrosMasterHotkey;
+                let capture_active = self.capture_target.as_ref() == Some(&capture_target);
+                if ui
+                    .button(Self::capture_button_text(language, capture_active))
+                    .clicked()
+                {
+                    if capture_active {
+                        self.cancel_capture();
+                    } else {
+                        self.begin_capture(
+                            capture_target,
+                            Self::tr_lang(
+                                language,
+                                "Press a hotkey for Macro On / Off.",
+                                "Nhấn hotkey để bật / tắt Macro.",
+                            )
+                            .to_owned(),
+                        );
+                    }
+                }
+                if ui
+                    .button(Self::tr_lang(language, "Clear", "Clear"))
+                    .clicked()
+                {
+                    self.state.macros_master_hotkey = None;
+                    self.sync_macro_master_hotkey();
+                    self.persist();
+                }
+            });
         if let Some(folder_id) = self.confirm_delete_folder_id {
             let group_count = self
                 .state
@@ -8985,6 +9064,7 @@ impl CrosshairApp {
                 Some(folder_id) => group.folder_id == Some(folder_id),
                 None => group.folder_id.is_none(),
             })
+            .filter(|(_, group)| !self.macro_groups_favorites_only || group.favorite)
             .filter(|(_, group)| Self::macro_group_matches_search_query(group, &search_query))
             .map(|(index, _)| index)
             .collect();
@@ -14518,6 +14598,7 @@ impl eframe::App for CrosshairApp {
         self.sync_macro_master_enabled();
         self.sync_audio_settings();
         self.sync_toolbox_presets();
+        self.sync_macro_master_hotkey();
         let _ = self.overlay_tx.send(OverlayCommand::Exit);
         self.persist();
     }
