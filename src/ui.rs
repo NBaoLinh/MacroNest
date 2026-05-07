@@ -8725,6 +8725,16 @@ impl CrosshairApp {
 
     fn render_macro_panel(&mut self, ui: &mut egui::Ui) {
         let language = self.state.ui_language;
+        let active_folder_for_controls = if self.macro_folders_panel_open {
+            self.active_macro_folder_view.filter(|folder_id| {
+                self.state
+                    .macro_folders
+                    .iter()
+                    .any(|folder| folder.id == *folder_id)
+            })
+        } else {
+            None
+        };
         ui.add_space(2.0);
         ui.horizontal_wrapped(|ui| {
             ui.label(Self::material_icon_text(0xe8b6, 18.0));
@@ -8740,15 +8750,17 @@ impl CrosshairApp {
                     .weak(),
                 ),
             );
-            if Self::sized_button(
-                ui,
-                112.0,
-                Self::tr_lang(language, "+ Add folder", "+ ThÃªm thÆ° má»¥c"),
-            )
-            .clicked()
-            {
-                self.add_macro_folder();
-                self.persist();
+            if active_folder_for_controls.is_none() {
+                if Self::sized_button(
+                    ui,
+                    112.0,
+                    Self::tr_lang(language, "+ Add folder", "+ ThÃªm thÆ° má»¥c"),
+                )
+                .clicked()
+                {
+                    self.add_macro_folder();
+                    self.persist();
+                }
             }
             if Self::sized_button(
                 ui,
@@ -8757,7 +8769,11 @@ impl CrosshairApp {
             )
             .clicked()
             {
-                self.add_macro_group();
+                if let Some(folder_id) = active_folder_for_controls {
+                    self.add_macro_group_to_folder(folder_id);
+                } else {
+                    self.add_macro_group();
+                }
                 self.persist();
             }
         });
@@ -8787,48 +8803,21 @@ impl CrosshairApp {
         ui.vertical(|ui| {
             if let Some(folder_name) = &active_folder_name {
                 ui.horizontal_wrapped(|ui| {
+                    ui.add_sized(
+                        [28.0, 24.0],
+                        Button::new(Self::folder_icon_text(true, 18.0)),
+                    );
                     if ui
-                        .button(Self::tr_lang(language, "< Back", "< Back"))
+                        .add_sized(
+                            [28.0, 24.0],
+                            Button::new(Self::material_icon_text(0xe5c4, 18.0)),
+                        )
+                        .on_hover_text(Self::tr_lang(language, "Back", "Back"))
                         .clicked()
                     {
                         self.set_active_macro_folder_view(None);
                     }
-                    ui.label(Self::folder_icon_text(true, 18.0));
-                    if let Some(folder) = self
-                        .state
-                        .macro_folders
-                        .iter_mut()
-                        .find(|folder| Some(folder.id) == self.active_macro_folder_view)
-                    {
-                        if ui
-                            .add_sized([220.0, 24.0], TextEdit::singleline(&mut folder.name))
-                            .changed()
-                        {
-                            self.persist();
-                        }
-                    } else {
-                        ui.label(
-                            RichText::new(format!(
-                                "{}: {folder_name}",
-                                Self::tr_lang(language, "Folder", "Folder")
-                            ))
-                            .strong()
-                            .color(Color32::from_rgb(46, 76, 122)),
-                        );
-                    }
-                    if ui
-                        .button(Self::tr_lang(
-                            language,
-                            "+ Add group here",
-                            "+ ThÃªm group vÃ o Ä‘Ã¢y",
-                        ))
-                        .clicked()
-                    {
-                        if let Some(folder_id) = self.active_macro_folder_view {
-                            self.add_macro_group_to_folder(folder_id);
-                            self.persist();
-                        }
-                    }
+                    ui.label(RichText::new(folder_name).strong());
                     if ui
                         .button(Self::tr_lang(
                             language,
@@ -8848,20 +8837,6 @@ impl CrosshairApp {
                             }
                             self.persist_macro_presets();
                         }
-                    }
-                    if ui
-                        .button(Self::tr_lang(language, "Release Folder", "Nháº£ thÆ° má»¥c"))
-                        .clicked()
-                    {
-                        if let Some(folder_id) = self.active_macro_folder_view {
-                            self.confirm_release_folder_id = Some(folder_id);
-                        }
-                    }
-                    if ui
-                        .button(Self::tr_lang(language, "Delete Folder", "XÃ³a thÆ° má»¥c"))
-                        .clicked()
-                    {
-                        delete_folder_id = self.active_macro_folder_view;
                     }
                 });
                 ui.horizontal_wrapped(|ui| {
@@ -9262,6 +9237,7 @@ impl CrosshairApp {
                 ));
             }
             let mut open_folder_id = None;
+            let mut renamed_folder: Option<(u32, String)> = None;
             for folder in &self.state.macro_folders {
                 let folder_group_count = self
                     .state
@@ -9275,7 +9251,7 @@ impl CrosshairApp {
                         && group.presets.iter().any(|preset| preset.enabled)
                 });
                 let folder_id = folder.id;
-                let folder_name = folder.name.clone();
+                let mut folder_name = folder.name.clone();
                 Self::show_preset_card(ui, folder_has_enabled_content, |ui| {
                     egui::Grid::new((folder_id, "macro-folder-row"))
                         .num_columns(6)
@@ -9291,10 +9267,10 @@ impl CrosshairApp {
                                 open_folder_id = Some(folder_id);
                             }
                             if ui
-                                .add_sized([220.0, 24.0], Button::new(folder_name.clone()))
-                                .clicked()
+                                .add_sized([220.0, 24.0], TextEdit::singleline(&mut folder_name))
+                                .changed()
                             {
-                                open_folder_id = Some(folder_id);
+                                renamed_folder = Some((folder_id, folder_name.clone()));
                             }
                             ui.add_sized(
                                 [96.0, 24.0],
@@ -9338,6 +9314,17 @@ impl CrosshairApp {
                         });
                 });
                 ui.add_space(4.0);
+            }
+            if let Some((folder_id, name)) = renamed_folder {
+                if let Some(folder) = self
+                    .state
+                    .macro_folders
+                    .iter_mut()
+                    .find(|folder| folder.id == folder_id)
+                {
+                    folder.name = name;
+                    self.persist();
+                }
             }
             if let Some(folder_id) = open_folder_id {
                 self.set_active_macro_folder_view(Some(folder_id));
