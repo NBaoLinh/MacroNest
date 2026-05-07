@@ -1587,6 +1587,32 @@ impl CrosshairApp {
         }
     }
 
+    fn import_audio_file_as_sound_preset(&mut self, path: PathBuf) {
+        let path_str = path.to_string_lossy().to_string();
+        let duration = audio::load_duration_ms(&path_str).ok();
+        let id = self.state.audio_settings.next_preset_id.max(1);
+        self.state.audio_settings.next_preset_id = id + 1;
+
+        let mut preset = SoundPreset::new(id);
+        let name = path
+            .file_stem()
+            .and_then(|stem| stem.to_str())
+            .filter(|stem| !stem.trim().is_empty())
+            .unwrap_or("Sound");
+        preset.name = name.to_owned();
+        preset.clip.file_path = path_str.clone();
+        preset.clip.start_ms = 0;
+        preset.clip.end_ms = duration.unwrap_or(0);
+        preset.clip.enabled = true;
+        self.state.audio_settings.presets.push(preset);
+        self.sound_preset_clip_duration_ms.insert(id, duration);
+        self.show_sound_preset_audio_editor.insert(id);
+        self.refresh_audio_waveform_for_path(&path_str);
+        self.sync_audio_settings();
+        self.persist();
+        self.status = format!("Imported sound preset {id}.");
+    }
+
     fn choose_audio_file_for_library_item(&mut self, item_id: u32) {
         let Some(path) = rfd::FileDialog::new()
             .add_filter("Audio", &["mp3", "wav", "flac", "ogg", "m4a"])
@@ -2483,7 +2509,7 @@ impl CrosshairApp {
         });
 
         ui.add_space(8.0);
-        let viewport_width = ui.available_width().max(320.0);
+        let viewport_width = (ui.available_width() - 24.0).max(296.0);
         let zoom_scroll_offset_id = egui::Id::new((id_source, "trim-zoom-offset"));
         let trim_adjusting_id = egui::Id::new((id_source, "trim-adjusting"));
         let trim_hotkey_adjusting_id = egui::Id::new((id_source, "trim-hotkey-adjusting"));
@@ -2885,7 +2911,7 @@ impl CrosshairApp {
             ui.label(
                 RichText::new(Self::format_ms(clip.end_ms.saturating_sub(clip.start_ms)))
                     .size(13.0)
-                    .color(Color32::from_rgb(214, 51, 132)),
+                    .color(ui.visuals().weak_text_color()),
             );
             ui.separator();
             ui.label(
@@ -9116,63 +9142,81 @@ impl CrosshairApp {
                 let group = &mut self.state.macro_groups[group_index];
                 Self::show_preset_card(ui, group.enabled, |ui| {
                     if group.collapsed {
-                        egui::Grid::new((group.id, "group-collapsed-header"))
-                            .num_columns(4)
-                            .min_col_width(140.0)
-                            .spacing([12.0, 6.0])
-                            .show(ui, |ui| {
-                                let star_icon = if group.favorite { 0xe838 } else { 0xe83a };
-                                let star_fill = if group.favorite {
-                                    Color32::from_rgb(104, 82, 18)
-                                } else {
-                                    Color32::from_rgba_premultiplied(52, 58, 70, 190)
-                                };
-                                let star_stroke = if group.favorite {
-                                    Color32::from_rgb(255, 220, 96)
-                                } else {
-                                    Color32::from_rgb(102, 110, 122)
-                                };
-                                if ui
-                                    .add_sized(
-                                        [28.0, 22.0],
-                                        Button::new(
-                                            Self::material_icon_text(star_icon, 15.0).color(if group.favorite {
-                                                Color32::from_rgb(255, 224, 110)
-                                            } else {
-                                                Color32::from_rgb(208, 214, 224)
-                                            }),
-                                        )
-                                        .fill(star_fill)
-                                        .stroke(egui::Stroke::new(1.0, star_stroke)),
+                        ui.horizontal(|ui| {
+                            let star_icon = if group.favorite { 0xe838 } else { 0xe83a };
+                            let star_fill = if group.favorite {
+                                Color32::from_rgb(104, 82, 18)
+                            } else {
+                                Color32::from_rgba_premultiplied(52, 58, 70, 190)
+                            };
+                            let star_stroke = if group.favorite {
+                                Color32::from_rgb(255, 220, 96)
+                            } else {
+                                Color32::from_rgb(102, 110, 122)
+                            };
+                            if ui
+                                .add_sized(
+                                    [28.0, 22.0],
+                                    Button::new(
+                                        Self::material_icon_text(star_icon, 15.0).color(if group.favorite {
+                                            Color32::from_rgb(255, 224, 110)
+                                        } else {
+                                            Color32::from_rgb(208, 214, 224)
+                                        }),
                                     )
-                                    .on_hover_text(Self::tr_lang(
-                                        language,
-                                        "Favorite group",
-                                        "Nhom yeu thich",
-                                    ))
-                                    .clicked()
-                                {
-                                    group.favorite = !group.favorite;
-                                    live_sync = true;
+                                    .fill(star_fill)
+                                    .stroke(egui::Stroke::new(1.0, star_stroke)),
+                                )
+                                .on_hover_text(Self::tr_lang(
+                                    language,
+                                    "Favorite group",
+                                    "Nhom yeu thich",
+                                ))
+                                .clicked()
+                            {
+                                group.favorite = !group.favorite;
+                                live_sync = true;
+                            }
+                            let mut selected = self.selected_macro_groups.contains(&group.id);
+                            if ui.checkbox(&mut selected, "").changed() {
+                                if selected {
+                                    self.selected_macro_groups.insert(group.id);
+                                } else {
+                                    self.selected_macro_groups.remove(&group.id);
                                 }
-                                let mut selected = self.selected_macro_groups.contains(&group.id);
-                                if ui.checkbox(&mut selected, "").changed() {
-                                    if selected {
-                                        self.selected_macro_groups.insert(group.id);
-                                    } else {
-                                        self.selected_macro_groups.remove(&group.id);
-                                    }
-                                }
-                                live_sync |= ui
-                                    .checkbox(&mut group.enabled, Self::tr_lang(language, "Enabled", "Enabled"))
-                                    .changed();
-                                let title = Self::preset_title_text(self.state.ui_theme == UiThemeMode::Dark, &group.name, group.enabled);
-                                if ui.selectable_label(false, title).clicked() {
-                                    group.collapsed = false;
-                                    live_sync = true;
-                                }
-                                ui.end_row();
-                            });
+                            }
+                            live_sync |= ui
+                                .checkbox(
+                                    &mut group.enabled,
+                                    Self::tr_lang(language, "Enabled", "Enabled"),
+                                )
+                                .changed();
+                            live_sync |= ui
+                                .add_sized(
+                                    [(ui.available_width() - 128.0).max(160.0), 24.0],
+                                    TextEdit::singleline(&mut group.name),
+                                )
+                                .changed();
+                            if Self::sized_button(
+                                ui,
+                                56.0,
+                                Self::tr_lang(language, "Show", "Show"),
+                            )
+                            .clicked()
+                            {
+                                group.collapsed = false;
+                                live_sync = true;
+                            }
+                            if Self::sized_button(
+                                ui,
+                                62.0,
+                                Self::tr_lang(language, "Remove", "Remove"),
+                            )
+                            .clicked()
+                            {
+                                remove_group = Some(group.id);
+                            }
+                        });
                         return;
                     }
                     egui::Grid::new((group.id, "group-toolbar"))
@@ -10247,21 +10291,14 @@ impl CrosshairApp {
                                             }
 
                                             if action_supports_capture {
-                                                if ui
+                                                let hold_stop_capture_target =
+                                                    CaptureRequest::MacroPresetHoldStopInput(group.id, preset.id);
+                                                if capture_target_snapshot.as_ref() == Some(&hold_stop_capture_target) {
+                                                    ui.add_sized([28.0, 22.0], egui::Label::new(""));
+                                                } else if ui
                                                     .add_sized(
                                                         [28.0, 22.0],
-                                                        Button::new(if capture_target_snapshot.as_ref()
-                                                            == Some(&CaptureRequest::MacroPresetHoldStopInput(
-                                                                group.id,
-                                                                preset.id,
-                                                            ))
-                                                        {
-                                                            Self::material_icon_text(0xe312, 18.0)
-                                                                .strong()
-                                                                .color(Color32::from_rgb(255, 232, 96))
-                                                        } else {
-                                                            Self::material_icon_text(0xe312, 18.0)
-                                                        })
+                                                        Button::new(Self::material_icon_text(0xe312, 18.0))
                                                             .min_size(vec2(28.0, 22.0)),
                                                     )
                                                     .on_hover_text(Self::tr_lang(
@@ -10271,13 +10308,7 @@ impl CrosshairApp {
                                                     ))
                                                     .clicked()
                                                 {
-                                                    let hold_stop_capture_target =
-                                                        CaptureRequest::MacroPresetHoldStopInput(group.id, preset.id);
-                                                    if capture_target_snapshot.as_ref() == Some(&hold_stop_capture_target) {
-                                                        cancel_active_capture = true;
-                                                    } else {
-                                                        next_capture_target = Some(hold_stop_capture_target);
-                                                    }
+                                                    next_capture_target = Some(hold_stop_capture_target);
                                                 }
                                             } else {
                                                 ui.add_sized([28.0, 22.0], egui::Label::new(""));
@@ -11221,24 +11252,18 @@ impl CrosshairApp {
                                                 ui.add_sized([48.0, 18.0], egui::Label::new(""));
                                             }
 
-                                            if action_supports_capture
-                                            {
-                                                if ui
+                                            if action_supports_capture {
+                                                let step_capture_target = CaptureRequest::MacroStepInput {
+                                                    group_id: group.id,
+                                                    preset_id: preset.id,
+                                                    step_index,
+                                                };
+                                                if capture_target_snapshot.as_ref() == Some(&step_capture_target) {
+                                                    ui.add_sized([28.0, 18.0], egui::Label::new(""));
+                                                } else if ui
                                                     .add_enabled(
                                                         true,
-                                                        Button::new(if capture_target_snapshot.as_ref()
-                                                            == Some(&CaptureRequest::MacroStepInput {
-                                                                group_id: group.id,
-                                                                preset_id: preset.id,
-                                                                step_index,
-                                                            })
-                                                        {
-                                                            Self::material_icon_text(0xe312, 18.0)
-                                                                .strong()
-                                                                .color(Color32::from_rgb(255, 232, 96))
-                                                        } else {
-                                                            Self::material_icon_text(0xe312, 18.0)
-                                                        })
+                                                        Button::new(Self::material_icon_text(0xe312, 18.0))
                                                             .min_size(vec2(28.0, 18.0)),
                                                     )
                                                     .on_hover_text(Self::tr_lang(
@@ -11248,16 +11273,7 @@ impl CrosshairApp {
                                                     ))
                                                     .clicked()
                                                 {
-                                                    let step_capture_target = CaptureRequest::MacroStepInput {
-                                                        group_id: group.id,
-                                                        preset_id: preset.id,
-                                                        step_index,
-                                                    };
-                                                    if capture_target_snapshot.as_ref() == Some(&step_capture_target) {
-                                                        cancel_active_capture = true;
-                                                    } else {
-                                                        next_capture_target = Some(step_capture_target);
-                                                    }
+                                                    next_capture_target = Some(step_capture_target);
                                                 }
                                             } else {
                                                 ui.add_sized([28.0, 18.0], egui::Label::new(""));
@@ -12284,14 +12300,6 @@ impl CrosshairApp {
                             live_sync |= ui
                                 .add(DragValue::new(&mut preset.move_offset_y).range(-5000..=5000))
                                 .changed();
-                            ui.label(
-                                RichText::new(Self::tr_lang(
-                                    language,
-                                    "Applied after match",
-                                    "Ap dung sau khi khop",
-                                ))
-                                .small(),
-                            );
                         });
                         ui.end_row();
 
@@ -12307,21 +12315,15 @@ impl CrosshairApp {
                                     ),
                                 )
                                 .changed();
-                            ui.label(
-                                RichText::new(Self::tr_lang(
-                                    language,
-                                    "Move only while active",
-                                    "Chi di chuot khi dang bat",
-                                ))
-                                .small(),
-                            );
                         });
                         ui.end_row();
 
                         ui.label(Self::tr_lang(language, "Move", "Move"));
                         ui.horizontal_wrapped(|ui| {
-                            if ui
-                                .button(Self::tr_lang(
+                            if Self::sized_button(
+                                ui,
+                                96.0,
+                                Self::tr_lang(
                                     language,
                                     if preset.image_search_move_advanced_open {
                                         "Hide advanced"
@@ -12333,35 +12335,25 @@ impl CrosshairApp {
                                     } else {
                                         "Nang cao"
                                     },
-                                ))
-                                .clicked()
+                                ),
+                            )
+                            .clicked()
                             {
                                 preset.image_search_move_advanced_open =
                                     !preset.image_search_move_advanced_open;
                                 live_sync = true;
                             }
-                            ui.label(
-                                RichText::new(if preset.image_search_move_advanced_open {
-                                    Self::tr_lang(language, "Open", "Open")
-                                } else {
-                                    Self::tr_lang(language, "Closed", "Closed")
-                                })
-                                .small(),
-                            );
                         });
                         ui.end_row();
 
                         if preset.image_search_move_advanced_open {
                             ui.label(Self::tr_lang(language, "Move behavior", "Move behavior"));
                             ui.horizontal_wrapped(|ui| {
-                                ui.label(
-                                    RichText::new(Self::tr_lang(
-                                        language,
-                                        "Uses repeated absolute move.",
-                                        "Dung di chuot tuyet doi lap lai.",
-                                    ))
-                                    .small(),
-                                );
+                                ui.label(Self::tr_lang(
+                                    language,
+                                    "Uses repeated absolute move.",
+                                    "Dung di chuot tuyet doi lap lai.",
+                                ));
                             });
                             ui.end_row();
 
@@ -12376,14 +12368,6 @@ impl CrosshairApp {
                                         .clamping(egui::SliderClamping::Always),
                                     )
                                     .changed();
-                                ui.label(
-                                    RichText::new(Self::tr_lang(
-                                        language,
-                                        "Only used when Interception is off",
-                                        "Chi dung khi Interception tat",
-                                    ))
-                                    .small(),
-                                );
                             });
                             ui.end_row();
 
@@ -12398,14 +12382,6 @@ impl CrosshairApp {
                                         .clamping(egui::SliderClamping::Always),
                                     )
                                     .changed();
-                                ui.label(
-                                    RichText::new(Self::tr_lang(
-                                        language,
-                                        "Delay between extra move passes in ms",
-                                        "Do tre giua cac lan di them (ms)",
-                                    ))
-                                    .small(),
-                                );
                             });
                             ui.end_row();
                         }
@@ -12492,8 +12468,10 @@ impl CrosshairApp {
 
                         if preset.use_color_matching {
                             ui.horizontal_wrapped(|ui| {
-                                if ui
-                                    .button(Self::tr_lang(
+                                if Self::sized_button(
+                                    ui,
+                                    96.0,
+                                    Self::tr_lang(
                                         language,
                                         if preset.image_search_advanced_open {
                                             "Hide advanced"
@@ -12505,21 +12483,14 @@ impl CrosshairApp {
                                         } else {
                                             "Nang cao"
                                         },
-                                    ))
-                                    .clicked()
+                                    ),
+                                )
+                                .clicked()
                                 {
                                     preset.image_search_advanced_open =
                                         !preset.image_search_advanced_open;
                                     live_sync = true;
                                 }
-                                ui.label(
-                                    RichText::new(if preset.image_search_advanced_open {
-                                        Self::tr_lang(language, "Open", "Open")
-                                    } else {
-                                        Self::tr_lang(language, "Closed", "Closed")
-                                    })
-                                    .small(),
-                                );
                             });
                             ui.end_row();
 
@@ -12529,14 +12500,6 @@ impl CrosshairApp {
                                     live_sync |= ui
                                         .add(Slider::new(&mut preset.color_tolerance, 0..=96))
                                         .changed();
-                                    ui.label(
-                                        RichText::new(Self::tr_lang(
-                                            language,
-                                            "Higher = wider color range",
-                                            "Cang cao = mau gan do deu khop",
-                                        ))
-                                        .small(),
-                                    );
                                 });
                                 ui.end_row();
 
@@ -12548,14 +12511,6 @@ impl CrosshairApp {
                                                 .clamping(egui::SliderClamping::Always),
                                         )
                                         .changed();
-                                    ui.label(
-                                        RichText::new(Self::tr_lang(
-                                            language,
-                                            "Scans per second while repeating",
-                                            "So lan quet moi giay khi lap",
-                                        ))
-                                        .small(),
-                                    );
                                 });
                                 ui.end_row();
 
@@ -12571,14 +12526,6 @@ impl CrosshairApp {
                                             ),
                                         )
                                         .changed();
-                                    ui.label(
-                                        RichText::new(Self::tr_lang(
-                                            language,
-                                            "Useful when color shifts with lighting",
-                                            "Huu ich khi mau thay doi theo anh sang",
-                                        ))
-                                        .small(),
-                                    );
                                 });
                                 ui.end_row();
 
@@ -12626,14 +12573,6 @@ impl CrosshairApp {
                                     {
                                         start_color_priority_anchor_capture = Some(preset.id);
                                     }
-                                    ui.label(
-                                        RichText::new(Self::tr_lang(
-                                            language,
-                                            "Search starts here and expands outward",
-                                            "Tim tu diem nay va lan ra xung quanh",
-                                        ))
-                                        .small(),
-                                    );
                                 });
                                 ui.end_row();
                             }
@@ -12647,14 +12586,6 @@ impl CrosshairApp {
                                             .show_value(true),
                                     )
                                     .changed();
-                                ui.label(
-                                    RichText::new(Self::tr_lang(
-                                        language,
-                                        "Higher = stricter match",
-                                        "Cang cao = can khop sat hon",
-                                    ))
-                                    .small(),
-                                );
                             });
                             ui.end_row();
                         }
@@ -12700,13 +12631,6 @@ impl CrosshairApp {
                 if let Some(preview) = preview.as_ref() {
                     ui.add_space(8.0);
                     ui.vertical(|ui| {
-                        ui.label(
-                            RichText::new(format!(
-                                "{} {}x{}",
-                                preview.file_name, preview.width, preview.height
-                            ))
-                            .small(),
-                        );
                         let base_scale = (320.0 / preview.width.max(1) as f32)
                             .min(180.0 / preview.height.max(1) as f32)
                             .min(1.0);
@@ -12770,13 +12694,6 @@ impl CrosshairApp {
                 timing_live_sync = true;
             }
         });
-        ui.label(
-            RichText::new(self.tr(
-                "Pick a region and a color. The macro step will infer timing from the color position inside that region.",
-                "Chon vung va mau. Buoc macro se tu suy ra timing tu vi tri mau trong vung do.",
-            ))
-            .small(),
-        );
 
         for index in 0..self.state.image_search_timing_presets.len() {
             let mut start_search_region_capture = None;
@@ -12957,14 +12874,6 @@ impl CrosshairApp {
                         ui.end_row();
 
                         ui.label(Self::tr_lang(language, "Match", "Match"));
-                        ui.label(
-                            RichText::new(Self::tr_lang(
-                                language,
-                                "The macro step toggles this timing loop on or off. A loop can run forever or stop after the chosen duration.",
-                                "Buoc macro se bat/tat loop timing nay. Loop co the chay vo han hoac dung sau thoi gian da chon.",
-                            ))
-                            .small(),
-                        );
                         ui.end_row();
                     });
             });
@@ -13298,6 +13207,58 @@ impl CrosshairApp {
             }
         });
 
+        ui.add_space(8.0);
+        let drop_fill = if ui.visuals().dark_mode {
+            Color32::from_rgba_premultiplied(34, 40, 52, 170)
+        } else {
+            Color32::from_rgba_premultiplied(244, 247, 251, 240)
+        };
+        let drop_stroke = if ui.visuals().dark_mode {
+            Color32::from_rgb(92, 160, 190)
+        } else {
+            Color32::from_rgb(100, 132, 170)
+        };
+        let dropped_files = ui.ctx().input(|input| input.raw.dropped_files.clone());
+        let drop_response = Frame::new()
+            .fill(drop_fill)
+            .stroke(Stroke::new(1.0, drop_stroke))
+            .corner_radius(12.0)
+            .inner_margin(egui::Margin::symmetric(14, 12))
+            .show(ui, |ui| {
+                ui.set_min_height(52.0);
+                ui.vertical_centered(|ui| {
+                    ui.label(
+                        RichText::new(Self::tr_lang(
+                            language,
+                            "Drop audio files here to create sound presets",
+                            "Tha file âm thanh vào đây để tạo sound preset",
+                        ))
+                        .strong(),
+                    );
+                    ui.label(
+                        RichText::new(Self::tr_lang(
+                            language,
+                            "Supports mp3, wav, flac, ogg, and m4a",
+                            "Hỗ trợ mp3, wav, flac, ogg và m4a",
+                        ))
+                        .small()
+                        .weak(),
+                    );
+                });
+            })
+            .response;
+        if drop_response.hovered()
+            && !dropped_files.is_empty()
+            && dropped_files.iter().any(|file| file.path.is_some())
+        {
+            for file in dropped_files {
+                if let Some(path) = file.path {
+                    self.import_audio_file_as_sound_preset(path);
+                }
+            }
+            changed = true;
+        }
+
         let mut remove_sound_preset = None;
         for index in 0..self.state.audio_settings.presets.len() {
             let mut choose_file_for = None;
@@ -13321,22 +13282,37 @@ impl CrosshairApp {
             ui.vertical(|ui| {
                 ui.set_min_width(ui.available_width());
                 ui.horizontal(|ui| {
+                    let action_width = 132.0;
                     changed |= ui
-                        .add_sized([220.0, 24.0], TextEdit::singleline(&mut preset.name))
+                        .add_sized(
+                            [(ui.available_width() - action_width).max(120.0), 24.0],
+                            TextEdit::singleline(&mut preset.name),
+                        )
                         .changed();
                     ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
                         if ui
-                            .button(Self::tr_lang(language, "Remove", "Remove"))
+                            .add_sized(
+                                [36.0, 24.0],
+                                Button::new(Self::material_icon_text(0xe872, 18.0)),
+                            )
+                            .on_hover_text(Self::tr_lang(
+                                language,
+                                "Delete sound preset",
+                                "Xóa sound preset",
+                            ))
                             .clicked()
                         {
                             remove_sound_preset = Some(preset.id);
                         }
                         if ui
-                            .button(if preset.collapsed {
-                                Self::tr_lang(language, "Show", "Show")
-                            } else {
-                                Self::tr_lang(language, "Hide", "Hide")
-                            })
+                            .add_sized(
+                                [84.0, 24.0],
+                                Button::new(if preset.collapsed {
+                                    Self::tr_lang(language, "Show", "Show")
+                                } else {
+                                    Self::tr_lang(language, "Hide", "Hide")
+                                }),
+                            )
                             .clicked()
                         {
                             preset.collapsed = !preset.collapsed;
@@ -13416,101 +13392,14 @@ impl CrosshairApp {
         let space_pressed = ui.input(|input| input.key_pressed(egui::Key::Space));
         let s_pressed = ui.input(|input| input.key_pressed(egui::Key::S));
         let mut preview_cursor_ms = Self::preview_cursor_ms_for(preview_cursor, target, clip);
+        if previewing && let Some(position_ms) = audio::preview_position_ms(clip) {
+            preview_cursor_ms = position_ms;
+            ui.ctx().request_repaint();
+        }
 
         ui.heading(Self::tr_lang(language, "Media", "Media"));
         ui.label(RichText::new(title).strong());
         ui.add_space(6.0);
-
-        ui.horizontal_wrapped(|ui| {
-            if ui
-                .button(Self::material_icon_text(0xe145, 18.0))
-                .on_hover_text(Self::tr_lang(
-                    language,
-                    "Choose audio file",
-                    "Chọn file âm thanh",
-                ))
-                .clicked()
-            {
-                outcome.choose_file = true;
-            }
-            if ui
-                .add_enabled(
-                    !clip.file_path.trim().is_empty(),
-                    Button::new(if previewing {
-                        Self::material_icon_text(0xe034, 18.0)
-                    } else {
-                        Self::material_icon_text(0xe037, 18.0)
-                    }),
-                )
-                .on_hover_text(if previewing {
-                    Self::tr_lang(
-                        language,
-                        "Stop preview",
-                        "Dừng nghe thử",
-                    )
-                } else {
-                    Self::tr_lang(
-                        language,
-                        "Preview audio",
-                        "Nghe thử âm thanh",
-                    )
-                })
-                .clicked()
-            {
-                match audio::toggle_preview(clip.clone()) {
-                    Ok(true) => {
-                        outcome.status = Some(match language {
-                            UiLanguage::Vietnamese => {
-                                format!("Đang nghe thử {title}.")
-                            }
-                            _ => format!("Previewing {title}."),
-                        })
-                    }
-                    Ok(false) => {
-                        outcome.status = Some(match language {
-                            UiLanguage::Vietnamese => format!(
-                                "Đã dừng nghe thử {title}."
-                            ),
-                            _ => format!("Stopped {title} preview."),
-                        })
-                    }
-                    Err(error) => {
-                        outcome.status = Some(match language {
-                            UiLanguage::Vietnamese => format!(
-                                "Nghe thử thất bại: {error}"
-                            ),
-                            _ => format!("Preview failed: {error}"),
-                        })
-                    }
-                }
-            }
-            if ui
-                .add_enabled(
-                    !clip.file_path.trim().is_empty(),
-                    Button::new(Self::material_icon_text(0xe15b, 18.0)),
-                )
-                .on_hover_text(Self::tr_lang(
-                    language,
-                    "Clear audio file",
-                    "Xóa file âm thanh",
-                ))
-                .clicked()
-            {
-                audio::stop_preview();
-                clip.file_path.clear();
-                clip.start_ms = 0;
-                clip.end_ms = 0;
-                clip.volume = 1.0;
-                clip.speed = 1.0;
-                *duration_ms = None;
-                *preview_cursor = None;
-                outcome.changed = true;
-                outcome.status = Some(match language {
-                    UiLanguage::Vietnamese => format!("Đã xóa {title}."),
-                    _ => format!("Cleared {title}."),
-                });
-            }
-        });
 
         if (space_pressed || s_pressed) && !clip.file_path.trim().is_empty() {
             if previewing {
@@ -13602,9 +13491,64 @@ impl CrosshairApp {
                             .add(DragValue::new(&mut clip.end_ms).range(0..=total_ms))
                             .changed();
                     });
-                });
+            });
             Self::trim_audio_bounds(clip, total_ms);
         }
+
+        ui.add_space(8.0);
+        ui.horizontal_centered(|ui| {
+            if ui
+                .add_enabled(
+                    !clip.file_path.trim().is_empty(),
+                    Button::new(if previewing {
+                        Self::material_icon_text(0xe034, 18.0)
+                    } else {
+                        Self::material_icon_text(0xe037, 18.0)
+                    }),
+                )
+                .on_hover_text(if previewing {
+                    Self::tr_lang(
+                        language,
+                        "Stop preview",
+                        "Dừng nghe thử",
+                    )
+                } else {
+                    Self::tr_lang(
+                        language,
+                        "Preview audio",
+                        "Nghe thử âm thanh",
+                    )
+                })
+                .clicked()
+            {
+                match audio::toggle_preview(clip.clone()) {
+                    Ok(true) => {
+                        outcome.status = Some(match language {
+                            UiLanguage::Vietnamese => {
+                                format!("Đang nghe thử {title}.")
+                            }
+                            _ => format!("Previewing {title}."),
+                        })
+                    }
+                    Ok(false) => {
+                        outcome.status = Some(match language {
+                            UiLanguage::Vietnamese => format!(
+                                "Đã dừng nghe thử {title}."
+                            ),
+                            _ => format!("Stopped {title} preview."),
+                        })
+                    }
+                    Err(error) => {
+                        outcome.status = Some(match language {
+                            UiLanguage::Vietnamese => format!(
+                                "Nghe thử thất bại: {error}"
+                            ),
+                            _ => format!("Preview failed: {error}"),
+                        })
+                    }
+                }
+            }
+        });
 
         ui.add_space(8.0);
         ui.horizontal(|ui| {
@@ -13737,7 +13681,46 @@ impl CrosshairApp {
     }
 
     fn render_settings_panel(&mut self, ui: &mut egui::Ui) {
+        let language = self.state.ui_language;
         ui.add_space(2.0);
+        let mut ai_changed = false;
+        Frame::group(ui.style()).show(ui, |ui| {
+            ui.horizontal(|ui| {
+                ui.label(RichText::new("Gemini API").strong());
+                ui.label(
+                    RichText::new("Store your key locally for future AI features.")
+                        .small()
+                        .weak(),
+                );
+            });
+            ui.add_space(6.0);
+            ui.horizontal(|ui| {
+                ui.label("API Key");
+                let key_editor = TextEdit::singleline(&mut self.state.ai_settings.api_key).hint_text("AIza...");
+                ai_changed |= ui
+                    .add_sized(
+                        [(ui.available_width() - 88.0).max(180.0), 24.0],
+                        if self.state.ai_settings.show_api_key {
+                            key_editor
+                        } else {
+                            key_editor.password(true)
+                        },
+                    )
+                    .changed();
+                if ui
+                    .button(if self.state.ai_settings.show_api_key {
+                        Self::tr_lang(language, "Hide", "Hide")
+                    } else {
+                        Self::tr_lang(language, "Show", "Show")
+                    })
+                    .clicked()
+                {
+                    self.state.ai_settings.show_api_key = !self.state.ai_settings.show_api_key;
+                    ai_changed = true;
+                }
+            });
+        });
+        ui.add_space(8.0);
         if ui
             .button(self.tr(
                 "+ Add toolbox preset",
@@ -13897,6 +13880,9 @@ impl CrosshairApp {
             changed = true;
         }
         self.sync_toolbox_preview(active_preview.as_ref());
+        if changed || ai_changed {
+            self.persist();
+        }
         if changed {
             self.persist_toolbox_presets();
         }
@@ -14435,6 +14421,21 @@ impl eframe::App for CrosshairApp {
                             );
                             if language_response.clicked() {
                                 self.cycle_language();
+                            }
+                            let settings_response = Self::hover_if(
+                                ui.add_sized(
+                                    [38.0, 30.0],
+                                    self.titlebar_button(
+                                        Self::material_icon_text(0xe8b8, 18.0),
+                                        false,
+                                        false,
+                                    ),
+                                ),
+                                show_icon_tooltips,
+                                self.panel_label(AppPanel::Settings),
+                            );
+                            if settings_response.clicked() {
+                                self.state.active_panel = AppPanel::Settings;
                             }
                         }
 

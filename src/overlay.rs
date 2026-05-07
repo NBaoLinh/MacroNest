@@ -1996,9 +1996,14 @@ mod windows_overlay {
             }
         }
 
+        // If the key press was already suppressed as a hotkey trigger, also
+        // swallow the matching key-up so games and apps do not see a leaked tap.
+        if suppressed_press_release {
+            return true;
+        }
+
         // Release triggers should not swallow the key-up event. They are meant to
         // observe the release and run actions, not to lock the source key.
-        let _ = suppressed_press_release;
         let _ = had_hold_matches;
         false
     }

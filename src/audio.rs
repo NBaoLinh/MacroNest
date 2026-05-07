@@ -1,4 +1,4 @@
-use std::{fs::File, io::BufReader, path::Path, thread, time::Duration};
+use std::{fs::File, io::BufReader, path::Path, thread, time::{Duration, Instant}};
 
 use anyhow::{Context, Result, bail};
 use once_cell::sync::Lazy;
@@ -9,6 +9,7 @@ use crate::model::AudioClipSettings;
 
 struct PreviewPlayback {
     clip: AudioClipSettings,
+    started_at: Instant,
     _stream: rodio::OutputStream,
     sink: Sink,
 }
@@ -129,6 +130,7 @@ pub fn toggle_preview(mut clip: AudioClipSettings) -> Result<bool> {
 
     *playback = Some(PreviewPlayback {
         clip,
+        started_at: Instant::now(),
         _stream: stream,
         sink,
     });
@@ -147,6 +149,20 @@ pub fn is_previewing(clip: &AudioClipSettings) -> bool {
     playback
         .as_ref()
         .is_some_and(|current| current.clip == *clip)
+}
+
+pub fn preview_position_ms(clip: &AudioClipSettings) -> Option<u64> {
+    let mut playback = PREVIEW_PLAYBACK.lock();
+    cleanup_preview(&mut playback);
+    let current = playback.as_ref()?;
+    if current.clip != *clip {
+        return None;
+    }
+
+    let elapsed_ms = current.started_at.elapsed().as_millis() as u64;
+    let speed = current.clip.speed.clamp(0.25, 3.0);
+    let played_ms = ((elapsed_ms as f32) * speed).round().max(0.0) as u64;
+    Some(current.clip.start_ms.saturating_add(played_ms))
 }
 
 pub fn load_waveform(path: &str, buckets: usize) -> Result<Vec<f32>> {
