@@ -2541,9 +2541,11 @@ impl CrosshairApp {
             .selected_text(selected_text)
             .show_ui(ui, |ui| {
                 if allow_none {
-                    if ui
-                        .selectable_label(target.is_none(), label_when_none)
-                        .clicked()
+                    if ui.add_sized(
+                        [ui.available_width(), 22.0],
+                        Button::selectable(target.is_none(), label_when_none),
+                    )
+                    .clicked()
                     {
                         *target = None;
                         *match_duplicate_window_titles = false;
@@ -4077,6 +4079,26 @@ impl CrosshairApp {
 
     fn sound_style_icon_button(ui: &mut egui::Ui, icon: RichText) -> egui::Response {
         ui.add_sized([36.0, 24.0], Button::new(icon))
+    }
+
+    fn enabled_icon_button(ui: &mut egui::Ui, enabled: bool) -> egui::Response {
+        let icon = if enabled { 0xe834 } else { 0xe835 };
+        let fill = if enabled {
+            Color32::from_rgba_premultiplied(72, 156, 116, 120)
+        } else {
+            ui.visuals().faint_bg_color
+        };
+        let stroke = if enabled {
+            Color32::from_rgb(126, 224, 182)
+        } else {
+            ui.visuals().widgets.noninteractive.bg_stroke.color
+        };
+        ui.add_sized(
+            [36.0, 24.0],
+            Button::new(Self::material_icon_text(icon, 18.0))
+                .fill(fill)
+                .stroke(egui::Stroke::new(1.0, stroke)),
+        )
     }
 
     fn window_anchor_label(anchor: WindowAnchor) -> &'static str {
@@ -7893,7 +7915,17 @@ impl CrosshairApp {
                         .spacing([14.0, 8.0])
                         .show(ui, |ui| {
                             ui.horizontal(|ui| {
-                                live_sync |= ui.checkbox(&mut preset.enabled, "").changed();
+                                if Self::enabled_icon_button(ui, preset.enabled)
+                                    .on_hover_text(Self::tr_lang(
+                                        language,
+                                        "Enable / disable preset",
+                                        "Enable / disable preset",
+                                    ))
+                                    .clicked()
+                                {
+                                    preset.enabled = !preset.enabled;
+                                    live_sync = true;
+                                }
                                 ui.label(Self::preset_title_text(
                                     self.state.ui_theme == UiThemeMode::Dark,
                                     &preset.name,
@@ -8121,7 +8153,17 @@ impl CrosshairApp {
             let preset = &mut self.state.window_focus_presets[index];
             Self::show_preset_card(ui, preset.enabled, |ui| {
                 ui.horizontal(|ui| {
-                    live_sync |= ui.checkbox(&mut preset.enabled, "").changed();
+                    if Self::enabled_icon_button(ui, preset.enabled)
+                        .on_hover_text(Self::tr_lang(
+                            language,
+                            "Enable / disable preset",
+                            "Enable / disable preset",
+                        ))
+                        .clicked()
+                    {
+                        preset.enabled = !preset.enabled;
+                        live_sync = true;
+                    }
                     ui.label(Self::preset_title_text(
                         self.state.ui_theme == UiThemeMode::Dark,
                         &preset.name,
@@ -8463,7 +8505,17 @@ impl CrosshairApp {
             let preset = &mut self.state.pin_presets[index];
             Self::show_preset_card(ui, preset.enabled, |ui| {
                 ui.horizontal(|ui| {
-                    live_sync |= ui.checkbox(&mut preset.enabled, "").changed();
+                    if Self::enabled_icon_button(ui, preset.enabled)
+                        .on_hover_text(Self::tr_lang(
+                            language,
+                            "Enable / disable preset",
+                            "Enable / disable preset",
+                        ))
+                        .clicked()
+                    {
+                        preset.enabled = !preset.enabled;
+                        live_sync = true;
+                    }
                     ui.label(Self::preset_title_text(
                         self.state.ui_theme == UiThemeMode::Dark,
                         &preset.name,
@@ -12135,8 +12187,10 @@ impl CrosshairApp {
         ui.add_space(6.0);
         Frame::group(ui.style()).show(ui, |ui| {
             ui.vertical(|ui| {
-                ui.heading(self.tr("Mouse Sensitivity", "Mouse Sensitivity"));
-                if ui.button(self.tr("+ Add preset", "+ Add preset")).clicked() {
+                if ui
+                    .button(self.tr("+ Add sensitivity preset", "+ Add sensitivity preset"))
+                    .clicked()
+                {
                     self.add_mouse_sensitivity_preset();
                     self.persist_mouse_sensitivity_presets();
                 }
@@ -12167,18 +12221,28 @@ impl CrosshairApp {
                 });
                 for index in 0..self.state.mouse_sensitivity_presets.len() {
                     let language = self.state.ui_language;
-                    let dark_mode = self.state.ui_theme == UiThemeMode::Dark;
                     ui.separator();
                     let preset = &mut self.state.mouse_sensitivity_presets[index];
                     Self::show_preset_card(ui, preset.enabled, |ui| {
                         ui.horizontal(|ui| {
-                            let enabled_changed = ui.checkbox(&mut preset.enabled, "").changed();
-                            mouse_sensitivity_live_sync |= enabled_changed;
-                            ui.label(Self::preset_title_text(
-                                dark_mode,
-                                &preset.name,
-                                preset.enabled,
-                            ));
+                            let enabled_changed =
+                                Self::enabled_icon_button(ui, preset.enabled)
+                                    .on_hover_text(Self::tr_lang(
+                                        language,
+                                        "Enable / disable preset",
+                                        "Enable / disable preset",
+                                    ))
+                                    .clicked();
+                            if enabled_changed {
+                                preset.enabled = !preset.enabled;
+                                mouse_sensitivity_live_sync = true;
+                            }
+                            mouse_sensitivity_live_sync |= ui
+                                .add_sized(
+                                    [260.0, 24.0],
+                                    TextEdit::singleline(&mut preset.name),
+                                )
+                                .changed();
                             if Self::sound_style_toggle_button(
                                 ui,
                                 Self::tr_lang(language, "Apply", "Ãp dá»¥ng"),
@@ -12363,10 +12427,9 @@ impl CrosshairApp {
         ui.add_space(8.0);
         Frame::group(ui.style()).show(ui, |ui| {
             ui.vertical(|ui| {
-                ui.heading(self.tr("Mouse Path", "Mouse Path"));
                 ui.horizontal(|ui| {
                     if ui
-                        .button(self.tr("+ Add mouse path", "+ ThÃªm Ä‘Æ°á»ng chuá»™t"))
+                        .button(self.tr("+ Add path preset", "+ Add path preset"))
                         .clicked()
                     {
                         self.add_mouse_path_preset();
@@ -12394,12 +12457,23 @@ impl CrosshairApp {
                     let preset = &mut self.state.mouse_path_presets[index];
                     Self::show_preset_card(ui, preset.enabled, |ui| {
                         ui.horizontal(|ui| {
-                            ui.checkbox(&mut preset.enabled, "");
-                            ui.label(Self::preset_title_text(
-                                self.state.ui_theme == UiThemeMode::Dark,
-                                &preset.name,
-                                preset.enabled,
-                            ));
+                            if Self::enabled_icon_button(ui, preset.enabled)
+                                .on_hover_text(Self::tr_lang(
+                                    language,
+                                    "Enable / disable preset",
+                                    "Enable / disable preset",
+                                ))
+                                .clicked()
+                            {
+                                preset.enabled = !preset.enabled;
+                                live_sync = true;
+                            }
+                            live_sync |= ui
+                                .add_sized(
+                                    [260.0, 24.0],
+                                    TextEdit::singleline(&mut preset.name),
+                                )
+                                .changed();
                             ui.with_layout(
                                 egui::Layout::right_to_left(egui::Align::Center),
                                 |ui| {
@@ -12632,7 +12706,17 @@ impl CrosshairApp {
 
             Self::show_preset_card(ui, preset.enabled, |ui| {
                 ui.horizontal(|ui| {
-                    live_sync |= ui.checkbox(&mut preset.enabled, "").changed();
+                    if Self::enabled_icon_button(ui, preset.enabled)
+                        .on_hover_text(Self::tr_lang(
+                            language,
+                            "Enable / disable preset",
+                            "Enable / disable preset",
+                        ))
+                        .clicked()
+                    {
+                        preset.enabled = !preset.enabled;
+                        live_sync = true;
+                    }
                     ui.label(Self::preset_title_text(
                         dark_mode,
                         &preset.name,
@@ -13192,7 +13276,17 @@ impl CrosshairApp {
 
             Self::show_preset_card(ui, preset.enabled, |ui| {
                 ui.horizontal(|ui| {
-                    timing_live_sync |= ui.checkbox(&mut preset.enabled, "").changed();
+                    if Self::enabled_icon_button(ui, preset.enabled)
+                        .on_hover_text(Self::tr_lang(
+                            language,
+                            "Enable / disable preset",
+                            "Enable / disable preset",
+                        ))
+                        .clicked()
+                    {
+                        preset.enabled = !preset.enabled;
+                        timing_live_sync = true;
+                    }
                     ui.label(Self::preset_title_text(
                         dark_mode,
                         &preset.name,
@@ -14186,7 +14280,7 @@ impl CrosshairApp {
             let language = self.state.ui_language;
             ui.add_space(6.0);
             let preset = &mut self.state.toolbox_presets[index];
-            Self::show_preset_card(ui, true, |ui| {
+            Self::show_preset_card(ui, false, |ui| {
                 ui.horizontal(|ui| {
                     changed |= ui
                         .add_sized([220.0, 24.0], TextEdit::singleline(&mut preset.name))
