@@ -9355,7 +9355,6 @@ impl CrosshairApp {
                 {
                     let group = &mut self.state.macro_groups[group_index];
                     Self::show_preset_card(ui, group.enabled, |ui| {
-                    if group.collapsed {
                         ui.horizontal(|ui| {
                             let star_icon = if group.favorite { 0xe838 } else { 0xe83a };
                             let star_fill = if group.favorite {
@@ -9399,61 +9398,70 @@ impl CrosshairApp {
                                     self.selected_macro_groups.remove(&group.id);
                                 }
                             }
-                            live_sync |= ui.checkbox(&mut group.enabled, "").changed();
-                            ui.label(Self::tr_lang(language, "Enabled", "Enabled"));
-                            ui.add_sized(
-                                [(ui.available_width() - 140.0).max(180.0), 24.0],
-                                egui::Label::new(group.name.as_str()),
-                            );
+                            let name_width = (ui.available_width() - 180.0).max(180.0);
+                            live_sync |= ui
+                                .add_sized(
+                                    [name_width, 24.0],
+                                    TextEdit::singleline(&mut group.name),
+                                )
+                                .changed();
                             ui.with_layout(
                                 egui::Layout::right_to_left(egui::Align::Center),
                                 |ui| {
+                                    let enabled_icon = if group.enabled { 0xe834 } else { 0xe835 };
+                                    let enabled_fill = if group.enabled {
+                                        Color32::from_rgba_premultiplied(72, 156, 116, 120)
+                                    } else {
+                                        ui.visuals().faint_bg_color
+                                    };
+                                    let enabled_stroke = if group.enabled {
+                                        Color32::from_rgb(126, 224, 182)
+                                    } else {
+                                        ui.visuals().widgets.noninteractive.bg_stroke.color
+                                    };
+                                    if ui
+                                        .add_sized(
+                                            [36.0, 24.0],
+                                            Button::new(
+                                                Self::material_icon_text(enabled_icon, 18.0),
+                                            )
+                                            .fill(enabled_fill)
+                                            .stroke(egui::Stroke::new(1.0, enabled_stroke)),
+                                        )
+                                        .on_hover_text(Self::tr_lang(
+                                            language,
+                                            "Enable / disable group",
+                                            "Enable / disable group",
+                                        ))
+                                        .clicked()
+                                    {
+                                        group.enabled = !group.enabled;
+                                        live_sync = true;
+                                    }
                                     if Self::sound_style_remove_button(ui).clicked() {
                                         remove_group = Some(group.id);
                                     }
                                     if Self::sound_style_toggle_button(
                                         ui,
-                                        Self::tr_lang(language, "Show", "Show"),
+                                        if group.collapsed {
+                                            Self::tr_lang(language, "Show", "Show")
+                                        } else {
+                                            Self::tr_lang(language, "Hide", "Hide")
+                                        },
                                     )
                                     .clicked()
                                     {
-                                        group.collapsed = false;
+                                        group.collapsed = !group.collapsed;
                                         live_sync = true;
                                     }
                                 },
                             );
                         });
+                    if group.collapsed {
                         return;
                     }
-                    egui::Grid::new((group.id, "group-toolbar"))
-                        .num_columns(2)
-                        .min_col_width(140.0)
-                        .spacing([10.0, 6.0])
-                        .show(ui, |ui| {
-                            live_sync |= ui.checkbox(&mut group.enabled, "").changed();
-                            ui.horizontal(|ui| {
-                                ui.label(Self::preset_title_text(
-                                    self.state.ui_theme == UiThemeMode::Dark,
-                                    Self::tr_lang(language, "Group Name", "Group Name"),
-                                    group.enabled,
-                                ));
-                                ui.add_sized(
-                                    [240.0, 24.0],
-                                    TextEdit::singleline(&mut group.name),
-                                );
-                            });
-                            ui.end_row();
-                        });
+                    ui.add_space(4.0);
                     ui.horizontal_wrapped(|ui| {
-                        if Self::sound_style_toggle_button(
-                            ui,
-                            Self::tr_lang(language, "Hide", "Hide"),
-                        )
-                        .clicked()
-                        {
-                            group.collapsed = true;
-                            live_sync = true;
-                        }
                         if Self::sized_button(
                             ui,
                             92.0,
@@ -9462,9 +9470,6 @@ impl CrosshairApp {
                         .clicked()
                         {
                             add_preset_to_group = Some(group.id);
-                        }
-                        if Self::sound_style_remove_button(ui).clicked() {
-                            remove_group = Some(group.id);
                         }
                         let folder_popup_id = ui.make_persistent_id((group.id, "macro-group-folder-popup"));
                         let mut folder_popup_open = ui
