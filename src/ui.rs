@@ -2477,6 +2477,205 @@ impl CrosshairApp {
         changed
     }
 
+    fn selector_base_title(target: &str) -> &str {
+        if let Some(prefix) = target.strip_suffix(')')
+            && let Some((base, _)) = prefix.rsplit_once(" (0x")
+        {
+            return base;
+        }
+        target
+    }
+
+    fn grouped_window_selectors(open_windows: &[String]) -> Vec<(String, Vec<String>)> {
+        let mut groups: Vec<(String, Vec<String>)> = Vec::new();
+        for selector in open_windows {
+            let title = Self::selector_base_title(selector).to_owned();
+            if let Some((_, selectors)) = groups
+                .iter_mut()
+                .find(|(existing_title, _)| existing_title == &title)
+            {
+                if !selectors.iter().any(|existing| existing == selector) {
+                    selectors.push(selector.clone());
+                }
+            } else {
+                groups.push((title, vec![selector.clone()]));
+            }
+        }
+        groups
+    }
+
+    fn render_window_target_combo_with_duplicate_mode(
+        ui: &mut egui::Ui,
+        id_source: impl std::hash::Hash + Copy,
+        label_when_none: &str,
+        target: &mut Option<String>,
+        match_duplicate_window_titles: &mut bool,
+        open_windows: &[String],
+        width: f32,
+        allow_none: bool,
+    ) -> bool {
+        let mut changed = false;
+        let selected_text = target
+            .as_deref()
+            .map(Self::selector_base_title)
+            .unwrap_or(label_when_none)
+            .to_owned();
+        let popup_state_id = ui.make_persistent_id((id_source, "duplicate-title-hover"));
+        let mut expanded_title = ui
+            .ctx()
+            .data(|data| data.get_temp::<String>(popup_state_id));
+
+        egui::ComboBox::from_id_salt((id_source, "target-window-combo"))
+            .width(width)
+            .selected_text(selected_text)
+            .show_ui(ui, |ui| {
+                if allow_none {
+                    if ui
+                        .selectable_label(target.is_none(), label_when_none)
+                        .clicked()
+                    {
+                        *target = None;
+                        *match_duplicate_window_titles = false;
+                        expanded_title = None;
+                        changed = true;
+                    }
+                }
+
+                for (title, selectors) in Self::grouped_window_selectors(open_windows) {
+                    let has_duplicates = selectors.len() > 1;
+                    let first_selector = selectors.first().cloned().unwrap_or_default();
+                    let main_selected = target
+                        .as_deref()
+                        .is_some_and(|current| Self::selector_base_title(current) == title)
+                        && *match_duplicate_window_titles;
+                    let row_response = ui
+                        .horizontal(|ui| {
+                            let response = ui.selectable_label(main_selected, &title);
+                            if has_duplicates {
+                                ui.with_layout(
+                                    egui::Layout::right_to_left(egui::Align::Center),
+                                    |ui| {
+                                        ui.label(RichText::new(">").weak());
+                                    },
+                                );
+                            }
+                            response
+                        })
+                        .inner;
+
+                    if row_response.hovered() && has_duplicates {
+                        expanded_title = Some(title.clone());
+                    }
+                    if row_response.clicked() {
+                        *target = Some(first_selector.clone());
+                        *match_duplicate_window_titles = has_duplicates;
+                        expanded_title = None;
+                        changed = true;
+                    }
+
+                    if has_duplicates && expanded_title.as_deref() == Some(title.as_str()) {
+                        ui.indent((id_source, "duplicate-title-branches", title.as_str()), |ui| {
+                            let mut child_hovered = false;
+                            for selector in &selectors {
+                                let child_selected = target.as_deref() == Some(selector.as_str())
+                                    && !*match_duplicate_window_titles;
+                                let child_response = ui.selectable_label(child_selected, &title);
+                                child_hovered |= child_response.hovered();
+                                if child_response.clicked() {
+                                    *target = Some(selector.clone());
+                                    *match_duplicate_window_titles = false;
+                                    expanded_title = None;
+                                    changed = true;
+                                }
+                            }
+                            if child_hovered {
+                                expanded_title = Some(title.clone());
+                            }
+                        });
+                    }
+                }
+            });
+
+        ui.ctx().data_mut(|data| {
+            if let Some(title) = expanded_title {
+                data.insert_temp(popup_state_id, title);
+            } else {
+                data.remove::<String>(popup_state_id);
+            }
+        });
+        changed
+    }
+
+    fn render_multi_window_targets_with_duplicate_mode(
+        ui: &mut egui::Ui,
+        id_source: impl std::hash::Hash + Copy,
+        label_when_none: &str,
+        primary: &mut Option<String>,
+        extras: &mut Vec<String>,
+        match_duplicate_window_titles: &mut bool,
+        open_windows: &[String],
+    ) -> bool {
+        let mut changed = false;
+        ui.vertical(|ui| {
+            changed |= Self::render_window_target_combo_with_duplicate_mode(
+                ui,
+                (id_source, "primary"),
+                label_when_none,
+                primary,
+                match_duplicate_window_titles,
+                open_windows,
+                360.0,
+                true,
+            );
+
+            let mut remove_index = None;
+            for (index, extra) in extras.iter_mut().enumerate() {
+                ui.horizontal(|ui| {
+                    let mut extra_target = Some(extra.clone());
+                    if Self::render_window_target_combo_with_duplicate_mode(
+                        ui,
+                        (id_source, "extra", index),
+                        label_when_none,
+                        &mut extra_target,
+                        match_duplicate_window_titles,
+                        open_windows,
+                        320.0,
+                        false,
+                    ) {
+                        if let Some(next) = extra_target {
+                            *extra = next;
+                            changed = true;
+                        }
+                    }
+                    if ui.button("X").clicked() {
+                        remove_index = Some(index);
+                    }
+                });
+            }
+            if let Some(index) = remove_index {
+                extras.remove(index);
+                changed = true;
+            }
+
+            if ui.button("+ Window").clicked() {
+                let next = open_windows
+                    .iter()
+                    .find(|title| {
+                        primary.as_deref() != Some(title.as_str())
+                            && !extras.iter().any(|existing| existing == *title)
+                    })
+                    .cloned()
+                    .or_else(|| open_windows.first().cloned())
+                    .unwrap_or_default();
+                if !next.is_empty() {
+                    extras.push(next);
+                    changed = true;
+                }
+            }
+        });
+        changed
+    }
+
     fn render_audio_trim_bar(
         ui: &mut egui::Ui,
         id_source: impl std::hash::Hash + Copy,
@@ -9543,23 +9742,15 @@ impl CrosshairApp {
                         .spacing([8.0, 8.0])
                         .show(ui, |ui| {
                             ui.label(Self::tr_lang(language, "Target Window", "Target Window"));
-                            live_sync |= Self::render_multi_window_targets(
+                            live_sync |= Self::render_multi_window_targets_with_duplicate_mode(
                                 ui,
                                 (group.id, "macro-group-window-target"),
                                 Self::tr_lang(language, "Any focused window", "Any focused window"),
                                 &mut group.target_window_title,
                                 &mut group.extra_target_window_titles,
+                                &mut group.match_duplicate_window_titles,
                                 &self.open_windows,
                             );
-                            ui.end_row();
-
-                            ui.label(Self::tr_lang(language, "Titles", "Titles"));
-                            live_sync |= ui
-                                .checkbox(
-                                    &mut group.match_duplicate_window_titles,
-                                    Self::tr_lang(language, "Same titles", "Same titles"),
-                                )
-                                .changed();
                             ui.end_row();
                         });
 
