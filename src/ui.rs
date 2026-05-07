@@ -6808,10 +6808,6 @@ impl CrosshairApp {
 
     fn render_window_presets_panel(&mut self, ui: &mut egui::Ui) {
         ui.add_space(2.0);
-        ui.label(self.tr(
-            "Window presets organize saved window actions.",
-            "Preset cửa sổ giúp lưu và quản lý các thao tác cửa sổ.",
-        ));
         ui.horizontal(|ui| {
             if ui
                 .button(self.tr("+ Add preset", "+ Add preset"))
@@ -7394,10 +7390,6 @@ impl CrosshairApp {
     fn render_pin_panel(&mut self, ui: &mut egui::Ui) {
         let language = self.state.ui_language;
         ui.add_space(2.0);
-        ui.label(self.tr(
-            "Pin one chosen app on top of the screen. If custom bounds are off, the pinned view uses the original window position and size.",
-            "Ghim một app lên trên màn hình. Nếu tắt custom bounds thì khung ghim sẽ dùng vị trí và kích thước gốc của cửa sổ.",
-        ));
         if ui
             .button(Self::tr_lang(
                 language,
@@ -7748,7 +7740,6 @@ impl CrosshairApp {
         self.ensure_master_presets();
         self.reconcile_master_presets();
         ui.heading("Mode");
-        ui.label("One active.");
         ui.horizontal(|ui| {
             if ui.button("+ Capture").clicked() {
                 self.add_master_preset_from_current();
@@ -10894,16 +10885,8 @@ impl CrosshairApp {
 
     fn render_mouse_panel(&mut self, ui: &mut egui::Ui) {
         ui.add_space(2.0);
-        ui.label(self.tr(
-            "Macros, driver, arrows.",
-            "Macro chuot, backend driver, va di chuot bang mui ten.",
-        ));
         ui.separator();
         ui.heading(self.tr("Mouse Driver", "Mouse Driver"));
-        ui.label(self.tr(
-            "Interception. Per-path backend.",
-            "Tai hoac xoa driver Interception. Tung preset duong chuot se tu chon backend rieng.",
-        ));
         let driver_downloaded = self.mouse_interception_driver_downloaded();
         let driver_installed = self.mouse_interception_driver_installed();
         let driver_ready = driver_downloaded || driver_installed;
@@ -10981,10 +10964,6 @@ impl CrosshairApp {
         Frame::group(ui.style()).show(ui, |ui| {
             ui.vertical(|ui| {
                 ui.heading(self.tr("Mouse Sensitivity", "Mouse Sensitivity"));
-                ui.label(self.tr(
-                    "Hold the arrow keys to move the pointer.",
-                    "Giu cac phim mui ten de di chuot.",
-                ));
                 if ui
                     .button(self.tr("+ Add preset", "+ Add preset"))
                     .clicked()
@@ -11452,13 +11431,6 @@ impl CrosshairApp {
                 self.sync_image_search_presets();
                 self.persist();
             }
-            ui.label(
-                RichText::new(self.tr(
-                    "Green = active, gray = off",
-                    "Xanh = dang bat, xam = dang tat",
-                ))
-                .small(),
-            );
         });
 
         ui.add_space(4.0);
@@ -12640,10 +12612,6 @@ impl CrosshairApp {
     fn render_sound_panel(&mut self, ui: &mut egui::Ui) {
         let language = self.state.ui_language;
         ui.add_space(2.0);
-        ui.label(self.tr(
-            "Manage sound presets for macro steps.",
-            "Quản lý preset âm thanh dùng cho macro.",
-        ));
         let mut changed = false;
 
         ui.separator();
@@ -12785,11 +12753,6 @@ impl CrosshairApp {
 
         ui.heading(Self::tr_lang(language, "Media", "Media"));
         ui.label(RichText::new(title).strong());
-        ui.label(Self::tr_lang(
-            language,
-            "Press Space to preview or stop the selected slice.",
-            "Nhấn Space để nghe thử hoặc dừng đoạn đã chọn.",
-        ));
         ui.add_space(6.0);
 
         ui.horizontal_wrapped(|ui| {
