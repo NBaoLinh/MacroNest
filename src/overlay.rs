@@ -1119,6 +1119,19 @@ mod windows_overlay {
 
                 if let Some(key_name) = key_name.clone() {
                     let binding = binding_from_event(&key_name);
+                    if key_name.eq_ignore_ascii_case("Tab") && binding.alt {
+                        update_held_key(&key_name, is_key_down, is_key_up);
+                        update_modifier_state(info.vkCode, is_key_down);
+                        return CallNextHookEx(None, code, wparam, lparam);
+                    }
+                    if matches!(
+                        key_name.as_str(),
+                        "Ctrl" | "Control" | "Alt" | "Shift" | "Win" | "Meta"
+                    ) {
+                        update_held_key(&key_name, is_key_down, is_key_up);
+                        update_modifier_state(info.vkCode, is_key_down);
+                        return CallNextHookEx(None, code, wparam, lparam);
+                    }
                     let mut swallow = false;
                     if is_key_down {
                         let repeat = is_repeat_key(&key_name);
@@ -8126,15 +8139,16 @@ mod windows_overlay {
     }
 
     fn macro_preset_trigger_matches(preset: &MacroPreset, binding: &HotkeyBinding) -> bool {
+        if let Some(hotkey) = preset.hotkey.as_ref() {
+            return hotkey::binding_matches(hotkey, binding);
+        }
+
         let trigger_keys = preset.trigger_keys.trim();
         if !trigger_keys.is_empty() {
             return hotkey::key_list_contains(trigger_keys, &binding.key);
         }
 
-        preset
-            .hotkey
-            .as_ref()
-            .is_some_and(|hotkey| hotkey::binding_matches(hotkey, binding))
+        false
     }
 
     fn window_focus_matches(

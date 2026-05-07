@@ -1615,6 +1615,34 @@ impl CrosshairApp {
         self.status = format!("Imported sound preset {id}.");
     }
 
+    fn consume_dropped_audio_files(&mut self, ctx: &egui::Context) -> bool {
+        let dropped_files = ctx.input(|input| input.raw.dropped_files.clone());
+        if dropped_files.is_empty() {
+            return false;
+        }
+
+        let mut imported_any = false;
+        for file in dropped_files {
+            if let Some(path) = file.path {
+                let is_audio = path
+                    .extension()
+                    .and_then(|ext| ext.to_str())
+                    .is_some_and(|ext| {
+                        matches!(
+                            ext.to_ascii_lowercase().as_str(),
+                            "mp3" | "wav" | "flac" | "ogg" | "m4a" | "aac" | "aif" | "aiff"
+                                | "mp4" | "mkv" | "webm" | "opus" | "wma" | "caf"
+                        )
+                    });
+                if is_audio {
+                    self.import_audio_file_as_sound_preset(path);
+                    imported_any = true;
+                }
+            }
+        }
+        imported_any
+    }
+
     fn choose_audio_file_for_library_item(&mut self, item_id: u32) {
         let Some(path) = rfd::FileDialog::new()
             .add_filter("Audio", &["mp3", "wav", "flac", "ogg", "m4a"])
@@ -1951,11 +1979,17 @@ impl CrosshairApp {
     }
 
     fn format_macro_trigger_ui(language: UiLanguage, preset: &MacroPreset) -> String {
-        let label = if preset.trigger_keys.trim().is_empty() {
-            hotkey::format_binding(preset.hotkey.as_ref())
-        } else {
-            hotkey::format_key_list(&preset.trigger_keys)
-        };
+        let label = preset
+            .hotkey
+            .as_ref()
+            .map(|hotkey| hotkey::format_binding(Some(hotkey)))
+            .unwrap_or_else(|| {
+                if preset.trigger_keys.trim().is_empty() {
+                    hotkey::format_binding(None)
+                } else {
+                    hotkey::format_key_list(&preset.trigger_keys)
+                }
+            });
         if label == "Not set" {
             Self::tr_lang(
                 language,
@@ -3593,11 +3627,17 @@ impl CrosshairApp {
     fn macro_group_binding_labels(group: &MacroGroup) -> HashMap<u32, String> {
         let mut counts: HashMap<String, usize> = HashMap::new();
         for preset in &group.presets {
-            let label = if preset.trigger_keys.trim().is_empty() {
-                hotkey::format_binding(preset.hotkey.as_ref())
-            } else {
-                hotkey::format_key_list(&preset.trigger_keys)
-            };
+            let label = preset
+                .hotkey
+                .as_ref()
+                .map(|hotkey| hotkey::format_binding(Some(hotkey)))
+                .unwrap_or_else(|| {
+                    if preset.trigger_keys.trim().is_empty() {
+                        hotkey::format_binding(None)
+                    } else {
+                        hotkey::format_key_list(&preset.trigger_keys)
+                    }
+                });
             *counts.entry(label).or_insert(0) += 1;
         }
 
@@ -5410,14 +5450,15 @@ impl CrosshairApp {
     }
 
     fn begin_capture(&mut self, target: CaptureRequest, status: String) {
+        let waits_for_mouse_release = self.capture_request_accepts_mouse(&target);
         self.capture_target = Some(target.clone());
         self.capture_ignored_keys = self.snapshot_pressed_capture_keys();
         self.capture_ignored_keys
             .extend([0x01, 0x02, 0x04, 0x05, 0x06]);
         self.capture_hotkey_combo_keys = None;
         self.capture_suppress_next_poll = false;
-        self.capture_wait_for_mouse_release = true;
-        self.capture_ignore_mouse_until_release = true;
+        self.capture_wait_for_mouse_release = waits_for_mouse_release;
+        self.capture_ignore_mouse_until_release = waits_for_mouse_release;
         self.capture_suppress_polls_remaining = 0;
         self.capture_mouse_guard_until = None;
         self.status = if self.capture_request_keeps_open(&target) {
@@ -6308,24 +6349,9 @@ impl CrosshairApp {
                             .find(|preset| preset.id == preset_id)
                     })
                 {
-                    let key = binding.key.trim().to_owned();
-                    let existing = preset
-                        .trigger_keys
-                        .split(',')
-                        .map(str::trim)
-                        .filter(|part| !part.is_empty())
-                        .map(str::to_owned)
-                        .collect::<Vec<_>>();
-                    if existing.iter().any(|part| part.eq_ignore_ascii_case(&key)) {
-                        self.status = format!("Key {key} is already in that trigger list.");
-                    } else if existing.is_empty() {
-                        preset.trigger_keys = key.clone();
-                        self.status = format!("Captured trigger key for macro {preset_id}.");
-                    } else {
-                        preset.trigger_keys = format!("{},{}", preset.trigger_keys.trim(), key);
-                        self.status = format!("Added trigger key {key} for macro {preset_id}.");
-                    }
-                    preset.hotkey = None;
+                    preset.hotkey = Some(binding);
+                    preset.trigger_keys.clear();
+                    self.status = format!("Captured trigger hotkey for macro {preset_id}.");
                 }
                 self.sync_macro_presets();
             }
@@ -13183,6 +13209,7 @@ impl CrosshairApp {
         ui.spacing_mut().item_spacing = vec2(6.0, 4.0);
         ui.add_space(0.0);
         let mut changed = false;
+        changed |= self.consume_dropped_audio_files(ui.ctx());
 
         ui.horizontal(|ui| {
             ui.label(
@@ -13607,6 +13634,7 @@ impl CrosshairApp {
 
     fn render_media_panel(&mut self, ui: &mut egui::Ui) {
         let language = self.state.ui_language;
+        let _ = self.consume_dropped_audio_files(ui.ctx());
         let Some(target) = self.active_audio_editor else {
             self.state.active_panel = AppPanel::Sound;
             self.render_sound_panel(ui);
