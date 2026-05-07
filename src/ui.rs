@@ -8478,9 +8478,6 @@ impl CrosshairApp {
             .filter(|(_, group)| Self::macro_group_matches_search_query(group, &search_query))
             .map(|(index, _)| index)
             .collect();
-        egui::ScrollArea::vertical()
-            .auto_shrink([false, false])
-            .show(ui, |ui| {
         if visible_group_indices.is_empty() {
             let empty_text = if self.active_macro_folder_view.is_some() {
                 Self::tr_lang(language, "This folder does not have any macro groups yet.", "This folder does not have any macro groups yet.")
@@ -10850,7 +10847,6 @@ impl CrosshairApp {
             }
                                             }
                                         }
-                                    });
 
         if let Some(group_id) = add_preset_to_group {
             self.add_macro_preset_to_group(group_id);
