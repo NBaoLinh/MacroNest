@@ -7773,6 +7773,20 @@ impl CrosshairApp {
                         preset_changed |= ui
                             .add_sized([220.0, 24.0], TextEdit::singleline(&mut preset.name))
                             .changed();
+                        if Self::sound_style_toggle_button(
+                            ui,
+                            if preset.enabled {
+                                Self::tr_lang(language, "Unapply", "Unapply")
+                            } else {
+                                Self::tr_lang(language, "Apply", "Apply")
+                            },
+                        )
+                        .clicked()
+                        {
+                            preset.enabled = !preset.enabled;
+                            preset.style.enabled = preset.enabled;
+                            preset_changed = true;
+                        }
                         ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
                             if Self::sound_style_remove_button(ui).clicked() {
                                 remove = true;
@@ -7788,18 +7802,6 @@ impl CrosshairApp {
                             .clicked()
                             {
                                 preset.collapsed = !preset.collapsed;
-                                preset_changed = true;
-                            }
-                            if ui
-                                .button(if preset.enabled {
-                                    Self::tr_lang(language, "Unapply", "Unapply")
-                                } else {
-                                    Self::tr_lang(language, "Apply", "Apply")
-                                })
-                                .clicked()
-                            {
-                                preset.enabled = !preset.enabled;
-                                preset.style.enabled = preset.enabled;
                                 preset_changed = true;
                             }
                         });
@@ -12168,6 +12170,26 @@ impl CrosshairApp {
                                 &preset.name,
                                 preset.enabled,
                             ));
+                            if Self::sound_style_toggle_button(
+                                ui,
+                                Self::tr_lang(language, "Apply", "Ãp dá»¥ng"),
+                            )
+                            .clicked()
+                            {
+                                let _ = self.overlay_tx.send(
+                                    OverlayCommand::ApplyMouseSensitivityPreset(preset.id),
+                                );
+                            }
+                            if Self::sound_style_toggle_button(
+                                ui,
+                                Self::tr_lang(language, "Restore", "KhÃ´i phá»¥c"),
+                            )
+                            .clicked()
+                            {
+                                let _ = self
+                                    .overlay_tx
+                                    .send(OverlayCommand::RestoreMouseSensitivity);
+                            }
                             ui.with_layout(
                                 egui::Layout::right_to_left(egui::Align::Center),
                                 |ui| {
@@ -12186,22 +12208,6 @@ impl CrosshairApp {
                                     {
                                         preset.collapsed = !preset.collapsed;
                                         mouse_sensitivity_live_sync = true;
-                                    }
-                                    if ui
-                                        .button(Self::tr_lang(language, "Restore", "KhÃ´i phá»¥c"))
-                                        .clicked()
-                                    {
-                                        let _ = self
-                                            .overlay_tx
-                                            .send(OverlayCommand::RestoreMouseSensitivity);
-                                    }
-                                    if ui
-                                        .button(Self::tr_lang(language, "Apply", "Ãp dá»¥ng"))
-                                        .clicked()
-                                    {
-                                        let _ = self.overlay_tx.send(
-                                            OverlayCommand::ApplyMouseSensitivityPreset(preset.id),
-                                        );
                                     }
                                 },
                             );
