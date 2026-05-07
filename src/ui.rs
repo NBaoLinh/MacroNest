@@ -13496,6 +13496,7 @@ impl CrosshairApp {
         } else {
             clip.file_path.as_str()
         });
+        ui.add_space(2.0);
 
         if let Some(total_ms) = *duration_ms {
             Self::trim_audio_bounds(clip, total_ms);
@@ -13503,7 +13504,7 @@ impl CrosshairApp {
                 .fill(ui.visuals().faint_bg_color)
                 .stroke(Stroke::new(1.0, ui.visuals().widgets.noninteractive.bg_stroke.color))
                 .corner_radius(16.0)
-                .inner_margin(egui::Margin::same(12))
+                .inner_margin(egui::Margin::same(8))
                 .show(ui, |ui| {
                     ui.label(format!(
                         "{} {}  |  {} {}",
@@ -13512,7 +13513,7 @@ impl CrosshairApp {
                         Self::tr_lang(language, "Slice", "Slice"),
                         Self::format_ms(clip.end_ms.saturating_sub(clip.start_ms))
                     ));
-                    ui.add_space(2.0);
+                    ui.add_space(1.0);
                     outcome.changed |= Self::render_audio_trim_timeline(
                         ui,
                         language,
@@ -13523,9 +13524,9 @@ impl CrosshairApp {
                         &mut preview_cursor_ms,
                         trim_timeline_zoom,
                         true,
-                        140.0,
+                        112.0,
                     );
-                    ui.add_space(2.0);
+                    ui.add_space(1.0);
                     ui.horizontal(|ui| {
                         ui.label(Self::tr_lang(language, "Start", "Bắt đầu"));
                         outcome.changed |= ui
@@ -13536,12 +13537,12 @@ impl CrosshairApp {
                             .add(DragValue::new(&mut clip.end_ms).range(0..=total_ms))
                             .changed();
                     });
-            });
+                });
             Self::trim_audio_bounds(clip, total_ms);
         }
 
-        ui.add_space(4.0);
-        ui.horizontal_centered(|ui| {
+        ui.add_space(2.0);
+        ui.horizontal_wrapped(|ui| {
             if ui
                 .add_enabled(
                     !clip.file_path.trim().is_empty(),
@@ -13593,31 +13594,27 @@ impl CrosshairApp {
                     }
                 }
             }
-        });
-
-        ui.add_space(4.0);
-        ui.horizontal(|ui| {
             ui.label(Self::tr_lang(
                 language,
                 "Volume",
                 "Âm lượng",
             ));
             outcome.changed |= ui
-                .add(
+                .add_sized(
+                    [170.0, 24.0],
                     Slider::new(&mut clip.volume, 0.0..=2.0)
                         .text("x")
                         .clamping(egui::SliderClamping::Always),
                 )
                 .changed();
-        });
-        ui.horizontal(|ui| {
             ui.label(Self::tr_lang(
                 language,
                 "Speed",
                 "Tốc độ",
             ));
             outcome.changed |= ui
-                .add(
+                .add_sized(
+                    [170.0, 24.0],
                     Slider::new(&mut clip.speed, 0.25..=3.0)
                         .text("x")
                         .clamping(egui::SliderClamping::Always),
