@@ -7801,8 +7801,9 @@ impl CrosshairApp {
                 let preset = &mut self.state.profiles[index];
                 Self::show_preset_card(ui, preset.enabled, |ui| {
                     ui.horizontal(|ui| {
+                        let name_width = (ui.available_width() - 270.0).max(180.0);
                         preset_changed |= ui
-                            .add_sized([220.0, 24.0], TextEdit::singleline(&mut preset.name))
+                            .add_sized([name_width, 24.0], TextEdit::singleline(&mut preset.name))
                             .changed();
                         if Self::sound_style_toggle_button(
                             ui,
@@ -7906,7 +7907,7 @@ impl CrosshairApp {
         for index in 0..self.state.window_presets.len() {
             let mut next_capture_target = None;
             let language = self.state.ui_language;
-            ui.separator();
+            ui.add_space(6.0);
             {
                 let preset = &mut self.state.window_presets[index];
                 Self::show_preset_card(ui, preset.enabled, |ui| {
@@ -7915,26 +7916,28 @@ impl CrosshairApp {
                         .spacing([14.0, 8.0])
                         .show(ui, |ui| {
                             ui.horizontal(|ui| {
-                                if Self::enabled_icon_button(ui, preset.enabled)
-                                    .on_hover_text(Self::tr_lang(
-                                        language,
-                                        "Enable / disable preset",
-                                        "Enable / disable preset",
-                                    ))
-                                    .clicked()
-                                {
-                                    preset.enabled = !preset.enabled;
-                                    live_sync = true;
-                                }
-                                ui.label(Self::preset_title_text(
-                                    self.state.ui_theme == UiThemeMode::Dark,
-                                    &preset.name,
-                                    preset.enabled,
-                                ));
+                                let name_width = (ui.available_width() - 180.0).max(180.0);
+                                live_sync |= ui
+                                    .add_sized(
+                                        [name_width, 24.0],
+                                        TextEdit::singleline(&mut preset.name),
+                                    )
+                                    .changed();
                             });
                             ui.with_layout(
                                 egui::Layout::right_to_left(egui::Align::Center),
                                 |ui| {
+                                    if Self::enabled_icon_button(ui, preset.enabled)
+                                        .on_hover_text(Self::tr_lang(
+                                            language,
+                                            "Enable / disable preset",
+                                            "Enable / disable preset",
+                                        ))
+                                        .clicked()
+                                    {
+                                        preset.enabled = !preset.enabled;
+                                        live_sync = true;
+                                    }
                                     if Self::sound_style_remove_button(ui).clicked() {
                                         remove_id = Some(preset.id);
                                     }
@@ -8154,23 +8157,22 @@ impl CrosshairApp {
             let preset = &mut self.state.window_focus_presets[index];
             Self::show_preset_card(ui, preset.enabled, |ui| {
                 ui.horizontal(|ui| {
-                    if Self::enabled_icon_button(ui, preset.enabled)
-                        .on_hover_text(Self::tr_lang(
-                            language,
-                            "Enable / disable preset",
-                            "Enable / disable preset",
-                        ))
-                        .clicked()
-                    {
-                        preset.enabled = !preset.enabled;
-                        live_sync = true;
-                    }
-                    ui.label(Self::preset_title_text(
-                        self.state.ui_theme == UiThemeMode::Dark,
-                        &preset.name,
-                        preset.enabled,
-                    ));
+                    let name_width = (ui.available_width() - 180.0).max(180.0);
+                    live_sync |= ui
+                        .add_sized([name_width, 24.0], TextEdit::singleline(&mut preset.name))
+                        .changed();
                     ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
+                        if Self::enabled_icon_button(ui, preset.enabled)
+                            .on_hover_text(Self::tr_lang(
+                                language,
+                                "Enable / disable preset",
+                                "Enable / disable preset",
+                            ))
+                            .clicked()
+                        {
+                            preset.enabled = !preset.enabled;
+                            live_sync = true;
+                        }
                         if Self::sound_style_remove_button(ui).clicked() {
                             remove_focus_id = Some(preset.id);
                         }
@@ -8272,7 +8274,7 @@ impl CrosshairApp {
         let mut live_sync = false;
         for index in 0..self.state.zoom_presets.len() {
             let mut next_capture_target = None;
-            ui.separator();
+            ui.add_space(6.0);
             let preset_snapshot = self.state.zoom_presets[index].clone();
             let preview = if preset_snapshot.preview_enabled && !preset_snapshot.collapsed {
                 self.zoom_preview_for_preset(ui.ctx(), &preset_snapshot)
@@ -8283,13 +8285,18 @@ impl CrosshairApp {
             let preset = &mut self.state.zoom_presets[index];
             Self::show_preset_card(ui, preset.enabled, |ui| {
                 ui.horizontal(|ui| {
-                    live_sync |= ui.checkbox(&mut preset.enabled, "").changed();
-                    ui.label(Self::preset_title_text(
-                        self.state.ui_theme == UiThemeMode::Dark,
-                        &preset.name,
-                        preset.enabled,
-                    ));
+                    let name_width = (ui.available_width() - 180.0).max(180.0);
+                    live_sync |= ui
+                        .add_sized([name_width, 24.0], TextEdit::singleline(&mut preset.name))
+                        .changed();
                     ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
+                        if Self::enabled_icon_button(ui, preset.enabled)
+                            .on_hover_text("Enable / disable preset")
+                            .clicked()
+                        {
+                            preset.enabled = !preset.enabled;
+                            live_sync = true;
+                        }
                         if Self::sound_style_remove_button(ui).clicked() {
                             remove_id = Some(preset.id);
                         }
@@ -8473,7 +8480,7 @@ impl CrosshairApp {
                 .input(|input| input.viewport().focused != Some(false));
         for index in 0..self.state.pin_presets.len() {
             let mut next_capture_target = None;
-            ui.separator();
+            ui.add_space(6.0);
             let preset_snapshot = self.state.pin_presets[index].clone();
             let preview = if pin_preview_allowed
                 && preset_snapshot.preview_enabled
@@ -8494,23 +8501,22 @@ impl CrosshairApp {
             let preset = &mut self.state.pin_presets[index];
             Self::show_preset_card(ui, preset.enabled, |ui| {
                 ui.horizontal(|ui| {
-                    if Self::enabled_icon_button(ui, preset.enabled)
-                        .on_hover_text(Self::tr_lang(
-                            language,
-                            "Enable / disable preset",
-                            "Enable / disable preset",
-                        ))
-                        .clicked()
-                    {
-                        preset.enabled = !preset.enabled;
-                        live_sync = true;
-                    }
-                    ui.label(Self::preset_title_text(
-                        self.state.ui_theme == UiThemeMode::Dark,
-                        &preset.name,
-                        preset.enabled,
-                    ));
+                    let name_width = (ui.available_width() - 180.0).max(180.0);
+                    live_sync |= ui
+                        .add_sized([name_width, 24.0], TextEdit::singleline(&mut preset.name))
+                        .changed();
                     ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
+                        if Self::enabled_icon_button(ui, preset.enabled)
+                            .on_hover_text(Self::tr_lang(
+                                language,
+                                "Enable / disable preset",
+                                "Enable / disable preset",
+                            ))
+                            .clicked()
+                        {
+                            preset.enabled = !preset.enabled;
+                            live_sync = true;
+                        }
                         if Self::sound_style_remove_button(ui).clicked() {
                             remove_id = Some(preset.id);
                         }
@@ -12198,25 +12204,15 @@ impl CrosshairApp {
                 });
                 for index in 0..self.state.mouse_sensitivity_presets.len() {
                     let language = self.state.ui_language;
-                    ui.separator();
+                    ui.add_space(6.0);
                     let preset = &mut self.state.mouse_sensitivity_presets[index];
                     Self::show_preset_card(ui, preset.enabled, |ui| {
                         ui.horizontal(|ui| {
-                            let enabled_changed =
-                                Self::enabled_icon_button(ui, preset.enabled)
-                                    .on_hover_text(Self::tr_lang(
-                                        language,
-                                        "Enable / disable preset",
-                                        "Enable / disable preset",
-                                    ))
-                                    .clicked();
-                            if enabled_changed {
-                                preset.enabled = !preset.enabled;
-                                mouse_sensitivity_live_sync = true;
-                            }
+                            let mut disabled_by_button = false;
+                            let name_width = (ui.available_width() - 360.0).max(180.0);
                             mouse_sensitivity_live_sync |= ui
                                 .add_sized(
-                                    [260.0, 24.0],
+                                    [name_width, 24.0],
                                     TextEdit::singleline(&mut preset.name),
                                 )
                                 .changed();
@@ -12243,6 +12239,18 @@ impl CrosshairApp {
                             ui.with_layout(
                                 egui::Layout::right_to_left(egui::Align::Center),
                                 |ui| {
+                                    if Self::enabled_icon_button(ui, preset.enabled)
+                                        .on_hover_text(Self::tr_lang(
+                                            language,
+                                            "Enable / disable preset",
+                                            "Enable / disable preset",
+                                        ))
+                                        .clicked()
+                                    {
+                                        preset.enabled = !preset.enabled;
+                                        disabled_by_button = !preset.enabled;
+                                        mouse_sensitivity_live_sync = true;
+                                    }
                                     if Self::sound_style_remove_button(ui).clicked() {
                                         remove_mouse_sensitivity_id = Some(preset.id);
                                     }
@@ -12261,7 +12269,7 @@ impl CrosshairApp {
                                     }
                                 },
                             );
-                            if enabled_changed && !preset.enabled {
+                            if disabled_by_button {
                                 let _ = self
                                     .overlay_tx
                                     .send(OverlayCommand::RestoreMouseSensitivity);
@@ -12422,30 +12430,31 @@ impl CrosshairApp {
                 let mut cancel_active_capture = false;
                 for index in 0..self.state.mouse_path_presets.len() {
                     let language = self.state.ui_language;
-                    ui.separator();
+                    ui.add_space(6.0);
                     let preset = &mut self.state.mouse_path_presets[index];
                     Self::show_preset_card(ui, preset.enabled, |ui| {
                         ui.horizontal(|ui| {
-                            if Self::enabled_icon_button(ui, preset.enabled)
-                                .on_hover_text(Self::tr_lang(
-                                    language,
-                                    "Enable / disable preset",
-                                    "Enable / disable preset",
-                                ))
-                                .clicked()
-                            {
-                                preset.enabled = !preset.enabled;
-                                live_sync = true;
-                            }
+                            let name_width = (ui.available_width() - 180.0).max(180.0);
                             live_sync |= ui
                                 .add_sized(
-                                    [260.0, 24.0],
+                                    [name_width, 24.0],
                                     TextEdit::singleline(&mut preset.name),
                                 )
                                 .changed();
                             ui.with_layout(
                                 egui::Layout::right_to_left(egui::Align::Center),
                                 |ui| {
+                                    if Self::enabled_icon_button(ui, preset.enabled)
+                                        .on_hover_text(Self::tr_lang(
+                                            language,
+                                            "Enable / disable preset",
+                                            "Enable / disable preset",
+                                        ))
+                                        .clicked()
+                                    {
+                                        preset.enabled = !preset.enabled;
+                                        live_sync = true;
+                                    }
                                     if Self::sound_style_remove_button(ui).clicked() {
                                         remove_id = Some(preset.id);
                                     }
@@ -12661,7 +12670,6 @@ impl CrosshairApp {
             let mut start_color_pick_capture = None;
             let mut start_color_priority_anchor_capture = None;
             let template_file = self.image_search_template_file_for_preset(preset_snapshot.id);
-            let dark_mode = self.state.ui_theme == UiThemeMode::Dark;
             let open_windows = self.open_windows.clone();
             let hotkey_text = preset_snapshot
                 .hotkey
@@ -12673,25 +12681,25 @@ impl CrosshairApp {
                 self.capture_target.as_ref() == Some(&hotkey_capture_target);
             let preset = &mut self.state.image_search_presets[index];
 
+            ui.add_space(6.0);
             Self::show_preset_card(ui, preset.enabled, |ui| {
                 ui.horizontal(|ui| {
-                    if Self::enabled_icon_button(ui, preset.enabled)
-                        .on_hover_text(Self::tr_lang(
-                            language,
-                            "Enable / disable preset",
-                            "Enable / disable preset",
-                        ))
-                        .clicked()
-                    {
-                        preset.enabled = !preset.enabled;
-                        live_sync = true;
-                    }
-                    ui.label(Self::preset_title_text(
-                        dark_mode,
-                        &preset.name,
-                        preset.enabled,
-                    ));
+                    let name_width = (ui.available_width() - 180.0).max(180.0);
+                    live_sync |= ui
+                        .add_sized([name_width, 24.0], TextEdit::singleline(&mut preset.name))
+                        .changed();
                     ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
+                        if Self::enabled_icon_button(ui, preset.enabled)
+                            .on_hover_text(Self::tr_lang(
+                                language,
+                                "Enable / disable preset",
+                                "Enable / disable preset",
+                            ))
+                            .clicked()
+                        {
+                            preset.enabled = !preset.enabled;
+                            live_sync = true;
+                        }
                         if Self::sound_style_remove_button(ui).clicked() {
                             remove_id = Some(preset.id);
                         }
@@ -13228,28 +13236,27 @@ impl CrosshairApp {
         for index in 0..self.state.image_search_timing_presets.len() {
             let mut start_search_region_capture = None;
             let mut start_color_pick_capture = None;
-            let dark_mode = self.state.ui_theme == UiThemeMode::Dark;
             let preset = &mut self.state.image_search_timing_presets[index];
 
+            ui.add_space(6.0);
             Self::show_preset_card(ui, preset.enabled, |ui| {
                 ui.horizontal(|ui| {
-                    if Self::enabled_icon_button(ui, preset.enabled)
-                        .on_hover_text(Self::tr_lang(
-                            language,
-                            "Enable / disable preset",
-                            "Enable / disable preset",
-                        ))
-                        .clicked()
-                    {
-                        preset.enabled = !preset.enabled;
-                        timing_live_sync = true;
-                    }
-                    ui.label(Self::preset_title_text(
-                        dark_mode,
-                        &preset.name,
-                        preset.enabled,
-                    ));
+                    let name_width = (ui.available_width() - 180.0).max(180.0);
+                    timing_live_sync |= ui
+                        .add_sized([name_width, 24.0], TextEdit::singleline(&mut preset.name))
+                        .changed();
                     ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
+                        if Self::enabled_icon_button(ui, preset.enabled)
+                            .on_hover_text(Self::tr_lang(
+                                language,
+                                "Enable / disable preset",
+                                "Enable / disable preset",
+                            ))
+                            .clicked()
+                        {
+                            preset.enabled = !preset.enabled;
+                            timing_live_sync = true;
+                        }
                         if Self::sound_style_remove_button(ui).clicked() {
                             remove_timing_id = Some(preset.id);
                         }
@@ -13766,8 +13773,8 @@ impl CrosshairApp {
                 changed = true;
             }
 
-            ui.add_space(2.0);
-            ui.vertical(|ui| {
+            ui.add_space(6.0);
+            Self::show_preset_card(ui, false, |ui| {
                 ui.set_min_width(ui.available_width());
                 ui.horizontal(|ui| {
                     let action_width = 132.0;
@@ -14239,8 +14246,9 @@ impl CrosshairApp {
             let preset = &mut self.state.toolbox_presets[index];
             Self::show_preset_card(ui, false, |ui| {
                 ui.horizontal(|ui| {
+                    let name_width = (ui.available_width() - 132.0).max(180.0);
                     changed |= ui
-                        .add_sized([220.0, 24.0], TextEdit::singleline(&mut preset.name))
+                        .add_sized([name_width, 24.0], TextEdit::singleline(&mut preset.name))
                         .changed();
                     ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
                         if Self::sound_style_remove_button(ui).clicked() {
