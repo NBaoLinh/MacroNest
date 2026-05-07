@@ -554,17 +554,10 @@ impl CrosshairApp {
             native_shadow_applied: false,
         };
         app.ensure_master_presets();
-        app.refresh_audio_waveform(true);
-        app.refresh_audio_waveform(false);
         for preset in &app.state.audio_settings.presets {
             if let Some(duration) = audio_duration(&preset.clip) {
                 app.sound_preset_clip_duration_ms
                     .insert(preset.id, Some(duration));
-            }
-        }
-        for item in &app.state.audio_settings.library {
-            if let Some(duration) = audio_duration(&item.clip) {
-                app.library_clip_duration_ms.insert(item.id, Some(duration));
             }
         }
         app.sync_crosshair();
@@ -579,7 +572,6 @@ impl CrosshairApp {
         app.sync_image_search_timing_presets();
         app.sync_toolbox_presets();
         app.sync_macro_master_enabled();
-        app.play_startup_sound_once();
         app
     }
 
@@ -6817,8 +6809,8 @@ impl CrosshairApp {
     fn render_window_presets_panel(&mut self, ui: &mut egui::Ui) {
         ui.add_space(2.0);
         ui.label(self.tr(
-            "Resize presets can move, resize, animate, and restore title bars. Focus presets only bring one chosen window to the foreground.",
-            "Preset cửa sổ có thể di chuyển, đổi kích thước, animate và khôi phục thanh tiêu đề. Preset focus chỉ đưa một cửa sổ đã chọn lên trước.",
+            "Window presets organize saved window actions.",
+            "Preset cửa sổ giúp lưu và quản lý các thao tác cửa sổ.",
         ));
         ui.horizontal(|ui| {
             if ui
@@ -12683,271 +12675,15 @@ impl CrosshairApp {
         let language = self.state.ui_language;
         ui.add_space(2.0);
         ui.label(self.tr(
-            "Manage startup, exit, and reusable sound presets for macro steps.",
-            "Quản lý âm thanh lúc mở app, tắt app và các preset âm thanh dùng lại cho macro.",
+            "Manage sound presets for macro steps.",
+            "Quản lý preset âm thanh dùng cho macro.",
         ));
         let mut changed = false;
-        let startup_waveform_path = self
-            .state
-            .audio_settings
-            .startup
-            .file_path
-            .trim()
-            .to_owned();
-        let exit_waveform_path = self.state.audio_settings.exit.file_path.trim().to_owned();
-        let startup_waveform = self.audio_waveforms.get(&startup_waveform_path).cloned();
-        let exit_waveform = self.audio_waveforms.get(&exit_waveform_path).cloned();
-
-        ui.separator();
-        ui.columns(2, |columns| {
-            Self::show_preset_card(&mut columns[0], self.state.audio_settings.startup.enabled, |ui| {
-                ui.horizontal(|ui| {
-                    ui.label(RichText::new(Self::tr_lang(language, "Startup Sound", "Startup Sound")).strong());
-                    if !self.state.audio_settings.startup.file_path.trim().is_empty() {
-                        ui.monospace(Self::format_ms(
-                            self.state
-                                .audio_settings
-                                .startup
-                                .end_ms
-                                .saturating_sub(self.state.audio_settings.startup.start_ms),
-                        ));
-                    }
-                    if ui
-                        .button(if self.startup_sound_collapsed {
-                            Self::tr_lang(language, "Show", "Show")
-                        } else {
-                            Self::tr_lang(language, "Hide", "Hide")
-                        })
-                        .clicked()
-                    {
-                        self.startup_sound_collapsed = !self.startup_sound_collapsed;
-                    }
-                });
-                if self.startup_sound_collapsed {
-                    return;
-                }
-            let startup = Self::render_audio_clip_card(
-                ui,
-                language,
-                Self::tr_lang(language, "Startup Sound", "Startup Sound"),
-                &mut self.state.audio_settings.startup,
-                &mut self.startup_clip_duration_ms,
-                &mut self.show_startup_audio_editor,
-                startup_waveform.as_deref(),
-            );
-            changed |= startup.changed;
-            if let Some(status) = startup.status {
-                self.status = status;
-            }
-            if startup.choose_file {
-                self.choose_audio_file(true);
-            }
-            if startup.open_editor {
-                self.open_audio_editor(AudioEditorTarget::Startup);
-            }
-            ui.add_space(4.0);
-            if ui
-                .button(self.tr("Save Startup To Library", "Save Startup To Library"))
-                .on_hover_text(self.tr(
-                    "Save this trimmed startup clip into the reusable sound library.",
-                    "Lưu đoạn âm thanh mở app đã cắt vào thư viện để dùng lại.",
-                ))
-                .clicked()
-            {
-                let clip = self.state.audio_settings.startup.clone();
-                self.save_clip_to_library("Startup", &clip);
-                changed = true;
-            }
-            });
-
-            Self::show_preset_card(&mut columns[1], self.state.audio_settings.exit.enabled, |ui| {
-                ui.horizontal(|ui| {
-                    ui.label(RichText::new(Self::tr_lang(language, "Exit Sound", "Exit Sound")).strong());
-                    if !self.state.audio_settings.exit.file_path.trim().is_empty() {
-                        ui.monospace(Self::format_ms(
-                            self.state
-                                .audio_settings
-                                .exit
-                                .end_ms
-                                .saturating_sub(self.state.audio_settings.exit.start_ms),
-                        ));
-                    }
-                    if ui
-                        .button(if self.exit_sound_collapsed {
-                            Self::tr_lang(language, "Show", "Show")
-                        } else {
-                            Self::tr_lang(language, "Hide", "Hide")
-                        })
-                        .clicked()
-                    {
-                        self.exit_sound_collapsed = !self.exit_sound_collapsed;
-                    }
-                });
-                if self.exit_sound_collapsed {
-                    return;
-                }
-            let exit = Self::render_audio_clip_card(
-                ui,
-                language,
-                Self::tr_lang(language, "Exit Sound", "Exit Sound"),
-                &mut self.state.audio_settings.exit,
-                &mut self.exit_clip_duration_ms,
-                &mut self.show_exit_audio_editor,
-                exit_waveform.as_deref(),
-            );
-            changed |= exit.changed;
-            if let Some(status) = exit.status {
-                self.status = status;
-            }
-            if exit.choose_file {
-                self.choose_audio_file(false);
-            }
-            if exit.open_editor {
-                self.open_audio_editor(AudioEditorTarget::Exit);
-            }
-            ui.add_space(4.0);
-            if ui
-                .button(self.tr("Save Exit To Library", "Save Exit To Library"))
-                .on_hover_text(self.tr(
-                    "Save this trimmed exit clip into the reusable sound library.",
-                    "Lưu đoạn âm thanh tắt app đã cắt vào thư viện để dùng lại.",
-                ))
-                .clicked()
-            {
-                let clip = self.state.audio_settings.exit.clone();
-                self.save_clip_to_library("Exit", &clip);
-                changed = true;
-            }
-            });
-        });
 
         ui.separator();
         ui.horizontal(|ui| {
             ui.label(
-                RichText::new(self.tr(
-                    "Sound Library",
-                    "Thư viện âm thanh",
-                ))
-                .strong(),
-            );
-            if ui
-                .button(self.tr(
-                    "+ Add Library Sound",
-                    "+ Thêm âm thanh thư viện",
-                ))
-                .clicked()
-            {
-                let id = self.state.audio_settings.next_library_item_id.max(1);
-                self.state.audio_settings.next_library_item_id = id + 1;
-                self.state
-                    .audio_settings
-                    .library
-                    .push(SoundLibraryItem::new(id));
-                self.show_library_audio_editor.insert(id);
-                changed = true;
-            }
-        });
-
-        let mut remove_library_item = None;
-        for index in 0..self.state.audio_settings.library.len() {
-            let mut choose_file_for = None;
-            let mut open_editor_target = None;
-            let item = &mut self.state.audio_settings.library[index];
-            let waveform_path = item.clip.file_path.trim().to_owned();
-            let waveform = self.audio_waveforms.get(&waveform_path).cloned();
-            let mut duration = self
-                .library_clip_duration_ms
-                .get(&item.id)
-                .copied()
-                .flatten()
-                .or_else(|| audio_duration(&item.clip));
-            let mut show_editor = self.show_library_audio_editor.contains(&item.id);
-
-            ui.add_space(6.0);
-            Self::show_preset_card(ui, item.clip.enabled, |ui| {
-                ui.horizontal(|ui| {
-                    changed |= ui.checkbox(&mut item.clip.enabled, "").changed();
-                    changed |= ui
-                        .add_sized([220.0, 24.0], TextEdit::singleline(&mut item.name))
-                        .changed();
-                    if ui
-                        .button(if item.collapsed {
-                            Self::tr_lang(language, "Show", "Show")
-                        } else {
-                            Self::tr_lang(language, "Hide", "Hide")
-                        })
-                        .clicked()
-                    {
-                        item.collapsed = !item.collapsed;
-                        changed = true;
-                    }
-                    if ui
-                        .button(Self::tr_lang(language, "Remove", "Remove"))
-                        .clicked()
-                    {
-                        remove_library_item = Some(item.id);
-                    }
-                });
-                if item.collapsed {
-                    return;
-                }
-                let outcome = Self::render_audio_clip_card(
-                    ui,
-                    language,
-                    Self::tr_lang(
-                        language,
-                        "Library Sound",
-                        "Âm thanh thư viện",
-                    ),
-                    &mut item.clip,
-                    &mut duration,
-                    &mut show_editor,
-                    waveform.as_deref(),
-                );
-                changed |= outcome.changed;
-                if let Some(status) = outcome.status {
-                    self.status = status;
-                }
-                if outcome.choose_file {
-                    choose_file_for = Some(item.id);
-                }
-                if outcome.open_editor {
-                    open_editor_target = Some(AudioEditorTarget::Library(item.id));
-                }
-            });
-
-            self.library_clip_duration_ms.insert(item.id, duration);
-            if show_editor {
-                self.show_library_audio_editor.insert(item.id);
-            } else {
-                self.show_library_audio_editor.remove(&item.id);
-            }
-            if let Some(item_id) = choose_file_for {
-                self.choose_audio_file_for_library_item(item_id);
-            }
-            if let Some(target) = open_editor_target {
-                self.open_audio_editor(target);
-            }
-        }
-
-        if let Some(item_id) = remove_library_item {
-            self.state
-                .audio_settings
-                .library
-                .retain(|item| item.id != item_id);
-            for preset in &mut self.state.audio_settings.presets {
-                preset.sequence_library_ids.retain(|id| *id != item_id);
-            }
-            self.library_clip_duration_ms.remove(&item_id);
-            self.show_library_audio_editor.remove(&item_id);
-            changed = true;
-        }
-
-        ui.separator();
-        ui.horizontal(|ui| {
-            ui.label(
-                RichText::new(self.tr("Sound Presets", "Sound Presets"))
-                    .strong(),
+                RichText::new(self.tr("Sound Presets", "Sound Presets")).strong(),
             );
             if ui
                 .button(self.tr(
@@ -12968,7 +12704,6 @@ impl CrosshairApp {
         for index in 0..self.state.audio_settings.presets.len() {
             let mut choose_file_for = None;
             let mut open_editor_target = None;
-            let mut save_clip_to_library_request: Option<(String, AudioClipSettings)> = None;
             let preset = &mut self.state.audio_settings.presets[index];
             let waveform_path = preset.clip.file_path.trim().to_owned();
             let waveform = self.audio_waveforms.get(&waveform_path).cloned();
@@ -13036,100 +12771,6 @@ impl CrosshairApp {
                 if outcome.open_editor {
                     open_editor_target = Some(AudioEditorTarget::Preset(preset.id));
                 }
-                ui.add_space(6.0);
-                if ui
-                    .button(Self::tr_lang(
-                        language,
-                        "Save Base Clip To Library",
-                        "Lưu đoạn gốc vào thư viện",
-                    ))
-                    .on_hover_text(Self::tr_lang(
-                        language,
-                        "Save this trimmed base clip into the library so other presets can reuse it.",
-                        "Lưu đoạn âm thanh gốc đã cắt vào thư viện để preset khác dùng lại.",
-                    ))
-                    .clicked()
-                {
-                    save_clip_to_library_request = Some((preset.name.clone(), preset.clip.clone()));
-                }
-                ui.add_space(6.0);
-                ui.label(
-                    RichText::new(Self::tr_lang(
-                        language,
-                        "Merge Library Sounds",
-                        "Ghép âm thanh thư viện",
-                    ))
-                    .strong(),
-                );
-                ui.horizontal_wrapped(|ui| {
-                    egui::ComboBox::from_id_salt((preset.id, "sound-library-merge"))
-                        .width(240.0)
-                        .selected_text(Self::tr_lang(
-                            language,
-                            "Add library sound",
-                            "Thêm âm thanh thư viện",
-                        ))
-                        .show_ui(ui, |ui| {
-                            for item in &self.state.audio_settings.library {
-                                if ui.button(&item.name).clicked() {
-                                    preset.sequence_library_ids.push(item.id);
-                                    changed = true;
-                                    ui.close();
-                                }
-                            }
-                        });
-                });
-                for (sequence_index, library_id) in
-                    preset.sequence_library_ids.clone().into_iter().enumerate()
-                {
-                    let label = self
-                        .state
-                        .audio_settings
-                        .library
-                        .iter()
-                        .find(|item| item.id == library_id)
-                        .map(|item| item.name.clone())
-                        .unwrap_or_else(|| match language {
-                            UiLanguage::Vietnamese => {
-                                format!("Thiếu âm thanh thư viện {library_id}")
-                            }
-                            _ => format!("Missing library sound {library_id}"),
-                        });
-                    ui.horizontal(|ui| {
-                        ui.label(format!("{}. {}", sequence_index + 1, label));
-                        if ui
-                            .button(Self::tr_lang(language, "Up", "Up"))
-                            .clicked()
-                            && sequence_index > 0
-                        {
-                            preset
-                                .sequence_library_ids
-                                .swap(sequence_index, sequence_index - 1);
-                            changed = true;
-                        }
-                        if ui
-                            .button(Self::tr_lang(
-                                language,
-                                "Down",
-                                "Xuống",
-                            ))
-                            .clicked()
-                            && sequence_index + 1 < preset.sequence_library_ids.len()
-                        {
-                            preset
-                                .sequence_library_ids
-                                .swap(sequence_index, sequence_index + 1);
-                            changed = true;
-                        }
-                        if ui
-                            .button(Self::tr_lang(language, "Remove", "Remove"))
-                            .clicked()
-                        {
-                            preset.sequence_library_ids.remove(sequence_index);
-                            changed = true;
-                        }
-                    });
-                }
             });
 
             self.sound_preset_clip_duration_ms
@@ -13138,10 +12779,6 @@ impl CrosshairApp {
                 self.show_sound_preset_audio_editor.insert(preset.id);
             } else {
                 self.show_sound_preset_audio_editor.remove(&preset.id);
-            }
-            if let Some((name, clip)) = save_clip_to_library_request.take() {
-                self.save_clip_to_library(&name, &clip);
-                changed = true;
             }
             if let Some(preset_id) = choose_file_for {
                 self.choose_audio_file_for_sound_preset(preset_id);
@@ -13161,6 +12798,7 @@ impl CrosshairApp {
             changed = true;
         }
 
+        ui.separator();
         if changed {
             self.sync_audio_settings();
             self.persist();
@@ -13376,251 +13014,6 @@ impl CrosshairApp {
         ui.separator();
 
         match target {
-            AudioEditorTarget::Startup => {
-                let waveform_path = self
-                    .state
-                    .audio_settings
-                    .startup
-                    .file_path
-                    .trim()
-                    .to_owned();
-                let waveform = self.audio_waveforms.get(&waveform_path).cloned();
-                let mut duration = self
-                    .startup_clip_duration_ms
-                    .or_else(|| audio_duration(&self.state.audio_settings.startup));
-                let outcome = Self::render_audio_media_editor(
-                    ui,
-                    language,
-                    "startup",
-                    Self::tr_lang(
-                        language,
-                        "Startup Sound",
-                        "Âm thanh mở app",
-                    ),
-                    &mut self.state.audio_settings.startup,
-                    &mut duration,
-                    waveform.as_deref(),
-                );
-                self.startup_clip_duration_ms = duration;
-                if outcome.choose_file {
-                    self.choose_audio_file(true);
-                }
-                if ui.input(|input| input.key_pressed(egui::Key::Space))
-                    && !self
-                        .state
-                        .audio_settings
-                        .startup
-                        .file_path
-                        .trim()
-                        .is_empty()
-                {
-                    match audio::toggle_preview(self.state.audio_settings.startup.clone()) {
-                        Ok(true) => {
-                            self.status = match language {
-                                UiLanguage::Vietnamese => {
-                                    "Đang nghe thử âm thanh mở app.".to_owned()
-                                }
-                                _ => "Previewing Startup Sound.".to_owned(),
-                            }
-                        }
-                        Ok(false) => {
-                            self.status = match language {
-                                UiLanguage::Vietnamese => {
-                                    "Đã dừng nghe thử âm thanh mở app.".to_owned()
-                                }
-                                _ => "Stopped Startup Sound preview.".to_owned(),
-                            }
-                        }
-                        Err(error) => {
-                            self.status = match language {
-                                UiLanguage::Vietnamese => {
-                                    format!(
-                                        "Nghe thử thất bại: {error}"
-                                    )
-                                }
-                                _ => format!("Preview failed: {error}"),
-                            }
-                        }
-                    }
-                }
-                if let Some(status) = outcome.status {
-                    self.status = status;
-                }
-                if outcome.changed {
-                    self.sync_audio_settings();
-                    self.persist();
-                }
-            }
-            AudioEditorTarget::Exit => {
-                let waveform_path = self.state.audio_settings.exit.file_path.trim().to_owned();
-                let waveform = self.audio_waveforms.get(&waveform_path).cloned();
-                let mut duration = self
-                    .exit_clip_duration_ms
-                    .or_else(|| audio_duration(&self.state.audio_settings.exit));
-                let outcome = Self::render_audio_media_editor(
-                    ui,
-                    language,
-                    "exit",
-                    Self::tr_lang(
-                        language,
-                        "Exit Sound",
-                        "Âm thanh tắt app",
-                    ),
-                    &mut self.state.audio_settings.exit,
-                    &mut duration,
-                    waveform.as_deref(),
-                );
-                self.exit_clip_duration_ms = duration;
-                if outcome.choose_file {
-                    self.choose_audio_file(false);
-                }
-                if ui.input(|input| input.key_pressed(egui::Key::Space))
-                    && !self.state.audio_settings.exit.file_path.trim().is_empty()
-                {
-                    match audio::toggle_preview(self.state.audio_settings.exit.clone()) {
-                        Ok(true) => {
-                            self.status = match language {
-                                UiLanguage::Vietnamese => {
-                                    "Đang nghe thử âm thanh tắt app.".to_owned()
-                                }
-                                _ => "Previewing Exit Sound.".to_owned(),
-                            }
-                        }
-                        Ok(false) => {
-                            self.status = match language {
-                                UiLanguage::Vietnamese => {
-                                    "Đã dừng nghe thử âm thanh tắt app.".to_owned()
-                                }
-                                _ => "Stopped Exit Sound preview.".to_owned(),
-                            }
-                        }
-                        Err(error) => {
-                            self.status = match language {
-                                UiLanguage::Vietnamese => {
-                                    format!(
-                                        "Nghe thử thất bại: {error}"
-                                    )
-                                }
-                                _ => format!("Preview failed: {error}"),
-                            }
-                        }
-                    }
-                }
-                if let Some(status) = outcome.status {
-                    self.status = status;
-                }
-                if outcome.changed {
-                    self.sync_audio_settings();
-                    self.persist();
-                }
-            }
-            AudioEditorTarget::Library(item_id) => {
-                let space_pressed = ui.input(|input| input.key_pressed(egui::Key::Space));
-                let waveform_path = self
-                    .state
-                    .audio_settings
-                    .library
-                    .iter()
-                    .find(|item| item.id == item_id)
-                    .map(|item| item.clip.file_path.trim().to_owned())
-                    .unwrap_or_default();
-                let waveform = self.audio_waveforms.get(&waveform_path).cloned();
-                let mut choose_file_for = None;
-                let mut preview_clip: Option<AudioClipSettings> = None;
-                let mut preview_label = None;
-                let mut outcome_status = None;
-                let mut outcome_changed = false;
-                if let Some(item) = self
-                    .state
-                    .audio_settings
-                    .library
-                    .iter_mut()
-                    .find(|item| item.id == item_id)
-                {
-                    let mut duration = self
-                        .library_clip_duration_ms
-                        .get(&item.id)
-                        .copied()
-                        .flatten()
-                        .or_else(|| audio_duration(&item.clip));
-                    let outcome = Self::render_audio_media_editor(
-                        ui,
-                        language,
-                        ("library", item.id),
-                        &format!(
-                            "{}: {}",
-                            Self::tr_lang(
-                                language,
-                                "Library Sound",
-                                "Âm thanh thư viện"
-                            ),
-                            item.name
-                        ),
-                        &mut item.clip,
-                        &mut duration,
-                        waveform.as_deref(),
-                    );
-                    self.library_clip_duration_ms.insert(item.id, duration);
-                    if outcome.choose_file {
-                        choose_file_for = Some(item.id);
-                    }
-                    preview_clip = Some(item.clip.clone());
-                    preview_label = Some(item.name.clone());
-                    outcome_status = outcome.status;
-                    outcome_changed = outcome.changed;
-                } else {
-                    self.close_audio_editor();
-                    return;
-                }
-                if let Some(item_id) = choose_file_for {
-                    self.choose_audio_file_for_library_item(item_id);
-                }
-                if space_pressed
-                    && let Some(clip) = preview_clip
-                    && !clip.file_path.trim().is_empty()
-                {
-                    match audio::toggle_preview(clip) {
-                        Ok(true) => {
-                            self.status = match language {
-                                UiLanguage::Vietnamese => format!(
-                                    "Đang nghe thử {}.",
-                                    preview_label.unwrap_or_else(|| "Âm thanh".to_owned())
-                                ),
-                                _ => format!(
-                                    "Previewing {}.",
-                                    preview_label.unwrap_or_else(|| "audio".to_owned())
-                                ),
-                            }
-                        }
-                        Ok(false) => {
-                            self.status = match language {
-                                UiLanguage::Vietnamese => format!(
-                                    "Đã dừng nghe thử {}.",
-                                    preview_label.unwrap_or_else(|| "Âm thanh".to_owned())
-                                ),
-                                _ => format!(
-                                    "Stopped {} preview.",
-                                    preview_label.unwrap_or_else(|| "audio".to_owned())
-                                ),
-                            }
-                        }
-                        Err(error) => {
-                            self.status = match language {
-                                UiLanguage::Vietnamese => {
-                                    format!("Nghe thử thất bại: {error}")
-                                }
-                                _ => format!("Preview failed: {error}"),
-                            }
-                        }
-                    }
-                } else if let Some(status) = outcome_status {
-                    self.status = status;
-                }
-                if outcome_changed {
-                    self.sync_audio_settings();
-                    self.persist();
-                }
-            }
             AudioEditorTarget::Preset(preset_id) => {
                 let space_pressed = ui.input(|input| input.key_pressed(egui::Key::Space));
                 let waveform_path = self
@@ -13633,10 +13026,6 @@ impl CrosshairApp {
                     .unwrap_or_default();
                 let waveform = self.audio_waveforms.get(&waveform_path).cloned();
                 let mut choose_file_for = None;
-                let mut preview_clip: Option<AudioClipSettings> = None;
-                let mut preview_label = None;
-                let mut outcome_status = None;
-                let mut outcome_changed = false;
                 if let Some(preset) = self
                     .state
                     .audio_settings
@@ -13672,66 +13061,53 @@ impl CrosshairApp {
                     if outcome.choose_file {
                         choose_file_for = Some(preset.id);
                     }
-                    preview_clip = Some(preset.clip.clone());
-                    preview_label = Some(preset.name.clone());
-                    outcome_status = outcome.status;
-                    outcome_changed = outcome.changed;
+                    let preview_clip = preset.clip.clone();
+                    let preview_label = preset.name.clone();
+                    if space_pressed && !preview_clip.file_path.trim().is_empty() {
+                        match audio::toggle_preview(preview_clip) {
+                            Ok(true) => {
+                                self.status = match language {
+                                    UiLanguage::Vietnamese => format!(
+                                        "Đang nghe thử {}.",
+                                        preview_label
+                                    ),
+                                    _ => format!("Previewing {}.", preview_label),
+                                }
+                            }
+                            Ok(false) => {
+                                self.status = match language {
+                                    UiLanguage::Vietnamese => format!(
+                                        "Đã dừng nghe thử {}.",
+                                        preview_label
+                                    ),
+                                    _ => format!("Stopped {} preview.", preview_label),
+                                }
+                            }
+                            Err(error) => {
+                                self.status = match language {
+                                    UiLanguage::Vietnamese => {
+                                        format!("Nghe thử thất bại: {error}")
+                                    }
+                                    _ => format!("Preview failed: {error}"),
+                                }
+                            }
+                        }
+                    } else if let Some(status) = outcome.status {
+                        self.status = status;
+                    }
+                    if outcome.changed {
+                        self.sync_audio_settings();
+                        self.persist();
+                    }
                 } else {
                     self.close_audio_editor();
-                    return;
                 }
                 if let Some(preset_id) = choose_file_for {
                     self.choose_audio_file_for_sound_preset(preset_id);
                 }
-                if space_pressed
-                    && let Some(clip) = preview_clip
-                    && !clip.file_path.trim().is_empty()
-                {
-                    match audio::toggle_preview(clip) {
-                        Ok(true) => {
-                            self.status = match language {
-                                UiLanguage::Vietnamese => format!(
-                                    "Đang nghe thử {}.",
-                                    preview_label
-                                        .unwrap_or_else(|| "âm thanh".to_owned())
-                                ),
-                                _ => format!(
-                                    "Previewing {}.",
-                                    preview_label.unwrap_or_else(|| "audio".to_owned())
-                                ),
-                            }
-                        }
-                        Ok(false) => {
-                            self.status = match language {
-                                UiLanguage::Vietnamese => format!(
-                                    "Đã dừng nghe thử {}.",
-                                    preview_label
-                                        .unwrap_or_else(|| "âm thanh".to_owned())
-                                ),
-                                _ => format!(
-                                    "Stopped {} preview.",
-                                    preview_label.unwrap_or_else(|| "audio".to_owned())
-                                ),
-                            }
-                        }
-                        Err(error) => {
-                            self.status = match language {
-                                UiLanguage::Vietnamese => {
-                                    format!(
-                                        "Nghe thử thất bại: {error}"
-                                    )
-                                }
-                                _ => format!("Preview failed: {error}"),
-                            }
-                        }
-                    }
-                } else if let Some(status) = outcome_status {
-                    self.status = status;
-                }
-                if outcome_changed {
-                    self.sync_audio_settings();
-                    self.persist();
-                }
+            }
+            _ => {
+                self.close_audio_editor();
             }
         }
     }

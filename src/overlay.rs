@@ -1065,7 +1065,6 @@ mod windows_overlay {
                 hook_state.locked_mouse_count = 0;
                 hook_state.profiles.clear();
                 hook_state.sound_presets.clear();
-                hook_state.sound_library.clear();
                 hook_state.active_hold_macros.clear();
                 hook_state.held_mouse_buttons.clear();
                 *OVERLAY_COMMAND_TX.lock() = None;
@@ -2364,7 +2363,6 @@ mod windows_overlay {
                 OverlayCommand::UpdateAudioSettings(settings) => {
                     let mut hook_state = HOOK_STATE.lock();
                     hook_state.sound_presets = settings.presets.clone();
-                    hook_state.sound_library = settings.library.clone();
                     runtime.audio_settings = settings;
                 }
                 OverlayCommand::SetMacrosMasterEnabled(enabled) => {
@@ -3821,7 +3819,7 @@ mod windows_overlay {
             .trim()
             .parse::<u32>()
             .context("Sound preset id is invalid")?;
-        let clips = {
+        let clip = {
             let hook_state = HOOK_STATE.lock();
             let preset = hook_state
                 .sound_presets
@@ -3829,23 +3827,11 @@ mod windows_overlay {
                 .find(|preset| preset.id == preset_id)
                 .cloned()
                 .context("Sound preset was not found")?;
-            let mut base_clip = preset.clip.clone();
-            base_clip.enabled = true;
-            let mut clips = vec![base_clip];
-            for library_id in &preset.sequence_library_ids {
-                if let Some(item) = hook_state
-                    .sound_library
-                    .iter()
-                    .find(|item| item.id == *library_id)
-                {
-                    let mut clip = item.clip.clone();
-                    clip.enabled = true;
-                    clips.push(clip);
-                }
-            }
-            clips
+            let mut clip = preset.clip.clone();
+            clip.enabled = true;
+            clip
         };
-        audio::play_clip_sequence_async(clips);
+        audio::play_clip_async(clip);
         Ok(())
     }
 
@@ -8266,7 +8252,6 @@ mod windows_overlay {
             hook_state.active_hold_macros.clear();
             hook_state.held_mouse_buttons.clear();
         }
-        let _ = audio::play_clip_blocking(&runtime.audio_settings.exit);
         std::process::exit(0);
     }
 
