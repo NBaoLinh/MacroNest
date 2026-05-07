@@ -12693,7 +12693,6 @@ impl CrosshairApp {
         ui.add_space(2.0);
         let mut changed = false;
 
-        ui.separator();
         ui.horizontal(|ui| {
             ui.label(
                 RichText::new(self.tr("Sound Presets", "Sound Presets")).strong(),
@@ -12729,7 +12728,8 @@ impl CrosshairApp {
             let mut show_editor = self.show_sound_preset_audio_editor.contains(&preset.id);
 
             ui.add_space(6.0);
-            Self::show_preset_card(ui, preset.clip.enabled, |ui| {
+            ui.vertical(|ui| {
+                ui.set_min_width(ui.available_width());
                 ui.horizontal(|ui| {
                     changed |= ui
                         .checkbox(&mut preset.clip.enabled, "")
@@ -12811,7 +12811,6 @@ impl CrosshairApp {
             changed = true;
         }
 
-        ui.separator();
         if changed {
             self.sync_audio_settings();
             self.persist();
