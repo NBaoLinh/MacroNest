@@ -9185,15 +9185,11 @@ impl CrosshairApp {
                                     self.selected_macro_groups.remove(&group.id);
                                 }
                             }
-                            live_sync |= ui
-                                .checkbox(
-                                    &mut group.enabled,
-                                    Self::tr_lang(language, "Enabled", "Enabled"),
-                                )
-                                .changed();
+                            live_sync |= ui.checkbox(&mut group.enabled, "").changed();
+                            ui.label(Self::tr_lang(language, "Enabled", "Enabled"));
                             live_sync |= ui
                                 .add_sized(
-                                    [(ui.available_width() - 128.0).max(160.0), 24.0],
+                                    [(ui.available_width() - 140.0).max(180.0), 24.0],
                                     TextEdit::singleline(&mut group.name),
                                 )
                                 .changed();
@@ -9220,28 +9216,22 @@ impl CrosshairApp {
                         return;
                     }
                     egui::Grid::new((group.id, "group-toolbar"))
-                        .num_columns(3)
+                        .num_columns(2)
                         .min_col_width(140.0)
-                        .spacing([12.0, 6.0])
+                        .spacing([10.0, 6.0])
                         .show(ui, |ui| {
-                            live_sync |= ui
-                                .add_sized(
-                                    [86.0, 22.0],
-                                    egui::Checkbox::new(
-                                        &mut group.enabled,
-                                        Self::tr_lang(language, "Enabled", "Enabled"),
-                                    ),
-                                )
-                                .changed();
+                            live_sync |= ui.checkbox(&mut group.enabled, "").changed();
                             ui.horizontal(|ui| {
                                 ui.label(Self::preset_title_text(
                                     self.state.ui_theme == UiThemeMode::Dark,
                                     Self::tr_lang(language, "Group Name", "Group Name"),
                                     group.enabled,
                                 ));
-                            ui.add_sized([240.0, 24.0], TextEdit::singleline(&mut group.name));
+                                ui.add_sized(
+                                    [(ui.available_width() - 8.0).max(220.0), 24.0],
+                                    TextEdit::singleline(&mut group.name),
+                                );
                             });
-                            ui.add_space(0.0);
                             ui.end_row();
                         });
                     ui.horizontal_wrapped(|ui| {
