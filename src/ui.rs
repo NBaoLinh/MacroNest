@@ -13237,8 +13237,7 @@ impl CrosshairApp {
         } else {
             Color32::from_rgb(100, 132, 170)
         };
-        let dropped_files = ui.ctx().input(|input| input.raw.dropped_files.clone());
-        let drop_response = Frame::new()
+        let _drop_response = Frame::new()
             .fill(drop_fill)
             .stroke(Stroke::new(1.0, drop_stroke))
             .corner_radius(12.0)
@@ -13266,16 +13265,27 @@ impl CrosshairApp {
                 });
             })
             .response;
-        if drop_response.hovered()
-            && !dropped_files.is_empty()
-            && dropped_files.iter().any(|file| file.path.is_some())
-        {
+        let dropped_files = ui.ctx().input(|input| input.raw.dropped_files.clone());
+        if !dropped_files.is_empty() {
+            let mut imported_any = false;
             for file in dropped_files {
                 if let Some(path) = file.path {
-                    self.import_audio_file_as_sound_preset(path);
+                    let is_audio = path
+                        .extension()
+                        .and_then(|ext| ext.to_str())
+                        .is_some_and(|ext| {
+                            matches!(
+                                ext.to_ascii_lowercase().as_str(),
+                                "mp3" | "wav" | "flac" | "ogg" | "m4a"
+                            )
+                        });
+                    if is_audio {
+                        self.import_audio_file_as_sound_preset(path);
+                        imported_any = true;
+                    }
                 }
             }
-            changed = true;
+            changed |= imported_any;
         }
 
         let mut remove_sound_preset = None;
