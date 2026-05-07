@@ -50,7 +50,7 @@ struct AudioCardOutcome {
     status: Option<String>,
 }
 
-#[derive(Clone, Copy)]
+#[derive(Clone, Copy, PartialEq, Eq, Hash)]
 enum AudioEditorTarget {
     Startup,
     Exit,
@@ -400,6 +400,8 @@ pub struct CrosshairApp {
     library_clip_duration_ms: HashMap<u32, Option<u64>>,
     show_library_audio_editor: HashSet<u32>,
     active_audio_editor: Option<AudioEditorTarget>,
+    trim_timeline_zoom: f32,
+    preview_cursor: Option<(AudioEditorTarget, u64)>,
     capture_ignored_keys: HashSet<u32>,
     capture_suppress_next_poll: bool,
     capture_wait_for_mouse_release: bool,
@@ -496,6 +498,8 @@ impl CrosshairApp {
             library_clip_duration_ms: HashMap::new(),
             show_library_audio_editor: HashSet::new(),
             active_audio_editor: None,
+            trim_timeline_zoom: 1.0,
+            preview_cursor: None,
             capture_ignored_keys: HashSet::new(),
             capture_suppress_next_poll: false,
             capture_wait_for_mouse_release: false,
@@ -1371,6 +1375,8 @@ impl CrosshairApp {
     fn open_audio_editor(&mut self, target: AudioEditorTarget) {
         self.active_audio_editor = Some(target);
         self.state.active_panel = AppPanel::Media;
+        self.trim_timeline_zoom = 1.0;
+        self.preview_cursor = None;
     }
 
     fn close_audio_editor(&mut self) {
@@ -1565,6 +1571,8 @@ impl CrosshairApp {
                 .insert(preset_id, duration);
             self.show_sound_preset_audio_editor.insert(preset_id);
             self.refresh_audio_waveform_for_path(&path_str);
+            self.preview_cursor = None;
+            self.trim_timeline_zoom = 1.0;
             self.sync_audio_settings();
             self.persist();
         }
@@ -1593,6 +1601,8 @@ impl CrosshairApp {
             self.library_clip_duration_ms.insert(item_id, duration);
             self.show_library_audio_editor.insert(item_id);
             self.refresh_audio_waveform_for_path(&path_str);
+            self.preview_cursor = None;
+            self.trim_timeline_zoom = 1.0;
             self.sync_audio_settings();
             self.persist();
         }
@@ -1646,17 +1656,44 @@ impl CrosshairApp {
         }
     }
 
+    fn preview_cursor_ms_for(
+        preview_cursor: &Option<(AudioEditorTarget, u64)>,
+        target: AudioEditorTarget,
+        clip: &AudioClipSettings,
+    ) -> u64 {
+        preview_cursor
+            .filter(|(cursor_target, _)| *cursor_target == target)
+            .map(|(_, cursor_ms)| cursor_ms)
+            .unwrap_or(clip.start_ms)
+            .clamp(clip.start_ms, clip.end_ms.max(clip.start_ms + 1))
+    }
+
+    fn set_preview_cursor_ms(
+        preview_cursor: &mut Option<(AudioEditorTarget, u64)>,
+        target: AudioEditorTarget,
+        cursor_ms: u64,
+        clip: &AudioClipSettings,
+    ) {
+        *preview_cursor = Some((
+            target,
+            cursor_ms.clamp(clip.start_ms, clip.end_ms.max(clip.start_ms + 1)),
+        ));
+    }
+
     fn trim_audio_bounds(clip: &mut AudioClipSettings, total_ms: u64) {
+        const MIN_TRIM_MS: u64 = 50;
         clip.start_ms = clip.start_ms.min(total_ms);
         clip.end_ms = if clip.end_ms == 0 {
             total_ms
         } else {
             clip.end_ms.min(total_ms)
         };
-        if clip.end_ms < clip.start_ms {
-            clip.end_ms = clip.start_ms;
+        if clip.end_ms <= clip.start_ms {
+            clip.end_ms = (clip.start_ms + MIN_TRIM_MS).min(total_ms);
+            clip.start_ms = clip.end_ms.saturating_sub(MIN_TRIM_MS);
         }
         clip.volume = clip.volume.clamp(0.0, 2.0);
+        clip.speed = clip.speed.clamp(0.25, 3.0);
     }
 
     fn format_ms(ms: u64) -> String {
@@ -2373,6 +2410,485 @@ impl CrosshairApp {
                 "Selected: {}",
                 Self::format_ms(clip.end_ms.saturating_sub(clip.start_ms))
             ));
+        });
+
+        changed
+    }
+
+    fn render_audio_trim_timeline(
+        ui: &mut egui::Ui,
+        language: UiLanguage,
+        id_source: impl std::hash::Hash + Copy,
+        clip: &mut AudioClipSettings,
+        total_ms: u64,
+        waveform: Option<&[f32]>,
+        preview_cursor_ms: &mut u64,
+        trim_timeline_zoom: &mut f32,
+        interactive: bool,
+        desired_height: f32,
+    ) -> bool {
+        Self::trim_audio_bounds(clip, total_ms);
+        if total_ms > 0 {
+            *preview_cursor_ms = (*preview_cursor_ms)
+                .clamp(clip.start_ms, clip.end_ms.max(clip.start_ms + 1));
+        } else {
+            *preview_cursor_ms = 0;
+        }
+        *trim_timeline_zoom = (*trim_timeline_zoom).clamp(1.0, 8.0);
+
+        ui.horizontal(|ui| {
+            ui.label(Self::material_icon_text(0xe14e, 14.0));
+            ui.add_space(6.0);
+            ui.label(
+                RichText::new(Self::tr_lang(language, "Trim", "Trim"))
+                    .size(13.0)
+                    .strong(),
+            );
+            ui.add_space(6.0);
+            let help = ui.add_sized(
+                [24.0, 24.0],
+                Button::new(Self::material_icon_text(0xe887, 16.0))
+                    .fill(ui.visuals().faint_bg_color)
+                    .stroke(Stroke::new(1.0, ui.visuals().widgets.noninteractive.bg_stroke.color)),
+            );
+            if help.hovered() {
+                ui.ctx().set_cursor_icon(egui::CursorIcon::Help);
+            }
+            help.on_hover_ui_at_pointer(|ui| {
+                ui.set_max_width(280.0);
+                ui.label(
+                    RichText::new(Self::tr_lang(language, "Trim shortcuts", "Trim shortcuts"))
+                        .size(13.0)
+                        .strong(),
+                );
+                ui.add_space(4.0);
+                ui.label("Space: preview or stop");
+                ui.label("S: preview from the left trim");
+                ui.label("Q: move the left trim to the mouse");
+                ui.label("W: move the right trim to the mouse");
+                ui.label("A / D: pan timeline left or right");
+                ui.label("Ctrl + mouse wheel: zoom around the hover playhead");
+            });
+            ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
+                ui.label(
+                    RichText::new(format!("{:.1}x", *trim_timeline_zoom))
+                        .size(12.0)
+                        .color(ui.visuals().weak_text_color()),
+                );
+            });
+        });
+
+        ui.add_space(8.0);
+        let viewport_width = ui.available_width().max(320.0);
+        let zoom_scroll_offset_id = egui::Id::new((id_source, "trim-zoom-offset"));
+        let trim_adjusting_id = egui::Id::new((id_source, "trim-adjusting"));
+        let trim_hotkey_adjusting_id = egui::Id::new((id_source, "trim-hotkey-adjusting"));
+        let playhead_drag_id = egui::Id::new((id_source, "trim-playhead-drag"));
+        let stored_zoom_scroll_offset = ui
+            .ctx()
+            .data(|data| data.get_temp::<f32>(zoom_scroll_offset_id));
+        let mut next_scroll_offset = stored_zoom_scroll_offset;
+        let timeline_size = vec2(
+            (viewport_width * *trim_timeline_zoom).max(viewport_width),
+            desired_height,
+        );
+        let dark_theme = ui.visuals().dark_mode;
+        let mut changed = false;
+        let total_ms_f32 = total_ms.max(1) as f32;
+
+        ui.allocate_ui_with_layout(
+            vec2(viewport_width, timeline_size.y + 10.0),
+            egui::Layout::top_down(egui::Align::Min),
+            |ui| {
+                let mut scroll_area = egui::ScrollArea::horizontal()
+                    .id_salt((id_source, "trim-timeline-scroll"))
+                    .auto_shrink([false, false]);
+                if let Some(offset) = stored_zoom_scroll_offset {
+                    scroll_area = scroll_area.horizontal_scroll_offset(offset);
+                }
+                scroll_area.show(ui, |ui| {
+                    let (rect, response) =
+                        ui.allocate_exact_size(timeline_size, Sense::click_and_drag());
+                    let viewport_rect = rect.intersect(ui.clip_rect());
+                    let painter = ui.painter_at(rect);
+                    let timeline_fill = if dark_theme {
+                        Color32::from_rgb(11, 10, 14)
+                    } else {
+                        Color32::from_rgb(255, 255, 255)
+                    };
+                    let timeline_stroke = if dark_theme {
+                        Color32::from_rgb(74, 61, 82)
+                    } else {
+                        Color32::from_rgb(235, 223, 232)
+                    };
+                    painter.rect_filled(rect, 18.0, timeline_fill);
+                    painter.rect_stroke(
+                        rect,
+                        18.0,
+                        Stroke::new(1.0, timeline_stroke),
+                        StrokeKind::Outside,
+                    );
+
+                    if let Some(waveform) = waveform.filter(|waveform| !waveform.is_empty()) {
+                        let bar_width = rect.width() / waveform.len().max(1) as f32;
+                        for (index, level) in waveform.iter().enumerate() {
+                            let amplitude = level.clamp(0.04, 1.0);
+                            let center_x = rect.left() + (index as f32 + 0.5) * bar_width;
+                            let half_height = amplitude * rect.height() * 0.42;
+                            let wave_rect = egui::Rect::from_min_max(
+                                egui::pos2(
+                                    center_x - (bar_width * 0.35).max(1.0),
+                                    rect.center().y - half_height,
+                                ),
+                                egui::pos2(
+                                    center_x + (bar_width * 0.35).max(1.0),
+                                    rect.center().y + half_height,
+                                ),
+                            );
+                            painter.rect_filled(
+                                wave_rect,
+                                1.0,
+                                Color32::from_rgb(96, 172, 224),
+                            );
+                        }
+                    } else {
+                        painter.line_segment(
+                            [
+                                egui::pos2(rect.left(), rect.center().y),
+                                egui::pos2(rect.right(), rect.center().y),
+                            ],
+                            Stroke::new(2.0, Color32::from_gray(120)),
+                        );
+                    }
+
+                    let start_t = clip.start_ms as f32 / total_ms_f32;
+                    let end_t = clip.end_ms as f32 / total_ms_f32;
+                    let start_x = rect.left() + rect.width() * start_t.clamp(0.0, 1.0);
+                    let end_x = rect.left() + rect.width() * end_t.clamp(0.0, 1.0);
+
+                    let selected_rect = egui::Rect::from_min_max(
+                        egui::pos2(start_x, rect.top()),
+                        egui::pos2(end_x.max(start_x + 2.0), rect.bottom()),
+                    );
+                    painter.rect_filled(
+                        selected_rect,
+                        8.0,
+                        Color32::from_rgba_premultiplied(72, 198, 120, 70),
+                    );
+                    painter.line_segment(
+                        [egui::pos2(start_x, rect.top()), egui::pos2(start_x, rect.bottom())],
+                        Stroke::new(2.0, Color32::from_rgb(255, 232, 96)),
+                    );
+                    painter.line_segment(
+                        [egui::pos2(end_x, rect.top()), egui::pos2(end_x, rect.bottom())],
+                        Stroke::new(2.0, Color32::from_rgb(255, 232, 96)),
+                    );
+
+                    let start_handle_rect = egui::Rect::from_center_size(
+                        egui::pos2(start_x, rect.center().y),
+                        vec2(20.0, rect.height()),
+                    );
+                    let end_handle_rect = egui::Rect::from_center_size(
+                        egui::pos2(end_x, rect.center().y),
+                        vec2(20.0, rect.height()),
+                    );
+                    let start_response = ui.interact(
+                        start_handle_rect,
+                        ui.make_persistent_id((id_source, "trim-start")),
+                        Sense::click_and_drag(),
+                    );
+                    let end_response = ui.interact(
+                        end_handle_rect,
+                        ui.make_persistent_id((id_source, "trim-end")),
+                        Sense::click_and_drag(),
+                    );
+
+                    let pointer_pos = interactive
+                        .then(|| ui.ctx().input(|input| input.pointer.hover_pos()))
+                        .flatten()
+                        .filter(|pos| viewport_rect.contains(*pos));
+                    let pointer_time_ms = pointer_pos.map(|pointer| {
+                        let ratio = ((pointer.x - rect.left()) / rect.width()).clamp(0.0, 1.0);
+                        (ratio * total_ms_f32).round() as u64
+                    });
+                    let playhead_outline = if dark_theme {
+                        Color32::from_rgba_premultiplied(8, 13, 19, 224)
+                    } else {
+                        Color32::from_rgba_premultiplied(255, 255, 255, 232)
+                    };
+                    let playhead_color = if dark_theme {
+                        Color32::from_rgb(108, 231, 255)
+                    } else {
+                        Color32::from_rgb(42, 39, 44)
+                    };
+                    let hover_playhead_color = if dark_theme {
+                        Color32::from_rgba_premultiplied(108, 231, 255, 150)
+                    } else {
+                        Color32::from_rgba_premultiplied(42, 39, 44, 110)
+                    };
+                    let pan_left = interactive && ui.input(|input| input.key_down(egui::Key::A));
+                    let pan_right = interactive && ui.input(|input| input.key_down(egui::Key::D));
+                    let keyboard_panning = pan_left ^ pan_right;
+                    let timeline_hovered =
+                        interactive && (response.hovered() || pointer_pos.is_some());
+                    let showing_hover_preview = pointer_pos.is_some()
+                        && !keyboard_panning
+                        && !start_response.is_pointer_button_down_on()
+                        && !end_response.is_pointer_button_down_on()
+                        && !response.dragged();
+
+                    if showing_hover_preview && let Some(pointer) = pointer_pos {
+                        painter.line_segment(
+                            [
+                                egui::pos2(pointer.x, rect.top() + 12.0),
+                                egui::pos2(pointer.x, rect.bottom() - 12.0),
+                            ],
+                            Stroke::new(1.0, hover_playhead_color),
+                        );
+                        painter.circle_filled(
+                            egui::pos2(pointer.x, rect.top() + 12.0),
+                            4.0,
+                            hover_playhead_color,
+                        );
+                        if let Some(pointer_time_ms) = pointer_time_ms {
+                            let text_pos = egui::pos2(
+                                (pointer.x + 8.0).clamp(rect.left() + 6.0, rect.right() - 68.0),
+                                rect.top() + 12.0,
+                            );
+                            painter.text(
+                                text_pos,
+                                egui::Align2::LEFT_TOP,
+                                Self::format_ms(pointer_time_ms),
+                                egui::FontId::proportional(11.5),
+                                if dark_theme {
+                                    Color32::from_rgb(208, 244, 255)
+                                } else {
+                                    Color32::from_rgb(42, 39, 44)
+                                },
+                            );
+                        }
+                    }
+
+                    let cursor_ms = (*preview_cursor_ms).clamp(clip.start_ms, clip.end_ms);
+                    let cursor_ratio = if total_ms == 0 {
+                        0.0
+                    } else {
+                        cursor_ms as f32 / total_ms_f32
+                    };
+                    let cursor_x = rect.left() + rect.width() * cursor_ratio.clamp(0.0, 1.0);
+                    painter.line_segment(
+                        [
+                            egui::pos2(cursor_x, rect.top() + 8.0),
+                            egui::pos2(cursor_x, rect.bottom() - 8.0),
+                        ],
+                        Stroke::new(4.0, playhead_outline),
+                    );
+                    painter.line_segment(
+                        [
+                            egui::pos2(cursor_x, rect.top() + 8.0),
+                            egui::pos2(cursor_x, rect.bottom() - 8.0),
+                        ],
+                        Stroke::new(2.0, playhead_color),
+                    );
+                    painter.circle_filled(
+                        egui::pos2(cursor_x, rect.top() + 10.0),
+                        4.5,
+                        playhead_color,
+                    );
+
+                    if timeline_hovered && keyboard_panning {
+                        ui.ctx().memory_mut(|memory| memory.stop_text_input());
+                        let pan_speed = (viewport_rect.width() * 2.4).max(420.0);
+                        let pan_step =
+                            pan_speed * ui.input(|input| input.stable_dt).max(1.0 / 240.0);
+                        let max_offset = (rect.width() - viewport_rect.width()).max(0.0);
+                        let delta = match (pan_left, pan_right) {
+                            (true, false) => -pan_step,
+                            (false, true) => pan_step,
+                            _ => 0.0,
+                        };
+                        let current_offset = next_scroll_offset
+                            .unwrap_or_else(|| (viewport_rect.left() - rect.left()).max(0.0));
+                        next_scroll_offset = Some((current_offset + delta).clamp(0.0, max_offset));
+                        ui.ctx().request_repaint();
+                    }
+
+                    if interactive && pointer_pos.is_some() && !ui.ctx().wants_keyboard_input() {
+                        let zoom_delta = ui.input(|input| {
+                            if input.modifiers.ctrl {
+                                input.raw_scroll_delta.y
+                            } else {
+                                0.0
+                            }
+                        });
+                        if zoom_delta.abs() > 0.0 {
+                            let anchor_viewport_x = pointer_pos
+                                .map(|pointer| {
+                                    (pointer.x - viewport_rect.left())
+                                        .clamp(0.0, viewport_rect.width())
+                                })
+                                .unwrap_or(viewport_rect.width() * cursor_ratio.clamp(0.0, 1.0));
+                            let anchor_content_x = pointer_pos
+                                .map(|pointer| (pointer.x - rect.left()).clamp(0.0, rect.width()))
+                                .unwrap_or((cursor_ratio * rect.width()).clamp(0.0, rect.width()));
+                            let factor = if zoom_delta > 0.0 { 1.12 } else { 1.0 / 1.12 };
+                            *trim_timeline_zoom = (*trim_timeline_zoom * factor).clamp(1.0, 8.0);
+                            let next_timeline_width =
+                                (viewport_width * *trim_timeline_zoom).max(viewport_width);
+                            let next_anchor_content_x =
+                                (anchor_content_x / rect.width().max(1.0)) * next_timeline_width;
+                            let max_offset = (next_timeline_width - viewport_width).max(0.0);
+                            next_scroll_offset = Some(
+                                (next_anchor_content_x - anchor_viewport_x).clamp(0.0, max_offset),
+                            );
+                            ui.ctx().request_repaint();
+                        }
+                    }
+
+                    let move_left = interactive && ui.input(|input| input.key_down(egui::Key::Q));
+                    let move_right = interactive && ui.input(|input| input.key_down(egui::Key::W));
+                    if let Some(pointer_time_ms) = pointer_time_ms {
+                        if move_left {
+                            clip.start_ms = pointer_time_ms.min(clip.end_ms.saturating_sub(50));
+                            Self::trim_audio_bounds(clip, total_ms);
+                            changed = true;
+                            ui.ctx().data_mut(|data| {
+                                data.insert_temp(trim_hotkey_adjusting_id, true)
+                            });
+                        }
+                        if move_right {
+                            clip.end_ms = pointer_time_ms.max(clip.start_ms + 50);
+                            Self::trim_audio_bounds(clip, total_ms);
+                            changed = true;
+                            ui.ctx().data_mut(|data| {
+                                data.insert_temp(trim_hotkey_adjusting_id, true)
+                            });
+                        }
+                    }
+                    if !move_left
+                        && !move_right
+                        && ui
+                            .ctx()
+                            .data(|data| data.get_temp::<bool>(trim_hotkey_adjusting_id))
+                            .unwrap_or(false)
+                    {
+                        ui.ctx()
+                            .data_mut(|data| data.remove::<bool>(trim_hotkey_adjusting_id));
+                    }
+
+                    if interactive
+                        && total_ms > 0
+                        && let Some(pointer) = start_response.interact_pointer_pos()
+                        && (start_response.clicked() || start_response.dragged())
+                    {
+                        let ratio = ((pointer.x - rect.left()) / rect.width()).clamp(0.0, 1.0);
+                        let next_ms = (ratio * total_ms_f32).round() as u64;
+                        clip.start_ms = next_ms.min(clip.end_ms.saturating_sub(50));
+                        Self::trim_audio_bounds(clip, total_ms);
+                        changed = true;
+                        *preview_cursor_ms = clip.start_ms;
+                        ui.ctx()
+                            .data_mut(|data| data.insert_temp(trim_adjusting_id, true));
+                        ui.ctx()
+                            .data_mut(|data| data.remove::<bool>(playhead_drag_id));
+                    } else if interactive
+                        && total_ms > 0
+                        && let Some(pointer) = end_response.interact_pointer_pos()
+                        && (end_response.clicked() || end_response.dragged())
+                    {
+                        let ratio = ((pointer.x - rect.left()) / rect.width()).clamp(0.0, 1.0);
+                        let next_ms = (ratio * total_ms_f32).round() as u64;
+                        clip.end_ms = next_ms.max(clip.start_ms + 50);
+                        Self::trim_audio_bounds(clip, total_ms);
+                        changed = true;
+                        *preview_cursor_ms = clip.end_ms;
+                        ui.ctx()
+                            .data_mut(|data| data.insert_temp(trim_adjusting_id, true));
+                        ui.ctx()
+                            .data_mut(|data| data.remove::<bool>(playhead_drag_id));
+                    } else if interactive
+                        && !start_response.is_pointer_button_down_on()
+                        && !end_response.is_pointer_button_down_on()
+                        && total_ms > 0
+                        && let Some(pointer) = response.interact_pointer_pos()
+                        && (response.clicked() || response.dragged())
+                    {
+                        let ratio = ((pointer.x - rect.left()) / rect.width()).clamp(0.0, 1.0);
+                        let next_ms = (ratio * total_ms_f32).round() as u64;
+                        *preview_cursor_ms = next_ms.clamp(clip.start_ms, clip.end_ms);
+                        if response.dragged() {
+                            ui.ctx().data_mut(|data| data.insert_temp(playhead_drag_id, true));
+                        }
+                    }
+
+                    if interactive
+                        && response.drag_stopped()
+                        && ui
+                            .ctx()
+                            .data(|data| data.get_temp::<bool>(playhead_drag_id))
+                            .unwrap_or(false)
+                    {
+                        ui.ctx()
+                            .data_mut(|data| data.remove::<bool>(playhead_drag_id));
+                    }
+
+                    if interactive
+                        && (start_response.drag_stopped() || end_response.drag_stopped())
+                        && ui
+                            .ctx()
+                            .data(|data| data.get_temp::<bool>(trim_adjusting_id))
+                            .unwrap_or(false)
+                    {
+                        ui.ctx()
+                            .data_mut(|data| data.remove::<bool>(trim_adjusting_id));
+                    }
+
+                    if !interactive || !ui.input(|input| input.pointer.primary_down()) {
+                        ui.ctx()
+                            .data_mut(|data| data.remove::<bool>(playhead_drag_id));
+                        if ui
+                            .ctx()
+                            .data(|data| data.get_temp::<bool>(trim_adjusting_id))
+                            .unwrap_or(false)
+                        {
+                            ui.ctx()
+                                .data_mut(|data| data.remove::<bool>(trim_adjusting_id));
+                        }
+                    }
+
+                    *preview_cursor_ms = (*preview_cursor_ms).clamp(clip.start_ms, clip.end_ms);
+
+                    if next_scroll_offset.is_none() {
+                        next_scroll_offset = Some((viewport_rect.left() - rect.left()).max(0.0));
+                    }
+                });
+                if let Some(offset) = next_scroll_offset {
+                    ui.ctx().data_mut(|data| {
+                        data.insert_temp(zoom_scroll_offset_id, offset);
+                    });
+                }
+            },
+        );
+
+        ui.add_space(10.0);
+        ui.horizontal(|ui| {
+            ui.label(
+                RichText::new(Self::format_ms(clip.start_ms))
+                    .size(13.0)
+                    .color(ui.visuals().weak_text_color()),
+            );
+            ui.separator();
+            ui.label(
+                RichText::new(Self::format_ms(clip.end_ms.saturating_sub(clip.start_ms)))
+                    .size(13.0)
+                    .color(Color32::from_rgb(214, 51, 132)),
+            );
+            ui.separator();
+            ui.label(
+                RichText::new(Self::format_ms(clip.end_ms))
+                    .size(13.0)
+                    .color(ui.visuals().weak_text_color()),
+            );
         });
 
         changed
@@ -12806,14 +13322,20 @@ impl CrosshairApp {
     fn render_audio_media_editor(
         ui: &mut egui::Ui,
         language: UiLanguage,
+        target: AudioEditorTarget,
         id_source: impl std::hash::Hash + Copy,
         title: &str,
         clip: &mut AudioClipSettings,
         duration_ms: &mut Option<u64>,
         waveform: Option<&[f32]>,
+        preview_cursor: &mut Option<(AudioEditorTarget, u64)>,
+        trim_timeline_zoom: &mut f32,
     ) -> AudioCardOutcome {
         let mut outcome = AudioCardOutcome::default();
         let previewing = audio::is_previewing(clip);
+        let space_pressed = ui.input(|input| input.key_pressed(egui::Key::Space));
+        let s_pressed = ui.input(|input| input.key_pressed(egui::Key::S));
+        let mut preview_cursor_ms = Self::preview_cursor_ms_for(preview_cursor, target, clip);
 
         ui.heading(Self::tr_lang(language, "Media", "Media"));
         ui.label(RichText::new(title).strong());
@@ -12901,6 +13423,7 @@ impl CrosshairApp {
                 clip.volume = 1.0;
                 clip.speed = 1.0;
                 *duration_ms = None;
+                *preview_cursor = None;
                 outcome.changed = true;
                 outcome.status = Some(match language {
                     UiLanguage::Vietnamese => format!("Đã xóa {title}."),
@@ -12908,6 +13431,47 @@ impl CrosshairApp {
                 });
             }
         });
+
+        if (space_pressed || s_pressed) && !clip.file_path.trim().is_empty() {
+            if previewing {
+                audio::stop_preview();
+                outcome.status = Some(match language {
+                    UiLanguage::Vietnamese => format!("Đã dừng nghe thử {title}."),
+                    _ => format!("Stopped {title} preview."),
+                });
+            } else {
+                if s_pressed || preview_cursor_ms >= clip.end_ms.saturating_sub(20) {
+                    preview_cursor_ms = clip.start_ms;
+                }
+                Self::set_preview_cursor_ms(preview_cursor, target, preview_cursor_ms, clip);
+                match audio::toggle_preview(clip.clone()) {
+                    Ok(true) => {
+                        outcome.status = Some(match language {
+                            UiLanguage::Vietnamese => {
+                                format!("Đang nghe thử {title}.")
+                            }
+                            _ => format!("Previewing {title}."),
+                        })
+                    }
+                    Ok(false) => {
+                        outcome.status = Some(match language {
+                            UiLanguage::Vietnamese => {
+                                format!("Đã dừng nghe thử {title}.")
+                            }
+                            _ => format!("Stopped {title} preview."),
+                        })
+                    }
+                    Err(error) => {
+                        outcome.status = Some(match language {
+                            UiLanguage::Vietnamese => {
+                                format!("Nghe thử thất bại: {error}")
+                            }
+                            _ => format!("Preview failed: {error}"),
+                        })
+                    }
+                }
+            }
+        }
 
         ui.label(if clip.file_path.is_empty() {
             Self::tr_lang(
@@ -12921,37 +13485,44 @@ impl CrosshairApp {
 
         if let Some(total_ms) = *duration_ms {
             Self::trim_audio_bounds(clip, total_ms);
-            ui.label(format!(
-                "{} {}  |  {} {}",
-                Self::tr_lang(language, "Total:", "Total:"),
-                Self::format_ms(total_ms),
-                Self::tr_lang(language, "Slice", "Slice"),
-                Self::format_ms(clip.end_ms.saturating_sub(clip.start_ms))
-            ));
-            ui.add_space(8.0);
-            outcome.changed |= Self::render_audio_trim_bar(
-                ui,
-                (id_source, "trim"),
-                clip,
-                total_ms,
-                waveform,
-                180.0,
-            );
-            ui.add_space(8.0);
-            ui.horizontal(|ui| {
-                ui.label(Self::tr_lang(
-                    language,
-                    "Start",
-                    "Bắt đầu",
-                ));
-                outcome.changed |= ui
-                    .add(DragValue::new(&mut clip.start_ms).range(0..=total_ms))
-                    .changed();
-                ui.label(Self::tr_lang(language, "End", "End"));
-                outcome.changed |= ui
-                    .add(DragValue::new(&mut clip.end_ms).range(0..=total_ms))
-                    .changed();
-            });
+            Frame::new()
+                .fill(ui.visuals().faint_bg_color)
+                .stroke(Stroke::new(1.0, ui.visuals().widgets.noninteractive.bg_stroke.color))
+                .corner_radius(16.0)
+                .inner_margin(egui::Margin::same(16))
+                .show(ui, |ui| {
+                    ui.label(format!(
+                        "{} {}  |  {} {}",
+                        Self::tr_lang(language, "Total:", "Total:"),
+                        Self::format_ms(total_ms),
+                        Self::tr_lang(language, "Slice", "Slice"),
+                        Self::format_ms(clip.end_ms.saturating_sub(clip.start_ms))
+                    ));
+                    ui.add_space(8.0);
+                    outcome.changed |= Self::render_audio_trim_timeline(
+                        ui,
+                        language,
+                        (id_source, "trim"),
+                        clip,
+                        total_ms,
+                        waveform,
+                        &mut preview_cursor_ms,
+                        trim_timeline_zoom,
+                        true,
+                        180.0,
+                    );
+                    ui.add_space(8.0);
+                    ui.horizontal(|ui| {
+                        ui.label(Self::tr_lang(language, "Start", "Bắt đầu"));
+                        outcome.changed |= ui
+                            .add(DragValue::new(&mut clip.start_ms).range(0..=total_ms))
+                            .changed();
+                        ui.label(Self::tr_lang(language, "End", "End"));
+                        outcome.changed |= ui
+                            .add(DragValue::new(&mut clip.end_ms).range(0..=total_ms))
+                            .changed();
+                    });
+                });
             Self::trim_audio_bounds(clip, total_ms);
         }
 
@@ -12985,6 +13556,11 @@ impl CrosshairApp {
                 .changed();
         });
 
+        if clip.file_path.trim().is_empty() {
+            *preview_cursor = None;
+        } else {
+            *preview_cursor = Some((target, preview_cursor_ms));
+        }
         outcome
     }
 
@@ -12995,6 +13571,8 @@ impl CrosshairApp {
             self.render_sound_panel(ui);
             return;
         };
+        let mut preview_cursor = self.preview_cursor;
+        let mut trim_timeline_zoom = self.trim_timeline_zoom;
 
         ui.horizontal(|ui| {
             if ui
@@ -13008,7 +13586,6 @@ impl CrosshairApp {
 
         match target {
             AudioEditorTarget::Preset(preset_id) => {
-                let space_pressed = ui.input(|input| input.key_pressed(egui::Key::Space));
                 let waveform_path = self
                     .state
                     .audio_settings
@@ -13035,6 +13612,7 @@ impl CrosshairApp {
                     let outcome = Self::render_audio_media_editor(
                         ui,
                         language,
+                        AudioEditorTarget::Preset(preset.id),
                         ("preset", preset.id),
                         &format!(
                             "{}: {}",
@@ -13048,44 +13626,15 @@ impl CrosshairApp {
                         &mut preset.clip,
                         &mut duration,
                         waveform.as_deref(),
+                        &mut preview_cursor,
+                        &mut trim_timeline_zoom,
                     );
                     self.sound_preset_clip_duration_ms
                         .insert(preset.id, duration);
                     if outcome.choose_file {
                         choose_file_for = Some(preset.id);
                     }
-                    let preview_clip = preset.clip.clone();
-                    let preview_label = preset.name.clone();
-                    if space_pressed && !preview_clip.file_path.trim().is_empty() {
-                        match audio::toggle_preview(preview_clip) {
-                            Ok(true) => {
-                                self.status = match language {
-                                    UiLanguage::Vietnamese => format!(
-                                        "Đang nghe thử {}.",
-                                        preview_label
-                                    ),
-                                    _ => format!("Previewing {}.", preview_label),
-                                }
-                            }
-                            Ok(false) => {
-                                self.status = match language {
-                                    UiLanguage::Vietnamese => format!(
-                                        "Đã dừng nghe thử {}.",
-                                        preview_label
-                                    ),
-                                    _ => format!("Stopped {} preview.", preview_label),
-                                }
-                            }
-                            Err(error) => {
-                                self.status = match language {
-                                    UiLanguage::Vietnamese => {
-                                        format!("Nghe thử thất bại: {error}")
-                                    }
-                                    _ => format!("Preview failed: {error}"),
-                                }
-                            }
-                        }
-                    } else if let Some(status) = outcome.status {
+                    if let Some(status) = outcome.status {
                         self.status = status;
                     }
                     if outcome.changed {
@@ -13103,6 +13652,8 @@ impl CrosshairApp {
                 self.close_audio_editor();
             }
         }
+        self.preview_cursor = preview_cursor;
+        self.trim_timeline_zoom = trim_timeline_zoom;
     }
 
     fn render_settings_panel(&mut self, ui: &mut egui::Ui) {
