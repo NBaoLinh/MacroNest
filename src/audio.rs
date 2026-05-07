@@ -1,4 +1,10 @@
-use std::{fs::File, io::BufReader, path::Path, thread, time::{Duration, Instant}};
+use std::{
+    fs::File,
+    io::BufReader,
+    path::Path,
+    thread,
+    time::{Duration, Instant},
+};
 
 use anyhow::{Context, Result, bail};
 use once_cell::sync::Lazy;
@@ -117,15 +123,15 @@ pub fn toggle_preview_from_ms(mut clip: AudioClipSettings, start_position_ms: u6
         bail!("Choose an audio file first");
     }
     clip.enabled = true;
-    let start_position_ms = start_position_ms.clamp(clip.start_ms, clip.end_ms.max(clip.start_ms + 1));
+    let start_position_ms =
+        start_position_ms.clamp(clip.start_ms, clip.end_ms.max(clip.start_ms + 1));
 
     let mut playback = PREVIEW_PLAYBACK.lock();
     cleanup_preview(&mut playback);
 
-    if playback
-        .as_ref()
-        .is_some_and(|current| current.clip == clip && current.start_position_ms == start_position_ms)
-    {
+    if playback.as_ref().is_some_and(|current| {
+        current.clip == clip && current.start_position_ms == start_position_ms
+    }) {
         if let Some(current) = playback.take() {
             current.sink.stop();
         }
@@ -137,7 +143,8 @@ pub fn toggle_preview_from_ms(mut clip: AudioClipSettings, start_position_ms: u6
 }
 
 fn start_preview_from_ms_inner(clip: AudioClipSettings, start_position_ms: u64) -> Result<()> {
-    let start_position_ms = start_position_ms.clamp(clip.start_ms, clip.end_ms.max(clip.start_ms + 1));
+    let start_position_ms =
+        start_position_ms.clamp(clip.start_ms, clip.end_ms.max(clip.start_ms + 1));
     let mut playback = PREVIEW_PLAYBACK.lock();
     cleanup_preview(&mut playback);
     start_preview_from_ms_inner_locked(playback, clip, start_position_ms)

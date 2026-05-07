@@ -57,12 +57,12 @@ mod windows_overlay {
                 Input::KeyboardAndMouse::{
                     GetAsyncKeyState, INPUT, INPUT_0, INPUT_KEYBOARD, INPUT_MOUSE, KEYBDINPUT,
                     KEYEVENTF_EXTENDEDKEY, KEYEVENTF_KEYUP, KEYEVENTF_SCANCODE, KEYEVENTF_UNICODE,
-                    MAPVK_VK_TO_VSC, MOD_ALT, MOD_CONTROL, MOUSEEVENTF_ABSOLUTE,
+                    MAPVK_VK_TO_VSC, MOD_ALT, MOD_CONTROL, MOUSE_EVENT_FLAGS, MOUSEEVENTF_ABSOLUTE,
                     MOUSEEVENTF_LEFTDOWN, MOUSEEVENTF_LEFTUP, MOUSEEVENTF_MIDDLEDOWN,
                     MOUSEEVENTF_MIDDLEUP, MOUSEEVENTF_MOVE, MOUSEEVENTF_RIGHTDOWN,
                     MOUSEEVENTF_RIGHTUP, MOUSEEVENTF_WHEEL, MOUSEEVENTF_XDOWN, MOUSEEVENTF_XUP,
-                    MOUSE_EVENT_FLAGS, MOUSEINPUT, MapVirtualKeyW, RegisterHotKey, SendInput,
-                    SetActiveWindow, SetFocus, UnregisterHotKey, VIRTUAL_KEY,
+                    MOUSEINPUT, MapVirtualKeyW, RegisterHotKey, SendInput, SetActiveWindow,
+                    SetFocus, UnregisterHotKey, VIRTUAL_KEY,
                 },
                 Shell::{
                     NIF_ICON, NIF_MESSAGE, NIF_TIP, NIM_ADD, NIM_DELETE, NIM_MODIFY,
@@ -1246,7 +1246,9 @@ mod windows_overlay {
         combo_keys.sort_by(|a, b| {
             let rank_a = hotkey_binding_rank(a);
             let rank_b = hotkey_binding_rank(b);
-            rank_a.cmp(&rank_b).then_with(|| a.to_ascii_lowercase().cmp(&b.to_ascii_lowercase()))
+            rank_a
+                .cmp(&rank_b)
+                .then_with(|| a.to_ascii_lowercase().cmp(&b.to_ascii_lowercase()))
         });
         combo_keys.dedup_by(|a, b| a.eq_ignore_ascii_case(b));
         HotkeyBinding {
@@ -1281,10 +1283,11 @@ mod windows_overlay {
                 .mouse_path_presets
                 .iter()
                 .find(|preset| {
-                        preset.enabled
-                        && preset.record_hotkey.as_ref().is_some_and(|hotkey| {
-                            hotkey::binding_matches(hotkey, binding)
-                        })
+                    preset.enabled
+                        && preset
+                            .record_hotkey
+                            .as_ref()
+                            .is_some_and(|hotkey| hotkey::binding_matches(hotkey, binding))
                 })
                 .cloned()
         };
@@ -1341,7 +1344,9 @@ mod windows_overlay {
                 .image_search_timing_active_presets
                 .insert(preset_id);
         } else {
-            hook_state.image_search_timing_active_presets.remove(&preset_id);
+            hook_state
+                .image_search_timing_active_presets
+                .remove(&preset_id);
         }
     }
 
@@ -1409,9 +1414,10 @@ mod windows_overlay {
                             &preset.extra_target_window_titles,
                             preset.match_duplicate_window_titles,
                         )
-                        && preset.hotkey.as_ref().is_some_and(|hotkey| {
-                            hotkey::binding_matches(hotkey, binding)
-                        })
+                        && preset
+                            .hotkey
+                            .as_ref()
+                            .is_some_and(|hotkey| hotkey::binding_matches(hotkey, binding))
                 })
                 .cloned()
                 .collect::<Vec<_>>();
@@ -1526,9 +1532,10 @@ mod windows_overlay {
                             &preset.extra_target_window_titles,
                             preset.match_duplicate_window_titles,
                         )
-                        && preset.hotkey.as_ref().is_some_and(|hotkey| {
-                            hotkey::binding_matches(hotkey, binding)
-                        })
+                        && preset
+                            .hotkey
+                            .as_ref()
+                            .is_some_and(|hotkey| hotkey::binding_matches(hotkey, binding))
                 })
                 .cloned()
         };
@@ -1625,9 +1632,7 @@ mod windows_overlay {
             let matches_master_hotkey = hook_state
                 .macros_master_hotkey
                 .as_ref()
-                .is_some_and(|hotkey| {
-                    hotkey::binding_matches(hotkey, binding)
-                });
+                .is_some_and(|hotkey| hotkey::binding_matches(hotkey, binding));
             if matches_master_hotkey {
                 hook_state.macros_master_enabled = !hook_state.macros_master_enabled;
                 let enabled = hook_state.macros_master_enabled;
@@ -8139,16 +8144,16 @@ mod windows_overlay {
     }
 
     fn macro_preset_trigger_matches(preset: &MacroPreset, binding: &HotkeyBinding) -> bool {
-        if let Some(hotkey) = preset.hotkey.as_ref() {
-            return hotkey::binding_matches(hotkey, binding);
+        if preset
+            .hotkey
+            .as_ref()
+            .is_some_and(|hotkey| hotkey::binding_matches(hotkey, binding))
+        {
+            return true;
         }
 
         let trigger_keys = preset.trigger_keys.trim();
-        if !trigger_keys.is_empty() {
-            return hotkey::key_list_contains(trigger_keys, &binding.key);
-        }
-
-        false
+        !trigger_keys.is_empty() && hotkey::binding_list_matches(trigger_keys, binding)
     }
 
     fn window_focus_matches(

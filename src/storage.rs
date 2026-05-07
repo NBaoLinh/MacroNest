@@ -126,15 +126,6 @@ impl AppPaths {
         for preset in &mut state.window_focus_presets {
             preset.collapsed = true;
         }
-        for group in &mut state.macro_groups {
-            for preset in &mut group.presets {
-                if preset.trigger_keys.trim().is_empty()
-                    && let Some(hotkey) = preset.hotkey.as_ref()
-                {
-                    preset.trigger_keys = hotkey.key.trim().to_owned();
-                }
-            }
-        }
         if state.image_search_presets.is_empty() {
             let mut preset = ImageSearchPreset::default();
             preset.enabled =
@@ -201,11 +192,7 @@ impl AppPaths {
                         stop_on_retrigger_immediate: false,
                         release_requires_all_inputs_released: false,
                         release_wait_key: String::new(),
-                        trigger_keys: legacy
-                            .hotkey
-                            .as_ref()
-                            .map(|hotkey| hotkey.key.trim().to_owned())
-                            .unwrap_or_default(),
+                        trigger_keys: String::new(),
                         hotkey: legacy.hotkey,
                         hold_stop_step_enabled: false,
                         hold_stop_step: crate::model::MacroStep::default(),

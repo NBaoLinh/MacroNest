@@ -20,14 +20,7 @@ pub fn capture_from_egui(key: Key, modifiers: Modifiers) -> Option<HotkeyBinding
         combo_keys.push("Win".to_owned());
     }
     combo_keys.push(key_name.to_owned());
-    Some(HotkeyBinding {
-        ctrl: modifiers.ctrl || modifiers.command,
-        alt: modifiers.alt,
-        shift: modifiers.shift,
-        win: modifiers.mac_cmd,
-        key: key_name.to_owned(),
-        combo_keys,
-    })
+    binding_from_keys(combo_keys)
 }
 
 pub fn format_binding(binding: Option<&HotkeyBinding>) -> String {
@@ -79,6 +72,87 @@ pub fn key_list_contains(spec: &str, key_name: &str) -> bool {
     split_key_list(spec)
         .iter()
         .any(|item| item.eq_ignore_ascii_case(key_name))
+}
+
+pub fn parse_binding(spec: &str) -> Option<HotkeyBinding> {
+    let mut combo_keys = split_key_list(spec);
+    if combo_keys.is_empty() {
+        return None;
+    }
+    binding_from_keys(std::mem::take(&mut combo_keys))
+}
+
+pub fn split_binding_list(spec: &str) -> Vec<String> {
+    let trimmed = spec.trim();
+    if trimmed.is_empty() {
+        return Vec::new();
+    }
+
+    trimmed
+        .split(|ch: char| matches!(ch, ',' | ';' | '|' | '\n' | '\r'))
+        .filter_map(|part| {
+            let binding = part.trim();
+            (!binding.is_empty()).then(|| binding.to_owned())
+        })
+        .collect()
+}
+
+pub fn parse_binding_list(spec: &str) -> Vec<HotkeyBinding> {
+    split_binding_list(spec)
+        .into_iter()
+        .filter_map(|entry| parse_binding(&entry))
+        .collect()
+}
+
+pub fn format_binding_list(bindings: &[HotkeyBinding]) -> String {
+    let entries = bindings
+        .iter()
+        .map(|binding| format_binding(Some(binding)))
+        .filter(|label| label != "Not set")
+        .collect::<Vec<_>>();
+    if entries.is_empty() {
+        "Not set".to_owned()
+    } else {
+        entries.join(", ")
+    }
+}
+
+pub fn binding_list_matches(spec: &str, observed: &HotkeyBinding) -> bool {
+    parse_binding_list(spec)
+        .iter()
+        .any(|binding| binding_matches(binding, observed))
+}
+
+pub fn append_binding_to_list(spec: &mut String, binding: &HotkeyBinding) -> bool {
+    let normalized = format_binding(Some(binding));
+    if normalized == "Not set" {
+        return false;
+    }
+    let entries = split_binding_list(spec);
+    if entries
+        .iter()
+        .filter_map(|entry| parse_binding(entry))
+        .any(|existing| binding_matches(&existing, binding))
+    {
+        return false;
+    }
+
+    if spec.trim().is_empty() {
+        *spec = normalized;
+    } else {
+        spec.push_str(", ");
+        spec.push_str(&normalized);
+    }
+    true
+}
+
+pub fn pop_binding_list_entry(spec: &mut String) -> bool {
+    let mut entries = split_binding_list(spec);
+    let Some(_) = entries.pop() else {
+        return false;
+    };
+    *spec = entries.join(", ");
+    true
 }
 
 #[allow(dead_code)]
@@ -134,7 +208,9 @@ pub fn binding_key_names(binding: &HotkeyBinding) -> Vec<String> {
     keys.sort_by(|a, b| {
         let rank_a = binding_key_rank(a);
         let rank_b = binding_key_rank(b);
-        rank_a.cmp(&rank_b).then_with(|| a.to_ascii_lowercase().cmp(&b.to_ascii_lowercase()))
+        rank_a
+            .cmp(&rank_b)
+            .then_with(|| a.to_ascii_lowercase().cmp(&b.to_ascii_lowercase()))
     });
     keys
 }
@@ -155,6 +231,42 @@ fn binding_key_rank(name: &str) -> (u8, String) {
         _ => 4,
     };
     (rank, normalized.to_ascii_lowercase())
+}
+
+fn binding_from_keys(mut combo_keys: Vec<String>) -> Option<HotkeyBinding> {
+    combo_keys.retain(|key| !key.trim().is_empty());
+    if combo_keys.is_empty() {
+        return None;
+    }
+    combo_keys.sort_by(|a, b| {
+        let rank_a = binding_key_rank(a);
+        let rank_b = binding_key_rank(b);
+        rank_a
+            .cmp(&rank_b)
+            .then_with(|| a.to_ascii_lowercase().cmp(&b.to_ascii_lowercase()))
+    });
+    combo_keys.dedup_by(|a, b| a.eq_ignore_ascii_case(b));
+    let key = combo_keys
+        .iter()
+        .rev()
+        .find(|key| !is_modifier_key_name(key))
+        .cloned()
+        .or_else(|| combo_keys.last().cloned())
+        .unwrap_or_default();
+    Some(HotkeyBinding {
+        ctrl: combo_keys
+            .iter()
+            .any(|key| key.eq_ignore_ascii_case("Ctrl") || key.eq_ignore_ascii_case("Control")),
+        alt: combo_keys.iter().any(|key| key.eq_ignore_ascii_case("Alt")),
+        shift: combo_keys
+            .iter()
+            .any(|key| key.eq_ignore_ascii_case("Shift")),
+        win: combo_keys
+            .iter()
+            .any(|key| key.eq_ignore_ascii_case("Win") || key.eq_ignore_ascii_case("Meta")),
+        key,
+        combo_keys,
+    })
 }
 
 #[allow(dead_code)]

@@ -19,9 +19,9 @@ mod windows_platform {
             UI::{
                 Shell::{IsUserAnAdmin, ShellExecuteW},
                 WindowsAndMessaging::{
-                    BringWindowToTop, SetForegroundWindow, SetWindowPos, ShowWindow,
-                    HWND_NOTOPMOST, HWND_TOPMOST, SW_RESTORE, SW_SHOWNORMAL, SWP_NOMOVE,
-                    SWP_NOSIZE, SWP_SHOWWINDOW,
+                    BringWindowToTop, HWND_NOTOPMOST, HWND_TOPMOST, SW_RESTORE, SW_SHOWNORMAL,
+                    SWP_NOMOVE, SWP_NOSIZE, SWP_SHOWWINDOW, SetForegroundWindow, SetWindowPos,
+                    ShowWindow,
                 },
             },
         },
