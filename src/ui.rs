@@ -2635,8 +2635,8 @@ impl CrosshairApp {
 
                     let pointer_pos = interactive
                         .then(|| ui.ctx().input(|input| input.pointer.hover_pos()))
-                        .flatten()
-                        .filter(|pos| viewport_rect.contains(*pos));
+                        .flatten();
+                    let hovered_pointer_pos = pointer_pos.filter(|pos| viewport_rect.contains(*pos));
                     let pointer_time_ms = pointer_pos.map(|pointer| {
                         let ratio = ((pointer.x - rect.left()) / rect.width()).clamp(0.0, 1.0);
                         (ratio * total_ms_f32).round() as u64
@@ -2660,14 +2660,14 @@ impl CrosshairApp {
                     let pan_right = interactive && ui.input(|input| input.key_down(egui::Key::D));
                     let keyboard_panning = pan_left ^ pan_right;
                     let timeline_hovered =
-                        interactive && (response.hovered() || pointer_pos.is_some());
-                    let showing_hover_preview = pointer_pos.is_some()
+                        interactive && (response.hovered() || hovered_pointer_pos.is_some());
+                    let showing_hover_preview = hovered_pointer_pos.is_some()
                         && !keyboard_panning
                         && !start_response.is_pointer_button_down_on()
                         && !end_response.is_pointer_button_down_on()
                         && !response.dragged();
 
-                    if showing_hover_preview && let Some(pointer) = pointer_pos {
+                    if showing_hover_preview && let Some(pointer) = hovered_pointer_pos {
                         painter.line_segment(
                             [
                                 egui::pos2(pointer.x, rect.top() + 12.0),
@@ -2752,13 +2752,13 @@ impl CrosshairApp {
                             }
                         });
                         if zoom_delta.abs() > 0.0 {
-                            let anchor_viewport_x = pointer_pos
+                            let anchor_viewport_x = hovered_pointer_pos
                                 .map(|pointer| {
                                     (pointer.x - viewport_rect.left())
                                         .clamp(0.0, viewport_rect.width())
                                 })
                                 .unwrap_or(viewport_rect.width() * cursor_ratio.clamp(0.0, 1.0));
-                            let anchor_content_x = pointer_pos
+                            let anchor_content_x = hovered_pointer_pos
                                 .map(|pointer| (pointer.x - rect.left()).clamp(0.0, rect.width()))
                                 .unwrap_or((cursor_ratio * rect.width()).clamp(0.0, rect.width()));
                             let factor = if zoom_delta > 0.0 { 1.12 } else { 1.0 / 1.12 };
