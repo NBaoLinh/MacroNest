@@ -69,11 +69,10 @@ mod windows_overlay {
                     NOTIFYICONDATAW, Shell_NotifyIconW,
                 },
                 WindowsAndMessaging::{
-                AppendMenuW, BringWindowToTop, CREATESTRUCTW, CallNextHookEx, CreatePopupMenu,
-                CreateWindowExW, DefWindowProcW, DestroyIcon, DestroyMenu, DispatchMessageW,
-                GA_ROOT, GW_OWNER, GWLP_USERDATA, GetAncestor, GetClassNameW, GetClientRect,
-                    GetCursorPos, GetForegroundWindow, GetMessageW,
-                    GetSystemMetrics, GetWindow,
+                    AppendMenuW, BringWindowToTop, CREATESTRUCTW, CallNextHookEx, CreatePopupMenu,
+                    CreateWindowExW, DefWindowProcW, DestroyIcon, DestroyMenu, DispatchMessageW,
+                    GA_ROOT, GW_OWNER, GWLP_USERDATA, GetAncestor, GetClassNameW, GetClientRect,
+                    GetCursorPos, GetForegroundWindow, GetMessageW, GetSystemMetrics, GetWindow,
                     GetWindowLongPtrW, GetWindowRect, GetWindowThreadProcessId, HC_ACTION, HHOOK,
                     HMENU, HTTRANSPARENT, HWND_NOTOPMOST, HWND_TOPMOST, IDC_ARROW, IMAGE_ICON,
                     IsIconic, IsZoomed, KBDLLHOOKSTRUCT, KillTimer, LR_LOADFROMFILE, LoadCursorW,
@@ -2065,12 +2064,12 @@ mod windows_overlay {
             }
 
             hook_state
-            .active_hold_macros
-            .iter()
-            .filter(|(_, active)| hold_macro_release_matches(active, binding))
-            .map(|(preset_id, _)| *preset_id)
-            .collect::<Vec<_>>()
-    };
+                .active_hold_macros
+                .iter()
+                .filter(|(_, active)| hold_macro_release_matches(active, binding))
+                .map(|(preset_id, _)| *preset_id)
+                .collect::<Vec<_>>()
+        };
 
         for (
             preset,
@@ -2784,14 +2783,14 @@ mod windows_overlay {
             let mut regions = hook_state
                 .image_search_presets
                 .iter()
-                .filter(|preset| preset.enabled && preset.show_search_region_overlay)
+                .filter(|preset| preset.show_search_region_overlay)
                 .filter_map(|preset| configured_image_search_region(preset))
                 .collect::<Vec<_>>();
             regions.extend(
                 hook_state
                     .image_search_timing_presets
                     .iter()
-                    .filter(|preset| preset.enabled && preset.show_search_region_overlay)
+                    .filter(|preset| preset.show_search_region_overlay)
                     .filter_map(|preset| configured_image_search_timing_region(preset))
                     .collect::<Vec<_>>(),
             );

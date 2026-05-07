@@ -149,9 +149,7 @@ impl AppPaths {
         }
         for preset in &mut state.image_search_presets {
             preset.collapsed = true;
-            if preset.target_color.is_none() {
-                preset.use_color_matching = false;
-            }
+            preset.click_after_move = false;
         }
         state.active_panel = crate::model::AppPanel::Macros;
         let legacy_image_search_template = self.image_search_template_file.exists();
@@ -165,6 +163,7 @@ impl AppPaths {
             {
                 let _ = fs::copy(&self.image_search_template_file, &first_template);
             }
+            let _ = fs::remove_file(&self.image_search_template_file);
         }
         if !state.macro_presets.is_empty() {
             let mut used_preset_ids = state

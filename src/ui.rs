@@ -1,4 +1,4 @@
-﻿use std::{
+use std::{
     collections::{HashMap, HashSet},
     fs,
     path::PathBuf,
@@ -136,6 +136,11 @@ struct ImageSearchPreviewCache {
     source_path: PathBuf,
     source_modified: Option<std::time::SystemTime>,
     view: ImageSearchPreviewView,
+}
+
+struct ImageSearchCaptureBackground {
+    texture: TextureHandle,
+    frame: window_list::ScreenCaptureFrame,
 }
 
 const MATERIAL_ICONS_FONT: &str = "material_icons";
@@ -422,6 +427,7 @@ pub struct CrosshairApp {
     image_search_capture_current: Option<egui::Pos2>,
     image_search_restore_inner_size: Option<egui::Vec2>,
     image_search_restore_outer_pos: Option<egui::Pos2>,
+    image_search_capture_background: Option<ImageSearchCaptureBackground>,
     selected_macro_steps: HashSet<(u32, u32, usize)>,
     selected_macro_groups: HashSet<u32>,
     macro_groups_favorites_only: bool,
@@ -526,6 +532,7 @@ impl CrosshairApp {
             image_search_capture_current: None,
             image_search_restore_inner_size: None,
             image_search_restore_outer_pos: None,
+            image_search_capture_background: None,
             selected_macro_steps: HashSet::new(),
             selected_macro_groups: HashSet::new(),
             macro_groups_favorites_only: false,
@@ -1193,6 +1200,29 @@ impl CrosshairApp {
         );
     }
 
+    fn image_search_color_tile(ui: &mut egui::Ui, color: RgbaColor) -> egui::Response {
+        ui.add_sized(
+            [24.0, 24.0],
+            Button::new("")
+                .fill(Color32::from_rgba_unmultiplied(
+                    color.r, color.g, color.b, 255,
+                ))
+                .stroke(egui::Stroke::new(1.0, Color32::from_rgb(160, 174, 196))),
+        )
+        .on_hover_text(format!(
+            "#{:02X}{:02X}{:02X}  rgba({}, {}, {}, {})",
+            color.r, color.g, color.b, color.r, color.g, color.b, color.a
+        ))
+    }
+
+    fn image_search_add_color_button(ui: &mut egui::Ui, language: UiLanguage) -> egui::Response {
+        ui.add_sized(
+            [24.0, 24.0],
+            Button::new(Self::material_icon_text(0xe145, 18.0)),
+        )
+        .on_hover_text(Self::tr_lang(language, "Pick color", "Pick color"))
+    }
+
     fn update_image_search_cursor_preview(
         &mut self,
         ctx: &egui::Context,
@@ -1202,26 +1232,33 @@ impl CrosshairApp {
         let (screen_x, screen_y) =
             self.screen_point_from_pos(ctx, pointer, ctx.pixels_per_point())?;
         let sample_size = sample_size.max(3) | 1;
-        let left = screen_x - sample_size / 2;
-        let top = screen_y - sample_size / 2;
-        let capture =
-            window_list::capture_virtual_screen_region(left, top, sample_size, sample_size)?;
-        if capture.rgba.len() < 4 {
+        let half = sample_size / 2;
+        let left = screen_x - half;
+        let top = screen_y - half;
+        let (width, height, rgba) = if let Some((width, height, rgba)) =
+            self.image_search_background_sample(left, top, sample_size)
+        {
+            (width, height, rgba)
+        } else {
+            let capture =
+                window_list::capture_virtual_screen_region(left, top, sample_size, sample_size)?;
+            (capture.width, capture.height, capture.rgba)
+        };
+        if rgba.len() < 4 {
             return None;
         }
 
-        let center_index = (((capture.height / 2) * capture.width) + (capture.width / 2)) * 4;
-        if center_index + 3 >= capture.rgba.len() {
+        let center_index = (((height / 2) * width) + (width / 2)) * 4;
+        if center_index + 3 >= rgba.len() {
             return None;
         }
         let sampled = RgbaColor {
-            r: capture.rgba[center_index],
-            g: capture.rgba[center_index + 1],
-            b: capture.rgba[center_index + 2],
+            r: rgba[center_index],
+            g: rgba[center_index + 1],
+            b: rgba[center_index + 2],
             a: 255,
         };
-        let color_image =
-            ColorImage::from_rgba_unmultiplied([capture.width, capture.height], &capture.rgba);
+        let color_image = ColorImage::from_rgba_unmultiplied([width, height], &rgba);
         if let Some(texture) = self.image_search_color_pick_texture.as_mut() {
             texture.set(color_image, TextureOptions::NEAREST);
         } else {
@@ -1233,6 +1270,40 @@ impl CrosshairApp {
         }
         self.image_search_color_pick_preview_color = Some(sampled);
         Some(sampled)
+    }
+
+    fn image_search_background_sample(
+        &self,
+        left: i32,
+        top: i32,
+        sample_size: i32,
+    ) -> Option<(usize, usize, Vec<u8>)> {
+        let background = self.image_search_capture_background.as_ref()?;
+        let width = sample_size.max(1) as usize;
+        let height = width;
+        let mut rgba = vec![0_u8; width * height * 4];
+        for y in 0..height {
+            let screen_y = top + y as i32;
+            let source_y = screen_y - background.frame.screen_y;
+            if source_y < 0 || source_y >= background.frame.height as i32 {
+                continue;
+            }
+            for x in 0..width {
+                let screen_x = left + x as i32;
+                let source_x = screen_x - background.frame.screen_x;
+                if source_x < 0 || source_x >= background.frame.width as i32 {
+                    continue;
+                }
+                let source_index =
+                    ((source_y as usize * background.frame.width) + source_x as usize) * 4;
+                let target_index = ((y * width) + x) * 4;
+                if source_index + 3 < background.frame.rgba.len() {
+                    rgba[target_index..target_index + 4]
+                        .copy_from_slice(&background.frame.rgba[source_index..source_index + 4]);
+                }
+            }
+        }
+        Some((width, height, rgba))
     }
 
     fn image_search_preview_panel_rect(
@@ -1417,8 +1488,14 @@ impl CrosshairApp {
     ) -> (egui::Vec2, egui::Pos2) {
         let safe_rect = Self::modal_safe_rect(ctx);
         let panel_size = vec2(
-            desired_size.x.min(safe_rect.width()).max(min_size.x.min(safe_rect.width())),
-            desired_size.y.min(safe_rect.height()).max(min_size.y.min(safe_rect.height())),
+            desired_size
+                .x
+                .min(safe_rect.width())
+                .max(min_size.x.min(safe_rect.width())),
+            desired_size
+                .y
+                .min(safe_rect.height())
+                .max(min_size.y.min(safe_rect.height())),
         );
         let center = safe_rect.center();
         let panel_pos = egui::Pos2::new(
@@ -1443,7 +1520,8 @@ impl CrosshairApp {
             .fixed_pos(rect.min)
             .interactable(true)
             .show(ctx, |ui| {
-                let (backdrop_rect, _) = ui.allocate_exact_size(rect.size(), Sense::click_and_drag());
+                let (backdrop_rect, _) =
+                    ui.allocate_exact_size(rect.size(), Sense::click_and_drag());
                 ui.painter().rect_filled(
                     backdrop_rect,
                     egui::CornerRadius::ZERO,
@@ -1669,7 +1747,6 @@ impl CrosshairApp {
             self.persist();
         }
     }
-
 
     fn choose_audio_file_for_library_item(&mut self, item_id: u32) {
         let Some(path) = rfd::FileDialog::new()
@@ -2003,6 +2080,50 @@ impl CrosshairApp {
         }
     }
 
+    fn render_hotkey_capture_control(
+        ui: &mut egui::Ui,
+        language: UiLanguage,
+        binding: &mut Option<HotkeyBinding>,
+        capture_target: &CaptureRequest,
+        active_capture_target: Option<&CaptureRequest>,
+        pending_combo_keys: Option<&Vec<String>>,
+        live_sync: &mut bool,
+    ) -> (bool, bool) {
+        let capture_active = active_capture_target == Some(capture_target);
+        let preview_binding = if capture_active {
+            pending_combo_keys
+                .map(|keys| Self::hotkey_binding_from_combo_keys(keys.clone()))
+                .or_else(|| binding.clone())
+        } else {
+            binding.clone()
+        };
+        ui.monospace(Self::format_binding_ui(language, preview_binding.as_ref()));
+
+        let mut begin_capture = false;
+        let mut cancel_capture = false;
+        if ui
+            .button(Self::capture_button_text(language, capture_active))
+            .clicked()
+        {
+            if capture_active {
+                cancel_capture = true;
+            } else {
+                begin_capture = true;
+            }
+        }
+        if binding.is_some()
+            && !capture_active
+            && ui
+                .button(Self::tr_lang(language, "Clear", "Clear"))
+                .clicked()
+        {
+            *binding = None;
+            *live_sync = true;
+        }
+
+        (begin_capture, cancel_capture)
+    }
+
     fn macro_trigger_bindings(preset: &MacroPreset) -> Vec<HotkeyBinding> {
         let mut bindings = Vec::new();
         if let Some(binding) = preset.hotkey.as_ref() {
@@ -2093,7 +2214,9 @@ impl CrosshairApp {
                 for binding in &bindings {
                     let label = hotkey::format_binding(Some(binding));
                     if ui
-                        .add(Button::new(RichText::new(label).monospace()).min_size(vec2(0.0, 22.0)))
+                        .add(
+                            Button::new(RichText::new(label).monospace()).min_size(vec2(0.0, 22.0)),
+                        )
                         .on_hover_text(Self::tr_lang(
                             language,
                             "Click to remove this trigger",
@@ -2296,7 +2419,10 @@ impl CrosshairApp {
     }
 
     fn titlebar_theme_tooltip(&self) -> &'static str {
-        self.tr("Toggle dark / light theme", "Äá»•i giao diá»‡n sÃ¡ng / tá»‘i")
+        self.tr(
+            "Toggle dark / light theme",
+            "Äá»•i giao diá»‡n sÃ¡ng / tá»‘i",
+        )
     }
 
     fn titlebar_minimize_tooltip(&self) -> &'static str {
@@ -2316,8 +2442,10 @@ impl CrosshairApp {
     }
 
     fn capture_hint_text(&self) -> String {
-        if matches!(self.capture_target, Some(CaptureRequest::MacroPresetHotkey(_, _)))
-            && let Some(pending) = self.capture_hotkey_combo_keys.as_ref()
+        if matches!(
+            self.capture_target,
+            Some(CaptureRequest::MacroPresetHotkey(_, _))
+        ) && let Some(pending) = self.capture_hotkey_combo_keys.as_ref()
         {
             return self.capture_combo_status_text(pending);
         }
@@ -2521,9 +2649,9 @@ impl CrosshairApp {
             .map(|current| {
                 let base_title = Self::selector_base_title(current);
                 let selected_specific_duplicate = !*match_duplicate_window_titles
-                    && window_groups.iter().any(|(title, selectors)| {
-                        title == base_title && selectors.len() > 1
-                    });
+                    && window_groups
+                        .iter()
+                        .any(|(title, selectors)| title == base_title && selectors.len() > 1);
                 if selected_specific_duplicate {
                     current.to_owned()
                 } else {
@@ -2541,11 +2669,12 @@ impl CrosshairApp {
             .selected_text(selected_text)
             .show_ui(ui, |ui| {
                 if allow_none {
-                    if ui.add_sized(
-                        [ui.available_width(), 22.0],
-                        Button::selectable(target.is_none(), label_when_none),
-                    )
-                    .clicked()
+                    if ui
+                        .add_sized(
+                            [ui.available_width(), 22.0],
+                            Button::selectable(target.is_none(), label_when_none),
+                        )
+                        .clicked()
                     {
                         *target = None;
                         *match_duplicate_window_titles = false;
@@ -2582,27 +2711,31 @@ impl CrosshairApp {
                     }
 
                     if has_duplicates && expanded_title.as_deref() == Some(title.as_str()) {
-                        ui.indent((id_source, "duplicate-title-branches", title.as_str()), |ui| {
-                            let mut child_hovered = false;
-                            for selector in &selectors {
-                                let child_selected = target.as_deref() == Some(selector.as_str())
-                                    && !*match_duplicate_window_titles;
-                                let child_response = ui.add_sized(
-                                    [ui.available_width(), 22.0],
-                                    Button::selectable(child_selected, selector),
-                                );
-                                child_hovered |= child_response.hovered();
-                                if child_response.clicked() {
-                                    *target = Some(selector.clone());
-                                    *match_duplicate_window_titles = false;
-                                    expanded_title = None;
-                                    changed = true;
+                        ui.indent(
+                            (id_source, "duplicate-title-branches", title.as_str()),
+                            |ui| {
+                                let mut child_hovered = false;
+                                for selector in &selectors {
+                                    let child_selected = target.as_deref()
+                                        == Some(selector.as_str())
+                                        && !*match_duplicate_window_titles;
+                                    let child_response = ui.add_sized(
+                                        [ui.available_width(), 22.0],
+                                        Button::selectable(child_selected, selector),
+                                    );
+                                    child_hovered |= child_response.hovered();
+                                    if child_response.clicked() {
+                                        *target = Some(selector.clone());
+                                        *match_duplicate_window_titles = false;
+                                        expanded_title = None;
+                                        changed = true;
+                                    }
                                 }
-                            }
-                            if child_hovered {
-                                expanded_title = Some(title.clone());
-                            }
-                        });
+                                if child_hovered {
+                                    expanded_title = Some(title.clone());
+                                }
+                            },
+                        );
                     }
                 }
             });
@@ -5844,7 +5977,6 @@ impl CrosshairApp {
         match target {
             CaptureRequest::MacroPresetHotkey(_, _) => true,
             CaptureRequest::MacroPresetReleaseWaitKey(_, _) => true,
-            CaptureRequest::MacrosMasterHotkey => true,
             CaptureRequest::MacroPresetHoldStopInput(group_id, preset_id) => self
                 .state
                 .macro_groups
@@ -6091,6 +6223,7 @@ impl CrosshairApp {
         self.image_search_capture_active = true;
         self.image_search_capture_anchor = None;
         self.image_search_capture_current = None;
+        self.image_search_capture_background = None;
         self.status = match mode {
             ImageSearchCaptureMode::Template => {
                 "Drag on screen to pick an image template. Press Esc to cancel.".to_owned()
@@ -6106,7 +6239,30 @@ impl CrosshairApp {
                     .to_owned()
             }
         };
+        ctx.send_viewport_cmd(egui::ViewportCommand::Visible(false));
+        let _ = self.overlay_tx.send(OverlayCommand::SetUiVisible(false));
+        std::thread::sleep(Duration::from_millis(45));
+        self.capture_image_search_background(ctx);
+        ctx.send_viewport_cmd(egui::ViewportCommand::Visible(true));
+        ctx.send_viewport_cmd(egui::ViewportCommand::Minimized(false));
+        ctx.send_viewport_cmd(egui::ViewportCommand::Focus);
         ctx.request_repaint();
+    }
+
+    fn capture_image_search_background(&mut self, ctx: &egui::Context) {
+        let (left, top, width, height) = window_list::virtual_screen_bounds();
+        if let Some(frame) = window_list::capture_virtual_screen_region(left, top, width, height) {
+            let color_image =
+                ColorImage::from_rgba_unmultiplied([frame.width, frame.height], &frame.rgba);
+            let texture = ctx.load_texture(
+                "image-search-capture-background",
+                color_image,
+                TextureOptions::LINEAR,
+            );
+            self.image_search_capture_background =
+                Some(ImageSearchCaptureBackground { texture, frame });
+        }
+        let _ = self.overlay_tx.send(OverlayCommand::SetUiVisible(true));
     }
 
     fn cancel_image_search_capture(&mut self, ctx: &egui::Context) {
@@ -6122,6 +6278,7 @@ impl CrosshairApp {
         self.image_search_capture_anchor = None;
         self.image_search_capture_current = None;
         self.image_search_color_pick_preview_color = None;
+        self.image_search_capture_background = None;
         self.restore_image_search_viewport(ctx);
         self.status = match mode {
             ImageSearchCaptureMode::Template => "Image template capture cancelled.".to_owned(),
@@ -6194,6 +6351,7 @@ impl CrosshairApp {
         self.image_search_capture_mode = None;
         self.image_search_capture_anchor = None;
         self.image_search_capture_current = None;
+        self.image_search_capture_background = None;
         match mode {
             ImageSearchCaptureMode::Template => {
                 ctx.send_viewport_cmd(egui::ViewportCommand::Visible(false));
@@ -6414,6 +6572,7 @@ impl CrosshairApp {
         self.image_search_capture_anchor = None;
         self.image_search_capture_current = None;
         self.image_search_color_pick_preview_color = None;
+        self.image_search_capture_background = None;
 
         let screen_point = self.screen_point_from_pos(ctx, pos, ctx.pixels_per_point());
         ctx.send_viewport_cmd(egui::ViewportCommand::Visible(false));
@@ -6513,6 +6672,7 @@ impl CrosshairApp {
         self.image_search_capture_anchor = None;
         self.image_search_capture_current = None;
         self.image_search_color_pick_preview_color = None;
+        self.image_search_capture_background = None;
 
         let screen_point = self.screen_point_from_pos(ctx, pos, ctx.pixels_per_point());
         self.restore_image_search_viewport(ctx);
@@ -7906,7 +8066,10 @@ impl CrosshairApp {
         let mut live_sync = false;
         for index in 0..self.state.window_presets.len() {
             let mut next_capture_target = None;
+            let mut cancel_active_capture = false;
             let language = self.state.ui_language;
+            let active_capture_target = self.capture_target.clone();
+            let pending_combo_keys = self.capture_hotkey_combo_keys.clone();
             ui.add_space(6.0);
             {
                 let preset = &mut self.state.window_presets[index];
@@ -8023,16 +8186,26 @@ impl CrosshairApp {
 
                             ui.label(Self::tr_lang(language, "Hotkey", "Hotkey"));
                             ui.horizontal_wrapped(|ui| {
-                                ui.monospace(hotkey::format_binding(preset.hotkey.as_ref()));
-                                if ui.button(Self::tr_lang(language, "Capture", "Capture")).clicked() {
+                                let capture_target =
+                                    CaptureRequest::WindowPresetHotkey(preset.id);
+                                let (begin_capture, cancel_capture) =
+                                    Self::render_hotkey_capture_control(
+                                        ui,
+                                        language,
+                                        &mut preset.hotkey,
+                                        &capture_target,
+                                        active_capture_target.as_ref(),
+                                        pending_combo_keys.as_ref(),
+                                        &mut live_sync,
+                                    );
+                                if begin_capture {
                                     next_capture_target = Some((
-                                        CaptureRequest::WindowPresetHotkey(preset.id),
+                                        capture_target,
                                         format!("Capturing preset hotkey for {}.", preset.name),
                                     ));
                                 }
-                                if ui.button(Self::tr_lang(language, "Clear", "Clear")).clicked() {
-                                    preset.hotkey = None;
-                                    live_sync = true;
+                                if cancel_capture {
+                                    cancel_active_capture = true;
                                 }
                             });
                             ui.end_row();
@@ -8069,21 +8242,29 @@ impl CrosshairApp {
                             ui.label(Self::tr_lang(language, "Animate Hotkey", "Animate Hotkey"));
                             ui.horizontal_wrapped(|ui| {
                                 ui.add_enabled_ui(preset.animate_enabled, |ui| {
-                                    ui.monospace(hotkey::format_binding(
-                                        preset.animate_hotkey.as_ref(),
-                                    ));
-                                    if ui.button(Self::tr_lang(language, "Capture", "Capture")).clicked() {
+                                    let capture_target =
+                                        CaptureRequest::WindowPresetAnimateHotkey(preset.id);
+                                    let (begin_capture, cancel_capture) =
+                                        Self::render_hotkey_capture_control(
+                                            ui,
+                                            language,
+                                            &mut preset.animate_hotkey,
+                                            &capture_target,
+                                            active_capture_target.as_ref(),
+                                            pending_combo_keys.as_ref(),
+                                            &mut live_sync,
+                                        );
+                                    if begin_capture {
                                         next_capture_target = Some((
-                                            CaptureRequest::WindowPresetAnimateHotkey(preset.id),
+                                            capture_target,
                                             format!(
                                                 "Capturing animated preset hotkey for {}.",
                                                 preset.name
                                             ),
                                         ));
                                     }
-                                    if ui.button(Self::tr_lang(language, "Clear", "Clear")).clicked() {
-                                        preset.animate_hotkey = None;
-                                        live_sync = true;
+                                    if cancel_capture {
+                                        cancel_active_capture = true;
                                     }
                                 });
                             });
@@ -8108,21 +8289,29 @@ impl CrosshairApp {
                             ui.label(Self::tr_lang(language, "Restore Key", "Restore Key"));
                             ui.horizontal_wrapped(|ui| {
                                 ui.add_enabled_ui(preset.restore_titlebar_enabled, |ui| {
-                                    ui.monospace(hotkey::format_binding(
-                                        preset.titlebar_hotkey.as_ref(),
-                                    ));
-                                    if ui.button(Self::tr_lang(language, "Capture", "Capture")).clicked() {
+                                    let capture_target =
+                                        CaptureRequest::WindowPresetTitlebarHotkey(preset.id);
+                                    let (begin_capture, cancel_capture) =
+                                        Self::render_hotkey_capture_control(
+                                            ui,
+                                            language,
+                                            &mut preset.titlebar_hotkey,
+                                            &capture_target,
+                                            active_capture_target.as_ref(),
+                                            pending_combo_keys.as_ref(),
+                                            &mut live_sync,
+                                        );
+                                    if begin_capture {
                                         next_capture_target = Some((
-                                            CaptureRequest::WindowPresetTitlebarHotkey(preset.id),
+                                            capture_target,
                                             format!(
                                                 "Capturing restore title bar hotkey for {}.",
                                                 preset.name
                                             ),
                                         ));
                                     }
-                                    if ui.button(Self::tr_lang(language, "Clear", "Clear")).clicked() {
-                                        preset.titlebar_hotkey = None;
-                                        live_sync = true;
+                                    if cancel_capture {
+                                        cancel_active_capture = true;
                                     }
                                 });
                             });
@@ -8145,14 +8334,22 @@ impl CrosshairApp {
             if let Some((target, status)) = next_capture_target.take() {
                 self.begin_capture(target, status);
             }
+            if cancel_active_capture {
+                self.cancel_capture();
+            }
         }
 
         ui.separator();
         let language = self.state.ui_language;
-        ui.label(RichText::new(Self::tr_lang(language, "Focus", "Preset focus cá»­a sá»•")).strong());
+        ui.label(
+            RichText::new(Self::tr_lang(language, "Focus", "Preset focus cá»­a sá»•")).strong(),
+        );
         let mut remove_focus_id = None;
         for index in 0..self.state.window_focus_presets.len() {
             let mut next_capture_target = None;
+            let mut cancel_active_capture = false;
+            let active_capture_target = self.capture_target.clone();
+            let pending_combo_keys = self.capture_hotkey_combo_keys.clone();
             ui.add_space(6.0);
             let preset = &mut self.state.window_focus_presets[index];
             Self::show_preset_card(ui, preset.enabled, |ui| {
@@ -8206,27 +8403,34 @@ impl CrosshairApp {
 
                         ui.label(Self::tr_lang(language, "Hotkey", "Hotkey"));
                         ui.horizontal_wrapped(|ui| {
-                            ui.monospace(Self::format_binding_ui(language, preset.hotkey.as_ref()));
-                            if ui
-                                .button(Self::tr_lang(language, "Capture", "Capture"))
-                                .clicked()
-                            {
+                            let capture_target = CaptureRequest::WindowFocusPresetHotkey(preset.id);
+                            let (begin_capture, cancel_capture) =
+                                Self::render_hotkey_capture_control(
+                                    ui,
+                                    language,
+                                    &mut preset.hotkey,
+                                    &capture_target,
+                                    active_capture_target.as_ref(),
+                                    pending_combo_keys.as_ref(),
+                                    &mut live_sync,
+                                );
+                            if begin_capture {
                                 next_capture_target = Some((
-                                    CaptureRequest::WindowFocusPresetHotkey(preset.id),
+                                    capture_target,
                                     format!("Capturing focus hotkey for {}.", preset.name),
                                 ));
                             }
-                            if ui
-                                .button(Self::tr_lang(language, "Clear", "Clear"))
-                                .clicked()
-                            {
-                                preset.hotkey = None;
-                                live_sync = true;
+                            if cancel_capture {
+                                cancel_active_capture = true;
                             }
                         });
                         ui.end_row();
 
-                        ui.label(Self::tr_lang(language, "Target Window", "Cá»­a sá»• má»¥c tiÃªu"));
+                        ui.label(Self::tr_lang(
+                            language,
+                            "Target Window",
+                            "Cá»­a sá»• má»¥c tiÃªu",
+                        ));
                         live_sync |= Self::render_multi_window_targets_with_duplicate_mode(
                             ui,
                             (preset.id, "window-focus-target"),
@@ -8241,6 +8445,9 @@ impl CrosshairApp {
             });
             if let Some((target, status)) = next_capture_target.take() {
                 self.begin_capture(target, status);
+            }
+            if cancel_active_capture {
+                self.cancel_capture();
             }
         }
 
@@ -8274,6 +8481,9 @@ impl CrosshairApp {
         let mut live_sync = false;
         for index in 0..self.state.zoom_presets.len() {
             let mut next_capture_target = None;
+            let mut cancel_active_capture = false;
+            let active_capture_target = self.capture_target.clone();
+            let pending_combo_keys = self.capture_hotkey_combo_keys.clone();
             ui.add_space(6.0);
             let preset_snapshot = self.state.zoom_presets[index].clone();
             let preview = if preset_snapshot.preview_enabled && !preset_snapshot.collapsed {
@@ -8390,16 +8600,25 @@ impl CrosshairApp {
 
                         ui.label("Hotkey");
                         ui.horizontal_wrapped(|ui| {
-                            ui.monospace(Self::format_binding_ui(language, preset.hotkey.as_ref()));
-                            if ui.button("Capture").clicked() {
+                            let capture_target = CaptureRequest::ZoomPresetHotkey(preset.id);
+                            let (begin_capture, cancel_capture) =
+                                Self::render_hotkey_capture_control(
+                                    ui,
+                                    language,
+                                    &mut preset.hotkey,
+                                    &capture_target,
+                                    active_capture_target.as_ref(),
+                                    pending_combo_keys.as_ref(),
+                                    &mut live_sync,
+                                );
+                            if begin_capture {
                                 next_capture_target = Some((
-                                    CaptureRequest::ZoomPresetHotkey(preset.id),
+                                    capture_target,
                                     format!("Capturing zoom hotkey for {}.", preset.name),
                                 ));
                             }
-                            if ui.button("Clear").clicked() {
-                                preset.hotkey = None;
-                                live_sync = true;
+                            if cancel_capture {
+                                cancel_active_capture = true;
                             }
                         });
                         ui.end_row();
@@ -8443,6 +8662,9 @@ impl CrosshairApp {
             if let Some((target, status)) = next_capture_target.take() {
                 self.begin_capture(target, status);
             }
+            if cancel_active_capture {
+                self.cancel_capture();
+            }
         }
 
         if live_sync {
@@ -8480,6 +8702,9 @@ impl CrosshairApp {
                 .input(|input| input.viewport().focused != Some(false));
         for index in 0..self.state.pin_presets.len() {
             let mut next_capture_target = None;
+            let mut cancel_active_capture = false;
+            let active_capture_target = self.capture_target.clone();
+            let pending_combo_keys = self.capture_hotkey_combo_keys.clone();
             ui.add_space(6.0);
             let preset_snapshot = self.state.pin_presets[index].clone();
             let preview = if pin_preview_allowed
@@ -8551,27 +8776,34 @@ impl CrosshairApp {
 
                         ui.label(Self::tr_lang(language, "Hotkey", "Hotkey"));
                         ui.horizontal_wrapped(|ui| {
-                            ui.monospace(hotkey::format_binding(preset.hotkey.as_ref()));
-                            if ui
-                                .button(Self::tr_lang(language, "Capture", "Capture"))
-                                .clicked()
-                            {
+                            let capture_target = CaptureRequest::PinPresetHotkey(preset.id);
+                            let (begin_capture, cancel_capture) =
+                                Self::render_hotkey_capture_control(
+                                    ui,
+                                    language,
+                                    &mut preset.hotkey,
+                                    &capture_target,
+                                    active_capture_target.as_ref(),
+                                    pending_combo_keys.as_ref(),
+                                    &mut live_sync,
+                                );
+                            if begin_capture {
                                 next_capture_target = Some((
-                                    CaptureRequest::PinPresetHotkey(preset.id),
+                                    capture_target,
                                     format!("Capturing pin hotkey for {}.", preset.name),
                                 ));
                             }
-                            if ui
-                                .button(Self::tr_lang(language, "Clear", "Clear"))
-                                .clicked()
-                            {
-                                preset.hotkey = None;
-                                live_sync = true;
+                            if cancel_capture {
+                                cancel_active_capture = true;
                             }
                         });
                         ui.end_row();
 
-                        ui.label(Self::tr_lang(language, "Target Window", "Cá»­a sá»• má»¥c tiÃªu"));
+                        ui.label(Self::tr_lang(
+                            language,
+                            "Target Window",
+                            "Cá»­a sá»• má»¥c tiÃªu",
+                        ));
                         let target_changed = Self::render_multi_window_targets_with_duplicate_mode(
                             ui,
                             (preset.id, "pin-target-window"),
@@ -8588,7 +8820,11 @@ impl CrosshairApp {
                         live_sync |= target_changed;
                         ui.end_row();
 
-                        ui.label(Self::tr_lang(language, "Custom Bounds", "Khung tÃ¹y chá»‰nh"));
+                        ui.label(Self::tr_lang(
+                            language,
+                            "Custom Bounds",
+                            "Khung tÃ¹y chá»‰nh",
+                        ));
                         live_sync |= ui
                             .checkbox(
                                 &mut preset.use_custom_bounds,
@@ -8622,7 +8858,11 @@ impl CrosshairApp {
                             .changed();
                         ui.end_row();
 
-                        ui.label(Self::tr_lang(language, "Source Crop", "Cáº¯t vÃ¹ng nguá»“n"));
+                        ui.label(Self::tr_lang(
+                            language,
+                            "Source Crop",
+                            "Cáº¯t vÃ¹ng nguá»“n",
+                        ));
                         let source_crop_changed = ui
                             .checkbox(
                                 &mut preset.use_source_crop,
@@ -8769,6 +9009,9 @@ impl CrosshairApp {
             });
             if let Some((target, status)) = next_capture_target.take() {
                 self.begin_capture(target, status);
+            }
+            if cancel_active_capture {
+                self.cancel_capture();
             }
         }
 
@@ -9168,13 +9411,12 @@ impl CrosshairApp {
 
             let capture_target = CaptureRequest::MacrosMasterHotkey;
             let capture_active = self.capture_target.as_ref() == Some(&capture_target);
-            let hotkey_preview = if capture_active
-                && let Some(pending) = self.capture_hotkey_combo_keys.as_ref()
-            {
-                Some(Self::hotkey_binding_from_combo_keys(pending.clone()))
-            } else {
-                self.state.macros_master_hotkey.clone()
-            };
+            let hotkey_preview =
+                if capture_active && let Some(pending) = self.capture_hotkey_combo_keys.as_ref() {
+                    Some(Self::hotkey_binding_from_combo_keys(pending.clone()))
+                } else {
+                    self.state.macros_master_hotkey.clone()
+                };
 
             if ui
                 .add_sized(
@@ -9219,23 +9461,20 @@ impl CrosshairApp {
             if ui
                 .add_sized(
                     [28.0, 28.0],
-                    Button::new(Self::folder_icon_text(
-                        self.macro_folders_panel_open,
-                        18.0,
-                    ))
-                    .fill(if self.macro_folders_panel_open {
-                        Color32::from_rgba_premultiplied(72, 156, 116, 120)
-                    } else {
-                        ui.visuals().faint_bg_color
-                    })
-                    .stroke(egui::Stroke::new(
-                        1.0,
-                        if self.macro_folders_panel_open {
-                            Color32::from_rgb(126, 224, 182)
+                    Button::new(Self::folder_icon_text(self.macro_folders_panel_open, 18.0))
+                        .fill(if self.macro_folders_panel_open {
+                            Color32::from_rgba_premultiplied(72, 156, 116, 120)
                         } else {
-                            ui.visuals().widgets.noninteractive.bg_stroke.color
-                        },
-                    )),
+                            ui.visuals().faint_bg_color
+                        })
+                        .stroke(egui::Stroke::new(
+                            1.0,
+                            if self.macro_folders_panel_open {
+                                Color32::from_rgb(126, 224, 182)
+                            } else {
+                                ui.visuals().widgets.noninteractive.bg_stroke.color
+                            },
+                        )),
                 )
                 .on_hover_text(Self::tr_lang(
                     language,
@@ -9667,9 +9906,10 @@ impl CrosshairApp {
                                     if ui
                                         .add_sized(
                                             [36.0, 24.0],
-                                            Button::new(
-                                                Self::material_icon_text(enabled_icon, 18.0),
-                                            )
+                                            Button::new(Self::material_icon_text(
+                                                enabled_icon,
+                                                18.0,
+                                            ))
                                             .fill(enabled_fill)
                                             .stroke(egui::Stroke::new(1.0, enabled_stroke)),
                                         )
@@ -9702,308 +9942,321 @@ impl CrosshairApp {
                                 },
                             );
                         });
-                    if group.collapsed {
-                        return;
-                    }
-                    ui.add_space(4.0);
-                    ui.horizontal_wrapped(|ui| {
-                        if Self::sized_button(
-                            ui,
-                            92.0,
-                            Self::tr_lang(language, "+ Preset", "+ Preset"),
-                        )
-                        .clicked()
-                        {
-                            add_preset_to_group = Some(group.id);
+                        if group.collapsed {
+                            return;
                         }
-                        let folder_popup_id = ui.make_persistent_id((group.id, "macro-group-folder-popup"));
-                        let mut folder_popup_open = ui
-                            .ctx()
-                            .data(|data| data.get_temp::<bool>(folder_popup_id))
-                            .unwrap_or(false);
-                        let folder_button = Self::sound_style_icon_button(
-                            ui,
-                            Self::folder_icon_text(group.folder_id.is_some(), 18.0).color(
-                                if group.folder_id.is_some() {
-                                    Color32::from_rgb(248, 214, 102)
-                                } else {
-                                    ui.visuals().widgets.inactive.fg_stroke.color
-                                },
-                            ),
-                        );
-                        if folder_button.clicked() {
-                            folder_popup_open = true;
-                        }
-                        let mut selected_folder_after_popup: Option<Option<u32>> = None;
-                        let popup_response = egui::Popup::from_response(&folder_button)
-                            .id(folder_popup_id)
-                            .open_bool(&mut folder_popup_open)
-                            .align(egui::RectAlign::BOTTOM_END)
-                            .layout(egui::Layout::top_down_justified(egui::Align::Min))
-                            .width(220.0)
-                            .close_behavior(egui::PopupCloseBehavior::IgnoreClicks)
-                            .show(|ui| {
-                                ui.set_min_width(220.0);
-                                ui.label(Self::tr_lang(language, "Folder", "Folder"));
-                                ui.separator();
-                                if ui
-                                    .selectable_label(group.folder_id.is_none(), Self::tr_lang(language, "No folder", "No folder"))
-                                    .clicked()
-                                {
-                                    selected_folder_after_popup = Some(None);
-                                }
-                                for folder in &self.state.macro_folders {
+                        ui.add_space(4.0);
+                        ui.horizontal_wrapped(|ui| {
+                            if Self::sized_button(
+                                ui,
+                                92.0,
+                                Self::tr_lang(language, "+ Preset", "+ Preset"),
+                            )
+                            .clicked()
+                            {
+                                add_preset_to_group = Some(group.id);
+                            }
+                            let folder_popup_id =
+                                ui.make_persistent_id((group.id, "macro-group-folder-popup"));
+                            let mut folder_popup_open = ui
+                                .ctx()
+                                .data(|data| data.get_temp::<bool>(folder_popup_id))
+                                .unwrap_or(false);
+                            let folder_button = Self::sound_style_icon_button(
+                                ui,
+                                Self::folder_icon_text(group.folder_id.is_some(), 18.0).color(
+                                    if group.folder_id.is_some() {
+                                        Color32::from_rgb(248, 214, 102)
+                                    } else {
+                                        ui.visuals().widgets.inactive.fg_stroke.color
+                                    },
+                                ),
+                            );
+                            if folder_button.clicked() {
+                                folder_popup_open = true;
+                            }
+                            let mut selected_folder_after_popup: Option<Option<u32>> = None;
+                            let popup_response = egui::Popup::from_response(&folder_button)
+                                .id(folder_popup_id)
+                                .open_bool(&mut folder_popup_open)
+                                .align(egui::RectAlign::BOTTOM_END)
+                                .layout(egui::Layout::top_down_justified(egui::Align::Min))
+                                .width(220.0)
+                                .close_behavior(egui::PopupCloseBehavior::IgnoreClicks)
+                                .show(|ui| {
+                                    ui.set_min_width(220.0);
+                                    ui.label(Self::tr_lang(language, "Folder", "Folder"));
+                                    ui.separator();
                                     if ui
                                         .selectable_label(
-                                            group.folder_id == Some(folder.id),
-                                            &folder.name,
+                                            group.folder_id.is_none(),
+                                            Self::tr_lang(language, "No folder", "No folder"),
                                         )
                                         .clicked()
                                     {
-                                        selected_folder_after_popup = Some(Some(folder.id));
+                                        selected_folder_after_popup = Some(None);
                                     }
-                                }
-                            });
-                        if let Some(selected_folder) = selected_folder_after_popup {
-                            group.folder_id = selected_folder;
-                            live_sync = true;
-                            folder_popup_open = false;
-                        }
-                        if folder_popup_open
-                            && let Some(pointer_pos) = ui.ctx().pointer_hover_pos()
-                        {
-                            let mut keep_open_rect = folder_button.rect.expand(10.0);
-                            if let Some(popup) = &popup_response {
-                                keep_open_rect = keep_open_rect.union(popup.response.rect.expand(10.0));
-                            }
-                            if !keep_open_rect.contains(pointer_pos) {
-                                folder_popup_open = false;
-                            }
-                        }
-                        ui.ctx().data_mut(|data| data.insert_temp(folder_popup_id, folder_popup_open));
-                    });
-                    ui.separator();
-                    egui::Grid::new((group.id, "group-target-row"))
-                        .num_columns(2)
-                        .spacing([8.0, 8.0])
-                        .show(ui, |ui| {
-                            ui.label(Self::tr_lang(language, "Target Window", "Target Window"));
-                            live_sync |= Self::render_multi_window_targets_with_duplicate_mode(
-                                ui,
-                                (group.id, "macro-group-window-target"),
-                                Self::tr_lang(language, "Any focused window", "Any focused window"),
-                                &mut group.target_window_title,
-                                &mut group.extra_target_window_titles,
-                                &mut group.match_duplicate_window_titles,
-                                &self.open_windows,
-                            );
-                            ui.end_row();
-                        });
-
-                    let binding_labels = Self::macro_group_binding_labels(group);
-                    let group_preset_options = group
-                        .presets
-                        .iter()
-                        .map(|preset_option| {
-                            (
-                                preset_option.id,
-                                binding_labels
-                                    .get(&preset_option.id)
-                                    .cloned()
-                                    .unwrap_or_else(|| {
-                                        Self::format_macro_trigger_ui(language, preset_option)
-                                    }),
-                            )
-                        })
-                        .collect::<Vec<_>>();
-                    let image_search_preset_options = self
-                        .state
-                        .image_search_presets
-                        .iter()
-                        .map(|preset_option| (preset_option.id, preset_option.name.clone()))
-                        .collect::<Vec<_>>();
-                    for preset_index in render_preset_indices.iter().copied() {
-                        let preset = &mut group.presets[preset_index];
-                        Self::show_preset_card(ui, group.enabled && preset.enabled, |ui| {
-                            ui.horizontal_top(|ui| {
-                                let available_width = ui.available_width();
-                                let right_width = 540.0;
-                                let left_width = (available_width - right_width - 8.0).max(260.0);
-                                let label_width = 72.0;
-                                let binding_width = (left_width - label_width - 6.0).max(160.0);
-
-                                ui.allocate_ui_with_layout(
-                                    vec2(left_width, 0.0),
-                                    egui::Layout::left_to_right(egui::Align::TOP),
-                                    |ui| {
-                                        ui.allocate_ui_with_layout(
-                                            vec2(label_width, 0.0),
-                                            egui::Layout::top_down(egui::Align::LEFT),
-                                            |ui| {
-                                                ui.label(Self::tr_lang(
-                                                    language,
-                                                    if preset.trigger_mode
-                                                        == MacroTriggerMode::Release
-                                                    {
-                                                        "Release"
-                                                    } else {
-                                                        "Trigger"
-                                                    },
-                                                    if preset.trigger_mode
-                                                        == MacroTriggerMode::Release
-                                                    {
-                                                        "Tháº£"
-                                                    } else {
-                                                        "KÃ­ch hoáº¡t"
-                                                    },
-                                                ));
-                                            },
-                                        );
-                                        ui.allocate_ui_with_layout(
-                                            vec2(binding_width, 0.0),
-                                            egui::Layout::top_down(egui::Align::LEFT),
-                                            |ui| {
-                                                live_sync |= Self::render_macro_trigger_chips(
-                                                    ui,
-                                                    language,
-                                                    group.id,
-                                                    preset,
-                                                    capture_target_snapshot.as_ref(),
-                                                    capture_hotkey_combo_keys_snapshot.as_ref(),
-                                                );
-                                            },
-                                        );
-                                    },
-                                );
-
-                                let right_spacer = (ui.available_width() - right_width).max(0.0);
-                                if right_spacer > 0.0 {
-                                    ui.add_space(right_spacer);
-                                }
-                                ui.allocate_ui_with_layout(
-                                    vec2(right_width, 0.0),
-                                    egui::Layout::right_to_left(egui::Align::TOP),
-                                    |ui| {
-                                        ui.spacing_mut().item_spacing.x = 4.0;
-                                        if Self::sound_style_remove_button(ui).clicked() {
-                                            remove_preset = Some(preset.id);
-                                        }
+                                    for folder in &self.state.macro_folders {
                                         if ui
-                                            .add_enabled(
-                                                self.macro_preset_clipboard.is_some(),
-                                                Button::new(Self::tr_lang(
-                                                    language, "Paste", "Paste",
-                                                ))
-                                                .min_size(egui::vec2(60.0, 24.0)),
+                                            .selectable_label(
+                                                group.folder_id == Some(folder.id),
+                                                &folder.name,
                                             )
                                             .clicked()
                                         {
-                                            paste_preset_to_group = Some(group.id);
+                                            selected_folder_after_popup = Some(Some(folder.id));
                                         }
-                                        if Self::sized_button(
-                                            ui,
-                                            60.0,
-                                            Self::tr_lang(language, "Copy", "Copy"),
-                                        )
-                                        .clicked()
-                                        {
-                                            self.macro_preset_clipboard = Some(preset.clone());
-                                            self.status = "Copied macro preset.".to_owned();
-                                        }
-                                        if Self::sized_button(
-                                            ui,
-                                            60.0,
-                                            Self::tr_lang(language, "Clear", "Clear"),
-                                        )
-                                        .clicked()
-                                        {
-                                            let changed =
-                                                Self::macro_trigger_remove_last_binding(preset);
-                                            live_sync |= changed;
-                                        }
-                                        let mouse_trigger_options = [
-                                            (
-                                                "MouseLeft",
-                                                Self::tr_lang(language, "LClick", "LClick"),
-                                            ),
-                                            (
-                                                "MouseRight",
-                                                Self::tr_lang(language, "RClick", "RClick"),
-                                            ),
-                                            (
-                                                "MouseMiddle",
-                                                Self::tr_lang(language, "MClick", "MClick"),
-                                            ),
-                                            ("MouseX1", Self::tr_lang(language, "X1", "X1")),
-                                            ("MouseX2", Self::tr_lang(language, "X2", "X2")),
-                                            (
-                                                "MouseWheelUp",
-                                                Self::tr_lang(language, "WhUp", "WhUp"),
-                                            ),
-                                            (
-                                                "MouseWheelDown",
-                                                Self::tr_lang(language, "WhDn", "WhDn"),
-                                            ),
-                                        ];
-                                        let selected_mouse_key =
-                                            Self::macro_trigger_bindings(preset)
-                                                .into_iter()
-                                                .rev()
-                                                .find(|binding| {
-                                                    binding
-                                                        .combo_keys
-                                                        .iter()
-                                                        .any(|key| hotkey::is_mouse_key_name(key))
-                                                })
-                                                .and_then(|binding| {
-                                                    binding
-                                                        .combo_keys
-                                                        .into_iter()
-                                                        .find(|key| hotkey::is_mouse_key_name(key))
-                                                });
-                                        let selected_mouse_label = selected_mouse_key
-                                            .as_deref()
-                                            .and_then(|key| {
-                                                mouse_trigger_options.iter().find(
-                                                    |(option_key, _)| {
-                                                        option_key.eq_ignore_ascii_case(key)
-                                                    },
+                                    }
+                                });
+                            if let Some(selected_folder) = selected_folder_after_popup {
+                                group.folder_id = selected_folder;
+                                live_sync = true;
+                                folder_popup_open = false;
+                            }
+                            if folder_popup_open
+                                && let Some(pointer_pos) = ui.ctx().pointer_hover_pos()
+                            {
+                                let mut keep_open_rect = folder_button.rect.expand(10.0);
+                                if let Some(popup) = &popup_response {
+                                    keep_open_rect =
+                                        keep_open_rect.union(popup.response.rect.expand(10.0));
+                                }
+                                if !keep_open_rect.contains(pointer_pos) {
+                                    folder_popup_open = false;
+                                }
+                            }
+                            ui.ctx().data_mut(|data| {
+                                data.insert_temp(folder_popup_id, folder_popup_open)
+                            });
+                        });
+                        ui.separator();
+                        egui::Grid::new((group.id, "group-target-row"))
+                            .num_columns(2)
+                            .spacing([8.0, 8.0])
+                            .show(ui, |ui| {
+                                ui.label(Self::tr_lang(language, "Target Window", "Target Window"));
+                                live_sync |= Self::render_multi_window_targets_with_duplicate_mode(
+                                    ui,
+                                    (group.id, "macro-group-window-target"),
+                                    Self::tr_lang(
+                                        language,
+                                        "Any focused window",
+                                        "Any focused window",
+                                    ),
+                                    &mut group.target_window_title,
+                                    &mut group.extra_target_window_titles,
+                                    &mut group.match_duplicate_window_titles,
+                                    &self.open_windows,
+                                );
+                                ui.end_row();
+                            });
+
+                        let binding_labels = Self::macro_group_binding_labels(group);
+                        let group_preset_options = group
+                            .presets
+                            .iter()
+                            .map(|preset_option| {
+                                (
+                                    preset_option.id,
+                                    binding_labels
+                                        .get(&preset_option.id)
+                                        .cloned()
+                                        .unwrap_or_else(|| {
+                                            Self::format_macro_trigger_ui(language, preset_option)
+                                        }),
+                                )
+                            })
+                            .collect::<Vec<_>>();
+                        let image_search_preset_options = self
+                            .state
+                            .image_search_presets
+                            .iter()
+                            .map(|preset_option| (preset_option.id, preset_option.name.clone()))
+                            .collect::<Vec<_>>();
+                        for preset_index in render_preset_indices.iter().copied() {
+                            let preset = &mut group.presets[preset_index];
+                            Self::show_preset_card(ui, group.enabled && preset.enabled, |ui| {
+                                ui.horizontal_top(|ui| {
+                                    let available_width = ui.available_width();
+                                    let right_width = 540.0;
+                                    let left_width =
+                                        (available_width - right_width - 8.0).max(260.0);
+                                    let label_width = 72.0;
+                                    let binding_width = (left_width - label_width - 6.0).max(160.0);
+
+                                    ui.allocate_ui_with_layout(
+                                        vec2(left_width, 0.0),
+                                        egui::Layout::left_to_right(egui::Align::TOP),
+                                        |ui| {
+                                            ui.allocate_ui_with_layout(
+                                                vec2(label_width, 0.0),
+                                                egui::Layout::top_down(egui::Align::LEFT),
+                                                |ui| {
+                                                    ui.label(Self::tr_lang(
+                                                        language,
+                                                        if preset.trigger_mode
+                                                            == MacroTriggerMode::Release
+                                                        {
+                                                            "Release"
+                                                        } else {
+                                                            "Trigger"
+                                                        },
+                                                        if preset.trigger_mode
+                                                            == MacroTriggerMode::Release
+                                                        {
+                                                            "Tháº£"
+                                                        } else {
+                                                            "KÃ­ch hoáº¡t"
+                                                        },
+                                                    ));
+                                                },
+                                            );
+                                            ui.allocate_ui_with_layout(
+                                                vec2(binding_width, 0.0),
+                                                egui::Layout::top_down(egui::Align::LEFT),
+                                                |ui| {
+                                                    live_sync |= Self::render_macro_trigger_chips(
+                                                        ui,
+                                                        language,
+                                                        group.id,
+                                                        preset,
+                                                        capture_target_snapshot.as_ref(),
+                                                        capture_hotkey_combo_keys_snapshot.as_ref(),
+                                                    );
+                                                },
+                                            );
+                                        },
+                                    );
+
+                                    let right_spacer =
+                                        (ui.available_width() - right_width).max(0.0);
+                                    if right_spacer > 0.0 {
+                                        ui.add_space(right_spacer);
+                                    }
+                                    ui.allocate_ui_with_layout(
+                                        vec2(right_width, 0.0),
+                                        egui::Layout::right_to_left(egui::Align::TOP),
+                                        |ui| {
+                                            ui.spacing_mut().item_spacing.x = 4.0;
+                                            if Self::sound_style_remove_button(ui).clicked() {
+                                                remove_preset = Some(preset.id);
+                                            }
+                                            if ui
+                                                .add_enabled(
+                                                    self.macro_preset_clipboard.is_some(),
+                                                    Button::new(Self::tr_lang(
+                                                        language, "Paste", "Paste",
+                                                    ))
+                                                    .min_size(egui::vec2(60.0, 24.0)),
                                                 )
-                                            })
-                                            .map(|(_, label)| *label)
-                                            .unwrap_or_else(|| {
-                                                Self::tr_lang(language, "Mouse", "Mouse")
-                                            });
-                                        let mouse_trigger_response = ui
-                                            .scope(|ui| {
-                                                ui.spacing_mut().interact_size.y = 24.0;
-                                                egui::ComboBox::from_id_salt((
-                                                    group.id,
-                                                    preset.id,
-                                                    "mouse-trigger-dropdown",
-                                                ))
-                                                .width(72.0)
-                                                .selected_text(selected_mouse_label)
-                                                .show_ui(ui, |ui| {
-                                                    for (option_key, option_label) in
-                                                        mouse_trigger_options
-                                                    {
-                                                        if ui
-                                                            .selectable_label(
-                                                                selected_mouse_key
-                                                                    .as_ref()
-                                                                    .is_some_and(|current| {
-                                                                        current
+                                                .clicked()
+                                            {
+                                                paste_preset_to_group = Some(group.id);
+                                            }
+                                            if Self::sized_button(
+                                                ui,
+                                                60.0,
+                                                Self::tr_lang(language, "Copy", "Copy"),
+                                            )
+                                            .clicked()
+                                            {
+                                                self.macro_preset_clipboard = Some(preset.clone());
+                                                self.status = "Copied macro preset.".to_owned();
+                                            }
+                                            if Self::sized_button(
+                                                ui,
+                                                60.0,
+                                                Self::tr_lang(language, "Clear", "Clear"),
+                                            )
+                                            .clicked()
+                                            {
+                                                let changed =
+                                                    Self::macro_trigger_remove_last_binding(preset);
+                                                live_sync |= changed;
+                                            }
+                                            let mouse_trigger_options = [
+                                                (
+                                                    "MouseLeft",
+                                                    Self::tr_lang(language, "LClick", "LClick"),
+                                                ),
+                                                (
+                                                    "MouseRight",
+                                                    Self::tr_lang(language, "RClick", "RClick"),
+                                                ),
+                                                (
+                                                    "MouseMiddle",
+                                                    Self::tr_lang(language, "MClick", "MClick"),
+                                                ),
+                                                ("MouseX1", Self::tr_lang(language, "X1", "X1")),
+                                                ("MouseX2", Self::tr_lang(language, "X2", "X2")),
+                                                (
+                                                    "MouseWheelUp",
+                                                    Self::tr_lang(language, "WhUp", "WhUp"),
+                                                ),
+                                                (
+                                                    "MouseWheelDown",
+                                                    Self::tr_lang(language, "WhDn", "WhDn"),
+                                                ),
+                                            ];
+                                            let selected_mouse_key =
+                                                Self::macro_trigger_bindings(preset)
+                                                    .into_iter()
+                                                    .rev()
+                                                    .find(|binding| {
+                                                        binding.combo_keys.iter().any(|key| {
+                                                            hotkey::is_mouse_key_name(key)
+                                                        })
+                                                    })
+                                                    .and_then(|binding| {
+                                                        binding.combo_keys.into_iter().find(|key| {
+                                                            hotkey::is_mouse_key_name(key)
+                                                        })
+                                                    });
+                                            let selected_mouse_label = selected_mouse_key
+                                                .as_deref()
+                                                .and_then(|key| {
+                                                    mouse_trigger_options.iter().find(
+                                                        |(option_key, _)| {
+                                                            option_key.eq_ignore_ascii_case(key)
+                                                        },
+                                                    )
+                                                })
+                                                .map(|(_, label)| *label)
+                                                .unwrap_or_else(|| {
+                                                    Self::tr_lang(language, "Mouse", "Mouse")
+                                                });
+                                            let mouse_trigger_response = ui
+                                                .scope(|ui| {
+                                                    ui.spacing_mut().interact_size.y = 24.0;
+                                                    egui::ComboBox::from_id_salt((
+                                                        group.id,
+                                                        preset.id,
+                                                        "mouse-trigger-dropdown",
+                                                    ))
+                                                    .width(72.0)
+                                                    .selected_text(selected_mouse_label)
+                                                    .show_ui(ui, |ui| {
+                                                        for (option_key, option_label) in
+                                                            mouse_trigger_options
+                                                        {
+                                                            if ui
+                                                                .selectable_label(
+                                                                    selected_mouse_key
+                                                                        .as_ref()
+                                                                        .is_some_and(|current| {
+                                                                            current
                                                                             .eq_ignore_ascii_case(
                                                                                 option_key,
                                                                             )
-                                                                    }),
-                                                                option_label,
-                                                            )
-                                                            .clicked()
-                                                        {
-                                                            let binding =
-                                                                hotkey::parse_binding(option_key)
+                                                                        }),
+                                                                    option_label,
+                                                                )
+                                                                .clicked()
+                                                            {
+                                                                let binding =
+                                                                    hotkey::parse_binding(
+                                                                        option_key,
+                                                                    )
                                                                     .unwrap_or_else(|| {
                                                                         HotkeyBinding {
                                                                             ctrl: false,
@@ -10018,67 +10271,70 @@ impl CrosshairApp {
                                                                             ],
                                                                         }
                                                                     });
-                                                            live_sync |=
-                                                                Self::macro_trigger_add_binding(
-                                                                    preset, binding,
-                                                                );
+                                                                live_sync |=
+                                                                    Self::macro_trigger_add_binding(
+                                                                        preset, binding,
+                                                                    );
+                                                            }
                                                         }
-                                                    }
+                                                    })
                                                 })
-                                            })
-                                            .inner;
-                                        mouse_trigger_response
-                                            .response
-                                            .on_hover_text(selected_mouse_label);
-                                        let capture_target =
-                                            CaptureRequest::MacroPresetHotkey(group.id, preset.id);
-                                        if ui
-                                            .add_sized(
-                                                [64.0, 24.0],
-                                                Button::new(Self::capture_button_text(
-                                                    language,
-                                                    capture_target_snapshot.as_ref()
-                                                        == Some(&capture_target),
-                                                )),
+                                                .inner;
+                                            mouse_trigger_response
+                                                .response
+                                                .on_hover_text(selected_mouse_label);
+                                            let capture_target = CaptureRequest::MacroPresetHotkey(
+                                                group.id, preset.id,
+                                            );
+                                            if ui
+                                                .add_sized(
+                                                    [64.0, 24.0],
+                                                    Button::new(Self::capture_button_text(
+                                                        language,
+                                                        capture_target_snapshot.as_ref()
+                                                            == Some(&capture_target),
+                                                    )),
+                                                )
+                                                .clicked()
+                                            {
+                                                if capture_target_snapshot.as_ref()
+                                                    == Some(&capture_target)
+                                                {
+                                                    cancel_active_capture = true;
+                                                } else {
+                                                    next_capture_target = Some(capture_target);
+                                                }
+                                            }
+                                            if Self::sized_button(
+                                                ui,
+                                                56.0,
+                                                if preset.collapsed {
+                                                    Self::tr_lang(language, "Show", "Show")
+                                                } else {
+                                                    Self::tr_lang(language, "Hide", "Hide")
+                                                },
                                             )
                                             .clicked()
-                                        {
-                                            if capture_target_snapshot.as_ref()
-                                                == Some(&capture_target)
                                             {
-                                                cancel_active_capture = true;
-                                            } else {
-                                                next_capture_target = Some(capture_target);
+                                                preset.collapsed = !preset.collapsed;
+                                                live_sync = true;
                                             }
-                                        }
-                                        if Self::sized_button(
-                                            ui,
-                                            56.0,
-                                            if preset.collapsed {
-                                                Self::tr_lang(language, "Show", "Show")
-                                            } else {
-                                                Self::tr_lang(language, "Hide", "Hide")
-                                            },
-                                        )
-                                        .clicked()
-                                        {
-                                            preset.collapsed = !preset.collapsed;
-                                            live_sync = true;
-                                        }
-                                        live_sync |= ui
-                                            .add_sized(
-                                                [80.0, 22.0],
-                                                egui::Checkbox::new(
-                                                    &mut preset.enabled,
-                                                    Self::tr_lang(language, "Enabled", "Enabled"),
-                                                ),
-                                            )
-                                            .changed();
-                                    },
-                                );
-                            });
-                            if !preset.collapsed {
-                                ui.horizontal(|ui| {
+                                            live_sync |= ui
+                                                .add_sized(
+                                                    [80.0, 22.0],
+                                                    egui::Checkbox::new(
+                                                        &mut preset.enabled,
+                                                        Self::tr_lang(
+                                                            language, "Enabled", "Enabled",
+                                                        ),
+                                                    ),
+                                                )
+                                                .changed();
+                                        },
+                                    );
+                                });
+                                if !preset.collapsed {
+                                    ui.horizontal(|ui| {
                             ui.label(Self::tr_lang(language, "Mode", "Mode"));
                             egui::ComboBox::from_id_salt((group.id, preset.id, "trigger-mode"))
                                 .width(108.0)
@@ -10129,8 +10385,8 @@ impl CrosshairApp {
                                 preset.stop_on_retrigger_immediate = false;
                             }
                         });
-                                if preset.trigger_mode == MacroTriggerMode::Release {
-                                    live_sync |= ui
+                                    if preset.trigger_mode == MacroTriggerMode::Release {
+                                        live_sync |= ui
                                 .checkbox(
                                     &mut preset.release_requires_all_inputs_released,
                                     Self::tr_lang(
@@ -10147,42 +10403,43 @@ impl CrosshairApp {
                                     ),
                                 )
                                 .changed();
-                                    if preset.release_requires_all_inputs_released {
-                                        ui.horizontal(|ui| {
-                                            live_sync |= Self::render_key_list_chips(
-                                                ui,
-                                                language,
-                                                &mut preset.release_wait_key,
-                                                Self::tr_lang(language, "Not set", "Not set"),
-                                            );
-                                            let wait_capture_target =
-                                                CaptureRequest::MacroPresetReleaseWaitKey(
-                                                    group.id, preset.id,
+                                        if preset.release_requires_all_inputs_released {
+                                            ui.horizontal(|ui| {
+                                                live_sync |= Self::render_key_list_chips(
+                                                    ui,
+                                                    language,
+                                                    &mut preset.release_wait_key,
+                                                    Self::tr_lang(language, "Not set", "Not set"),
                                                 );
-                                            if ui
-                                                .add_sized(
-                                                    [64.0, 22.0],
-                                                    Button::new(Self::capture_button_text(
-                                                        language,
-                                                        capture_target_snapshot.as_ref()
-                                                            == Some(&wait_capture_target),
-                                                    )),
-                                                )
-                                                .clicked()
-                                            {
-                                                if capture_target_snapshot.as_ref()
-                                                    == Some(&wait_capture_target)
+                                                let wait_capture_target =
+                                                    CaptureRequest::MacroPresetReleaseWaitKey(
+                                                        group.id, preset.id,
+                                                    );
+                                                if ui
+                                                    .add_sized(
+                                                        [64.0, 22.0],
+                                                        Button::new(Self::capture_button_text(
+                                                            language,
+                                                            capture_target_snapshot.as_ref()
+                                                                == Some(&wait_capture_target),
+                                                        )),
+                                                    )
+                                                    .clicked()
                                                 {
-                                                    cancel_active_capture = true;
-                                                } else {
-                                                    next_capture_target = Some(wait_capture_target);
+                                                    if capture_target_snapshot.as_ref()
+                                                        == Some(&wait_capture_target)
+                                                    {
+                                                        cancel_active_capture = true;
+                                                    } else {
+                                                        next_capture_target =
+                                                            Some(wait_capture_target);
+                                                    }
                                                 }
-                                            }
-                                        });
+                                            });
+                                        }
                                     }
-                                }
-                                if preset.trigger_mode == MacroTriggerMode::Hold {
-                                    Frame::group(ui.style())
+                                    if preset.trigger_mode == MacroTriggerMode::Hold {
+                                        Frame::group(ui.style())
                                 .inner_margin(egui::Margin::symmetric(6, 4))
                                 .show(ui, |ui| {
                                     ui.horizontal_wrapped(|ui| {
@@ -10839,8 +11096,8 @@ impl CrosshairApp {
                                         }
                                     }
                                 });
-                                }
-                                ui.scope(|ui| {
+                                    }
+                                    ui.scope(|ui| {
                             Frame::new()
                                 .inner_margin(egui::Margin::symmetric(4, 2))
                                 .show(ui, |ui| {
@@ -11835,140 +12092,142 @@ impl CrosshairApp {
                                 ));
                             }
                         });
-                                ui.add_space(4.0);
-                            }
-                        });
-                    }
-                    if let Some((preset_id, step_index)) = insert_step_after {
-                        if let Some(target_preset) = group
-                            .presets
-                            .iter_mut()
-                            .find(|preset| preset.id == preset_id)
-                        {
-                            let insert_at = (step_index + 1).min(target_preset.steps.len());
-                            target_preset.steps.insert(insert_at, MacroStep::default());
-                            live_sync = true;
-                            clear_step_selection = Some((group.id, preset_id));
+                                    ui.add_space(4.0);
+                                }
+                            });
                         }
-                    }
-                    if let Some((preset_id, dragged_indices, to_index)) = move_step_to {
-                        if let Some(target_preset) = group
-                            .presets
-                            .iter_mut()
-                            .find(|preset| preset.id == preset_id)
-                        {
-                            let mut indices = dragged_indices
-                                .into_iter()
-                                .filter(|index| *index < target_preset.steps.len())
-                                .collect::<Vec<_>>();
-                            indices.sort_unstable();
-                            indices.dedup();
-                            if !indices.is_empty() {
-                                let mut moved_steps = Vec::with_capacity(indices.len());
-                                for index in indices.iter().rev().copied() {
-                                    moved_steps.push(target_preset.steps.remove(index));
-                                }
-                                moved_steps.reverse();
-                                let removed_before_target =
-                                    indices.iter().filter(|index| **index < to_index).count();
-                                let insert_at = to_index
-                                    .saturating_sub(removed_before_target)
-                                    .min(target_preset.steps.len());
-                                for (offset, step) in moved_steps.into_iter().enumerate() {
-                                    target_preset.steps.insert(insert_at + offset, step);
-                                }
-                                selection_after_move = Some((
-                                    group.id,
-                                    preset_id,
-                                    (insert_at..insert_at + indices.len()).collect::<Vec<_>>(),
-                                ));
+                        if let Some((preset_id, step_index)) = insert_step_after {
+                            if let Some(target_preset) = group
+                                .presets
+                                .iter_mut()
+                                .find(|preset| preset.id == preset_id)
+                            {
+                                let insert_at = (step_index + 1).min(target_preset.steps.len());
+                                target_preset.steps.insert(insert_at, MacroStep::default());
                                 live_sync = true;
+                                clear_step_selection = Some((group.id, preset_id));
                             }
                         }
-                    }
-                    if let Some((preset_id, step_index)) = remove_step {
-                        if let Some(preset) = group
-                            .presets
-                            .iter_mut()
-                            .find(|preset| preset.id == preset_id)
-                            && step_index < preset.steps.len()
-                        {
-                            preset.steps.remove(step_index);
+                        if let Some((preset_id, dragged_indices, to_index)) = move_step_to {
+                            if let Some(target_preset) = group
+                                .presets
+                                .iter_mut()
+                                .find(|preset| preset.id == preset_id)
+                            {
+                                let mut indices = dragged_indices
+                                    .into_iter()
+                                    .filter(|index| *index < target_preset.steps.len())
+                                    .collect::<Vec<_>>();
+                                indices.sort_unstable();
+                                indices.dedup();
+                                if !indices.is_empty() {
+                                    let mut moved_steps = Vec::with_capacity(indices.len());
+                                    for index in indices.iter().rev().copied() {
+                                        moved_steps.push(target_preset.steps.remove(index));
+                                    }
+                                    moved_steps.reverse();
+                                    let removed_before_target =
+                                        indices.iter().filter(|index| **index < to_index).count();
+                                    let insert_at = to_index
+                                        .saturating_sub(removed_before_target)
+                                        .min(target_preset.steps.len());
+                                    for (offset, step) in moved_steps.into_iter().enumerate() {
+                                        target_preset.steps.insert(insert_at + offset, step);
+                                    }
+                                    selection_after_move = Some((
+                                        group.id,
+                                        preset_id,
+                                        (insert_at..insert_at + indices.len()).collect::<Vec<_>>(),
+                                    ));
+                                    live_sync = true;
+                                }
+                            }
+                        }
+                        if let Some((preset_id, step_index)) = remove_step {
+                            if let Some(preset) = group
+                                .presets
+                                .iter_mut()
+                                .find(|preset| preset.id == preset_id)
+                                && step_index < preset.steps.len()
+                            {
+                                preset.steps.remove(step_index);
+                                live_sync = true;
+                                clear_step_selection = Some((group.id, preset_id));
+                            }
+                        }
+                        if let Some(preset_id) = remove_preset {
+                            group.presets.retain(|preset| preset.id != preset_id);
                             live_sync = true;
                             clear_step_selection = Some((group.id, preset_id));
                         }
+                    });
+                    if cancel_active_capture {
+                        self.cancel_capture();
                     }
-                    if let Some(preset_id) = remove_preset {
-                        group.presets.retain(|preset| preset.id != preset_id);
+                    if cancel_mouse_move_absolute_capture {
+                        self.cancel_mouse_move_absolute_capture(ui.ctx());
+                    }
+                    if let Some(target) = begin_mouse_move_absolute_capture_target {
+                        self.begin_mouse_move_absolute_capture(ui.ctx(), target);
+                    }
+                    if let Some(target) = next_capture_target {
+                        self.begin_capture(target, "Capturing macro input.".to_owned());
+                    }
+                    if let Some((group_id, preset_id)) = copy_selected_steps {
+                        self.copy_selected_macro_steps_for_preset(group_id, preset_id);
+                    }
+                    if let Some((group_id, preset_id, step_index)) = paste_step_after
+                        && let Some(selection) =
+                            self.paste_macro_steps_after(group_id, preset_id, step_index)
+                    {
+                        clear_step_selection = Some((group_id, preset_id));
+                        selection_after_paste = Some((group_id, preset_id, selection));
                         live_sync = true;
-                        clear_step_selection = Some((group.id, preset_id));
                     }
-                });
-                if cancel_active_capture {
-                    self.cancel_capture();
-                }
-                if cancel_mouse_move_absolute_capture {
-                    self.cancel_mouse_move_absolute_capture(ui.ctx());
-                }
-                if let Some(target) = begin_mouse_move_absolute_capture_target {
-                    self.begin_mouse_move_absolute_capture(ui.ctx(), target);
-                }
-                if let Some(target) = next_capture_target {
-                    self.begin_capture(target, "Capturing macro input.".to_owned());
-                }
-                if let Some((group_id, preset_id)) = copy_selected_steps {
-                    self.copy_selected_macro_steps_for_preset(group_id, preset_id);
-                }
-                if let Some((group_id, preset_id, step_index)) = paste_step_after
-                    && let Some(selection) =
-                        self.paste_macro_steps_after(group_id, preset_id, step_index)
-                {
-                    clear_step_selection = Some((group_id, preset_id));
-                    selection_after_paste = Some((group_id, preset_id, selection));
-                    live_sync = true;
-                }
-                if let Some((group_id, preset_id, step_index, additive)) = pending_step_selection {
-                    let currently_selected = self
-                        .selected_macro_steps
-                        .contains(&(group_id, preset_id, step_index));
-                    let selected_count_in_preset = self
-                        .selected_macro_steps
-                        .iter()
-                        .filter(|(selected_group, selected_preset, _)| {
-                            *selected_group == group_id && *selected_preset == preset_id
-                        })
-                        .count();
-                    self.select_macro_step(
-                        group_id,
-                        preset_id,
-                        step_index,
-                        additive,
-                        currently_selected,
-                        selected_count_in_preset,
-                    );
-                }
-                if !ui.input(|input| input.pointer.primary_down()) {
-                    self.macro_drag_select_anchor = None;
-                }
-                if let Some((group_id, preset_id)) = clear_step_selection {
-                    self.clear_macro_step_selection_for_preset(group_id, preset_id);
-                }
-                if let Some((group_id, preset_id, moved_indices)) = selection_after_move {
-                    self.clear_macro_step_selection_for_preset(group_id, preset_id);
-                    for moved_index in moved_indices {
-                        self.selected_macro_steps
-                            .insert((group_id, preset_id, moved_index));
+                    if let Some((group_id, preset_id, step_index, additive)) =
+                        pending_step_selection
+                    {
+                        let currently_selected = self
+                            .selected_macro_steps
+                            .contains(&(group_id, preset_id, step_index));
+                        let selected_count_in_preset = self
+                            .selected_macro_steps
+                            .iter()
+                            .filter(|(selected_group, selected_preset, _)| {
+                                *selected_group == group_id && *selected_preset == preset_id
+                            })
+                            .count();
+                        self.select_macro_step(
+                            group_id,
+                            preset_id,
+                            step_index,
+                            additive,
+                            currently_selected,
+                            selected_count_in_preset,
+                        );
                     }
-                }
-                if let Some((group_id, preset_id, pasted_indices)) = selection_after_paste {
-                    self.clear_macro_step_selection_for_preset(group_id, preset_id);
-                    for pasted_index in pasted_indices {
-                        self.selected_macro_steps
-                            .insert((group_id, preset_id, pasted_index));
+                    if !ui.input(|input| input.pointer.primary_down()) {
+                        self.macro_drag_select_anchor = None;
+                    }
+                    if let Some((group_id, preset_id)) = clear_step_selection {
+                        self.clear_macro_step_selection_for_preset(group_id, preset_id);
+                    }
+                    if let Some((group_id, preset_id, moved_indices)) = selection_after_move {
+                        self.clear_macro_step_selection_for_preset(group_id, preset_id);
+                        for moved_index in moved_indices {
+                            self.selected_macro_steps
+                                .insert((group_id, preset_id, moved_index));
+                        }
+                    }
+                    if let Some((group_id, preset_id, pasted_indices)) = selection_after_paste {
+                        self.clear_macro_step_selection_for_preset(group_id, preset_id);
+                        for pasted_index in pasted_indices {
+                            self.selected_macro_steps
+                                .insert((group_id, preset_id, pasted_index));
+                        }
                     }
                 }
             }
-        }
         }
 
         if let Some(group_id) = add_preset_to_group {
@@ -12204,6 +12463,8 @@ impl CrosshairApp {
                 });
                 for index in 0..self.state.mouse_sensitivity_presets.len() {
                     let language = self.state.ui_language;
+                    let active_capture_target = self.capture_target.clone();
+                    let pending_combo_keys = self.capture_hotkey_combo_keys.clone();
                     ui.add_space(6.0);
                     let preset = &mut self.state.mouse_sensitivity_presets[index];
                     Self::show_preset_card(ui, preset.enabled, |ui| {
@@ -12222,9 +12483,9 @@ impl CrosshairApp {
                             )
                             .clicked()
                             {
-                                let _ = self.overlay_tx.send(
-                                    OverlayCommand::ApplyMouseSensitivityPreset(preset.id),
-                                );
+                                let _ = self
+                                    .overlay_tx
+                                    .send(OverlayCommand::ApplyMouseSensitivityPreset(preset.id));
                             }
                             if Self::sound_style_toggle_button(
                                 ui,
@@ -12293,44 +12554,36 @@ impl CrosshairApp {
 
                                 ui.label(Self::tr_lang(language, "Hotkey", "Hotkey"));
                                 ui.horizontal_wrapped(|ui| {
-                                    ui.monospace(Self::format_binding_ui(
-                                        language,
-                                        preset.hotkey.as_ref(),
-                                    ));
                                     let capture_target =
                                         CaptureRequest::MouseSensitivityPresetHotkey(preset.id);
-                                    let hotkey_active =
-                                        self.capture_target.as_ref() == Some(&capture_target);
-                                    if ui
-                                        .button(Self::capture_button_text(language, hotkey_active))
-                                        .clicked()
-                                    {
-                                        if hotkey_active {
-                                            cancel_active_capture = true;
-                                        } else {
-                                            next_mouse_sensitivity_capture_target = Some((
-                                                capture_target,
-                                                match language {
-                                                    UiLanguage::Vietnamese => {
-                                                        format!(
-                                                            "Äang báº­t phÃ­m táº¯t cho {}.",
-                                                            preset.name
-                                                        )
-                                                    }
-                                                    _ => format!(
-                                                        "Capturing hotkey for {}.",
+                                    let (begin_capture, cancel_capture) =
+                                        Self::render_hotkey_capture_control(
+                                            ui,
+                                            language,
+                                            &mut preset.hotkey,
+                                            &capture_target,
+                                            active_capture_target.as_ref(),
+                                            pending_combo_keys.as_ref(),
+                                            &mut mouse_sensitivity_live_sync,
+                                        );
+                                    if begin_capture {
+                                        next_mouse_sensitivity_capture_target = Some((
+                                            capture_target,
+                                            match language {
+                                                UiLanguage::Vietnamese => {
+                                                    format!(
+                                                        "Äang báº­t phÃ­m táº¯t cho {}.",
                                                         preset.name
-                                                    ),
-                                                },
-                                            ));
-                                        }
+                                                    )
+                                                }
+                                                _ => {
+                                                    format!("Capturing hotkey for {}.", preset.name)
+                                                }
+                                            },
+                                        ));
                                     }
-                                    if ui
-                                        .button(Self::tr_lang(language, "Clear", "Clear"))
-                                        .clicked()
-                                    {
-                                        preset.hotkey = None;
-                                        mouse_sensitivity_live_sync = true;
+                                    if cancel_capture {
+                                        cancel_active_capture = true;
                                     }
                                 });
                                 ui.end_row();
@@ -12340,15 +12593,16 @@ impl CrosshairApp {
                                     "Target Window",
                                     "Cá»­a sá»• má»¥c tiÃªu",
                                 ));
-                                mouse_sensitivity_live_sync |= Self::render_multi_window_targets_with_duplicate_mode(
-                                    ui,
-                                    (preset.id, "mouse-sensitivity-target"),
-                                    Self::tr_lang(language, "Any window", "Any window"),
-                                    &mut preset.target_window_title,
-                                    &mut preset.extra_target_window_titles,
-                                    &mut preset.match_duplicate_window_titles,
-                                    &self.open_windows,
-                                );
+                                mouse_sensitivity_live_sync |=
+                                    Self::render_multi_window_targets_with_duplicate_mode(
+                                        ui,
+                                        (preset.id, "mouse-sensitivity-target"),
+                                        Self::tr_lang(language, "Any window", "Any window"),
+                                        &mut preset.target_window_title,
+                                        &mut preset.extra_target_window_titles,
+                                        &mut preset.match_duplicate_window_titles,
+                                        &self.open_windows,
+                                    );
                                 ui.end_row();
 
                                 ui.label(Self::tr_lang(language, "Speed", "Tá»‘c Ä‘á»™ chuá»™t"));
@@ -12357,7 +12611,11 @@ impl CrosshairApp {
                                     .changed();
                                 ui.end_row();
 
-                                ui.label(Self::tr_lang(language, "Live", "Tá»‘c Ä‘á»™ hiá»‡n táº¡i"));
+                                ui.label(Self::tr_lang(
+                                    language,
+                                    "Live",
+                                    "Tá»‘c Ä‘á»™ hiá»‡n táº¡i",
+                                ));
                                 ui.horizontal_wrapped(|ui| match Self::current_mouse_speed() {
                                     Some(current_speed) => {
                                         ui.monospace(format!("{current_speed}"));
@@ -12430,6 +12688,8 @@ impl CrosshairApp {
                 let mut cancel_active_capture = false;
                 for index in 0..self.state.mouse_path_presets.len() {
                     let language = self.state.ui_language;
+                    let active_capture_target = self.capture_target.clone();
+                    let pending_combo_keys = self.capture_hotkey_combo_keys.clone();
                     ui.add_space(6.0);
                     let preset = &mut self.state.mouse_path_presets[index];
                     Self::show_preset_card(ui, preset.enabled, |ui| {
@@ -12494,40 +12754,37 @@ impl CrosshairApp {
                                 ui.horizontal_wrapped(|ui| {
                                     let capture_target =
                                         CaptureRequest::MousePathRecordHotkey(preset.id);
-                                    let capture_active =
-                                        self.capture_target.as_ref() == Some(&capture_target);
-                                    if ui
-                                        .button(Self::capture_button_text(language, capture_active))
-                                        .clicked()
-                                    {
-                                        if capture_active {
-                                            cancel_active_capture = true;
-                                        } else {
-                                            next_capture_target = Some((
-                                                capture_target,
-                                                match language {
-                                                    UiLanguage::Vietnamese => {
-                                                        format!(
-                                                            "Äang báº­t phÃ­m táº¯t ghi cho {}.",
-                                                            preset.name
-                                                        )
-                                                    }
-                                                    _ => {
-                                                        format!(
-                                                            "Capturing record hotkey for {}.",
-                                                            preset.name
-                                                        )
-                                                    }
-                                                },
-                                            ));
-                                        }
+                                    let (begin_capture, cancel_capture) =
+                                        Self::render_hotkey_capture_control(
+                                            ui,
+                                            language,
+                                            &mut preset.record_hotkey,
+                                            &capture_target,
+                                            active_capture_target.as_ref(),
+                                            pending_combo_keys.as_ref(),
+                                            &mut live_sync,
+                                        );
+                                    if begin_capture {
+                                        next_capture_target = Some((
+                                            capture_target,
+                                            match language {
+                                                UiLanguage::Vietnamese => {
+                                                    format!(
+                                                        "Äang báº­t phÃ­m táº¯t ghi cho {}.",
+                                                        preset.name
+                                                    )
+                                                }
+                                                _ => {
+                                                    format!(
+                                                        "Capturing record hotkey for {}.",
+                                                        preset.name
+                                                    )
+                                                }
+                                            },
+                                        ));
                                     }
-                                    if ui
-                                        .button(Self::tr_lang(language, "Clear", "Clear"))
-                                        .clicked()
-                                    {
-                                        preset.record_hotkey = None;
-                                        live_sync = true;
+                                    if cancel_capture {
+                                        cancel_active_capture = true;
                                     }
                                 });
                                 ui.end_row();
@@ -12638,12 +12895,28 @@ impl CrosshairApp {
         ui.add_space(2.0);
 
         ui.horizontal(|ui| {
-            if ui.button(self.tr("+ Add preset", "+ Add preset")).clicked() {
+            if ui
+                .button(self.tr("+ Detect image", "+ Detect image"))
+                .clicked()
+            {
                 let id = self.state.next_image_search_preset_id.max(1);
                 self.state.next_image_search_preset_id = id + 1;
-                self.state
-                    .image_search_presets
-                    .push(ImageSearchPreset::new(id));
+                let mut preset = ImageSearchPreset::new(id);
+                preset.use_color_matching = false;
+                self.state.image_search_presets.push(preset);
+                self.sync_image_search_presets();
+                self.persist();
+            }
+            if ui
+                .button(self.tr("+ Detect color", "+ Detect color"))
+                .clicked()
+            {
+                let id = self.state.next_image_search_preset_id.max(1);
+                self.state.next_image_search_preset_id = id + 1;
+                let mut preset = ImageSearchPreset::new(id);
+                preset.name = format!("Color Search {id}");
+                preset.use_color_matching = true;
+                self.state.image_search_presets.push(preset);
                 self.sync_image_search_presets();
                 self.persist();
             }
@@ -12671,15 +12944,14 @@ impl CrosshairApp {
             let mut start_color_priority_anchor_capture = None;
             let template_file = self.image_search_template_file_for_preset(preset_snapshot.id);
             let open_windows = self.open_windows.clone();
-            let hotkey_text = preset_snapshot
-                .hotkey
-                .as_ref()
-                .map(|binding| hotkey::format_binding(Some(binding)))
-                .unwrap_or_else(|| Self::tr_lang(language, "None", "None").to_owned());
             let hotkey_capture_target = CaptureRequest::ImageSearchPresetHotkey(preset_snapshot.id);
-            let hotkey_capture_active =
-                self.capture_target.as_ref() == Some(&hotkey_capture_target);
+            let active_capture_target = self.capture_target.clone();
+            let pending_combo_keys = self.capture_hotkey_combo_keys.clone();
             let preset = &mut self.state.image_search_presets[index];
+            if preset.click_after_move {
+                preset.click_after_move = false;
+                live_sync = true;
+            }
 
             ui.add_space(6.0);
             Self::show_preset_card(ui, preset.enabled, |ui| {
@@ -12727,66 +12999,90 @@ impl CrosshairApp {
                     .num_columns(2)
                     .spacing([14.0, 8.0])
                     .show(ui, |ui| {
-                        ui.label(Self::tr_lang(language, "Preset Name", "Preset Name"));
-                        live_sync |= ui
-                            .add_sized([260.0, 24.0], TextEdit::singleline(&mut preset.name))
-                            .changed();
-                        ui.end_row();
-
                         ui.label(Self::tr_lang(language, "Hotkey", "Hotkey"));
                         ui.horizontal_wrapped(|ui| {
-                            ui.monospace(hotkey_text.clone());
+                            let (begin_capture, cancel_capture) =
+                                Self::render_hotkey_capture_control(
+                                    ui,
+                                    language,
+                                    &mut preset.hotkey,
+                                    &hotkey_capture_target,
+                                    active_capture_target.as_ref(),
+                                    pending_combo_keys.as_ref(),
+                                    &mut live_sync,
+                                );
+                            if begin_capture {
+                                next_capture = Some((
+                                    hotkey_capture_target.clone(),
+                                    Self::tr_lang(
+                                        language,
+                                        "Press a hotkey for this preset.",
+                                        "Bam phim tat cho preset nay.",
+                                    )
+                                    .to_owned(),
+                                ));
+                            }
+                            if cancel_capture {
+                                cancel_active_capture = true;
+                            }
+                        });
+                        ui.end_row();
+
+                        ui.label(Self::tr_lang(language, "Mode", "Mode"));
+                        ui.horizontal_wrapped(|ui| {
                             if ui
-                                .button(Self::capture_button_text(language, hotkey_capture_active))
+                                .selectable_label(
+                                    !preset.use_color_matching,
+                                    Self::tr_lang(language, "Detect image", "Detect image"),
+                                )
                                 .clicked()
                             {
-                                if hotkey_capture_active {
-                                    cancel_active_capture = true;
-                                } else {
-                                    next_capture = Some((
-                                        hotkey_capture_target.clone(),
-                                        Self::tr_lang(
-                                            language,
-                                            "Press a hotkey for this preset.",
-                                            "Bam phim tat cho preset nay.",
-                                        )
-                                        .to_owned(),
-                                    ));
-                                }
+                                preset.use_color_matching = false;
+                                live_sync = true;
                             }
                             if ui
-                                .button(Self::tr_lang(language, "Clear", "Clear"))
+                                .selectable_label(
+                                    preset.use_color_matching,
+                                    Self::tr_lang(language, "Detect color", "Detect color"),
+                                )
                                 .clicked()
                             {
-                                preset.hotkey = None;
+                                preset.use_color_matching = true;
                                 live_sync = true;
                             }
                         });
                         ui.end_row();
 
-                        ui.label(Self::tr_lang(language, "Template", "Template"));
-                        ui.horizontal_wrapped(|ui| {
-                            if ui
-                                .button(Self::tr_lang(
-                                    language,
-                                    "Pick from screen",
-                                    "Chon tren man hinh",
-                                ))
-                                .clicked()
-                            {
-                                start_image_search_capture = Some(preset.id);
-                            }
-                            if ui
-                                .button(Self::tr_lang(language, "Clear template", "Clear template"))
-                                .clicked()
-                            {
-                                let _ = fs::remove_file(&template_file);
-                                self.image_search_preview_cache.remove(&preset.id);
-                                preset.enabled = false;
-                                live_sync = true;
-                            }
-                        });
-                        ui.end_row();
+                        if !preset.use_color_matching {
+                            ui.label(Self::tr_lang(language, "Template", "Template"));
+                            ui.horizontal_wrapped(|ui| {
+                                if ui
+                                    .button(Self::tr_lang(
+                                        language,
+                                        "Pick from screen",
+                                        "Chon tren man hinh",
+                                    ))
+                                    .clicked()
+                                {
+                                    start_image_search_capture = Some(preset.id);
+                                }
+                                if ui
+                                    .button(Self::tr_lang(
+                                        language,
+                                        "Clear template",
+                                        "Clear template",
+                                    ))
+                                    .clicked()
+                                {
+                                    let _ = fs::remove_file(&template_file);
+                                    let _ = fs::remove_file(&self.paths.image_search_template_file);
+                                    self.image_search_preview_cache.remove(&preset.id);
+                                    preset.enabled = false;
+                                    live_sync = true;
+                                }
+                            });
+                            ui.end_row();
+                        }
 
                         ui.label(Self::tr_lang(language, "Area", "Area"));
                         ui.horizontal_wrapped(|ui| {
@@ -12807,13 +13103,11 @@ impl CrosshairApp {
                                 preset.search_region_height = None;
                                 live_sync = true;
                             }
-                        });
-                        ui.end_row();
-                        ui.horizontal_wrapped(|ui| {
+                            ui.separator();
                             live_sync |= ui
                                 .checkbox(
                                     &mut preset.search_region_is_circle,
-                                    Self::tr_lang(language, "Circle area", "Circle area"),
+                                    Self::tr_lang(language, "Circle", "Circle"),
                                 )
                                 .on_hover_text(Self::tr_lang(
                                     language,
@@ -12858,106 +13152,35 @@ impl CrosshairApp {
                         });
                         ui.end_row();
 
-                        ui.label(Self::tr_lang(language, "Move", "Move"));
-                        ui.horizontal_wrapped(|ui| {
-                            if Self::sized_button(
-                                ui,
-                                96.0,
-                                Self::tr_lang(
-                                    language,
-                                    if preset.image_search_move_advanced_open {
-                                        "Hide advanced"
-                                    } else {
-                                        "Advanced"
-                                    },
-                                    if preset.image_search_move_advanced_open {
-                                        "An nang cao"
-                                    } else {
-                                        "Nang cao"
-                                    },
-                                ),
-                            )
-                            .clicked()
-                            {
-                                preset.image_search_move_advanced_open =
-                                    !preset.image_search_move_advanced_open;
-                                live_sync = true;
-                            }
-                        });
-                        ui.end_row();
-
-                        if preset.image_search_move_advanced_open {
-                            ui.label(Self::tr_lang(language, "Move behavior", "Move behavior"));
+                        if preset.use_color_matching {
+                            ui.label(Self::tr_lang(language, "Color", "Color"));
                             ui.horizontal_wrapped(|ui| {
-                                ui.label(Self::tr_lang(
-                                    language,
-                                    "Uses repeated absolute move.",
-                                    "Dung di chuot tuyet doi lap lai.",
-                                ));
-                            });
-                            ui.end_row();
-
-                            ui.label(Self::tr_lang(language, "Move passes", "Move passes"));
-                            ui.horizontal_wrapped(|ui| {
-                                live_sync |= ui
-                                    .add(
-                                        Slider::new(
-                                            &mut preset.non_interception_move_passes,
-                                            1..=10,
-                                        )
-                                        .clamping(egui::SliderClamping::Always),
-                                    )
-                                    .changed();
-                            });
-                            ui.end_row();
-
-                            ui.label(Self::tr_lang(language, "Move delay", "Move delay"));
-                            ui.horizontal_wrapped(|ui| {
-                                live_sync |= ui
-                                    .add(
-                                        Slider::new(
-                                            &mut preset.non_interception_move_delay_ms,
-                                            0..=100,
-                                        )
-                                        .clamping(egui::SliderClamping::Always),
-                                    )
-                                    .changed();
-                            });
-                            ui.end_row();
-                        }
-
-                        ui.label(Self::tr_lang(language, "Color", "Color"));
-                        ui.horizontal_wrapped(|ui| {
-                            live_sync |= ui
-                                .checkbox(
-                                    &mut preset.use_color_matching,
-                                    Self::tr_lang(language, "Match color", "Match color"),
-                                )
-                                .changed();
-                            let colors = Self::image_search_target_colors(&preset);
-                            let uses_legacy_single_color =
-                                preset.target_colors.is_empty() && preset.target_color.is_some();
-                            if colors.is_empty() {
-                                ui.monospace("None");
-                            } else {
-                                for (index, color) in colors.iter().copied().enumerate() {
-                                    Self::image_search_target_color_swatch(ui, Some(color));
-                                    ui.monospace(format!(
-                                        "#{:02X}{:02X}{:02X}",
-                                        color.r, color.g, color.b
-                                    ));
-                                    if ui
-                                        .small_button(Self::tr_lang(language, "x", "x"))
-                                        .on_hover_text(Self::tr_lang(
-                                            language,
-                                            "Remove this color",
-                                            "Xoa mau nay",
-                                        ))
-                                        .clicked()
-                                    {
+                                let colors = Self::image_search_target_colors(&preset);
+                                let uses_legacy_single_color = preset.target_colors.is_empty()
+                                    && preset.target_color.is_some();
+                                if colors.is_empty() {
+                                    ui.monospace("None");
+                                } else {
+                                    let mut remove_color_index = None;
+                                    egui::Grid::new((preset.id, "image-search-color-grid"))
+                                        .num_columns(8)
+                                        .spacing([4.0, 4.0])
+                                        .show(ui, |ui| {
+                                            for (index, color) in colors.iter().copied().enumerate()
+                                            {
+                                                if Self::image_search_color_tile(ui, color)
+                                                    .clicked()
+                                                {
+                                                    remove_color_index = Some(index);
+                                                }
+                                                if (index + 1) % 8 == 0 {
+                                                    ui.end_row();
+                                                }
+                                            }
+                                        });
+                                    if let Some(index) = remove_color_index {
                                         if uses_legacy_single_color && index == 0 {
                                             preset.target_color = None;
-                                            preset.use_color_matching = false;
                                             live_sync = true;
                                         } else if !preset.target_colors.is_empty() {
                                             preset.target_colors = preset
@@ -12975,98 +13198,103 @@ impl CrosshairApp {
                                         }
                                     }
                                 }
-                            }
-                            if ui
-                                .button(Self::tr_lang(language, "Pick color", "Pick color"))
-                                .clicked()
-                            {
-                                start_color_pick_capture = Some(preset.id);
-                            }
-                            if preset.use_color_matching && preset.color_priority_from_anchor {
-                                if ui
-                                    .button(Self::tr_lang(
-                                        language,
-                                        "Pick priority point",
-                                        "Chon diem uu tien",
-                                    ))
-                                    .clicked()
-                                {
-                                    start_color_priority_anchor_capture = Some(preset.id);
+                                if Self::image_search_add_color_button(ui, language).clicked() {
+                                    start_color_pick_capture = Some(preset.id);
                                 }
-                            }
-                            if ui
-                                .button(Self::tr_lang(language, "Clear", "Clear"))
-                                .clicked()
+                            });
+                            ui.end_row();
+                        } else {
+                            ui.label(Self::tr_lang(language, "Accuracy", "Accuracy"));
+                            ui.horizontal_wrapped(|ui| {
+                                live_sync |= ui
+                                    .add(
+                                        Slider::new(&mut preset.confidence_threshold, 0.35..=0.99)
+                                            .fixed_decimals(2)
+                                            .show_value(true),
+                                    )
+                                    .changed();
+                            });
+                            ui.end_row();
+                        }
+
+                        ui.label(Self::tr_lang(language, "Advanced", "Advanced"));
+                        ui.horizontal_wrapped(|ui| {
+                            if Self::sized_button(
+                                ui,
+                                96.0,
+                                Self::tr_lang(
+                                    language,
+                                    if preset.image_search_advanced_open {
+                                        "Hide"
+                                    } else {
+                                        "Show"
+                                    },
+                                    if preset.image_search_advanced_open {
+                                        "An"
+                                    } else {
+                                        "Hien"
+                                    },
+                                ),
+                            )
+                            .clicked()
                             {
-                                preset.target_color = None;
-                                preset.target_colors.clear();
-                                preset.use_color_matching = false;
-                                preset.color_priority_from_anchor = false;
-                                preset.color_priority_anchor_screen_x = None;
-                                preset.color_priority_anchor_screen_y = None;
+                                preset.image_search_advanced_open =
+                                    !preset.image_search_advanced_open;
+                                preset.image_search_move_advanced_open =
+                                    preset.image_search_advanced_open;
                                 live_sync = true;
                             }
                         });
                         ui.end_row();
 
-                        if preset.use_color_matching {
+                        if preset.image_search_advanced_open {
+                            ui.label(Self::tr_lang(language, "Move", "Move"));
                             ui.horizontal_wrapped(|ui| {
-                                if Self::sized_button(
-                                    ui,
-                                    96.0,
-                                    Self::tr_lang(
-                                        language,
-                                        if preset.image_search_advanced_open {
-                                            "Hide advanced"
-                                        } else {
-                                            "Advanced"
-                                        },
-                                        if preset.image_search_advanced_open {
-                                            "An nang cao"
-                                        } else {
-                                            "Nang cao"
-                                        },
-                                    ),
-                                )
-                                .clicked()
-                                {
-                                    preset.image_search_advanced_open =
-                                        !preset.image_search_advanced_open;
-                                    live_sync = true;
-                                }
+                                ui.label(Self::tr_lang(language, "Passes", "Passes"));
+                                live_sync |= ui
+                                    .add(
+                                        DragValue::new(&mut preset.non_interception_move_passes)
+                                            .range(1..=10),
+                                    )
+                                    .changed();
+                                ui.label(Self::tr_lang(language, "Delay", "Delay"));
+                                live_sync |= ui
+                                    .add(
+                                        DragValue::new(&mut preset.non_interception_move_delay_ms)
+                                            .range(0..=100)
+                                            .suffix(" ms"),
+                                    )
+                                    .changed();
                             });
                             ui.end_row();
 
-                            if preset.image_search_advanced_open {
-                                ui.label(Self::tr_lang(language, "Tolerance", "Tolerance"));
-                                ui.horizontal_wrapped(|ui| {
-                                    live_sync |= ui
-                                        .add(Slider::new(&mut preset.color_tolerance, 0..=96))
-                                        .changed();
-                                });
-                                ui.end_row();
+                            ui.label(Self::tr_lang(language, "Driver", "Driver"));
+                            ui.horizontal_wrapped(|ui| {
+                                live_sync |= ui
+                                    .checkbox(
+                                        &mut preset.use_interception_driver,
+                                        Self::tr_lang(language, "Interception", "Interception"),
+                                    )
+                                    .changed();
+                            });
+                            ui.end_row();
 
-                                ui.label(Self::tr_lang(language, "Scan rate", "Scan rate"));
+                            if preset.use_color_matching {
+                                ui.label(Self::tr_lang(language, "Color scan", "Color scan"));
                                 ui.horizontal_wrapped(|ui| {
+                                    ui.label(Self::tr_lang(language, "Tolerance", "Tolerance"));
                                     live_sync |= ui
                                         .add(
-                                            Slider::new(&mut preset.color_scan_rate_hz, 1..=120)
-                                                .clamping(egui::SliderClamping::Always),
+                                            DragValue::new(&mut preset.color_tolerance)
+                                                .range(0..=96),
                                         )
                                         .changed();
-                                });
-                                ui.end_row();
-
-                                ui.label(Self::tr_lang(language, "Dual midpoint", "Dual midpoint"));
-                                ui.horizontal_wrapped(|ui| {
+                                    ui.label(Self::tr_lang(language, "Rate", "Rate"));
                                     live_sync |= ui
-                                        .checkbox(
-                                            &mut preset.dual_color_scan_midpoint,
-                                            Self::tr_lang(
-                                                language,
-                                                "Use midpoint of two scans",
-                                                "Lay trung diem cua hai luong",
-                                            ),
+                                        .add(
+                                            DragValue::new(&mut preset.color_scan_rate_hz)
+                                                .range(1..=120)
+                                                .suffix(" Hz"),
                                         )
                                         .changed();
                                 });
@@ -13074,18 +13302,20 @@ impl CrosshairApp {
 
                                 ui.label(Self::tr_lang(
                                     language,
-                                    "Priority point",
-                                    "Priority point",
+                                    "Color priority",
+                                    "Color priority",
                                 ));
                                 ui.horizontal_wrapped(|ui| {
                                     live_sync |= ui
                                         .checkbox(
+                                            &mut preset.dual_color_scan_midpoint,
+                                            Self::tr_lang(language, "Midpoint", "Midpoint"),
+                                        )
+                                        .changed();
+                                    live_sync |= ui
+                                        .checkbox(
                                             &mut preset.color_priority_from_anchor,
-                                            Self::tr_lang(
-                                                language,
-                                                "Prioritize from point",
-                                                "Uu tien tu diem",
-                                            ),
+                                            Self::tr_lang(language, "From point", "From point"),
                                         )
                                         .changed();
                                     let anchor = preset
@@ -13106,8 +13336,6 @@ impl CrosshairApp {
                                             preset.color_priority_anchor_screen_y = None;
                                             live_sync = true;
                                         }
-                                    } else {
-                                        ui.monospace(Self::tr_lang(language, "None", "None"));
                                     }
                                     if preset.color_priority_from_anchor
                                         && ui
@@ -13123,18 +13351,6 @@ impl CrosshairApp {
                                 });
                                 ui.end_row();
                             }
-                        } else {
-                            ui.label(Self::tr_lang(language, "Accuracy", "Accuracy"));
-                            ui.horizontal_wrapped(|ui| {
-                                live_sync |= ui
-                                    .add(
-                                        Slider::new(&mut preset.confidence_threshold, 0.35..=0.99)
-                                            .fixed_decimals(2)
-                                            .show_value(true),
-                                    )
-                                    .changed();
-                            });
-                            ui.end_row();
                         }
 
                         ui.label(Self::tr_lang(language, "Target window", "Target window"));
@@ -13147,23 +13363,6 @@ impl CrosshairApp {
                             &mut preset.match_duplicate_window_titles,
                             &open_windows,
                         );
-                        ui.end_row();
-
-                        ui.label(Self::tr_lang(language, "Mouse", "Mouse"));
-                        ui.horizontal_wrapped(|ui| {
-                            live_sync |= ui
-                                .checkbox(
-                                    &mut preset.use_interception_driver,
-                                    Self::tr_lang(language, "Interception", "Interception"),
-                                )
-                                .changed();
-                            live_sync |= ui
-                                .checkbox(
-                                    &mut preset.click_after_move,
-                                    Self::tr_lang(language, "Click after move", "Click after move"),
-                                )
-                                .changed();
-                        });
                         ui.end_row();
                     });
 
@@ -13482,6 +13681,15 @@ impl CrosshairApp {
                 let rect = ui.max_rect();
                 let response = ui.allocate_rect(rect, Sense::click_and_drag());
                 let painter = ui.painter_at(rect);
+                if let Some(background) = self.image_search_capture_background.as_ref() {
+                    painter.image(
+                        background.texture.id(),
+                        rect,
+                        egui::Rect::from_min_max(pos2(0.0, 0.0), pos2(1.0, 1.0)),
+                        Color32::WHITE,
+                    );
+                    painter.rect_filled(rect, 0.0, Color32::from_rgba_premultiplied(0, 0, 0, 24));
+                }
                 let capture_mode = self
                     .image_search_capture_mode
                     .unwrap_or(ImageSearchCaptureMode::Template);
@@ -14102,7 +14310,10 @@ impl CrosshairApp {
             if ui.button(self.tr("Back", "Back")).clicked() {
                 self.close_audio_editor();
             }
-            if ui.button(self.tr("Choose audio file", "Choose audio file")).clicked() {
+            if ui
+                .button(self.tr("Choose audio file", "Choose audio file"))
+                .clicked()
+            {
                 match target {
                     AudioEditorTarget::Preset(preset_id) => {
                         self.choose_audio_file_for_sound_preset(preset_id)
@@ -14305,7 +14516,11 @@ impl CrosshairApp {
                         changed |= Self::edit_rgba_color(ui, &mut preset.background_color);
                         ui.end_row();
 
-                        ui.label(Self::tr_lang(language, "Background Opacity", "Äá»™ má» ná»n"));
+                        ui.label(Self::tr_lang(
+                            language,
+                            "Background Opacity",
+                            "Äá»™ má» ná»n",
+                        ));
                         changed |= ui
                             .add(
                                 Slider::new(&mut preset.background_opacity, 0.0..=1.0)
@@ -14315,7 +14530,11 @@ impl CrosshairApp {
                             .changed();
                         ui.end_row();
 
-                        ui.label(Self::tr_lang(language, "Rounded Background", "Ná»n bo gÃ³c"));
+                        ui.label(Self::tr_lang(
+                            language,
+                            "Rounded Background",
+                            "Ná»n bo gÃ³c",
+                        ));
                         changed |= ui
                             .checkbox(
                                 &mut preset.rounded_background,
@@ -15017,11 +15236,8 @@ impl eframe::App for CrosshairApp {
                 self.settings_popup_open = false;
             } else {
                 self.render_modal_backdrop(ctx);
-                let (panel_size, panel_pos) = Self::centered_modal_placement(
-                    ctx,
-                    vec2(560.0, 260.0),
-                    vec2(440.0, 220.0),
-                );
+                let (panel_size, panel_pos) =
+                    Self::centered_modal_placement(ctx, vec2(560.0, 260.0), vec2(440.0, 220.0));
                 let mut close_request = false;
                 egui::Area::new(egui::Id::new("settings_popup_modal"))
                     .order(Order::Foreground)
@@ -15034,7 +15250,10 @@ impl eframe::App for CrosshairApp {
                             } else {
                                 Color32::from_rgba_premultiplied(248, 248, 250, 248)
                             })
-                            .stroke(Stroke::new(1.0, Color32::from_rgba_premultiplied(90, 94, 108, 180)))
+                            .stroke(Stroke::new(
+                                1.0,
+                                Color32::from_rgba_premultiplied(90, 94, 108, 180),
+                            ))
                             .shadow(Shadow {
                                 offset: [0, 14],
                                 blur: 32,
