@@ -7941,10 +7941,16 @@ impl CrosshairApp {
     fn render_macro_panel(&mut self, ui: &mut egui::Ui) {
         let language = self.state.ui_language;
         ui.heading(self.panel_label(AppPanel::Macros));
-        ui.horizontal(|ui| {
+        ui.horizontal_wrapped(|ui| {
+            ui.label(Self::material_icon_text(0xe8b6, 18.0));
+            ui.label(Self::tr_lang(language, "Search", "Tìm"));
             ui.add_sized(
                 [260.0, 24.0],
-                TextEdit::singleline(&mut self.macro_preset_search_query),
+                TextEdit::singleline(&mut self.macro_preset_search_query).hint_text(Self::tr_lang(
+                    language,
+                    "Search macro groups and presets",
+                    "Tìm group macro và preset",
+                )),
             );
         });
 
@@ -7963,187 +7969,196 @@ impl CrosshairApp {
         if self.active_macro_folder_view.is_some() && active_folder_name.is_none() {
             self.active_macro_folder_view = None;
         }
-        ui.horizontal(|ui| {
+        ui.vertical(|ui| {
             if let Some(folder_name) = &active_folder_name {
-                if ui
-                    .button(Self::tr_lang(language, "< Back", "< Back"))
-                    .clicked()
-                {
-                    self.set_active_macro_folder_view(None);
-                }
-                ui.label(Self::folder_icon_text(true, 18.0));
-                if let Some(folder) = self
-                    .state
-                    .macro_folders
-                    .iter_mut()
-                    .find(|folder| Some(folder.id) == self.active_macro_folder_view)
-                {
+                ui.horizontal_wrapped(|ui| {
                     if ui
-                        .add_sized([220.0, 24.0], TextEdit::singleline(&mut folder.name))
-                        .changed()
+                        .button(Self::tr_lang(language, "< Back", "< Back"))
+                        .clicked()
                     {
-                        self.persist();
+                        self.set_active_macro_folder_view(None);
                     }
-                } else {
-                    ui.label(
-                        RichText::new(format!(
-                            "{}: {folder_name}",
-                            Self::tr_lang(language, "Folder", "Folder")
-                        ))
-                        .strong()
-                        .color(Color32::from_rgb(46, 76, 122)),
-                    );
-                }
-                if ui
-                    .button(Self::tr_lang(
-                        language,
-                        "+ Add group here",
-                        "+ Thêm group vào đây",
-                    ))
-                    .clicked()
-                {
-                    if let Some(folder_id) = self.active_macro_folder_view {
-                        self.add_macro_group_to_folder(folder_id);
-                        self.persist();
-                    }
-                }
-                if ui
-                    .button(Self::tr_lang(
-                        language,
-                        "Enable All Groups",
-                        "Bật tất cả group",
-                    ))
-                    .clicked()
-                {
-                    if let Some(folder_id) = self.active_macro_folder_view {
-                        for group in self
-                            .state
-                            .macro_groups
-                            .iter_mut()
-                            .filter(|group| group.folder_id == Some(folder_id))
+                    ui.label(Self::folder_icon_text(true, 18.0));
+                    if let Some(folder) = self
+                        .state
+                        .macro_folders
+                        .iter_mut()
+                        .find(|folder| Some(folder.id) == self.active_macro_folder_view)
+                    {
+                        if ui
+                            .add_sized([220.0, 24.0], TextEdit::singleline(&mut folder.name))
+                            .changed()
                         {
-                            group.enabled = true;
+                            self.persist();
                         }
-                        self.persist_macro_presets();
+                    } else {
+                        ui.label(
+                            RichText::new(format!(
+                                "{}: {folder_name}",
+                                Self::tr_lang(language, "Folder", "Folder")
+                            ))
+                            .strong()
+                            .color(Color32::from_rgb(46, 76, 122)),
+                        );
                     }
-                }
-                if ui
-                    .button(Self::tr_lang(
-                        language,
-                        "Release Folder",
-                        "Nhả thư mục",
-                    ))
-                    .clicked()
-                {
-                    release_folder_id = self.active_macro_folder_view;
-                }
-                if ui
-                    .button(Self::tr_lang(
-                        language,
-                        "Delete Folder",
-                        "Xóa thư mục",
-                    ))
-                    .clicked()
-                {
-                    delete_folder_id = self.active_macro_folder_view;
-                }
-                if ui
-                    .add_enabled(
-                        !self.macro_group_clipboard.is_empty(),
-                        Button::new(Self::tr_lang(language, "Paste", "Paste")),
-                    )
-                    .clicked()
-                {
-                    self.paste_macro_groups_into_folder(self.active_macro_folder_view);
-                }
-                if ui
-                    .add_enabled(
-                        !self.selected_macro_groups.is_empty(),
-                        Button::new(Self::tr_lang(language, "Copy", "Copy")),
-                    )
-                    .clicked()
-                {
-                    self.copy_selected_macro_groups();
-                }
-                if ui
-                    .add_enabled(
-                        !self.selected_macro_groups.is_empty(),
-                        Button::new(Self::tr_lang(language, "Cut", "Cut")),
-                    )
-                    .clicked()
-                {
-                    self.cut_selected_macro_groups();
-                }
-                if ui
-                    .add_enabled(
-                        !self.selected_macro_groups.is_empty(),
-                        Button::new(Self::tr_lang(language, "Remove", "Remove")),
-                    )
-                    .clicked()
-                {
-                    self.remove_selected_macro_groups();
-                }
+                    if ui
+                        .button(Self::tr_lang(
+                            language,
+                            "+ Add group here",
+                            "+ Thêm group vào đây",
+                        ))
+                        .clicked()
+                    {
+                        if let Some(folder_id) = self.active_macro_folder_view {
+                            self.add_macro_group_to_folder(folder_id);
+                            self.persist();
+                        }
+                    }
+                    if ui
+                        .button(Self::tr_lang(
+                            language,
+                            "Enable All Groups",
+                            "Bật tất cả group",
+                        ))
+                        .clicked()
+                    {
+                        if let Some(folder_id) = self.active_macro_folder_view {
+                            for group in self
+                                .state
+                                .macro_groups
+                                .iter_mut()
+                                .filter(|group| group.folder_id == Some(folder_id))
+                            {
+                                group.enabled = true;
+                            }
+                            self.persist_macro_presets();
+                        }
+                    }
+                    if ui
+                        .button(Self::tr_lang(
+                            language,
+                            "Release Folder",
+                            "Nhả thư mục",
+                        ))
+                        .clicked()
+                    {
+                        release_folder_id = self.active_macro_folder_view;
+                    }
+                    if ui
+                        .button(Self::tr_lang(
+                            language,
+                            "Delete Folder",
+                            "Xóa thư mục",
+                        ))
+                        .clicked()
+                    {
+                        delete_folder_id = self.active_macro_folder_view;
+                    }
+                });
+                ui.horizontal_wrapped(|ui| {
+                    if ui
+                        .add_enabled(
+                            !self.macro_group_clipboard.is_empty(),
+                            Button::new(Self::tr_lang(language, "Paste", "Paste")),
+                        )
+                        .clicked()
+                    {
+                        self.paste_macro_groups_into_folder(self.active_macro_folder_view);
+                    }
+                    if ui
+                        .add_enabled(
+                            !self.selected_macro_groups.is_empty(),
+                            Button::new(Self::tr_lang(language, "Copy", "Copy")),
+                        )
+                        .clicked()
+                    {
+                        self.copy_selected_macro_groups();
+                    }
+                    if ui
+                        .add_enabled(
+                            !self.selected_macro_groups.is_empty(),
+                            Button::new(Self::tr_lang(language, "Cut", "Cut")),
+                        )
+                        .clicked()
+                    {
+                        self.cut_selected_macro_groups();
+                    }
+                    if ui
+                        .add_enabled(
+                            !self.selected_macro_groups.is_empty(),
+                            Button::new(Self::tr_lang(language, "Remove", "Remove")),
+                        )
+                        .clicked()
+                    {
+                        self.remove_selected_macro_groups();
+                    }
+                });
             } else {
-                if ui
-                    .button(Self::tr_lang(
-                        language,
-                        "+ Add folder",
-                        "+ Thêm thư mục",
-                    ))
-                    .clicked()
-                {
-                    self.add_macro_folder();
-                    self.persist();
-                }
-                if ui
-                    .button(Self::tr_lang(
-                        language,
-                        "+ Add macro group",
-                        "+ Thêm macro group",
-                    ))
-                    .clicked()
-                {
-                    self.add_macro_group();
-                    self.persist();
-                }
-                if ui
-                    .add_enabled(
-                        !self.macro_group_clipboard.is_empty(),
-                        Button::new(Self::tr_lang(language, "Paste", "Paste")),
-                    )
-                    .clicked()
-                {
-                    self.paste_macro_groups_into_folder(None);
-                }
-                if ui
-                    .add_enabled(
-                        !self.selected_macro_groups.is_empty(),
-                        Button::new(Self::tr_lang(language, "Copy", "Copy")),
-                    )
-                    .clicked()
-                {
-                    self.copy_selected_macro_groups();
-                }
-                if ui
-                    .add_enabled(
-                        !self.selected_macro_groups.is_empty(),
-                        Button::new(Self::tr_lang(language, "Cut", "Cut")),
-                    )
-                    .clicked()
-                {
-                    self.cut_selected_macro_groups();
-                }
-                if ui
-                    .add_enabled(
-                        !self.selected_macro_groups.is_empty(),
-                        Button::new(Self::tr_lang(language, "Remove", "Remove")),
-                    )
-                    .clicked()
-                {
-                    self.remove_selected_macro_groups();
-                }
+                ui.horizontal_wrapped(|ui| {
+                    if ui
+                        .button(Self::tr_lang(
+                            language,
+                            "+ Add folder",
+                            "+ Thêm thư mục",
+                        ))
+                        .clicked()
+                    {
+                        self.add_macro_folder();
+                        self.persist();
+                    }
+                    if ui
+                        .button(Self::tr_lang(
+                            language,
+                            "+ Add macro group",
+                            "+ Thêm macro group",
+                        ))
+                        .clicked()
+                    {
+                        self.add_macro_group();
+                        self.persist();
+                    }
+                });
+                ui.horizontal_wrapped(|ui| {
+                    if ui
+                        .add_enabled(
+                            !self.macro_group_clipboard.is_empty(),
+                            Button::new(Self::tr_lang(language, "Paste", "Paste")),
+                        )
+                        .clicked()
+                    {
+                        self.paste_macro_groups_into_folder(None);
+                    }
+                    if ui
+                        .add_enabled(
+                            !self.selected_macro_groups.is_empty(),
+                            Button::new(Self::tr_lang(language, "Copy", "Copy")),
+                        )
+                        .clicked()
+                    {
+                        self.copy_selected_macro_groups();
+                    }
+                    if ui
+                        .add_enabled(
+                            !self.selected_macro_groups.is_empty(),
+                            Button::new(Self::tr_lang(language, "Cut", "Cut")),
+                        )
+                        .clicked()
+                    {
+                        self.cut_selected_macro_groups();
+                    }
+                    if ui
+                        .add_enabled(
+                            !self.selected_macro_groups.is_empty(),
+                            Button::new(Self::tr_lang(language, "Remove", "Remove")),
+                        )
+                        .clicked()
+                    {
+                        self.remove_selected_macro_groups();
+                    }
+                });
             }
-            let master_label = if self.state.macros_master_enabled {
+        });
+        let master_label = if self.state.macros_master_enabled {
                 Self::tr_lang(language, "Macro On", "Macro On")
             } else {
                 Self::tr_lang(language, "Macro Off", "Macro Off")
@@ -8176,7 +8191,6 @@ impl CrosshairApp {
                 self.sync_macro_master_enabled();
                 self.persist();
             }
-        });
         if let Some(folder_id) = self.confirm_delete_folder_id {
             let group_count = self
                 .state
