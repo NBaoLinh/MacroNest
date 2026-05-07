@@ -13704,11 +13704,6 @@ impl CrosshairApp {
         Frame::group(ui.style()).show(ui, |ui| {
             ui.horizontal(|ui| {
                 ui.label(RichText::new("Gemini API").strong());
-                ui.label(
-                    RichText::new("Store your key locally for future AI features.")
-                        .small()
-                        .weak(),
-                );
             });
             ui.add_space(6.0);
             ui.horizontal(|ui| {
