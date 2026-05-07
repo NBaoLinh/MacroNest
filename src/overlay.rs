@@ -1218,13 +1218,44 @@ mod windows_overlay {
         let shift_down = unsafe { GetAsyncKeyState(0x10) } < 0;
         let win_down =
             unsafe { GetAsyncKeyState(0x5B) } < 0 || unsafe { GetAsyncKeyState(0x5C) } < 0;
+        let mut combo_keys = {
+            let hook_state = HOOK_STATE.lock();
+            let mut keys = hook_state
+                .held_inputs
+                .iter()
+                .cloned()
+                .chain(hook_state.held_mouse_buttons.iter().cloned())
+                .collect::<Vec<_>>();
+            keys.push(key_name.to_owned());
+            keys
+        };
+        combo_keys.retain(|key| !key.trim().is_empty());
+        combo_keys.sort_by(|a, b| {
+            let rank_a = hotkey_binding_rank(a);
+            let rank_b = hotkey_binding_rank(b);
+            rank_a.cmp(&rank_b).then_with(|| a.to_ascii_lowercase().cmp(&b.to_ascii_lowercase()))
+        });
+        combo_keys.dedup_by(|a, b| a.eq_ignore_ascii_case(b));
         HotkeyBinding {
             ctrl: ctrl_down && !key_name.eq_ignore_ascii_case("Ctrl"),
             alt: alt_down && !key_name.eq_ignore_ascii_case("Alt"),
             shift: shift_down && !key_name.eq_ignore_ascii_case("Shift"),
             win: win_down && !key_name.eq_ignore_ascii_case("Win"),
             key: key_name.to_owned(),
+            combo_keys,
         }
+    }
+
+    fn hotkey_binding_rank(name: &str) -> (u8, String) {
+        let normalized = name.trim().to_ascii_lowercase();
+        let rank = match normalized.as_str() {
+            "ctrl" | "control" => 0,
+            "alt" => 1,
+            "shift" => 2,
+            "win" | "meta" => 3,
+            _ => 4,
+        };
+        (rank, normalized)
     }
 
     fn process_mouse_path_record_hotkey(binding: &HotkeyBinding, is_repeat: bool) -> Option<bool> {
@@ -1237,16 +1268,9 @@ mod windows_overlay {
                 .mouse_path_presets
                 .iter()
                 .find(|preset| {
-                    preset.enabled
+                        preset.enabled
                         && preset.record_hotkey.as_ref().is_some_and(|hotkey| {
-                            hotkey::binding_matches(
-                                hotkey,
-                                &binding.key,
-                                binding.ctrl,
-                                binding.alt,
-                                binding.shift,
-                                binding.win,
-                            )
+                            hotkey::binding_matches(hotkey, binding)
                         })
                 })
                 .cloned()
@@ -1373,14 +1397,7 @@ mod windows_overlay {
                             preset.match_duplicate_window_titles,
                         )
                         && preset.hotkey.as_ref().is_some_and(|hotkey| {
-                            hotkey::binding_matches(
-                                hotkey,
-                                &binding.key,
-                                binding.ctrl,
-                                binding.alt,
-                                binding.shift,
-                                binding.win,
-                            )
+                            hotkey::binding_matches(hotkey, binding)
                         })
                 })
                 .cloned()
@@ -1497,14 +1514,7 @@ mod windows_overlay {
                             preset.match_duplicate_window_titles,
                         )
                         && preset.hotkey.as_ref().is_some_and(|hotkey| {
-                            hotkey::binding_matches(
-                                hotkey,
-                                &binding.key,
-                                binding.ctrl,
-                                binding.alt,
-                                binding.shift,
-                                binding.win,
-                            )
+                            hotkey::binding_matches(hotkey, binding)
                         })
                 })
                 .cloned()
@@ -1597,23 +1607,13 @@ mod windows_overlay {
         if let Some(swallow) = process_image_search_hotkey(binding, is_repeat) {
             return Some(swallow);
         }
-        if hotkey::is_modifier_key_name(&binding.key) {
-            return Some(false);
-        }
         let master_toggle = {
             let mut hook_state = HOOK_STATE.lock();
             let matches_master_hotkey = hook_state
                 .macros_master_hotkey
                 .as_ref()
                 .is_some_and(|hotkey| {
-                    hotkey::binding_matches(
-                        hotkey,
-                        &binding.key,
-                        binding.ctrl,
-                        binding.alt,
-                        binding.shift,
-                        binding.win,
-                    )
+                    hotkey::binding_matches(hotkey, binding)
                 });
             if matches_master_hotkey {
                 hook_state.macros_master_enabled = !hook_state.macros_master_enabled;
@@ -1656,14 +1656,7 @@ mod windows_overlay {
                 continue;
             }
             if let Some(hotkey) = preset.hotkey.as_ref()
-                && hotkey::binding_matches(
-                    hotkey,
-                    &binding.key,
-                    binding.ctrl,
-                    binding.alt,
-                    binding.shift,
-                    binding.win,
-                )
+                && hotkey::binding_matches(hotkey, binding)
                 && !is_repeat
             {
                 matched_any_window = true;
@@ -1676,14 +1669,7 @@ mod windows_overlay {
                 continue;
             }
             if let Some(hotkey) = preset.hotkey.as_ref()
-                && hotkey::binding_matches(
-                    hotkey,
-                    &binding.key,
-                    binding.ctrl,
-                    binding.alt,
-                    binding.shift,
-                    binding.win,
-                )
+                && hotkey::binding_matches(hotkey, binding)
                 && !is_repeat
             {
                 matched_any_window = true;
@@ -1697,14 +1683,7 @@ mod windows_overlay {
                 continue;
             }
             if let Some(hotkey) = preset.hotkey.as_ref()
-                && hotkey::binding_matches(
-                    hotkey,
-                    &binding.key,
-                    binding.ctrl,
-                    binding.alt,
-                    binding.shift,
-                    binding.win,
-                )
+                && hotkey::binding_matches(hotkey, binding)
                 && !is_repeat
             {
                 pin_toggle_id = Some(preset.id);
@@ -1735,14 +1714,7 @@ mod windows_overlay {
             }
             if preset.animate_enabled
                 && let Some(hotkey) = preset.animate_hotkey.as_ref()
-                && hotkey::binding_matches(
-                    hotkey,
-                    &binding.key,
-                    binding.ctrl,
-                    binding.alt,
-                    binding.shift,
-                    binding.win,
-                )
+                && hotkey::binding_matches(hotkey, binding)
                 && !is_repeat
             {
                 matched_any_window = true;
@@ -1750,14 +1722,7 @@ mod windows_overlay {
             }
             if preset.restore_titlebar_enabled
                 && let Some(hotkey) = preset.titlebar_hotkey.as_ref()
-                && hotkey::binding_matches(
-                    hotkey,
-                    &binding.key,
-                    binding.ctrl,
-                    binding.alt,
-                    binding.shift,
-                    binding.win,
-                )
+                && hotkey::binding_matches(hotkey, binding)
                 && !is_repeat
             {
                 matched_any_window = true;
@@ -1956,7 +1921,7 @@ mod windows_overlay {
             hook_state
                 .active_hold_macros
                 .iter()
-                .filter(|(_, active)| active.trigger.key.eq_ignore_ascii_case(&binding.key))
+                .filter(|(_, active)| hotkey::binding_matches(&active.trigger, binding))
                 .map(|(preset_id, _)| *preset_id)
                 .collect::<Vec<_>>()
         };
@@ -8166,16 +8131,10 @@ mod windows_overlay {
             return hotkey::key_list_contains(trigger_keys, &binding.key);
         }
 
-        preset.hotkey.as_ref().is_some_and(|hotkey| {
-            hotkey::binding_matches(
-                hotkey,
-                &binding.key,
-                binding.ctrl,
-                binding.alt,
-                binding.shift,
-                binding.win,
-            )
-        })
+        preset
+            .hotkey
+            .as_ref()
+            .is_some_and(|hotkey| hotkey::binding_matches(hotkey, binding))
     }
 
     fn window_focus_matches(

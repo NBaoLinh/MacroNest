@@ -263,6 +263,8 @@ pub struct HotkeyBinding {
     pub shift: bool,
     pub win: bool,
     pub key: String,
+    #[serde(default)]
+    pub combo_keys: Vec<String>,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
@@ -539,6 +541,7 @@ impl Default for WindowExpandControls {
                 shift: false,
                 win: false,
                 key: "Up".to_owned(),
+                combo_keys: Vec::new(),
             }),
             down: Some(HotkeyBinding {
                 ctrl: false,
@@ -546,6 +549,7 @@ impl Default for WindowExpandControls {
                 shift: false,
                 win: false,
                 key: "Down".to_owned(),
+                combo_keys: Vec::new(),
             }),
             left: Some(HotkeyBinding {
                 ctrl: false,
@@ -553,6 +557,7 @@ impl Default for WindowExpandControls {
                 shift: false,
                 win: false,
                 key: "Left".to_owned(),
+                combo_keys: Vec::new(),
             }),
             right: Some(HotkeyBinding {
                 ctrl: false,
@@ -560,6 +565,7 @@ impl Default for WindowExpandControls {
                 shift: false,
                 win: false,
                 key: "Right".to_owned(),
+                combo_keys: Vec::new(),
             }),
         }
     }

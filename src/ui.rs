@@ -403,6 +403,7 @@ pub struct CrosshairApp {
     trim_timeline_zoom: f32,
     preview_cursor: Option<(AudioEditorTarget, u64)>,
     capture_ignored_keys: HashSet<u32>,
+    capture_hotkey_combo_keys: Option<Vec<String>>,
     capture_suppress_next_poll: bool,
     capture_wait_for_mouse_release: bool,
     capture_ignore_mouse_until_release: bool,
@@ -502,6 +503,7 @@ impl CrosshairApp {
             trim_timeline_zoom: 1.0,
             preview_cursor: None,
             capture_ignored_keys: HashSet::new(),
+            capture_hotkey_combo_keys: None,
             capture_suppress_next_poll: false,
             capture_wait_for_mouse_release: false,
             capture_ignore_mouse_until_release: false,
@@ -2145,8 +2147,8 @@ impl CrosshairApp {
 
     fn capture_hint_text(&self) -> &'static str {
         self.tr(
-            "Capture mode is active. Press a key now, or press Esc to cancel.",
-            "Đang ở chế độ bắt phím. Nhấn phím cần dùng hoặc Esc để hủy.",
+            "Capture mode is active. Hold your combo, then release to save. Press Esc to cancel.",
+            "Đang ở chế độ bắt phím. Giữ combo rồi thả tay để lưu. Nhấn Esc để hủy.",
         )
     }
 
@@ -5437,6 +5439,7 @@ impl CrosshairApp {
         self.capture_ignored_keys = self.snapshot_pressed_capture_keys();
         self.capture_ignored_keys
             .extend([0x01, 0x02, 0x04, 0x05, 0x06]);
+        self.capture_hotkey_combo_keys = None;
         self.capture_suppress_next_poll = false;
         self.capture_wait_for_mouse_release = true;
         self.capture_ignore_mouse_until_release = true;
@@ -5445,9 +5448,10 @@ impl CrosshairApp {
         self.status = if self.capture_request_keeps_open(&target) {
             match self.state.ui_language {
                 UiLanguage::Vietnamese => {
-                    "Đang bắt nhiều key. Bấm thêm key hoặc Esc để dừng.".to_owned()
+                    "Đang bắt combo phím. Giữ rồi nhả để lưu, Esc để hủy.".to_owned()
                 }
-                _ => "Capturing multiple keys. Press more keys or Esc to finish.".to_owned(),
+                _ => "Capturing a key combo. Hold keys, then release to save. Esc cancels."
+                    .to_owned(),
             }
         } else {
             status
@@ -5496,6 +5500,7 @@ impl CrosshairApp {
 
     fn cancel_capture(&mut self) {
         self.capture_target = None;
+        self.capture_hotkey_combo_keys = None;
         self.capture_suppress_next_poll = false;
         self.capture_wait_for_mouse_release = true;
         self.capture_ignore_mouse_until_release = true;
@@ -6601,6 +6606,7 @@ impl CrosshairApp {
         if accepts_mouse && let Some(binding) = self.capture_scroll_binding(ctx) {
             return Some(binding);
         }
+        let mut current_combo_keys = Vec::new();
         for vk in Self::capture_scan_keys() {
             if !accepts_mouse && Self::capture_mouse_vk(vk) {
                 continue;
@@ -6610,27 +6616,28 @@ impl CrosshairApp {
                 if self.capture_ignored_keys.contains(&vk) {
                     continue;
                 }
-                let key_name = hotkey::vk_to_key_name(vk)?.to_owned();
-                if hotkey::is_modifier_key_name(&key_name) {
-                    continue;
-                }
                 self.capture_ignored_keys.insert(vk);
-                let ctrl =
-                    Self::is_vk_down(0x11) || Self::is_vk_down(0xA2) || Self::is_vk_down(0xA3);
-                let alt =
-                    Self::is_vk_down(0x12) || Self::is_vk_down(0xA4) || Self::is_vk_down(0xA5);
-                let shift =
-                    Self::is_vk_down(0x10) || Self::is_vk_down(0xA0) || Self::is_vk_down(0xA1);
-                let win = Self::is_vk_down(0x5B) || Self::is_vk_down(0x5C);
-                return Some(crate::model::HotkeyBinding {
-                    ctrl: ctrl && !key_name.eq_ignore_ascii_case("Ctrl"),
-                    alt: alt && !key_name.eq_ignore_ascii_case("Alt"),
-                    shift: shift && !key_name.eq_ignore_ascii_case("Shift"),
-                    win: win && !key_name.eq_ignore_ascii_case("Win"),
-                    key: key_name,
-                });
+                if let Some(key_name) = hotkey::vk_to_key_name(vk) {
+                    current_combo_keys.push(key_name.to_owned());
+                }
+            } else {
+                self.capture_ignored_keys.remove(&vk);
             }
-            self.capture_ignored_keys.remove(&vk);
+        }
+        if current_combo_keys.is_empty() {
+            return self
+                .capture_hotkey_combo_keys
+                .take()
+                .map(Self::hotkey_binding_from_combo_keys);
+        }
+        if let Some(pending) = self.capture_hotkey_combo_keys.as_mut() {
+            for key in current_combo_keys {
+                if !pending.iter().any(|existing| existing.eq_ignore_ascii_case(&key)) {
+                    pending.push(key);
+                }
+            }
+        } else {
+            self.capture_hotkey_combo_keys = Some(current_combo_keys);
         }
         None
     }
@@ -6646,17 +6653,44 @@ impl CrosshairApp {
         if scroll_y.abs() < 0.01 {
             return None;
         }
+        let key = if scroll_y > 0.0 {
+            "MouseWheelUp".to_owned()
+        } else {
+            "MouseWheelDown".to_owned()
+        };
         Some(crate::model::HotkeyBinding {
             ctrl: false,
             alt: false,
             shift: false,
             win: false,
-            key: if scroll_y > 0.0 {
-                "MouseWheelUp".to_owned()
-            } else {
-                "MouseWheelDown".to_owned()
-            },
+            key: key.clone(),
+            combo_keys: vec![key],
         })
+    }
+
+    fn hotkey_binding_from_combo_keys(mut combo_keys: Vec<String>) -> crate::model::HotkeyBinding {
+        combo_keys.retain(|key| !key.trim().is_empty());
+        let key = combo_keys
+            .iter()
+            .rev()
+            .find(|key| !hotkey::is_modifier_key_name(key))
+            .cloned()
+            .or_else(|| combo_keys.last().cloned())
+            .unwrap_or_default();
+        crate::model::HotkeyBinding {
+            ctrl: combo_keys
+                .iter()
+                .any(|key| key.eq_ignore_ascii_case("Ctrl") || key.eq_ignore_ascii_case("Control")),
+            alt: combo_keys.iter().any(|key| key.eq_ignore_ascii_case("Alt")),
+            shift: combo_keys
+                .iter()
+                .any(|key| key.eq_ignore_ascii_case("Shift")),
+            win: combo_keys
+                .iter()
+                .any(|key| key.eq_ignore_ascii_case("Win") || key.eq_ignore_ascii_case("Meta")),
+            key,
+            combo_keys,
+        }
     }
 
     #[cfg(windows)]

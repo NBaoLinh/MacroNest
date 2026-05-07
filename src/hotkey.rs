@@ -1,16 +1,32 @@
 use eframe::egui::{Key, Modifiers};
+use std::collections::BTreeSet;
 
 use crate::model::HotkeyBinding;
 
 #[allow(dead_code)]
 pub fn capture_from_egui(key: Key, modifiers: Modifiers) -> Option<HotkeyBinding> {
     let key_name = key_to_name(key)?;
+    let mut combo_keys = Vec::new();
+    if modifiers.ctrl || modifiers.command {
+        combo_keys.push("Ctrl".to_owned());
+    }
+    if modifiers.alt {
+        combo_keys.push("Alt".to_owned());
+    }
+    if modifiers.shift {
+        combo_keys.push("Shift".to_owned());
+    }
+    if modifiers.mac_cmd {
+        combo_keys.push("Win".to_owned());
+    }
+    combo_keys.push(key_name.to_owned());
     Some(HotkeyBinding {
         ctrl: modifiers.ctrl || modifiers.command,
         alt: modifiers.alt,
         shift: modifiers.shift,
         win: modifiers.mac_cmd,
         key: key_name.to_owned(),
+        combo_keys,
     })
 }
 
@@ -19,22 +35,7 @@ pub fn format_binding(binding: Option<&HotkeyBinding>) -> String {
         return "Not set".to_owned();
     };
 
-    let mut parts = Vec::new();
-    if binding.ctrl {
-        parts.push("Ctrl");
-    }
-    if binding.alt {
-        parts.push("Alt");
-    }
-    if binding.shift {
-        parts.push("Shift");
-    }
-    if binding.win {
-        parts.push("Win");
-    }
-    if !binding.key.trim().is_empty() {
-        parts.push(binding.key.as_str());
-    }
+    let parts = binding_key_names(binding);
 
     if parts.is_empty() {
         "Not set".to_owned()
@@ -94,19 +95,66 @@ pub fn is_mouse_key_name(name: &str) -> bool {
     )
 }
 
-pub fn binding_matches(
-    binding: &HotkeyBinding,
-    key_name: &str,
-    ctrl: bool,
-    alt: bool,
-    shift: bool,
-    win: bool,
-) -> bool {
-    binding.key.eq_ignore_ascii_case(key_name)
-        && binding.ctrl == ctrl
-        && binding.alt == alt
-        && binding.shift == shift
-        && binding.win == win
+pub fn binding_key_names(binding: &HotkeyBinding) -> Vec<String> {
+    let keys = if binding.combo_keys.is_empty() {
+        let mut legacy = Vec::new();
+        if binding.ctrl {
+            legacy.push("Ctrl".to_owned());
+        }
+        if binding.alt {
+            legacy.push("Alt".to_owned());
+        }
+        if binding.shift {
+            legacy.push("Shift".to_owned());
+        }
+        if binding.win {
+            legacy.push("Win".to_owned());
+        }
+        if !binding.key.trim().is_empty() {
+            legacy.push(binding.key.trim().to_owned());
+        }
+        legacy
+    } else {
+        binding.combo_keys.clone()
+    };
+
+    let mut seen = BTreeSet::new();
+    let mut keys = keys
+        .into_iter()
+        .filter_map(|key| {
+            let normalized = normalize_key_name(&key);
+            let lower = normalized.trim().to_ascii_lowercase();
+            if lower.is_empty() || !seen.insert(lower) {
+                None
+            } else {
+                Some(normalized)
+            }
+        })
+        .collect::<Vec<_>>();
+    keys.sort_by(|a, b| {
+        let rank_a = binding_key_rank(a);
+        let rank_b = binding_key_rank(b);
+        rank_a.cmp(&rank_b).then_with(|| a.to_ascii_lowercase().cmp(&b.to_ascii_lowercase()))
+    });
+    keys
+}
+
+pub fn binding_matches(expected: &HotkeyBinding, observed: &HotkeyBinding) -> bool {
+    let expected_keys = binding_key_names(expected);
+    let observed_keys = binding_key_names(observed);
+    !expected_keys.is_empty() && expected_keys == observed_keys
+}
+
+fn binding_key_rank(name: &str) -> (u8, String) {
+    let normalized = normalize_key_name(name);
+    let rank = match normalized.to_ascii_lowercase().as_str() {
+        "ctrl" | "control" => 0,
+        "alt" => 1,
+        "shift" => 2,
+        "win" | "meta" => 3,
+        _ => 4,
+    };
+    (rank, normalized.to_ascii_lowercase())
 }
 
 #[allow(dead_code)]
@@ -213,26 +261,28 @@ pub fn to_windows_registration(
         HOT_KEY_MODIFIERS, MOD_ALT, MOD_CONTROL, MOD_SHIFT, MOD_WIN,
     };
 
-    if is_mouse_key_name(&binding.key) {
-        return None;
-    }
-
+    let keys = binding_key_names(binding);
     let mut modifiers = HOT_KEY_MODIFIERS(0);
-    if binding.ctrl {
-        modifiers |= MOD_CONTROL;
-    }
-    if binding.alt {
-        modifiers |= MOD_ALT;
-    }
-    if binding.shift {
-        modifiers |= MOD_SHIFT;
-    }
-    if binding.win {
-        modifiers |= MOD_WIN;
+    let mut vk = None;
+    for key in keys {
+        match key.to_ascii_lowercase().as_str() {
+            "ctrl" | "control" => modifiers |= MOD_CONTROL,
+            "alt" => modifiers |= MOD_ALT,
+            "shift" => modifiers |= MOD_SHIFT,
+            "win" | "meta" => modifiers |= MOD_WIN,
+            _ => {
+                if is_mouse_key_name(&key) {
+                    return None;
+                }
+                if vk.is_some() {
+                    return None;
+                }
+                vk = key_name_to_vk(&key);
+            }
+        }
     }
 
-    let vk = key_name_to_vk(&binding.key)?;
-    Some((modifiers, vk))
+    vk.map(|vk| (modifiers, vk))
 }
 
 #[cfg(windows)]
