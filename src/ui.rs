@@ -8776,6 +8776,24 @@ impl CrosshairApp {
                 }
                 self.persist();
             }
+            if let Some(folder_id) = active_folder_for_controls
+                && Self::sized_button(
+                    ui,
+                    138.0,
+                    Self::tr_lang(language, "Enable All Groups", "Báº­t táº¥t cáº£ group"),
+                )
+                .clicked()
+            {
+                for group in self
+                    .state
+                    .macro_groups
+                    .iter_mut()
+                    .filter(|group| group.folder_id == Some(folder_id))
+                {
+                    group.enabled = true;
+                }
+                self.persist_macro_presets();
+            }
         });
 
         let mut release_folder_id = None;
@@ -8801,124 +8819,50 @@ impl CrosshairApp {
             self.active_macro_folder_view = None;
         }
         ui.vertical(|ui| {
-            if let Some(folder_name) = &active_folder_name {
-                ui.horizontal_wrapped(|ui| {
-                    ui.add_sized(
-                        [28.0, 24.0],
-                        Button::new(Self::folder_icon_text(true, 18.0)),
-                    );
-                    if ui
-                        .add_sized(
-                            [28.0, 24.0],
-                            Button::new(Self::material_icon_text(0xe5c4, 18.0)),
-                        )
-                        .on_hover_text(Self::tr_lang(language, "Back", "Back"))
-                        .clicked()
-                    {
-                        self.set_active_macro_folder_view(None);
-                    }
-                    ui.label(RichText::new(folder_name).strong());
-                    if ui
-                        .button(Self::tr_lang(
-                            language,
-                            "Enable All Groups",
-                            "Báº­t táº¥t cáº£ group",
-                        ))
-                        .clicked()
-                    {
-                        if let Some(folder_id) = self.active_macro_folder_view {
-                            for group in self
-                                .state
-                                .macro_groups
-                                .iter_mut()
-                                .filter(|group| group.folder_id == Some(folder_id))
-                            {
-                                group.enabled = true;
-                            }
-                            self.persist_macro_presets();
-                        }
-                    }
-                });
-                ui.horizontal_wrapped(|ui| {
-                    if ui
-                        .add_enabled(
-                            !self.macro_group_clipboard.is_empty(),
-                            Button::new(Self::tr_lang(language, "Paste", "Paste")),
-                        )
-                        .clicked()
-                    {
-                        self.paste_macro_groups_into_folder(self.active_macro_folder_view);
-                    }
-                    if ui
-                        .add_enabled(
-                            !self.selected_macro_groups.is_empty(),
-                            Button::new(Self::tr_lang(language, "Copy", "Copy")),
-                        )
-                        .clicked()
-                    {
-                        self.copy_selected_macro_groups();
-                    }
-                    if ui
-                        .add_enabled(
-                            !self.selected_macro_groups.is_empty(),
-                            Button::new(Self::tr_lang(language, "Cut", "Cut")),
-                        )
-                        .clicked()
-                    {
-                        self.cut_selected_macro_groups();
-                    }
-                    if ui
-                        .add_enabled(
-                            !self.selected_macro_groups.is_empty(),
-                            Button::new(Self::material_icon_text(0xe872, 18.0))
-                                .min_size(egui::vec2(36.0, 24.0)),
-                        )
-                        .clicked()
-                    {
-                        self.remove_selected_macro_groups();
-                    }
-                });
+            let paste_target_folder = if active_folder_name.is_some() {
+                self.active_macro_folder_view
             } else {
-                ui.horizontal_wrapped(|ui| {
-                    if ui
-                        .add_enabled(
-                            !self.macro_group_clipboard.is_empty(),
-                            Button::new(Self::tr_lang(language, "Paste", "Paste")),
-                        )
-                        .clicked()
-                    {
-                        self.paste_macro_groups_into_folder(None);
-                    }
-                    if ui
-                        .add_enabled(
-                            !self.selected_macro_groups.is_empty(),
-                            Button::new(Self::tr_lang(language, "Copy", "Copy")),
-                        )
-                        .clicked()
-                    {
-                        self.copy_selected_macro_groups();
-                    }
-                    if ui
-                        .add_enabled(
-                            !self.selected_macro_groups.is_empty(),
-                            Button::new(Self::tr_lang(language, "Cut", "Cut")),
-                        )
-                        .clicked()
-                    {
-                        self.cut_selected_macro_groups();
-                    }
-                    if ui
-                        .add_enabled(
-                            !self.selected_macro_groups.is_empty(),
-                            Button::new(Self::material_icon_text(0xe872, 18.0))
-                                .min_size(egui::vec2(36.0, 24.0)),
-                        )
-                        .clicked()
-                    {
-                        self.remove_selected_macro_groups();
-                    }
-                });
-            }
+                None
+            };
+            ui.horizontal_wrapped(|ui| {
+                if ui
+                    .add_enabled(
+                        !self.macro_group_clipboard.is_empty(),
+                        Button::new(Self::tr_lang(language, "Paste", "Paste")),
+                    )
+                    .clicked()
+                {
+                    self.paste_macro_groups_into_folder(paste_target_folder);
+                }
+                if ui
+                    .add_enabled(
+                        !self.selected_macro_groups.is_empty(),
+                        Button::new(Self::tr_lang(language, "Copy", "Copy")),
+                    )
+                    .clicked()
+                {
+                    self.copy_selected_macro_groups();
+                }
+                if ui
+                    .add_enabled(
+                        !self.selected_macro_groups.is_empty(),
+                        Button::new(Self::tr_lang(language, "Cut", "Cut")),
+                    )
+                    .clicked()
+                {
+                    self.cut_selected_macro_groups();
+                }
+                if ui
+                    .add_enabled(
+                        !self.selected_macro_groups.is_empty(),
+                        Button::new(Self::material_icon_text(0xe872, 18.0))
+                            .min_size(egui::vec2(36.0, 24.0)),
+                    )
+                    .clicked()
+                {
+                    self.remove_selected_macro_groups();
+                }
+            });
         });
         ui.horizontal_wrapped(|ui| {
             let master_label = if self.state.macros_master_enabled {
@@ -9059,6 +9003,17 @@ impl CrosshairApp {
                 if !self.macro_folders_panel_open {
                     self.set_active_macro_folder_view(None);
                 }
+            }
+            if active_folder_for_controls.is_some()
+                && ui
+                    .add_sized(
+                        [28.0, 28.0],
+                        Button::new(Self::material_icon_text(0xe5c4, 18.0)),
+                    )
+                    .on_hover_text(Self::tr_lang(language, "Back", "Back"))
+                    .clicked()
+            {
+                self.set_active_macro_folder_view(None);
             }
 
             if let Some(binding) = hotkey_preview.as_ref() {
