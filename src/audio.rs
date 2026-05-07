@@ -1,8 +1,9 @@
-use std::{
+﻿use std::{
     fs::File,
     io::BufReader,
-    path::Path,
+    path::{Path, PathBuf},
     thread,
+    sync::Arc,
     time::{Duration, Instant},
 };
 
@@ -13,15 +14,193 @@ use rodio::{Decoder, OutputStreamBuilder, Sink, Source};
 
 use crate::model::AudioClipSettings;
 
-struct PreviewPlayback {
-    clip: AudioClipSettings,
-    started_at: Instant,
-    start_position_ms: u64,
-    _stream: rodio::OutputStream,
-    sink: Sink,
+struct CachedAudio {
+    path: PathBuf,
+    channels: u16,
+    sample_rate: u32,
+    samples: Arc<[f32]>,
 }
 
-static PREVIEW_PLAYBACK: Lazy<Mutex<Option<PreviewPlayback>>> = Lazy::new(|| Mutex::new(None));
+struct SharedSamplesSource {
+    samples: Arc<[f32]>,
+    index: usize,
+    end: usize,
+    channels: u16,
+    sample_rate: u32,
+}
+
+impl Iterator for SharedSamplesSource {
+    type Item = rodio::Sample;
+
+    fn next(&mut self) -> Option<Self::Item> {
+        if self.index >= self.end {
+            return None;
+        }
+        let sample = self.samples.get(self.index).copied();
+        self.index = self.index.saturating_add(1);
+        sample
+    }
+
+    fn size_hint(&self) -> (usize, Option<usize>) {
+        let remaining = self.end.saturating_sub(self.index);
+        (remaining, Some(remaining))
+    }
+}
+
+impl Source for SharedSamplesSource {
+    fn current_span_len(&self) -> Option<usize> {
+        Some(self.end.saturating_sub(self.index) / self.channels.max(1) as usize)
+    }
+
+    fn channels(&self) -> u16 {
+        self.channels
+    }
+
+    fn sample_rate(&self) -> u32 {
+        self.sample_rate
+    }
+
+    fn total_duration(&self) -> Option<Duration> {
+        let frames = self.end.saturating_sub(self.index) / self.channels.max(1) as usize;
+        Some(Duration::from_secs_f32(
+            frames as f32 / self.sample_rate.max(1) as f32,
+        ))
+    }
+}
+
+struct PreviewState {
+    _stream: rodio::OutputStream,
+    cached_audio: Option<CachedAudio>,
+    sink: Option<Sink>,
+    clip: AudioClipSettings,
+    start_position_ms: u64,
+    started_at: Option<Instant>,
+    current_speed: f32,
+}
+
+impl PreviewState {
+    fn new() -> Result<Self> {
+        let stream = OutputStreamBuilder::open_default_stream()
+            .context("Could not open the default audio output")?;
+        Ok(Self {
+            _stream: stream,
+            cached_audio: None,
+            sink: None,
+            clip: AudioClipSettings::default(),
+            start_position_ms: 0,
+            started_at: None,
+            current_speed: 1.0,
+        })
+    }
+
+    fn cleanup(&mut self) {
+        if self.sink.as_ref().is_some_and(|sink| sink.empty()) {
+            self.stop();
+        }
+    }
+
+    fn stop(&mut self) {
+        if let Some(sink) = self.sink.take() {
+            sink.stop();
+        }
+        self.clip = AudioClipSettings::default();
+        self.start_position_ms = 0;
+        self.started_at = None;
+        self.current_speed = 1.0;
+    }
+
+    fn ensure_cached_audio(&mut self, path: &str) -> Result<()> {
+        let trimmed = path.trim();
+        if trimmed.is_empty() {
+            bail!("Choose an audio file first");
+        }
+        if self
+            .cached_audio
+            .as_ref()
+            .is_some_and(|cached| cached.path.as_path() == Path::new(trimmed))
+        {
+            return Ok(());
+        }
+        self.cached_audio = Some(load_cached_audio(trimmed)?);
+        Ok(())
+    }
+
+    fn play(&mut self, clip: AudioClipSettings, start_position_ms: u64) -> Result<()> {
+        if !clip.enabled || clip.file_path.trim().is_empty() {
+            bail!("Choose an audio file first");
+        }
+
+        self.stop();
+        self.ensure_cached_audio(&clip.file_path)?;
+        let cached = self
+            .cached_audio
+            .as_ref()
+            .expect("cached audio should exist after ensure_cached_audio");
+        let channels = cached.channels.max(1);
+        let sample_rate = cached.sample_rate.max(1);
+        let clip_start_ms = clip.start_ms;
+        let clip_end_ms = clip.end_ms.max(clip_start_ms + 1);
+        let start_position_ms = start_position_ms.clamp(clip_start_ms, clip_end_ms);
+        let start_frame = (((start_position_ms - clip_start_ms) as f32 / 1000.0)
+            * sample_rate as f32)
+            .floor() as usize;
+        let start_sample = start_frame.saturating_mul(channels as usize);
+        let end_frame = ((((clip_end_ms - clip_start_ms) as f32 / 1000.0) * sample_rate as f32)
+            .ceil() as usize)
+            .saturating_mul(channels as usize)
+            .min(cached.samples.len());
+        let end_sample = end_frame;
+        let total_duration_ms = ((end_sample.saturating_sub(start_sample)) as f32
+            / channels as f32
+            / sample_rate as f32
+            * 1000.0)
+            .round()
+            .max(0.0) as u64;
+        let start_position_ms = start_position_ms.min(clip_start_ms.saturating_add(total_duration_ms));
+        let source = SharedSamplesSource {
+            samples: Arc::clone(&cached.samples),
+            index: start_sample.min(end_sample),
+            end: end_sample,
+            channels,
+            sample_rate,
+        }
+        .speed(clip.speed.clamp(0.25, 3.0));
+
+        let sink = Sink::connect_new(self._stream.mixer());
+        sink.set_volume(clip.volume.clamp(0.0, 2.0));
+        sink.append(source);
+        sink.play();
+
+        self.clip = clip;
+        self.start_position_ms = start_position_ms;
+        self.started_at = Some(Instant::now());
+        self.current_speed = self.clip.speed.clamp(0.25, 3.0);
+        self.sink = Some(sink);
+        Ok(())
+    }
+
+    fn is_previewing(&mut self, clip: &AudioClipSettings) -> bool {
+        self.cleanup();
+        self.clip == *clip && self.sink.is_some()
+    }
+
+    fn position_ms(&mut self, clip: &AudioClipSettings) -> Option<u64> {
+        self.cleanup();
+        if self.clip != *clip {
+            return None;
+        }
+        let started_at = self.started_at?;
+        let elapsed_ms = started_at.elapsed().as_millis() as u64;
+        let played_ms = ((elapsed_ms as f32) * self.current_speed).round().max(0.0) as u64;
+        Some(
+            self.start_position_ms
+                .saturating_add(played_ms)
+                .min(self.clip.end_ms.max(self.clip.start_ms + 1)),
+        )
+    }
+}
+
+static PREVIEW_STATE: Lazy<Mutex<Option<PreviewState>>> = Lazy::new(|| Mutex::new(None));
 
 pub fn load_duration_ms(path: &str) -> Result<u64> {
     let decoder = open_decoder(path)?;
@@ -29,6 +208,14 @@ pub fn load_duration_ms(path: &str) -> Result<u64> {
         .total_duration()
         .context("Could not determine the audio duration")?;
     Ok(duration.as_millis() as u64)
+}
+
+pub fn preload_preview_audio(path: &str) -> Result<()> {
+    let mut state = preview_state()?;
+    state
+        .as_mut()
+        .expect("preview state should be initialized")
+        .ensure_cached_audio(path)
 }
 
 pub fn play_clip_async(clip: AudioClipSettings) {
@@ -111,10 +298,12 @@ pub fn toggle_preview(clip: AudioClipSettings) -> Result<bool> {
 }
 
 pub fn start_preview_from_ms(clip: AudioClipSettings, start_position_ms: u64) -> Result<()> {
-    if !clip.enabled || clip.file_path.trim().is_empty() {
-        bail!("Choose an audio file first");
-    }
-    start_preview_from_ms_inner(clip, start_position_ms)?;
+    let mut state = preview_state()?;
+    let start_position_ms = start_position_ms.clamp(clip.start_ms, clip.end_ms.max(clip.start_ms + 1));
+    state
+        .as_mut()
+        .expect("preview state should be initialized")
+        .play(clip, start_position_ms)?;
     Ok(())
 }
 
@@ -126,87 +315,65 @@ pub fn toggle_preview_from_ms(mut clip: AudioClipSettings, start_position_ms: u6
     let start_position_ms =
         start_position_ms.clamp(clip.start_ms, clip.end_ms.max(clip.start_ms + 1));
 
-    let mut playback = PREVIEW_PLAYBACK.lock();
-    cleanup_preview(&mut playback);
+    let mut state = preview_state()?;
+    state
+        .as_mut()
+        .expect("preview state should be initialized")
+        .cleanup();
 
-    if playback.as_ref().is_some_and(|current| {
-        current.clip == clip && current.start_position_ms == start_position_ms
-    }) {
-        if let Some(current) = playback.take() {
-            current.sink.stop();
-        }
+    if state.as_ref().expect("preview state should be initialized").sink.is_some()
+        && state
+            .as_ref()
+            .expect("preview state should be initialized")
+            .clip
+            == clip
+        && state
+            .as_ref()
+            .expect("preview state should be initialized")
+            .start_position_ms
+            == start_position_ms
+    {
+        state
+            .as_mut()
+            .expect("preview state should be initialized")
+            .stop();
         return Ok(false);
     }
 
-    start_preview_from_ms_inner_locked(playback, clip, start_position_ms)?;
+    state
+        .as_mut()
+        .expect("preview state should be initialized")
+        .play(clip, start_position_ms)?;
     Ok(true)
 }
 
-fn start_preview_from_ms_inner(clip: AudioClipSettings, start_position_ms: u64) -> Result<()> {
-    let start_position_ms =
-        start_position_ms.clamp(clip.start_ms, clip.end_ms.max(clip.start_ms + 1));
-    let mut playback = PREVIEW_PLAYBACK.lock();
-    cleanup_preview(&mut playback);
-    start_preview_from_ms_inner_locked(playback, clip, start_position_ms)
-}
-
-fn start_preview_from_ms_inner_locked(
-    mut playback: parking_lot::MutexGuard<'_, Option<PreviewPlayback>>,
-    clip: AudioClipSettings,
-    start_position_ms: u64,
-) -> Result<()> {
-    if let Some(current) = playback.take() {
-        current.sink.stop();
-    }
-
-    let stream = OutputStreamBuilder::open_default_stream()
-        .context("Could not open the default audio output")?;
-    let sink = Sink::connect_new(stream.mixer());
-    sink.set_volume(clip.volume.clamp(0.0, 2.0));
-    sink.append(clipped_source_from_ms(&clip, start_position_ms)?);
-    sink.play();
-
-    *playback = Some(PreviewPlayback {
-        clip,
-        started_at: Instant::now(),
-        start_position_ms,
-        _stream: stream,
-        sink,
-    });
-    Ok(())
-}
-
 pub fn stop_preview() {
-    if let Some(current) = PREVIEW_PLAYBACK.lock().take() {
-        current.sink.stop();
+    if let Ok(mut state) = preview_state() {
+        state
+            .as_mut()
+            .expect("preview state should be initialized")
+            .stop();
     }
 }
 
 pub fn is_previewing(clip: &AudioClipSettings) -> bool {
-    let mut playback = PREVIEW_PLAYBACK.lock();
-    cleanup_preview(&mut playback);
-    playback
-        .as_ref()
-        .is_some_and(|current| current.clip == *clip)
+    let Ok(mut state) = preview_state() else {
+        return false;
+    };
+    state
+        .as_mut()
+        .expect("preview state should be initialized")
+        .is_previewing(clip)
 }
 
 pub fn preview_position_ms(clip: &AudioClipSettings) -> Option<u64> {
-    let mut playback = PREVIEW_PLAYBACK.lock();
-    cleanup_preview(&mut playback);
-    let current = playback.as_ref()?;
-    if current.clip != *clip {
+    let Ok(mut state) = preview_state() else {
         return None;
-    }
-
-    let elapsed_ms = current.started_at.elapsed().as_millis() as u64;
-    let speed = current.clip.speed.clamp(0.25, 3.0);
-    let played_ms = ((elapsed_ms as f32) * speed).round().max(0.0) as u64;
-    Some(
-        current
-            .start_position_ms
-            .saturating_add(played_ms)
-            .min(current.clip.end_ms.max(current.clip.start_ms + 1)),
-    )
+    };
+    state
+        .as_mut()
+        .expect("preview state should be initialized")
+        .position_ms(clip)
 }
 
 pub fn load_waveform(path: &str, buckets: usize) -> Result<Vec<f32>> {
@@ -286,16 +453,28 @@ fn clipped_source_from_ms(
     }
 }
 
+fn preview_state() -> Result<parking_lot::MutexGuard<'static, Option<PreviewState>>> {
+    let mut state = PREVIEW_STATE.lock();
+    if state.is_none() {
+        *state = Some(PreviewState::new()?);
+    }
+    Ok(state)
+}
+
+fn load_cached_audio(path: &str) -> Result<CachedAudio> {
+    let mut decoder = open_decoder(path)?;
+    let channels = decoder.channels();
+    let sample_rate = decoder.sample_rate();
+    let samples: Vec<f32> = decoder.by_ref().collect();
+    Ok(CachedAudio {
+        path: Path::new(path).to_path_buf(),
+        channels,
+        sample_rate,
+        samples: Arc::from(samples.into_boxed_slice()),
+    })
+}
+
 fn open_decoder(path: &str) -> Result<Decoder<BufReader<File>>> {
     let file = File::open(path).with_context(|| format!("Failed to open audio file: {path}"))?;
     Decoder::new(BufReader::new(file)).context("Failed to decode the audio file")
-}
-
-fn cleanup_preview(playback: &mut Option<PreviewPlayback>) {
-    if playback
-        .as_ref()
-        .is_some_and(|current| current.sink.empty())
-    {
-        *playback = None;
-    }
 }
