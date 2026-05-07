@@ -2548,8 +2548,9 @@ impl CrosshairApp {
                         .as_deref()
                         .is_some_and(|current| Self::selector_base_title(current) == title)
                         && *match_duplicate_window_titles;
-                    let row_response = ui
+                    let row = ui
                         .horizontal(|ui| {
+                            ui.set_min_width(ui.available_width());
                             let response = ui.selectable_label(main_selected, &title);
                             if has_duplicates {
                                 ui.with_layout(
@@ -2560,8 +2561,12 @@ impl CrosshairApp {
                                 );
                             }
                             response
-                        })
-                        .inner;
+                        });
+                    let row_response = ui.interact(
+                        row.response.rect,
+                        ui.make_persistent_id((id_source, "window-target-row", title.as_str())),
+                        Sense::click(),
+                    );
 
                     if row_response.hovered() && has_duplicates {
                         expanded_title = Some(title.clone());
@@ -2579,7 +2584,7 @@ impl CrosshairApp {
                             for selector in &selectors {
                                 let child_selected = target.as_deref() == Some(selector.as_str())
                                     && !*match_duplicate_window_titles;
-                                let child_response = ui.selectable_label(child_selected, &title);
+                                let child_response = ui.selectable_label(child_selected, selector);
                                 child_hovered |= child_response.hovered();
                                 if child_response.clicked() {
                                     *target = Some(selector.clone());
