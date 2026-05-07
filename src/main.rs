@@ -31,7 +31,8 @@ fn main() -> Result<()> {
         return run_popup_blob(PopupBlobKind::AlreadyRunning);
     }
 
-    if args.iter().any(|arg| arg == "--admin") && platform::relaunch_as_admin_if_needed()? {
+    let skip_admin = args.iter().any(|arg| arg == "--no-admin");
+    if !skip_admin && platform::relaunch_as_admin_if_needed()? {
         return Ok(());
     }
 
@@ -104,7 +105,6 @@ fn main() -> Result<()> {
             .with_min_inner_size([900.0, 900.0])
             .with_decorations(false)
             .with_transparent(true)
-            .with_drag_and_drop(true)
             .with_icon(std::sync::Arc::new(app_icon::icon_data(128)?)),
         ..Default::default()
     };

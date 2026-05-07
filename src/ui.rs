@@ -402,8 +402,6 @@ pub struct CrosshairApp {
     active_audio_editor: Option<AudioEditorTarget>,
     trim_timeline_zoom: f32,
     preview_cursor: Option<(AudioEditorTarget, u64)>,
-    audio_drop_rect: Option<egui::Rect>,
-    audio_drop_armed: bool,
     capture_ignored_keys: HashSet<u32>,
     capture_hotkey_combo_keys: Option<Vec<String>>,
     capture_hotkey_combo_vks: HashSet<u32>,
@@ -508,8 +506,6 @@ impl CrosshairApp {
             active_audio_editor: None,
             trim_timeline_zoom: 1.0,
             preview_cursor: None,
-            audio_drop_rect: None,
-            audio_drop_armed: false,
             capture_ignored_keys: HashSet::new(),
             capture_hotkey_combo_keys: None,
             capture_hotkey_combo_vks: HashSet::new(),
@@ -1675,94 +1671,6 @@ impl CrosshairApp {
     }
 
 
-    fn import_audio_file_as_sound_preset(&mut self, path: PathBuf) {
-        let path_str = path.to_string_lossy().to_string();
-        let duration = audio::load_duration_ms(&path_str).ok();
-        let id = self.state.audio_settings.next_preset_id.max(1);
-        self.state.audio_settings.next_preset_id = id + 1;
-
-        let mut preset = SoundPreset::new(id);
-        let name = path
-            .file_stem()
-            .and_then(|stem| stem.to_str())
-            .filter(|stem| !stem.trim().is_empty())
-            .unwrap_or("Sound");
-        preset.name = name.to_owned();
-        preset.clip.file_path = path_str.clone();
-        preset.clip.start_ms = 0;
-        preset.clip.end_ms = duration.unwrap_or(0);
-        preset.clip.enabled = true;
-        self.state.audio_settings.presets.push(preset);
-        self.sound_preset_clip_duration_ms.insert(id, duration);
-        self.show_sound_preset_audio_editor.insert(id);
-        self.refresh_audio_waveform_for_path(&path_str);
-        self.sync_audio_settings();
-        self.persist();
-        self.status = format!("Imported sound preset {id}.");
-    }
-
-
-    fn consume_dropped_audio_files(&mut self, ctx: &egui::Context) -> bool {
-        let dropped_files = ctx.input(|input| input.raw.dropped_files.clone());
-        if dropped_files.is_empty() {
-            return false;
-        }
-
-        let pointer_pos =
-            ctx.input(|input| input.pointer.hover_pos().or(input.pointer.latest_pos()));
-        let panel_accepts_audio_drop =
-            matches!(self.state.active_panel, AppPanel::Sound | AppPanel::Media);
-        let accept_drop = panel_accepts_audio_drop
-            || self.audio_drop_armed
-            || self
-                .audio_drop_rect
-                .is_some_and(|rect| pointer_pos.is_some_and(|pos| rect.contains(pos)));
-        self.audio_drop_armed = false;
-        if !accept_drop {
-            return false;
-        }
-
-        let replace_target = self.active_audio_editor;
-        let mut imported_any = false;
-        for file in dropped_files {
-            if let Some(path) = file.path {
-                let is_audio = path
-                    .extension()
-                    .and_then(|ext| ext.to_str())
-                    .is_some_and(|ext| {
-                        matches!(
-                            ext.to_ascii_lowercase().as_str(),
-                            "mp3"
-                                | "wav"
-                                | "flac"
-                                | "ogg"
-                                | "m4a"
-                                | "aac"
-                                | "aif"
-                                | "aiff"
-                                | "mp4"
-                                | "mkv"
-                                | "webm"
-                                | "opus"
-                                | "wma"
-                                | "caf"
-                        )
-                    });
-                if is_audio {
-                    if let Some(AudioEditorTarget::Preset(preset_id)) = replace_target {
-                        self.replace_sound_preset_audio_file(preset_id, path);
-                    } else {
-                        self.import_audio_file_as_sound_preset(path);
-                    }
-                    imported_any = true;
-                    if replace_target.is_some() {
-                        break;
-                    }
-                }
-            }
-        }
-        imported_any
-    }
     fn choose_audio_file_for_library_item(&mut self, item_id: u32) {
         let Some(path) = rfd::FileDialog::new()
             .add_filter("Audio", &["mp3", "wav", "flac", "ogg", "m4a"])
@@ -13610,38 +13518,6 @@ impl CrosshairApp {
         true
     }
 
-    fn render_audio_drop_zone(
-        ui: &mut egui::Ui,
-        _language: UiLanguage,
-        title: &str,
-        hint: &str,
-    ) -> egui::Response {
-        let drop_fill = if ui.visuals().dark_mode {
-            Color32::from_rgba_premultiplied(34, 40, 52, 170)
-        } else {
-            Color32::from_rgba_premultiplied(244, 247, 251, 240)
-        };
-        let drop_stroke = if ui.visuals().dark_mode {
-            Color32::from_rgb(92, 160, 190)
-        } else {
-            Color32::from_rgb(100, 132, 170)
-        };
-        Frame::new()
-            .fill(drop_fill)
-            .stroke(Stroke::new(1.0, drop_stroke))
-            .corner_radius(12.0)
-            .inner_margin(egui::Margin::symmetric(10, 8))
-            .show(ui, |ui| {
-                ui.set_min_height(44.0);
-                ui.vertical_centered(|ui| {
-                    ui.label(RichText::new(title).strong());
-                    ui.label(RichText::new(hint).small().weak());
-                });
-            })
-            .response
-            .interact(Sense::click_and_drag())
-    }
-
     fn render_sound_panel(&mut self, ui: &mut egui::Ui) {
         let language = self.state.ui_language;
         let previous_item_spacing = ui.spacing().item_spacing;
@@ -13661,30 +13537,6 @@ impl CrosshairApp {
                 changed = true;
             }
         });
-
-        ui.add_space(4.0);
-        let drop_response = Self::render_audio_drop_zone(
-            ui,
-            language,
-            &Self::tr_lang(
-                language,
-                "Drop audio files here to create sound presets",
-                "Tha file âm thanh vào đây để tạo sound preset",
-            ),
-            &Self::tr_lang(
-                language,
-                "Supports mp3, wav, flac, ogg, and m4a",
-                "Hỗ trợ mp3, wav, flac, ogg và m4a",
-            ),
-        );
-        self.audio_drop_rect = Some(drop_response.rect.expand(8.0));
-        let hovered_files = ui.ctx().input(|input| input.raw.hovered_files.clone());
-        let drop_armed = !hovered_files.is_empty();
-        self.audio_drop_armed = drop_armed;
-        if drop_armed {
-            ui.ctx().set_cursor_icon(egui::CursorIcon::Copy);
-        }
-
 
         let mut remove_sound_preset = None;
         for index in 0..self.state.audio_settings.presets.len() {
@@ -14040,40 +13892,20 @@ impl CrosshairApp {
             if ui.button(self.tr("Back", "Back")).clicked() {
                 self.close_audio_editor();
             }
+            if ui.button(self.tr("Choose audio file", "Choose audio file")).clicked() {
+                match target {
+                    AudioEditorTarget::Preset(preset_id) => {
+                        self.choose_audio_file_for_sound_preset(preset_id)
+                    }
+                    AudioEditorTarget::Library(item_id) => {
+                        self.choose_audio_file_for_library_item(item_id)
+                    }
+                    AudioEditorTarget::Startup => self.choose_audio_file(true),
+                    AudioEditorTarget::Exit => self.choose_audio_file(false),
+                }
+            }
         });
         ui.separator();
-
-        ui.add_space(4.0);
-        let drop_response = Self::render_audio_drop_zone(
-            ui,
-            language,
-            &Self::tr_lang(
-                language,
-                "Drop audio file here to replace this sound",
-                "Tha file âm thanh vào đây để thay sound này",
-            ),
-            &Self::tr_lang(
-                language,
-                "Click to open the audio browser",
-                "Bấm để mở trình chọn file âm thanh",
-            ),
-        );
-        self.audio_drop_rect = Some(drop_response.rect.expand(8.0));
-        let hovered_files = ui.ctx().input(|input| input.raw.hovered_files.clone());
-        let drop_armed = !hovered_files.is_empty();
-        self.audio_drop_armed = drop_armed;
-        if drop_armed {
-            ui.ctx().set_cursor_icon(egui::CursorIcon::Copy);
-        }
-        if drop_response.clicked() {
-            match target {
-                AudioEditorTarget::Preset(preset_id) => self.choose_audio_file_for_sound_preset(preset_id),
-                AudioEditorTarget::Library(item_id) => self.choose_audio_file_for_library_item(item_id),
-                AudioEditorTarget::Startup => self.choose_audio_file(true),
-                AudioEditorTarget::Exit => self.choose_audio_file(false),
-            }
-        }
-
 
         match target {
             AudioEditorTarget::Preset(preset_id) => {
@@ -14502,10 +14334,6 @@ impl eframe::App for CrosshairApp {
         if self.native_shadow_applied != wants_native_shadow {
             crate::platform::set_native_window_shadow(frame, wants_native_shadow);
             self.native_shadow_applied = wants_native_shadow;
-        }
-        if !matches!(self.state.active_panel, AppPanel::Sound | AppPanel::Media) {
-            self.audio_drop_rect = None;
-            self.audio_drop_armed = false;
         }
         while let Ok(command) = self.ui_rx.try_recv() {
             match command {
@@ -15044,15 +14872,6 @@ impl eframe::App for CrosshairApp {
             }
         }
 
-        let audio_file_hover = matches!(self.state.active_panel, AppPanel::Sound | AppPanel::Media)
-            && ctx.input(|input| !input.raw.hovered_files.is_empty());
-        if audio_file_hover {
-            ctx.request_repaint_after(Duration::from_millis(16));
-            self.audio_drop_armed = true;
-            ctx.set_cursor_icon(egui::CursorIcon::Copy);
-        }
-
-        let _ = self.consume_dropped_audio_files(ctx);
         self.poll_capture_input(ctx);
     }
 
