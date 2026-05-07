@@ -237,8 +237,8 @@ pub enum AppPanel {
     #[serde(alias = "Bindings")]
     Sound,
     Media,
-    #[serde(alias = "Toolbox")]
-    Settings,
+    #[serde(alias = "Settings")]
+    Toolbox,
 }
 
 #[derive(Debug, Clone, Copy, Serialize, Deserialize, PartialEq, Eq, Default)]

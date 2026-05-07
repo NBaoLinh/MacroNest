@@ -444,6 +444,7 @@ pub struct CrosshairApp {
     startup_splash: StartupSplashState,
     hidden_window_inner_size: Option<egui::Vec2>,
     hidden_window_outer_pos: Option<egui::Pos2>,
+    settings_popup_open: bool,
     zoom_preview_cache: HashMap<u32, ZoomPreviewCache>,
     image_search_preview_cache: HashMap<u32, ImageSearchPreviewCache>,
     image_search_color_pick_texture: Option<TextureHandle>,
@@ -547,6 +548,7 @@ impl CrosshairApp {
             },
             hidden_window_inner_size: None,
             hidden_window_outer_pos: None,
+            settings_popup_open: false,
             zoom_preview_cache: HashMap::new(),
             image_search_preview_cache: HashMap::new(),
             image_search_color_pick_texture: None,
@@ -2098,7 +2100,7 @@ impl CrosshairApp {
             AppPanel::ImageSearch => 0xe8b6,
             AppPanel::Macros | AppPanel::Modes => 0xe312,
             AppPanel::Sound | AppPanel::Media => 0xe050,
-            AppPanel::Settings => 0xe8b8,
+            AppPanel::Toolbox => 0xe8b8,
         }
     }
 
@@ -2112,7 +2114,7 @@ impl CrosshairApp {
             AppPanel::Macros | AppPanel::Modes => "Macro",
             AppPanel::Sound => "Sound",
             AppPanel::Media => "Media",
-            AppPanel::Settings => "Settings",
+            AppPanel::Toolbox => "Toolbox",
         };
         Self::tr_lang(self.state.ui_language, english, english)
     }
@@ -13725,7 +13727,7 @@ impl CrosshairApp {
         self.trim_timeline_zoom = trim_timeline_zoom;
     }
 
-    fn render_settings_panel(&mut self, ui: &mut egui::Ui) {
+    fn render_settings_popup(&mut self, ui: &mut egui::Ui) {
         let language = self.state.ui_language;
         ui.add_space(2.0);
         let mut ai_changed = false;
@@ -13760,6 +13762,12 @@ impl CrosshairApp {
                 }
             });
         });
+        if ai_changed {
+            self.persist();
+        }
+    }
+
+    fn render_toolbox_panel(&mut self, ui: &mut egui::Ui) {
         ui.add_space(8.0);
         if ui
             .button(self.tr(
@@ -13920,9 +13928,6 @@ impl CrosshairApp {
             changed = true;
         }
         self.sync_toolbox_preview(active_preview.as_ref());
-        if changed || ai_changed {
-            self.persist();
-        }
         if changed {
             self.persist_toolbox_presets();
         }
@@ -14235,8 +14240,8 @@ impl eframe::App for CrosshairApp {
         }
 
         if self.state.active_panel != self.last_active_panel {
-            if self.last_active_panel == AppPanel::Settings
-                && self.state.active_panel != AppPanel::Settings
+            if self.last_active_panel == AppPanel::Toolbox
+                && self.state.active_panel != AppPanel::Toolbox
             {
                 self.clear_toolbox_preview();
             }
@@ -14472,10 +14477,10 @@ impl eframe::App for CrosshairApp {
                                     ),
                                 ),
                                 show_icon_tooltips,
-                                self.panel_label(AppPanel::Settings),
+                                Self::tr_lang(self.state.ui_language, "Settings", "Settings"),
                             );
                             if settings_response.clicked() {
-                                self.state.active_panel = AppPanel::Settings;
+                                self.settings_popup_open = !self.settings_popup_open;
                             }
                         }
 
@@ -14579,18 +14584,18 @@ impl eframe::App for CrosshairApp {
                             self.state.active_panel = AppPanel::Media;
                         }
                     }
-                    let text = RichText::new(self.panel_label(AppPanel::Settings));
+                    let text = RichText::new(self.panel_label(AppPanel::Toolbox));
                     let response = Self::hover_if(
                         ui.add(self.top_tab_button(
                             text,
-                            self.state.active_panel == AppPanel::Settings,
+                            self.state.active_panel == AppPanel::Toolbox,
                             false,
                         )),
                         show_icon_tooltips,
-                        self.panel_label(AppPanel::Settings),
+                        self.panel_label(AppPanel::Toolbox),
                     );
                     if response.clicked() {
-                        self.state.active_panel = AppPanel::Settings;
+                        self.state.active_panel = AppPanel::Toolbox;
                     }
                 });
             });
@@ -14620,8 +14625,8 @@ impl eframe::App for CrosshairApp {
                         AppPanel::Modes => self.render_macro_panel(ui),
                         AppPanel::Macros => self.render_macro_panel(ui),
                         AppPanel::Sound => self.render_sound_panel(ui),
+                        AppPanel::Toolbox => self.render_toolbox_panel(ui),
                         AppPanel::Media => self.render_media_panel(ui),
-                        AppPanel::Settings => self.render_settings_panel(ui),
                     }
                     ui.separator();
                     if self.capture_target.is_some() {
@@ -14629,6 +14634,21 @@ impl eframe::App for CrosshairApp {
                     }
                 });
         });
+
+        if self.settings_popup_open {
+            let mut settings_popup_open = self.settings_popup_open;
+            egui::Window::new(Self::tr_lang(self.state.ui_language, "Settings", "Settings"))
+                .id(egui::Id::new("settings_popup"))
+                .collapsible(false)
+                .resizable(true)
+                .default_width(520.0)
+                .default_height(260.0)
+                .open(&mut settings_popup_open)
+                .show(ctx, |ui| {
+                    self.render_settings_popup(ui);
+                });
+            self.settings_popup_open = settings_popup_open;
+        }
 
         self.poll_capture_input(ctx);
     }
