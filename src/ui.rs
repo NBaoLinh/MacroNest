@@ -2398,12 +2398,6 @@ impl CrosshairApp {
                 }
             });
             ui.horizontal_wrapped(|ui| {
-                outcome.changed |= ui
-                    .checkbox(
-                        &mut clip.enabled,
-                        Self::tr_lang(language, "Enabled", "Enabled"),
-                    )
-                    .changed();
                 if ui
                     .button(Self::material_icon_text(0xe145, 18.0))
                     .on_hover_text(Self::tr_lang(
@@ -12722,19 +12716,15 @@ impl CrosshairApp {
                 .flatten()
                 .or_else(|| audio_duration(&preset.clip));
             let mut show_editor = self.show_sound_preset_audio_editor.contains(&preset.id);
+            if !preset.clip.enabled {
+                preset.clip.enabled = true;
+                changed = true;
+            }
 
             ui.add_space(6.0);
             ui.vertical(|ui| {
                 ui.set_min_width(ui.available_width());
                 ui.horizontal(|ui| {
-                    changed |= ui
-                        .checkbox(&mut preset.clip.enabled, "")
-                        .on_hover_text(Self::tr_lang(
-                            language,
-                            "Enable this sound preset",
-                            "Bật preset âm thanh này",
-                        ))
-                        .changed();
                     changed |= ui
                         .add_sized([220.0, 24.0], TextEdit::singleline(&mut preset.name))
                         .changed();

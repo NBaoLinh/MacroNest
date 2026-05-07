@@ -1258,7 +1258,10 @@ impl SoundPreset {
             id,
             name: format!("Sound {id}"),
             collapsed: true,
-            clip: AudioClipSettings::default(),
+            clip: AudioClipSettings {
+                enabled: true,
+                ..AudioClipSettings::default()
+            },
             sequence_library_ids: Vec::new(),
         }
     }
