@@ -6714,7 +6714,7 @@ impl CrosshairApp {
         let language = self.state.ui_language;
         ui.spacing_mut().slider_width = 260.0;
         ui.horizontal_wrapped(|ui| {
-            ui.heading(self.panel_label(AppPanel::Crosshair));
+        ui.add_space(2.0);
             if ui
                 .button(Self::tr_lang(language, "+ Add preset", "+ Add preset"))
                 .clicked()
@@ -6815,7 +6815,7 @@ impl CrosshairApp {
     }
 
     fn render_window_presets_panel(&mut self, ui: &mut egui::Ui) {
-        ui.heading(self.panel_label(AppPanel::WindowPresets));
+        ui.add_space(2.0);
         ui.label(self.tr(
             "Resize presets can move, resize, animate, and restore title bars. Focus presets only bring one chosen window to the foreground.",
             "Preset cửa sổ có thể di chuyển, đổi kích thước, animate và khôi phục thanh tiêu đề. Preset focus chỉ đưa một cửa sổ đã chọn lên trước.",
@@ -7401,7 +7401,7 @@ impl CrosshairApp {
 
     fn render_pin_panel(&mut self, ui: &mut egui::Ui) {
         let language = self.state.ui_language;
-        ui.heading(self.panel_label(AppPanel::Pin));
+        ui.add_space(2.0);
         ui.label(self.tr(
             "Pin one chosen app on top of the screen. If custom bounds are off, the pinned view uses the original window position and size.",
             "Ghim một app lên trên màn hình. Nếu tắt custom bounds thì khung ghim sẽ dùng vị trí và kích thước gốc của cửa sổ.",
@@ -7940,17 +7940,20 @@ impl CrosshairApp {
 
     fn render_macro_panel(&mut self, ui: &mut egui::Ui) {
         let language = self.state.ui_language;
-        ui.heading(self.panel_label(AppPanel::Macros));
+        ui.add_space(2.0);
         ui.horizontal_wrapped(|ui| {
             ui.label(Self::material_icon_text(0xe8b6, 18.0));
             ui.label(Self::tr_lang(language, "Search", "Tìm"));
             ui.add_sized(
                 [260.0, 24.0],
-                TextEdit::singleline(&mut self.macro_preset_search_query).hint_text(Self::tr_lang(
-                    language,
-                    "Search macro groups and presets",
-                    "Tìm group macro và preset",
-                )),
+                TextEdit::singleline(&mut self.macro_preset_search_query).hint_text(
+                    RichText::new(Self::tr_lang(
+                        language,
+                        "Search macro groups and presets",
+                        "Tìm group macro và preset",
+                    ))
+                    .weak(),
+                ),
             );
         });
 
@@ -10898,7 +10901,7 @@ impl CrosshairApp {
     }
 
     fn render_mouse_panel(&mut self, ui: &mut egui::Ui) {
-        ui.heading(self.panel_label(AppPanel::Mouse));
+        ui.add_space(2.0);
         ui.label(self.tr(
             "Macros, driver, arrows.",
             "Macro chuot, backend driver, va di chuot bang mui ten.",
@@ -11476,7 +11479,7 @@ impl CrosshairApp {
 
     fn render_image_search_panel(&mut self, ui: &mut egui::Ui, ctx: &egui::Context) {
         let language = self.state.ui_language;
-        ui.heading(self.panel_label(AppPanel::ImageSearch));
+        ui.add_space(2.0);
 
         ui.horizontal(|ui| {
             if ui
@@ -12678,7 +12681,7 @@ impl CrosshairApp {
 
     fn render_sound_panel(&mut self, ui: &mut egui::Ui) {
         let language = self.state.ui_language;
-        ui.heading(self.panel_label(AppPanel::Sound));
+        ui.add_space(2.0);
         ui.label(self.tr(
             "Manage startup, exit, and reusable sound presets for macro steps.",
             "Quản lý âm thanh lúc mở app, tắt app và các preset âm thanh dùng lại cho macro.",
@@ -13734,7 +13737,7 @@ impl CrosshairApp {
     }
 
     fn render_settings_panel(&mut self, ui: &mut egui::Ui) {
-        ui.heading(self.panel_label(AppPanel::Settings));
+        ui.add_space(2.0);
         if ui
             .button(self.tr(
                 "+ Add toolbox preset",
