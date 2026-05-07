@@ -2515,11 +2515,22 @@ impl CrosshairApp {
         allow_none: bool,
     ) -> bool {
         let mut changed = false;
+        let window_groups = Self::grouped_window_selectors(open_windows);
         let selected_text = target
             .as_deref()
-            .map(Self::selector_base_title)
-            .unwrap_or(label_when_none)
-            .to_owned();
+            .map(|current| {
+                let base_title = Self::selector_base_title(current);
+                let selected_specific_duplicate = !*match_duplicate_window_titles
+                    && window_groups.iter().any(|(title, selectors)| {
+                        title == base_title && selectors.len() > 1
+                    });
+                if selected_specific_duplicate {
+                    current.to_owned()
+                } else {
+                    base_title.to_owned()
+                }
+            })
+            .unwrap_or(label_when_none.to_owned());
         let popup_state_id = ui.make_persistent_id((id_source, "duplicate-title-hover"));
         let mut expanded_title = ui
             .ctx()
@@ -2541,31 +2552,21 @@ impl CrosshairApp {
                     }
                 }
 
-                for (title, selectors) in Self::grouped_window_selectors(open_windows) {
+                for (title, selectors) in window_groups {
                     let has_duplicates = selectors.len() > 1;
                     let first_selector = selectors.first().cloned().unwrap_or_default();
                     let main_selected = target
                         .as_deref()
                         .is_some_and(|current| Self::selector_base_title(current) == title)
                         && *match_duplicate_window_titles;
-                    let row = ui
-                        .horizontal(|ui| {
-                            ui.set_min_width(ui.available_width());
-                            let response = ui.selectable_label(main_selected, &title);
-                            if has_duplicates {
-                                ui.with_layout(
-                                    egui::Layout::right_to_left(egui::Align::Center),
-                                    |ui| {
-                                        ui.label(RichText::new(">").weak());
-                                    },
-                                );
-                            }
-                            response
-                        });
-                    let row_response = ui.interact(
-                        row.response.rect,
-                        ui.make_persistent_id((id_source, "window-target-row", title.as_str())),
-                        Sense::click(),
+                    let row_label = if has_duplicates {
+                        format!("{title}  >")
+                    } else {
+                        title.clone()
+                    };
+                    let row_response = ui.add_sized(
+                        [ui.available_width(), 22.0],
+                        Button::selectable(main_selected, row_label),
                     );
 
                     if row_response.hovered() && has_duplicates {
@@ -2584,7 +2585,10 @@ impl CrosshairApp {
                             for selector in &selectors {
                                 let child_selected = target.as_deref() == Some(selector.as_str())
                                     && !*match_duplicate_window_titles;
-                                let child_response = ui.selectable_label(child_selected, selector);
+                                let child_response = ui.add_sized(
+                                    [ui.available_width(), 22.0],
+                                    Button::selectable(child_selected, selector),
+                                );
                                 child_hovered |= child_response.hovered();
                                 if child_response.clicked() {
                                     *target = Some(selector.clone());
