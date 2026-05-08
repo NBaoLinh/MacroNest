@@ -6109,8 +6109,10 @@ impl CrosshairApp {
         let (left, top, width, _height) = window_list::virtual_screen_bounds();
         let ppp = ctx.pixels_per_point().max(0.5);
         let size = vec2(430.0, 92.0);
-        let center_x = (left as f32 + width as f32 * 0.5) / ppp;
-        let pos = pos2(center_x - size.x * 0.5, top as f32 / ppp + 18.0);
+        let margin = 18.0;
+        let x = (left as f32 + width as f32) / ppp - size.x - margin;
+        let y = top as f32 / ppp + margin;
+        let pos = pos2(x.max(0.0), y.max(0.0));
         (pos, size)
     }
 
