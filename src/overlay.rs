@@ -225,6 +225,15 @@ mod windows_overlay {
         MousePathRecordingStarted(u32, String),
         MousePathRecordingFinished(u32, Vec<MousePathEvent>, String),
         ImageSearchFinished(String),
+        ImageSearchPointCaptured {
+            preset_id: u32,
+            timing_preset: bool,
+            priority_anchor: bool,
+            screen_x: i32,
+            screen_y: i32,
+            color: Option<RgbaColor>,
+        },
+        ImageSearchPointCaptureCancelled(String),
     }
 
     pub struct OverlayHandle {
@@ -9114,7 +9123,7 @@ mod fallback {
 
     use crate::{
         model::{
-            AudioSettings, CrosshairStyle, ImageSearchPreset, MacroGroup, ProfileRecord,
+            AudioSettings, CrosshairStyle, ImageSearchPreset, MacroGroup, ProfileRecord, RgbaColor,
             WindowExpandControls, WindowFocusPreset, WindowPreset,
         },
         storage::AppPaths,
@@ -9142,6 +9151,15 @@ mod fallback {
         ShowWindow,
         Exit,
         ImageSearchFinished(String),
+        ImageSearchPointCaptured {
+            preset_id: u32,
+            timing_preset: bool,
+            priority_anchor: bool,
+            screen_x: i32,
+            screen_y: i32,
+            color: Option<RgbaColor>,
+        },
+        ImageSearchPointCaptureCancelled(String),
     }
 
     pub struct OverlayHandle;

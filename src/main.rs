@@ -55,7 +55,7 @@ fn main() -> Result<()> {
     let mut state = paths.load_state()?;
     state.show_window = true;
     let (ui_tx, ui_rx) = unbounded();
-    let overlay = overlay::start(paths.clone(), state.active_style.clone(), ui_tx)?;
+    let overlay = overlay::start(paths.clone(), state.active_style.clone(), ui_tx.clone())?;
     overlay.send(OverlayCommand::Update(state.active_style.clone()));
     overlay.send(OverlayCommand::UpdateProfiles(state.profiles.clone()));
     overlay.send(OverlayCommand::UpdateWindowPresets(
@@ -114,7 +114,9 @@ fn main() -> Result<()> {
         native_options,
         Box::new(move |cc| {
             ui::configure_fonts(&cc.egui_ctx);
-            Ok(Box::new(CrosshairApp::new(paths, state, overlay_tx, ui_rx)))
+            Ok(Box::new(CrosshairApp::new(
+                paths, state, overlay_tx, ui_tx, ui_rx,
+            )))
         }),
     )
     .map_err(|error| anyhow::anyhow!(error.to_string()))?;
