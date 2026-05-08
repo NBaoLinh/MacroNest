@@ -1224,11 +1224,10 @@ impl CrosshairApp {
     fn update_image_search_cursor_preview(
         &mut self,
         ctx: &egui::Context,
-        pointer: egui::Pos2,
+        screen_x: i32,
+        screen_y: i32,
         sample_size: i32,
     ) -> Option<RgbaColor> {
-        let (screen_x, screen_y) =
-            self.screen_point_from_pos(ctx, pointer, ctx.pixels_per_point())?;
         let sample_size = sample_size.max(3) | 1;
         let half = sample_size / 2;
         let left = screen_x - half;
@@ -6041,7 +6040,7 @@ impl CrosshairApp {
         ctx.send_viewport_cmd(egui::ViewportCommand::RequestUserAttention(
             egui::UserAttentionType::Informational,
         ));
-        ctx.request_repaint();
+        ctx.request_repaint_after(Duration::from_millis(33));
     }
 
     fn finish_mouse_move_absolute_capture(
@@ -6092,7 +6091,7 @@ impl CrosshairApp {
         ctx.send_viewport_cmd(egui::ViewportCommand::RequestUserAttention(
             egui::UserAttentionType::Informational,
         ));
-        ctx.request_repaint();
+        ctx.request_repaint_after(Duration::from_millis(33));
         self.persist();
         self.sync_macro_presets();
     }
@@ -6229,7 +6228,7 @@ impl CrosshairApp {
             target,
             mode == ImageSearchCaptureMode::Template,
         );
-        ctx.request_repaint();
+        ctx.request_repaint_after(Duration::from_millis(33));
     }
 
     fn spawn_image_search_point_capture(
@@ -14166,12 +14165,23 @@ impl CrosshairApp {
                     "Click a point to capture the mouse X/Y. Press Esc to cancel.",
                     "Báº¥m vÃ o Ä‘iá»ƒm muá»‘n láº¥y tá»a Ä‘á»™ chuá»™t X/Y. Nháº¥n Esc Ä‘á»ƒ há»§y.",
                 );
-                ui.label(RichText::new(instruction).strong().color(Color32::WHITE));
+                let rect = ui.max_rect();
+                let painter = ui.painter_at(rect);
+                painter.text(
+                    rect.left_top() + vec2(18.0, 18.0),
+                    egui::Align2::LEFT_TOP,
+                    instruction,
+                    egui::FontId::proportional(18.0),
+                    Color32::WHITE,
+                );
                 if let Some((x, y)) = Self::current_screen_cursor_pos() {
-                    ui.label(
-                        RichText::new(format!("Cursor: X {x}  Y {y}"))
-                            .monospace()
-                            .color(Color32::from_rgb(154, 222, 255)),
+                    let sampled_color = self.update_image_search_cursor_preview(ctx, x, y, 21);
+                    self.render_image_search_cursor_preview_panel(
+                        &painter,
+                        rect,
+                        rect.center(),
+                        sampled_color,
+                        Some((x, y)),
                     );
                 }
                 if ctx.input(|input| input.key_pressed(egui::Key::Escape)) {
