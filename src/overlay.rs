@@ -1178,7 +1178,7 @@ mod windows_overlay {
                 let key_name = hotkey::vk_to_key_name(info.vkCode).map(str::to_owned);
 
                 if let Some(key_name) = key_name.clone() {
-                    let binding = binding_from_event(&key_name);
+                    let binding = binding_from_trigger_event(&key_name);
                     if key_name.eq_ignore_ascii_case("Tab") && binding.alt {
                         update_held_key(&key_name, is_key_down, is_key_up);
                         update_modifier_state(info.vkCode, is_key_down);
@@ -1195,6 +1195,7 @@ mod windows_overlay {
                     if is_key_up {
                         swallow |= process_binding_release(&binding);
                     }
+                    swallow |= binding_matches_any_hold_macro(&binding);
                     swallow |= keyboard_arrow_mouse_should_swallow(&key_name);
                     swallow |= is_locked_input(&key_name);
                     update_modifier_state(info.vkCode, is_key_down);
@@ -1339,32 +1340,33 @@ mod windows_overlay {
                 return CallNextHookEx(None, code, wparam, lparam);
             }
             let event = match (wparam.0 as u32, ((info.mouseData >> 16) & 0xFFFF) as u16) {
-                (WM_LBUTTONDOWN, _) => Some((binding_from_event("MouseLeft"), true)),
-                (WM_LBUTTONUP, _) => Some((binding_from_event("MouseLeft"), false)),
-                (WM_RBUTTONDOWN, _) => Some((binding_from_event("MouseRight"), true)),
-                (WM_RBUTTONUP, _) => Some((binding_from_event("MouseRight"), false)),
-                (WM_MBUTTONDOWN, _) => Some((binding_from_event("MouseMiddle"), true)),
+                (WM_LBUTTONDOWN, _) => Some((binding_from_trigger_event("MouseLeft"), true)),
+                (WM_LBUTTONUP, _) => Some((binding_from_trigger_event("MouseLeft"), false)),
+                (WM_RBUTTONDOWN, _) => Some((binding_from_trigger_event("MouseRight"), true)),
+                (WM_RBUTTONUP, _) => Some((binding_from_trigger_event("MouseRight"), false)),
+                (WM_MBUTTONDOWN, _) => Some((binding_from_trigger_event("MouseMiddle"), true)),
                 (windows::Win32::UI::WindowsAndMessaging::WM_MBUTTONUP, _) => {
-                    Some((binding_from_event("MouseMiddle"), false))
+                    Some((binding_from_trigger_event("MouseMiddle"), false))
                 }
-                (WM_XBUTTONDOWN, XBUTTON1_DATA) => Some((binding_from_event("MouseX1"), true)),
-                (WM_XBUTTONUP, XBUTTON1_DATA) => Some((binding_from_event("MouseX1"), false)),
-                (WM_XBUTTONDOWN, XBUTTON2_DATA) => Some((binding_from_event("MouseX2"), true)),
-                (WM_XBUTTONUP, XBUTTON2_DATA) => Some((binding_from_event("MouseX2"), false)),
+                (WM_XBUTTONDOWN, XBUTTON1_DATA) => Some((binding_from_trigger_event("MouseX1"), true)),
+                (WM_XBUTTONUP, XBUTTON1_DATA) => Some((binding_from_trigger_event("MouseX1"), false)),
+                (WM_XBUTTONDOWN, XBUTTON2_DATA) => Some((binding_from_trigger_event("MouseX2"), true)),
+                (WM_XBUTTONUP, XBUTTON2_DATA) => Some((binding_from_trigger_event("MouseX2"), false)),
                 _ => None,
             };
-            if let Some((binding, is_down)) = event {
-                update_held_mouse_button(message, ((info.mouseData >> 16) & 0xFFFF) as u16);
+                if let Some((binding, is_down)) = event {
+                    update_held_mouse_button(message, ((info.mouseData >> 16) & 0xFFFF) as u16);
                 let swallow = if is_down {
                     process_binding_press(&binding, false).unwrap_or(false)
                 } else {
                     process_binding_release(&binding)
                 };
+                let swallow = swallow || binding_matches_any_hold_macro(&binding);
                 return if swallow {
                     LRESULT(1)
                 } else {
-                    CallNextHookEx(None, code, wparam, lparam)
-                };
+                        CallNextHookEx(None, code, wparam, lparam)
+                    };
             }
         }
         CallNextHookEx(None, code, wparam, lparam)
@@ -1388,6 +1390,43 @@ mod windows_overlay {
             keys
         };
         combo_keys.retain(|key| !key.trim().is_empty());
+        combo_keys.sort_by(|a, b| {
+            let rank_a = hotkey_binding_rank(a);
+            let rank_b = hotkey_binding_rank(b);
+            rank_a
+                .cmp(&rank_b)
+                .then_with(|| a.to_ascii_lowercase().cmp(&b.to_ascii_lowercase()))
+        });
+        combo_keys.dedup_by(|a, b| a.eq_ignore_ascii_case(b));
+        HotkeyBinding {
+            ctrl: ctrl_down && !key_name.eq_ignore_ascii_case("Ctrl"),
+            alt: alt_down && !key_name.eq_ignore_ascii_case("Alt"),
+            shift: shift_down && !key_name.eq_ignore_ascii_case("Shift"),
+            win: win_down && !key_name.eq_ignore_ascii_case("Win"),
+            key: key_name.to_owned(),
+            combo_keys,
+        }
+    }
+
+    fn binding_from_trigger_event(key_name: &str) -> HotkeyBinding {
+        let ctrl_down = unsafe { GetAsyncKeyState(0x11) } < 0;
+        let alt_down = unsafe { GetAsyncKeyState(0x12) } < 0;
+        let shift_down = unsafe { GetAsyncKeyState(0x10) } < 0;
+        let win_down =
+            unsafe { GetAsyncKeyState(0x5B) } < 0 || unsafe { GetAsyncKeyState(0x5C) } < 0;
+        let mut combo_keys = vec![key_name.to_owned()];
+        if ctrl_down {
+            combo_keys.push("Ctrl".to_owned());
+        }
+        if alt_down {
+            combo_keys.push("Alt".to_owned());
+        }
+        if shift_down {
+            combo_keys.push("Shift".to_owned());
+        }
+        if win_down {
+            combo_keys.push("Win".to_owned());
+        }
         combo_keys.sort_by(|a, b| {
             let rank_a = hotkey_binding_rank(a);
             let rank_b = hotkey_binding_rank(b);
@@ -1770,12 +1809,35 @@ mod windows_overlay {
     }
 
     fn hold_macro_release_matches(active: &ActiveHoldMacro, binding: &HotkeyBinding) -> bool {
-        if binding_is_single_key(&active.trigger)
-            && active.trigger.key.eq_ignore_ascii_case(&binding.key)
-        {
-            return true;
+        active.trigger.key.eq_ignore_ascii_case(&binding.key)
+    }
+
+    fn binding_matches_any_hold_macro(binding: &HotkeyBinding) -> bool {
+        let hook_state = HOOK_STATE.lock();
+        hook_state.macro_groups.iter().any(|group| {
+            group.enabled
+                && macro_target_matches(group)
+                && group.presets.iter().any(|preset| {
+                    preset.enabled
+                        && preset.trigger_mode == MacroTriggerMode::Hold
+                        && macro_preset_trigger_matches(preset, binding)
+                })
+        })
+    }
+
+    fn trigger_binding_matches(expected: &HotkeyBinding, observed: &HotkeyBinding) -> bool {
+        let expected_keys = hotkey::binding_key_names(expected);
+        if expected_keys.is_empty() {
+            return false;
         }
-        hotkey::binding_matches(&active.trigger, binding)
+        let observed_keys = hotkey::binding_key_names(observed)
+            .into_iter()
+            .map(|key| key.to_ascii_lowercase())
+            .collect::<HashSet<_>>();
+        expected_keys
+            .into_iter()
+            .map(|key| key.to_ascii_lowercase())
+            .all(|key| observed_keys.contains(&key))
     }
 
     fn remove_pending_press_trigger_key(key_name: &str) -> Option<String> {
@@ -1907,7 +1969,6 @@ mod windows_overlay {
             return Some(swallow);
         }
 
-        let is_single_key_binding = binding_is_single_key(binding);
         let hook_state = HOOK_STATE.lock();
         let mut matched_any_window = false;
         let mut window_actions = Vec::new();
@@ -2072,10 +2133,6 @@ mod windows_overlay {
                     continue;
                 }
 
-                if is_single_key_binding {
-                    continue;
-                }
-
                 press_matches.push((
                     preset.clone(),
                     group.target_window_title.clone(),
@@ -2088,7 +2145,7 @@ mod windows_overlay {
 
         drop(hook_state);
 
-        if !is_single_key_binding && matched_any_press {
+        if matched_any_press {
             for key_name in consume_pending_press_trigger_keys(binding) {
                 increment_press_trigger_suppression(&key_name);
             }
@@ -2153,13 +2210,6 @@ mod windows_overlay {
             } else {
                 STOP_REQUESTED_MACRO_PRESETS.lock().insert(preset.id);
             }
-        }
-
-        if is_single_key_binding && matched_any_press {
-            let mut hook_state = HOOK_STATE.lock();
-            hook_state
-                .pending_press_trigger_keys
-                .insert(binding.key.clone());
         }
 
         if matched_any_macro {
@@ -2240,8 +2290,6 @@ mod windows_overlay {
             );
         }
 
-        let pending_press_trigger = fire_pending_press_triggers(binding);
-
         let had_hold_matches = !preset_ids.is_empty();
         if had_hold_matches {
             for preset_id in preset_ids {
@@ -2258,7 +2306,7 @@ mod windows_overlay {
         // Release triggers should not swallow the key-up event. They are meant to
         // observe the release and run actions, not to lock the source key.
         let _ = had_hold_matches;
-        pending_press_trigger
+        false
     }
 
     fn increment_press_trigger_suppression(key_name: &str) {
@@ -8439,13 +8487,20 @@ mod windows_overlay {
         if preset
             .hotkey
             .as_ref()
-            .is_some_and(|hotkey| hotkey::binding_matches(hotkey, binding))
+            .is_some_and(|hotkey| trigger_binding_matches(hotkey, binding))
         {
             return true;
         }
 
         let trigger_keys = preset.trigger_keys.trim();
-        !trigger_keys.is_empty() && hotkey::binding_list_matches(trigger_keys, binding)
+        if trigger_keys.is_empty() {
+            return false;
+        }
+
+        hotkey::split_binding_list(trigger_keys)
+            .iter()
+            .filter_map(|entry| hotkey::parse_binding(entry))
+            .any(|expected| trigger_binding_matches(&expected, binding))
     }
 
     fn window_focus_matches(
