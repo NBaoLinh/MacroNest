@@ -226,6 +226,18 @@ mod windows_overlay {
         MousePathRecordingStarted(u32, String),
         MousePathRecordingFinished(u32, Vec<MousePathEvent>, String),
         ImageSearchFinished(String),
+        ImageSearchCaptureMouseDown {
+            screen_x: i32,
+            screen_y: i32,
+        },
+        ImageSearchCaptureMouseMove {
+            screen_x: i32,
+            screen_y: i32,
+        },
+        ImageSearchCaptureMouseUp {
+            screen_x: i32,
+            screen_y: i32,
+        },
         ImageSearchPointCaptured {
             preset_id: u32,
             timing_preset: bool,
@@ -1202,13 +1214,62 @@ mod windows_overlay {
             }
             let message = wparam.0 as u32;
             record_mouse_event(message, &info);
-            let mouse_lock_active = is_mouse_locked() || is_image_search_capture_mouse_blocked();
-            if mouse_lock_active {
+            if is_mouse_locked() {
                 match message {
                     WM_MOUSEMOVE
                     | WM_MOUSEWHEEL
                     | WM_LBUTTONDOWN
                     | WM_LBUTTONUP
+                    | WM_RBUTTONDOWN
+                    | WM_RBUTTONUP
+                    | WM_MBUTTONDOWN
+                    | windows::Win32::UI::WindowsAndMessaging::WM_MBUTTONUP
+                    | WM_XBUTTONDOWN
+                    | WM_XBUTTONUP => {
+                        update_held_mouse_button(message, ((info.mouseData >> 16) & 0xFFFF) as u16);
+                        return LRESULT(1);
+                    }
+                    _ => {}
+                }
+            }
+            if is_image_search_capture_mouse_blocked() {
+                match message {
+                    WM_MOUSEMOVE => {
+                        let left_held = HOOK_STATE.lock().held_mouse_buttons.contains("MouseLeft");
+                        if left_held {
+                            let ui_tx = HOOK_STATE.lock().ui_tx.clone();
+                            if let Some(ui_tx) = ui_tx {
+                                let _ = ui_tx.send(UiCommand::ImageSearchCaptureMouseMove {
+                                    screen_x: info.pt.x,
+                                    screen_y: info.pt.y,
+                                });
+                            }
+                        }
+                        return CallNextHookEx(None, code, wparam, lparam);
+                    }
+                    WM_LBUTTONDOWN => {
+                        update_held_mouse_button(message, ((info.mouseData >> 16) & 0xFFFF) as u16);
+                        let ui_tx = HOOK_STATE.lock().ui_tx.clone();
+                        if let Some(ui_tx) = ui_tx {
+                            let _ = ui_tx.send(UiCommand::ImageSearchCaptureMouseDown {
+                                screen_x: info.pt.x,
+                                screen_y: info.pt.y,
+                            });
+                        }
+                        return LRESULT(1);
+                    }
+                    WM_LBUTTONUP => {
+                        update_held_mouse_button(message, ((info.mouseData >> 16) & 0xFFFF) as u16);
+                        let ui_tx = HOOK_STATE.lock().ui_tx.clone();
+                        if let Some(ui_tx) = ui_tx {
+                            let _ = ui_tx.send(UiCommand::ImageSearchCaptureMouseUp {
+                                screen_x: info.pt.x,
+                                screen_y: info.pt.y,
+                            });
+                        }
+                        return LRESULT(1);
+                    }
+                    WM_MOUSEWHEEL
                     | WM_RBUTTONDOWN
                     | WM_RBUTTONUP
                     | WM_MBUTTONDOWN

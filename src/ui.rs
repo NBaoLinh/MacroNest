@@ -6214,32 +6214,143 @@ impl CrosshairApp {
             }
         };
         self.set_image_search_capture_mouse_blocked(true);
-        if matches!(
-            mode,
-            ImageSearchCaptureMode::ColorSample | ImageSearchCaptureMode::ColorPriorityAnchor
-        ) {
-            let _ = self.overlay_tx.send(OverlayCommand::SetUiVisible(false));
-            crate::overlay::wake_command_queue();
-            self.show_capture_info_window(ctx);
-            Self::spawn_image_search_point_capture(
-                self.ui_tx.clone(),
-                ctx.clone(),
-                target,
-                mode == ImageSearchCaptureMode::ColorPriorityAnchor,
-            );
-            ctx.request_repaint();
-            return;
-        }
         let _ = self.overlay_tx.send(OverlayCommand::SetUiVisible(false));
         crate::overlay::wake_command_queue();
         self.show_capture_info_window(ctx);
-        Self::spawn_image_search_region_capture(
-            self.ui_tx.clone(),
-            ctx.clone(),
-            target,
-            mode == ImageSearchCaptureMode::Template,
-        );
-        ctx.request_repaint_after(Duration::from_millis(33));
+        ctx.request_repaint();
+    }
+
+    fn handle_image_search_capture_mouse_down(
+        &mut self,
+        ctx: &egui::Context,
+        screen_x: i32,
+        screen_y: i32,
+    ) {
+        if !self.image_search_capture_active {
+            return;
+        }
+        match self
+            .image_search_capture_mode
+            .unwrap_or(ImageSearchCaptureMode::Template)
+        {
+            ImageSearchCaptureMode::ColorSample => {
+                self.finish_image_search_color_pick_from_screen(ctx, screen_x, screen_y);
+            }
+            ImageSearchCaptureMode::ColorPriorityAnchor => {
+                self.finish_image_search_color_priority_anchor_pick_from_screen(
+                    ctx, screen_x, screen_y,
+                );
+            }
+            ImageSearchCaptureMode::Template | ImageSearchCaptureMode::SearchRegion => {
+                self.image_search_capture_anchor = Some(egui::pos2(screen_x as f32, screen_y as f32));
+                self.image_search_capture_current =
+                    Some(egui::pos2(screen_x as f32, screen_y as f32));
+                self.image_search_capture_screen_region_preview =
+                    Some((screen_x, screen_y, 1, 1));
+                self.status = match self
+                    .image_search_capture_mode
+                    .unwrap_or(ImageSearchCaptureMode::Template)
+                {
+                    ImageSearchCaptureMode::Template => {
+                        format!("Selecting template at {screen_x}, {screen_y}.")
+                    }
+                    ImageSearchCaptureMode::SearchRegion => {
+                        format!("Selecting area at {screen_x}, {screen_y}.")
+                    }
+                    _ => unreachable!(),
+                };
+                ctx.request_repaint();
+            }
+        }
+    }
+
+    fn handle_image_search_capture_mouse_move(
+        &mut self,
+        ctx: &egui::Context,
+        screen_x: i32,
+        screen_y: i32,
+    ) {
+        if !self.image_search_capture_active {
+            return;
+        }
+        match self
+            .image_search_capture_mode
+            .unwrap_or(ImageSearchCaptureMode::Template)
+        {
+            ImageSearchCaptureMode::Template | ImageSearchCaptureMode::SearchRegion => {
+                if let Some(anchor) = self.image_search_capture_anchor {
+                    self.image_search_capture_current =
+                        Some(egui::pos2(screen_x as f32, screen_y as f32));
+                    let start_x = anchor.x.round() as i32;
+                    let start_y = anchor.y.round() as i32;
+                    let x = start_x.min(screen_x);
+                    let y = start_y.min(screen_y);
+                    let width = (start_x - screen_x).abs().max(1);
+                    let height = (start_y - screen_y).abs().max(1);
+                    self.image_search_capture_screen_region_preview = Some((x, y, width, height));
+                    self.status = format!("Selecting area {width}x{height} at {x}, {y}.");
+                    ctx.request_repaint();
+                }
+            }
+            ImageSearchCaptureMode::ColorSample | ImageSearchCaptureMode::ColorPriorityAnchor => {}
+        }
+    }
+
+    fn handle_image_search_capture_mouse_up(
+        &mut self,
+        ctx: &egui::Context,
+        screen_x: i32,
+        screen_y: i32,
+    ) {
+        if !self.image_search_capture_active {
+            return;
+        }
+        match self
+            .image_search_capture_mode
+            .unwrap_or(ImageSearchCaptureMode::Template)
+        {
+            ImageSearchCaptureMode::Template | ImageSearchCaptureMode::SearchRegion => {
+                let Some(anchor) = self.image_search_capture_anchor else {
+                    self.cancel_image_search_capture(ctx);
+                    return;
+                };
+                let start_x = anchor.x.round() as i32;
+                let start_y = anchor.y.round() as i32;
+                let x = start_x.min(screen_x);
+                let y = start_y.min(screen_y);
+                let width = (start_x - screen_x).abs();
+                let height = (start_y - screen_y).abs();
+                if width >= 2 && height >= 2 {
+                    let Some(target) = self.image_search_capture_target else {
+                        self.cancel_image_search_capture(ctx);
+                        self.status = "No image search preset is active.".to_owned();
+                        return;
+                    };
+                    let (preset_id, timing_preset) = match target {
+                        ImageSearchCaptureTarget::Preset(preset_id) => (preset_id, false),
+                        ImageSearchCaptureTarget::TimingPreset(preset_id) => (preset_id, true),
+                    };
+                    let template_mode = matches!(
+                        self.image_search_capture_mode,
+                        Some(ImageSearchCaptureMode::Template)
+                    );
+                    self.finish_image_search_region_capture_command(
+                        ctx,
+                        preset_id,
+                        timing_preset,
+                        template_mode,
+                        x,
+                        y,
+                        width,
+                        height,
+                    );
+                } else {
+                    self.cancel_image_search_capture(ctx);
+                    self.status = "Image area capture cancelled.".to_owned();
+                }
+            }
+            ImageSearchCaptureMode::ColorSample | ImageSearchCaptureMode::ColorPriorityAnchor => {}
+        }
     }
 
     fn spawn_image_search_point_capture(
@@ -6453,13 +6564,7 @@ impl CrosshairApp {
         let mode = self
             .image_search_capture_mode
             .unwrap_or(ImageSearchCaptureMode::Template);
-        self.image_search_capture_active = false;
-        self.image_search_capture_target = None;
-        self.image_search_capture_mode = None;
-        self.image_search_capture_anchor = None;
-        self.image_search_capture_current = None;
-        self.image_search_capture_screen_region_preview = None;
-        self.image_search_color_pick_preview_color = None;
+        self.clear_image_search_capture_state();
         self.restore_image_search_viewport(ctx);
         self.status = match mode {
             ImageSearchCaptureMode::Template => "Image template capture cancelled.".to_owned(),
@@ -6571,7 +6676,6 @@ impl CrosshairApp {
                             .iter_mut()
                             .find(|preset| preset.id == preset_id)
                         {
-                            preset.enabled = true;
                             preset.collapsed = false;
                             preset.last_capture_screen_x = Some(capture.screen_x);
                             preset.last_capture_screen_y = Some(capture.screen_y);
@@ -6597,7 +6701,6 @@ impl CrosshairApp {
                             .iter_mut()
                             .find(|preset| preset.id == preset_id)
                         {
-                            preset.enabled = true;
                             preset.collapsed = false;
                             preset.search_region_screen_x = Some(capture.screen_x);
                             preset.search_region_screen_y = Some(capture.screen_y);
@@ -6877,6 +6980,120 @@ impl CrosshairApp {
         ctx.request_repaint();
     }
 
+    fn finish_image_search_color_pick_from_screen(
+        &mut self,
+        ctx: &egui::Context,
+        screen_x: i32,
+        screen_y: i32,
+    ) {
+        let Some(target) = self.image_search_capture_target else {
+            self.cancel_image_search_capture(ctx);
+            self.status = "No image search preset is active.".to_owned();
+            return;
+        };
+
+        self.clear_image_search_capture_state();
+        ctx.send_viewport_cmd(egui::ViewportCommand::Visible(false));
+        let _ = self.overlay_tx.send(OverlayCommand::SetUiVisible(false));
+        std::thread::sleep(Duration::from_millis(70));
+        let capture = window_list::capture_virtual_screen_region(screen_x, screen_y, 1, 1);
+        self.restore_image_search_capture_window(ctx);
+        ctx.send_viewport_cmd(egui::ViewportCommand::Visible(true));
+        ctx.send_viewport_cmd(egui::ViewportCommand::Minimized(false));
+        let _ = self.overlay_tx.send(OverlayCommand::SetUiVisible(true));
+
+        let Some(capture) = capture else {
+            self.status = "Failed to sample the selected screen color.".to_owned();
+            ctx.request_repaint();
+            return;
+        };
+        if capture.rgba.len() < 4 {
+            self.status = "Failed to read the selected screen color.".to_owned();
+            ctx.request_repaint();
+            return;
+        }
+
+        let color = RgbaColor {
+            r: capture.rgba[0],
+            g: capture.rgba[1],
+            b: capture.rgba[2],
+            a: 255,
+        };
+        let status = match target {
+            ImageSearchCaptureTarget::Preset(preset_id) => {
+                if let Some(preset) = self
+                    .state
+                    .image_search_presets
+                    .iter_mut()
+                    .find(|preset| preset.id == preset_id)
+                {
+                    preset.collapsed = false;
+                    preset.use_color_matching = true;
+                    if preset.target_colors.is_empty() {
+                        if let Some(existing) = preset.target_color {
+                            preset.target_colors.push(existing);
+                        }
+                    }
+                    preset.target_colors.push(color);
+                    preset.target_color = preset.target_colors.first().copied();
+                }
+                self.sync_image_search_presets();
+                format!(
+                    "Picked color #{:02X}{:02X}{:02X} for preset #{}.",
+                    color.r, color.g, color.b, preset_id
+                )
+            }
+            ImageSearchCaptureTarget::TimingPreset(preset_id) => {
+                if let Some(preset) = self
+                    .state
+                    .image_search_timing_presets
+                    .iter_mut()
+                    .find(|preset| preset.id == preset_id)
+                {
+                    preset.collapsed = false;
+                    if preset.target_colors.is_empty() {
+                        if let Some(existing) = preset.target_color {
+                            preset.target_colors.push(existing);
+                        }
+                    }
+                    preset.target_colors.push(color);
+                    preset.target_color = preset.target_colors.first().copied();
+                }
+                self.sync_image_search_timing_presets();
+                format!(
+                    "Picked color #{:02X}{:02X}{:02X} for timing preset #{}.",
+                    color.r, color.g, color.b, preset_id
+                )
+            }
+        };
+        self.persist();
+        self.status = status;
+        ctx.request_repaint();
+    }
+
+    fn finish_image_search_color_priority_anchor_pick_from_screen(
+        &mut self,
+        ctx: &egui::Context,
+        screen_x: i32,
+        screen_y: i32,
+    ) {
+        let Some(target) = self.image_search_capture_target else {
+            self.cancel_image_search_capture(ctx);
+            self.status = "No image search preset is active.".to_owned();
+            return;
+        };
+
+        self.clear_image_search_capture_state();
+        self.restore_image_search_capture_window(ctx);
+        ctx.send_viewport_cmd(egui::ViewportCommand::Visible(true));
+        ctx.send_viewport_cmd(egui::ViewportCommand::Minimized(false));
+        let _ = self.overlay_tx.send(OverlayCommand::SetUiVisible(true));
+
+        self.status = self.apply_image_search_priority_anchor(target, screen_x, screen_y);
+        self.persist();
+        ctx.request_repaint();
+    }
+
     fn finish_image_search_region_capture_command(
         &mut self,
         ctx: &egui::Context,
@@ -6926,7 +7143,6 @@ impl CrosshairApp {
                 .iter_mut()
                 .find(|preset| preset.id == preset_id)
             {
-                preset.enabled = true;
                 preset.collapsed = false;
                 preset.last_capture_screen_x = Some(capture.screen_x);
                 preset.last_capture_screen_y = Some(capture.screen_y);
@@ -15080,6 +15296,15 @@ impl eframe::App for CrosshairApp {
                 }
                 UiCommand::ImageSearchFinished(status) => {
                     self.status = status;
+                }
+                UiCommand::ImageSearchCaptureMouseDown { screen_x, screen_y } => {
+                    self.handle_image_search_capture_mouse_down(ctx, screen_x, screen_y);
+                }
+                UiCommand::ImageSearchCaptureMouseMove { screen_x, screen_y } => {
+                    self.handle_image_search_capture_mouse_move(ctx, screen_x, screen_y);
+                }
+                UiCommand::ImageSearchCaptureMouseUp { screen_x, screen_y } => {
+                    self.handle_image_search_capture_mouse_up(ctx, screen_x, screen_y);
                 }
                 UiCommand::ImageSearchPointCaptured {
                     preset_id,
