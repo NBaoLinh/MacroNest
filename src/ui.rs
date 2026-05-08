@@ -363,7 +363,7 @@ impl eframe::App for PopupBlobApp {
             ctx.send_viewport_cmd(egui::ViewportCommand::Close);
             return;
         }
-        ctx.request_repaint();
+        ctx.request_repaint_after(Duration::from_millis(33));
         self.render_message_popup(ctx, progress);
     }
 }
@@ -421,6 +421,7 @@ pub struct CrosshairApp {
     image_search_capture_mode: Option<ImageSearchCaptureMode>,
     image_search_capture_anchor: Option<egui::Pos2>,
     image_search_capture_current: Option<egui::Pos2>,
+    image_search_capture_screen_region_preview: Option<(i32, i32, i32, i32)>,
     image_search_restore_inner_size: Option<egui::Vec2>,
     image_search_restore_outer_pos: Option<egui::Pos2>,
     selected_macro_steps: HashSet<(u32, u32, usize)>,
@@ -527,6 +528,7 @@ impl CrosshairApp {
             image_search_capture_mode: None,
             image_search_capture_anchor: None,
             image_search_capture_current: None,
+            image_search_capture_screen_region_preview: None,
             image_search_restore_inner_size: None,
             image_search_restore_outer_pos: None,
             selected_macro_steps: HashSet::new(),
@@ -1401,6 +1403,21 @@ impl CrosshairApp {
 
     #[cfg(not(windows))]
     fn precise_image_search_capture_pointer(&self, _ctx: &egui::Context) -> Option<egui::Pos2> {
+        None
+    }
+
+    #[cfg(windows)]
+    fn current_screen_cursor_pos() -> Option<(i32, i32)> {
+        let mut point = POINT::default();
+        unsafe {
+            GetCursorPos(&mut point)
+                .is_ok()
+                .then_some((point.x, point.y))
+        }
+    }
+
+    #[cfg(not(windows))]
+    fn current_screen_cursor_pos() -> Option<(i32, i32)> {
         None
     }
 
@@ -5995,28 +6012,14 @@ impl CrosshairApp {
         self.mouse_move_absolute_restore_outer_pos = viewport.outer_rect.map(|rect| rect.min);
         self.center_window_next_frame = false;
         self.enforce_square_window_frames = 0;
-        let (left, top, width, height) = window_list::virtual_screen_bounds();
-        let ppp = ctx.pixels_per_point().max(0.5);
-        ctx.send_viewport_cmd(egui::ViewportCommand::OuterPosition(egui::pos2(
-            left as f32 / ppp,
-            top as f32 / ppp,
-        )));
-        ctx.send_viewport_cmd(egui::ViewportCommand::InnerSize(vec2(
-            width as f32 / ppp,
-            height as f32 / ppp,
-        )));
         self.status = Self::tr_lang(
             self.state.ui_language,
             "Click anywhere on screen to capture X/Y. Press Esc to cancel.",
             "Báº¥m vÃ o báº¥t ká»³ vá»‹ trÃ­ nÃ o trÃªn mÃ n hÃ¬nh Ä‘á»ƒ láº¥y X/Y. Nháº¥n Esc Ä‘á»ƒ há»§y.",
         )
         .to_owned();
-        ctx.send_viewport_cmd(egui::ViewportCommand::Visible(true));
-        ctx.send_viewport_cmd(egui::ViewportCommand::Focus);
-        ctx.send_viewport_cmd(egui::ViewportCommand::RequestUserAttention(
-            egui::UserAttentionType::Informational,
-        ));
-        ctx.request_repaint();
+        self.show_capture_info_window(ctx);
+        ctx.request_repaint_after(Duration::from_millis(33));
     }
 
     fn cancel_mouse_move_absolute_capture(&mut self, ctx: &egui::Context) {
@@ -6103,6 +6106,24 @@ impl CrosshairApp {
         }
     }
 
+    fn capture_info_window_placement(ctx: &egui::Context) -> (egui::Pos2, egui::Vec2) {
+        let (left, top, width, _height) = window_list::virtual_screen_bounds();
+        let ppp = ctx.pixels_per_point().max(0.5);
+        let size = vec2(430.0, 92.0);
+        let center_x = (left as f32 + width as f32 * 0.5) / ppp;
+        let pos = pos2(center_x - size.x * 0.5, top as f32 / ppp + 18.0);
+        (pos, size)
+    }
+
+    fn show_capture_info_window(&mut self, ctx: &egui::Context) {
+        let (pos, size) = Self::capture_info_window_placement(ctx);
+        ctx.send_viewport_cmd(egui::ViewportCommand::OuterPosition(pos));
+        ctx.send_viewport_cmd(egui::ViewportCommand::InnerSize(size));
+        ctx.send_viewport_cmd(egui::ViewportCommand::Visible(true));
+        ctx.send_viewport_cmd(egui::ViewportCommand::Minimized(false));
+        ctx.send_viewport_cmd(egui::ViewportCommand::Focus);
+    }
+
     #[cfg(windows)]
     fn poll_mouse_move_absolute_capture(&mut self, ctx: &egui::Context) {
         let Some(target) = self.mouse_move_absolute_capture_target else {
@@ -6169,6 +6190,7 @@ impl CrosshairApp {
         self.image_search_capture_active = true;
         self.image_search_capture_anchor = None;
         self.image_search_capture_current = None;
+        self.image_search_capture_screen_region_preview = None;
         self.status = match mode {
             ImageSearchCaptureMode::Template => {
                 "Drag on screen to pick an image template. Press Esc to cancel.".to_owned()
@@ -6199,20 +6221,14 @@ impl CrosshairApp {
             ctx.request_repaint();
             return;
         }
-        let (left, top, width, height) = window_list::virtual_screen_bounds();
-        let ppp = ctx.pixels_per_point().max(0.5);
-        ctx.send_viewport_cmd(egui::ViewportCommand::OuterPosition(egui::pos2(
-            left as f32 / ppp,
-            top as f32 / ppp,
-        )));
-        ctx.send_viewport_cmd(egui::ViewportCommand::InnerSize(vec2(
-            width as f32 / ppp,
-            height as f32 / ppp,
-        )));
         let _ = self.overlay_tx.send(OverlayCommand::SetUiVisible(false));
-        ctx.send_viewport_cmd(egui::ViewportCommand::Visible(true));
-        ctx.send_viewport_cmd(egui::ViewportCommand::Minimized(false));
-        ctx.send_viewport_cmd(egui::ViewportCommand::Focus);
+        self.show_capture_info_window(ctx);
+        Self::spawn_image_search_region_capture(
+            self.ui_tx.clone(),
+            ctx.clone(),
+            target,
+            mode == ImageSearchCaptureMode::Template,
+        );
         ctx.request_repaint();
     }
 
@@ -6314,6 +6330,112 @@ impl CrosshairApp {
         ctx.request_repaint();
     }
 
+    fn spawn_image_search_region_capture(
+        ui_tx: Sender<UiCommand>,
+        ctx: egui::Context,
+        target: ImageSearchCaptureTarget,
+        template_mode: bool,
+    ) {
+        let (preset_id, timing_preset) = match target {
+            ImageSearchCaptureTarget::Preset(preset_id) => (preset_id, false),
+            ImageSearchCaptureTarget::TimingPreset(preset_id) => (preset_id, true),
+        };
+        Self::spawn_image_search_region_capture_thread(
+            ui_tx,
+            ctx,
+            preset_id,
+            timing_preset,
+            template_mode,
+        );
+    }
+
+    #[cfg(windows)]
+    fn spawn_image_search_region_capture_thread(
+        ui_tx: Sender<UiCommand>,
+        ctx: egui::Context,
+        preset_id: u32,
+        timing_preset: bool,
+        template_mode: bool,
+    ) {
+        std::thread::spawn(move || {
+            let is_down = |vk: i32| unsafe { (GetAsyncKeyState(vk) as u16 & 0x8000) != 0 };
+            let mut origin: Option<(i32, i32)> = None;
+            while is_down(0x01) {
+                if is_down(0x1B) {
+                    let _ = ui_tx.send(UiCommand::ImageSearchPointCaptureCancelled(
+                        "Image area capture cancelled.".to_owned(),
+                    ));
+                    ctx.request_repaint();
+                    return;
+                }
+                std::thread::sleep(Duration::from_millis(6));
+            }
+            loop {
+                if is_down(0x1B) {
+                    let _ = ui_tx.send(UiCommand::ImageSearchPointCaptureCancelled(
+                        "Image area capture cancelled.".to_owned(),
+                    ));
+                    break;
+                }
+                let mut point = POINT::default();
+                let got_point = unsafe { GetCursorPos(&mut point).is_ok() };
+                if got_point {
+                    if is_down(0x01) {
+                        let start = origin.get_or_insert((point.x, point.y));
+                        let x = start.0.min(point.x);
+                        let y = start.1.min(point.y);
+                        let width = (start.0 - point.x).abs().max(1);
+                        let height = (start.1 - point.y).abs().max(1);
+                        let _ = ui_tx.send(UiCommand::ImageSearchRegionPreview {
+                            screen_x: x,
+                            screen_y: y,
+                            width,
+                            height,
+                        });
+                        ctx.request_repaint();
+                    } else if let Some(start) = origin {
+                        let x = start.0.min(point.x);
+                        let y = start.1.min(point.y);
+                        let width = (start.0 - point.x).abs();
+                        let height = (start.1 - point.y).abs();
+                        if width >= 2 && height >= 2 {
+                            let _ = ui_tx.send(UiCommand::ImageSearchRegionCaptured {
+                                preset_id,
+                                timing_preset,
+                                template_mode,
+                                screen_x: x,
+                                screen_y: y,
+                                width,
+                                height,
+                            });
+                        } else {
+                            let _ = ui_tx.send(UiCommand::ImageSearchPointCaptureCancelled(
+                                "Image area capture cancelled.".to_owned(),
+                            ));
+                        }
+                        ctx.request_repaint();
+                        break;
+                    }
+                }
+                std::thread::sleep(Duration::from_millis(16));
+            }
+        });
+    }
+
+    #[cfg(not(windows))]
+    fn spawn_image_search_region_capture_thread(
+        ui_tx: Sender<UiCommand>,
+        ctx: egui::Context,
+        _preset_id: u32,
+        _timing_preset: bool,
+        _template_mode: bool,
+    ) {
+        let _ = ui_tx.send(UiCommand::ImageSearchPointCaptureCancelled(
+            "Image area capture is only supported on Windows.".to_owned(),
+        ));
+        ctx.request_repaint();
+    }
+
     fn cancel_image_search_capture(&mut self, ctx: &egui::Context) {
         if !self.image_search_capture_active {
             return;
@@ -6326,6 +6448,7 @@ impl CrosshairApp {
         self.image_search_capture_mode = None;
         self.image_search_capture_anchor = None;
         self.image_search_capture_current = None;
+        self.image_search_capture_screen_region_preview = None;
         self.image_search_color_pick_preview_color = None;
         self.restore_image_search_viewport(ctx);
         self.status = match mode {
@@ -6399,6 +6522,7 @@ impl CrosshairApp {
         self.image_search_capture_mode = None;
         self.image_search_capture_anchor = None;
         self.image_search_capture_current = None;
+        self.image_search_capture_screen_region_preview = None;
         match mode {
             ImageSearchCaptureMode::Template => {
                 ctx.send_viewport_cmd(egui::ViewportCommand::Visible(false));
@@ -6612,6 +6736,7 @@ impl CrosshairApp {
         self.image_search_capture_mode = None;
         self.image_search_capture_anchor = None;
         self.image_search_capture_current = None;
+        self.image_search_capture_screen_region_preview = None;
         self.image_search_color_pick_preview_color = None;
     }
 
@@ -6730,6 +6855,120 @@ impl CrosshairApp {
             "Failed to sample the selected screen color.".to_owned()
         };
         self.persist();
+        ctx.request_repaint();
+    }
+
+    fn finish_image_search_region_capture_command(
+        &mut self,
+        ctx: &egui::Context,
+        preset_id: u32,
+        timing_preset: bool,
+        template_mode: bool,
+        screen_x: i32,
+        screen_y: i32,
+        width: i32,
+        height: i32,
+    ) {
+        let target = if timing_preset {
+            ImageSearchCaptureTarget::TimingPreset(preset_id)
+        } else {
+            ImageSearchCaptureTarget::Preset(preset_id)
+        };
+        self.clear_image_search_capture_state();
+
+        if template_mode {
+            ctx.send_viewport_cmd(egui::ViewportCommand::Visible(false));
+            let _ = self.overlay_tx.send(OverlayCommand::SetUiVisible(false));
+            std::thread::sleep(Duration::from_millis(35));
+            let capture =
+                window_list::capture_virtual_screen_region(screen_x, screen_y, width, height);
+            self.restore_image_search_capture_window(ctx);
+
+            let Some(capture) = capture else {
+                self.status = "Failed to capture the selected screen area.".to_owned();
+                ctx.request_repaint();
+                return;
+            };
+
+            let template_file = self.image_search_template_file_for_preset(preset_id);
+            if let Some(parent) = template_file.parent() {
+                let _ = fs::create_dir_all(parent);
+            }
+            let save_result = image::save_buffer(
+                &template_file,
+                &capture.rgba,
+                capture.width as u32,
+                capture.height as u32,
+                image::ColorType::Rgba8,
+            );
+            if let Some(preset) = self
+                .state
+                .image_search_presets
+                .iter_mut()
+                .find(|preset| preset.id == preset_id)
+            {
+                preset.enabled = true;
+                preset.collapsed = false;
+                preset.last_capture_screen_x = Some(capture.screen_x);
+                preset.last_capture_screen_y = Some(capture.screen_y);
+            }
+            self.image_search_preview_cache.remove(&preset_id);
+            self.sync_image_search_presets();
+            self.persist();
+            self.status = match save_result {
+                Ok(()) => format!(
+                    "Saved template {}x{} for preset #{}.",
+                    capture.width, capture.height, preset_id
+                ),
+                Err(error) => format!("Captured template but could not save it: {error}"),
+            };
+            ctx.request_repaint();
+            return;
+        }
+
+        self.restore_image_search_capture_window(ctx);
+        match target {
+            ImageSearchCaptureTarget::Preset(preset_id) => {
+                if let Some(preset) = self
+                    .state
+                    .image_search_presets
+                    .iter_mut()
+                    .find(|preset| preset.id == preset_id)
+                {
+                    preset.collapsed = false;
+                    preset.search_region_screen_x = Some(screen_x);
+                    preset.search_region_screen_y = Some(screen_y);
+                    preset.search_region_width = Some(width);
+                    preset.search_region_height = Some(height);
+                }
+                self.sync_image_search_presets();
+                self.persist();
+                self.status = format!(
+                    "Saved search area {}x{} at {}, {} for preset #{}.",
+                    width, height, screen_x, screen_y, preset_id
+                );
+            }
+            ImageSearchCaptureTarget::TimingPreset(preset_id) => {
+                if let Some(preset) = self
+                    .state
+                    .image_search_timing_presets
+                    .iter_mut()
+                    .find(|preset| preset.id == preset_id)
+                {
+                    preset.collapsed = false;
+                    preset.search_region_screen_x = Some(screen_x);
+                    preset.search_region_screen_y = Some(screen_y);
+                    preset.search_region_width = Some(width);
+                    preset.search_region_height = Some(height);
+                }
+                self.sync_image_search_timing_presets();
+                self.persist();
+                self.status = format!(
+                    "Saved timing area {}x{} at {}, {} for preset #{}.",
+                    width, height, screen_x, screen_y, preset_id
+                );
+            }
+        }
         ctx.request_repaint();
     }
 
@@ -13850,13 +14089,15 @@ impl CrosshairApp {
             return true;
         }
 
-        ctx.request_repaint();
+        ctx.request_repaint_after(Duration::from_millis(120));
         egui::CentralPanel::default()
-            .frame(Frame::new().fill(Color32::TRANSPARENT))
+            .frame(
+                Frame::new()
+                    .fill(Color32::from_rgba_premultiplied(14, 19, 26, 238))
+                    .stroke(egui::Stroke::new(1.0, Color32::from_rgb(82, 112, 150)))
+                    .inner_margin(Margin::same(12)),
+            )
             .show(ctx, |ui| {
-                let rect = ui.max_rect();
-                let response = ui.allocate_rect(rect, Sense::click_and_drag());
-                let painter = ui.painter_at(rect);
                 let capture_mode = self
                     .image_search_capture_mode
                     .unwrap_or(ImageSearchCaptureMode::Template);
@@ -13878,14 +14119,7 @@ impl CrosshairApp {
                         "Bam vao diem de dat moc uu tien mau. Bam Esc de huy.",
                     ),
                 };
-
-                painter.text(
-                    rect.left_top() + vec2(18.0, 18.0),
-                    egui::Align2::LEFT_TOP,
-                    instruction,
-                    egui::FontId::proportional(18.0),
-                    Color32::WHITE,
-                );
+                ui.label(RichText::new(instruction).strong().color(Color32::WHITE));
                 if let Some(target) = self.image_search_capture_target
                     && let Some(name) = self.image_search_capture_target_name(target)
                 {
@@ -13895,98 +14129,20 @@ impl CrosshairApp {
                             self.tr("Timing preset", "Timing preset")
                         }
                     };
-                    painter.text(
-                        rect.left_top() + vec2(18.0, 44.0),
-                        egui::Align2::LEFT_TOP,
-                        format!("{target_label}: {name}"),
-                        egui::FontId::proportional(14.0),
-                        Color32::from_rgb(210, 228, 255),
+                    ui.label(
+                        RichText::new(format!("{target_label}: {name}"))
+                            .color(Color32::from_rgb(210, 228, 255)),
                     );
                 }
-
-                let precise_pointer = self
-                    .precise_image_search_capture_pointer(ctx)
-                    .filter(|pointer| rect.contains(*pointer));
-                if capture_mode == ImageSearchCaptureMode::ColorSample
-                    || capture_mode == ImageSearchCaptureMode::ColorPriorityAnchor
+                if let Some((x, y, width, height)) = self.image_search_capture_screen_region_preview
                 {
-                    if response.clicked()
-                        && let Some(pointer) = precise_pointer
-                            .or(response.interact_pointer_pos())
-                            .or(response.hover_pos())
-                    {
-                        if capture_mode == ImageSearchCaptureMode::ColorSample {
-                            self.finish_image_search_color_pick(ctx, pointer);
-                        } else {
-                            self.finish_image_search_color_priority_anchor_pick(ctx, pointer);
-                        }
-                        return;
-                    }
+                    ui.label(
+                        RichText::new(format!("Area: {width}x{height} at {x}, {y}"))
+                            .monospace()
+                            .color(Color32::from_rgb(154, 222, 255)),
+                    );
                 } else {
-                    let pointer_down = ui.input(|input| input.pointer.primary_down());
-                    if pointer_down
-                        && self.image_search_capture_anchor.is_none()
-                        && let Some(origin) =
-                            precise_pointer.or(ui.input(|input| input.pointer.press_origin()))
-                        && rect.contains(origin)
-                    {
-                        self.image_search_capture_anchor = Some(origin);
-                        self.image_search_capture_current = Some(origin);
-                    }
-                    if pointer_down
-                        && self.image_search_capture_anchor.is_some()
-                        && let Some(pointer) = precise_pointer
-                            .or(response.interact_pointer_pos())
-                            .or(response.hover_pos())
-                    {
-                        self.image_search_capture_current = Some(pointer);
-                    }
-
-                    let pointer_released = ui.input(|input| input.pointer.any_released());
-                    if pointer_released
-                        && let (Some(anchor), Some(current)) = (
-                            self.image_search_capture_anchor,
-                            self.image_search_capture_current,
-                        )
-                    {
-                        let selection = egui::Rect::from_two_pos(anchor, current);
-                        if selection.width() >= 2.0 && selection.height() >= 2.0 {
-                            self.finish_image_search_capture(ctx, selection);
-                        } else {
-                            self.cancel_image_search_capture(ctx);
-                        }
-                        return;
-                    }
-                }
-
-                if ctx.input(|input| input.key_pressed(egui::Key::Escape)) {
-                    self.cancel_image_search_capture(ctx);
-                    return;
-                }
-
-                if let (Some(anchor), Some(current)) = (
-                    self.image_search_capture_anchor,
-                    self.image_search_capture_current,
-                ) {
-                    let selection = egui::Rect::from_two_pos(anchor, current);
-                    let use_circle = capture_mode == ImageSearchCaptureMode::SearchRegion
-                        && self.image_search_capture_target.is_some_and(|target| {
-                            self.image_search_capture_target_is_circle(target)
-                        });
-                    if use_circle {
-                        painter.circle_stroke(
-                            selection.center(),
-                            selection.width().min(selection.height()) * 0.5,
-                            egui::Stroke::new(2.0, Color32::from_rgb(120, 220, 255)),
-                        );
-                    } else {
-                        painter.rect_stroke(
-                            selection,
-                            0.0,
-                            egui::Stroke::new(2.0, Color32::from_rgb(120, 220, 255)),
-                            egui::StrokeKind::Middle,
-                        );
-                    }
+                    ui.label(RichText::new("Hold and drag on the screen.").color(Color32::GRAY));
                 }
             });
         true
@@ -13999,43 +14155,23 @@ impl CrosshairApp {
 
         ctx.request_repaint();
         egui::CentralPanel::default()
-            .frame(Frame::new().fill(Color32::TRANSPARENT))
+            .frame(
+                Frame::new()
+                    .fill(Color32::from_rgba_premultiplied(14, 19, 26, 238))
+                    .stroke(egui::Stroke::new(1.0, Color32::from_rgb(82, 112, 150)))
+                    .inner_margin(Margin::same(12)),
+            )
             .show(ctx, |ui| {
-                let rect = ui.max_rect();
-                let _response = ui.allocate_rect(rect, Sense::click_and_drag());
-                let painter = ui.painter_at(rect);
                 let instruction = self.tr(
                     "Click a point to capture the mouse X/Y. Press Esc to cancel.",
                     "Báº¥m vÃ o Ä‘iá»ƒm muá»‘n láº¥y tá»a Ä‘á»™ chuá»™t X/Y. Nháº¥n Esc Ä‘á»ƒ há»§y.",
                 );
-                painter.text(
-                    rect.left_top() + vec2(18.0, 18.0),
-                    egui::Align2::LEFT_TOP,
-                    instruction,
-                    egui::FontId::proportional(18.0),
-                    Color32::WHITE,
-                );
-                if let Some(pointer) = self.precise_image_search_capture_pointer(ctx) {
-                    painter.circle_stroke(
-                        pointer,
-                        9.0,
-                        egui::Stroke::new(2.0, Color32::from_rgb(120, 220, 255)),
-                    );
-                    painter.line_segment(
-                        [pointer + vec2(-14.0, 0.0), pointer + vec2(-4.0, 0.0)],
-                        egui::Stroke::new(1.0, Color32::from_rgb(120, 220, 255)),
-                    );
-                    painter.line_segment(
-                        [pointer + vec2(4.0, 0.0), pointer + vec2(14.0, 0.0)],
-                        egui::Stroke::new(1.0, Color32::from_rgb(120, 220, 255)),
-                    );
-                    painter.line_segment(
-                        [pointer + vec2(0.0, -14.0), pointer + vec2(0.0, -4.0)],
-                        egui::Stroke::new(1.0, Color32::from_rgb(120, 220, 255)),
-                    );
-                    painter.line_segment(
-                        [pointer + vec2(0.0, 4.0), pointer + vec2(0.0, 14.0)],
-                        egui::Stroke::new(1.0, Color32::from_rgb(120, 220, 255)),
+                ui.label(RichText::new(instruction).strong().color(Color32::WHITE));
+                if let Some((x, y)) = Self::current_screen_cursor_pos() {
+                    ui.label(
+                        RichText::new(format!("Cursor: X {x}  Y {y}"))
+                            .monospace()
+                            .color(Color32::from_rgb(154, 222, 255)),
                     );
                 }
                 if ctx.input(|input| input.key_pressed(egui::Key::Escape)) {
@@ -14956,6 +15092,38 @@ impl eframe::App for CrosshairApp {
                         color,
                     );
                 }
+                UiCommand::ImageSearchRegionPreview {
+                    screen_x,
+                    screen_y,
+                    width,
+                    height,
+                } => {
+                    self.image_search_capture_screen_region_preview =
+                        Some((screen_x, screen_y, width, height));
+                    self.status =
+                        format!("Selecting area {width}x{height} at {screen_x}, {screen_y}.");
+                    ctx.request_repaint();
+                }
+                UiCommand::ImageSearchRegionCaptured {
+                    preset_id,
+                    timing_preset,
+                    template_mode,
+                    screen_x,
+                    screen_y,
+                    width,
+                    height,
+                } => {
+                    self.finish_image_search_region_capture_command(
+                        ctx,
+                        preset_id,
+                        timing_preset,
+                        template_mode,
+                        screen_x,
+                        screen_y,
+                        width,
+                        height,
+                    );
+                }
                 UiCommand::ImageSearchPointCaptureCancelled(status) => {
                     self.clear_image_search_capture_state();
                     self.restore_image_search_capture_window(ctx);
@@ -15035,18 +15203,6 @@ impl eframe::App for CrosshairApp {
             && ctx.input(|input| input.viewport().focused == Some(false))
         {
             self.cancel_capture();
-        }
-        if self.image_search_capture_active
-            && !matches!(
-                self.image_search_capture_mode,
-                Some(
-                    ImageSearchCaptureMode::ColorSample
-                        | ImageSearchCaptureMode::ColorPriorityAnchor
-                )
-            )
-            && ctx.input(|input| input.viewport().focused == Some(false))
-        {
-            self.cancel_image_search_capture(ctx);
         }
         if self.mouse_move_absolute_capture_target.is_some() {
             self.poll_mouse_move_absolute_capture(ctx);

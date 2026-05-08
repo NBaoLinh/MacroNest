@@ -233,6 +233,21 @@ mod windows_overlay {
             screen_y: i32,
             color: Option<RgbaColor>,
         },
+        ImageSearchRegionPreview {
+            screen_x: i32,
+            screen_y: i32,
+            width: i32,
+            height: i32,
+        },
+        ImageSearchRegionCaptured {
+            preset_id: u32,
+            timing_preset: bool,
+            template_mode: bool,
+            screen_x: i32,
+            screen_y: i32,
+            width: i32,
+            height: i32,
+        },
         ImageSearchPointCaptureCancelled(String),
     }
 
@@ -9158,6 +9173,21 @@ mod fallback {
             screen_x: i32,
             screen_y: i32,
             color: Option<RgbaColor>,
+        },
+        ImageSearchRegionPreview {
+            screen_x: i32,
+            screen_y: i32,
+            width: i32,
+            height: i32,
+        },
+        ImageSearchRegionCaptured {
+            preset_id: u32,
+            timing_preset: bool,
+            template_mode: bool,
+            screen_x: i32,
+            screen_y: i32,
+            width: i32,
+            height: i32,
         },
         ImageSearchPointCaptureCancelled(String),
     }
