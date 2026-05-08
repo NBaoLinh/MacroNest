@@ -6209,8 +6209,8 @@ impl CrosshairApp {
             mode,
             ImageSearchCaptureMode::ColorSample | ImageSearchCaptureMode::ColorPriorityAnchor
         ) {
-            ctx.send_viewport_cmd(egui::ViewportCommand::Visible(false));
             let _ = self.overlay_tx.send(OverlayCommand::SetUiVisible(false));
+            self.show_capture_info_window(ctx);
             Self::spawn_image_search_point_capture(
                 self.ui_tx.clone(),
                 ctx.clone(),
