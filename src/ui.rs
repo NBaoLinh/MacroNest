@@ -6326,7 +6326,7 @@ impl CrosshairApp {
         let _ = ui_tx.send(UiCommand::ImageSearchPointCaptureCancelled(
             "Image point capture is only supported on Windows.".to_owned(),
         ));
-        ctx.request_repaint();
+        ctx.request_repaint_after(Duration::from_millis(33));
     }
 
     fn spawn_image_search_region_capture(
@@ -14081,12 +14081,6 @@ impl CrosshairApp {
         if !self.image_search_capture_active {
             return false;
         }
-        if matches!(
-            self.image_search_capture_mode,
-            Some(ImageSearchCaptureMode::ColorSample | ImageSearchCaptureMode::ColorPriorityAnchor)
-        ) {
-            return true;
-        }
 
         ctx.request_repaint_after(Duration::from_millis(120));
         egui::CentralPanel::default()
@@ -14143,6 +14137,28 @@ impl CrosshairApp {
                 } else {
                     ui.label(RichText::new("Hold and drag on the screen.").color(Color32::GRAY));
                 }
+
+                if let Some(pointer) = self.precise_image_search_capture_pointer(ctx) {
+                    let screen_point = Self::current_screen_cursor_pos();
+                    let sampled_color = match capture_mode {
+                        ImageSearchCaptureMode::ColorPriorityAnchor => None,
+                        ImageSearchCaptureMode::Template => {
+                            screen_point.and_then(|(screen_x, screen_y)| {
+                                self.update_image_search_cursor_preview(ctx, screen_x, screen_y, 29)
+                            })
+                        }
+                        _ => screen_point.and_then(|(screen_x, screen_y)| {
+                            self.update_image_search_cursor_preview(ctx, screen_x, screen_y, 17)
+                        }),
+                    };
+                    self.render_image_search_cursor_preview_panel(
+                        ui.painter(),
+                        ui.max_rect(),
+                        pointer,
+                        sampled_color,
+                        screen_point,
+                    );
+                }
             });
         true
     }
@@ -14174,15 +14190,17 @@ impl CrosshairApp {
                     egui::FontId::proportional(18.0),
                     Color32::WHITE,
                 );
-                if let Some((x, y)) = Self::current_screen_cursor_pos() {
-                    let sampled_color = self.update_image_search_cursor_preview(ctx, x, y, 21);
-                    self.render_image_search_cursor_preview_panel(
-                        &painter,
-                        rect,
-                        rect.center(),
-                        sampled_color,
-                        Some((x, y)),
-                    );
+                if let Some(pointer) = self.precise_image_search_capture_pointer(ctx) {
+                    if let Some((x, y)) = Self::current_screen_cursor_pos() {
+                        let sampled_color = self.update_image_search_cursor_preview(ctx, x, y, 21);
+                        self.render_image_search_cursor_preview_panel(
+                            &painter,
+                            rect,
+                            pointer,
+                            sampled_color,
+                            Some((x, y)),
+                        );
+                    }
                 }
                 if ctx.input(|input| input.key_pressed(egui::Key::Escape)) {
                     self.cancel_mouse_move_absolute_capture(ctx);
