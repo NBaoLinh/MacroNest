@@ -1308,12 +1308,13 @@ impl CrosshairApp {
         let Some(texture) = self.image_search_color_pick_texture.as_ref() else {
             return;
         };
-        let panel_size = vec2(188.0, 254.0);
+        let panel_size = vec2(200.0, 232.0);
         let panel_rect = Self::image_search_preview_panel_rect(viewport_rect, pointer, panel_size);
+        let content_left = panel_rect.min.x + 28.0;
         painter.rect_filled(
             panel_rect,
             10.0,
-            Color32::from_rgba_premultiplied(12, 18, 28, 228),
+            Color32::from_rgb(12, 18, 28),
         );
         painter.rect_stroke(
             panel_rect,
@@ -1321,8 +1322,10 @@ impl CrosshairApp {
             egui::Stroke::new(1.0, Color32::from_rgb(110, 156, 210)),
             egui::StrokeKind::Outside,
         );
-        let preview_rect =
-            egui::Rect::from_min_size(panel_rect.min + vec2(12.0, 12.0), vec2(144.0, 144.0));
+        let preview_rect = egui::Rect::from_min_size(
+            pos2(content_left, panel_rect.min.y + 12.0),
+            vec2(144.0, 144.0),
+        );
         painter.image(
             texture.id(),
             preview_rect,
@@ -1347,7 +1350,7 @@ impl CrosshairApp {
 
         if let Some(color) = sampled_color.or(self.image_search_color_pick_preview_color) {
             let swatch_rect =
-                egui::Rect::from_min_size(panel_rect.min + vec2(12.0, 166.0), vec2(24.0, 24.0));
+                egui::Rect::from_min_size(pos2(content_left, panel_rect.min.y + 168.0), vec2(24.0, 24.0));
             painter.rect_filled(
                 swatch_rect,
                 6.0,
@@ -1369,7 +1372,7 @@ impl CrosshairApp {
         }
         if let Some((screen_x, screen_y)) = screen_point {
             painter.text(
-                panel_rect.min + vec2(12.0, 198.0),
+                pos2(content_left, panel_rect.min.y + 198.0),
                 egui::Align2::LEFT_TOP,
                 format!("X:{screen_x}  Y:{screen_y}"),
                 egui::FontId::proportional(12.0),
@@ -1377,7 +1380,7 @@ impl CrosshairApp {
             );
         }
         painter.text(
-            panel_rect.min + vec2(12.0, 214.0),
+            pos2(content_left, panel_rect.min.y + 214.0),
             egui::Align2::LEFT_TOP,
             "Center pixel",
             egui::FontId::proportional(12.0),
@@ -6111,21 +6114,72 @@ impl CrosshairApp {
         }
     }
 
-    fn capture_info_window_placement(ctx: &egui::Context) -> (egui::Pos2, egui::Vec2) {
-        let (left, top, width, _height) = window_list::virtual_screen_bounds();
+    fn capture_info_window_placement(
+        ctx: &egui::Context,
+        pointer: Option<egui::Pos2>,
+    ) -> (egui::Pos2, egui::Vec2) {
+        let (left, top, width, height) = window_list::virtual_screen_bounds();
         let ppp = ctx.pixels_per_point().max(0.5);
         let size = vec2(240.0, 288.0);
         let margin = 18.0;
-        let x = (left as f32 + width as f32) / ppp - size.x - margin;
-        let y = top as f32 / ppp + margin;
-        let pos = pos2(x.max(0.0), y.max(0.0));
+        let viewport_rect = egui::Rect::from_min_max(
+            pos2(left as f32 / ppp, top as f32 / ppp),
+            pos2(
+                (left as f32 + width as f32) / ppp,
+                (top as f32 + height as f32) / ppp,
+            ),
+        );
+        let candidates = [
+            egui::Rect::from_min_size(
+                viewport_rect.right_top() - vec2(size.x + margin, -margin),
+                size,
+            ),
+            egui::Rect::from_min_size(viewport_rect.left_top() + vec2(margin, margin), size),
+            egui::Rect::from_min_size(
+                viewport_rect.right_bottom() - vec2(size.x + margin, size.y + margin),
+                size,
+            ),
+            egui::Rect::from_min_size(
+                viewport_rect.left_bottom() + vec2(margin, -(size.y + margin)),
+                size,
+            ),
+        ];
+        let pos = if let Some(pointer) = pointer {
+            let pointer_safe_zone = egui::Rect::from_center_size(pointer, vec2(320.0, 320.0));
+            candidates
+                .into_iter()
+                .find(|candidate| !candidate.intersects(pointer_safe_zone))
+                .unwrap_or_else(|| {
+                    candidates
+                        .into_iter()
+                        .max_by(|a, b| {
+                            let a_dist = a.center().distance_sq(pointer);
+                            let b_dist = b.center().distance_sq(pointer);
+                            a_dist
+                                .partial_cmp(&b_dist)
+                                .unwrap_or(std::cmp::Ordering::Equal)
+                        })
+                        .unwrap_or(candidates[0])
+                })
+                .min
+        } else {
+            candidates[0].min
+        };
         (pos, size)
     }
 
-    fn show_capture_info_window(&mut self, ctx: &egui::Context) {
-        let (pos, size) = Self::capture_info_window_placement(ctx);
+    fn refresh_capture_info_window(&mut self, ctx: &egui::Context) {
+        let pointer = Self::current_screen_cursor_pos().map(|(x, y)| {
+            let ppp = ctx.pixels_per_point().max(0.5);
+            egui::pos2(x as f32 / ppp, y as f32 / ppp)
+        });
+        let (pos, size) = Self::capture_info_window_placement(ctx, pointer);
         ctx.send_viewport_cmd(egui::ViewportCommand::OuterPosition(pos));
         ctx.send_viewport_cmd(egui::ViewportCommand::InnerSize(size));
+    }
+
+    fn show_capture_info_window(&mut self, ctx: &egui::Context) {
+        self.refresh_capture_info_window(ctx);
         ctx.send_viewport_cmd(egui::ViewportCommand::Visible(true));
         ctx.send_viewport_cmd(egui::ViewportCommand::Minimized(false));
         ctx.send_viewport_cmd(egui::ViewportCommand::Focus);
@@ -14323,8 +14377,8 @@ impl CrosshairApp {
         egui::CentralPanel::default()
             .frame(
                 Frame::new()
-                    .fill(Color32::from_rgba_premultiplied(14, 19, 26, 238))
-                    .stroke(egui::Stroke::new(1.0, Color32::from_rgb(82, 112, 150)))
+                    .fill(Color32::TRANSPARENT)
+                    .stroke(egui::Stroke::NONE)
                     .inner_margin(Margin::same(8)),
             )
             .show(ctx, |ui| {
@@ -14353,6 +14407,7 @@ impl CrosshairApp {
                         screen_point,
                     );
                 }
+                self.refresh_capture_info_window(ctx);
             });
         true
     }
@@ -14400,6 +14455,7 @@ impl CrosshairApp {
                 if ctx.input(|input| input.key_pressed(egui::Key::Escape)) {
                     self.cancel_mouse_move_absolute_capture(ctx);
                 }
+                self.refresh_capture_info_window(ctx);
             });
         true
     }
@@ -15228,7 +15284,9 @@ impl eframe::App for CrosshairApp {
         let wants_native_shadow = self.state.show_window
             && self.startup_splash.duration_sec <= 0.0
             && self.close_to_tray_animation.is_none()
-            && self.open_from_tray_animation.is_none();
+            && self.open_from_tray_animation.is_none()
+            && !self.image_search_capture_active
+            && self.mouse_move_absolute_capture_target.is_none();
         if self.native_shadow_applied != wants_native_shadow {
             crate::platform::set_native_window_shadow(frame, wants_native_shadow);
             self.native_shadow_applied = wants_native_shadow;
