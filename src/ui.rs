@@ -15516,6 +15516,11 @@ impl eframe::App for CrosshairApp {
             self.last_active_panel = self.state.active_panel;
         }
 
+        let viewport_focused = ctx.input(|input| input.viewport().focused != Some(false));
+        if !viewport_focused {
+            self.clear_toolbox_preview();
+        }
+
         if self.state.show_window
             && self.last_window_refresh_at.elapsed() >= Duration::from_millis(250)
             && matches!(
