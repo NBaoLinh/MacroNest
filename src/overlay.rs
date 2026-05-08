@@ -316,6 +316,8 @@ mod windows_overlay {
         mouse_sensitivity_exit_restore_speed: u32,
         active_pin_preset_id: Option<u32>,
         image_search_capture_mouse_blocked: bool,
+        image_search_capture_anchor: Option<(i32, i32)>,
+        image_search_capture_preview_region: Option<ImageSearchRegion>,
         toolbox_presets: Vec<ToolboxPreset>,
         macro_groups: Vec<MacroGroup>,
         macros_master_enabled: bool,
@@ -368,6 +370,8 @@ mod windows_overlay {
                 mouse_sensitivity_exit_restore_speed: 6,
                 active_pin_preset_id: None,
                 image_search_capture_mouse_blocked: false,
+                image_search_capture_anchor: None,
+                image_search_capture_preview_region: None,
                 toolbox_presets: Vec::new(),
                 macro_groups: Vec::new(),
                 macros_master_enabled: true,
@@ -924,6 +928,7 @@ mod windows_overlay {
             WMAPP_PROCESS_QUEUE => {
                 if let Some(runtime) = runtime_mut(hwnd) {
                     process_pending_commands(hwnd, runtime);
+                    let _ = refresh_search_area_overlay(runtime);
                     refresh_overlay_timer(hwnd, runtime);
                 }
                 LRESULT(0)
@@ -1233,11 +1238,39 @@ mod windows_overlay {
                 }
             }
             if is_image_search_capture_mouse_blocked() {
-                match message {
-                    WM_MOUSEMOVE => {
-                        let left_held = HOOK_STATE.lock().held_mouse_buttons.contains("MouseLeft");
+                    match message {
+                        WM_MOUSEMOVE => {
+                        let mut hook_state = HOOK_STATE.lock();
+                        let left_held = hook_state.held_mouse_buttons.contains("MouseLeft");
                         if left_held {
-                            let ui_tx = HOOK_STATE.lock().ui_tx.clone();
+                            if let Some((start_x, start_y)) = hook_state.image_search_capture_anchor {
+                                let left = start_x.min(info.pt.x);
+                                let top = start_y.min(info.pt.y);
+                                let width = (start_x - info.pt.x).abs().max(1);
+                                let height = (start_y - info.pt.y).abs().max(1);
+                                let region = ImageSearchRegion {
+                                    left,
+                                    top,
+                                    width,
+                                    height,
+                                    is_circle: false,
+                                };
+                                if hook_state.image_search_capture_preview_region != Some(region) {
+                                    hook_state.image_search_capture_preview_region = Some(region);
+                                    let ui_tx = hook_state.ui_tx.clone();
+                                    drop(hook_state);
+                                    if let Some(ui_tx) = ui_tx {
+                                        let _ = ui_tx.send(UiCommand::ImageSearchCaptureMouseMove {
+                                            screen_x: info.pt.x,
+                                            screen_y: info.pt.y,
+                                        });
+                                    }
+                                    wake_command_queue();
+                                    return CallNextHookEx(None, code, wparam, lparam);
+                                }
+                            }
+                            let ui_tx = hook_state.ui_tx.clone();
+                            drop(hook_state);
                             if let Some(ui_tx) = ui_tx {
                                 let _ = ui_tx.send(UiCommand::ImageSearchCaptureMouseMove {
                                     screen_x: info.pt.x,
@@ -1249,24 +1282,40 @@ mod windows_overlay {
                     }
                     WM_LBUTTONDOWN => {
                         update_held_mouse_button(message, ((info.mouseData >> 16) & 0xFFFF) as u16);
-                        let ui_tx = HOOK_STATE.lock().ui_tx.clone();
+                        let mut hook_state = HOOK_STATE.lock();
+                        hook_state.image_search_capture_anchor = Some((info.pt.x, info.pt.y));
+                        hook_state.image_search_capture_preview_region = Some(ImageSearchRegion {
+                            left: info.pt.x,
+                            top: info.pt.y,
+                            width: 1,
+                            height: 1,
+                            is_circle: false,
+                        });
+                        let ui_tx = hook_state.ui_tx.clone();
+                        drop(hook_state);
                         if let Some(ui_tx) = ui_tx {
                             let _ = ui_tx.send(UiCommand::ImageSearchCaptureMouseDown {
                                 screen_x: info.pt.x,
                                 screen_y: info.pt.y,
                             });
                         }
+                        wake_command_queue();
                         return LRESULT(1);
                     }
                     WM_LBUTTONUP => {
                         update_held_mouse_button(message, ((info.mouseData >> 16) & 0xFFFF) as u16);
-                        let ui_tx = HOOK_STATE.lock().ui_tx.clone();
+                        let mut hook_state = HOOK_STATE.lock();
+                        hook_state.image_search_capture_anchor = None;
+                        hook_state.image_search_capture_preview_region = None;
+                        let ui_tx = hook_state.ui_tx.clone();
+                        drop(hook_state);
                         if let Some(ui_tx) = ui_tx {
                             let _ = ui_tx.send(UiCommand::ImageSearchCaptureMouseUp {
                                 screen_x: info.pt.x,
                                 screen_y: info.pt.y,
                             });
                         }
+                        wake_command_queue();
                         return LRESULT(1);
                     }
                     WM_MOUSEWHEEL
@@ -2639,7 +2688,12 @@ mod windows_overlay {
                     let _ = refresh_pin_overlay(runtime);
                 }
                 OverlayCommand::SetImageSearchCaptureMouseBlocked(blocked) => {
-                    HOOK_STATE.lock().image_search_capture_mouse_blocked = blocked;
+                    let mut hook_state = HOOK_STATE.lock();
+                    hook_state.image_search_capture_mouse_blocked = blocked;
+                    if !blocked {
+                        hook_state.image_search_capture_anchor = None;
+                        hook_state.image_search_capture_preview_region = None;
+                    }
                 }
                 OverlayCommand::SetUiVisible(visible) => {
                     runtime.ui_visible = visible;
@@ -2873,7 +2927,7 @@ mod windows_overlay {
     }
 
     fn refresh_search_area_overlay(runtime: &mut Runtime) -> Result<()> {
-        let regions = {
+        let (regions, preview_region) = {
             let hook_state = HOOK_STATE.lock();
             let mut regions = hook_state
                 .image_search_presets
@@ -2889,20 +2943,29 @@ mod windows_overlay {
                     .filter_map(|preset| configured_image_search_timing_region(preset))
                     .collect::<Vec<_>>(),
             );
-            regions
+            (regions, hook_state.image_search_capture_preview_region)
         };
 
-        if regions.is_empty() {
+        if regions.is_empty() && preview_region.is_none() {
             unsafe {
                 let _ = ShowWindow(runtime.search_area_hwnd, SW_HIDE);
             }
             return Ok(());
         }
 
-        unsafe { paint_search_area_overlay(runtime.search_area_hwnd, &regions) }
+        unsafe { paint_search_area_overlay(runtime.search_area_hwnd, &regions, preview_region) }
     }
 
     fn desired_timer_interval_ms(runtime: &Runtime) -> u32 {
+        let capture_active = {
+            let hook_state = HOOK_STATE.lock();
+            hook_state.image_search_capture_preview_region.is_some()
+                || hook_state.image_search_capture_mouse_blocked
+        };
+        if capture_active {
+            return 16;
+        }
+
         if is_ui_in_foreground() {
             return 100;
         }
@@ -6305,7 +6368,7 @@ mod windows_overlay {
         confidence: f32,
     }
 
-    #[derive(Clone, Copy, Debug)]
+    #[derive(Clone, Copy, Debug, PartialEq)]
     struct ImageSearchRegion {
         left: i32,
         top: i32,
@@ -8824,7 +8887,11 @@ mod windows_overlay {
         Ok(())
     }
 
-    unsafe fn paint_search_area_overlay(hwnd: HWND, regions: &[ImageSearchRegion]) -> Result<()> {
+    unsafe fn paint_search_area_overlay(
+        hwnd: HWND,
+        regions: &[ImageSearchRegion],
+        preview_region: Option<ImageSearchRegion>,
+    ) -> Result<()> {
         let screen_width = GetSystemMetrics(SM_CXSCREEN).max(1);
         let screen_height = GetSystemMetrics(SM_CYSCREEN).max(1);
         let _ = SetWindowPos(
@@ -8924,6 +8991,31 @@ mod windows_overlay {
                     outline,
                 );
             }
+        }
+
+        if let Some(region) = preview_region {
+            let fill = [120, 220, 255, 36];
+            let outline = [255, 216, 96, 230];
+            fill_rect_rgba(
+                pixels,
+                screen_width as usize,
+                screen_height as usize,
+                region.left,
+                region.top,
+                region.width,
+                region.height,
+                fill,
+            );
+            draw_rect_outline_rgba(
+                pixels,
+                screen_width as usize,
+                screen_height as usize,
+                region.left,
+                region.top,
+                region.width,
+                region.height,
+                outline,
+            );
         }
 
         let destination = POINT { x: 0, y: 0 };
