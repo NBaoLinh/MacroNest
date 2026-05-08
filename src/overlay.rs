@@ -211,6 +211,7 @@ mod windows_overlay {
         SetMacrosMasterEnabled(bool),
         UpdateMacrosMasterHotkey(Option<HotkeyBinding>),
         RefreshPinOverlay,
+        SetImageSearchCaptureMouseBlocked(bool),
         SetUiVisible(bool),
         Exit,
     }
@@ -302,6 +303,7 @@ mod windows_overlay {
         mouse_sensitivity_restore_on_exit: bool,
         mouse_sensitivity_exit_restore_speed: u32,
         active_pin_preset_id: Option<u32>,
+        image_search_capture_mouse_blocked: bool,
         toolbox_presets: Vec<ToolboxPreset>,
         macro_groups: Vec<MacroGroup>,
         macros_master_enabled: bool,
@@ -353,6 +355,7 @@ mod windows_overlay {
                 mouse_sensitivity_restore_on_exit: false,
                 mouse_sensitivity_exit_restore_speed: 6,
                 active_pin_preset_id: None,
+                image_search_capture_mouse_blocked: false,
                 toolbox_presets: Vec::new(),
                 macro_groups: Vec::new(),
                 macros_master_enabled: true,
@@ -1191,9 +1194,6 @@ mod windows_overlay {
         wparam: WPARAM,
         lparam: LPARAM,
     ) -> LRESULT {
-        if code == HC_ACTION as i32 && is_ui_in_foreground() {
-            return CallNextHookEx(None, code, wparam, lparam);
-        }
         if code == HC_ACTION as i32 {
             let info = *(lparam.0 as *const MSLLHOOKSTRUCT);
             let injected = info.flags & 0x01 != 0;
@@ -1202,7 +1202,7 @@ mod windows_overlay {
             }
             let message = wparam.0 as u32;
             record_mouse_event(message, &info);
-            let mouse_lock_active = is_mouse_locked();
+            let mouse_lock_active = is_mouse_locked() || is_image_search_capture_mouse_blocked();
             if mouse_lock_active {
                 match message {
                     WM_MOUSEMOVE
@@ -1220,6 +1220,9 @@ mod windows_overlay {
                     }
                     _ => {}
                 }
+            }
+            if is_ui_in_foreground() {
+                return CallNextHookEx(None, code, wparam, lparam);
             }
             let event = match (wparam.0 as u32, ((info.mouseData >> 16) & 0xFFFF) as u16) {
                 (WM_LBUTTONDOWN, _) => Some((binding_from_event("MouseLeft"), true)),
@@ -2367,6 +2370,10 @@ mod windows_overlay {
         HOOK_STATE.lock().locked_mouse_count > 0
     }
 
+    fn is_image_search_capture_mouse_blocked() -> bool {
+        HOOK_STATE.lock().image_search_capture_mouse_blocked
+    }
+
     fn is_keyboard_arrow_mouse_key(key_name: &str) -> bool {
         matches!(key_name, "Left" | "Right" | "Up" | "Down")
     }
@@ -2569,6 +2576,9 @@ mod windows_overlay {
                 }
                 OverlayCommand::RefreshPinOverlay => {
                     let _ = refresh_pin_overlay(runtime);
+                }
+                OverlayCommand::SetImageSearchCaptureMouseBlocked(blocked) => {
+                    HOOK_STATE.lock().image_search_capture_mouse_blocked = blocked;
                 }
                 OverlayCommand::SetUiVisible(visible) => {
                     runtime.ui_visible = visible;

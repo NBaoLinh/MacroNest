@@ -1265,27 +1265,51 @@ impl CrosshairApp {
 
     fn image_search_preview_panel_rect(
         viewport_rect: egui::Rect,
+        pointer: Option<egui::Pos2>,
         panel_size: egui::Vec2,
     ) -> egui::Rect {
         let margin = 18.0;
-        egui::Rect::from_min_size(
-            viewport_rect.right_top() - vec2(panel_size.x + margin, -margin),
-            panel_size,
-        )
+        let Some(pointer) = pointer else {
+            return egui::Rect::from_min_size(
+                viewport_rect.right_top() - vec2(panel_size.x + margin, -margin),
+                panel_size,
+            );
+        };
+        let candidates = [
+            egui::Rect::from_min_size(
+                viewport_rect.right_top() - vec2(panel_size.x + margin, -margin),
+                panel_size,
+            ),
+            egui::Rect::from_min_size(viewport_rect.left_top() + vec2(margin, margin), panel_size),
+            egui::Rect::from_min_size(
+                viewport_rect.right_bottom() - vec2(panel_size.x + margin, panel_size.y + margin),
+                panel_size,
+            ),
+            egui::Rect::from_min_size(
+                viewport_rect.left_bottom() + vec2(margin, -(panel_size.y + margin)),
+                panel_size,
+            ),
+        ];
+        let pointer_safe_zone = egui::Rect::from_center_size(pointer, vec2(54.0, 54.0));
+        candidates
+            .into_iter()
+            .find(|candidate| !candidate.intersects(pointer_safe_zone))
+            .unwrap_or(candidates[0])
     }
 
     fn render_image_search_cursor_preview_panel(
         &self,
         painter: &egui::Painter,
         viewport_rect: egui::Rect,
+        pointer: Option<egui::Pos2>,
         sampled_color: Option<RgbaColor>,
         screen_point: Option<(i32, i32)>,
     ) {
         let Some(texture) = self.image_search_color_pick_texture.as_ref() else {
             return;
         };
-        let panel_size = vec2(188.0, 236.0);
-        let panel_rect = Self::image_search_preview_panel_rect(viewport_rect, panel_size);
+        let panel_size = vec2(188.0, 254.0);
+        let panel_rect = Self::image_search_preview_panel_rect(viewport_rect, pointer, panel_size);
         painter.rect_filled(
             panel_rect,
             10.0,
@@ -6189,11 +6213,13 @@ impl CrosshairApp {
                     .to_owned()
             }
         };
+        self.set_image_search_capture_mouse_blocked(true);
         if matches!(
             mode,
             ImageSearchCaptureMode::ColorSample | ImageSearchCaptureMode::ColorPriorityAnchor
         ) {
             let _ = self.overlay_tx.send(OverlayCommand::SetUiVisible(false));
+            crate::overlay::wake_command_queue();
             self.show_capture_info_window(ctx);
             Self::spawn_image_search_point_capture(
                 self.ui_tx.clone(),
@@ -6205,6 +6231,7 @@ impl CrosshairApp {
             return;
         }
         let _ = self.overlay_tx.send(OverlayCommand::SetUiVisible(false));
+        crate::overlay::wake_command_queue();
         self.show_capture_info_window(ctx);
         Self::spawn_image_search_region_capture(
             self.ui_tx.clone(),
@@ -6721,6 +6748,14 @@ impl CrosshairApp {
         self.image_search_capture_current = None;
         self.image_search_capture_screen_region_preview = None;
         self.image_search_color_pick_preview_color = None;
+        self.set_image_search_capture_mouse_blocked(false);
+    }
+
+    fn set_image_search_capture_mouse_blocked(&self, blocked: bool) {
+        let _ = self
+            .overlay_tx
+            .send(OverlayCommand::SetImageSearchCaptureMouseBlocked(blocked));
+        crate::overlay::wake_command_queue();
     }
 
     fn restore_image_search_capture_window(&mut self, ctx: &egui::Context) {
@@ -6729,6 +6764,7 @@ impl CrosshairApp {
         ctx.send_viewport_cmd(egui::ViewportCommand::Minimized(false));
         ctx.send_viewport_cmd(egui::ViewportCommand::Focus);
         let _ = self.overlay_tx.send(OverlayCommand::SetUiVisible(true));
+        crate::overlay::wake_command_queue();
     }
 
     fn apply_image_search_color_pick(
@@ -13546,7 +13582,7 @@ impl CrosshairApp {
 
                         if preset.use_color_matching {
                             ui.label(Self::tr_lang(language, "Color", "Color"));
-                            ui.horizontal_wrapped(|ui| {
+                            ui.vertical(|ui| {
                                 let colors = Self::image_search_target_colors(&preset);
                                 let uses_legacy_single_color = preset.target_colors.is_empty()
                                     && preset.target_color.is_some();
@@ -13590,6 +13626,7 @@ impl CrosshairApp {
                                         }
                                     }
                                 }
+                                ui.add_space(4.0);
                                 if Self::image_search_add_color_button(ui, language).clicked() {
                                     start_color_pick_capture = Some(preset.id);
                                 }
@@ -14078,8 +14115,9 @@ impl CrosshairApp {
                 let capture_mode = self
                     .image_search_capture_mode
                     .unwrap_or(ImageSearchCaptureMode::Template);
+                let pointer = self.precise_image_search_capture_pointer(ctx);
                 let screen_point = Self::current_screen_cursor_pos();
-                if self.precise_image_search_capture_pointer(ctx).is_some() {
+                if pointer.is_some() {
                     let sampled_color = match capture_mode {
                         ImageSearchCaptureMode::ColorPriorityAnchor => None,
                         ImageSearchCaptureMode::Template => {
@@ -14094,6 +14132,7 @@ impl CrosshairApp {
                     self.render_image_search_cursor_preview_panel(
                         ui.painter(),
                         ui.max_rect(),
+                        pointer,
                         sampled_color,
                         screen_point,
                     );
@@ -14129,12 +14168,14 @@ impl CrosshairApp {
                     egui::FontId::proportional(18.0),
                     Color32::WHITE,
                 );
-                if self.precise_image_search_capture_pointer(ctx).is_some() {
+                let pointer = self.precise_image_search_capture_pointer(ctx);
+                if pointer.is_some() {
                     if let Some((x, y)) = Self::current_screen_cursor_pos() {
                         let sampled_color = self.update_image_search_cursor_preview(ctx, x, y, 21);
                         self.render_image_search_cursor_preview_panel(
                             &painter,
                             rect,
+                            pointer,
                             sampled_color,
                             Some((x, y)),
                         );
