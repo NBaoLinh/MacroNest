@@ -182,6 +182,10 @@ mod windows_overlay {
     pub enum OverlayCommand {
         Update(CrosshairStyle),
         UpdateProfiles(Vec<ProfileRecord>),
+        UpdateCrosshairProfile {
+            index: usize,
+            profile: ProfileRecord,
+        },
         UpdateWindowPresets(Vec<WindowPreset>),
         UpdateWindowFocusPresets(Vec<WindowFocusPreset>),
         #[allow(dead_code)]
@@ -2556,6 +2560,16 @@ mod windows_overlay {
                     HOOK_STATE.lock().profiles = profiles;
                     let _ = refresh_overlay(runtime);
                 }
+                OverlayCommand::UpdateCrosshairProfile { index, profile } => {
+                    let mut hook_state = HOOK_STATE.lock();
+                    if let Some(existing) = hook_state.profiles.get_mut(index) {
+                        *existing = profile;
+                    } else {
+                        hook_state.profiles.push(profile);
+                    }
+                    drop(hook_state);
+                    let _ = refresh_overlay(runtime);
+                }
                 OverlayCommand::UpdateWindowPresets(presets) => {
                     runtime.window_presets = presets;
                     let _ = sync_window_hotkeys(hwnd, runtime);
@@ -2749,8 +2763,6 @@ mod windows_overlay {
         let screen_height = GetSystemMetrics(SM_CYSCREEN).max(1) as u32;
         let mut canvas =
             RgbaImage::from_pixel(screen_width, screen_height, image::Rgba([0, 0, 0, 0]));
-        let screen_center_x = (screen_width / 2) as i32;
-        let screen_center_y = (screen_height / 2) as i32;
 
         for profile in visible_profiles {
             let custom_path = profile
@@ -2761,8 +2773,8 @@ mod windows_overlay {
             let rendered = render_crosshair(&profile.style, custom_path.as_deref())?;
             let layer = RgbaImage::from_raw(rendered.width, rendered.height, rendered.rgba)
                 .context("Failed to build crosshair layer")?;
-            let left = (screen_center_x + profile.style.x_offset - rendered.center_x) as i64;
-            let top = (screen_center_y + profile.style.y_offset - rendered.center_y) as i64;
+            let left = (profile.style.x_offset - rendered.center_x) as i64;
+            let top = (profile.style.y_offset - rendered.center_y) as i64;
             image::imageops::overlay(&mut canvas, &layer, left, top);
         }
 
@@ -8697,10 +8709,8 @@ mod windows_overlay {
         style: &CrosshairStyle,
         rendered: RenderedCrosshair,
     ) -> Result<()> {
-        let screen_width = GetSystemMetrics(SM_CXSCREEN);
-        let screen_height = GetSystemMetrics(SM_CYSCREEN);
-        let window_x = (screen_width / 2) + style.x_offset - rendered.center_x;
-        let window_y = (screen_height / 2) + style.y_offset - rendered.center_y;
+        let window_x = style.x_offset - rendered.center_x;
+        let window_y = style.y_offset - rendered.center_y;
 
         let _ = SetWindowPos(
             hwnd,
@@ -9311,6 +9321,10 @@ mod fallback {
     pub enum OverlayCommand {
         Update(CrosshairStyle),
         UpdateProfiles(Vec<ProfileRecord>),
+        UpdateCrosshairProfile {
+            index: usize,
+            profile: ProfileRecord,
+        },
         UpdateWindowPresets(Vec<WindowPreset>),
         UpdateWindowFocusPresets(Vec<WindowFocusPreset>),
         UpdateWindowExpandControls(WindowExpandControls),

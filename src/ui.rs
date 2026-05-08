@@ -432,6 +432,7 @@ pub struct CrosshairApp {
     macro_group_clipboard_is_cut: bool,
     macro_preset_clipboard: Option<MacroPreset>,
     macro_step_clipboard: Vec<MacroStep>,
+    crosshair_editor_dirty: bool,
     confirm_delete_folder_id: Option<u32>,
     confirm_release_folder_id: Option<u32>,
     confirm_delete_macro_group_id: Option<u32>,
@@ -539,6 +540,7 @@ impl CrosshairApp {
             macro_group_clipboard_is_cut: false,
             macro_preset_clipboard: None,
             macro_step_clipboard: Vec::new(),
+            crosshair_editor_dirty: false,
             confirm_delete_folder_id: None,
             confirm_release_folder_id: None,
             confirm_delete_macro_group_id: None,
@@ -687,6 +689,13 @@ impl CrosshairApp {
         let _ = self
             .overlay_tx
             .send(OverlayCommand::UpdateProfiles(self.state.profiles.clone()));
+    }
+
+    fn sync_crosshair_profile(&self, index: usize, profile: &ProfileRecord) {
+        let _ = self.overlay_tx.send(OverlayCommand::UpdateCrosshairProfile {
+            index,
+            profile: profile.clone(),
+        });
     }
 
     fn sync_macro_presets(&self) {
@@ -1958,6 +1967,12 @@ impl CrosshairApp {
     #[cfg(not(windows))]
     fn screen_size() -> egui::Vec2 {
         vec2(1920.0, 1080.0)
+    }
+
+    fn crosshair_position_limits(screen_size: egui::Vec2) -> (i32, i32) {
+        let screen_w = screen_size.x.round().max(1.0) as i32;
+        let screen_h = screen_size.y.round().max(1.0) as i32;
+        (screen_w.saturating_sub(1), screen_h.saturating_sub(1))
     }
 
     fn square_window_size(size: egui::Vec2) -> egui::Vec2 {
@@ -8085,7 +8100,7 @@ impl CrosshairApp {
                     .show(ui, |ui| {
                         ui.label("Actions");
                         ui.horizontal_wrapped(|ui| {
-                            if ui.button("Center on screen").clicked() {
+                            if ui.button("Move to top-left").clicked() {
                                 self.state.active_style.x_offset = 0;
                                 self.state.active_style.y_offset = 0;
                                 changed = true;
@@ -8257,7 +8272,7 @@ impl CrosshairApp {
                             .changed();
                         ui.end_row();
 
-                        ui.label("Horizontal offset");
+                        ui.label("Position X");
                         changed |= ui
                             .add_sized(
                                 [340.0, 20.0],
@@ -8266,7 +8281,7 @@ impl CrosshairApp {
                             .changed();
                         ui.end_row();
 
-                        ui.label("Vertical offset");
+                        ui.label("Position Y");
                         changed |= ui
                             .add_sized(
                                 [340.0, 20.0],
@@ -8513,8 +8528,11 @@ impl CrosshairApp {
         language: UiLanguage,
         grid_id: H,
         style: &mut CrosshairStyle,
-    ) -> bool {
+    ) -> (bool, bool) {
         let mut changed = false;
+        let mut dragging = false;
+        let screen_size = Self::screen_size();
+        let (offset_limit_x, offset_limit_y) = Self::crosshair_position_limits(screen_size);
         egui::Grid::new(grid_id)
             .num_columns(2)
             .spacing([14.0, 8.0])
@@ -8524,12 +8542,12 @@ impl CrosshairApp {
                     "Horizontal length",
                     "Horizontal length",
                 ));
-                changed |= ui
-                    .add_sized(
-                        [340.0, 20.0],
-                        Slider::new(&mut style.horizontal_length, 1.0..=80.0),
-                    )
-                    .changed();
+                let response = ui.add_sized(
+                    [340.0, 20.0],
+                    Slider::new(&mut style.horizontal_length, 1.0..=80.0),
+                );
+                changed |= response.changed();
+                dragging |= response.dragged();
                 ui.end_row();
 
                 ui.label(Self::tr_lang(
@@ -8537,56 +8555,72 @@ impl CrosshairApp {
                     "Vertical length",
                     "Vertical length",
                 ));
-                changed |= ui
-                    .add_sized(
-                        [340.0, 20.0],
-                        Slider::new(&mut style.vertical_length, 1.0..=80.0),
-                    )
-                    .changed();
+                let response = ui.add_sized(
+                    [340.0, 20.0],
+                    Slider::new(&mut style.vertical_length, 1.0..=80.0),
+                );
+                changed |= response.changed();
+                dragging |= response.dragged();
                 ui.end_row();
 
                 ui.label(Self::tr_lang(language, "Thickness", "Thickness"));
-                changed |= ui
-                    .add_sized([340.0, 20.0], Slider::new(&mut style.thickness, 1.0..=20.0))
-                    .changed();
+                let response =
+                    ui.add_sized([340.0, 20.0], Slider::new(&mut style.thickness, 1.0..=20.0));
+                changed |= response.changed();
+                dragging |= response.dragged();
                 ui.end_row();
 
                 ui.label(Self::tr_lang(language, "Gap", "Gap"));
-                changed |= ui
-                    .add_sized([340.0, 20.0], Slider::new(&mut style.gap, 0.0..=48.0))
-                    .changed();
+                let response = ui.add_sized([340.0, 20.0], Slider::new(&mut style.gap, 0.0..=48.0));
+                changed |= response.changed();
+                dragging |= response.dragged();
                 ui.end_row();
 
                 ui.label(Self::tr_lang(
                     language,
-                    "Horizontal offset",
+                    "X",
                     "Äá»™ lá»‡ch ngang",
                 ));
-                changed |= ui
-                    .add_sized(
-                        [340.0, 20.0],
-                        Slider::new(&mut style.x_offset, -1000..=1000),
-                    )
-                    .changed();
+                ui.horizontal(|ui| {
+                    let response = ui.add_sized(
+                        [280.0, 20.0],
+                        Slider::new(&mut style.x_offset, 0..=offset_limit_x)
+                            .step_by(1.0),
+                    );
+                    changed |= response.changed();
+                    dragging |= response.dragged();
+                    if ui.button(Self::tr_lang(language, "Center", "Center")).clicked() {
+                        style.x_offset = offset_limit_x / 2;
+                        changed = true;
+                    }
+                });
                 ui.end_row();
 
                 ui.label(Self::tr_lang(
                     language,
-                    "Vertical offset",
-                    "Vertical offset",
+                    "Y",
+                    "Y",
                 ));
-                changed |= ui
-                    .add_sized(
-                        [340.0, 20.0],
-                        Slider::new(&mut style.y_offset, -1000..=1000),
-                    )
-                    .changed();
+                ui.horizontal(|ui| {
+                    let response = ui.add_sized(
+                        [280.0, 20.0],
+                        Slider::new(&mut style.y_offset, 0..=offset_limit_y)
+                            .step_by(1.0),
+                    );
+                    changed |= response.changed();
+                    dragging |= response.dragged();
+                    if ui.button(Self::tr_lang(language, "Center", "Center")).clicked() {
+                        style.y_offset = offset_limit_y / 2;
+                        changed = true;
+                    }
+                });
                 ui.end_row();
 
                 ui.label(Self::tr_lang(language, "Opacity", "Opacity"));
-                changed |= ui
-                    .add_sized([340.0, 20.0], Slider::new(&mut style.opacity, 0.05..=1.0))
-                    .changed();
+                let response =
+                    ui.add_sized([340.0, 20.0], Slider::new(&mut style.opacity, 0.05..=1.0));
+                changed |= response.changed();
+                dragging |= response.dragged();
                 ui.end_row();
 
                 ui.label(Self::tr_lang(language, "Outline", "Outline"));
@@ -8603,12 +8637,12 @@ impl CrosshairApp {
                     "Outline thickness",
                     "Outline thickness",
                 ));
-                changed |= ui
-                    .add_sized(
-                        [340.0, 20.0],
-                        Slider::new(&mut style.outline_thickness, 0.0..=8.0),
-                    )
-                    .changed();
+                let response = ui.add_sized(
+                    [340.0, 20.0],
+                    Slider::new(&mut style.outline_thickness, 0.0..=8.0),
+                );
+                changed |= response.changed();
+                dragging |= response.dragged();
                 ui.end_row();
 
                 ui.label(Self::tr_lang(language, "Center dot", "Center dot"));
@@ -8625,15 +8659,23 @@ impl CrosshairApp {
                     "Center dot size",
                     "KÃ­ch thÆ°á»›c cháº¥m giá»¯a",
                 ));
-                changed |= ui
-                    .add_sized(
-                        [340.0, 20.0],
-                        Slider::new(&mut style.center_dot_size, 1.0..=24.0),
-                    )
-                    .changed();
+                let response = ui.add_sized(
+                    [340.0, 20.0],
+                    Slider::new(&mut style.center_dot_size, 1.0..=24.0),
+                );
+                changed |= response.changed();
+                dragging |= response.dragged();
+                ui.end_row();
+                
+                ui.label(Self::tr_lang(language, "Crosshair color", "Crosshair color"));
+                changed |= Self::edit_rgba_color(ui, &mut style.color);
+                ui.end_row();
+
+                ui.label(Self::tr_lang(language, "Outline color", "Outline color"));
+                changed |= Self::edit_rgba_color(ui, &mut style.outline_color);
                 ui.end_row();
             });
-        changed
+        (changed, dragging)
     }
 
     fn render_crosshair_presets_panel(&mut self, ui: &mut egui::Ui) {
@@ -8650,7 +8692,7 @@ impl CrosshairApp {
         });
         ui.separator();
 
-        let mut changed = false;
+        let mut any_dragging = false;
         let mut remove_index = None;
         for index in 0..self.state.profiles.len() {
             let mut remove = false;
@@ -8703,12 +8745,14 @@ impl CrosshairApp {
                             "Crosshair Settings",
                             "CÃ i Ä‘áº·t tÃ¢m ngáº¯m",
                         ));
-                        preset_changed |= Self::render_crosshair_style_editor(
+                        let (style_changed, style_dragging) = Self::render_crosshair_style_editor(
                             ui,
                             language,
                             (index, "crosshair-style-grid"),
                             &mut preset.style,
                         );
+                        preset_changed |= style_changed;
+                        any_dragging |= style_dragging;
                     }
                 });
             }
@@ -8718,7 +8762,8 @@ impl CrosshairApp {
                 break;
             }
             if preset_changed {
-                changed = true;
+                self.sync_crosshair_profile(index, &self.state.profiles[index]);
+                self.crosshair_editor_dirty = true;
             }
             ui.add_space(6.0);
         }
@@ -8735,12 +8780,13 @@ impl CrosshairApp {
             self.state.selected_profile = Some(next.name.clone());
             self.state.active_style = next.style;
             self.save_name = next.name;
-            changed = true;
+            self.sync_profiles();
+            self.crosshair_editor_dirty = true;
         }
 
-        if changed {
-            self.sync_profiles();
+        if self.crosshair_editor_dirty && !any_dragging {
             self.persist();
+            self.crosshair_editor_dirty = false;
         }
     }
 
