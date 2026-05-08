@@ -1,6 +1,6 @@
 #[cfg(windows)]
 mod windows_platform {
-    use std::env;
+    use std::{env, path::Path};
 
     use anyhow::{Result, bail};
     use eframe::Frame;
@@ -176,6 +176,28 @@ mod windows_platform {
         }
     }
 
+    pub fn open_folder_in_explorer(path: &Path) -> Result<()> {
+        if !path.exists() {
+            bail!("Folder does not exist: {}", path.display());
+        }
+
+        let path_wide = widestring(path.as_os_str().to_string_lossy().as_ref());
+        unsafe {
+            let result = ShellExecuteW(
+                Some(HWND(std::ptr::null_mut())),
+                w!("open"),
+                PCWSTR(path_wide.as_ptr()),
+                PCWSTR::null(),
+                PCWSTR::null(),
+                SW_SHOWNORMAL,
+            );
+            if (result.0 as usize) <= 32 {
+                bail!("Failed to open folder: {}", path.display());
+            }
+        }
+        Ok(())
+    }
+
     fn widestring(value: &str) -> Vec<u16> {
         let mut wide: Vec<u16> = value.encode_utf16().collect();
         wide.push(0);
@@ -204,6 +226,10 @@ mod fallback {
     pub fn set_high_priority() {}
 
     pub fn set_native_window_shadow(_frame: &Frame, _enabled: bool) {}
+
+    pub fn open_folder_in_explorer(_path: &std::path::Path) -> Result<()> {
+        Ok(())
+    }
 }
 
 #[cfg(not(windows))]

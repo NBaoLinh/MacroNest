@@ -14960,6 +14960,38 @@ impl CrosshairApp {
         if ai_changed {
             self.persist();
         }
+        ui.add_space(8.0);
+        Frame::group(ui.style()).show(ui, |ui| {
+            ui.label(RichText::new(Self::tr_lang(language, "App data", "Thư mục dữ liệu")).strong());
+            ui.add_space(6.0);
+            if ui
+                .button(Self::tr_lang(
+                    language,
+                    "Open data folder",
+                    "Mở thư mục dữ liệu",
+                ))
+                .clicked()
+            {
+                self.open_app_data_folder();
+            }
+            ui.add_space(4.0);
+            ui.label(
+                RichText::new(self.paths.root.display().to_string())
+                    .monospace()
+                    .small(),
+            );
+        });
+    }
+
+    fn open_app_data_folder(&mut self) {
+        match crate::platform::open_folder_in_explorer(&self.paths.root) {
+            Ok(()) => {
+                self.status = format!("Opened data folder: {}.", self.paths.root.display());
+            }
+            Err(error) => {
+                self.status = format!("Failed to open data folder: {error}");
+            }
+        }
     }
 
     fn render_toolbox_panel(&mut self, ui: &mut egui::Ui) {
