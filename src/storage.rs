@@ -35,9 +35,18 @@ pub struct AppPaths {
 
 impl AppPaths {
     pub fn discover() -> Result<Self> {
-        let dirs = ProjectDirs::from("com", "Crosshair", "Crosshair")
+        let dirs = ProjectDirs::from("com", "MacroNest", "MacroNest")
             .context("Failed to locate the application data folder")?;
         let root = dirs.data_local_dir().to_path_buf();
+
+        // Migrate from old Crosshair directory if it exists and new one doesn't
+        if let Some(old_dirs) = ProjectDirs::from("com", "Crosshair", "Crosshair") {
+            let old_root = old_dirs.data_local_dir().to_path_buf();
+            if old_root.exists() && !root.exists() {
+                let _ = fs::create_dir_all(root.parent().unwrap());
+                let _ = fs::rename(&old_root, &root);
+            }
+        }
         let state_file = root.join("state.json");
         let profiles_dir = root.join("profiles");
         let asset_dir = root.join("custom-crosshairs");
