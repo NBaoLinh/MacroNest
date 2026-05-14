@@ -2311,21 +2311,34 @@ impl CrosshairApp {
         add_contents: impl FnOnce(&mut egui::Ui) -> R,
     ) -> R {
         let dark_mode = ui.visuals().dark_mode;
-        let (fill, stroke_color) = if group_enabled && preset_enabled {
-            (
-                Color32::from_rgba_premultiplied(32, 92, 52, 120),
-                Color32::from_rgb(108, 224, 148),
-            )
-        } else if group_enabled {
-            (
-                Color32::from_rgb(28, 36, 32),
-                Color32::from_rgb(55, 75, 65),
-            )
+        let (fill, stroke_color) = if group_enabled {
+            if preset_enabled {
+                // Combination 1: Group Active + Preset Active (Bright glowing green)
+                (
+                    Color32::from_rgba_premultiplied(32, 92, 52, 120),
+                    Color32::from_rgb(108, 224, 148),
+                )
+            } else {
+                // Combination 2: Group Active + Preset Inactive (Restore user's desired old behavior!)
+                (
+                    ui.visuals().faint_bg_color,
+                    ui.visuals().widgets.noninteractive.bg_stroke.color,
+                )
+            }
         } else {
-            (
-                ui.visuals().faint_bg_color,
-                ui.visuals().widgets.noninteractive.bg_stroke.color,
-            )
+            if preset_enabled {
+                // Combination 3: Group Inactive + Preset Active (Armed but dormant - show sleep green tint!)
+                (
+                    Color32::from_rgba_premultiplied(25, 65, 40, 60),
+                    Color32::from_rgb(60, 120, 85),
+                )
+            } else {
+                // Combination 4: Group Inactive + Preset Inactive (Fully dark/dormant)
+                (
+                    ui.visuals().faint_bg_color,
+                    ui.visuals().widgets.noninteractive.bg_stroke.color,
+                )
+            }
         };
         let frame = egui::Frame::group(ui.style())
             .fill(fill)
@@ -2337,7 +2350,7 @@ impl CrosshairApp {
                 if dark_mode {
                     ui.visuals_mut().override_text_color = Some(Self::preset_body_text_color(
                         dark_mode,
-                        group_enabled && preset_enabled,
+                        preset_enabled, // Align text colors with preset armed state
                     ));
                 }
                 let output = add_contents(ui);
