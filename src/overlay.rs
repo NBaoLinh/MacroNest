@@ -276,6 +276,12 @@ mod windows_overlay {
             height: i32,
         },
         ImageSearchPointCaptureCancelled(String),
+        UpdateCheckStarted,
+        UpdateAvailable(String, String, String), // version, body, download_url
+        UpdateDownloadStarted,
+        UpdateDownloadFinished(String), // new_exe_path
+        UpdateError(String),
+        UpdateUpToDate,
     }
 
     pub struct OverlayHandle {

@@ -66,13 +66,27 @@ struct VietnameseInputSession {
 static VIETNAMESE_INPUT_SESSION: Lazy<Mutex<VietnameseInputSession>> =
     Lazy::new(|| Mutex::new(VietnameseInputSession::default()));
 
-#[derive(Clone, Copy, PartialEq, Eq, Hash)]
+
+#[derive(Debug, Clone, PartialEq, Default)]
+enum UpdateStatus {
+    #[default]
+    Idle,
+    Checking,
+    Available(String, String, String), // version, body, download_url
+    Downloading,
+    ReadyToRestart(String), // new_exe_path
+    Error(String),
+    UpToDate,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
 enum AudioEditorTarget {
     Startup,
     Exit,
     Library(u32),
     Preset(u32),
 }
+
 
 #[derive(Clone, Copy, PartialEq, Eq)]
 enum ImageSearchCaptureMode {
@@ -571,6 +585,7 @@ pub struct CrosshairApp {
     macro_ai_feedback: Option<String>,
     last_applied_theme: Option<UiThemeMode>,
     native_shadow_applied: bool,
+    update_status: UpdateStatus,
 }
 
 impl CrosshairApp {
@@ -729,6 +744,7 @@ impl CrosshairApp {
             macro_ai_feedback: None,
             last_applied_theme: None,
             native_shadow_applied: false,
+            update_status: UpdateStatus::Idle,
         };
         app.ensure_master_presets();
         let mut startup_state_changed = false;
@@ -2869,6 +2885,157 @@ impl CrosshairApp {
         "MacroNest"
     }
 
+    
+    fn check_for_update(&mut self, ctx: &egui::Context) {
+        if matches!(self.update_status, UpdateStatus::Checking | UpdateStatus::Downloading) {
+            return;
+        }
+        self.update_status = UpdateStatus::Checking;
+        let ui_tx = self.ui_tx.clone();
+        let ctx = ctx.clone();
+        let current_version = self.app_version_label().to_owned();
+        std::thread::spawn(move || {
+            let client = reqwest::blocking::Client::builder()
+                .user_agent("MacroNest")
+                .build()
+                .map_err(|e| e.to_string());
+            let result = client.and_then(|c| {
+                let resp = c.get("https://api.github.com/repos/Baolinh0305/MacroNest/releases/latest")
+                    .send()
+                    .map_err(|e| e.to_string())?;
+                let json: serde_json::Value = resp.json().map_err(|e| e.to_string())?;
+                let latest_version = json["tag_name"].as_str()
+                    .unwrap_or("")
+                    .trim_start_matches('v')
+                    .to_owned();
+                if latest_version.is_empty() {
+                    return Err("Failed to parse version from GitHub".to_owned());
+                }
+                if latest_version == current_version {
+                    let _ = ui_tx.send(UiCommand::UpdateUpToDate);
+                    return Ok(());
+                }
+                let body = json["body"].as_str().unwrap_or("").to_owned();
+                let download_url = json["assets"].as_array()
+                    .and_then(|assets| {
+                        assets.iter().find(|a| {
+                            a["name"].as_str().map(|n| n.ends_with(".exe")).unwrap_or(false)
+                        })
+                    })
+                    .and_then(|a| a["browser_download_url"].as_str())
+                    .map(|s| s.to_owned());
+                if let Some(url) = download_url {
+                    let _ = ui_tx.send(UiCommand::UpdateAvailable(latest_version, body, url));
+                } else {
+                    let _ = ui_tx.send(UiCommand::UpdateError("No executable found in the latest release".to_owned()));
+                }
+                Ok(())
+            });
+            if let Err(e) = result {
+                let _ = ui_tx.send(UiCommand::UpdateError(e));
+            }
+            ctx.request_repaint();
+        });
+    }
+
+    fn start_download_update(&mut self, ctx: &egui::Context, download_url: String) {
+        self.update_status = UpdateStatus::Downloading;
+        let ui_tx = self.ui_tx.clone();
+        let ctx = ctx.clone();
+        std::thread::spawn(move || {
+            let client = reqwest::blocking::Client::builder()
+                .user_agent("MacroNest")
+                .build();
+            let result = client.map_err(|e| e.to_string()).and_then(|c| {
+                let mut resp = c.get(download_url)
+                    .send()
+                    .map_err(|e| e.to_string())?;
+                let temp_dir = std::env::temp_dir();
+                let temp_path = temp_dir.join("macronest_update.exe");
+                let mut file = fs::File::create(&temp_path).map_err(|e| e.to_string())?;
+                std::io::copy(&mut resp, &mut file).map_err(|e| e.to_string())?;
+                let _ = ui_tx.send(UiCommand::UpdateDownloadFinished(temp_path.to_string_lossy().to_string()));
+                Ok(())
+            });
+            if let Err(e) = result {
+                let _ = ui_tx.send(UiCommand::UpdateError(e));
+            }
+            ctx.request_repaint();
+        });
+    }
+
+    fn restart_and_apply_update(&mut self, new_exe_path: String) {
+        let current_exe = std::env::current_exe().unwrap_or_default();
+        let old_exe = current_exe.with_extension("exe.old");
+        let result: anyhow::Result<()> = (|| {
+            if old_exe.exists() {
+                let _ = fs::remove_file(&old_exe);
+            }
+            fs::rename(&current_exe, &old_exe)?;
+            fs::copy(&new_exe_path, &current_exe)?;
+            Command::new(&current_exe).spawn()?;
+            std::process::exit(0);
+        })();
+        if let Err(e) = result {
+            self.status = format!("Failed to apply update: {e}");
+        }
+    }
+
+    fn render_update_settings(&mut self, ui: &mut egui::Ui, ctx: &egui::Context) {
+        let language = self.state.ui_language;
+        ui.add_space(8.0);
+        Frame::group(ui.style()).show(ui, |ui| {
+            ui.label(RichText::new(Self::tr_lang(language, "Update", "Cáº­p nháº­t")).strong());
+            ui.add_space(6.0);
+            match &self.update_status {
+                UpdateStatus::Idle => {
+                    if ui.button(Self::tr_lang(language, "Check for update", "Kiá»ƒm tra cáº­p nháº­t")).clicked() {
+                        self.check_for_update(ctx);
+                    }
+                }
+                UpdateStatus::Checking => {
+                    ui.horizontal(|ui| {
+                        ui.spinner();
+                        ui.label(Self::tr_lang(language, "Checking for updates...", "Äang kiá»ƒm tra cáº­p nháº­t..."));
+                    });
+                }
+                UpdateStatus::Available(version, body, url) => {
+                    ui.label(RichText::new(format!("New version available: v{}", version)).color(Color32::GREEN));
+                    if !body.is_empty() {
+                        ui.label(RichText::new(body).small().weak());
+                    }
+                    if ui.button(Self::tr_lang(language, "Download and Update", "Táº£i xuá»‘ng vÃ  Cáº­p nháº­t")).clicked() {
+                        self.start_download_update(ctx, url.clone());
+                    }
+                }
+                UpdateStatus::Downloading => {
+                    ui.horizontal(|ui| {
+                        ui.spinner();
+                        ui.label(Self::tr_lang(language, "Downloading update...", "Äang táº£i cáº­p nháº­t..."));
+                    });
+                }
+                UpdateStatus::ReadyToRestart(path) => {
+                    ui.label(RichText::new("Update downloaded!").color(Color32::GREEN));
+                    let path = path.clone();
+                    if ui.button(RichText::new(Self::tr_lang(language, "Restart App", "Khá»Ÿi Ä‘á»™ng láº¡i")).strong()).clicked() {
+                        self.restart_and_apply_update(path);
+                    }
+                }
+                UpdateStatus::UpToDate => {
+                    ui.label(Self::tr_lang(language, "App is up to date.", "á»¨ng dá»¥ng Ä‘Ã£ á»Ÿ báº£n má»›i nháº¥t."));
+                    if ui.button(Self::tr_lang(language, "Check again", "Kiá»ƒm tra láº¡i")).clicked() {
+                        self.check_for_update(ctx);
+                    }
+                }
+                UpdateStatus::Error(e) => {
+                    ui.label(RichText::new(format!("Error: {}", e)).color(Color32::RED));
+                    if ui.button(Self::tr_lang(language, "Retry", "Thá»­ láº¡i")).clicked() {
+                        self.check_for_update(ctx);
+                    }
+                }
+            }
+        });
+    }
     fn app_version_label(&self) -> &'static str {
         option_env!("MACRONEST_BUILD_TAG").unwrap_or(env!("CARGO_PKG_VERSION"))
     }
@@ -17733,7 +17900,9 @@ impl CrosshairApp {
                     .small(),
             );
         });
+        let ctx_clone = ui.ctx().clone(); self.render_update_settings(ui, &ctx_clone);
     }
+
 
     fn render_macro_ai_modal(&mut self, ctx: &egui::Context) {
         let generating = self.macro_ai_job.is_some();
@@ -18902,8 +19071,27 @@ impl eframe::App for CrosshairApp {
                     self.status = status;
                     ctx.request_repaint();
                 }
+                UiCommand::UpdateCheckStarted => {
+                    self.update_status = UpdateStatus::Checking;
+                }
+                UiCommand::UpdateAvailable(version, body, url) => {
+                    self.update_status = UpdateStatus::Available(version, body, url);
+                }
+                UiCommand::UpdateDownloadStarted => {
+                    self.update_status = UpdateStatus::Downloading;
+                }
+                UiCommand::UpdateDownloadFinished(new_exe_path) => {
+                    self.update_status = UpdateStatus::ReadyToRestart(new_exe_path);
+                }
+                UiCommand::UpdateError(e) => {
+                    self.update_status = UpdateStatus::Error(e);
+                }
+                UiCommand::UpdateUpToDate => {
+                    self.update_status = UpdateStatus::UpToDate;
+                }
             }
         }
+
 
         self.poll_crosshair_ai_generation(ctx);
         self.poll_custom_ai_generation(ctx);
