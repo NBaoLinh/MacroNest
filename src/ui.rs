@@ -19235,6 +19235,7 @@ impl CrosshairApp {
         ctx.send_viewport_cmd(egui::ViewportCommand::Minimized(false));
         ctx.send_viewport_cmd(egui::ViewportCommand::Focus);
         let _ = self.overlay_tx.send(OverlayCommand::SetUiVisible(true));
+        let _ = self.overlay_tx.send(OverlayCommand::SetTrayIconVisible(false));
         crate::overlay::wake_command_queue();
     }
 
@@ -19248,6 +19249,7 @@ impl CrosshairApp {
         self.state.show_window = false;
         ctx.send_viewport_cmd(egui::ViewportCommand::Visible(false));
         let _ = self.overlay_tx.send(OverlayCommand::SetUiVisible(false));
+        let _ = self.overlay_tx.send(OverlayCommand::SetTrayIconVisible(true));
         crate::overlay::wake_command_queue();
         self.persist();
     }

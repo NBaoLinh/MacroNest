@@ -226,6 +226,7 @@ mod windows_overlay {
         RefreshPinOverlay,
         SetVisionCaptureMouseBlocked(bool),
         SetUiVisible(bool),
+        SetTrayIconVisible(bool),
         Exit,
     }
 
@@ -892,7 +893,7 @@ mod windows_overlay {
             WM_CREATE => {
                 CONTROLLER_HWND.store(hwnd.0 as isize, Ordering::Relaxed);
                 if let Some(runtime) = runtime_mut(hwnd) {
-                    let _ = add_tray_icon(hwnd);
+                    // let _ = add_tray_icon(hwnd); // Removed: Tray icon only appears when hidden
                     let _ =
                         RegisterHotKey(Some(hwnd), HOTKEY_ID, MOD_CONTROL | MOD_ALT, b'X' as u32);
                     let _ = SetTimer(Some(hwnd), TIMER_ID, 500, None);
@@ -2847,6 +2848,13 @@ mod windows_overlay {
                     }
                     drop(hook_state);
                     let _ = update_tray_icon(hwnd, enabled);
+                }
+                OverlayCommand::SetTrayIconVisible(visible) => {
+                    if visible {
+                        let _ = add_tray_icon(hwnd);
+                    } else {
+                        let _ = unsafe { Shell_NotifyIconW(NIM_DELETE, &notify_icon(hwnd)) };
+                    }
                 }
                 OverlayCommand::SetVietnameseInputEnabled(enabled) => {
                     HOOK_STATE.lock().vietnamese_input_enabled = enabled;
@@ -9537,7 +9545,7 @@ mod fallback {
         UpdateVisionPresets(Vec<VisionPreset>),
         SetMacrosMasterEnabled(bool),
         SetUiVisible(bool),
-
+        SetTrayIconVisible(bool),
         Exit,
     }
 
