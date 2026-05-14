@@ -177,6 +177,25 @@ impl AppPaths {
         {
             state.groq_settings.model = "openai/gpt-oss-120b".to_owned();
         }
+        let legacy_vision_dir = self.root.join("image-search");
+        if legacy_vision_dir.exists() {
+            let _ = fs::create_dir_all(&self.vision_dir);
+            if let Ok(entries) = fs::read_dir(&legacy_vision_dir) {
+                for entry in entries.flatten() {
+                    let old_path = entry.path();
+                    if old_path.is_file() {
+                        if let Some(file_name) = old_path.file_name() {
+                            let new_path = self.vision_dir.join(file_name);
+                            if !new_path.exists() {
+                                let _ = fs::rename(&old_path, &new_path);
+                            }
+                        }
+                    }
+                }
+            }
+            let _ = fs::remove_dir_all(&legacy_vision_dir);
+        }
+
         let legacy_vision_template = self.vision_template_file.exists();
         if legacy_vision_template {
             let first_template = state

@@ -234,15 +234,17 @@ pub enum AppPanel {
     WindowPresets,
     Pin,
     Mouse,
+    #[serde(alias = "ImageSearch")]
     Vision,
     Zoom,
     Modes,
     Macros,
+    #[serde(alias = "Custom")]
     Commands,
     #[serde(alias = "Bindings")]
     Sound,
     Media,
-    #[serde(alias = "Settings")]
+    #[serde(alias = "Toolbox", alias = "Settings")]
     Hud,
 }
 
@@ -1422,9 +1424,13 @@ pub struct AppState {
     pub mouse_sensitivity_restore_speed: u32,
     pub zoom_presets: Vec<ZoomPreset>,
     pub next_zoom_preset_id: u32,
+    #[serde(alias = "toolbox_presets")]
     pub hud_presets: Vec<HudPreset>,
+    #[serde(alias = "next_toolbox_preset_id")]
     pub next_hud_preset_id: u32,
+    #[serde(alias = "custom_presets")]
     pub command_presets: Vec<CommandPreset>,
+    #[serde(alias = "next_custom_preset_id")]
     pub next_command_preset_id: u32,
     pub master_presets: Vec<MasterPreset>,
     pub selected_master_preset_id: Option<u32>,
@@ -1437,13 +1443,18 @@ pub struct AppState {
     pub next_macro_preset_id: u32,
     pub macros_master_enabled: bool,
     pub macros_master_hotkey: Option<HotkeyBinding>,
+    #[serde(alias = "image_search_presets")]
     pub vision_presets: Vec<VisionPreset>,
+    #[serde(alias = "next_image_search_preset_id")]
     pub next_vision_preset_id: u32,
+    #[serde(alias = "image_search_timing_presets")]
     pub vision_timing_presets: Vec<VisionTimingPreset>,
+    #[serde(alias = "next_image_search_timing_preset_id")]
     pub next_vision_timing_preset_id: u32,
     pub ai_settings: AiSettings,
     pub groq_settings: GroqSettings,
     pub audio_settings: AudioSettings,
+    #[serde(alias = "image_search_settings")]
     pub vision_settings: VisionSettings,
 }
 
