@@ -10913,7 +10913,7 @@ impl CrosshairApp {
                 self.add_profile();
             }
         });
-        ui.separator();
+
 
         let mut any_dragging = false;
         let mut remove_index = None;
