@@ -12601,43 +12601,6 @@ impl CrosshairApp {
                 self.sync_macro_master_enabled();
                 self.persist();
             }
-            let star_filter_active = matches!(
-                self.macro_groups_favorite_filter,
-                MacroGroupFavoriteFilter::Star
-            );
-            if ui
-                .add_sized(
-                    [28.0, 28.0],
-                    Button::new(Self::material_icon_text(0xe838, 18.0))
-                        .fill(if star_filter_active {
-                            Color32::from_rgb(124, 96, 28)
-                        } else {
-                            ui.visuals().faint_bg_color
-                        })
-                        .stroke(egui::Stroke::new(
-                            1.0,
-                            if star_filter_active {
-                                Color32::from_rgb(255, 220, 96)
-                            } else {
-                                ui.visuals().widgets.noninteractive.bg_stroke.color
-                            },
-                        )),
-                )
-                .on_hover_text(Self::tr_lang(
-                    language,
-                    "Show star macros only",
-                    "Chỉ hiện nhóm đã favorite",
-                ))
-                .clicked()
-            {
-                self.macro_groups_favorite_filter = if star_filter_active {
-                    MacroGroupFavoriteFilter::All
-                } else {
-                    MacroGroupFavoriteFilter::Star
-                };
-            }
-
-
             let capture_target = CaptureRequest::MacrosMasterHotkey;
             let capture_active = self.capture_target.as_ref() == Some(&capture_target);
             let hotkey_preview =
@@ -12694,6 +12657,42 @@ impl CrosshairApp {
                         .to_owned(),
                     );
                 }
+            }
+
+            let star_filter_active = matches!(
+                self.macro_groups_favorite_filter,
+                MacroGroupFavoriteFilter::Star
+            );
+            if ui
+                .add_sized(
+                    [28.0, 28.0],
+                    Button::new(Self::material_icon_text(0xe838, 18.0))
+                        .fill(if star_filter_active {
+                            Color32::from_rgb(124, 96, 28)
+                        } else {
+                            ui.visuals().faint_bg_color
+                        })
+                        .stroke(egui::Stroke::new(
+                            1.0,
+                            if star_filter_active {
+                                Color32::from_rgb(255, 220, 96)
+                            } else {
+                                ui.visuals().widgets.noninteractive.bg_stroke.color
+                            },
+                        )),
+                )
+                .on_hover_text(Self::tr_lang(
+                    language,
+                    "Show star macros only",
+                    "Chỉ hiện nhóm đã favorite",
+                ))
+                .clicked()
+            {
+                self.macro_groups_favorite_filter = if star_filter_active {
+                    MacroGroupFavoriteFilter::All
+                } else {
+                    MacroGroupFavoriteFilter::Star
+                };
             }
 
             if ui
