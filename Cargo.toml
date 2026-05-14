@@ -1,5 +1,5 @@
 [package]
-name = "crosshair"
+name = "MacroNest"
 version = "0.1.16"
 edition = "2024"
 build = "build.rs"
