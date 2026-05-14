@@ -15901,531 +15901,480 @@ impl CrosshairApp {
 
     fn render_mouse_panel(&mut self, ui: &mut egui::Ui) {
         ui.add_space(2.0);
-        ui.separator();
-        ui.heading(self.tr("Mouse Driver", "Mouse Driver"));
-        let driver_downloaded = self.mouse_interception_driver_downloaded();
-        let driver_installed = self.mouse_interception_driver_installed();
-        let driver_ready = driver_downloaded || driver_installed;
-        ui.horizontal_wrapped(|ui| {
-            let download_driver_clicked = ui
-                .add_enabled(
-                    !driver_ready,
-                    egui::Button::new(Self::tr_lang(self.state.ui_language, "Download", "Tai")),
-                )
-                .clicked();
-            if download_driver_clicked {
-                match self.download_and_install_interception_driver() {
-                    Ok(status) => self.status = status,
-                    Err(error) => {
-                        self.status = match self.state.ui_language {
-                            UiLanguage::Vietnamese => {
-                                format!("Khong the tai/cai Interception driver: {error}")
-                            }
-                            _ => format!(
-                                "Failed to download/install the Interception driver: {error}"
-                            ),
-                        }
-                    }
-                }
-            }
+        let language = self.state.ui_language;
+
+        ui.horizontal(|ui| {
             if ui
-                .add_enabled(
-                    driver_ready,
-                    egui::Button::new(Self::tr_lang(self.state.ui_language, "Delete", "Xoa")),
-                )
+                .button(self.tr("+ Add sensitivity preset", "+ Add sensitivity preset"))
                 .clicked()
             {
-                match self.uninstall_and_remove_interception_driver() {
-                    Ok(status) => {
-                        self.persist();
-                        self.status = status;
-                    }
-                    Err(error) => {
-                        self.status = match self.state.ui_language {
-                            UiLanguage::Vietnamese => {
-                                format!("Khong the go/xoa Interception driver: {error}")
-                            }
-                            _ => format!("Failed to remove the Interception driver: {error}"),
-                        }
-                    }
-                }
+                self.add_mouse_sensitivity_preset();
+                self.persist_mouse_sensitivity_presets();
+            }
+            if ui
+                .button(self.tr("+ Add path preset", "+ Add path preset"))
+                .clicked()
+            {
+                self.add_mouse_path_preset();
+                self.persist_mouse_path_presets();
+            }
+            if let Some(active_id) = self.active_mouse_record_preset_id {
+                ui.label(
+                    RichText::new(match language {
+                        UiLanguage::Vietnamese => format!("Đang ghi preset #{active_id}"),
+                        _ => format!("Recording preset #{active_id}"),
+                    })
+                    .strong()
+                    .color(Color32::from_rgb(255, 96, 96)),
+                );
             }
         });
-        ui.add_space(6.0);
-        Frame::group(ui.style()).show(ui, |ui| {
-            ui.vertical(|ui| {
-                if ui
-                    .button(self.tr("+ Add sensitivity preset", "+ Add sensitivity preset"))
-                    .clicked()
-                {
-                    self.add_mouse_sensitivity_preset();
-                    self.persist_mouse_sensitivity_presets();
-                }
 
-                let mut remove_mouse_sensitivity_id = None;
-                let mut next_mouse_sensitivity_capture_target = None;
-                let mut cancel_active_capture = false;
-                let mut mouse_sensitivity_live_sync = false;
-                ui.horizontal_wrapped(|ui| {
-                    ui.label(
-                        RichText::new(Self::tr_lang(
-                            self.state.ui_language,
-                            "Restore",
-                            "Khoi phuc khi thoat",
-                        ))
-                        .strong(),
+        let mut remove_mouse_sensitivity_id = None;
+        let mut next_mouse_sensitivity_capture_target = None;
+        let mut cancel_active_capture_sensitivity = false;
+        let mut mouse_sensitivity_live_sync = false;
+
+        ui.label(RichText::new(Self::tr_lang(language, "Sensitivity", "Độ nhạy")).strong());
+
+        ui.horizontal_wrapped(|ui| {
+            ui.label(
+                RichText::new(Self::tr_lang(
+                    language,
+                    "Restore",
+                    "Khôi phục khi thoát",
+                ))
+                .strong(),
+            );
+            mouse_sensitivity_live_sync |= ui
+                .checkbox(&mut self.state.mouse_sensitivity_restore_on_exit, "")
+                .changed();
+            ui.label(Self::tr_lang(language, "Speed", "Tốc độ"));
+            mouse_sensitivity_live_sync |= ui
+                .add(
+                    DragValue::new(&mut self.state.mouse_sensitivity_restore_speed)
+                        .range(1..=20),
+                )
+                .changed();
+        });
+
+        for index in 0..self.state.mouse_sensitivity_presets.len() {
+            let active_capture_target = self.capture_target.clone();
+            let pending_combo_keys = self.capture_hotkey_combo_keys.clone();
+            ui.add_space(6.0);
+            let preset = &mut self.state.mouse_sensitivity_presets[index];
+            Self::show_preset_card(ui, preset.enabled, |ui| {
+                ui.horizontal(|ui| {
+                    let mut disabled_by_button = false;
+                    let name_width = Self::preset_header_name_width(ui);
+                    let response = ui.add_sized(
+                        [name_width, 24.0],
+                        TextEdit::singleline(&mut preset.name),
                     );
-                    mouse_sensitivity_live_sync |= ui
-                        .checkbox(&mut self.state.mouse_sensitivity_restore_on_exit, "")
-                        .changed();
-                    ui.label(Self::tr_lang(self.state.ui_language, "Speed", "Toc do"));
-                    mouse_sensitivity_live_sync |= ui
-                        .add(
-                            DragValue::new(&mut self.state.mouse_sensitivity_restore_speed)
-                                .range(1..=20),
-                        )
-                        .changed();
-                });
-                for index in 0..self.state.mouse_sensitivity_presets.len() {
-                    let language = self.state.ui_language;
-                    let active_capture_target = self.capture_target.clone();
-                    let pending_combo_keys = self.capture_hotkey_combo_keys.clone();
-                    ui.add_space(6.0);
-                    let preset = &mut self.state.mouse_sensitivity_presets[index];
-                    Self::show_preset_card(ui, preset.enabled, |ui| {
-                        ui.horizontal(|ui| {
-                            let mut disabled_by_button = false;
-                            let name_width = Self::preset_header_name_width(ui);
-                            let response = ui.add_sized(
-                                [name_width, 24.0],
-                                TextEdit::singleline(&mut preset.name),
-                            );
-                            Self::apply_vietnamese_input_if_changed(
-                                &response,
-                                self.state.vietnamese_input_enabled,
-                                self.state.vietnamese_input_mode,
-                                &mut preset.name,
-                            );
-                            mouse_sensitivity_live_sync |= response.changed();
-                            if Self::sound_style_toggle_button(
-                                ui,
-                                Self::tr_lang(language, "Apply", "ÃƒÆ’Ã‚Âp dÃƒÂ¡Ã‚Â»Ã‚Â¥ng"),
-                            )
-                            .clicked()
+                    Self::apply_vietnamese_input_if_changed(
+                        &response,
+                        self.state.vietnamese_input_enabled,
+                        self.state.vietnamese_input_mode,
+                        &mut preset.name,
+                    );
+                    mouse_sensitivity_live_sync |= response.changed();
+                    if Self::sound_style_toggle_button(
+                        ui,
+                        Self::tr_lang(language, "Apply", "Áp dụng"),
+                    )
+                    .clicked()
+                    {
+                        let _ = self
+                            .overlay_tx
+                            .send(OverlayCommand::ApplyMouseSensitivityPreset(preset.id));
+                    }
+                    if Self::sound_style_toggle_button(
+                        ui,
+                        Self::tr_lang(language, "Restore", "Khôi phục"),
+                    )
+                    .clicked()
+                    {
+                        let _ = self
+                            .overlay_tx
+                            .send(OverlayCommand::RestoreMouseSensitivity);
+                    }
+                    ui.with_layout(
+                        egui::Layout::right_to_left(egui::Align::Center),
+                        |ui| {
+                            if Self::enabled_icon_button(ui, preset.enabled)
+                                .on_hover_text(Self::tr_lang(
+                                    language,
+                                    "Enable / disable preset",
+                                    "Enable / disable preset",
+                                ))
+                                .clicked()
                             {
-                                let _ = self
-                                    .overlay_tx
-                                    .send(OverlayCommand::ApplyMouseSensitivityPreset(preset.id));
+                                preset.enabled = !preset.enabled;
+                                disabled_by_button = !preset.enabled;
+                                mouse_sensitivity_live_sync = true;
+                            }
+                            if Self::sound_style_remove_button(ui).clicked() {
+                                remove_mouse_sensitivity_id = Some(preset.id);
                             }
                             if Self::sound_style_toggle_button(
                                 ui,
-                                Self::tr_lang(language, "Restore", "KhÃƒÆ’Ã‚Â´i phÃƒÂ¡Ã‚Â»Ã‚Â¥c"),
-                            )
-                            .clicked()
-                            {
-                                let _ = self
-                                    .overlay_tx
-                                    .send(OverlayCommand::RestoreMouseSensitivity);
-                            }
-                            ui.with_layout(
-                                egui::Layout::right_to_left(egui::Align::Center),
-                                |ui| {
-                                    if Self::enabled_icon_button(ui, preset.enabled)
-                                        .on_hover_text(Self::tr_lang(
-                                            language,
-                                            "Enable / disable preset",
-                                            "Enable / disable preset",
-                                        ))
-                                        .clicked()
-                                    {
-                                        preset.enabled = !preset.enabled;
-                                        disabled_by_button = !preset.enabled;
-                                        mouse_sensitivity_live_sync = true;
-                                    }
-                                    if Self::sound_style_remove_button(ui).clicked() {
-                                        remove_mouse_sensitivity_id = Some(preset.id);
-                                    }
-                                    if Self::sound_style_toggle_button(
-                                        ui,
-                                        if preset.collapsed {
-                                            Self::tr_lang(language, "Show", "HiÃ¡Â»â€¡n")
-                                        } else {
-                                            Self::tr_lang(language, "Hide", "Hide")
-                                        },
-                                    )
-                                    .clicked()
-                                    {
-                                        preset.collapsed = !preset.collapsed;
-                                        mouse_sensitivity_live_sync = true;
-                                    }
+                                if preset.collapsed {
+                                    Self::tr_lang(language, "Show", "Hiện")
+                                } else {
+                                    Self::tr_lang(language, "Hide", "Hide")
                                 },
-                            );
-                            if disabled_by_button {
-                                let _ = self
-                                    .overlay_tx
-                                    .send(OverlayCommand::RestoreMouseSensitivity);
+                            )
+                            .clicked()
+                            {
+                                preset.collapsed = !preset.collapsed;
+                                mouse_sensitivity_live_sync = true;
+                            }
+                        },
+                    );
+                    if disabled_by_button {
+                        let _ = self
+                            .overlay_tx
+                            .send(OverlayCommand::RestoreMouseSensitivity);
+                    }
+                });
+                if preset.collapsed {
+                    return;
+                }
+                egui::Grid::new((preset.id, "mouse-sensitivity-grid"))
+                    .num_columns(2)
+                    .spacing([14.0, 8.0])
+                    .show(ui, |ui| {
+                        ui.label(Self::tr_lang(language, "Preset Name", "Preset Name"));
+                        mouse_sensitivity_live_sync |= ui
+                            .add_sized(
+                                [260.0, 24.0],
+                                TextEdit::singleline(&mut preset.name),
+                            )
+                            .changed();
+                        ui.end_row();
+
+                        ui.label(Self::tr_lang(language, "Hotkey", "Hotkey"));
+                        ui.horizontal_wrapped(|ui| {
+                            let capture_target =
+                                CaptureRequest::MouseSensitivityPresetHotkey(preset.id);
+                            let (begin_capture, cancel_capture) =
+                                Self::render_hotkey_capture_control(
+                                    ui,
+                                    language,
+                                    &mut preset.hotkey,
+                                    &capture_target,
+                                    active_capture_target.as_ref(),
+                                    pending_combo_keys.as_ref(),
+                                    &mut mouse_sensitivity_live_sync,
+                                );
+                            if begin_capture {
+                                next_mouse_sensitivity_capture_target = Some((
+                                    capture_target,
+                                    match language {
+                                        UiLanguage::Vietnamese => {
+                                            format!(
+                                                "Đang bật phím tắt cho {}.",
+                                                preset.name
+                                            )
+                                        }
+                                        _ => {
+                                            format!("Capturing hotkey for {}.", preset.name)
+                                        }
+                                    },
+                                ));
+                            }
+                            if cancel_capture {
+                                cancel_active_capture_sensitivity = true;
                             }
                         });
-                        if preset.collapsed {
-                            return;
-                        }
-                        egui::Grid::new((preset.id, "mouse-sensitivity-grid"))
-                            .num_columns(2)
-                            .spacing([14.0, 8.0])
-                            .show(ui, |ui| {
-                                ui.label(Self::tr_lang(language, "Preset Name", "Preset Name"));
-                                mouse_sensitivity_live_sync |= ui
-                                    .add_sized(
-                                        [260.0, 24.0],
-                                        TextEdit::singleline(&mut preset.name),
-                                    )
-                                    .changed();
-                                ui.end_row();
+                        ui.end_row();
 
-                                ui.label(Self::tr_lang(language, "Hotkey", "Hotkey"));
-                                ui.horizontal_wrapped(|ui| {
-                                    let capture_target =
-                                        CaptureRequest::MouseSensitivityPresetHotkey(preset.id);
-                                    let (begin_capture, cancel_capture) =
-                                        Self::render_hotkey_capture_control(
-                                            ui,
-                                            language,
-                                            &mut preset.hotkey,
-                                            &capture_target,
-                                            active_capture_target.as_ref(),
-                                            pending_combo_keys.as_ref(),
-                                            &mut mouse_sensitivity_live_sync,
-                                        );
-                                    if begin_capture {
-                                        next_mouse_sensitivity_capture_target = Some((
-                                            capture_target,
-                                            match language {
-                                                UiLanguage::Vietnamese => {
-                                                    format!(
-                                                        "Ãƒâ€žÃ‚Âang bÃƒÂ¡Ã‚ÂºÃ‚Â­t phÃƒÆ’Ã‚Â­m tÃƒÂ¡Ã‚ÂºÃ‚Â¯t cho {}.",
-                                                        preset.name
-                                                    )
-                                                }
-                                                _ => {
-                                                    format!("Capturing hotkey for {}.", preset.name)
-                                                }
-                                            },
-                                        ));
-                                    }
-                                    if cancel_capture {
-                                        cancel_active_capture = true;
-                                    }
-                                });
-                                ui.end_row();
+                        ui.label(Self::tr_lang(
+                            language,
+                            "Target Window",
+                            "Cửa sổ mục tiêu",
+                        ));
+                        mouse_sensitivity_live_sync |=
+                            Self::render_multi_window_targets_with_duplicate_mode(
+                                ui,
+                                (preset.id, "mouse-sensitivity-target"),
+                                Self::tr_lang(language, "Any window", "Any window"),
+                                &mut preset.target_window_title,
+                                &mut preset.extra_target_window_titles,
+                                &mut preset.match_duplicate_window_titles,
+                                &self.open_windows,
+                            );
+                        ui.end_row();
 
+                        ui.label(Self::tr_lang(language, "Speed", "Tốc độ chuột"));
+                        mouse_sensitivity_live_sync |= ui
+                            .add(Slider::new(&mut preset.speed, 1..=20).show_value(true))
+                            .changed();
+                        ui.end_row();
+
+                        ui.label(Self::tr_lang(
+                            language,
+                            "Live",
+                            "Tốc độ hiện tại",
+                        ));
+                        ui.horizontal_wrapped(|ui| match Self::current_mouse_speed() {
+                            Some(current_speed) => {
+                                ui.monospace(format!("{current_speed}"));
+                                if current_speed == preset.speed {
+                                    ui.label(Self::tr_lang(
+                                        language,
+                                        "matches this preset",
+                                        "khớp với preset này",
+                                    ));
+                                }
+                            }
+                            None => {
                                 ui.label(Self::tr_lang(
                                     language,
-                                    "Target Window",
-                                    "CÃƒÂ¡Ã‚Â»Ã‚Â­a sÃƒÂ¡Ã‚Â»Ã¢â‚¬Â¢ mÃƒÂ¡Ã‚Â»Ã‚Â¥c tiÃƒÆ’Ã‚Âªu",
+                                    "Unavailable",
+                                    "Không đọc được",
                                 ));
-                                mouse_sensitivity_live_sync |=
-                                    Self::render_multi_window_targets_with_duplicate_mode(
-                                        ui,
-                                        (preset.id, "mouse-sensitivity-target"),
-                                        Self::tr_lang(language, "Any window", "Any window"),
-                                        &mut preset.target_window_title,
-                                        &mut preset.extra_target_window_titles,
-                                        &mut preset.match_duplicate_window_titles,
-                                        &self.open_windows,
-                                    );
-                                ui.end_row();
-
-                                ui.label(Self::tr_lang(language, "Speed", "TÃƒÂ¡Ã‚Â»Ã¢â‚¬Ëœc Ãƒâ€žÃ¢â‚¬ËœÃƒÂ¡Ã‚Â»Ã¢â€žÂ¢ chuÃƒÂ¡Ã‚Â»Ã¢â€žÂ¢t"));
-                                mouse_sensitivity_live_sync |= ui
-                                    .add(Slider::new(&mut preset.speed, 1..=20).show_value(true))
-                                    .changed();
-                                ui.end_row();
-
-                                ui.label(Self::tr_lang(
-                                    language,
-                                    "Live",
-                                    "TÃƒÂ¡Ã‚Â»Ã¢â‚¬Ëœc Ãƒâ€žÃ¢â‚¬ËœÃƒÂ¡Ã‚Â»Ã¢â€žÂ¢ hiÃƒÂ¡Ã‚Â»Ã¢â‚¬Â¡n tÃƒÂ¡Ã‚ÂºÃ‚Â¡i",
-                                ));
-                                ui.horizontal_wrapped(|ui| match Self::current_mouse_speed() {
-                                    Some(current_speed) => {
-                                        ui.monospace(format!("{current_speed}"));
-                                        if current_speed == preset.speed {
-                                            ui.label(Self::tr_lang(
-                                                language,
-                                                "matches this preset",
-                                                "khÃƒÂ¡Ã‚Â»Ã¢â‚¬Âºp vÃƒÂ¡Ã‚Â»Ã¢â‚¬Âºi preset nÃƒÆ’Ã‚Â y",
-                                            ));
-                                        }
-                                    }
-                                    None => {
-                                        ui.label(Self::tr_lang(
-                                            language,
-                                            "Unavailable",
-                                            "KhÃƒÆ’Ã‚Â´ng Ãƒâ€žÃ¢â‚¬ËœÃƒÂ¡Ã‚Â»Ã‚Âc Ãƒâ€žÃ¢â‚¬ËœÃƒâ€ Ã‚Â°ÃƒÂ¡Ã‚Â»Ã‚Â£c",
-                                        ));
-                                    }
-                                });
-                                ui.end_row();
-                            });
+                            }
+                        });
+                        ui.end_row();
                     });
-                }
-                if let Some(remove_mouse_sensitivity_id) = remove_mouse_sensitivity_id {
-                    self.state
-                        .mouse_sensitivity_presets
-                        .retain(|preset| preset.id != remove_mouse_sensitivity_id);
-                    mouse_sensitivity_live_sync = true;
-                }
-                if let Some((target, status)) = next_mouse_sensitivity_capture_target {
-                    self.begin_capture(target, status);
-                }
-                if mouse_sensitivity_live_sync {
-                    self.persist_mouse_sensitivity_presets();
-                    self.sync_mouse_sensitivity_settings();
-                    self.persist();
-                }
-                if cancel_active_capture {
-                    self.cancel_capture();
-                }
             });
-        });
+        }
+
+        if let Some(remove_mouse_sensitivity_id) = remove_mouse_sensitivity_id {
+            self.state
+                .mouse_sensitivity_presets
+                .retain(|preset| preset.id != remove_mouse_sensitivity_id);
+            mouse_sensitivity_live_sync = true;
+        }
+        if let Some((target, status)) = next_mouse_sensitivity_capture_target {
+            self.begin_capture(target, status);
+        }
+        if mouse_sensitivity_live_sync {
+            self.persist_mouse_sensitivity_presets();
+            self.sync_mouse_sensitivity_settings();
+            self.persist();
+        }
+        if cancel_active_capture_sensitivity {
+            self.cancel_capture();
+        }
+
+        let mut remove_id = None;
+        let mut next_capture_target = None;
+        let mut live_sync = false;
+        let mut cancel_active_capture = false;
 
         ui.add_space(8.0);
-        Frame::group(ui.style()).show(ui, |ui| {
-            ui.vertical(|ui| {
-                ui.horizontal(|ui| {
-                    if ui
-                        .button(self.tr("+ Add path preset", "+ Add path preset"))
-                        .clicked()
-                    {
-                        self.add_mouse_path_preset();
-                        self.persist_mouse_path_presets();
-                    }
-                    if let Some(active_id) = self.active_mouse_record_preset_id {
-                        ui.label(
-                            RichText::new(match self.state.ui_language {
-                                UiLanguage::Vietnamese => format!("Ãƒâ€žÃ‚Âang ghi preset #{active_id}"),
-                                _ => format!("Recording preset #{active_id}"),
-                            })
-                            .strong()
-                            .color(Color32::from_rgb(255, 96, 96)),
-                        );
-                    }
-                });
+        ui.label(RichText::new(Self::tr_lang(language, "Mouse Path", "Đường dẫn chuột")).strong());
 
-                let mut remove_id = None;
-                let mut next_capture_target = None;
-                let mut live_sync = false;
-                let mut cancel_active_capture = false;
-                for index in 0..self.state.mouse_path_presets.len() {
-                    let language = self.state.ui_language;
-                    let active_capture_target = self.capture_target.clone();
-                    let pending_combo_keys = self.capture_hotkey_combo_keys.clone();
-                    ui.add_space(6.0);
-                    let preset = &mut self.state.mouse_path_presets[index];
-                    Self::show_preset_card(ui, preset.enabled, |ui| {
-                        ui.horizontal(|ui| {
-                            let name_width = Self::preset_header_name_width(ui);
-                            let response = ui.add_sized(
-                                [name_width, 24.0],
-                                TextEdit::singleline(&mut preset.name),
-                            );
-                            Self::apply_vietnamese_input_if_changed(
-                                &response,
-                                self.state.vietnamese_input_enabled,
-                                self.state.vietnamese_input_mode,
-                                &mut preset.name,
-                            );
-                            live_sync |= response.changed();
-                            ui.with_layout(
-                                egui::Layout::right_to_left(egui::Align::Center),
-                                |ui| {
-                                    if Self::enabled_icon_button(ui, preset.enabled)
-                                        .on_hover_text(Self::tr_lang(
-                                            language,
-                                            "Enable / disable preset",
-                                            "Enable / disable preset",
-                                        ))
-                                        .clicked()
-                                    {
-                                        preset.enabled = !preset.enabled;
-                                        live_sync = true;
-                                    }
-                                    if Self::sound_style_remove_button(ui).clicked() {
-                                        remove_id = Some(preset.id);
-                                    }
-                                    if Self::sound_style_toggle_button(
-                                        ui,
-                                        if preset.collapsed {
-                                            Self::tr_lang(language, "Show", "HiÃ¡Â»â€¡n")
-                                        } else {
-                                            Self::tr_lang(language, "Hide", "Hide")
-                                        },
-                                    )
-                                    .clicked()
-                                    {
-                                        preset.collapsed = !preset.collapsed;
-                                        live_sync = true;
-                                    }
+        for index in 0..self.state.mouse_path_presets.len() {
+            let active_capture_target = self.capture_target.clone();
+            let pending_combo_keys = self.capture_hotkey_combo_keys.clone();
+            ui.add_space(6.0);
+            let preset = &mut self.state.mouse_path_presets[index];
+            Self::show_preset_card(ui, preset.enabled, |ui| {
+                ui.horizontal(|ui| {
+                    let name_width = Self::preset_header_name_width(ui);
+                    let response = ui.add_sized(
+                        [name_width, 24.0],
+                        TextEdit::singleline(&mut preset.name),
+                    );
+                    Self::apply_vietnamese_input_if_changed(
+                        &response,
+                        self.state.vietnamese_input_enabled,
+                        self.state.vietnamese_input_mode,
+                        &mut preset.name,
+                    );
+                    live_sync |= response.changed();
+                    ui.with_layout(
+                        egui::Layout::right_to_left(egui::Align::Center),
+                        |ui| {
+                            if Self::enabled_icon_button(ui, preset.enabled)
+                                .on_hover_text(Self::tr_lang(
+                                    language,
+                                    "Enable / disable preset",
+                                    "Enable / disable preset",
+                                ))
+                                .clicked()
+                            {
+                                preset.enabled = !preset.enabled;
+                                live_sync = true;
+                            }
+                            if Self::sound_style_remove_button(ui).clicked() {
+                                remove_id = Some(preset.id);
+                            }
+                            if Self::sound_style_toggle_button(
+                                ui,
+                                if preset.collapsed {
+                                    Self::tr_lang(language, "Show", "Hiện")
+                                } else {
+                                    Self::tr_lang(language, "Hide", "Hide")
                                 },
+                            )
+                            .clicked()
+                            {
+                                preset.collapsed = !preset.collapsed;
+                                live_sync = true;
+                            }
+                        },
+                    );
+                });
+                if preset.collapsed {
+                    return;
+                }
+                egui::Grid::new((preset.id, "mouse-path-grid"))
+                    .num_columns(2)
+                    .spacing([14.0, 8.0])
+                    .show(ui, |ui| {
+                        ui.label(Self::tr_lang(language, "Preset Name", "Preset Name"));
+                        live_sync |= ui
+                            .add_sized(
+                                [260.0, 24.0],
+                                TextEdit::singleline(&mut preset.name),
+                            )
+                            .changed();
+                        ui.end_row();
+
+                        ui.label(Self::tr_lang(language, "Record Hotkey", "Record Hotkey"));
+                        ui.horizontal_wrapped(|ui| {
+                            let capture_target =
+                                CaptureRequest::MousePathRecordHotkey(preset.id);
+                            let (begin_capture, cancel_capture) =
+                                Self::render_hotkey_capture_control(
+                                    ui,
+                                    language,
+                                    &mut preset.record_hotkey,
+                                    &capture_target,
+                                    active_capture_target.as_ref(),
+                                    pending_combo_keys.as_ref(),
+                                    &mut live_sync,
+                                );
+                            if begin_capture {
+                                next_capture_target = Some((
+                                    capture_target,
+                                    match language {
+                                        UiLanguage::Vietnamese => {
+                                            format!(
+                                                "Đang bật phím tắt ghi cho {}.",
+                                                preset.name
+                                            )
+                                        }
+                                        _ => {
+                                            format!(
+                                                "Capturing record hotkey for {}.",
+                                                preset.name
+                                            )
+                                        }
+                                    },
+                                ));
+                            }
+                            if cancel_capture {
+                                cancel_active_capture = true;
+                            }
+                        });
+                        ui.end_row();
+
+                        ui.horizontal_wrapped(|ui| {
+                            if self.active_mouse_record_preset_id == Some(preset.id) {
+                                ui.label(
+                                    RichText::new(Self::tr_lang(
+                                        language,
+                                        "Recording via hotkey...",
+                                        "Đang ghi bằng phím tắt...",
+                                    ))
+                                    .color(Color32::from_rgb(255, 96, 96))
+                                    .strong(),
+                                );
+                            }
+                            if ui
+                                .button(Self::tr_lang(
+                                    language,
+                                    "Clear path",
+                                    "Xóa đường chuột",
+                                ))
+                                .clicked()
+                            {
+                                preset.events.clear();
+                                live_sync = true;
+                            }
+                            ui.label(match language {
+                                UiLanguage::Vietnamese => {
+                                    format!("{} sự kiện", preset.events.len())
+                                }
+                                _ => format!("{} events", preset.events.len()),
+                            });
+                        });
+                        ui.end_row();
+
+                        ui.label(Self::tr_lang(language, "Driver", "Driver"));
+                        ui.horizontal_wrapped(|ui| {
+                            live_sync |= ui
+                                .checkbox(
+                                    &mut preset.use_interception_driver,
+                                    Self::tr_lang(
+                                        language,
+                                        "Use Interception",
+                                        "Dùng Interception",
+                                    ),
+                                )
+                                .changed();
+                            ui.label(
+                                RichText::new(if preset.use_interception_driver {
+                                    Self::tr_lang(language, "Interception", "Interception")
+                                } else {
+                                    Self::tr_lang(language, "SendInput", "SendInput")
+                                })
+                                .small(),
                             );
                         });
-                        if preset.collapsed {
-                            return;
-                        }
-                        egui::Grid::new((preset.id, "mouse-path-grid"))
-                            .num_columns(2)
-                            .spacing([14.0, 8.0])
-                            .show(ui, |ui| {
-                                ui.label(Self::tr_lang(language, "Preset Name", "Preset Name"));
-                                live_sync |= ui
-                                    .add_sized(
-                                        [260.0, 24.0],
-                                        TextEdit::singleline(&mut preset.name),
-                                    )
-                                    .changed();
-                                ui.end_row();
+                        ui.end_row();
 
-                                ui.label(Self::tr_lang(language, "Record Hotkey", "Record Hotkey"));
-                                ui.horizontal_wrapped(|ui| {
-                                    let capture_target =
-                                        CaptureRequest::MousePathRecordHotkey(preset.id);
-                                    let (begin_capture, cancel_capture) =
-                                        Self::render_hotkey_capture_control(
-                                            ui,
-                                            language,
-                                            &mut preset.record_hotkey,
-                                            &capture_target,
-                                            active_capture_target.as_ref(),
-                                            pending_combo_keys.as_ref(),
-                                            &mut live_sync,
-                                        );
-                                    if begin_capture {
-                                        next_capture_target = Some((
-                                            capture_target,
-                                            match language {
-                                                UiLanguage::Vietnamese => {
-                                                    format!(
-                                                        "Ãƒâ€žÃ‚Âang bÃƒÂ¡Ã‚ÂºÃ‚Â­t phÃƒÆ’Ã‚Â­m tÃƒÂ¡Ã‚ÂºÃ‚Â¯t ghi cho {}.",
-                                                        preset.name
-                                                    )
-                                                }
-                                                _ => {
-                                                    format!(
-                                                        "Capturing record hotkey for {}.",
-                                                        preset.name
-                                                    )
-                                                }
-                                            },
-                                        ));
-                                    }
-                                    if cancel_capture {
-                                        cancel_active_capture = true;
-                                    }
-                                });
-                                ui.end_row();
-
-                                ui.horizontal_wrapped(|ui| {
-                                    if self.active_mouse_record_preset_id == Some(preset.id) {
-                                        ui.label(
-                                            RichText::new(Self::tr_lang(
-                                                language,
-                                                "Recording via hotkey...",
-                                                "Ãƒâ€žÃ‚Âang ghi bÃƒÂ¡Ã‚ÂºÃ‚Â±ng phÃƒÆ’Ã‚Â­m tÃƒÂ¡Ã‚ÂºÃ‚Â¯t...",
-                                            ))
-                                            .color(Color32::from_rgb(255, 96, 96))
-                                            .strong(),
-                                        );
-                                    }
-                                    if ui
-                                        .button(Self::tr_lang(
-                                            language,
-                                            "Clear path",
-                                            "XÃƒÆ’Ã‚Â³a Ãƒâ€žÃ¢â‚¬ËœÃƒâ€ Ã‚Â°ÃƒÂ¡Ã‚Â»Ã‚Âng chuÃƒÂ¡Ã‚Â»Ã¢â€žÂ¢t",
-                                        ))
-                                        .clicked()
-                                    {
-                                        preset.events.clear();
-                                        live_sync = true;
-                                    }
-                                    ui.label(match self.state.ui_language {
-                                        UiLanguage::Vietnamese => {
-                                            format!("{} sÃƒÂ¡Ã‚Â»Ã‚Â± kiÃƒÂ¡Ã‚Â»Ã¢â‚¬Â¡n", preset.events.len())
-                                        }
-                                        _ => format!("{} events", preset.events.len()),
-                                    });
-                                });
-                                ui.end_row();
-
-                                ui.label(Self::tr_lang(language, "Driver", "Driver"));
-                                ui.horizontal_wrapped(|ui| {
-                                    live_sync |= ui
-                                        .checkbox(
-                                            &mut preset.use_interception_driver,
-                                            Self::tr_lang(
-                                                language,
-                                                "Use Interception",
-                                                "Dung Interception",
-                                            ),
-                                        )
-                                        .changed();
-                                    ui.label(
-                                        RichText::new(if preset.use_interception_driver {
-                                            Self::tr_lang(language, "Interception", "Interception")
-                                        } else {
-                                            Self::tr_lang(language, "SendInput", "SendInput")
-                                        })
-                                        .small(),
-                                    );
-                                });
-                                ui.end_row();
-
-                                ui.label(Self::tr_lang(language, "Replay mode", "Replay mode"));
-                                ui.horizontal_wrapped(|ui| {
-                                    live_sync |= ui
-                                        .checkbox(
-                                            &mut preset.replay_relative_motion,
-                                            Self::tr_lang(
-                                                language,
-                                                "Relative motion",
-                                                "Di chuyen tuong doi",
-                                            ),
-                                        )
-                                        .changed();
-                                    ui.label(
-                                        RichText::new(Self::tr_lang(
-                                            language,
-                                            "3D/game mode",
-                                            "Che do 3D/game",
-                                        ))
-                                        .small(),
-                                    );
-                                });
-                                ui.end_row();
-                            });
-                        ui.add_space(6.0);
-                        Self::render_mouse_path_preview(ui, language, &preset.events, 240.0);
+                        ui.label(Self::tr_lang(language, "Replay mode", "Replay mode"));
+                        ui.horizontal_wrapped(|ui| {
+                            live_sync |= ui
+                                .checkbox(
+                                    &mut preset.replay_relative_motion,
+                                    Self::tr_lang(
+                                        language,
+                                        "Relative motion",
+                                        "Di chuyển tương đối",
+                                    ),
+                                )
+                                .changed();
+                            ui.label(
+                                RichText::new(Self::tr_lang(
+                                    language,
+                                    "3D/game mode",
+                                    "Chế độ 3D/game",
+                                ))
+                                .small(),
+                            );
+                        });
+                        ui.end_row();
                     });
-                }
-                if let Some(remove_id) = remove_id {
-                    self.state
-                        .mouse_path_presets
-                        .retain(|preset| preset.id != remove_id);
-                    live_sync = true;
-                }
-                if let Some((target, status)) = next_capture_target {
-                    self.begin_capture(target, status);
-                }
-                if cancel_active_capture {
-                    self.cancel_capture();
-                }
-                if live_sync {
-                    self.persist_mouse_path_presets();
-                }
+                ui.add_space(6.0);
+                Self::render_mouse_path_preview(ui, language, &preset.events, 240.0);
             });
-        });
+        }
+
+        if let Some(rem_id) = remove_id {
+            self.state
+                .mouse_path_presets
+                .retain(|preset| preset.id != rem_id);
+            live_sync = true;
+        }
+        if let Some((target, status)) = next_capture_target {
+            self.begin_capture(target, status);
+        }
+        if cancel_active_capture {
+            self.cancel_capture();
+        }
+        if live_sync {
+            self.persist_mouse_path_presets();
+        }
     }
 
-    fn render_vision_panel(&mut self, ui: &mut egui::Ui, ctx: &egui::Context) {
+        fn render_vision_panel(&mut self, ui: &mut egui::Ui, ctx: &egui::Context) {
         let language = self.state.ui_language;
         ui.add_space(2.0);
 
@@ -17328,7 +17277,7 @@ impl CrosshairApp {
         ui.add_space(2.0);
         let mut changed = false;
         ui.horizontal(|ui| {
-            ui.label(RichText::new(self.tr("Sound Presets", "Sound Presets")).strong());
+
             if ui
                 .button(self.tr("+ Add Sound Preset", "+ ThÃƒÆ’Ã‚Âªm preset ÃƒÆ’Ã‚Â¢m thanh"))
                 .clicked()
