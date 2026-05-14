@@ -19250,6 +19250,15 @@ impl CrosshairApp {
         self.state.show_window = false;
         ctx.send_viewport_cmd(egui::ViewportCommand::Visible(false));
         let _ = self.overlay_tx.send(OverlayCommand::SetUiVisible(false));
+        let _ = self.overlay_tx.send(OverlayCommand::ShowTrayNotification {
+            title: "MacroNest".to_owned(),
+            message: self
+                .tr(
+                    "Running in background. Drag icon to taskbar to keep it visible!",
+                    "Đang chạy ngầm. Kéo icon vào Taskbar để luôn nhìn thấy!",
+                )
+                .to_owned(),
+        });
         crate::overlay::wake_command_queue();
         self.persist();
     }
