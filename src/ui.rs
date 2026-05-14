@@ -3321,9 +3321,7 @@ impl CrosshairApp {
         }
     }
 
-    fn titlebar_hide_tooltip(&self) -> &'static str {
-        self.tr("Hide to tray", "Ẩn xuống khay")
-    }
+
 
     fn capture_hint_text(&self) -> String {
         if matches!(
@@ -19250,15 +19248,6 @@ impl CrosshairApp {
         self.state.show_window = false;
         ctx.send_viewport_cmd(egui::ViewportCommand::Visible(false));
         let _ = self.overlay_tx.send(OverlayCommand::SetUiVisible(false));
-        let _ = self.overlay_tx.send(OverlayCommand::ShowTrayNotification {
-            title: "MacroNest".to_owned(),
-            message: self
-                .tr(
-                    "Running in background. Drag icon to taskbar to keep it visible!",
-                    "Đang chạy ngầm. Kéo icon vào Taskbar để luôn nhìn thấy!",
-                )
-                .to_owned(),
-        });
         crate::overlay::wake_command_queue();
         self.persist();
     }
@@ -19639,7 +19628,7 @@ impl eframe::App for CrosshairApp {
                         };
 
                         if !hide_window_controls {
-                            let hide_response = Self::hover_if(
+                            let exit_response = Self::hover_if(
                                 ui.add_sized(
                                     [38.0, 30.0],
                                     self.titlebar_button(
@@ -19649,7 +19638,22 @@ impl eframe::App for CrosshairApp {
                                     ),
                                 ),
                                 show_icon_tooltips,
-                                self.titlebar_hide_tooltip(),
+                                self.tr("Exit", "Thoát"),
+                            );
+                            if exit_response.clicked() {
+                                ctx.send_viewport_cmd(egui::ViewportCommand::Close);
+                            }
+                            let hide_response = Self::hover_if(
+                                ui.add_sized(
+                                    [38.0, 30.0],
+                                    self.titlebar_button(
+                                        Self::material_icon_text(0xe8a4, 18.0),
+                                        false,
+                                        false,
+                                    ),
+                                ),
+                                show_icon_tooltips,
+                                self.tr("Hide to tray", "Ẩn xuống khay"),
                             );
                             if hide_response.clicked() {
                                 self.begin_close_to_tray_animation(ctx);

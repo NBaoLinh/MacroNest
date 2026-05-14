@@ -69,8 +69,8 @@ mod windows_overlay {
                     SetFocus, UnregisterHotKey, VIRTUAL_KEY,
                 },
                 Shell::{
-                    NIF_ICON, NIF_INFO, NIF_MESSAGE, NIF_TIP, NIIF_INFO, NIM_ADD, NIM_DELETE,
-                    NIM_MODIFY, NOTIFYICONDATAW, Shell_NotifyIconW,
+                    NIF_ICON, NIF_MESSAGE, NIF_TIP, NIM_ADD, NIM_DELETE, NIM_MODIFY,
+                    NOTIFYICONDATAW, Shell_NotifyIconW,
                 },
                 WindowsAndMessaging::{
                     AppendMenuW, BringWindowToTop, CREATESTRUCTW, CallNextHookEx, CreatePopupMenu,
@@ -226,7 +226,6 @@ mod windows_overlay {
         RefreshPinOverlay,
         SetVisionCaptureMouseBlocked(bool),
         SetUiVisible(bool),
-        ShowTrayNotification { title: String, message: String },
         Exit,
     }
 
@@ -2880,29 +2879,6 @@ mod windows_overlay {
                         let _ = refresh_overlay(runtime);
                         let _ = refresh_pin_overlay(runtime);
                         let _ = refresh_hud(runtime);
-                    }
-                }
-                OverlayCommand::ShowTrayNotification { title, message } => {
-                    unsafe {
-                        let mut data = notify_icon(hwnd);
-                        data.uFlags = NIF_INFO;
-                        data.dwInfoFlags = NIIF_INFO;
-
-                        let title_w = widestring(&title);
-                        for (i, &v) in title_w.iter().enumerate() {
-                            if i < data.szInfoTitle.len() - 1 {
-                                data.szInfoTitle[i] = v;
-                            }
-                        }
-
-                        let message_w = widestring(&message);
-                        for (i, &v) in message_w.iter().enumerate() {
-                            if i < data.szInfo.len() - 1 {
-                                data.szInfo[i] = v;
-                            }
-                        }
-
-                        let _ = Shell_NotifyIconW(NIM_MODIFY, &data);
                     }
                 }
                 OverlayCommand::Exit => {
@@ -9561,7 +9537,7 @@ mod fallback {
         UpdateVisionPresets(Vec<VisionPreset>),
         SetMacrosMasterEnabled(bool),
         SetUiVisible(bool),
-        ShowTrayNotification { title: String, message: String },
+
         Exit,
     }
 
