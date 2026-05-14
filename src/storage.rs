@@ -122,12 +122,21 @@ impl AppPaths {
             }
         };
 
-        let disk_profiles = self.load_profiles().unwrap_or_default();
-        if !disk_profiles.is_empty() {
-            state.profiles = disk_profiles;
-        } else if state.profiles.is_empty() {
-            state.profiles = AppState::default().profiles;
+        let mut disk_profiles = self.load_profiles().unwrap_or_default();
+        let mut migrated = false;
+        if !state.profiles.is_empty() {
+            for sp in &state.profiles {
+                if !disk_profiles.iter().any(|dp| dp.name == sp.name) {
+                    disk_profiles.push(sp.clone());
+                    migrated = true;
+                }
+            }
         }
+        if migrated {
+            let _ = self.save_profiles(&disk_profiles);
+        }
+
+        state.profiles = disk_profiles;
 
         if state.selected_profile.is_none() {
             state.selected_profile = state.profiles.first().map(|p| p.name.clone());
@@ -436,6 +445,7 @@ impl AppPaths {
     pub fn save_state(&self, state: &AppState) -> Result<()> {
         let mut state = state.clone();
         state.macro_presets.clear();
+        state.profiles.clear();
         let content = serde_json::to_string_pretty(&state)?;
         fs::write(&self.state_file, content)?;
         Ok(())

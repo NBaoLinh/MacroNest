@@ -1146,27 +1146,36 @@ impl CrosshairApp {
             self.status = "No profile is selected.".to_owned();
             return;
         };
-        self.state
-            .profiles
-            .retain(|profile| profile.name != selected);
-        if self.state.profiles.is_empty() {
-            self.state.profiles.push(ProfileRecord {
-                name: "Default".to_owned(),
-                enabled: true,
-                collapsed: true,
-                style: CrosshairStyle::default(),
-                target_window_title: None,
-                extra_target_window_titles: Vec::new(),
-            });
+        
+        let mut index_to_remove = None;
+        for (i, p) in self.state.profiles.iter().enumerate() {
+            if p.name == selected {
+                index_to_remove = Some(i);
+                break;
+            }
         }
-        let next = self.state.profiles[0].clone();
-        self.state.selected_profile = Some(next.name.clone());
-        self.state.active_style = next.style;
-        self.save_name = next.name;
+
+        if let Some(i) = index_to_remove {
+            self.state.profiles.remove(i);
+            self.status = format!("Deleted profile: {selected}");
+        } else {
+            self.status = format!("Could not find profile: {selected}");
+        }
+
+        if self.state.profiles.is_empty() {
+            self.state.selected_profile = None;
+            self.state.active_style = CrosshairStyle::default();
+            self.state.active_style.enabled = false;
+            self.save_name = String::new();
+        } else {
+            let next = self.state.profiles[0].clone();
+            self.state.selected_profile = Some(next.name.clone());
+            self.state.active_style = next.style;
+            self.save_name = next.name;
+        }
         self.sync_crosshair();
         self.sync_profiles();
         self.persist();
-        self.status = format!("Deleted profile: {selected}");
     }
 
     fn export_code(&mut self) {
@@ -10350,7 +10359,8 @@ impl CrosshairApp {
 
                 ui.add_space(6.0);
                 let dark_mode = self.state.ui_theme == UiThemeMode::Dark;
-                for index in 0..self.state.profiles.len() {
+                let profiles_count = self.state.profiles.len();
+                for index in 0..profiles_count {
                     let is_selected = self.state.selected_profile.as_deref()
                         == Some(self.state.profiles[index].name.as_str());
                     let mut activate = false;
@@ -10395,9 +10405,8 @@ impl CrosshairApp {
                     }
                     if remove {
                         let remove_name = self.state.profiles[index].name.clone();
-                        self.state
-                            .profiles
-                            .retain(|profile| profile.name != remove_name);
+                        self.state.profiles.remove(index);
+                        self.status = format!("Deleted profile: {remove_name}");
                         if self.state.profiles.is_empty() {
                             self.state.profiles.push(ProfileRecord::default());
                         }
@@ -10406,6 +10415,7 @@ impl CrosshairApp {
                         self.state.active_style = next.style;
                         self.state.active_style.enabled = next.enabled;
                         self.save_name = next.name;
+                        self.sync_profiles();
                         changed = true;
                         break;
                     }
@@ -11032,17 +11042,21 @@ impl CrosshairApp {
         if let Some(index) = remove_index {
             self.flush_crosshair_profile_dirty(true);
             let remove_name = self.state.profiles[index].name.clone();
-            self.state
-                .profiles
-                .retain(|profile| profile.name != remove_name);
+            self.state.profiles.remove(index);
+            self.status = format!("Deleted crosshair preset: {remove_name}");
             if self.state.profiles.is_empty() {
-                self.state.profiles.push(ProfileRecord::default());
+                self.state.selected_profile = None;
+                self.state.active_style = CrosshairStyle::default();
+                self.state.active_style.enabled = false;
+                self.save_name = String::new();
+            } else {
+                let next = self.state.profiles[0].clone();
+                self.state.selected_profile = Some(next.name.clone());
+                self.state.active_style = next.style;
+                self.save_name = next.name;
             }
-            let next = self.state.profiles[0].clone();
-            self.state.selected_profile = Some(next.name.clone());
-            self.state.active_style = next.style;
-            self.save_name = next.name;
             self.sync_profiles();
+            self.persist();
             self.crosshair_editor_dirty = true;
         }
 
