@@ -1024,6 +1024,8 @@ pub struct MacroPreset {
     pub hold_stop_step_enabled: bool,
     pub hold_stop_step: MacroStep,
     pub steps: Vec<MacroStep>,
+    #[serde(skip)]
+    pub acknowledged_infinite_loop: bool,
 }
 
 impl MacroPreset {
@@ -1041,6 +1043,7 @@ impl MacroPreset {
             hold_stop_step_enabled: false,
             hold_stop_step: MacroStep::default(),
             steps: vec![MacroStep::default()],
+            acknowledged_infinite_loop: false,
         }
     }
 }

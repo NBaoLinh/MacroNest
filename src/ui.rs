@@ -13623,6 +13623,15 @@ impl CrosshairApp {
                                         {
                                             preset.trigger_mode = mode;
                                             live_sync = true;
+
+                                            if preset.enabled
+                                                && self.state.macro_infinite_loop_warning_enabled
+                                                && matches!(mode, MacroTriggerMode::Press | MacroTriggerMode::Release)
+                                                && preset.steps.iter().any(|s| s.is_infinite_loop())
+                                            {
+                                                preset.enabled = false;
+                                                self.pending_macro_infinite_loop_enable = Some((group.id, preset.id));
+                                            }
                                         }
                                     }
                                 });
@@ -14282,7 +14291,16 @@ impl CrosshairApp {
                                                             "1".to_owned()
                                                         };
                                                         live_sync = true;
-                                                    }
+
+                                                         if infinite
+                                                             && preset.enabled
+                                                             && self.state.macro_infinite_loop_warning_enabled
+                                                             && matches!(preset.trigger_mode, MacroTriggerMode::Press | MacroTriggerMode::Release)
+                                                         {
+                                                             preset.enabled = false;
+                                                             self.pending_macro_infinite_loop_enable = Some((group.id, preset.id));
+                                                         }
+                                                     }
                                                     if !infinite {
                                                         let mut loop_count =
                                                             step.key.trim().parse::<u32>().unwrap_or(1).max(1);
@@ -15330,7 +15348,16 @@ impl CrosshairApp {
                                                             "1".to_owned()
                                                         };
                                                         live_sync = true;
-                                                    }
+
+                                                         if infinite
+                                                             && preset.enabled
+                                                             && self.state.macro_infinite_loop_warning_enabled
+                                                             && matches!(preset.trigger_mode, MacroTriggerMode::Press | MacroTriggerMode::Release)
+                                                         {
+                                                             preset.enabled = false;
+                                                             self.pending_macro_infinite_loop_enable = Some((group.id, preset.id));
+                                                         }
+                                                     }
                                                     if !infinite {
                                                         let mut loop_count =
                                                             step.key.trim().parse::<u32>().unwrap_or(1).max(1);
@@ -15848,6 +15875,33 @@ impl CrosshairApp {
             }
         }
 
+        // Infallible Reactive Safety Watcher
+        if self.state.macro_infinite_loop_warning_enabled && self.pending_macro_infinite_loop_enable.is_none() {
+            let mut found_violation = None;
+
+            for group in &mut self.state.macro_groups {
+                for preset in &mut group.presets {
+                    let is_dangerous = matches!(preset.trigger_mode, MacroTriggerMode::Press | MacroTriggerMode::Release)
+                        && preset.steps.iter().any(|s| s.is_infinite_loop());
+
+                    if !is_dangerous {
+                        preset.acknowledged_infinite_loop = false;
+                    } else if preset.enabled && !preset.acknowledged_infinite_loop {
+                        found_violation = Some((group.id, preset.id));
+                    }
+                }
+            }
+
+            if let Some((g_id, p_id)) = found_violation {
+                if let Some(group) = self.state.macro_groups.iter_mut().find(|g| g.id == g_id) {
+                    if let Some(preset) = group.presets.iter_mut().find(|p| p.id == p_id) {
+                        preset.enabled = false;
+                        self.pending_macro_infinite_loop_enable = Some((g_id, p_id));
+                    }
+                }
+            }
+        }
+
         if let Some((group_id, preset_id)) = self.pending_macro_infinite_loop_enable {
             let title = Self::tr_lang(language, "⚠️ Dangerous Macro Detection", "⚠️ Phát hiện Macro nguy hiểm");
             let msg = Self::tr_lang(
@@ -15869,6 +15923,7 @@ impl CrosshairApp {
                     if let Some(group) = self.state.macro_groups.iter_mut().find(|g| g.id == group_id) {
                         if let Some(preset) = group.presets.iter_mut().find(|p| p.id == preset_id) {
                             preset.enabled = true;
+                            preset.acknowledged_infinite_loop = true;
                             self.persist_macro_presets();
                         }
                     }
