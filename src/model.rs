@@ -854,10 +854,10 @@ impl HudPreset {
     pub fn new(id: u32) -> Self {
         Self {
             id,
-            name: format!("Toolbox {id}"),
+            name: format!("HUD {id}"),
             collapsed: true,
             preview_enabled: false,
-            text: "Toolbox text".to_owned(),
+            text: "HUD text".to_owned(),
             font_size: 28.0,
             background_opacity: 0.72,
             rounded_background: true,
@@ -906,7 +906,7 @@ impl CommandPreset {
     pub fn new(id: u32) -> Self {
         Self {
             id,
-            name: format!("Custom {id}"),
+            name: format!("Command {id}"),
             enabled: true,
             collapsed: true,
             hotkey: None,

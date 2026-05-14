@@ -18425,7 +18425,7 @@ impl CrosshairApp {
     fn render_hud_panel(&mut self, ui: &mut egui::Ui) {
         ui.add_space(8.0);
         if ui
-            .button(self.tr("+ Add toolbox preset", "+ ThÃƒÆ’Ã‚Âªm preset toolbox"))
+            .button(self.tr("+ Add HUD preset", "+ ThÃƒÆ’Ã‚Âªm preset HUD"))
             .clicked()
         {
             self.add_toolbox_preset();
@@ -18596,7 +18596,7 @@ impl CrosshairApp {
         let language = self.state.ui_language;
         ui.add_space(8.0);
         if ui
-            .button(self.tr("+ Add custom preset", "+ ThÃƒÆ’Ã‚Âªm custom preset"))
+            .button(self.tr("+ Add command preset", "+ ThÃƒÆ’Ã‚Âªm command preset"))
             .clicked()
         {
             self.add_custom_preset();
