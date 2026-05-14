@@ -509,6 +509,15 @@ impl Default for MacroStep {
     }
 }
 
+impl MacroStep {
+    pub fn is_infinite_loop(&self) -> bool {
+        self.action == MacroAction::LoopStart && matches!(
+            self.key.trim().to_ascii_lowercase().as_str(),
+            "infinite" | "inf" | "forever" | "-1"
+        )
+    }
+}
+
 #[derive(Debug, Clone, Copy, Serialize, Deserialize, PartialEq, Eq, Default)]
 pub enum MacroTriggerMode {
     #[default]
@@ -1443,6 +1452,8 @@ pub struct AppState {
     pub next_macro_preset_id: u32,
     pub macros_master_enabled: bool,
     pub macros_master_hotkey: Option<HotkeyBinding>,
+    #[serde(default = "default_true")]
+    pub macro_infinite_loop_warning_enabled: bool,
     #[serde(alias = "image_search_presets")]
     pub vision_presets: Vec<VisionPreset>,
     #[serde(alias = "next_image_search_preset_id")]
@@ -1510,6 +1521,7 @@ impl Default for AppState {
             next_macro_preset_id: 1,
             macros_master_enabled: true,
             macros_master_hotkey: None,
+            macro_infinite_loop_warning_enabled: true,
             vision_presets: vec![VisionPreset::default()],
             next_vision_preset_id: 2,
             vision_timing_presets: vec![VisionTimingPreset::default()],

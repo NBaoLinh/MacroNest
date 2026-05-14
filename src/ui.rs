@@ -550,6 +550,7 @@ pub struct CrosshairApp {
     confirm_delete_folder_id: Option<u32>,
     confirm_release_folder_id: Option<u32>,
     confirm_delete_macro_group_id: Option<u32>,
+    pending_macro_infinite_loop_enable: Option<(u32, u32)>,
     center_window_next_frame: bool,
     enforce_square_window_frames: u8,
     last_window_refresh_at: Instant,
@@ -710,6 +711,7 @@ impl CrosshairApp {
             confirm_delete_folder_id: None,
             confirm_release_folder_id: None,
             confirm_delete_macro_group_id: None,
+            pending_macro_infinite_loop_enable: None,
             center_window_next_frame: true,
             enforce_square_window_frames: 8,
             last_window_refresh_at: Instant::now(),
@@ -13559,17 +13561,34 @@ impl CrosshairApp {
                                                 preset.collapsed = !preset.collapsed;
                                                 live_sync = true;
                                             }
-                                            live_sync |= ui
+                                            let mut is_enabled = preset.enabled;
+                                            if ui
                                                 .add_sized(
                                                     [80.0, 22.0],
                                                     egui::Checkbox::new(
-                                                        &mut preset.enabled,
+                                                        &mut is_enabled,
                                                         Self::tr_lang(
                                                             language, "Enabled", "Enabled",
                                                         ),
                                                     ),
                                                 )
-                                                .changed();
+                                                .changed()
+                                            {
+                                                if is_enabled
+                                                    && self.state.macro_infinite_loop_warning_enabled
+                                                    && matches!(
+                                                        preset.trigger_mode,
+                                                        MacroTriggerMode::Press | MacroTriggerMode::Release
+                                                    )
+                                                    && preset.steps.iter().any(|s| s.is_infinite_loop())
+                                                {
+                                                    self.pending_macro_infinite_loop_enable =
+                                                        Some((group.id, preset.id));
+                                                } else {
+                                                    preset.enabled = is_enabled;
+                                                    live_sync = true;
+                                                }
+                                            }
                                         },
                                     );
                                 });
@@ -15828,6 +15847,35 @@ impl CrosshairApp {
                 self.persist_macro_presets();
             }
         }
+
+        if let Some((group_id, preset_id)) = self.pending_macro_infinite_loop_enable {
+            let title = Self::tr_lang(language, "⚠️ Dangerous Macro Detection", "⚠️ Phát hiện Macro nguy hiểm");
+            let msg = Self::tr_lang(
+                language,
+                "This macro contains an infinite loop and is triggered via Press or Release.\nRunning it may cause the program to cycle indefinitely until manually stopped via the Master hotkey.\n\nAre you absolutely sure you want to enable it?",
+                "Macro này chứa vòng lặp vô hạn và được kích hoạt bằng Nhấn hoặc Thả.\nChạy nó có thể làm chương trình lặp vô hạn cho đến khi dừng bằng phím tắt Master.\n\nBạn có chắc chắn muốn bật nó không?"
+            );
+            let confirm_lbl = Self::tr_lang(language, "Enable Anyway", "Vẫn cho phép");
+            let cancel_lbl = Self::tr_lang(language, "Cancel", "Hủy bỏ");
+            if let Some(result) = self.render_blocking_confirmation_modal(
+                ui.ctx(),
+                "macro-infinite-loop-confirm",
+                &title,
+                &msg,
+                &confirm_lbl,
+                &cancel_lbl,
+            ) {
+                if result {
+                    if let Some(group) = self.state.macro_groups.iter_mut().find(|g| g.id == group_id) {
+                        if let Some(preset) = group.presets.iter_mut().find(|p| p.id == preset_id) {
+                            preset.enabled = true;
+                            self.persist_macro_presets();
+                        }
+                    }
+                }
+                self.pending_macro_infinite_loop_enable = None;
+            }
+        }
     }
 
     fn render_mouse_path_preview(
@@ -17840,6 +17888,27 @@ impl CrosshairApp {
         if groq_changed {
             self.persist();
         }
+        ui.add_space(8.0);
+        Frame::group(ui.style()).show(ui, |ui| {
+            ui.horizontal(|ui| {
+                ui.label(RichText::new(Self::tr_lang(language, "Safety", "An toÃ n")).strong());
+            });
+            ui.add_space(6.0);
+            let mut safety_changed = false;
+            safety_changed |= ui
+                .checkbox(
+                    &mut self.state.macro_infinite_loop_warning_enabled,
+                    Self::tr_lang(
+                        language,
+                        "Warn on infinite loop macros",
+                        "Cáº£nh bÃ¡o macro láº·p vÃ´ háº¡n",
+                    ),
+                )
+                .changed();
+            if safety_changed {
+                self.persist();
+            }
+        });
         ui.add_space(8.0);
         Frame::group(ui.style()).show(ui, |ui| {
             ui.horizontal(|ui| {
