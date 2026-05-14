@@ -1,4 +1,4 @@
-﻿use std::{
+use std::{
     collections::{HashMap, HashSet},
     fs,
     path::PathBuf,
@@ -2903,6 +2903,15 @@ impl CrosshairApp {
                 let resp = c.get("https://api.github.com/repos/Baolinh0305/MacroNest/releases/latest")
                     .send()
                     .map_err(|e| e.to_string())?;
+                
+                if resp.status() == reqwest::StatusCode::NOT_FOUND {
+                    return Err("No releases found on GitHub.".to_owned());
+                }
+
+                if !resp.status().is_success() {
+                    return Err(format!("GitHub API error: {}", resp.status()));
+                }
+
                 let json: serde_json::Value = resp.json().map_err(|e| e.to_string())?;
                 let latest_version = json["tag_name"].as_str()
                     .unwrap_or("")
