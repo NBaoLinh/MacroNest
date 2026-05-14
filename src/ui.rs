@@ -372,7 +372,7 @@ impl PopupBlobApp {
         let fade = 1.0 - shatter * 0.82;
         let (neon_cyan, neon_pink, neon_blue, dark_fill, mid_fill) = self.popup_palette();
         let (title, message) = match self.kind {
-            PopupBlobKind::AlreadyRunning => ("MacroNest", "Already running in tray"),
+            PopupBlobKind::AlreadyRunning => ("MacroNest", "Already running"),
         };
 
         for layer in 0..3 {
