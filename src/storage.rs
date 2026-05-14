@@ -6,7 +6,13 @@ use std::{
 use anyhow::{Context, Result};
 use directories::ProjectDirs;
 
-use crate::model::{AppState, ImageSearchPreset, ProfileRecord};
+use crate::model::{AppState, ImageSearchPreset, ProfileRecord, VietnameseInputMode};
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum StateLoadStatus {
+    Loaded,
+    RecoveredInvalid,
+}
 
 #[derive(Debug, Clone)]
 pub struct AppPaths {
@@ -81,23 +87,37 @@ impl AppPaths {
             .join(format!("preset-{preset_id}.png"))
     }
 
-    pub fn load_state(&self) -> Result<AppState> {
+    pub fn load_state(&self) -> Result<(AppState, StateLoadStatus)> {
         if !self.state_file.exists() {
             let state = AppState::default();
             self.save_state(&state)?;
             self.save_profiles(&state.profiles)?;
-            return Ok(state);
+            return Ok((state, StateLoadStatus::Loaded));
         }
 
         let content = fs::read_to_string(&self.state_file)?;
-        let mut state: AppState =
-            serde_json::from_str(&content).context("Failed to read state.json")?;
+        let content = content.strip_prefix('\u{feff}').unwrap_or(&content);
+        let mut state: AppState = match serde_json::from_str(content) {
+            Ok(state) => state,
+            Err(error) => {
+                if content.trim().is_empty() {
+                    eprintln!("state.json was empty; recreating defaults.");
+                } else {
+                    eprintln!("state.json was invalid; recreating defaults: {error}");
+                }
+                let state = AppState::default();
+                return Ok((state, StateLoadStatus::RecoveredInvalid));
+            }
+        };
         state.profiles = self.load_profiles()?;
         if state.profiles.is_empty() {
             state.profiles = AppState::default().profiles;
         }
         if state.selected_profile.is_none() {
             state.selected_profile = state.profiles.first().map(|p| p.name.clone());
+        }
+        if matches!(state.vietnamese_input_mode, VietnameseInputMode::Off) {
+            state.vietnamese_input_mode = VietnameseInputMode::Telex;
         }
         for profile in &mut state.profiles {
             profile.collapsed = true;
@@ -152,6 +172,11 @@ impl AppPaths {
             preset.click_after_move = false;
         }
         state.active_panel = crate::model::AppPanel::Macros;
+        if state.groq_settings.model.trim().is_empty()
+            || state.groq_settings.model.trim() == "llama-3.1-8b-instant"
+        {
+            state.groq_settings.model = "openai/gpt-oss-120b".to_owned();
+        }
         let legacy_image_search_template = self.image_search_template_file.exists();
         if legacy_image_search_template {
             let first_template = state
@@ -216,6 +241,7 @@ impl AppPaths {
                 enabled: true,
                 collapsed: false,
                 favorite: false,
+                heart_favorite: false,
                 folder_id: None,
                 target_window_title: None,
                 extra_target_window_titles: Vec::new(),
@@ -364,7 +390,7 @@ impl AppPaths {
         for item in &mut state.audio_settings.library {
             item.collapsed = true;
         }
-        Ok(state)
+        Ok((state, StateLoadStatus::Loaded))
     }
 
     pub fn save_state(&self, state: &AppState) -> Result<()> {

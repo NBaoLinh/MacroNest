@@ -7,7 +7,9 @@ mod windows_overlay {
         collections::{HashMap, HashSet},
         ffi::c_void,
         mem::size_of,
+        os::windows::process::CommandExt,
         path::{Path, PathBuf},
+        process::Command,
         ptr::null_mut,
         sync::{
             Arc,
@@ -51,7 +53,9 @@ mod windows_overlay {
             },
             System::{
                 LibraryLoader::GetModuleHandleW,
-                Threading::{AttachThreadInput, GetCurrentProcessId, GetCurrentThreadId},
+                Threading::{
+                    AttachThreadInput, CREATE_NO_WINDOW, GetCurrentProcessId, GetCurrentThreadId,
+                },
             },
             UI::{
                 Input::KeyboardAndMouse::{
@@ -99,9 +103,9 @@ mod windows_overlay {
     };
 
     use crate::{
-        audio, hotkey,
+        ai, audio, hotkey,
         model::{
-            AudioSettings, CrosshairStyle, HotkeyBinding, ImageSearchPreset,
+            AudioSettings, CrosshairStyle, CustomPreset, HotkeyBinding, ImageSearchPreset,
             ImageSearchTimingPreset, MacroAction, MacroGroup, MacroPreset, MacroStep,
             MacroTriggerMode, MousePathEvent, MousePathEventKind, MousePathPreset,
             MouseSensitivityPreset, PinOverlayStyle, PinPreset, ProfileRecord, RgbaColor,
@@ -113,6 +117,9 @@ mod windows_overlay {
         window_list,
     };
     use image::{RgbaImage, imageops::FilterType};
+
+    #[path = "../window_preset.rs"]
+    mod window_preset;
 
     const HOTKEY_ID: i32 = 1001;
     const TIMER_ID: usize = 1;
@@ -209,10 +216,12 @@ mod windows_overlay {
         ApplyMouseSensitivityPreset(u32),
         RestoreMouseSensitivity,
         UpdateToolboxPresets(Vec<ToolboxPreset>),
+        UpdateCustomPresets(Vec<CustomPreset>),
         PreviewToolboxPreset(Option<ToolboxPreset>),
         UpdateMacroPresets(Vec<MacroGroup>),
         UpdateAudioSettings(AudioSettings),
         SetMacrosMasterEnabled(bool),
+        SetVietnameseInputEnabled(bool),
         UpdateMacrosMasterHotkey(Option<HotkeyBinding>),
         RefreshPinOverlay,
         SetImageSearchCaptureMouseBlocked(bool),
@@ -227,6 +236,7 @@ mod windows_overlay {
         SyncMacroGroups(Vec<MacroGroup>, String),
         SyncCrosshairProfiles(Vec<ProfileRecord>, String),
         SetMacrosMasterEnabled(bool, String),
+        SetVietnameseInputEnabled(bool, String),
         MousePathRecordingStarted(u32, String),
         MousePathRecordingFinished(u32, Vec<MousePathEvent>, String),
         ImageSearchFinished(String),
@@ -323,9 +333,11 @@ mod windows_overlay {
         image_search_capture_anchor: Option<(i32, i32)>,
         image_search_capture_preview_region: Option<ImageSearchRegion>,
         toolbox_presets: Vec<ToolboxPreset>,
+        custom_presets: Vec<CustomPreset>,
         macro_groups: Vec<MacroGroup>,
         macros_master_enabled: bool,
         macros_master_hotkey: Option<HotkeyBinding>,
+        vietnamese_input_enabled: bool,
         locked_inputs: HashMap<String, usize>,
         locked_mouse_count: usize,
         current_style: CrosshairStyle,
@@ -377,9 +389,11 @@ mod windows_overlay {
                 image_search_capture_anchor: None,
                 image_search_capture_preview_region: None,
                 toolbox_presets: Vec::new(),
+                custom_presets: Vec::new(),
                 macro_groups: Vec::new(),
                 macros_master_enabled: true,
                 macros_master_hotkey: None,
+                vietnamese_input_enabled: false,
                 locked_inputs: HashMap::new(),
                 locked_mouse_count: 0,
                 current_style: CrosshairStyle::default(),
@@ -1195,9 +1209,18 @@ mod windows_overlay {
                     if is_key_up {
                         swallow |= process_binding_release(&binding);
                     }
-                    swallow |= binding_matches_any_hold_macro(&binding);
+
+                    let macros_master_enabled = {
+                        let hook_state = HOOK_STATE.lock();
+                        hook_state.macros_master_enabled
+                    };
+
+                    if macros_master_enabled {
+                        swallow |= binding_matches_any_hold_macro(&binding);
+                        swallow |= is_locked_input(&key_name);
+                    }
+
                     swallow |= keyboard_arrow_mouse_should_swallow(&key_name);
-                    swallow |= is_locked_input(&key_name);
                     update_modifier_state(info.vkCode, is_key_down);
                     return if swallow {
                         LRESULT(1)
@@ -1248,7 +1271,8 @@ mod windows_overlay {
                         let mut hook_state = HOOK_STATE.lock();
                         let left_held = hook_state.held_mouse_buttons.contains("MouseLeft");
                         if left_held {
-                            if let Some((start_x, start_y)) = hook_state.image_search_capture_anchor {
+                            if let Some((start_x, start_y)) = hook_state.image_search_capture_anchor
+                            {
                                 let left = start_x.min(info.pt.x);
                                 let top = start_y.min(info.pt.y);
                                 let width = (start_x - info.pt.x).abs().max(1);
@@ -1265,10 +1289,11 @@ mod windows_overlay {
                                     let ui_tx = hook_state.ui_tx.clone();
                                     drop(hook_state);
                                     if let Some(ui_tx) = ui_tx {
-                                        let _ = ui_tx.send(UiCommand::ImageSearchCaptureMouseMove {
-                                            screen_x: info.pt.x,
-                                            screen_y: info.pt.y,
-                                        });
+                                        let _ =
+                                            ui_tx.send(UiCommand::ImageSearchCaptureMouseMove {
+                                                screen_x: info.pt.x,
+                                                screen_y: info.pt.y,
+                                            });
                                     }
                                     wake_command_queue();
                                     return CallNextHookEx(None, code, wparam, lparam);
@@ -1354,19 +1379,28 @@ mod windows_overlay {
                 (WM_XBUTTONUP, XBUTTON2_DATA) => Some((binding_from_trigger_event("MouseX2"), false)),
                 _ => None,
             };
-                if let Some((binding, is_down)) = event {
-                    update_held_mouse_button(message, ((info.mouseData >> 16) & 0xFFFF) as u16);
-                let swallow = if is_down {
+            if let Some((binding, is_down)) = event {
+                update_held_mouse_button(message, ((info.mouseData >> 16) & 0xFFFF) as u16);
+                let mut swallow = if is_down {
                     process_binding_press(&binding, false).unwrap_or(false)
                 } else {
                     process_binding_release(&binding)
                 };
-                let swallow = swallow || binding_matches_any_hold_macro(&binding);
+
+                let macros_master_enabled = {
+                    let hook_state = HOOK_STATE.lock();
+                    hook_state.macros_master_enabled
+                };
+
+                if macros_master_enabled {
+                    swallow |= binding_matches_any_hold_macro(&binding);
+                }
+
                 return if swallow {
                     LRESULT(1)
                 } else {
-                        CallNextHookEx(None, code, wparam, lparam)
-                    };
+                    CallNextHookEx(None, code, wparam, lparam)
+                };
             }
         }
         CallNextHookEx(None, code, wparam, lparam)
@@ -1808,12 +1842,42 @@ mod windows_overlay {
         hotkey::binding_key_names(binding).len() == 1
     }
 
+    fn mouse_trigger_is_physically_down(trigger: &HotkeyBinding) -> bool {
+        let Some(vk) = hotkey::key_name_to_vk(&trigger.key) else {
+            return true;
+        };
+        if !hotkey::is_mouse_key_name(&trigger.key) {
+            return true;
+        }
+        (unsafe { GetAsyncKeyState(vk as i32) }) < 0
+    }
+
+    fn reconcile_active_hold_mouse_macros() {
+        let stale_ids = {
+            let hook_state = HOOK_STATE.lock();
+            hook_state
+                .active_hold_macros
+                .iter()
+                .filter_map(|(preset_id, active)| {
+                    (!mouse_trigger_is_physically_down(&active.trigger)).then_some(*preset_id)
+                })
+                .collect::<Vec<_>>()
+        };
+
+        for preset_id in stale_ids {
+            deactivate_hold_macro(preset_id);
+        }
+    }
+
     fn hold_macro_release_matches(active: &ActiveHoldMacro, binding: &HotkeyBinding) -> bool {
         active.trigger.key.eq_ignore_ascii_case(&binding.key)
     }
 
     fn binding_matches_any_hold_macro(binding: &HotkeyBinding) -> bool {
         let hook_state = HOOK_STATE.lock();
+        if !hook_state.macros_master_enabled {
+            return false;
+        }
         hook_state.macro_groups.iter().any(|group| {
             group.enabled
                 && macro_target_matches(group)
@@ -2536,6 +2600,28 @@ mod windows_overlay {
         HOOK_STATE.lock().image_search_capture_mouse_blocked
     }
 
+    fn physical_mouse_buttons_down() -> bool {
+        unsafe {
+            [0x01, 0x02, 0x04, 0x05, 0x06]
+                .into_iter()
+                .any(|vk| GetAsyncKeyState(vk) < 0)
+        }
+    }
+
+    fn clear_stuck_mouse_lock() {
+        if physical_mouse_buttons_down() {
+            return;
+        }
+        let mut hook_state = HOOK_STATE.lock();
+        if hook_state.locked_mouse_count == 0 {
+            return;
+        }
+        hook_state.locked_mouse_count = 0;
+        for active in hook_state.active_hold_macros.values_mut() {
+            active.locked_mouse_count = 0;
+        }
+    }
+
     fn is_keyboard_arrow_mouse_key(key_name: &str) -> bool {
         matches!(key_name, "Left" | "Right" | "Up" | "Down")
     }
@@ -2725,6 +2811,9 @@ mod windows_overlay {
                 OverlayCommand::UpdateToolboxPresets(presets) => {
                     HOOK_STATE.lock().toolbox_presets = presets;
                 }
+                OverlayCommand::UpdateCustomPresets(presets) => {
+                    HOOK_STATE.lock().custom_presets = presets;
+                }
                 OverlayCommand::PreviewToolboxPreset(preset) => {
                     *TOOLBOX_PREVIEW_DISPLAY.lock() =
                         preset.map(toolbox_preview_display_from_preset);
@@ -2740,8 +2829,18 @@ mod windows_overlay {
                     runtime.audio_settings = settings;
                 }
                 OverlayCommand::SetMacrosMasterEnabled(enabled) => {
-                    HOOK_STATE.lock().macros_master_enabled = enabled;
+                    let mut hook_state = HOOK_STATE.lock();
+                    hook_state.macros_master_enabled = enabled;
+                    if !enabled {
+                        hook_state.locked_inputs.clear();
+                        hook_state.press_trigger_suppression.clear();
+                        hook_state.active_hold_macros.clear();
+                    }
+                    drop(hook_state);
                     let _ = update_tray_icon(hwnd, enabled);
+                }
+                OverlayCommand::SetVietnameseInputEnabled(enabled) => {
+                    HOOK_STATE.lock().vietnamese_input_enabled = enabled;
                 }
                 OverlayCommand::UpdateMacrosMasterHotkey(binding) => {
                     HOOK_STATE.lock().macros_master_hotkey = binding;
@@ -3925,8 +4024,16 @@ mod windows_overlay {
     }
 
     fn current_hold_run_matches(preset_id: u32, run_token: u64) -> bool {
-        HOOK_STATE
-            .lock()
+        let hook_state = HOOK_STATE.lock();
+        current_hold_run_matches_with_guard(preset_id, run_token, &hook_state)
+    }
+
+    fn current_hold_run_matches_with_guard(
+        preset_id: u32,
+        run_token: u64,
+        hook_state: &HookState,
+    ) -> bool {
+        hook_state
             .active_hold_macros
             .get(&preset_id)
             .is_some_and(|active| active.run_token == run_token)
@@ -3946,124 +4053,149 @@ mod windows_overlay {
     }
 
     fn apply_window_preset_by_id(spec: &str) -> Result<()> {
-        let preset_id = spec
-            .trim()
-            .parse::<u32>()
-            .context("Window preset id is invalid")?;
-        let mut preset = {
+        window_preset::apply_window_preset_by_id(spec)
+    }
+
+    fn spawn_custom_command(use_powershell: bool, command_text: String) {
+        thread::spawn(move || {
+            let mut command = if use_powershell {
+                let mut cmd = Command::new("powershell.exe");
+                cmd.args([
+                    "-NoProfile",
+                    "-ExecutionPolicy",
+                    "Bypass",
+                    "-WindowStyle",
+                    "Hidden",
+                    "-Command",
+                    &command_text,
+                ]);
+                cmd
+            } else {
+                let mut cmd = Command::new("cmd.exe");
+                cmd.args(["/C", &command_text]);
+                cmd
+            };
+            let _ = command.creation_flags(CREATE_NO_WINDOW.0).spawn();
+        });
+    }
+
+    fn trigger_custom_preset_by_id(spec: &str) -> Result<()> {
+        let spec = spec.trim();
+        let preset = {
             let hook_state = HOOK_STATE.lock();
-            hook_state
-                .window_presets
-                .iter()
-                .find(|preset| preset.id == preset_id)
-                .cloned()
+            let by_id = spec.parse::<u32>().ok().and_then(|preset_id| {
+                hook_state
+                    .custom_presets
+                    .iter()
+                    .find(|preset| preset.id == preset_id)
+                    .cloned()
+            });
+            by_id.or_else(|| {
+                hook_state
+                    .custom_presets
+                    .iter()
+                    .find(|preset| preset.name.trim().eq_ignore_ascii_case(spec))
+                    .cloned()
+            })
         }
-        .context("Window preset was not found")?;
-        preset.enabled = true;
-        apply_window_preset(&preset)
+        .context("Custom preset was not found")?;
+
+        if !preset.enabled {
+            bail!("Custom preset is disabled");
+        }
+
+        if preset.target_window_title.is_some() || !preset.extra_target_window_titles.is_empty() {
+            let foreground = unsafe { GetForegroundWindow() };
+            let matches = unsafe {
+                window_matches_any_selector(
+                    foreground,
+                    preset.target_window_title.as_deref(),
+                    &preset.extra_target_window_titles,
+                    preset.match_duplicate_window_titles,
+                )
+            };
+            if !matches {
+                return Ok(());
+            }
+        }
+
+        let command_text = ai::normalize_custom_command_text(&preset.command);
+        if command_text.is_empty() {
+            bail!("Custom preset command is empty");
+        }
+
+        spawn_custom_command(preset.use_powershell, command_text);
+        Ok(())
+    }
+
+    fn trigger_custom_preset_step(step: &MacroStep) -> Result<()> {
+        let spec = step.key.trim();
+        if spec.is_empty() {
+            bail!("Custom preset key is empty");
+        }
+
+        let preset = {
+            let hook_state = HOOK_STATE.lock();
+            let by_id = spec.parse::<u32>().ok().and_then(|preset_id| {
+                hook_state
+                    .custom_presets
+                    .iter()
+                    .find(|preset| preset.id == preset_id)
+                    .cloned()
+            });
+            by_id.or_else(|| {
+                hook_state
+                    .custom_presets
+                    .iter()
+                    .find(|preset| preset.name.trim().eq_ignore_ascii_case(spec))
+                    .cloned()
+            })
+        };
+
+        if let Some(preset) = preset {
+            if !preset.enabled {
+                bail!("Custom preset is disabled");
+            }
+
+            if preset.target_window_title.is_some() || !preset.extra_target_window_titles.is_empty()
+            {
+                let foreground = unsafe { GetForegroundWindow() };
+                let matches = unsafe {
+                    window_matches_any_selector(
+                        foreground,
+                        preset.target_window_title.as_deref(),
+                        &preset.extra_target_window_titles,
+                        preset.match_duplicate_window_titles,
+                    )
+                };
+                if !matches {
+                    return Ok(());
+                }
+            }
+
+            let command_text = ai::normalize_custom_command_text(&preset.command);
+            if command_text.is_empty() {
+                bail!("Custom preset command is empty");
+            }
+
+            spawn_custom_command(preset.use_powershell, command_text);
+            return Ok(());
+        }
+
+        let command_text = ai::normalize_custom_command_text(&step.custom_preset_command);
+        if command_text.is_empty() {
+            bail!("Custom preset was not found");
+        }
+        spawn_custom_command(step.custom_preset_use_powershell, command_text);
+        Ok(())
     }
 
     fn focus_window_by_preset_id(spec: &str) -> Result<()> {
-        let preset_id = spec
-            .trim()
-            .parse::<u32>()
-            .context("Window preset id is invalid")?;
-        let preset = {
-            let hook_state = HOOK_STATE.lock();
-            hook_state
-                .window_focus_presets
-                .iter()
-                .find(|preset| preset.id == preset_id)
-                .cloned()
-        }
-        .context("Window preset was not found")?;
-        focus_window_for_title(
-            preset.target_window_title.as_deref(),
-            &preset.extra_target_window_titles,
-            preset.match_duplicate_window_titles,
-            true,
-        )
+        window_preset::focus_window_by_preset_id(spec)
     }
 
     fn focus_window_for_preset(preset: &WindowFocusPreset) -> Result<()> {
-        focus_window_for_title(
-            preset.target_window_title.as_deref(),
-            &preset.extra_target_window_titles,
-            preset.match_duplicate_window_titles,
-            true,
-        )
-    }
-
-    fn focus_window_for_title(
-        target_title: Option<&str>,
-        extra_target_titles: &[String],
-        match_duplicate_window_titles: bool,
-        prefer_other_if_foreground_matches: bool,
-    ) -> Result<()> {
-        let hwnd = find_target_window_hwnd(
-            target_title,
-            extra_target_titles,
-            match_duplicate_window_titles,
-            prefer_other_if_foreground_matches,
-        )
-        .context("Target window was not found")?;
-        unsafe {
-            let foreground = GetForegroundWindow();
-            if foreground == hwnd && !IsIconic(hwnd).as_bool() {
-                return Ok(());
-            }
-            let current_thread = GetCurrentThreadId();
-            let target_thread = GetWindowThreadProcessId(hwnd, None);
-            let foreground_thread = if foreground.0.is_null() {
-                0
-            } else {
-                GetWindowThreadProcessId(foreground, None)
-            };
-
-            let attach_foreground = foreground_thread != 0 && foreground_thread != current_thread;
-            let attach_target = target_thread != 0 && target_thread != current_thread;
-
-            if attach_foreground {
-                let _ = AttachThreadInput(foreground_thread, current_thread, true);
-            }
-            if attach_target {
-                let _ = AttachThreadInput(target_thread, current_thread, true);
-            }
-
-            let _ = ShowWindow(hwnd, SW_RESTORE);
-            let _ = BringWindowToTop(hwnd);
-            let _ = SetWindowPos(
-                hwnd,
-                Some(HWND_TOPMOST),
-                0,
-                0,
-                0,
-                0,
-                SWP_NOMOVE | SWP_NOSIZE | SWP_NOACTIVATE | SWP_SHOWWINDOW,
-            );
-            let _ = SetWindowPos(
-                hwnd,
-                Some(HWND_NOTOPMOST),
-                0,
-                0,
-                0,
-                0,
-                SWP_NOMOVE | SWP_NOSIZE | SWP_SHOWWINDOW,
-            );
-            let _ = SetForegroundWindow(hwnd);
-            let _ = SetActiveWindow(hwnd);
-            let _ = SetFocus(Some(hwnd));
-            thread::sleep(Duration::from_millis(18));
-            replay_held_inputs_after_focus();
-
-            if attach_target {
-                let _ = AttachThreadInput(target_thread, current_thread, false);
-            }
-            if attach_foreground {
-                let _ = AttachThreadInput(foreground_thread, current_thread, false);
-            }
-        }
-        Ok(())
+        window_preset::focus_window_for_preset(preset)
     }
 
     fn replay_held_inputs_after_focus() {
@@ -4480,6 +4612,9 @@ mod windows_overlay {
                     false,
                 );
             }
+            MacroAction::TriggerCustomPreset => {
+                let _ = trigger_custom_preset_step(step);
+            }
             MacroAction::EnableCrosshairProfile => {
                 let _ = enable_crosshair_profile(&step.key);
             }
@@ -4697,6 +4832,7 @@ mod windows_overlay {
                         return MacroRunFlow::BreakLoop;
                     }
                 }
+                MacroAction::Wait => {}
                 MacroAction::ApplyWindowPreset => {
                     let _ = apply_window_preset_by_id(&step.key);
                 }
@@ -4713,6 +4849,9 @@ mod windows_overlay {
                         extra_target_window_titles,
                         match_duplicate_window_titles,
                     );
+                }
+                MacroAction::TriggerCustomPreset => {
+                    let _ = trigger_custom_preset_step(step);
                 }
                 MacroAction::EnableCrosshairProfile => {
                     let _ = enable_crosshair_profile(&step.key);
@@ -4993,6 +5132,7 @@ mod windows_overlay {
                         return MacroRunFlow::BreakLoop;
                     }
                 }
+                MacroAction::Wait => {}
                 MacroAction::ApplyWindowPreset => {
                     let _ = apply_window_preset_by_id(&step.key);
                 }
@@ -5011,6 +5151,9 @@ mod windows_overlay {
                         extra_target_window_titles,
                         match_duplicate_window_titles,
                     );
+                }
+                MacroAction::TriggerCustomPreset => {
+                    let _ = trigger_custom_preset_step(step);
                 }
                 MacroAction::EnableCrosshairProfile => {
                     let _ = enable_crosshair_profile(&step.key);
@@ -5161,15 +5304,22 @@ mod windows_overlay {
 
         let mut remaining_ms = delay_ms;
         while remaining_ms > 0 {
-            if !current_hold_run_matches(preset_id, run_token) {
-                return true;
-            }
-            if !macro_runtime_target_matches(
-                target_window_title,
-                extra_target_window_titles,
-                match_duplicate_window_titles,
-            ) {
-                return true;
+            {
+                let hook_state = HOOK_STATE.lock();
+                if !hook_state.macros_master_enabled {
+                    return true;
+                }
+                if !current_hold_run_matches_with_guard(preset_id, run_token, &hook_state) {
+                    return true;
+                }
+                if !macro_runtime_target_matches_with_guard(
+                    target_window_title,
+                    extra_target_window_titles,
+                    match_duplicate_window_titles,
+                    &hook_state,
+                ) {
+                    return true;
+                }
             }
             if stop_immediately_on_retrigger
                 && STOP_REQUESTED_MACRO_PRESETS.lock().contains(&preset_id)
@@ -5207,12 +5357,19 @@ mod windows_overlay {
 
         let mut remaining_ms = delay_ms;
         while remaining_ms > 0 {
-            if !macro_runtime_target_matches(
-                target_window_title,
-                extra_target_window_titles,
-                match_duplicate_window_titles,
-            ) {
-                return true;
+            {
+                let hook_state = HOOK_STATE.lock();
+                if !hook_state.macros_master_enabled {
+                    return true;
+                }
+                if !macro_runtime_target_matches_with_guard(
+                    target_window_title,
+                    extra_target_window_titles,
+                    match_duplicate_window_titles,
+                    &hook_state,
+                ) {
+                    return true;
+                }
             }
             if stop_immediately_on_retrigger
                 && STOP_REQUESTED_MACRO_PRESETS.lock().contains(&preset_id)
@@ -5259,6 +5416,21 @@ mod windows_overlay {
         target_window_title: Option<&str>,
         extra_target_window_titles: &[String],
         match_duplicate_window_titles: bool,
+    ) -> bool {
+        let hook_state = HOOK_STATE.lock();
+        macro_runtime_target_matches_with_guard(
+            target_window_title,
+            extra_target_window_titles,
+            match_duplicate_window_titles,
+            &hook_state,
+        )
+    }
+
+    fn macro_runtime_target_matches_with_guard(
+        target_window_title: Option<&str>,
+        extra_target_window_titles: &[String],
+        match_duplicate_window_titles: bool,
+        _hook_state: &HookState,
     ) -> bool {
         window_focus_matches(
             target_window_title,
@@ -5655,9 +5827,11 @@ mod windows_overlay {
                     held_keys.remove(&step.key);
                 }
                 MacroAction::TypeText
+                | MacroAction::Wait
                 | MacroAction::ApplyWindowPreset
                 | MacroAction::FocusWindowPreset
                 | MacroAction::TriggerMacroPreset
+                | MacroAction::TriggerCustomPreset
                 | MacroAction::EnableCrosshairProfile
                 | MacroAction::DisableCrosshair
                 | MacroAction::EnablePinPreset
@@ -5782,9 +5956,11 @@ mod windows_overlay {
             | MacroAction::MouseMoveAbsolute
             | MacroAction::MouseMoveRelative => return send_mouse_event(step),
             MacroAction::TypeText => return send_text_input(&step.key),
+            MacroAction::Wait => return Ok(()),
             MacroAction::ApplyWindowPreset
             | MacroAction::FocusWindowPreset
             | MacroAction::TriggerMacroPreset
+            | MacroAction::TriggerCustomPreset
             | MacroAction::EnableCrosshairProfile
             | MacroAction::DisableCrosshair
             | MacroAction::EnablePinPreset
@@ -8047,8 +8223,16 @@ mod windows_overlay {
         }
     }
 
+    fn apply_window_preset_for_macro(preset: &WindowPreset) -> Result<()> {
+        window_preset::apply_window_preset_for_macro(preset)
+    }
+
     fn apply_window_preset(preset: &WindowPreset) -> Result<()> {
-        if !preset.enabled {
+        window_preset::apply_window_preset(preset)
+    }
+
+    fn apply_window_preset_impl(preset: &WindowPreset, require_enabled: bool) -> Result<()> {
+        if require_enabled && !preset.enabled {
             return Ok(());
         }
         unsafe {
@@ -8092,69 +8276,11 @@ mod windows_overlay {
     }
 
     fn apply_window_preset_animated(preset: &WindowPreset) -> Result<()> {
-        if !preset.enabled || !preset.animate_enabled {
-            return Ok(());
-        }
-        unsafe {
-            let target = resolve_window_target(
-                preset.target_window_title.as_deref(),
-                &preset.extra_target_window_titles,
-                preset.match_duplicate_window_titles,
-                false,
-            );
-            if target.0.is_null() {
-                bail!("No foreground window is available");
-            }
-            let target_root = GetAncestor(target, GA_ROOT);
-            if !target_root.0.is_null()
-                && window_belongs_to_current_process(target_root)
-                && !is_internal_app_window(target_root)
-            {
-                return Ok(());
-            }
-
-            ensure_window_restored(target);
-            if preset.remove_title_bar {
-                let _ = remove_window_title_bar(target);
-            } else {
-                let _ = restore_window_title_bar(target);
-            }
-            wait_for_window_frame_to_settle(target);
-
-            let mut start = RECT::default();
-            GetWindowRect(target, &mut start)?;
-            let end = calculate_window_bounds(target, preset)?;
-            animate_window_rect(target, start, end, preset.animate_duration_ms.max(60))?;
-        }
-        Ok(())
+        window_preset::apply_window_preset_animated(preset)
     }
 
     fn restore_window_title_bar_for_preset(preset: &WindowPreset) -> Result<()> {
-        if !preset.restore_titlebar_enabled {
-            return Ok(());
-        }
-        unsafe {
-            let target = resolve_window_target(
-                preset.target_window_title.as_deref(),
-                &preset.extra_target_window_titles,
-                preset.match_duplicate_window_titles,
-                false,
-            );
-            if target.0.is_null() {
-                bail!("No foreground window is available");
-            }
-            let target_root = GetAncestor(target, GA_ROOT);
-            if !target_root.0.is_null()
-                && window_belongs_to_current_process(target_root)
-                && !is_internal_app_window(target_root)
-            {
-                return Ok(());
-            }
-
-            let _ = ShowWindow(target, SW_RESTORE);
-            restore_window_title_bar(target)?;
-        }
-        Ok(())
+        window_preset::restore_window_title_bar_for_preset(preset)
     }
 
     #[allow(dead_code)]
@@ -8710,6 +8836,12 @@ mod windows_overlay {
         match_duplicate_window_titles: bool,
     ) -> bool {
         if window_matches_selector(hwnd, target) {
+            return true;
+        }
+        let base_title = selector_base_title(target);
+        if base_title != target
+            && window_title(hwnd).is_some_and(|title| title == base_title)
+        {
             return true;
         }
         if !match_duplicate_window_titles {
@@ -9386,7 +9518,10 @@ mod fallback {
         UpdateMacroPresets(Vec<MacroGroup>),
         UpdateAudioSettings(AudioSettings),
         UpdateMouseDriverSettings(bool),
-        UpdateKeyboardArrowMouseSettings { enabled: bool, step_px: u32 },
+        UpdateKeyboardArrowMouseSettings {
+            enabled: bool,
+            step_px: u32,
+        },
         UpdateImageSearchPresets(Vec<ImageSearchPreset>),
         SetMacrosMasterEnabled(bool),
         SetUiVisible(bool),

@@ -1,6 +1,9 @@
 #[cfg(windows)]
 mod windows_platform {
-    use std::{env, path::Path};
+    use std::{
+        env,
+        path::Path,
+    };
 
     use anyhow::{Result, bail};
     use eframe::Frame;
@@ -17,7 +20,9 @@ mod windows_platform {
                 CreateMutexW, GetCurrentProcess, HIGH_PRIORITY_CLASS, SetPriorityClass,
             },
             UI::{
-                Shell::{IsUserAnAdmin, ShellExecuteW},
+                Shell::{
+                    IsUserAnAdmin, SetCurrentProcessExplicitAppUserModelID, ShellExecuteW,
+                },
                 WindowsAndMessaging::{
                     BringWindowToTop, HWND_NOTOPMOST, HWND_TOPMOST, SW_RESTORE, SW_SHOWNORMAL,
                     SWP_NOMOVE, SWP_NOSIZE, SWP_SHOWWINDOW, SetForegroundWindow, SetWindowPos,
@@ -29,6 +34,7 @@ mod windows_platform {
     };
 
     const MUTEX_NAME: &str = "Global\\CrosshairOverlaySingleInstance";
+    const APP_USER_MODEL_ID: &str = "Crosshair.MacroNest";
 
     fn spawn_popup_arg(arg: &str) {
         if let Ok(exe) = env::current_exe() {
@@ -47,6 +53,14 @@ mod windows_platform {
         }
     }
 
+    pub fn set_app_user_model_id() -> Result<()> {
+        let appid = widestring(APP_USER_MODEL_ID);
+        unsafe {
+            SetCurrentProcessExplicitAppUserModelID(PCWSTR(appid.as_ptr()))?;
+        }
+        Ok(())
+    }
+
     pub struct SingleInstanceGuard {
         handle: HANDLE,
     }
@@ -56,6 +70,28 @@ mod windows_platform {
             unsafe {
                 let _ = CloseHandle(self.handle);
             }
+        }
+    }
+
+    pub fn acquire_single_instance() -> Result<Option<SingleInstanceGuard>> {
+        let name = widestring(MUTEX_NAME);
+        let handle = unsafe { CreateMutexW(None, false, PCWSTR(name.as_ptr()))? };
+        let already_exists =
+            unsafe { GetLastError().0 } == windows::Win32::Foundation::ERROR_ALREADY_EXISTS.0;
+        if already_exists {
+            spawn_popup_arg("--already-running-popup");
+            unsafe {
+                let _ = CloseHandle(handle);
+            }
+            return Ok(None);
+        }
+
+        Ok(Some(SingleInstanceGuard { handle }))
+    }
+
+    pub fn set_high_priority() {
+        unsafe {
+            let _ = SetPriorityClass(GetCurrentProcess(), HIGH_PRIORITY_CLASS);
         }
     }
 
@@ -82,28 +118,6 @@ mod windows_platform {
             }
         }
         Ok(true)
-    }
-
-    pub fn acquire_single_instance() -> Result<Option<SingleInstanceGuard>> {
-        let name = widestring(MUTEX_NAME);
-        let handle = unsafe { CreateMutexW(None, false, PCWSTR(name.as_ptr()))? };
-        let already_exists =
-            unsafe { GetLastError().0 } == windows::Win32::Foundation::ERROR_ALREADY_EXISTS.0;
-        if already_exists {
-            spawn_popup_arg("--already-running-popup");
-            unsafe {
-                let _ = CloseHandle(handle);
-            }
-            return Ok(None);
-        }
-
-        Ok(Some(SingleInstanceGuard { handle }))
-    }
-
-    pub fn set_high_priority() {
-        unsafe {
-            let _ = SetPriorityClass(GetCurrentProcess(), HIGH_PRIORITY_CLASS);
-        }
     }
 
     pub fn set_native_window_shadow(frame: &Frame, enabled: bool) {
@@ -198,6 +212,24 @@ mod windows_platform {
         Ok(())
     }
 
+    pub fn open_url_in_browser(url: &str) -> Result<()> {
+        let url_wide = widestring(url);
+        unsafe {
+            let result = ShellExecuteW(
+                Some(HWND(std::ptr::null_mut())),
+                w!("open"),
+                PCWSTR(url_wide.as_ptr()),
+                PCWSTR::null(),
+                PCWSTR::null(),
+                SW_SHOWNORMAL,
+            );
+            if (result.0 as usize) <= 32 {
+                bail!("Failed to open URL: {url}");
+            }
+        }
+        Ok(())
+    }
+
     fn widestring(value: &str) -> Vec<u16> {
         let mut wide: Vec<u16> = value.encode_utf16().collect();
         wide.push(0);
@@ -225,9 +257,17 @@ mod fallback {
 
     pub fn set_high_priority() {}
 
+    pub fn set_app_user_model_id() -> Result<()> {
+        Ok(())
+    }
+
     pub fn set_native_window_shadow(_frame: &Frame, _enabled: bool) {}
 
     pub fn open_folder_in_explorer(_path: &std::path::Path) -> Result<()> {
+        Ok(())
+    }
+
+    pub fn open_url_in_browser(_url: &str) -> Result<()> {
         Ok(())
     }
 }

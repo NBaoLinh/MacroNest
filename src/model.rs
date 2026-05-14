@@ -110,6 +110,10 @@ fn default_true() -> bool {
     true
 }
 
+fn default_false() -> bool {
+    false
+}
+
 fn default_image_search_confidence_threshold() -> f32 {
     0.58
 }
@@ -234,6 +238,7 @@ pub enum AppPanel {
     Zoom,
     Modes,
     Macros,
+    Custom,
     #[serde(alias = "Bindings")]
     Sound,
     Media,
@@ -247,6 +252,14 @@ pub enum UiLanguage {
     English,
     Icon,
     Vietnamese,
+}
+
+#[derive(Debug, Clone, Copy, Serialize, Deserialize, PartialEq, Eq, Default)]
+pub enum VietnameseInputMode {
+    #[default]
+    Telex,
+    Vni,
+    Off,
 }
 
 #[derive(Debug, Clone, Copy, Serialize, Deserialize, PartialEq, Eq, Default)]
@@ -296,7 +309,7 @@ impl WindowPreset {
     pub fn new(id: u32) -> Self {
         Self {
             id,
-            name: format!("Preset {id}"),
+            name: format!("Window Resize {id}"),
             enabled: true,
             collapsed: true,
             width: 1920,
@@ -380,10 +393,12 @@ pub enum MacroAction {
     KeyPress,
     KeyDown,
     KeyUp,
+    Wait,
     TypeText,
     ApplyWindowPreset,
     FocusWindowPreset,
     TriggerMacroPreset,
+    TriggerCustomPreset,
     EnableCrosshairProfile,
     DisableCrosshair,
     EnablePinPreset,
@@ -442,6 +457,10 @@ pub struct MacroStep {
     pub x: i32,
     pub y: i32,
     pub text_override: String,
+    #[serde(default)]
+    pub custom_preset_command: String,
+    #[serde(default = "default_false")]
+    pub custom_preset_use_powershell: bool,
     pub timed_override: bool,
     pub duration_override_ms: u64,
     pub smooth_mouse_path: bool,
@@ -465,6 +484,8 @@ impl Default for MacroStep {
             x: 0,
             y: 0,
             text_override: String::new(),
+            custom_preset_command: String::new(),
+            custom_preset_use_powershell: false,
             timed_override: false,
             duration_override_ms: 1500,
             smooth_mouse_path: false,
@@ -501,6 +522,7 @@ pub enum CaptureRequest {
     MacroPresetHotkey(u32, u32),
     MacroPresetReleaseWaitKey(u32, u32),
     MacroPresetHoldStopInput(u32, u32),
+    CustomPresetHotkey(u32),
     MacroStepInput {
         group_id: u32,
         preset_id: u32,
@@ -647,12 +669,14 @@ pub struct PinPreset {
     #[serde(default = "default_true")]
     pub match_duplicate_window_titles: bool,
     pub hotkey: Option<HotkeyBinding>,
+    #[serde(default = "default_true")]
     pub use_custom_bounds: bool,
     pub x: i32,
     pub y: i32,
     pub width: i32,
     pub height: i32,
     pub overlay_style: PinOverlayStyle,
+    #[serde(default = "default_true")]
     pub use_source_crop: bool,
     pub source_crop_initialized: bool,
     pub source_crop_fit_version: u8,
@@ -674,13 +698,13 @@ impl PinPreset {
             extra_target_window_titles: Vec::new(),
             match_duplicate_window_titles: true,
             hotkey: None,
-            use_custom_bounds: false,
+            use_custom_bounds: true,
             x: 100,
             y: 100,
             width: 640,
             height: 360,
             overlay_style: PinOverlayStyle::Rectangle,
-            use_source_crop: false,
+            use_source_crop: true,
             source_crop_initialized: false,
             source_crop_fit_version: 0,
             source_x: 0,
@@ -852,6 +876,44 @@ impl Default for ToolboxPreset {
     }
 }
 
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
+#[serde(default)]
+pub struct CustomPreset {
+    pub id: u32,
+    pub name: String,
+    pub enabled: bool,
+    pub collapsed: bool,
+    pub hotkey: Option<HotkeyBinding>,
+    pub target_window_title: Option<String>,
+    pub extra_target_window_titles: Vec<String>,
+    pub match_duplicate_window_titles: bool,
+    pub use_powershell: bool,
+    pub command: String,
+}
+
+impl CustomPreset {
+    pub fn new(id: u32) -> Self {
+        Self {
+            id,
+            name: format!("Custom {id}"),
+            enabled: true,
+            collapsed: true,
+            hotkey: None,
+            target_window_title: None,
+            extra_target_window_titles: Vec::new(),
+            match_duplicate_window_titles: true,
+            use_powershell: false,
+            command: String::new(),
+        }
+    }
+}
+
+impl Default for CustomPreset {
+    fn default() -> Self {
+        Self::new(1)
+    }
+}
+
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq, Default)]
 #[serde(default)]
 pub struct MasterWindowPresetState {
@@ -1004,6 +1066,8 @@ pub struct MacroGroup {
     pub collapsed: bool,
     #[serde(default)]
     pub favorite: bool,
+    #[serde(default)]
+    pub heart_favorite: bool,
     pub folder_id: Option<u32>,
     pub target_window_title: Option<String>,
     pub extra_target_window_titles: Vec<String>,
@@ -1016,10 +1080,11 @@ impl MacroGroup {
     pub fn new(id: u32) -> Self {
         Self {
             id,
-            name: format!("Macro Group {id}"),
+            name: "Macro Group".to_owned(),
             enabled: true,
             collapsed: false,
             favorite: false,
+            heart_favorite: false,
             folder_id: None,
             target_window_title: None,
             extra_target_window_titles: Vec::new(),
@@ -1044,6 +1109,16 @@ pub struct AiSettings {
     pub prompt: String,
     pub model: String,
     pub enabled: bool,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
+#[serde(default)]
+pub struct GroqSettings {
+    pub api_key: String,
+    pub show_api_key: bool,
+    pub model: String,
+    pub enabled: bool,
+    pub details_open: bool,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
@@ -1183,10 +1258,22 @@ impl Default for AiSettings {
         Self {
             api_key: String::new(),
             show_api_key: false,
-            system_instruction: "Convert the user's request into a JSON array of macro steps. Each step must have: key, action, delay_ms. Action must be KeyDown or KeyUp. Return JSON only.".to_owned(),
+            system_instruction: "Convert the user's request into a JSON array of MacroNest macro steps. Each step must have at least: key, action, delay_ms. Use only supported MacroAction names. Prefer KeyPress for taps, KeyDown/KeyUp for holds, TypeText for literal text, and MouseMoveAbsolute for exact coordinates. Return JSON only.".to_owned(),
             prompt: String::new(),
-            model: "gemini-2.5-flash-lite".to_owned(),
+            model: "gemini-2.5-flash".to_owned(),
             enabled: true,
+        }
+    }
+}
+
+impl Default for GroqSettings {
+    fn default() -> Self {
+        Self {
+            api_key: String::new(),
+            show_api_key: false,
+            model: "openai/gpt-oss-120b".to_owned(),
+            enabled: false,
+            details_open: false,
         }
     }
 }
@@ -1305,6 +1392,8 @@ pub struct AppState {
     pub show_window: bool,
     pub active_panel: AppPanel,
     pub ui_language: UiLanguage,
+    pub vietnamese_input_enabled: bool,
+    pub vietnamese_input_mode: VietnameseInputMode,
     pub ui_theme: UiThemeMode,
     pub window_presets: Vec<WindowPreset>,
     pub next_preset_id: u32,
@@ -1326,6 +1415,8 @@ pub struct AppState {
     pub next_zoom_preset_id: u32,
     pub toolbox_presets: Vec<ToolboxPreset>,
     pub next_toolbox_preset_id: u32,
+    pub custom_presets: Vec<CustomPreset>,
+    pub next_custom_preset_id: u32,
     pub master_presets: Vec<MasterPreset>,
     pub selected_master_preset_id: Option<u32>,
     pub next_master_preset_id: u32,
@@ -1342,6 +1433,7 @@ pub struct AppState {
     pub image_search_timing_presets: Vec<ImageSearchTimingPreset>,
     pub next_image_search_timing_preset_id: u32,
     pub ai_settings: AiSettings,
+    pub groq_settings: GroqSettings,
     pub audio_settings: AudioSettings,
     pub image_search_settings: ImageSearchSettings,
 }
@@ -1362,6 +1454,8 @@ impl Default for AppState {
             show_window: true,
             active_panel: AppPanel::Macros,
             ui_language: UiLanguage::English,
+            vietnamese_input_enabled: false,
+            vietnamese_input_mode: VietnameseInputMode::Telex,
             ui_theme: UiThemeMode::Light,
             window_presets: Vec::new(),
             next_preset_id: 1,
@@ -1383,6 +1477,8 @@ impl Default for AppState {
             next_zoom_preset_id: 1,
             toolbox_presets: vec![ToolboxPreset::new(1)],
             next_toolbox_preset_id: 2,
+            custom_presets: Vec::new(),
+            next_custom_preset_id: 1,
             master_presets: Vec::new(),
             selected_master_preset_id: None,
             next_master_preset_id: 1,
@@ -1399,6 +1495,7 @@ impl Default for AppState {
             image_search_timing_presets: vec![ImageSearchTimingPreset::default()],
             next_image_search_timing_preset_id: 2,
             ai_settings: AiSettings::default(),
+            groq_settings: GroqSettings::default(),
             audio_settings: AudioSettings::default(),
             image_search_settings: ImageSearchSettings::default(),
         }

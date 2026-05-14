@@ -197,7 +197,10 @@ mod windows_impl {
             title == selector_base_title(target_title)
                 || window_selector(hwnd, &title) == *target_title
         } else {
-            title == *target_title || window_selector(hwnd, &title) == *target_title
+            title == *target_title
+                || window_selector(hwnd, &title) == *target_title
+                || (selector_base_title(target_title) != *target_title
+                    && title == selector_base_title(target_title))
         };
         if matches {
             **found = Some(hwnd);

@@ -1,9 +1,9 @@
-﻿use std::{
+use std::{
     fs::File,
     io::BufReader,
     path::{Path, PathBuf},
-    thread,
     sync::Arc,
+    thread,
     time::{Duration, Instant},
 };
 
@@ -156,7 +156,8 @@ impl PreviewState {
             * 1000.0)
             .round()
             .max(0.0) as u64;
-        let start_position_ms = start_position_ms.min(clip_start_ms.saturating_add(total_duration_ms));
+        let start_position_ms =
+            start_position_ms.min(clip_start_ms.saturating_add(total_duration_ms));
         let source = SharedSamplesSource {
             samples: Arc::clone(&cached.samples),
             index: start_sample.min(end_sample),
@@ -299,7 +300,8 @@ pub fn toggle_preview(clip: AudioClipSettings) -> Result<bool> {
 
 pub fn start_preview_from_ms(clip: AudioClipSettings, start_position_ms: u64) -> Result<()> {
     let mut state = preview_state()?;
-    let start_position_ms = start_position_ms.clamp(clip.start_ms, clip.end_ms.max(clip.start_ms + 1));
+    let start_position_ms =
+        start_position_ms.clamp(clip.start_ms, clip.end_ms.max(clip.start_ms + 1));
     state
         .as_mut()
         .expect("preview state should be initialized")
@@ -321,7 +323,11 @@ pub fn toggle_preview_from_ms(mut clip: AudioClipSettings, start_position_ms: u6
         .expect("preview state should be initialized")
         .cleanup();
 
-    if state.as_ref().expect("preview state should be initialized").sink.is_some()
+    if state
+        .as_ref()
+        .expect("preview state should be initialized")
+        .sink
+        .is_some()
         && state
             .as_ref()
             .expect("preview state should be initialized")
