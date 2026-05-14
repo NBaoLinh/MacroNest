@@ -35,11 +35,11 @@ pub struct AppPaths {
 
 impl AppPaths {
     pub fn discover() -> Result<Self> {
-        let dirs = ProjectDirs::from("com", "MacroNest", "MacroNest")
+        let dirs = ProjectDirs::from("com", "", "MacroNest")
             .context("Failed to locate the application data folder")?;
         let root = dirs.data_local_dir().to_path_buf();
 
-        // Migrate from old Crosshair directory if it exists and new one doesn't
+        // Migrate from old Crosshair/Crosshair directory to new single MacroNest directory
         if let Some(old_dirs) = ProjectDirs::from("com", "Crosshair", "Crosshair") {
             let old_root = old_dirs.data_local_dir().to_path_buf();
             if old_root.exists() && !root.exists() {
