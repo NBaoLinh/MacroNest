@@ -1089,8 +1089,6 @@ pub struct MacroGroup {
     pub collapsed: bool,
     #[serde(default)]
     pub favorite: bool,
-    #[serde(default)]
-    pub heart_favorite: bool,
     pub folder_id: Option<u32>,
     pub target_window_title: Option<String>,
     pub extra_target_window_titles: Vec<String>,
@@ -1107,7 +1105,6 @@ impl MacroGroup {
             enabled: true,
             collapsed: false,
             favorite: false,
-            heart_favorite: false,
             folder_id: None,
             target_window_title: None,
             extra_target_window_titles: Vec::new(),

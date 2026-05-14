@@ -286,7 +286,6 @@ impl AppPaths {
                 enabled: true,
                 collapsed: false,
                 favorite: false,
-                heart_favorite: false,
                 folder_id: None,
                 target_window_title: None,
                 extra_target_window_titles: Vec::new(),

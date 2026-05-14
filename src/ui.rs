@@ -128,7 +128,6 @@ enum MacroAiMode {
 enum MacroGroupFavoriteFilter {
     All,
     Star,
-    Heart,
 }
 
 #[derive(Clone)]
@@ -12637,41 +12636,7 @@ impl CrosshairApp {
                     MacroGroupFavoriteFilter::Star
                 };
             }
-            let heart_filter_active = matches!(
-                self.macro_groups_favorite_filter,
-                MacroGroupFavoriteFilter::Heart
-            );
-            if ui
-                .add_sized(
-                    [28.0, 28.0],
-                    Button::new(Self::material_icon_text(0xe87d, 18.0))
-                        .fill(if heart_filter_active {
-                            Color32::from_rgb(124, 56, 82)
-                        } else {
-                            ui.visuals().faint_bg_color
-                        })
-                        .stroke(egui::Stroke::new(
-                            1.0,
-                            if heart_filter_active {
-                                Color32::from_rgb(255, 140, 186)
-                            } else {
-                                ui.visuals().widgets.noninteractive.bg_stroke.color
-                            },
-                        )),
-                )
-                .on_hover_text(Self::tr_lang(
-                    language,
-                    "Show heart macros only",
-                    "Chỉ hiện nhóm có heart",
-                ))
-                .clicked()
-            {
-                self.macro_groups_favorite_filter = if heart_filter_active {
-                    MacroGroupFavoriteFilter::All
-                } else {
-                    MacroGroupFavoriteFilter::Heart
-                };
-            }
+
 
             let capture_target = CaptureRequest::MacrosMasterHotkey;
             let capture_active = self.capture_target.as_ref() == Some(&capture_target);
@@ -13078,7 +13043,6 @@ impl CrosshairApp {
                 .filter(|(_, group)| match self.macro_groups_favorite_filter {
                     MacroGroupFavoriteFilter::All => true,
                     MacroGroupFavoriteFilter::Star => group.favorite,
-                    MacroGroupFavoriteFilter::Heart => group.heart_favorite,
                 })
                 .filter(|(_, group)| Self::macro_group_matches_search_query(group, &search_query))
                 .map(|(index, _)| index)
@@ -13186,40 +13150,7 @@ impl CrosshairApp {
                                 group.favorite = !group.favorite;
                                 live_sync = true;
                             }
-                            let heart_icon = if group.heart_favorite { 0xe87d } else { 0xe87e };
-                            let heart_fill = if group.heart_favorite {
-                                Color32::from_rgb(94, 38, 63)
-                            } else {
-                                Color32::from_rgba_premultiplied(52, 58, 70, 190)
-                            };
-                            let heart_stroke = if group.heart_favorite {
-                                Color32::from_rgb(255, 126, 171)
-                            } else {
-                                Color32::from_rgb(102, 110, 122)
-                            };
-                            if ui
-                                .add_sized(
-                                    [28.0, 22.0],
-                                    Button::new(Self::material_icon_text(heart_icon, 15.0).color(
-                                        if group.heart_favorite {
-                                            Color32::from_rgb(255, 164, 198)
-                                        } else {
-                                            Color32::from_rgb(208, 214, 224)
-                                        },
-                                    ))
-                                    .fill(heart_fill)
-                                    .stroke(egui::Stroke::new(1.0, heart_stroke)),
-                                )
-                                .on_hover_text(Self::tr_lang(
-                                    language,
-                                    "Heart group",
-                                    "Nhom trai tim",
-                                ))
-                                .clicked()
-                            {
-                                group.heart_favorite = !group.heart_favorite;
-                                live_sync = true;
-                            }
+
                             let mut selected = self.selected_macro_groups.contains(&group.id);
                             if ui.checkbox(&mut selected, "").changed() {
                                 if selected {
