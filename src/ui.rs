@@ -15897,6 +15897,8 @@ impl CrosshairApp {
                     if let Some(preset) = group.presets.iter_mut().find(|p| p.id == p_id) {
                         preset.enabled = false;
                         self.pending_macro_infinite_loop_enable = Some((g_id, p_id));
+                        // CRITICAL BUG FIX: Instantly save & sync the disarmed state to the background overlay thread!
+                        self.persist_macro_presets();
                     }
                 }
             }
@@ -15927,6 +15929,9 @@ impl CrosshairApp {
                             self.persist_macro_presets();
                         }
                     }
+                } else {
+                    // Ensure the background overlay thread gets the absolute state sync if they click Cancel!
+                    self.persist_macro_presets();
                 }
                 self.pending_macro_infinite_loop_enable = None;
             }
