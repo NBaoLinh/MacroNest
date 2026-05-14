@@ -19643,7 +19643,7 @@ impl eframe::App for CrosshairApp {
                                 self.tr("Exit", "Thoát"),
                             );
                             if exit_response.clicked() {
-                                ctx.send_viewport_cmd(egui::ViewportCommand::Close);
+                                let _ = self.overlay_tx.send(OverlayCommand::Exit);
                             }
                             let hide_response = Self::hover_if(
                                 ui.add_sized(
