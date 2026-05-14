@@ -7311,6 +7311,36 @@ mod windows_overlay {
         let Some(region) = region else {
             return 0;
         };
+        
+        if region.is_circle && region.width > 0 && region.height > 0 {
+            // Calculate center of the region in screen coordinates
+            let center_x = region.left + region.width / 2;
+            let center_y = region.top + region.height / 2;
+            
+            // Hit position in screen coordinates
+            let hit_screen_x = screen.screen_x + hit.x;
+            let hit_screen_y = screen.screen_y + hit.y;
+            
+            // Relative coordinates from center
+            let dx = hit_screen_x - center_x;
+            let dy = hit_screen_y - center_y;
+            
+            // atan2 returns angle in radians from -PI to PI
+            // 0 is at 3 o'clock. We want 0 at 12 o'clock and clockwise.
+            // Standard atan2: x is horizontal, y is vertical.
+            // We flip signs or swap to get 12 o'clock as 0.
+            let angle_rad = (dx as f32).atan2(-dy as f32);
+            
+            // Normalize to 0..2*PI
+            let mut normalized_angle = angle_rad;
+            if normalized_angle < 0.0 {
+                normalized_angle += 2.0 * std::f32::consts::PI;
+            }
+            
+            // Convert to percent (0..100)
+            return ((normalized_angle / (2.0 * std::f32::consts::PI)) * 100.0).clamp(0.0, 100.0) as u32;
+        }
+
         let hit_screen_x = screen.screen_x + hit.x;
         let relative_x = (hit_screen_x - region.left).clamp(0, region.width.saturating_sub(1));
         if region.width <= 1 {
