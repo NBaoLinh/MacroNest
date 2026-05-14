@@ -248,6 +248,7 @@ struct VisionPreviewCache {
 
 const MATERIAL_ICONS_FONT: &str = "material_icons";
 const UI_SANS_FONT: &str = "ui_sans";
+const UI_SANS_SEMIBOLD_FONT: &str = "ui_sans_semibold";
 const INTERCEPTION_RELEASE_URL: &str =
     "https://github.com/oblitum/Interception/releases/download/v1.0.1/Interception.zip";
 
@@ -257,6 +258,12 @@ pub fn configure_fonts(ctx: &egui::Context) {
         UI_SANS_FONT.to_owned(),
         Arc::new(FontData::from_static(include_bytes!(
             "../assets/SegoeUI.ttf"
+        ))),
+    );
+    fonts.font_data.insert(
+        UI_SANS_SEMIBOLD_FONT.to_owned(),
+        Arc::new(FontData::from_static(include_bytes!(
+            "../assets/SegoeUI-Semibold.ttf"
         ))),
     );
     fonts.font_data.insert(
@@ -275,7 +282,12 @@ pub fn configure_fonts(ctx: &egui::Context) {
         .families
         .entry(FontFamily::Proportional)
         .or_default()
-        .insert(0, UI_SANS_FONT.to_owned());
+        .insert(0, UI_SANS_SEMIBOLD_FONT.to_owned());
+    fonts
+        .families
+        .entry(FontFamily::Proportional)
+        .or_default()
+        .push(UI_SANS_FONT.to_owned());
     let material_family = FontFamily::Name(MATERIAL_ICONS_FONT.into());
     fonts
         .families
@@ -292,6 +304,14 @@ pub fn configure_fonts(ctx: &egui::Context) {
         style.interaction.show_tooltips_only_when_still = false;
         style.interaction.tooltip_delay = 0.0;
         style.interaction.tooltip_grace_time = 0.0;
+
+        use egui::{FontId, TextStyle};
+        let text_styles = &mut style.text_styles;
+        text_styles.insert(TextStyle::Small, FontId::new(12.0, FontFamily::Proportional));
+        text_styles.insert(TextStyle::Body, FontId::new(15.0, FontFamily::Proportional));
+        text_styles.insert(TextStyle::Button, FontId::new(14.5, FontFamily::Proportional));
+        text_styles.insert(TextStyle::Heading, FontId::new(20.0, FontFamily::Proportional));
+        text_styles.insert(TextStyle::Monospace, FontId::new(14.0, FontFamily::Monospace));
     });
 }
 
