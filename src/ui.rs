@@ -2304,6 +2304,49 @@ impl CrosshairApp {
             .inner
     }
 
+    fn show_macro_preset_card<R>(
+        ui: &mut egui::Ui,
+        group_enabled: bool,
+        preset_enabled: bool,
+        add_contents: impl FnOnce(&mut egui::Ui) -> R,
+    ) -> R {
+        let dark_mode = ui.visuals().dark_mode;
+        let (fill, stroke_color) = if group_enabled && preset_enabled {
+            (
+                Color32::from_rgba_premultiplied(32, 92, 52, 120),
+                Color32::from_rgb(108, 224, 148),
+            )
+        } else if group_enabled {
+            (
+                Color32::from_rgb(28, 36, 32),
+                Color32::from_rgb(55, 75, 65),
+            )
+        } else {
+            (
+                ui.visuals().faint_bg_color,
+                ui.visuals().widgets.noninteractive.bg_stroke.color,
+            )
+        };
+        let frame = egui::Frame::group(ui.style())
+            .fill(fill)
+            .stroke(egui::Stroke::new(1.0, stroke_color));
+        frame
+            .show(ui, |ui| {
+                ui.set_min_width(ui.available_width());
+                let previous = ui.visuals().override_text_color;
+                if dark_mode {
+                    ui.visuals_mut().override_text_color = Some(Self::preset_body_text_color(
+                        dark_mode,
+                        group_enabled && preset_enabled,
+                    ));
+                }
+                let output = add_contents(ui);
+                ui.visuals_mut().override_text_color = previous;
+                output
+            })
+            .inner
+    }
+
     fn preset_title_text(dark_mode: bool, name: &str, enabled: bool) -> RichText {
         let text = RichText::new(name).strong();
         text.color(Self::preset_body_text_color(dark_mode, enabled))
@@ -13300,7 +13343,7 @@ impl CrosshairApp {
                             .collect::<Vec<_>>();
                         for preset_index in render_preset_indices.iter().copied() {
                             let preset = &mut group.presets[preset_index];
-                            Self::show_preset_card(ui, group.enabled && preset.enabled, |ui| {
+                            Self::show_macro_preset_card(ui, group.enabled, preset.enabled, |ui| {
                                 ui.horizontal_top(|ui| {
                                     let available_width = ui.available_width();
                                     let right_width = 540.0;
@@ -13561,20 +13604,36 @@ impl CrosshairApp {
                                                 preset.collapsed = !preset.collapsed;
                                                 live_sync = true;
                                             }
-                                            let mut is_enabled = preset.enabled;
+                                            let enabled_icon = if preset.enabled { 0xe834 } else { 0xe835 };
+                                            let enabled_fill = if preset.enabled {
+                                                Color32::from_rgba_premultiplied(72, 156, 116, 120)
+                                            } else {
+                                                ui.visuals().faint_bg_color
+                                            };
+                                            let enabled_stroke = if preset.enabled {
+                                                Color32::from_rgb(126, 224, 182)
+                                            } else {
+                                                ui.visuals().widgets.noninteractive.bg_stroke.color
+                                            };
                                             if ui
                                                 .add_sized(
-                                                    [80.0, 22.0],
-                                                    egui::Checkbox::new(
-                                                        &mut is_enabled,
-                                                        Self::tr_lang(
-                                                            language, "Enabled", "Enabled",
-                                                        ),
-                                                    ),
+                                                    [36.0, 24.0],
+                                                    Button::new(Self::material_icon_text(
+                                                        enabled_icon,
+                                                        18.0,
+                                                    ))
+                                                    .fill(enabled_fill)
+                                                    .stroke(egui::Stroke::new(1.0, enabled_stroke)),
                                                 )
-                                                .changed()
+                                                .on_hover_text(Self::tr_lang(
+                                                    language,
+                                                    "Enable / disable preset",
+                                                    "Bật / tắt macro",
+                                                ))
+                                                .clicked()
                                             {
-                                                if is_enabled
+                                                let next_enabled = !preset.enabled;
+                                                if next_enabled
                                                     && self.state.macro_infinite_loop_warning_enabled
                                                     && matches!(
                                                         preset.trigger_mode,
@@ -13585,7 +13644,7 @@ impl CrosshairApp {
                                                     self.pending_macro_infinite_loop_enable =
                                                         Some((group.id, preset.id));
                                                 } else {
-                                                    preset.enabled = is_enabled;
+                                                    preset.enabled = next_enabled;
                                                     live_sync = true;
                                                 }
                                             }
