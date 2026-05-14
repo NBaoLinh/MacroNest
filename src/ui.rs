@@ -10904,6 +10904,7 @@ impl CrosshairApp {
     fn render_crosshair_presets_panel(&mut self, ui: &mut egui::Ui) {
         let language = self.state.ui_language;
         ui.spacing_mut().slider_width = 260.0;
+        ui.add_space(6.0);
         ui.horizontal_wrapped(|ui| {
             ui.add_space(2.0);
             if ui
@@ -11073,9 +11074,10 @@ impl CrosshairApp {
     }
 
     fn render_window_presets_panel(&mut self, ui: &mut egui::Ui) {
-        ui.add_space(2.0);
+        ui.add_space(6.0);
         let language = self.state.ui_language;
         ui.horizontal(|ui| {
+            ui.add_space(2.0);
             if ui
                 .button(self.tr("+ Resize preset", "+ Resize preset"))
                 .clicked()
@@ -12299,8 +12301,9 @@ impl CrosshairApp {
         if self.active_macro_folder_view.is_some() && active_folder_for_controls.is_none() {
             self.active_macro_folder_view = None;
         }
-        ui.add_space(2.0);
+        ui.add_space(6.0);
         ui.horizontal_wrapped(|ui| {
+            ui.add_space(2.0);
             ui.label(Self::material_icon_text(0xe8b6, 18.0));
             ui.label(Self::tr_lang(language, "Search", "TÃƒÆ’Ã‚Â¬m"));
             let response = ui.add_sized(
@@ -17325,9 +17328,10 @@ impl CrosshairApp {
         let language = self.state.ui_language;
         let previous_item_spacing = ui.spacing().item_spacing;
         ui.spacing_mut().item_spacing = vec2(6.0, 4.0);
-        ui.add_space(0.0);
+        ui.add_space(6.0);
         let mut changed = false;
         ui.horizontal(|ui| {
+            ui.add_space(2.0);
             ui.label(RichText::new(self.tr("Sound Presets", "Sound Presets")).strong());
             if ui
                 .button(self.tr("+ Add Sound Preset", "+ ThÃƒÆ’Ã‚Âªm preset ÃƒÆ’Ã‚Â¢m thanh"))
@@ -18532,14 +18536,17 @@ impl CrosshairApp {
     fn refresh_macro_ai_debug_text_from_trace(&mut self) {}
 
     fn render_hud_panel(&mut self, ui: &mut egui::Ui) {
-        ui.add_space(8.0);
-        if ui
-            .button(self.tr("+ Add HUD preset", "+ ThÃƒÆ’Ã‚Âªm preset HUD"))
-            .clicked()
-        {
-            self.add_toolbox_preset();
-            self.persist_hud_presets();
-        }
+        ui.add_space(6.0);
+        ui.horizontal(|ui| {
+            ui.add_space(2.0);
+            if ui
+                .button(self.tr("+ Add HUD preset", "+ ThÃƒÆ’Ã‚Âªm preset HUD"))
+                .clicked()
+            {
+                self.add_toolbox_preset();
+                self.persist_hud_presets();
+            }
+        });
 
         let mut remove_id = None;
         let mut changed = false;
@@ -18703,14 +18710,17 @@ impl CrosshairApp {
 
     fn render_commands_panel(&mut self, ui: &mut egui::Ui) {
         let language = self.state.ui_language;
-        ui.add_space(8.0);
-        if ui
-            .button(self.tr("+ Add command preset", "+ ThÃƒÆ’Ã‚Âªm command preset"))
-            .clicked()
-        {
-            self.add_custom_preset();
-            self.persist_command_presets();
-        }
+        ui.add_space(6.0);
+        ui.horizontal(|ui| {
+            ui.add_space(2.0);
+            if ui
+                .button(self.tr("+ Add command preset", "+ ThÃƒÆ’Ã‚Âªm command preset"))
+                .clicked()
+            {
+                self.add_custom_preset();
+                self.persist_command_presets();
+            }
+        });
 
         let mut remove_id = None;
         let mut changed = false;
