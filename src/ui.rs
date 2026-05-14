@@ -3,10 +3,12 @@ use std::{
     fs,
     path::PathBuf,
     process::Command,
-    sync::Arc,
+    sync::{Arc, atomic::{AtomicU32, Ordering}},
+    thread::JoinHandle,
     time::{Duration, Instant},
 };
 
+use anyhow::Result;
 use arboard::Clipboard;
 use crossbeam_channel::{Receiver, Sender, TryRecvError};
 use eframe::egui::{
@@ -586,6 +588,9 @@ pub struct CrosshairApp {
     last_applied_theme: Option<UiThemeMode>,
     native_shadow_applied: bool,
     update_status: UpdateStatus,
+    opencv_download_job: Option<JoinHandle<Result<()>>>,
+    opencv_download_progress: Arc<AtomicU32>,
+    opencv_installed: bool,
 }
 
 impl CrosshairApp {
@@ -631,6 +636,7 @@ impl CrosshairApp {
         let exit_clip_duration_ms = audio_duration(&state.audio_settings.exit);
         let initial_active_panel = state.active_panel;
 
+        let opencv_installed = paths.opencv_dll.exists();
         let mut app = Self {
             paths,
             state,
@@ -745,6 +751,9 @@ impl CrosshairApp {
             last_applied_theme: None,
             native_shadow_applied: false,
             update_status: UpdateStatus::Idle,
+            opencv_download_job: None,
+            opencv_download_progress: Arc::new(AtomicU32::new(0)),
+            opencv_installed,
         };
         app.ensure_master_presets();
         let mut startup_state_changed = false;
@@ -17909,7 +17918,83 @@ impl CrosshairApp {
                     .small(),
             );
         });
+        ui.add_space(8.0);
+        self.render_opencv_settings(ui);
         let ctx_clone = ui.ctx().clone(); self.render_update_settings(ui, &ctx_clone);
+    }
+
+    fn render_opencv_settings(&mut self, ui: &mut egui::Ui) {
+        let language = self.state.ui_language;
+        Frame::group(ui.style()).show(ui, |ui| {
+            ui.horizontal(|ui| {
+                ui.label(RichText::new("Vision Support (OpenCV)").strong());
+            });
+            ui.add_space(6.0);
+
+            if self.opencv_installed {
+                ui.horizontal(|ui| {
+                    ui.label(Self::tr_lang(language, "Status: Installed", "Trạng thái: Đã cài đặt"));
+                    if ui.button(Self::tr_lang(language, "Delete", "Xóa")).clicked() {
+                        let _ = fs::remove_file(&self.paths.opencv_dll);
+                        self.opencv_installed = false;
+                        self.status = Self::tr_lang(language, "OpenCV DLL deleted.", "Đã xóa file OpenCV DLL.").to_owned();
+                    }
+                });
+                ui.label(RichText::new(self.paths.opencv_dll.display().to_string()).small().weak());
+            } else if self.opencv_download_job.is_some() {
+                let progress = self.opencv_download_progress.load(Ordering::SeqCst) as f32 / 1000.0;
+                ui.horizontal(|ui| {
+                    ui.label(Self::tr_lang(language, "Downloading...", "Đang tải..."));
+                    ui.add(egui::ProgressBar::new(progress).show_percentage());
+                });
+                ui.ctx().request_repaint();
+            } else {
+                ui.vertical(|ui| {
+                    ui.label(Self::tr_lang(
+                        language, 
+                        "Vision features require OpenCV (~60MB).", 
+                        "Tính năng Vision cần thư viện OpenCV (~60MB)."
+                    ));
+                    if ui.button(RichText::new(Self::tr_lang(language, "Download OpenCV", "Tải OpenCV")).strong()).clicked() {
+                        self.start_opencv_download();
+                    }
+                });
+            }
+        });
+    }
+
+    fn start_opencv_download(&mut self) {
+        if self.opencv_download_job.is_some() {
+            return;
+        }
+
+        let paths = self.paths.clone();
+        let progress = self.opencv_download_progress.clone();
+        progress.store(0, Ordering::SeqCst);
+
+        let job = std::thread::spawn(move || -> Result<()> {
+            let url = "https://github.com/Baolinh0305/MacroNest/releases/download/v0.1.16/opencv_world4100.dll";
+            let mut response = reqwest::blocking::get(url)?;
+            let total_size = response.content_length().unwrap_or(64 * 1024 * 1024);
+
+            let mut file = fs::File::create(&paths.opencv_dll)?;
+            let mut downloaded: u64 = 0;
+            let mut buffer = [0u8; 16384];
+
+            use std::io::{Read, Write};
+            loop {
+                let n = response.read(&mut buffer)?;
+                if n == 0 { break; }
+                file.write_all(&buffer[..n])?;
+                downloaded += n as u64;
+                let p = (downloaded as f32 / total_size as f32 * 1000.0) as u32;
+                progress.store(p, Ordering::SeqCst);
+            }
+
+            Ok(())
+        });
+
+        self.opencv_download_job = Some(job);
     }
 
 
@@ -19097,6 +19182,29 @@ impl eframe::App for CrosshairApp {
                 }
                 UiCommand::UpdateUpToDate => {
                     self.update_status = UpdateStatus::UpToDate;
+                }
+            }
+        }
+
+        if let Some(job) = &self.opencv_download_job {
+            if job.is_finished() {
+                let job = self.opencv_download_job.take().unwrap();
+                match job.join() {
+                    Ok(Ok(())) => {
+                        self.opencv_installed = true;
+                        self.status = Self::tr_lang(
+                            self.state.ui_language,
+                            "OpenCV installed successfully.",
+                            "Cài đặt OpenCV thành công."
+                        ).to_owned();
+                    }
+                    Ok(Err(error)) => {
+                        self.status = format!("Download failed: {error}");
+                        let _ = fs::remove_file(&self.paths.opencv_dll);
+                    }
+                    Err(_) => {
+                        self.status = "Download thread panicked.".to_owned();
+                    }
                 }
             }
         }

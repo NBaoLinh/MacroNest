@@ -31,6 +31,8 @@ pub struct AppPaths {
     pub interception_dll_file: PathBuf,
     pub vision_dir: PathBuf,
     pub vision_template_file: PathBuf,
+    pub bin_dir: PathBuf,
+    pub opencv_dll: PathBuf,
 }
 
 impl AppPaths {
@@ -65,12 +67,15 @@ impl AppPaths {
             .join("interception.dll");
         let vision_dir = root.join("vision");
         let vision_template_file = vision_dir.join("template.png");
+        let bin_dir = root.join("bin");
+        let opencv_dll = bin_dir.join("opencv_world4100.dll");
 
         fs::create_dir_all(&root)?;
         fs::create_dir_all(&profiles_dir)?;
         fs::create_dir_all(&asset_dir)?;
         fs::create_dir_all(&interception_dir)?;
         fs::create_dir_all(&vision_dir)?;
+        fs::create_dir_all(&bin_dir)?;
 
         Ok(Self {
             root,
@@ -88,6 +93,8 @@ impl AppPaths {
             interception_dll_file,
             vision_dir,
             vision_template_file,
+            bin_dir,
+            opencv_dll,
         })
     }
 
@@ -97,31 +104,31 @@ impl AppPaths {
     }
 
     pub fn load_state(&self) -> Result<(AppState, StateLoadStatus)> {
-        if !self.state_file.exists() {
-            let state = AppState::default();
-            self.save_state(&state)?;
-            self.save_profiles(&state.profiles)?;
-            return Ok((state, StateLoadStatus::Loaded));
-        }
-
-        let content = fs::read_to_string(&self.state_file)?;
-        let content = content.strip_prefix('\u{feff}').unwrap_or(&content);
-        let mut state: AppState = match serde_json::from_str(content) {
-            Ok(state) => state,
-            Err(error) => {
-                if content.trim().is_empty() {
-                    eprintln!("state.json was empty; recreating defaults.");
-                } else {
-                    eprintln!("state.json was invalid; recreating defaults: {error}");
+        let (mut state, status) = if !self.state_file.exists() {
+            (AppState::default(), StateLoadStatus::Loaded)
+        } else {
+            let content = fs::read_to_string(&self.state_file)?;
+            let content = content.strip_prefix('\u{feff}').unwrap_or(&content);
+            match serde_json::from_str(content) {
+                Ok(state) => (state, StateLoadStatus::Loaded),
+                Err(error) => {
+                    if content.trim().is_empty() {
+                        eprintln!("state.json was empty; recreating defaults.");
+                    } else {
+                        eprintln!("state.json was invalid; recreating defaults: {error}");
+                    }
+                    (AppState::default(), StateLoadStatus::RecoveredInvalid)
                 }
-                let state = AppState::default();
-                return Ok((state, StateLoadStatus::RecoveredInvalid));
             }
         };
-        state.profiles = self.load_profiles()?;
-        if state.profiles.is_empty() {
+
+        let disk_profiles = self.load_profiles().unwrap_or_default();
+        if !disk_profiles.is_empty() {
+            state.profiles = disk_profiles;
+        } else if state.profiles.is_empty() {
             state.profiles = AppState::default().profiles;
         }
+
         if state.selected_profile.is_none() {
             state.selected_profile = state.profiles.first().map(|p| p.name.clone());
         }
@@ -418,7 +425,12 @@ impl AppPaths {
         for item in &mut state.audio_settings.library {
             item.collapsed = true;
         }
-        Ok((state, StateLoadStatus::Loaded))
+
+        if !self.state_file.exists() || status == StateLoadStatus::RecoveredInvalid {
+            self.save_state(&state)?;
+        }
+
+        Ok((state, status))
     }
 
     pub fn save_state(&self, state: &AppState) -> Result<()> {

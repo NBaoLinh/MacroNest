@@ -14,7 +14,11 @@ fn main() -> Result<()> {
     println!("cargo:rerun-if-changed=assets/app-icon-disabled.svg");
 
     #[cfg(windows)]
-    embed_windows_icon()?;
+    {
+        embed_windows_icon()?;
+        println!("cargo:rustc-link-arg=/DELAYLOAD:opencv_world4100.dll");
+        println!("cargo:rustc-link-arg=delayimp.lib");
+    }
 
     Ok(())
 }

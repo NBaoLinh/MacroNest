@@ -331,6 +331,7 @@ mod windows_overlay {
         vision_following_presets: HashSet<u32>,
         vision_timing_active_presets: HashSet<u32>,
         vision_dir: PathBuf,
+        opencv_dll_path: PathBuf,
         interception_dll_path: PathBuf,
         mouse_sensitivity_restore_on_exit: bool,
         mouse_sensitivity_exit_restore_speed: u32,
@@ -387,6 +388,7 @@ mod windows_overlay {
                 vision_following_presets: HashSet::new(),
                 vision_timing_active_presets: HashSet::new(),
                 vision_dir: PathBuf::new(),
+                opencv_dll_path: PathBuf::new(),
                 interception_dll_path: PathBuf::new(),
                 mouse_sensitivity_restore_on_exit: false,
                 mouse_sensitivity_exit_restore_speed: 6,
@@ -665,6 +667,7 @@ mod windows_overlay {
             let mut hook_state = HOOK_STATE.lock();
             hook_state.interception_dll_path = paths.interception_dll_file.clone();
             hook_state.vision_dir = paths.vision_dir.clone();
+            hook_state.opencv_dll_path = paths.opencv_dll.clone();
         }
         unsafe {
             let instance = HINSTANCE(GetModuleHandleW(None)?.0);
@@ -6620,6 +6623,9 @@ mod windows_overlay {
     }
 
     fn rgba_to_color_mat(rgba: &[u8], width: usize, height: usize) -> Result<Mat> {
+        if !HOOK_STATE.lock().opencv_dll_path.exists() {
+            bail!("OpenCV library not found. Please install it in Settings.");
+        }
         let expected_len = width
             .checked_mul(height)
             .and_then(|value| value.checked_mul(4))

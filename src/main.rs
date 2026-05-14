@@ -51,6 +51,14 @@ fn main() -> Result<()> {
     }
 
     let paths = AppPaths::discover()?;
+
+    #[cfg(windows)]
+    unsafe {
+        use windows::Win32::System::LibraryLoader::SetDllDirectoryW;
+        use windows::core::HSTRING;
+        let _ = SetDllDirectoryW(&HSTRING::from(paths.bin_dir.as_os_str()));
+    }
+
     app_icon::ensure_ico_file(&paths.icon_file, 64)?;
     app_icon::ensure_disabled_ico_file(&paths.icon_file_disabled, 64)?;
     let (mut state, state_load_status) = paths.load_state()?;
