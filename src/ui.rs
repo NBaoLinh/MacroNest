@@ -16594,6 +16594,16 @@ impl CrosshairApp {
                         });
                         ui.end_row();
 
+                        if !preset.use_color_matching && !self.opencv_installed {
+                            ui.label("");
+                            ui.label(egui::RichText::new(Self::tr_lang(
+                                language,
+                                "⚠️ OpenCV library not installed! Check Settings.",
+                                "⚠️ Chưa cài đặt thư viện OpenCV! Hãy kiểm tra Cài đặt.",
+                            )).color(egui::Color32::from_rgb(255, 110, 110)));
+                            ui.end_row();
+                        }
+
                         if !preset.use_color_matching {
                             ui.label(Self::tr_lang(language, "Template", "Template"));
                             ui.horizontal_wrapped(|ui| {
