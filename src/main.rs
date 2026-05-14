@@ -79,8 +79,8 @@ fn main() -> Result<()> {
         enabled: state.keyboard_arrow_mouse_enabled,
         step_px: state.keyboard_arrow_mouse_step_px,
     });
-    overlay.send(OverlayCommand::UpdateImageSearchPresets(
-        state.image_search_presets.clone(),
+    overlay.send(OverlayCommand::UpdateVisionPresets(
+        state.vision_presets.clone(),
     ));
     overlay.send(OverlayCommand::UpdateMacroPresets(
         state.macro_groups.clone(),

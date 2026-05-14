@@ -6,7 +6,7 @@ use std::{
 use anyhow::{Context, Result};
 use directories::ProjectDirs;
 
-use crate::model::{AppState, ImageSearchPreset, ProfileRecord, VietnameseInputMode};
+use crate::model::{AppState, VisionPreset, ProfileRecord, VietnameseInputMode};
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum StateLoadStatus {
@@ -19,7 +19,7 @@ pub struct AppPaths {
     pub root: PathBuf,
     pub state_file: PathBuf,
     pub profiles_dir: PathBuf,
-    pub custom_dir: PathBuf,
+    pub asset_dir: PathBuf,
     pub icon_file: PathBuf,
     pub icon_file_disabled: PathBuf,
     pub interception_dir: PathBuf,
@@ -29,8 +29,8 @@ pub struct AppPaths {
     pub interception_installer_dir: PathBuf,
     pub interception_installer_exe: PathBuf,
     pub interception_dll_file: PathBuf,
-    pub image_search_dir: PathBuf,
-    pub image_search_template_file: PathBuf,
+    pub vision_dir: PathBuf,
+    pub vision_template_file: PathBuf,
 }
 
 impl AppPaths {
@@ -40,7 +40,7 @@ impl AppPaths {
         let root = dirs.data_local_dir().to_path_buf();
         let state_file = root.join("state.json");
         let profiles_dir = root.join("profiles");
-        let custom_dir = root.join("custom-crosshairs");
+        let asset_dir = root.join("custom-crosshairs");
         let icon_file = root.join("app-icon.ico");
         let icon_file_disabled = root.join("app-icon-disabled.ico");
         let interception_dir = root.join("interception");
@@ -54,20 +54,20 @@ impl AppPaths {
             .join("library")
             .join("x64")
             .join("interception.dll");
-        let image_search_dir = root.join("image-search");
-        let image_search_template_file = image_search_dir.join("template.png");
+        let vision_dir = root.join("vision");
+        let vision_template_file = vision_dir.join("template.png");
 
         fs::create_dir_all(&root)?;
         fs::create_dir_all(&profiles_dir)?;
-        fs::create_dir_all(&custom_dir)?;
+        fs::create_dir_all(&asset_dir)?;
         fs::create_dir_all(&interception_dir)?;
-        fs::create_dir_all(&image_search_dir)?;
+        fs::create_dir_all(&vision_dir)?;
 
         Ok(Self {
             root,
             state_file,
             profiles_dir,
-            custom_dir,
+            asset_dir,
             icon_file,
             icon_file_disabled,
             interception_dir,
@@ -77,13 +77,13 @@ impl AppPaths {
             interception_installer_dir,
             interception_installer_exe,
             interception_dll_file,
-            image_search_dir,
-            image_search_template_file,
+            vision_dir,
+            vision_template_file,
         })
     }
 
-    pub fn image_search_template_file_for(&self, preset_id: u32) -> PathBuf {
-        self.image_search_dir
+    pub fn vision_template_file_for(&self, preset_id: u32) -> PathBuf {
+        self.vision_dir
             .join(format!("preset-{preset_id}.png"))
     }
 
@@ -149,25 +149,25 @@ impl AppPaths {
         for preset in &mut state.window_focus_presets {
             preset.collapsed = true;
         }
-        if state.image_search_presets.is_empty() {
-            let mut preset = ImageSearchPreset::default();
+        if state.vision_presets.is_empty() {
+            let mut preset = VisionPreset::default();
             preset.enabled =
-                state.image_search_settings.enabled || self.image_search_template_file.exists();
-            preset.hotkey = state.image_search_settings.trigger_hotkey.clone();
-            preset.click_after_move = state.image_search_settings.click_after_move;
-            state.image_search_presets.push(preset);
+                state.vision_settings.enabled || self.vision_template_file.exists();
+            preset.hotkey = state.vision_settings.trigger_hotkey.clone();
+            preset.click_after_move = state.vision_settings.click_after_move;
+            state.vision_presets.push(preset);
         }
-        let next_image_search_preset_id = state
-            .image_search_presets
+        let next_vision_preset_id = state
+            .vision_presets
             .iter()
             .map(|preset| preset.id)
             .max()
             .unwrap_or(0)
             + 1;
-        if state.next_image_search_preset_id < next_image_search_preset_id {
-            state.next_image_search_preset_id = next_image_search_preset_id;
+        if state.next_vision_preset_id < next_vision_preset_id {
+            state.next_vision_preset_id = next_vision_preset_id;
         }
-        for preset in &mut state.image_search_presets {
+        for preset in &mut state.vision_presets {
             preset.collapsed = true;
             preset.click_after_move = false;
         }
@@ -177,18 +177,18 @@ impl AppPaths {
         {
             state.groq_settings.model = "openai/gpt-oss-120b".to_owned();
         }
-        let legacy_image_search_template = self.image_search_template_file.exists();
-        if legacy_image_search_template {
+        let legacy_vision_template = self.vision_template_file.exists();
+        if legacy_vision_template {
             let first_template = state
-                .image_search_presets
+                .vision_presets
                 .first()
-                .map(|preset| self.image_search_template_file_for(preset.id));
+                .map(|preset| self.vision_template_file_for(preset.id));
             if let Some(first_template) = first_template
                 && !first_template.exists()
             {
-                let _ = fs::copy(&self.image_search_template_file, &first_template);
+                let _ = fs::copy(&self.vision_template_file, &first_template);
             }
-            let _ = fs::remove_file(&self.image_search_template_file);
+            let _ = fs::remove_file(&self.vision_template_file);
         }
         if !state.macro_presets.is_empty() {
             let mut used_preset_ids = state
@@ -372,7 +372,7 @@ impl AppPaths {
         for preset in &mut state.mouse_sensitivity_presets {
             preset.collapsed = true;
         }
-        for preset in &mut state.toolbox_presets {
+        for preset in &mut state.hud_presets {
             preset.collapsed = true;
         }
         for preset in &mut state.zoom_presets {
@@ -438,9 +438,9 @@ impl AppPaths {
         Ok(())
     }
 
-    pub fn list_custom_assets(&self) -> Result<Vec<String>> {
+    pub fn list_crosshair_assets(&self) -> Result<Vec<String>> {
         let mut assets = Vec::new();
-        for entry in fs::read_dir(&self.custom_dir)? {
+        for entry in fs::read_dir(&self.asset_dir)? {
             let entry = entry?;
             let path = entry.path();
             if !path.is_file() {
@@ -457,7 +457,7 @@ impl AppPaths {
     }
 
     pub fn asset_path(&self, asset_name: &str) -> PathBuf {
-        self.custom_dir.join(asset_name)
+        self.asset_dir.join(asset_name)
     }
 }
 

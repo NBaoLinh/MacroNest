@@ -156,7 +156,7 @@ fn default_image_search_timing_loop_duration_secs() -> u32 {
 
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
 #[serde(default)]
-pub struct ImageSearchTimingPreset {
+pub struct VisionTimingPreset {
     pub id: u32,
     pub name: String,
     pub enabled: bool,
@@ -192,7 +192,7 @@ pub struct ImageSearchTimingPreset {
     pub search_region_height: Option<i32>,
 }
 
-impl ImageSearchTimingPreset {
+impl VisionTimingPreset {
     pub fn new(id: u32) -> Self {
         Self {
             id,
@@ -221,7 +221,7 @@ impl ImageSearchTimingPreset {
     }
 }
 
-impl Default for ImageSearchTimingPreset {
+impl Default for VisionTimingPreset {
     fn default() -> Self {
         Self::new(1)
     }
@@ -234,16 +234,16 @@ pub enum AppPanel {
     WindowPresets,
     Pin,
     Mouse,
-    ImageSearch,
+    Vision,
     Zoom,
     Modes,
     Macros,
-    Custom,
+    Commands,
     #[serde(alias = "Bindings")]
     Sound,
     Media,
     #[serde(alias = "Settings")]
-    Toolbox,
+    Hud,
 }
 
 #[derive(Debug, Clone, Copy, Serialize, Deserialize, PartialEq, Eq, Default)]
@@ -398,7 +398,8 @@ pub enum MacroAction {
     ApplyWindowPreset,
     FocusWindowPreset,
     TriggerMacroPreset,
-    TriggerCustomPreset,
+    #[serde(alias = "TriggerCustomPreset")]
+    TriggerCommandPreset,
     EnableCrosshairProfile,
     DisableCrosshair,
     EnablePinPreset,
@@ -408,17 +409,24 @@ pub enum MacroAction {
     EnableZoomPreset,
     DisableZoom,
     PlaySoundPreset,
-    StartImageSearch,
-    TriggerImageSearchMove,
-    TriggerImageSearchTiming,
-    StopImageSearchWait,
-    StopImageSearch,
+    #[serde(alias = "StartImageSearch")]
+    StartVisionSearch,
+    #[serde(alias = "TriggerImageSearchMove")]
+    TriggerVisionMove,
+    #[serde(alias = "TriggerImageSearchTiming")]
+    TriggerVisionTiming,
+    #[serde(alias = "StopImageSearchWait")]
+    StopVisionWait,
+    #[serde(alias = "StopImageSearch")]
+    StopVision,
     LoopStart,
     LoopEnd,
     StopIfTriggerPressedAgain,
     StopIfKeyPressed,
-    ShowToolbox,
-    HideToolbox,
+    #[serde(alias = "ShowToolbox")]
+    ShowHud,
+    #[serde(alias = "HideToolbox")]
+    HideHud,
     LockKeys,
     UnlockKeys,
     LockMouse,
@@ -457,21 +465,22 @@ pub struct MacroStep {
     pub x: i32,
     pub y: i32,
     pub text_override: String,
-    #[serde(default)]
-    pub custom_preset_command: String,
-    #[serde(default = "default_false")]
-    pub custom_preset_use_powershell: bool,
+    #[serde(default, alias = "custom_preset_command")]
+    pub command_preset_command: String,
+    #[serde(default = "default_false", alias = "custom_preset_use_powershell")]
+    pub command_preset_use_powershell: bool,
     pub timed_override: bool,
     pub duration_override_ms: u64,
     pub smooth_mouse_path: bool,
     pub mouse_speed_percent: u32,
-    #[serde(default = "default_true")]
-    pub image_search_move_cursor_on_match: bool,
-    #[serde(default)]
-    pub image_search_wait_until_found: bool,
-    #[serde(default)]
-    pub image_search_trigger_macro_enabled: bool,
-    pub image_search_trigger_macro_preset_id: Option<u32>,
+    #[serde(default = "default_true", alias = "image_search_move_cursor_on_match")]
+    pub vision_move_cursor_on_match: bool,
+    #[serde(default, alias = "image_search_wait_until_found")]
+    pub vision_wait_until_found: bool,
+    #[serde(default, alias = "image_search_trigger_macro_enabled")]
+    pub vision_trigger_macro_enabled: bool,
+    #[serde(alias = "image_search_trigger_macro_preset_id")]
+    pub vision_trigger_macro_preset_id: Option<u32>,
 }
 
 impl Default for MacroStep {
@@ -484,16 +493,16 @@ impl Default for MacroStep {
             x: 0,
             y: 0,
             text_override: String::new(),
-            custom_preset_command: String::new(),
-            custom_preset_use_powershell: false,
+            command_preset_command: String::new(),
+            command_preset_use_powershell: false,
             timed_override: false,
             duration_override_ms: 1500,
             smooth_mouse_path: false,
             mouse_speed_percent: 100,
-            image_search_move_cursor_on_match: true,
-            image_search_wait_until_found: false,
-            image_search_trigger_macro_enabled: false,
-            image_search_trigger_macro_preset_id: None,
+            vision_move_cursor_on_match: true,
+            vision_wait_until_found: false,
+            vision_trigger_macro_enabled: false,
+            vision_trigger_macro_preset_id: None,
         }
     }
 }
@@ -517,12 +526,12 @@ pub enum CaptureRequest {
     MousePathRecordHotkey(u32),
     MouseSensitivityPresetHotkey(u32),
     ZoomPresetHotkey(u32),
-    ImageSearchPresetHotkey(u32),
+    VisionPresetHotkey(u32),
     MacrosMasterHotkey,
     MacroPresetHotkey(u32, u32),
     MacroPresetReleaseWaitKey(u32, u32),
     MacroPresetHoldStopInput(u32, u32),
-    CustomPresetHotkey(u32),
+    CommandPresetHotkey(u32),
     MacroStepInput {
         group_id: u32,
         preset_id: u32,
@@ -822,7 +831,7 @@ impl Default for MouseSensitivityPreset {
 
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
 #[serde(default)]
-pub struct ToolboxPreset {
+pub struct HudPreset {
     pub id: u32,
     pub name: String,
     pub collapsed: bool,
@@ -839,7 +848,7 @@ pub struct ToolboxPreset {
     pub height: i32,
 }
 
-impl ToolboxPreset {
+impl HudPreset {
     pub fn new(id: u32) -> Self {
         Self {
             id,
@@ -870,7 +879,7 @@ impl ToolboxPreset {
     }
 }
 
-impl Default for ToolboxPreset {
+impl Default for HudPreset {
     fn default() -> Self {
         Self::new(1)
     }
@@ -878,7 +887,7 @@ impl Default for ToolboxPreset {
 
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
 #[serde(default)]
-pub struct CustomPreset {
+pub struct CommandPreset {
     pub id: u32,
     pub name: String,
     pub enabled: bool,
@@ -891,7 +900,7 @@ pub struct CustomPreset {
     pub command: String,
 }
 
-impl CustomPreset {
+impl CommandPreset {
     pub fn new(id: u32) -> Self {
         Self {
             id,
@@ -908,7 +917,7 @@ impl CustomPreset {
     }
 }
 
-impl Default for CustomPreset {
+impl Default for CommandPreset {
     fn default() -> Self {
         Self::new(1)
     }
@@ -1123,13 +1132,13 @@ pub struct GroqSettings {
 
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
 #[serde(default)]
-pub struct ImageSearchSettings {
+pub struct VisionSettings {
     pub enabled: bool,
     pub trigger_hotkey: Option<HotkeyBinding>,
     pub click_after_move: bool,
 }
 
-impl Default for ImageSearchSettings {
+impl Default for VisionSettings {
     fn default() -> Self {
         Self {
             enabled: false,
@@ -1141,7 +1150,7 @@ impl Default for ImageSearchSettings {
 
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
 #[serde(default)]
-pub struct ImageSearchPreset {
+pub struct VisionPreset {
     pub id: u32,
     pub name: String,
     pub enabled: bool,
@@ -1202,7 +1211,7 @@ pub struct ImageSearchPreset {
     pub search_region_height: Option<i32>,
 }
 
-impl ImageSearchPreset {
+impl VisionPreset {
     pub fn new(id: u32) -> Self {
         Self {
             id,
@@ -1247,7 +1256,7 @@ impl ImageSearchPreset {
     }
 }
 
-impl Default for ImageSearchPreset {
+impl Default for VisionPreset {
     fn default() -> Self {
         Self::new(1)
     }
@@ -1413,10 +1422,10 @@ pub struct AppState {
     pub mouse_sensitivity_restore_speed: u32,
     pub zoom_presets: Vec<ZoomPreset>,
     pub next_zoom_preset_id: u32,
-    pub toolbox_presets: Vec<ToolboxPreset>,
-    pub next_toolbox_preset_id: u32,
-    pub custom_presets: Vec<CustomPreset>,
-    pub next_custom_preset_id: u32,
+    pub hud_presets: Vec<HudPreset>,
+    pub next_hud_preset_id: u32,
+    pub command_presets: Vec<CommandPreset>,
+    pub next_command_preset_id: u32,
     pub master_presets: Vec<MasterPreset>,
     pub selected_master_preset_id: Option<u32>,
     pub next_master_preset_id: u32,
@@ -1428,14 +1437,14 @@ pub struct AppState {
     pub next_macro_preset_id: u32,
     pub macros_master_enabled: bool,
     pub macros_master_hotkey: Option<HotkeyBinding>,
-    pub image_search_presets: Vec<ImageSearchPreset>,
-    pub next_image_search_preset_id: u32,
-    pub image_search_timing_presets: Vec<ImageSearchTimingPreset>,
-    pub next_image_search_timing_preset_id: u32,
+    pub vision_presets: Vec<VisionPreset>,
+    pub next_vision_preset_id: u32,
+    pub vision_timing_presets: Vec<VisionTimingPreset>,
+    pub next_vision_timing_preset_id: u32,
     pub ai_settings: AiSettings,
     pub groq_settings: GroqSettings,
     pub audio_settings: AudioSettings,
-    pub image_search_settings: ImageSearchSettings,
+    pub vision_settings: VisionSettings,
 }
 
 impl Default for AppState {
@@ -1475,10 +1484,10 @@ impl Default for AppState {
             mouse_sensitivity_restore_speed: 6,
             zoom_presets: Vec::new(),
             next_zoom_preset_id: 1,
-            toolbox_presets: vec![ToolboxPreset::new(1)],
-            next_toolbox_preset_id: 2,
-            custom_presets: Vec::new(),
-            next_custom_preset_id: 1,
+            hud_presets: vec![HudPreset::new(1)],
+            next_hud_preset_id: 2,
+            command_presets: Vec::new(),
+            next_command_preset_id: 1,
             master_presets: Vec::new(),
             selected_master_preset_id: None,
             next_master_preset_id: 1,
@@ -1490,14 +1499,16 @@ impl Default for AppState {
             next_macro_preset_id: 1,
             macros_master_enabled: true,
             macros_master_hotkey: None,
-            image_search_presets: vec![ImageSearchPreset::default()],
-            next_image_search_preset_id: 2,
-            image_search_timing_presets: vec![ImageSearchTimingPreset::default()],
-            next_image_search_timing_preset_id: 2,
+            vision_presets: vec![VisionPreset::default()],
+            next_vision_preset_id: 2,
+            vision_timing_presets: vec![VisionTimingPreset::default()],
+            next_vision_timing_preset_id: 2,
             ai_settings: AiSettings::default(),
             groq_settings: GroqSettings::default(),
             audio_settings: AudioSettings::default(),
-            image_search_settings: ImageSearchSettings::default(),
+            vision_settings: VisionSettings::default(),
         }
     }
 }
+
+

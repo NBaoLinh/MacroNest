@@ -105,11 +105,11 @@ mod windows_overlay {
     use crate::{
         ai, audio, hotkey,
         model::{
-            AudioSettings, CrosshairStyle, CustomPreset, HotkeyBinding, ImageSearchPreset,
-            ImageSearchTimingPreset, MacroAction, MacroGroup, MacroPreset, MacroStep,
+            AudioSettings, CrosshairStyle, CommandPreset, HotkeyBinding, VisionPreset,
+            VisionTimingPreset, MacroAction, MacroGroup, MacroPreset, MacroStep,
             MacroTriggerMode, MousePathEvent, MousePathEventKind, MousePathPreset,
             MouseSensitivityPreset, PinOverlayStyle, PinPreset, ProfileRecord, RgbaColor,
-            SoundLibraryItem, SoundPreset, ToolboxPreset, WindowAnchor, WindowExpandControls,
+            SoundLibraryItem, SoundPreset, HudPreset, WindowAnchor, WindowExpandControls,
             WindowExpandDirection, WindowFocusPreset, WindowPreset,
         },
         render::{RenderedCrosshair, render_crosshair},
@@ -131,7 +131,7 @@ mod windows_overlay {
     const MACRO_PRESET_BASE_ID: i32 = 10000;
 
     #[derive(Debug, Clone)]
-    struct ImageSearchRunOutcome {
+    struct VisionRunOutcome {
         matched: bool,
         status: String,
     }
@@ -170,9 +170,9 @@ mod windows_overlay {
         Lazy::new(|| Mutex::new(HashMap::new()));
     static IMAGE_SEARCH_TIMING_WAIT_GENERATIONS: Lazy<Mutex<HashMap<u32, u64>>> =
         Lazy::new(|| Mutex::new(HashMap::new()));
-    static TOOLBOX_DISPLAY: Lazy<Mutex<Option<ToolboxDisplayState>>> =
+    static HUD_DISPLAY: Lazy<Mutex<Option<HudDisplayState>>> =
         Lazy::new(|| Mutex::new(None));
-    static TOOLBOX_PREVIEW_DISPLAY: Lazy<Mutex<Option<ToolboxDisplayState>>> =
+    static HUD_PREVIEW_DISPLAY: Lazy<Mutex<Option<HudDisplayState>>> =
         Lazy::new(|| Mutex::new(None));
     static MOUSE_RECORDING: Lazy<Mutex<Option<MouseRecordingSession>>> =
         Lazy::new(|| Mutex::new(None));
@@ -209,22 +209,22 @@ mod windows_overlay {
             enabled: bool,
             step_px: u32,
         },
-        UpdateImageSearchPresets(Vec<ImageSearchPreset>),
-        UpdateImageSearchTimingPresets(Vec<ImageSearchTimingPreset>),
-        InvalidateImageSearchWaits(Vec<u32>),
-        InvalidateImageSearchTimingWaits(Vec<u32>),
+        UpdateVisionPresets(Vec<VisionPreset>),
+        UpdateVisionTimingPresets(Vec<VisionTimingPreset>),
+        InvalidateVisionWaits(Vec<u32>),
+        InvalidateVisionTimingWaits(Vec<u32>),
         ApplyMouseSensitivityPreset(u32),
         RestoreMouseSensitivity,
-        UpdateToolboxPresets(Vec<ToolboxPreset>),
-        UpdateCustomPresets(Vec<CustomPreset>),
-        PreviewToolboxPreset(Option<ToolboxPreset>),
+        UpdateHudPresets(Vec<HudPreset>),
+        UpdateCommandPresets(Vec<CommandPreset>),
+        PreviewHudPreset(Option<HudPreset>),
         UpdateMacroPresets(Vec<MacroGroup>),
         UpdateAudioSettings(AudioSettings),
         SetMacrosMasterEnabled(bool),
         SetVietnameseInputEnabled(bool),
         UpdateMacrosMasterHotkey(Option<HotkeyBinding>),
         RefreshPinOverlay,
-        SetImageSearchCaptureMouseBlocked(bool),
+        SetVisionCaptureMouseBlocked(bool),
         SetUiVisible(bool),
         Exit,
     }
@@ -239,20 +239,20 @@ mod windows_overlay {
         SetVietnameseInputEnabled(bool, String),
         MousePathRecordingStarted(u32, String),
         MousePathRecordingFinished(u32, Vec<MousePathEvent>, String),
-        ImageSearchFinished(String),
-        ImageSearchCaptureMouseDown {
+        VisionFinished(String),
+        VisionCaptureMouseDown {
             screen_x: i32,
             screen_y: i32,
         },
-        ImageSearchCaptureMouseMove {
+        VisionCaptureMouseMove {
             screen_x: i32,
             screen_y: i32,
         },
-        ImageSearchCaptureMouseUp {
+        VisionCaptureMouseUp {
             screen_x: i32,
             screen_y: i32,
         },
-        ImageSearchPointCaptured {
+        VisionPointCaptured {
             preset_id: u32,
             timing_preset: bool,
             priority_anchor: bool,
@@ -260,13 +260,13 @@ mod windows_overlay {
             screen_y: i32,
             color: Option<RgbaColor>,
         },
-        ImageSearchRegionPreview {
+        VisionRegionPreview {
             screen_x: i32,
             screen_y: i32,
             width: i32,
             height: i32,
         },
-        ImageSearchRegionCaptured {
+        VisionRegionCaptured {
             preset_id: u32,
             timing_preset: bool,
             template_mode: bool,
@@ -275,7 +275,7 @@ mod windows_overlay {
             width: i32,
             height: i32,
         },
-        ImageSearchPointCaptureCancelled(String),
+        VisionPointCaptureCancelled(String),
         UpdateCheckStarted,
         UpdateAvailable(String, String, String), // version, body, download_url
         UpdateDownloadStarted,
@@ -326,20 +326,20 @@ mod windows_overlay {
         mouse_use_interception_driver: bool,
         keyboard_arrow_mouse_enabled: bool,
         keyboard_arrow_mouse_step_px: u32,
-        image_search_presets: Vec<ImageSearchPreset>,
-        image_search_timing_presets: Vec<ImageSearchTimingPreset>,
-        image_search_following_presets: HashSet<u32>,
-        image_search_timing_active_presets: HashSet<u32>,
-        image_search_dir: PathBuf,
+        vision_presets: Vec<VisionPreset>,
+        vision_timing_presets: Vec<VisionTimingPreset>,
+        vision_following_presets: HashSet<u32>,
+        vision_timing_active_presets: HashSet<u32>,
+        vision_dir: PathBuf,
         interception_dll_path: PathBuf,
         mouse_sensitivity_restore_on_exit: bool,
         mouse_sensitivity_exit_restore_speed: u32,
         active_pin_preset_id: Option<u32>,
-        image_search_capture_mouse_blocked: bool,
-        image_search_capture_anchor: Option<(i32, i32)>,
-        image_search_capture_preview_region: Option<ImageSearchRegion>,
-        toolbox_presets: Vec<ToolboxPreset>,
-        custom_presets: Vec<CustomPreset>,
+        vision_capture_mouse_blocked: bool,
+        vision_capture_anchor: Option<(i32, i32)>,
+        vision_capture_preview_region: Option<VisionRegion>,
+        hud_presets: Vec<HudPreset>,
+        command_presets: Vec<CommandPreset>,
         macro_groups: Vec<MacroGroup>,
         macros_master_enabled: bool,
         macros_master_hotkey: Option<HotkeyBinding>,
@@ -382,20 +382,20 @@ mod windows_overlay {
                 mouse_use_interception_driver: false,
                 keyboard_arrow_mouse_enabled: false,
                 keyboard_arrow_mouse_step_px: 12,
-                image_search_presets: Vec::new(),
-                image_search_timing_presets: Vec::new(),
-                image_search_following_presets: HashSet::new(),
-                image_search_timing_active_presets: HashSet::new(),
-                image_search_dir: PathBuf::new(),
+                vision_presets: Vec::new(),
+                vision_timing_presets: Vec::new(),
+                vision_following_presets: HashSet::new(),
+                vision_timing_active_presets: HashSet::new(),
+                vision_dir: PathBuf::new(),
                 interception_dll_path: PathBuf::new(),
                 mouse_sensitivity_restore_on_exit: false,
                 mouse_sensitivity_exit_restore_speed: 6,
                 active_pin_preset_id: None,
-                image_search_capture_mouse_blocked: false,
-                image_search_capture_anchor: None,
-                image_search_capture_preview_region: None,
-                toolbox_presets: Vec::new(),
-                custom_presets: Vec::new(),
+                vision_capture_mouse_blocked: false,
+                vision_capture_anchor: None,
+                vision_capture_preview_region: None,
+                hud_presets: Vec::new(),
+                command_presets: Vec::new(),
                 macro_groups: Vec::new(),
                 macros_master_enabled: true,
                 macros_master_hotkey: None,
@@ -559,10 +559,10 @@ mod windows_overlay {
         overlay_hwnd: HWND,
         mouse_trail_hwnd: HWND,
         search_area_hwnd: HWND,
-        toolbox_hwnd: HWND,
+        hud_hwnd: HWND,
         pin_hwnd: HWND,
         last_pin_update: Instant,
-        toolbox_display: Option<ToolboxDisplayState>,
+        hud_display: Option<HudDisplayState>,
         tray_menu: HMENU,
         keyboard_hook: HHOOK,
         mouse_hook: HHOOK,
@@ -599,7 +599,7 @@ mod windows_overlay {
     }
 
     #[derive(Clone, PartialEq)]
-    struct ToolboxDisplayState {
+    struct HudDisplayState {
         owner_preset_id: Option<u32>,
         preset_id: Option<u32>,
         text: String,
@@ -664,7 +664,7 @@ mod windows_overlay {
         {
             let mut hook_state = HOOK_STATE.lock();
             hook_state.interception_dll_path = paths.interception_dll_file.clone();
-            hook_state.image_search_dir = paths.image_search_dir.clone();
+            hook_state.vision_dir = paths.vision_dir.clone();
         }
         unsafe {
             let instance = HINSTANCE(GetModuleHandleW(None)?.0);
@@ -674,7 +674,7 @@ mod windows_overlay {
                 Some(controller_wnd_proc),
             )?;
             register_class(instance, w!("CrosshairOverlay"), Some(overlay_wnd_proc))?;
-            register_class(instance, w!("CrosshairToolbox"), Some(toolbox_wnd_proc))?;
+            register_class(instance, w!("CrosshairToolbox"), Some(hud_wnd_proc))?;
             let overlay_hwnd = CreateWindowExW(
                 WS_EX_LAYERED
                     | WS_EX_TRANSPARENT
@@ -732,7 +732,7 @@ mod windows_overlay {
                 None,
             )?;
 
-            let toolbox_hwnd = CreateWindowExW(
+            let hud_hwnd = CreateWindowExW(
                 WS_EX_LAYERED
                     | WS_EX_TOOLWINDOW
                     | WS_EX_TOPMOST
@@ -796,10 +796,10 @@ mod windows_overlay {
                 overlay_hwnd,
                 mouse_trail_hwnd,
                 search_area_hwnd,
-                toolbox_hwnd,
+                hud_hwnd,
                 pin_hwnd,
                 last_pin_update: Instant::now() - Duration::from_secs(1),
-                toolbox_display: None,
+                hud_display: None,
                 tray_menu,
                 keyboard_hook: HHOOK::default(),
                 mouse_hook: HHOOK::default(),
@@ -908,12 +908,12 @@ mod windows_overlay {
                         let _ = refresh_overlay(runtime);
                         if ui_foreground {
                             let _ = ShowWindow(runtime.pin_hwnd, SW_HIDE);
-                            let _ = ShowWindow(runtime.toolbox_hwnd, SW_HIDE);
+                            let _ = ShowWindow(runtime.hud_hwnd, SW_HIDE);
                             let _ = ShowWindow(runtime.mouse_trail_hwnd, SW_HIDE);
                         } else {
                             clear_transient_input_state();
                             let _ = refresh_pin_overlay(runtime);
-                            let _ = refresh_toolbox(runtime);
+                            let _ = refresh_hud(runtime);
                             let _ = refresh_mouse_record_trail(runtime);
                         }
                     }
@@ -926,11 +926,11 @@ mod windows_overlay {
                             let _ = refresh_pin_overlay(runtime);
                         }
 
-                        let toolbox_active = TOOLBOX_DISPLAY.lock().is_some()
-                            || TOOLBOX_PREVIEW_DISPLAY.lock().is_some()
-                            || runtime.toolbox_display.is_some();
+                        let toolbox_active = HUD_DISPLAY.lock().is_some()
+                            || HUD_PREVIEW_DISPLAY.lock().is_some()
+                            || runtime.hud_display.is_some();
                         if toolbox_active {
-                            let _ = refresh_toolbox(runtime);
+                            let _ = refresh_hud(runtime);
                         }
 
                         let mouse_recording_active = MOUSE_RECORDING.lock().is_some();
@@ -1136,7 +1136,7 @@ mod windows_overlay {
                     runtime.running.store(false, Ordering::Relaxed);
                     let _ = DestroyMenu(runtime.tray_menu);
                     let _ = ShowWindow(runtime.overlay_hwnd, SW_HIDE);
-                    let _ = ShowWindow(runtime.toolbox_hwnd, SW_HIDE);
+                    let _ = ShowWindow(runtime.hud_hwnd, SW_HIDE);
                     let _ = set_input_hooks_enabled(runtime, false);
                 }
                 let mut hook_state = HOOK_STATE.lock();
@@ -1162,7 +1162,7 @@ mod windows_overlay {
         }
     }
 
-    unsafe extern "system" fn toolbox_wnd_proc(
+    unsafe extern "system" fn hud_wnd_proc(
         hwnd: HWND,
         msg: u32,
         _wparam: WPARAM,
@@ -1271,32 +1271,32 @@ mod windows_overlay {
                     _ => {}
                 }
             }
-            if is_image_search_capture_mouse_blocked() {
+            if is_vision_capture_mouse_blocked() {
                     match message {
                         WM_MOUSEMOVE => {
                         let mut hook_state = HOOK_STATE.lock();
                         let left_held = hook_state.held_mouse_buttons.contains("MouseLeft");
                         if left_held {
-                            if let Some((start_x, start_y)) = hook_state.image_search_capture_anchor
+                            if let Some((start_x, start_y)) = hook_state.vision_capture_anchor
                             {
                                 let left = start_x.min(info.pt.x);
                                 let top = start_y.min(info.pt.y);
                                 let width = (start_x - info.pt.x).abs().max(1);
                                 let height = (start_y - info.pt.y).abs().max(1);
-                                let region = ImageSearchRegion {
+                                let region = VisionRegion {
                                     left,
                                     top,
                                     width,
                                     height,
                                     is_circle: false,
                                 };
-                                if hook_state.image_search_capture_preview_region != Some(region) {
-                                    hook_state.image_search_capture_preview_region = Some(region);
+                                if hook_state.vision_capture_preview_region != Some(region) {
+                                    hook_state.vision_capture_preview_region = Some(region);
                                     let ui_tx = hook_state.ui_tx.clone();
                                     drop(hook_state);
                                     if let Some(ui_tx) = ui_tx {
                                         let _ =
-                                            ui_tx.send(UiCommand::ImageSearchCaptureMouseMove {
+                                            ui_tx.send(UiCommand::VisionCaptureMouseMove {
                                                 screen_x: info.pt.x,
                                                 screen_y: info.pt.y,
                                             });
@@ -1308,7 +1308,7 @@ mod windows_overlay {
                             let ui_tx = hook_state.ui_tx.clone();
                             drop(hook_state);
                             if let Some(ui_tx) = ui_tx {
-                                let _ = ui_tx.send(UiCommand::ImageSearchCaptureMouseMove {
+                                let _ = ui_tx.send(UiCommand::VisionCaptureMouseMove {
                                     screen_x: info.pt.x,
                                     screen_y: info.pt.y,
                                 });
@@ -1319,8 +1319,8 @@ mod windows_overlay {
                     WM_LBUTTONDOWN => {
                         update_held_mouse_button(message, ((info.mouseData >> 16) & 0xFFFF) as u16);
                         let mut hook_state = HOOK_STATE.lock();
-                        hook_state.image_search_capture_anchor = Some((info.pt.x, info.pt.y));
-                        hook_state.image_search_capture_preview_region = Some(ImageSearchRegion {
+                        hook_state.vision_capture_anchor = Some((info.pt.x, info.pt.y));
+                        hook_state.vision_capture_preview_region = Some(VisionRegion {
                             left: info.pt.x,
                             top: info.pt.y,
                             width: 1,
@@ -1330,7 +1330,7 @@ mod windows_overlay {
                         let ui_tx = hook_state.ui_tx.clone();
                         drop(hook_state);
                         if let Some(ui_tx) = ui_tx {
-                            let _ = ui_tx.send(UiCommand::ImageSearchCaptureMouseDown {
+                            let _ = ui_tx.send(UiCommand::VisionCaptureMouseDown {
                                 screen_x: info.pt.x,
                                 screen_y: info.pt.y,
                             });
@@ -1341,12 +1341,12 @@ mod windows_overlay {
                     WM_LBUTTONUP => {
                         update_held_mouse_button(message, ((info.mouseData >> 16) & 0xFFFF) as u16);
                         let mut hook_state = HOOK_STATE.lock();
-                        hook_state.image_search_capture_anchor = None;
-                        hook_state.image_search_capture_preview_region = None;
+                        hook_state.vision_capture_anchor = None;
+                        hook_state.vision_capture_preview_region = None;
                         let ui_tx = hook_state.ui_tx.clone();
                         drop(hook_state);
                         if let Some(ui_tx) = ui_tx {
-                            let _ = ui_tx.send(UiCommand::ImageSearchCaptureMouseUp {
+                            let _ = ui_tx.send(UiCommand::VisionCaptureMouseUp {
                                 screen_x: info.pt.x,
                                 screen_y: info.pt.y,
                             });
@@ -1525,14 +1525,14 @@ mod windows_overlay {
     fn image_search_following_is_active(preset_id: u32) -> bool {
         HOOK_STATE
             .lock()
-            .image_search_following_presets
+            .vision_following_presets
             .contains(&preset_id)
     }
 
     fn image_search_timing_loop_is_active(preset_id: u32) -> bool {
         HOOK_STATE
             .lock()
-            .image_search_timing_active_presets
+            .vision_timing_active_presets
             .contains(&preset_id)
     }
 
@@ -1555,9 +1555,9 @@ mod windows_overlay {
     fn set_image_search_following_active(preset_id: u32, active: bool) {
         let mut hook_state = HOOK_STATE.lock();
         if active {
-            hook_state.image_search_following_presets.insert(preset_id);
+            hook_state.vision_following_presets.insert(preset_id);
         } else {
-            hook_state.image_search_following_presets.remove(&preset_id);
+            hook_state.vision_following_presets.remove(&preset_id);
         }
     }
 
@@ -1565,11 +1565,11 @@ mod windows_overlay {
         let mut hook_state = HOOK_STATE.lock();
         if active {
             hook_state
-                .image_search_timing_active_presets
+                .vision_timing_active_presets
                 .insert(preset_id);
         } else {
             hook_state
-                .image_search_timing_active_presets
+                .vision_timing_active_presets
                 .remove(&preset_id);
         }
     }
@@ -1586,21 +1586,21 @@ mod windows_overlay {
         *generation = generation.saturating_add(1);
     }
 
-    fn run_image_search_follow_loop(preset: ImageSearchPreset, ui_tx: Option<Sender<UiCommand>>) {
+    fn run_image_search_follow_loop(preset: VisionPreset, ui_tx: Option<Sender<UiCommand>>) {
         if let Some(tx) = ui_tx.as_ref() {
-            let _ = tx.send(UiCommand::ImageSearchFinished(format!(
+            let _ = tx.send(UiCommand::VisionFinished(format!(
                 "{}: repeat mode started. Press the hotkey again to stop.",
                 preset.name
             )));
         }
 
         while image_search_following_is_active(preset.id) {
-            match run_image_search_once_with_options(&preset, true, false) {
+            match run_vision_once_with_options(&preset, true, false) {
                 Ok(_) => {}
                 Err(error) => {
                     if let Some(tx) = ui_tx.as_ref() {
-                        let _ = tx.send(UiCommand::ImageSearchFinished(format!(
-                            "{}: Image search failed: {error}",
+                        let _ = tx.send(UiCommand::VisionFinished(format!(
+                            "{}: Vision search failed: {error}",
                             preset.name
                         )));
                     }
@@ -1614,7 +1614,7 @@ mod windows_overlay {
 
         set_image_search_following_active(preset.id, false);
         if let Some(tx) = ui_tx {
-            let _ = tx.send(UiCommand::ImageSearchFinished(format!(
+            let _ = tx.send(UiCommand::VisionFinished(format!(
                 "{}: repeat mode stopped.",
                 preset.name
             )));
@@ -1629,7 +1629,7 @@ mod windows_overlay {
         let (matched, ui_tx) = {
             let hook_state = HOOK_STATE.lock();
             let matched = hook_state
-                .image_search_presets
+                .vision_presets
                 .iter()
                 .filter(|preset| {
                     preset.enabled
@@ -1657,20 +1657,20 @@ mod windows_overlay {
                 let active = {
                     let mut hook_state = HOOK_STATE.lock();
                     if hook_state
-                        .image_search_following_presets
+                        .vision_following_presets
                         .contains(&preset.id)
                     {
-                        hook_state.image_search_following_presets.remove(&preset.id);
+                        hook_state.vision_following_presets.remove(&preset.id);
                         false
                     } else {
-                        hook_state.image_search_following_presets.insert(preset.id);
+                        hook_state.vision_following_presets.insert(preset.id);
                         true
                     }
                 };
 
                 if !active {
                     if let Some(tx) = ui_tx.as_ref() {
-                        let _ = tx.send(UiCommand::ImageSearchFinished(format!(
+                        let _ = tx.send(UiCommand::VisionFinished(format!(
                             "{}: repeat mode stopped.",
                             preset.name
                         )));
@@ -1686,12 +1686,12 @@ mod windows_overlay {
 
             let ui_tx = ui_tx.clone();
             thread::spawn(move || {
-                let status = match run_image_search_once(&preset) {
+                let status = match run_vision_once(&preset) {
                     Ok(status) => status,
-                    Err(error) => format!("Image search failed: {error}"),
+                    Err(error) => format!("Vision search failed: {error}"),
                 };
                 if let Some(tx) = ui_tx {
-                    let _ = tx.send(UiCommand::ImageSearchFinished(format!(
+                    let _ = tx.send(UiCommand::VisionFinished(format!(
                         "{}: {status}",
                         preset.name
                     )));
@@ -2602,8 +2602,8 @@ mod windows_overlay {
         HOOK_STATE.lock().locked_mouse_count > 0
     }
 
-    fn is_image_search_capture_mouse_blocked() -> bool {
-        HOOK_STATE.lock().image_search_capture_mouse_blocked
+    fn is_vision_capture_mouse_blocked() -> bool {
+        HOOK_STATE.lock().vision_capture_mouse_blocked
     }
 
     fn physical_mouse_buttons_down() -> bool {
@@ -2767,33 +2767,33 @@ mod windows_overlay {
                     hook_state.keyboard_arrow_mouse_enabled = enabled;
                     hook_state.keyboard_arrow_mouse_step_px = step_px.clamp(1, 100) as u32;
                 }
-                OverlayCommand::UpdateImageSearchPresets(presets) => {
+                OverlayCommand::UpdateVisionPresets(presets) => {
                     {
                         let mut hook_state = HOOK_STATE.lock();
-                        hook_state.image_search_presets = presets;
+                        hook_state.vision_presets = presets;
                         let valid_ids: HashSet<u32> = hook_state
-                            .image_search_presets
+                            .vision_presets
                             .iter()
                             .map(|preset| preset.id)
                             .collect();
                         hook_state
-                            .image_search_following_presets
+                            .vision_following_presets
                             .retain(|preset_id| valid_ids.contains(preset_id));
                     }
                     let _ = refresh_search_area_overlay(runtime);
                 }
-                OverlayCommand::UpdateImageSearchTimingPresets(presets) => {
-                    HOOK_STATE.lock().image_search_timing_presets = presets;
+                OverlayCommand::UpdateVisionTimingPresets(presets) => {
+                    HOOK_STATE.lock().vision_timing_presets = presets;
                     let _ = refresh_search_area_overlay(runtime);
                 }
-                OverlayCommand::InvalidateImageSearchWaits(preset_ids) => {
+                OverlayCommand::InvalidateVisionWaits(preset_ids) => {
                     let mut guard = IMAGE_SEARCH_WAIT_GENERATIONS.lock();
                     for preset_id in preset_ids {
                         let generation = guard.entry(preset_id).or_insert(0);
                         *generation = generation.saturating_add(1);
                     }
                 }
-                OverlayCommand::InvalidateImageSearchTimingWaits(preset_ids) => {
+                OverlayCommand::InvalidateVisionTimingWaits(preset_ids) => {
                     let mut guard = IMAGE_SEARCH_TIMING_WAIT_GENERATIONS.lock();
                     for preset_id in preset_ids {
                         let generation = guard.entry(preset_id).or_insert(0);
@@ -2814,16 +2814,16 @@ mod windows_overlay {
                 OverlayCommand::RestoreMouseSensitivity => {
                     let _ = restore_mouse_sensitivity();
                 }
-                OverlayCommand::UpdateToolboxPresets(presets) => {
-                    HOOK_STATE.lock().toolbox_presets = presets;
+                OverlayCommand::UpdateHudPresets(presets) => {
+                    HOOK_STATE.lock().hud_presets = presets;
                 }
-                OverlayCommand::UpdateCustomPresets(presets) => {
-                    HOOK_STATE.lock().custom_presets = presets;
+                OverlayCommand::UpdateCommandPresets(presets) => {
+                    HOOK_STATE.lock().command_presets = presets;
                 }
-                OverlayCommand::PreviewToolboxPreset(preset) => {
-                    *TOOLBOX_PREVIEW_DISPLAY.lock() =
+                OverlayCommand::PreviewHudPreset(preset) => {
+                    *HUD_PREVIEW_DISPLAY.lock() =
                         preset.map(toolbox_preview_display_from_preset);
-                    let _ = refresh_toolbox(runtime);
+                    let _ = refresh_hud(runtime);
                 }
                 OverlayCommand::UpdateMacroPresets(presets) => {
                     runtime.macro_groups = presets;
@@ -2854,12 +2854,12 @@ mod windows_overlay {
                 OverlayCommand::RefreshPinOverlay => {
                     let _ = refresh_pin_overlay(runtime);
                 }
-                OverlayCommand::SetImageSearchCaptureMouseBlocked(blocked) => {
+                OverlayCommand::SetVisionCaptureMouseBlocked(blocked) => {
                     let mut hook_state = HOOK_STATE.lock();
-                    hook_state.image_search_capture_mouse_blocked = blocked;
+                    hook_state.vision_capture_mouse_blocked = blocked;
                     if !blocked {
-                        hook_state.image_search_capture_anchor = None;
-                        hook_state.image_search_capture_preview_region = None;
+                        hook_state.vision_capture_anchor = None;
+                        hook_state.vision_capture_preview_region = None;
                     }
                 }
                 OverlayCommand::SetUiVisible(visible) => {
@@ -2868,14 +2868,14 @@ mod windows_overlay {
                         cancel_pending_tray_toggle();
                         let _ = set_input_hooks_enabled(runtime, desired_hooks_enabled(runtime));
                         let _ = ShowWindow(runtime.pin_hwnd, SW_HIDE);
-                        let _ = ShowWindow(runtime.toolbox_hwnd, SW_HIDE);
+                        let _ = ShowWindow(runtime.hud_hwnd, SW_HIDE);
                         let _ = ShowWindow(runtime.mouse_trail_hwnd, SW_HIDE);
                     } else {
-                        *TOOLBOX_PREVIEW_DISPLAY.lock() = None;
+                        *HUD_PREVIEW_DISPLAY.lock() = None;
                         let _ = set_input_hooks_enabled(runtime, desired_hooks_enabled(runtime));
                         let _ = refresh_overlay(runtime);
                         let _ = refresh_pin_overlay(runtime);
-                        let _ = refresh_toolbox(runtime);
+                        let _ = refresh_hud(runtime);
                     }
                 }
                 OverlayCommand::Exit => {
@@ -2891,7 +2891,7 @@ mod windows_overlay {
         let _ = set_input_hooks_enabled(runtime, desired_hooks_enabled(runtime));
         if visible {
             let _ = ShowWindow(runtime.pin_hwnd, SW_HIDE);
-            let _ = ShowWindow(runtime.toolbox_hwnd, SW_HIDE);
+            let _ = ShowWindow(runtime.hud_hwnd, SW_HIDE);
             let _ = ShowWindow(runtime.mouse_trail_hwnd, SW_HIDE);
         }
     }
@@ -3022,9 +3022,9 @@ mod windows_overlay {
         Ok(())
     }
 
-    fn refresh_toolbox(runtime: &mut Runtime) -> Result<()> {
+    fn refresh_hud(runtime: &mut Runtime) -> Result<()> {
         let display = {
-            let mut preview_guard = TOOLBOX_PREVIEW_DISPLAY.lock();
+            let mut preview_guard = HUD_PREVIEW_DISPLAY.lock();
             if let Some(active) = preview_guard.as_ref()
                 && let Some(expires_at) = active.expires_at
                 && Instant::now() >= expires_at
@@ -3034,7 +3034,7 @@ mod windows_overlay {
             if let Some(preview) = preview_guard.clone() {
                 Some(preview)
             } else {
-                let mut guard = TOOLBOX_DISPLAY.lock();
+                let mut guard = HUD_DISPLAY.lock();
                 if let Some(active) = guard.as_ref()
                     && let Some(expires_at) = active.expires_at
                     && Instant::now() >= expires_at
@@ -3044,17 +3044,17 @@ mod windows_overlay {
                 guard.clone()
             }
         };
-        if runtime.toolbox_display == display {
+        if runtime.hud_display == display {
             return Ok(());
         }
-        runtime.toolbox_display = display.clone();
+        runtime.hud_display = display.clone();
 
         let Some(display) = display else {
-            let _ = unsafe { ShowWindow(runtime.toolbox_hwnd, SW_HIDE) };
+            let _ = unsafe { ShowWindow(runtime.hud_hwnd, SW_HIDE) };
             return Ok(());
         };
 
-        unsafe { paint_toolbox(runtime.toolbox_hwnd, &display) }
+        unsafe { paint_hud(runtime.hud_hwnd, &display) }
     }
 
     fn refresh_mouse_record_trail(runtime: &mut Runtime) -> Result<()> {
@@ -3095,20 +3095,20 @@ mod windows_overlay {
         let (regions, preview_region) = {
             let hook_state = HOOK_STATE.lock();
             let mut regions = hook_state
-                .image_search_presets
+                .vision_presets
                 .iter()
                 .filter(|preset| preset.show_search_region_overlay)
                 .filter_map(|preset| configured_image_search_region(preset))
                 .collect::<Vec<_>>();
             regions.extend(
                 hook_state
-                    .image_search_timing_presets
+                    .vision_timing_presets
                     .iter()
                     .filter(|preset| preset.show_search_region_overlay)
                     .filter_map(|preset| configured_image_search_timing_region(preset))
                     .collect::<Vec<_>>(),
             );
-            (regions, hook_state.image_search_capture_preview_region)
+            (regions, hook_state.vision_capture_preview_region)
         };
 
         if regions.is_empty() && preview_region.is_none() {
@@ -3124,8 +3124,8 @@ mod windows_overlay {
     fn desired_timer_interval_ms(runtime: &Runtime) -> u32 {
         let capture_active = {
             let hook_state = HOOK_STATE.lock();
-            hook_state.image_search_capture_preview_region.is_some()
-                || hook_state.image_search_capture_mouse_blocked
+            hook_state.vision_capture_preview_region.is_some()
+                || hook_state.vision_capture_mouse_blocked
         };
         if capture_active {
             return 16;
@@ -3140,9 +3140,9 @@ mod windows_overlay {
             return 33;
         }
 
-        let toolbox_active = TOOLBOX_DISPLAY.lock().is_some()
-            || TOOLBOX_PREVIEW_DISPLAY.lock().is_some()
-            || runtime.toolbox_display.is_some();
+        let toolbox_active = HUD_DISPLAY.lock().is_some()
+            || HUD_PREVIEW_DISPLAY.lock().is_some()
+            || runtime.hud_display.is_some();
         if toolbox_active {
             return 100;
         }
@@ -3625,7 +3625,7 @@ mod windows_overlay {
         Ok(())
     }
 
-    unsafe fn paint_toolbox(hwnd: HWND, display: &ToolboxDisplayState) -> Result<()> {
+    unsafe fn paint_hud(hwnd: HWND, display: &HudDisplayState) -> Result<()> {
         let window_x = display.x.max(0);
         let window_y = display.y.max(0);
         let width = display.width.max(1);
@@ -3911,7 +3911,7 @@ mod windows_overlay {
                 apply_unlock_mouse(None);
             }
             let image_search_preset_ids = collect_macro_image_search_start_ids(&preset.steps);
-            stop_image_search_following_ids(&image_search_preset_ids);
+            stop_vision_following_ids(&image_search_preset_ids);
             hide_toolbox_for_owner(preset.id);
             HOOK_STATE.lock().stop_ignore_keys.remove(&preset.id);
             decrement_press_trigger_suppression(&trigger_key_for_cleanup);
@@ -4023,7 +4023,7 @@ mod windows_overlay {
                 execute_hold_abort_step(preset_id, &step);
             }
         }
-        stop_image_search_following_ids(&image_search_preset_ids);
+        stop_vision_following_ids(&image_search_preset_ids);
 
         hide_toolbox_for_owner(preset_id);
         HOOK_STATE.lock().stop_ignore_keys.remove(&preset_id);
@@ -4091,14 +4091,14 @@ mod windows_overlay {
             let hook_state = HOOK_STATE.lock();
             let by_id = spec.parse::<u32>().ok().and_then(|preset_id| {
                 hook_state
-                    .custom_presets
+                    .command_presets
                     .iter()
                     .find(|preset| preset.id == preset_id)
                     .cloned()
             });
             by_id.or_else(|| {
                 hook_state
-                    .custom_presets
+                    .command_presets
                     .iter()
                     .find(|preset| preset.name.trim().eq_ignore_ascii_case(spec))
                     .cloned()
@@ -4125,7 +4125,7 @@ mod windows_overlay {
             }
         }
 
-        let command_text = ai::normalize_custom_command_text(&preset.command);
+        let command_text = ai::normalize_command_text(&preset.command);
         if command_text.is_empty() {
             bail!("Custom preset command is empty");
         }
@@ -4134,7 +4134,7 @@ mod windows_overlay {
         Ok(())
     }
 
-    fn trigger_custom_preset_step(step: &MacroStep) -> Result<()> {
+    fn trigger_command_preset_step(step: &MacroStep) -> Result<()> {
         let spec = step.key.trim();
         if spec.is_empty() {
             bail!("Custom preset key is empty");
@@ -4144,14 +4144,14 @@ mod windows_overlay {
             let hook_state = HOOK_STATE.lock();
             let by_id = spec.parse::<u32>().ok().and_then(|preset_id| {
                 hook_state
-                    .custom_presets
+                    .command_presets
                     .iter()
                     .find(|preset| preset.id == preset_id)
                     .cloned()
             });
             by_id.or_else(|| {
                 hook_state
-                    .custom_presets
+                    .command_presets
                     .iter()
                     .find(|preset| preset.name.trim().eq_ignore_ascii_case(spec))
                     .cloned()
@@ -4179,7 +4179,7 @@ mod windows_overlay {
                 }
             }
 
-            let command_text = ai::normalize_custom_command_text(&preset.command);
+            let command_text = ai::normalize_command_text(&preset.command);
             if command_text.is_empty() {
                 bail!("Custom preset command is empty");
             }
@@ -4188,11 +4188,11 @@ mod windows_overlay {
             return Ok(());
         }
 
-        let command_text = ai::normalize_custom_command_text(&step.custom_preset_command);
+        let command_text = ai::normalize_command_text(&step.command_preset_command);
         if command_text.is_empty() {
             bail!("Custom preset was not found");
         }
-        spawn_custom_command(step.custom_preset_use_powershell, command_text);
+        spawn_custom_command(step.command_preset_use_powershell, command_text);
         Ok(())
     }
 
@@ -4618,8 +4618,8 @@ mod windows_overlay {
                     false,
                 );
             }
-            MacroAction::TriggerCustomPreset => {
-                let _ = trigger_custom_preset_step(step);
+            MacroAction::TriggerCommandPreset => {
+                let _ = trigger_command_preset_step(step);
             }
             MacroAction::EnableCrosshairProfile => {
                 let _ = enable_crosshair_profile(&step.key);
@@ -4645,19 +4645,19 @@ mod windows_overlay {
             MacroAction::PlaySoundPreset => {
                 let _ = play_sound_preset(&step.key);
             }
-            MacroAction::StartImageSearch => {
-                let _ = start_image_search_following(&step.key);
+            MacroAction::StartVisionSearch => {
+                let _ = start_vision_following(&step.key);
             }
-            MacroAction::TriggerImageSearchMove => {
-                if let Ok(preset) = image_search_preset_by_id(&step.key) {
+            MacroAction::TriggerVisionMove => {
+                if let Ok(preset) = vision_preset_by_id(&step.key) {
                     let mut no_locked_keys = Vec::new();
                     let mut no_locked_mouse = 0usize;
-                    let _ = trigger_image_search_move_with_options(
+                    let _ = trigger_vision_move_with_options(
                         &preset,
-                        step.image_search_move_cursor_on_match,
-                        step.image_search_wait_until_found,
-                        step.image_search_trigger_macro_enabled,
-                        step.image_search_trigger_macro_preset_id,
+                        step.vision_move_cursor_on_match,
+                        step.vision_wait_until_found,
+                        step.vision_trigger_macro_enabled,
+                        step.vision_trigger_macro_preset_id,
                         preset_id,
                         &mut no_locked_keys,
                         &mut no_locked_mouse,
@@ -4668,18 +4668,18 @@ mod windows_overlay {
                     );
                 }
             }
-            MacroAction::TriggerImageSearchTiming => {}
-            MacroAction::StopImageSearchWait => {
-                let _ = stop_image_search_waiting(&step.key);
+            MacroAction::TriggerVisionTiming => {}
+            MacroAction::StopVisionWait => {
+                let _ = stop_vision_waiting(&step.key);
             }
-            MacroAction::StopImageSearch => {
-                let _ = stop_image_search_following(&step.key);
+            MacroAction::StopVision => {
+                let _ = stop_vision_following(&step.key);
             }
-            MacroAction::ShowToolbox => {
-                trigger_toolbox_display(preset_id, step);
+            MacroAction::ShowHud => {
+                trigger_hud_display(preset_id, step);
             }
-            MacroAction::HideToolbox => {
-                hide_toolbox_now();
+            MacroAction::HideHud => {
+                hide_hud_now();
             }
             MacroAction::LockKeys => {
                 apply_lock_keys(&parse_locked_keys(&step.key), Some(preset_id));
@@ -4856,8 +4856,8 @@ mod windows_overlay {
                         match_duplicate_window_titles,
                     );
                 }
-                MacroAction::TriggerCustomPreset => {
-                    let _ = trigger_custom_preset_step(step);
+                MacroAction::TriggerCommandPreset => {
+                    let _ = trigger_command_preset_step(step);
                 }
                 MacroAction::EnableCrosshairProfile => {
                     let _ = enable_crosshair_profile(&step.key);
@@ -4891,19 +4891,19 @@ mod windows_overlay {
                 MacroAction::PlaySoundPreset => {
                     let _ = play_sound_preset(&step.key);
                 }
-                MacroAction::StartImageSearch => {
-                    let _ = start_image_search_following(&step.key);
+                MacroAction::StartVisionSearch => {
+                    let _ = start_vision_following(&step.key);
                 }
-                MacroAction::TriggerImageSearchMove => {
-                    if let Some(preset) = image_search_preset_by_id(&step.key).ok() {
+                MacroAction::TriggerVisionMove => {
+                    if let Some(preset) = vision_preset_by_id(&step.key).ok() {
                         let mut no_locked_keys = Vec::new();
                         let mut no_locked_mouse = 0usize;
-                        if let MacroRunFlow::StopExecution = trigger_image_search_move_with_options(
+                        if let MacroRunFlow::StopExecution = trigger_vision_move_with_options(
                             &preset,
-                            step.image_search_move_cursor_on_match,
-                            step.image_search_wait_until_found,
-                            step.image_search_trigger_macro_enabled,
-                            step.image_search_trigger_macro_preset_id,
+                            step.vision_move_cursor_on_match,
+                            step.vision_wait_until_found,
+                            step.vision_trigger_macro_enabled,
+                            step.vision_trigger_macro_preset_id,
                             preset_id,
                             &mut no_locked_keys,
                             &mut no_locked_mouse,
@@ -4916,10 +4916,10 @@ mod windows_overlay {
                         }
                     }
                 }
-                MacroAction::TriggerImageSearchTiming => {
-                    if let Some(preset) = image_search_timing_preset_by_id(&step.key).ok() {
+                MacroAction::TriggerVisionTiming => {
+                    if let Some(preset) = vision_timing_preset_by_id(&step.key).ok() {
                         if let MacroRunFlow::StopExecution =
-                            trigger_image_search_timing_with_options(
+                            trigger_vision_timing_with_options(
                                 &preset,
                                 preset_id,
                                 stop_immediately_on_retrigger,
@@ -4932,17 +4932,17 @@ mod windows_overlay {
                         }
                     }
                 }
-                MacroAction::StopImageSearchWait => {
-                    let _ = stop_image_search_waiting(&step.key);
+                MacroAction::StopVisionWait => {
+                    let _ = stop_vision_waiting(&step.key);
                 }
-                MacroAction::StopImageSearch => {
-                    let _ = stop_image_search_following(&step.key);
+                MacroAction::StopVision => {
+                    let _ = stop_vision_following(&step.key);
                 }
-                MacroAction::ShowToolbox => {
-                    trigger_toolbox_display(preset_id, step);
+                MacroAction::ShowHud => {
+                    trigger_hud_display(preset_id, step);
                 }
-                MacroAction::HideToolbox => {
-                    hide_toolbox_now();
+                MacroAction::HideHud => {
+                    hide_hud_now();
                 }
                 MacroAction::LockKeys => {
                     let keys = parse_locked_keys(&step.key);
@@ -5158,8 +5158,8 @@ mod windows_overlay {
                         match_duplicate_window_titles,
                     );
                 }
-                MacroAction::TriggerCustomPreset => {
-                    let _ = trigger_custom_preset_step(step);
+                MacroAction::TriggerCommandPreset => {
+                    let _ = trigger_command_preset_step(step);
                 }
                 MacroAction::EnableCrosshairProfile => {
                     let _ = enable_crosshair_profile(&step.key);
@@ -5193,19 +5193,19 @@ mod windows_overlay {
                 MacroAction::PlaySoundPreset => {
                     let _ = play_sound_preset(&step.key);
                 }
-                MacroAction::StartImageSearch => {
-                    let _ = start_image_search_following(&step.key);
+                MacroAction::StartVisionSearch => {
+                    let _ = start_vision_following(&step.key);
                 }
-                MacroAction::TriggerImageSearchMove => {
-                    if let Some(preset) = image_search_preset_by_id(&step.key).ok() {
+                MacroAction::TriggerVisionMove => {
+                    if let Some(preset) = vision_preset_by_id(&step.key).ok() {
                         let mut no_locked_keys = Vec::new();
                         let mut no_locked_mouse = 0usize;
-                        if let MacroRunFlow::StopExecution = trigger_image_search_move_with_options(
+                        if let MacroRunFlow::StopExecution = trigger_vision_move_with_options(
                             &preset,
-                            step.image_search_move_cursor_on_match,
-                            step.image_search_wait_until_found,
-                            step.image_search_trigger_macro_enabled,
-                            step.image_search_trigger_macro_preset_id,
+                            step.vision_move_cursor_on_match,
+                            step.vision_wait_until_found,
+                            step.vision_trigger_macro_enabled,
+                            step.vision_trigger_macro_preset_id,
                             preset_id,
                             &mut no_locked_keys,
                             &mut no_locked_mouse,
@@ -5218,10 +5218,10 @@ mod windows_overlay {
                         }
                     }
                 }
-                MacroAction::TriggerImageSearchTiming => {
-                    if let Some(preset) = image_search_timing_preset_by_id(&step.key).ok() {
+                MacroAction::TriggerVisionTiming => {
+                    if let Some(preset) = vision_timing_preset_by_id(&step.key).ok() {
                         if let MacroRunFlow::StopExecution =
-                            trigger_image_search_timing_with_options(
+                            trigger_vision_timing_with_options(
                                 &preset,
                                 preset_id,
                                 stop_immediately_on_retrigger,
@@ -5234,17 +5234,17 @@ mod windows_overlay {
                         }
                     }
                 }
-                MacroAction::StopImageSearchWait => {
-                    let _ = stop_image_search_waiting(&step.key);
+                MacroAction::StopVisionWait => {
+                    let _ = stop_vision_waiting(&step.key);
                 }
-                MacroAction::StopImageSearch => {
-                    let _ = stop_image_search_following(&step.key);
+                MacroAction::StopVision => {
+                    let _ = stop_vision_following(&step.key);
                 }
-                MacroAction::ShowToolbox => {
-                    trigger_toolbox_display(preset_id, step);
+                MacroAction::ShowHud => {
+                    trigger_hud_display(preset_id, step);
                 }
-                MacroAction::HideToolbox => {
-                    hide_toolbox_now();
+                MacroAction::HideHud => {
+                    hide_hud_now();
                 }
                 MacroAction::LockKeys => {
                     apply_lock_keys(&parse_locked_keys(&step.key), Some(preset_id));
@@ -5520,7 +5520,7 @@ mod windows_overlay {
         trimmed.to_owned()
     }
 
-    fn show_toolbox_preset(owner_preset_id: u32, step: &MacroStep) -> Result<()> {
+    fn show_hud_preset(owner_preset_id: u32, step: &MacroStep) -> Result<()> {
         let preset_id = step
             .key
             .trim()
@@ -5529,7 +5529,7 @@ mod windows_overlay {
         let preset = {
             let hook_state = HOOK_STATE.lock();
             hook_state
-                .toolbox_presets
+                .hud_presets
                 .iter()
                 .find(|preset| preset.id == preset_id)
                 .cloned()
@@ -5541,7 +5541,7 @@ mod windows_overlay {
             step.text_override.trim().to_owned()
         };
         if text.is_empty() {
-            hide_toolbox_now();
+            hide_hud_now();
             return Ok(());
         }
 
@@ -5555,7 +5555,7 @@ mod windows_overlay {
             None
         };
 
-        *TOOLBOX_DISPLAY.lock() = Some(ToolboxDisplayState {
+        *HUD_DISPLAY.lock() = Some(HudDisplayState {
             owner_preset_id: Some(owner_preset_id),
             preset_id: Some(preset.id),
             text,
@@ -5574,12 +5574,12 @@ mod windows_overlay {
         Ok(())
     }
 
-    fn toolbox_preview_display_from_preset(preset: ToolboxPreset) -> ToolboxDisplayState {
+    fn toolbox_preview_display_from_preset(preset: HudPreset) -> HudDisplayState {
         let screen_width = unsafe { GetSystemMetrics(SM_CXSCREEN) }.max(1);
         let screen_height = unsafe { GetSystemMetrics(SM_CYSCREEN) }.max(1);
         let scale_x = screen_width as f32 / 1920.0;
         let scale_y = screen_height as f32 / 1080.0;
-        ToolboxDisplayState {
+        HudDisplayState {
             owner_preset_id: None,
             preset_id: Some(preset.id),
             text: preset.text,
@@ -5597,7 +5597,7 @@ mod windows_overlay {
         }
     }
 
-    fn show_legacy_toolbox_text(owner_preset_id: u32, step: &MacroStep) {
+    fn show_legacy_hud_text(owner_preset_id: u32, step: &MacroStep) {
         let text = if step.text_override.trim().is_empty() {
             step.key.trim().to_owned()
         } else {
@@ -5605,10 +5605,10 @@ mod windows_overlay {
         };
         let trimmed = text.trim().to_owned();
         if trimmed.is_empty() {
-            hide_toolbox_now();
+            hide_hud_now();
             return;
         }
-        *TOOLBOX_DISPLAY.lock() = Some(ToolboxDisplayState {
+        *HUD_DISPLAY.lock() = Some(HudDisplayState {
             owner_preset_id: Some(owner_preset_id),
             preset_id: None,
             text: trimmed,
@@ -5640,20 +5640,20 @@ mod windows_overlay {
         });
     }
 
-    fn trigger_toolbox_display(owner_preset_id: u32, step: &MacroStep) {
-        if show_toolbox_preset(owner_preset_id, step).is_err() {
-            show_legacy_toolbox_text(owner_preset_id, step);
+    fn trigger_hud_display(owner_preset_id: u32, step: &MacroStep) {
+        if show_hud_preset(owner_preset_id, step).is_err() {
+            show_legacy_hud_text(owner_preset_id, step);
         }
         wake_command_queue();
     }
 
-    fn hide_toolbox_now() {
-        *TOOLBOX_DISPLAY.lock() = None;
+    fn hide_hud_now() {
+        *HUD_DISPLAY.lock() = None;
         wake_command_queue();
     }
 
     fn hide_toolbox_for_owner(owner_preset_id: u32) {
-        let mut guard = TOOLBOX_DISPLAY.lock();
+        let mut guard = HUD_DISPLAY.lock();
         if let Some(active) = guard.as_ref()
             && active.owner_preset_id == Some(owner_preset_id)
             && active.auto_hide_on_owner_completion
@@ -5837,7 +5837,7 @@ mod windows_overlay {
                 | MacroAction::ApplyWindowPreset
                 | MacroAction::FocusWindowPreset
                 | MacroAction::TriggerMacroPreset
-                | MacroAction::TriggerCustomPreset
+                | MacroAction::TriggerCommandPreset
                 | MacroAction::EnableCrosshairProfile
                 | MacroAction::DisableCrosshair
                 | MacroAction::EnablePinPreset
@@ -5847,17 +5847,17 @@ mod windows_overlay {
                 | MacroAction::EnableZoomPreset
                 | MacroAction::DisableZoom
                 | MacroAction::PlaySoundPreset
-                | MacroAction::StartImageSearch
-                | MacroAction::TriggerImageSearchMove
-                | MacroAction::TriggerImageSearchTiming
-                | MacroAction::StopImageSearchWait
-                | MacroAction::StopImageSearch => {}
+                | MacroAction::StartVisionSearch
+                | MacroAction::TriggerVisionMove
+                | MacroAction::TriggerVisionTiming
+                | MacroAction::StopVisionWait
+                | MacroAction::StopVision => {}
                 MacroAction::LoopStart
                 | MacroAction::LoopEnd
                 | MacroAction::StopIfTriggerPressedAgain
                 | MacroAction::StopIfKeyPressed
-                | MacroAction::ShowToolbox
-                | MacroAction::HideToolbox
+                | MacroAction::ShowHud
+                | MacroAction::HideHud
                 | MacroAction::LockKeys
                 | MacroAction::UnlockKeys
                 | MacroAction::LockMouse
@@ -5931,7 +5931,7 @@ mod windows_overlay {
             if !step.enabled {
                 continue;
             }
-            if step.action == MacroAction::StartImageSearch
+            if step.action == MacroAction::StartVisionSearch
                 && let Ok(preset_id) = step.key.trim().parse::<u32>()
             {
                 ids.insert(preset_id);
@@ -5966,7 +5966,7 @@ mod windows_overlay {
             MacroAction::ApplyWindowPreset
             | MacroAction::FocusWindowPreset
             | MacroAction::TriggerMacroPreset
-            | MacroAction::TriggerCustomPreset
+            | MacroAction::TriggerCommandPreset
             | MacroAction::EnableCrosshairProfile
             | MacroAction::DisableCrosshair
             | MacroAction::EnablePinPreset
@@ -5976,17 +5976,17 @@ mod windows_overlay {
             | MacroAction::EnableZoomPreset
             | MacroAction::DisableZoom
             | MacroAction::PlaySoundPreset
-            | MacroAction::StartImageSearch
-            | MacroAction::TriggerImageSearchMove
-            | MacroAction::TriggerImageSearchTiming
-            | MacroAction::StopImageSearchWait
-            | MacroAction::StopImageSearch => return Ok(()),
+            | MacroAction::StartVisionSearch
+            | MacroAction::TriggerVisionMove
+            | MacroAction::TriggerVisionTiming
+            | MacroAction::StopVisionWait
+            | MacroAction::StopVision => return Ok(()),
             MacroAction::LoopStart
             | MacroAction::LoopEnd
             | MacroAction::StopIfTriggerPressedAgain
             | MacroAction::StopIfKeyPressed
-            | MacroAction::ShowToolbox
-            | MacroAction::HideToolbox
+            | MacroAction::ShowHud
+            | MacroAction::HideHud
             | MacroAction::LockKeys
             | MacroAction::UnlockKeys
             | MacroAction::LockMouse
@@ -6611,7 +6611,7 @@ mod windows_overlay {
     }
 
     #[derive(Clone, Copy, Debug, PartialEq)]
-    struct ImageSearchRegion {
+    struct VisionRegion {
         left: i32,
         top: i32,
         width: i32,
@@ -6681,7 +6681,7 @@ mod windows_overlay {
         scales: &[f32],
         anchor_hint_screen: Option<(i32, i32)>,
         use_color_matching: bool,
-        search_region: Option<&ImageSearchRegion>,
+        search_region: Option<&VisionRegion>,
     ) -> Result<Option<TemplateMatchHit>> {
         let screen_mat = if use_color_matching {
             rgba_to_color_mat(&screen.rgba, screen.width, screen.height)?
@@ -6769,7 +6769,7 @@ mod windows_overlay {
         Ok(best_hit)
     }
 
-    fn configured_image_search_region(preset: &ImageSearchPreset) -> Option<ImageSearchRegion> {
+    fn configured_image_search_region(preset: &VisionPreset) -> Option<VisionRegion> {
         let (Some(region_x), Some(region_y), Some(region_width), Some(region_height)) = (
             preset.search_region_screen_x,
             preset.search_region_screen_y,
@@ -6795,7 +6795,7 @@ mod windows_overlay {
         if width <= 0 || height <= 0 {
             return None;
         }
-        Some(ImageSearchRegion {
+        Some(VisionRegion {
             left,
             top,
             width,
@@ -6805,11 +6805,11 @@ mod windows_overlay {
     }
 
     fn expand_search_region_to_fit(
-        region: ImageSearchRegion,
+        region: VisionRegion,
         min_width: i32,
         min_height: i32,
-    ) -> ImageSearchRegion {
-        let ImageSearchRegion {
+    ) -> VisionRegion {
+        let VisionRegion {
             left,
             top,
             width,
@@ -6849,7 +6849,7 @@ mod windows_overlay {
             next_bottom = (next_top + target_height).min(virtual_bottom);
         }
 
-        ImageSearchRegion {
+        VisionRegion {
             left: next_left,
             top: next_top,
             width: (next_right - next_left).max(1),
@@ -6859,7 +6859,7 @@ mod windows_overlay {
     }
 
     fn image_search_region_contains_point(
-        region: Option<&ImageSearchRegion>,
+        region: Option<&VisionRegion>,
         x: i32,
         y: i32,
     ) -> bool {
@@ -6901,7 +6901,7 @@ mod windows_overlay {
         tolerance: u8,
         x_start: usize,
         x_end: usize,
-        region: Option<&ImageSearchRegion>,
+        region: Option<&VisionRegion>,
     ) -> Option<ColorMatchHit> {
         let width = screen.width as i32;
         let height = screen.height as i32;
@@ -6950,7 +6950,7 @@ mod windows_overlay {
         y: i32,
         reference_x: i32,
         reference_y: i32,
-        region: Option<&ImageSearchRegion>,
+        region: Option<&VisionRegion>,
     ) -> Option<ColorMatchHit> {
         if x < 0 || y < 0 || x >= screen.width as i32 || y >= screen.height as i32 {
             return None;
@@ -7004,7 +7004,7 @@ mod windows_overlay {
         tolerance: u8,
         anchor_x: i32,
         anchor_y: i32,
-        region: Option<&ImageSearchRegion>,
+        region: Option<&VisionRegion>,
     ) -> Option<ColorMatchHit> {
         let width = screen.width as i32;
         let height = screen.height as i32;
@@ -7082,7 +7082,7 @@ mod windows_overlay {
         screen: &window_list::ScreenCaptureFrame,
         targets: &[RgbaColor],
         tolerance: u8,
-        region: Option<&ImageSearchRegion>,
+        region: Option<&VisionRegion>,
     ) -> Option<ColorMatchHit> {
         find_color_match_in_range(screen, targets, tolerance, 0, screen.width, region)
     }
@@ -7091,7 +7091,7 @@ mod windows_overlay {
         screen: &window_list::ScreenCaptureFrame,
         targets: &[RgbaColor],
         tolerance: u8,
-        region: Option<&ImageSearchRegion>,
+        region: Option<&VisionRegion>,
     ) -> Option<ColorMatchHit> {
         let mid = (screen.width / 2).max(1);
         let (left_hit, right_hit) = thread::scope(|scope| {
@@ -7115,7 +7115,7 @@ mod windows_overlay {
         }
     }
 
-    fn image_search_target_colors(preset: &ImageSearchPreset) -> Vec<RgbaColor> {
+    fn image_search_target_colors(preset: &VisionPreset) -> Vec<RgbaColor> {
         if !preset.target_colors.is_empty() {
             return preset.target_colors.clone();
         }
@@ -7152,7 +7152,7 @@ mod windows_overlay {
         template_height: usize,
         max_average_diff: f32,
         anchor_hint_screen: Option<(i32, i32)>,
-        search_region: Option<&ImageSearchRegion>,
+        search_region: Option<&VisionRegion>,
     ) -> Option<TemplateMatchHit> {
         if template_width == 0
             || template_height == 0
@@ -7227,27 +7227,27 @@ mod windows_overlay {
     fn image_search_template_file(preset_id: u32) -> PathBuf {
         let hook_state = HOOK_STATE.lock();
         hook_state
-            .image_search_dir
+            .vision_dir
             .join(format!("preset-{preset_id}.png"))
     }
 
-    fn image_search_timing_preset_by_id(spec: &str) -> Result<ImageSearchTimingPreset> {
+    fn vision_timing_preset_by_id(spec: &str) -> Result<VisionTimingPreset> {
         let preset_id = spec
             .trim()
             .parse::<u32>()
-            .context("Image search timing preset id is invalid")?;
+            .context("Vision timing preset id is invalid")?;
         HOOK_STATE
             .lock()
-            .image_search_timing_presets
+            .vision_timing_presets
             .iter()
             .find(|preset| preset.id == preset_id)
             .cloned()
-            .context("Image search timing preset was not found")
+            .context("Vision timing preset was not found")
     }
 
     fn configured_image_search_timing_region(
-        preset: &ImageSearchTimingPreset,
-    ) -> Option<ImageSearchRegion> {
+        preset: &VisionTimingPreset,
+    ) -> Option<VisionRegion> {
         let (Some(region_x), Some(region_y), Some(region_width), Some(region_height)) = (
             preset.search_region_screen_x,
             preset.search_region_screen_y,
@@ -7273,7 +7273,7 @@ mod windows_overlay {
         if width <= 0 || height <= 0 {
             return None;
         }
-        Some(ImageSearchRegion {
+        Some(VisionRegion {
             left,
             top,
             width,
@@ -7282,7 +7282,7 @@ mod windows_overlay {
         })
     }
 
-    fn image_search_timing_target_colors(preset: &ImageSearchTimingPreset) -> Vec<RgbaColor> {
+    fn image_search_timing_target_colors(preset: &VisionTimingPreset) -> Vec<RgbaColor> {
         if !preset.target_colors.is_empty() {
             return preset.target_colors.clone();
         }
@@ -7292,7 +7292,7 @@ mod windows_overlay {
     fn image_search_timing_position_percent(
         screen: &window_list::ScreenCaptureFrame,
         hit: &ColorMatchHit,
-        region: Option<&ImageSearchRegion>,
+        region: Option<&VisionRegion>,
     ) -> u32 {
         let Some(region) = region else {
             return 0;
@@ -7306,7 +7306,7 @@ mod windows_overlay {
     }
 
     fn image_search_timing_delay_ms(
-        preset: &ImageSearchTimingPreset,
+        preset: &VisionTimingPreset,
         position_percent: u32,
     ) -> u64 {
         let cycle_ms = preset.timing_cycle_ms.max(1);
@@ -7314,7 +7314,7 @@ mod windows_overlay {
     }
 
     fn find_image_search_timing_hit(
-        preset: &ImageSearchTimingPreset,
+        preset: &VisionTimingPreset,
     ) -> Result<Option<ImageSearchTimingHit>> {
         let target_colors = image_search_timing_target_colors(preset);
         if target_colors.is_empty() {
@@ -7378,11 +7378,11 @@ mod windows_overlay {
         }))
     }
 
-    fn run_image_search_once_with_options(
-        preset: &ImageSearchPreset,
+    fn run_vision_once_with_options(
+        preset: &VisionPreset,
         move_cursor: bool,
         fire_click: bool,
-    ) -> Result<ImageSearchRunOutcome> {
+    ) -> Result<VisionRunOutcome> {
         if preset.use_color_matching {
             let target_colors = image_search_target_colors(preset);
             if target_colors.is_empty() {
@@ -7452,7 +7452,7 @@ mod windows_overlay {
                     .map(|color| format!("#{:02X}{:02X}{:02X}", color.r, color.g, color.b))
                     .collect::<Vec<_>>()
                     .join(", ");
-                return Ok(ImageSearchRunOutcome {
+                return Ok(VisionRunOutcome {
                     matched: false,
                     status: format!(
                         "No color match found for [{color_list}] with tolerance {}.",
@@ -7478,7 +7478,7 @@ mod windows_overlay {
                 thread::sleep(Duration::from_millis(12));
                 send_mouse_left_click_backend(preset.use_interception_driver)?;
             }
-            return Ok(ImageSearchRunOutcome {
+            return Ok(VisionRunOutcome {
                 matched: true,
                 status: if anchor.is_some() {
                     format!(
@@ -7598,18 +7598,18 @@ mod windows_overlay {
             (None, Some(opencv)) => opencv,
             (None, None) => {
                 if configured_region.is_some() {
-                    return Ok(ImageSearchRunOutcome {
+                    return Ok(VisionRunOutcome {
                         matched: false,
                         status: "No match found inside the selected search area.".to_owned(),
                     });
                 }
                 if used_roi_capture {
-                    return Ok(ImageSearchRunOutcome {
+                    return Ok(VisionRunOutcome {
                         matched: false,
                         status: "No match found near the captured area.".to_owned(),
                     });
                 }
-                return Ok(ImageSearchRunOutcome {
+                return Ok(VisionRunOutcome {
                     matched: false,
                     status: "No match found on screen.".to_owned(),
                 });
@@ -7622,7 +7622,7 @@ mod windows_overlay {
         let moved_y = center_y + preset.move_offset_y;
         let required_confidence = preset.confidence_threshold.clamp(0.35, 0.99);
         if hit.confidence < required_confidence {
-            return Ok(ImageSearchRunOutcome {
+            return Ok(VisionRunOutcome {
                 matched: false,
                 status: format!(
                     "Best match near {moved_x}, {moved_y} scored {:.3} at scale {:.2}x, below threshold {:.2}.",
@@ -7643,7 +7643,7 @@ mod windows_overlay {
             thread::sleep(Duration::from_millis(12));
             send_mouse_left_click_backend(preset.use_interception_driver)?;
         }
-        Ok(ImageSearchRunOutcome {
+        Ok(VisionRunOutcome {
             matched: true,
             status: format!(
                 "OpenCV matched at {moved_x}, {moved_y} with confidence {:.3} on {:.2}x (offset {:+}, {:+}).",
@@ -7652,27 +7652,27 @@ mod windows_overlay {
         })
     }
 
-    fn run_image_search_once(preset: &ImageSearchPreset) -> Result<String> {
-        run_image_search_once_with_options(preset, true, preset.click_after_move)
+    fn run_vision_once(preset: &VisionPreset) -> Result<String> {
+        run_vision_once_with_options(preset, true, preset.click_after_move)
             .map(|outcome| outcome.status)
     }
 
-    fn image_search_preset_by_id(spec: &str) -> Result<ImageSearchPreset> {
+    fn vision_preset_by_id(spec: &str) -> Result<VisionPreset> {
         let preset_id = spec
             .trim()
             .parse::<u32>()
-            .context("Image search preset id is invalid")?;
+            .context("Vision preset id is invalid")?;
         HOOK_STATE
             .lock()
-            .image_search_presets
+            .vision_presets
             .iter()
             .find(|preset| preset.id == preset_id)
             .cloned()
-            .context("Image search preset was not found")
+            .context("Vision preset was not found")
     }
 
-    fn start_image_search_following(spec: &str) -> Result<()> {
-        let preset = image_search_preset_by_id(spec)?;
+    fn start_vision_following(spec: &str) -> Result<()> {
+        let preset = vision_preset_by_id(spec)?;
         if image_search_following_is_active(preset.id) {
             return Ok(());
         }
@@ -7682,23 +7682,23 @@ mod windows_overlay {
         Ok(())
     }
 
-    fn stop_image_search_following(spec: &str) -> Result<()> {
-        let preset = image_search_preset_by_id(spec)?;
+    fn stop_vision_following(spec: &str) -> Result<()> {
+        let preset = vision_preset_by_id(spec)?;
         set_image_search_following_active(preset.id, false);
         Ok(())
     }
 
-    fn stop_image_search_following_ids(preset_ids: &[u32]) {
+    fn stop_vision_following_ids(preset_ids: &[u32]) {
         for preset_id in preset_ids {
             set_image_search_following_active(*preset_id, false);
         }
     }
 
-    fn trigger_image_search_move(spec: &str) -> Result<()> {
-        let preset = image_search_preset_by_id(spec)?;
-        let status = run_image_search_once(&preset)?;
+    fn trigger_vision_move(spec: &str) -> Result<()> {
+        let preset = vision_preset_by_id(spec)?;
+        let status = run_vision_once(&preset)?;
         if let Some(tx) = HOOK_STATE.lock().ui_tx.clone() {
-            let _ = tx.send(UiCommand::ImageSearchFinished(format!(
+            let _ = tx.send(UiCommand::VisionFinished(format!(
                 "{}: {status}",
                 preset.name
             )));
@@ -7706,8 +7706,8 @@ mod windows_overlay {
         Ok(())
     }
 
-    fn run_image_search_timing_loop(
-        preset: ImageSearchTimingPreset,
+    fn run_vision_timing_loop(
+        preset: VisionTimingPreset,
         macro_preset_id: u32,
         stop_immediately_on_retrigger: bool,
         target_window_title: Option<String>,
@@ -7764,7 +7764,7 @@ mod windows_overlay {
             } else {
                 format!("{} s", preset.loop_duration_secs.max(1))
             };
-            let _ = tx.send(UiCommand::ImageSearchFinished(format!(
+            let _ = tx.send(UiCommand::VisionFinished(format!(
                 "{}: loop started for {}.",
                 preset.name, mode_label
             )));
@@ -7773,7 +7773,7 @@ mod windows_overlay {
         while image_search_timing_loop_is_active(preset.id) {
             if image_search_timing_wait_generation(preset.id) != wait_generation {
                 if let Some(tx) = ui_tx.as_ref() {
-                    let _ = tx.send(UiCommand::ImageSearchFinished(format!(
+                    let _ = tx.send(UiCommand::VisionFinished(format!(
                         "{}: loop cancelled.",
                         preset.name
                     )));
@@ -7783,7 +7783,7 @@ mod windows_overlay {
             if let Some(deadline) = loop_deadline {
                 if Instant::now() >= deadline {
                     if let Some(tx) = ui_tx.as_ref() {
-                        let _ = tx.send(UiCommand::ImageSearchFinished(format!(
+                        let _ = tx.send(UiCommand::VisionFinished(format!(
                             "{}: loop duration ended.",
                             preset.name
                         )));
@@ -7809,9 +7809,9 @@ mod windows_overlay {
             let hit = match find_image_search_timing_hit(&preset) {
                 Ok(hit) => hit,
                 Err(error) => {
-                    eprintln!("Image search timing preset failed: {error}");
+                    eprintln!("Vision timing preset failed: {error}");
                     if let Some(tx) = ui_tx.as_ref() {
-                        let _ = tx.send(UiCommand::ImageSearchFinished(format!(
+                        let _ = tx.send(UiCommand::VisionFinished(format!(
                             "{}: timing loop failed: {error}",
                             preset.name
                         )));
@@ -7823,7 +7823,7 @@ mod windows_overlay {
             let Some(hit) = hit else {
                 if !sent_wait_status {
                     if let Some(tx) = ui_tx.as_ref() {
-                        let _ = tx.send(UiCommand::ImageSearchFinished(format!(
+                        let _ = tx.send(UiCommand::VisionFinished(format!(
                             "{}: waiting...",
                             preset.name
                         )));
@@ -7845,7 +7845,7 @@ mod windows_overlay {
                 hit.delay_ms
             );
             if let Some(tx) = ui_tx.as_ref() {
-                let _ = tx.send(UiCommand::ImageSearchFinished(format!(
+                let _ = tx.send(UiCommand::VisionFinished(format!(
                     "{}: {}",
                     preset.name, trigger_status
                 )));
@@ -7863,15 +7863,15 @@ mod windows_overlay {
 
         set_image_search_timing_loop_active(preset.id, false);
         if let Some(tx) = ui_tx {
-            let _ = tx.send(UiCommand::ImageSearchFinished(format!(
+            let _ = tx.send(UiCommand::VisionFinished(format!(
                 "{}: loop stopped.",
                 preset.name
             )));
         }
     }
 
-    fn trigger_image_search_timing_with_options(
-        preset: &ImageSearchTimingPreset,
+    fn trigger_vision_timing_with_options(
+        preset: &VisionTimingPreset,
         macro_preset_id: u32,
         stop_immediately_on_retrigger: bool,
         target_window_title: Option<&str>,
@@ -7882,7 +7882,7 @@ mod windows_overlay {
             set_image_search_timing_loop_active(preset.id, false);
             bump_image_search_timing_wait_generation(preset.id);
             if let Some(tx) = HOOK_STATE.lock().ui_tx.clone() {
-                let _ = tx.send(UiCommand::ImageSearchFinished(format!(
+                let _ = tx.send(UiCommand::VisionFinished(format!(
                     "{}: loop stopped.",
                     preset.name
                 )));
@@ -7900,7 +7900,7 @@ mod windows_overlay {
             let target_window_title = target_window_title.map(|title| title.to_owned());
             let extra_target_window_titles = extra_target_window_titles.to_vec();
             thread::spawn(move || {
-                run_image_search_timing_loop(
+                run_vision_timing_loop(
                     preset,
                     macro_preset_id,
                     stop_immediately_on_retrigger,
@@ -7934,7 +7934,7 @@ mod windows_overlay {
             }
             if image_search_timing_wait_generation(preset.id) != wait_generation {
                 if let Some(tx) = ui_tx.as_ref() {
-                    let _ = tx.send(UiCommand::ImageSearchFinished(format!(
+                    let _ = tx.send(UiCommand::VisionFinished(format!(
                         "{}: waiting cancelled.",
                         preset.name
                     )));
@@ -7945,7 +7945,7 @@ mod windows_overlay {
             let hit = match find_image_search_timing_hit(preset) {
                 Ok(hit) => hit,
                 Err(error) => {
-                    eprintln!("Image search timing preset failed: {error}");
+                    eprintln!("Vision timing preset failed: {error}");
                     return MacroRunFlow::Continue;
                 }
             };
@@ -7953,7 +7953,7 @@ mod windows_overlay {
             let Some(hit) = hit else {
                 if !sent_wait_status {
                     if let Some(tx) = ui_tx.as_ref() {
-                        let _ = tx.send(UiCommand::ImageSearchFinished(format!(
+                        let _ = tx.send(UiCommand::VisionFinished(format!(
                             "{}: waiting...",
                             preset.name
                         )));
@@ -7975,7 +7975,7 @@ mod windows_overlay {
                 hit.delay_ms
             );
             if let Some(tx) = ui_tx.as_ref() {
-                let _ = tx.send(UiCommand::ImageSearchFinished(format!(
+                let _ = tx.send(UiCommand::VisionFinished(format!(
                     "{}: {}",
                     preset.name, trigger_status
                 )));
@@ -7994,8 +7994,8 @@ mod windows_overlay {
         }
     }
 
-    fn trigger_image_search_move_with_options(
-        preset: &ImageSearchPreset,
+    fn trigger_vision_move_with_options(
+        preset: &VisionPreset,
         move_cursor: bool,
         wait_until_found: bool,
         trigger_macro_enabled: bool,
@@ -8028,7 +8028,7 @@ mod windows_overlay {
             }
             if image_search_wait_generation(preset.id) != wait_generation {
                 if let Some(tx) = ui_tx.as_ref() {
-                    let _ = tx.send(UiCommand::ImageSearchFinished(format!(
+                    let _ = tx.send(UiCommand::VisionFinished(format!(
                         "{}: waiting cancelled.",
                         preset.name
                     )));
@@ -8036,17 +8036,17 @@ mod windows_overlay {
                 return MacroRunFlow::Continue;
             }
 
-            let outcome = match run_image_search_once_with_options(preset, move_cursor, false) {
+            let outcome = match run_vision_once_with_options(preset, move_cursor, false) {
                 Ok(outcome) => outcome,
                 Err(error) => {
-                    eprintln!("Image search macro step failed: {error}");
+                    eprintln!("Vision macro step failed: {error}");
                     return MacroRunFlow::Continue;
                 }
             };
 
             if outcome.matched {
                 if let Some(tx) = ui_tx.as_ref() {
-                    let _ = tx.send(UiCommand::ImageSearchFinished(format!(
+                    let _ = tx.send(UiCommand::VisionFinished(format!(
                         "{}: {}",
                         preset.name, outcome.status
                     )));
@@ -8073,7 +8073,7 @@ mod windows_overlay {
 
             if !sent_wait_status {
                 if let Some(tx) = ui_tx.as_ref() {
-                    let _ = tx.send(UiCommand::ImageSearchFinished(format!(
+                    let _ = tx.send(UiCommand::VisionFinished(format!(
                         "{}: waiting...",
                         preset.name
                     )));
@@ -8085,8 +8085,8 @@ mod windows_overlay {
         }
     }
 
-    fn stop_image_search_waiting(spec: &str) -> Result<()> {
-        let preset = image_search_preset_by_id(spec)?;
+    fn stop_vision_waiting(spec: &str) -> Result<()> {
+        let preset = vision_preset_by_id(spec)?;
         bump_image_search_wait_generation(preset.id);
         Ok(())
     }
@@ -8731,7 +8731,7 @@ mod windows_overlay {
         let _ = unsafe { Shell_NotifyIconW(NIM_DELETE, &notify_icon(hwnd)) };
         let _ = restore_mouse_sensitivity_on_exit();
         let _ = unsafe { ShowWindow(runtime.overlay_hwnd, SW_HIDE) };
-        let _ = unsafe { ShowWindow(runtime.toolbox_hwnd, SW_HIDE) };
+        let _ = unsafe { ShowWindow(runtime.hud_hwnd, SW_HIDE) };
         let _ = unsafe { ShowWindow(runtime.pin_hwnd, SW_HIDE) };
         if let Some(active) = &runtime.active_pin_thumbnail {
             if let Some(thumbnail_id) = active.thumbnail_id {
@@ -9092,8 +9092,8 @@ mod windows_overlay {
 
     unsafe fn paint_search_area_overlay(
         hwnd: HWND,
-        regions: &[ImageSearchRegion],
-        preview_region: Option<ImageSearchRegion>,
+        regions: &[VisionRegion],
+        preview_region: Option<VisionRegion>,
     ) -> Result<()> {
         let screen_width = GetSystemMetrics(SM_CXSCREEN).max(1);
         let screen_height = GetSystemMetrics(SM_CYSCREEN).max(1);
@@ -9504,7 +9504,7 @@ mod fallback {
 
     use crate::{
         model::{
-            AudioSettings, CrosshairStyle, ImageSearchPreset, MacroGroup, ProfileRecord, RgbaColor,
+            AudioSettings, CrosshairStyle, VisionPreset, MacroGroup, ProfileRecord, RgbaColor,
             WindowExpandControls, WindowFocusPreset, WindowPreset,
         },
         storage::AppPaths,
@@ -9528,7 +9528,7 @@ mod fallback {
             enabled: bool,
             step_px: u32,
         },
-        UpdateImageSearchPresets(Vec<ImageSearchPreset>),
+        UpdateVisionPresets(Vec<VisionPreset>),
         SetMacrosMasterEnabled(bool),
         SetUiVisible(bool),
         Exit,
@@ -9538,8 +9538,8 @@ mod fallback {
     pub enum UiCommand {
         ShowWindow,
         Exit,
-        ImageSearchFinished(String),
-        ImageSearchPointCaptured {
+        VisionFinished(String),
+        VisionPointCaptured {
             preset_id: u32,
             timing_preset: bool,
             priority_anchor: bool,
@@ -9547,13 +9547,13 @@ mod fallback {
             screen_y: i32,
             color: Option<RgbaColor>,
         },
-        ImageSearchRegionPreview {
+        VisionRegionPreview {
             screen_x: i32,
             screen_y: i32,
             width: i32,
             height: i32,
         },
-        ImageSearchRegionCaptured {
+        VisionRegionCaptured {
             preset_id: u32,
             timing_preset: bool,
             template_mode: bool,
@@ -9562,7 +9562,7 @@ mod fallback {
             width: i32,
             height: i32,
         },
-        ImageSearchPointCaptureCancelled(String),
+        VisionPointCaptureCancelled(String),
     }
 
     pub struct OverlayHandle;

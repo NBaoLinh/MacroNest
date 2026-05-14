@@ -4,7 +4,7 @@ use std::collections::{HashMap, HashSet};
 use std::time::{SystemTime, UNIX_EPOCH};
 
 use crate::model::{
-    AiSettings, CrosshairStyle, CustomPreset, GroqSettings, MacroAction, MacroPreset, MacroStep,
+    AiSettings, CrosshairStyle, CommandPreset, GroqSettings, MacroAction, MacroPreset, MacroStep,
     RgbaColor,
 };
 
@@ -187,7 +187,7 @@ impl CrosshairStylePatch {
 }
 
 #[derive(Debug, Clone, Default, Deserialize)]
-pub struct CustomPresetPatch {
+pub struct CommandPresetPatch {
     #[serde(default)]
     pub name: Option<String>,
     #[serde(default)]
@@ -206,8 +206,8 @@ pub struct CustomPresetPatch {
     pub use_powershell: Option<bool>,
 }
 
-impl CustomPresetPatch {
-    pub fn apply_to(&self, preset: &mut CustomPreset) {
+impl CommandPresetPatch {
+    pub fn apply_to(&self, preset: &mut CommandPreset) {
         if let Some(name) = self.name.as_ref() {
             let next = name.trim();
             if !next.is_empty() {
@@ -215,7 +215,7 @@ impl CustomPresetPatch {
             }
         }
         if let Some(command) = self.command.as_ref() {
-            preset.command = normalize_custom_command_text(command);
+            preset.command = normalize_command_text(command);
         }
         if let Some(enabled) = self.enabled {
             preset.enabled = enabled;
@@ -274,9 +274,9 @@ struct AiMacroStepDraft {
     #[serde(default)]
     text_override: String,
     #[serde(default)]
-    custom_preset_command: String,
+    command_preset_command: String,
     #[serde(default)]
-    custom_preset_use_powershell: bool,
+    command_preset_use_powershell: bool,
     #[serde(default)]
     timed_override: bool,
     #[serde(default)]
@@ -286,13 +286,13 @@ struct AiMacroStepDraft {
     #[serde(default)]
     mouse_speed_percent: u32,
     #[serde(default)]
-    image_search_move_cursor_on_match: bool,
+    vision_move_cursor_on_match: bool,
     #[serde(default)]
-    image_search_wait_until_found: bool,
+    vision_wait_until_found: bool,
     #[serde(default)]
-    image_search_trigger_macro_enabled: bool,
+    vision_trigger_macro_enabled: bool,
     #[serde(default)]
-    image_search_trigger_macro_preset_id: Option<u32>,
+    vision_trigger_macro_preset_id: Option<u32>,
 }
 
 impl AiMacroStepDraft {
@@ -323,16 +323,16 @@ impl AiMacroStepDraft {
         } else {
             self.text_override
         };
-        step.custom_preset_command = normalize_custom_command_text(&self.custom_preset_command);
-        step.custom_preset_use_powershell = self.custom_preset_use_powershell;
+        step.command_preset_command = normalize_command_text(&self.command_preset_command);
+        step.command_preset_use_powershell = self.command_preset_use_powershell;
         step.timed_override = self.timed_override;
         step.duration_override_ms = self.duration_override_ms;
         step.smooth_mouse_path = self.smooth_mouse_path;
         step.mouse_speed_percent = self.mouse_speed_percent;
-        step.image_search_move_cursor_on_match = self.image_search_move_cursor_on_match;
-        step.image_search_wait_until_found = self.image_search_wait_until_found;
-        step.image_search_trigger_macro_enabled = self.image_search_trigger_macro_enabled;
-        step.image_search_trigger_macro_preset_id = self.image_search_trigger_macro_preset_id;
+        step.vision_move_cursor_on_match = self.vision_move_cursor_on_match;
+        step.vision_wait_until_found = self.vision_wait_until_found;
+        step.vision_trigger_macro_enabled = self.vision_trigger_macro_enabled;
+        step.vision_trigger_macro_preset_id = self.vision_trigger_macro_preset_id;
         Some(step)
     }
 
@@ -346,7 +346,7 @@ impl AiMacroStepDraft {
                 | MacroAction::ApplyWindowPreset
                 | MacroAction::FocusWindowPreset
                 | MacroAction::TriggerMacroPreset
-                | MacroAction::TriggerCustomPreset
+                | MacroAction::TriggerCommandPreset
                 | MacroAction::EnableCrosshairProfile
                 | MacroAction::EnablePinPreset
                 | MacroAction::PlayMousePathPreset
@@ -355,14 +355,14 @@ impl AiMacroStepDraft {
                 | MacroAction::PlaySoundPreset
                 | MacroAction::EnableMacroPreset
                 | MacroAction::DisableMacroPreset
-                | MacroAction::StartImageSearch
-                | MacroAction::TriggerImageSearchMove
-                | MacroAction::TriggerImageSearchTiming
-                | MacroAction::StopImageSearchWait
-                | MacroAction::StopImageSearch
+                | MacroAction::StartVisionSearch
+                | MacroAction::TriggerVisionMove
+                | MacroAction::TriggerVisionTiming
+                | MacroAction::StopVisionWait
+                | MacroAction::StopVision
                 | MacroAction::LoopStart
                 | MacroAction::StopIfKeyPressed
-                | MacroAction::ShowToolbox
+                | MacroAction::ShowHud
                 | MacroAction::LockKeys
                 | MacroAction::UnlockKeys
         )
@@ -372,7 +372,7 @@ impl AiMacroStepDraft {
 #[derive(Debug, Clone, Default)]
 pub struct MacroAiPlan {
     pub steps: Vec<MacroStep>,
-    pub custom_presets: Vec<CustomPresetPatch>,
+    pub command_presets: Vec<CommandPresetPatch>,
 }
 
 #[derive(Deserialize, Default)]
@@ -380,7 +380,7 @@ struct AiMacroPlanDraft {
     #[serde(default)]
     steps: Vec<AiMacroStepDraft>,
     #[serde(default)]
-    custom_presets: Vec<CustomPresetPatch>,
+    command_presets: Vec<CommandPresetPatch>,
 }
 
 pub fn generate_macro_steps(settings: &AiSettings, prompt: &str) -> Result<Vec<MacroStep>> {
@@ -459,11 +459,11 @@ pub fn generate_crosshair_style_patch_groq(
     parse_crosshair_style_patch_json(&text, prompt)
 }
 
-pub fn generate_custom_preset_patch_groq(
+pub fn generate_command_preset_patch_groq(
     settings: &GroqSettings,
     prompt: &str,
     system_instruction: &str,
-) -> Result<CustomPresetPatch> {
+) -> Result<CommandPresetPatch> {
     let text = groq_chat_completion_text(
         settings,
         prompt,
@@ -473,7 +473,7 @@ pub fn generate_custom_preset_patch_groq(
     parse_custom_preset_patch_json(&text, prompt)
 }
 
-pub fn normalize_custom_command_text(text: &str) -> String {
+pub fn normalize_command_text(text: &str) -> String {
     let trimmed = text.trim();
     if trimmed.is_empty() {
         return String::new();
@@ -552,12 +552,12 @@ pub fn prompt_contains_action_intent(prompt: &str) -> bool {
         .any(|word| ACTION_WORDS.contains(&word))
 }
 
-pub fn normalize_trigger_custom_preset_keys(
+pub fn normalize_trigger_command_preset_keys(
     steps: &mut [MacroStep],
-    custom_presets: &[CustomPreset],
+    command_presets: &[CommandPreset],
 ) {
     let mut catalog = HashMap::new();
-    for preset in custom_presets {
+    for preset in command_presets {
         let name = preset.name.trim();
         if !name.is_empty() {
             catalog.insert(name.to_ascii_lowercase(), preset.id);
@@ -565,7 +565,7 @@ pub fn normalize_trigger_custom_preset_keys(
     }
 
     for step in steps {
-        if step.action != MacroAction::TriggerCustomPreset {
+        if step.action != MacroAction::TriggerCommandPreset {
             continue;
         }
         let key = step.key.trim();
@@ -578,12 +578,12 @@ pub fn normalize_trigger_custom_preset_keys(
     }
 }
 
-pub fn attach_custom_preset_drafts_to_steps(
+pub fn attach_command_preset_drafts_to_steps(
     steps: &mut [MacroStep],
-    custom_presets: &[CustomPresetPatch],
+    command_presets: &[CommandPresetPatch],
 ) {
     let mut catalog = HashMap::new();
-    for preset in custom_presets {
+    for preset in command_presets {
         let Some(name) = preset.name.as_ref() else {
             continue;
         };
@@ -594,7 +594,7 @@ pub fn attach_custom_preset_drafts_to_steps(
     }
 
     for step in steps {
-        if step.action != MacroAction::TriggerCustomPreset {
+        if step.action != MacroAction::TriggerCommandPreset {
             continue;
         }
         let key = step.key.trim();
@@ -605,15 +605,15 @@ pub fn attach_custom_preset_drafts_to_steps(
             continue;
         };
         if let Some(command) = patch.command.as_ref() {
-            step.custom_preset_command = command.trim().to_owned();
+            step.command_preset_command = command.trim().to_owned();
         }
         if let Some(use_powershell) = patch.use_powershell {
-            step.custom_preset_use_powershell = use_powershell;
+            step.command_preset_use_powershell = use_powershell;
         }
     }
 }
 
-fn normalize_wait_delay_before_custom_trigger(user_request: &str, steps: &mut [MacroStep]) {
+fn normalize_wait_delay_before_command_trigger(user_request: &str, steps: &mut [MacroStep]) {
     let Some(wait_ms) = extract_first_wait_duration_ms(user_request) else {
         return;
     };
@@ -624,16 +624,16 @@ fn normalize_wait_delay_before_custom_trigger(user_request: &str, steps: &mut [M
         return;
     }
 
-    let mut saw_non_custom_step = false;
+    let mut saw_non_command_step = false;
     for step in steps {
-        if step.action == MacroAction::TriggerCustomPreset {
-            if saw_non_custom_step && step.delay_ms == 0 {
+        if step.action == MacroAction::TriggerCommandPreset {
+            if saw_non_command_step && step.delay_ms == 0 {
                 step.delay_ms = wait_ms;
                 return;
             }
             continue;
         }
-        saw_non_custom_step = true;
+        saw_non_command_step = true;
     }
 }
 
@@ -969,13 +969,13 @@ fn parse_steps_json_candidate(text: &str) -> Result<Vec<MacroStep>> {
 #[derive(Debug)]
 enum MacroAiScriptEntry {
     Step(MacroStep),
-    CustomPreset(CustomPresetPatch),
+    CommandPreset(CommandPresetPatch),
     Delay(u64),
 }
 
 fn parse_macro_ai_plan_script(text: &str, prompt: &str) -> Result<MacroAiPlan> {
     let mut steps = Vec::new();
-    let mut custom_presets = Vec::new();
+    let mut command_presets = Vec::new();
     let mut pending_delay_ms = 0u64;
 
     for line in text.lines() {
@@ -993,17 +993,17 @@ fn parse_macro_ai_plan_script(text: &str, prompt: &str) -> Result<MacroAiPlan> {
                 }
                 steps.push(step);
             }
-            MacroAiScriptEntry::CustomPreset(preset) => custom_presets.push(preset),
+            MacroAiScriptEntry::CommandPreset(preset) => command_presets.push(preset),
         }
     }
 
-    if steps.is_empty() && custom_presets.is_empty() {
+    if steps.is_empty() && command_presets.is_empty() {
         bail!("AI output did not contain any macro script commands");
     }
 
     let user_request = extract_user_request(prompt);
-    if steps.is_empty() && !custom_presets.is_empty() {
-        steps = synthesize_custom_trigger_steps(&user_request, &custom_presets)?;
+    if steps.is_empty() && !command_presets.is_empty() {
+        steps = synthesize_command_trigger_steps(&user_request, &command_presets)?;
         if pending_delay_ms > 0 {
             if let Some(first_step) = steps.first_mut() {
                 first_step.delay_ms = first_step.delay_ms.saturating_add(pending_delay_ms);
@@ -1013,14 +1013,14 @@ fn parse_macro_ai_plan_script(text: &str, prompt: &str) -> Result<MacroAiPlan> {
 
     let mut plan = MacroAiPlan {
         steps,
-        custom_presets,
+        command_presets,
     };
-    attach_custom_preset_drafts_to_steps(&mut plan.steps, &plan.custom_presets);
+    attach_command_preset_drafts_to_steps(&mut plan.steps, &plan.command_presets);
     let steps = sanitize_steps_for_prompt_allow_empty(prompt, plan.steps)?;
     plan.steps = steps;
-    attach_custom_preset_drafts_to_steps(&mut plan.steps, &plan.custom_presets);
-    normalize_wait_delay_before_custom_trigger(&user_request, &mut plan.steps);
-    if plan.steps.is_empty() && plan.custom_presets.is_empty() {
+    attach_command_preset_drafts_to_steps(&mut plan.steps, &plan.command_presets);
+    normalize_wait_delay_before_command_trigger(&user_request, &mut plan.steps);
+    if plan.steps.is_empty() && plan.command_presets.is_empty() {
         bail!("AI output did not contain any macro script commands");
     }
 
@@ -1127,14 +1127,14 @@ fn parse_macro_ai_script_line(line: &str) -> Result<Option<MacroAiScriptEntry>> 
     if let Some(rest) = strip_case_insensitive_prefix(trimmed, "start_image_search_")
         .or_else(|| strip_case_insensitive_prefix(trimmed, "start_image_search "))
     {
-        return Ok(parse_macro_ai_key_step(MacroAction::StartImageSearch, rest));
+        return Ok(parse_macro_ai_key_step(MacroAction::StartVisionSearch, rest));
     }
 
     if let Some(rest) = strip_case_insensitive_prefix(trimmed, "trigger_image_search_move_")
         .or_else(|| strip_case_insensitive_prefix(trimmed, "trigger_image_search_move "))
     {
         return Ok(parse_macro_ai_key_step(
-            MacroAction::TriggerImageSearchMove,
+            MacroAction::TriggerVisionMove,
             rest,
         ));
     }
@@ -1143,7 +1143,7 @@ fn parse_macro_ai_script_line(line: &str) -> Result<Option<MacroAiScriptEntry>> 
         .or_else(|| strip_case_insensitive_prefix(trimmed, "trigger_image_search_timing "))
     {
         return Ok(parse_macro_ai_key_step(
-            MacroAction::TriggerImageSearchTiming,
+            MacroAction::TriggerVisionTiming,
             rest,
         ));
     }
@@ -1152,7 +1152,7 @@ fn parse_macro_ai_script_line(line: &str) -> Result<Option<MacroAiScriptEntry>> 
         .or_else(|| strip_case_insensitive_prefix(trimmed, "stop_image_search_wait "))
     {
         return Ok(parse_macro_ai_key_step(
-            MacroAction::StopImageSearchWait,
+            MacroAction::StopVisionWait,
             rest,
         ));
     }
@@ -1160,7 +1160,7 @@ fn parse_macro_ai_script_line(line: &str) -> Result<Option<MacroAiScriptEntry>> 
     if let Some(rest) = strip_case_insensitive_prefix(trimmed, "stop_image_search_")
         .or_else(|| strip_case_insensitive_prefix(trimmed, "stop_image_search "))
     {
-        return Ok(parse_macro_ai_key_step(MacroAction::StopImageSearch, rest));
+        return Ok(parse_macro_ai_key_step(MacroAction::StopVision, rest));
     }
 
     if trimmed.eq_ignore_ascii_case("lock_mouse") || trimmed.eq_ignore_ascii_case("lock mouse") {
@@ -1274,7 +1274,7 @@ fn parse_macro_ai_script_line(line: &str) -> Result<Option<MacroAiScriptEntry>> 
             return Ok(None);
         }
         let mut step = MacroStep::default();
-        step.action = MacroAction::TriggerCustomPreset;
+        step.action = MacroAction::TriggerCommandPreset;
         step.key = key.to_owned();
         return Ok(Some(MacroAiScriptEntry::Step(step)));
     }
@@ -1286,11 +1286,11 @@ fn parse_macro_ai_script_line(line: &str) -> Result<Option<MacroAiScriptEntry>> 
             return Ok(None);
         };
         let name = name_part.trim();
-        let command = normalize_custom_command_text(command_part);
+        let command = normalize_command_text(command_part);
         if name.is_empty() || command.is_empty() {
             return Ok(None);
         }
-        let patch = CustomPresetPatch {
+        let patch = CommandPresetPatch {
             name: Some(name.to_owned()),
             command: Some(command.to_owned()),
             enabled: None,
@@ -1300,7 +1300,7 @@ fn parse_macro_ai_script_line(line: &str) -> Result<Option<MacroAiScriptEntry>> 
             match_duplicate_window_titles: None,
             use_powershell: Some(false),
         };
-        return Ok(Some(MacroAiScriptEntry::CustomPreset(patch)));
+        return Ok(Some(MacroAiScriptEntry::CommandPreset(patch)));
     }
 
     if let Some(rest) = strip_case_insensitive_prefix(trimmed, "loop_start_")
@@ -1352,15 +1352,15 @@ fn parse_macro_ai_script_line(line: &str) -> Result<Option<MacroAiScriptEntry>> 
             return Ok(None);
         }
         let mut step = MacroStep::default();
-        step.action = MacroAction::ShowToolbox;
+        step.action = MacroAction::ShowHud;
         step.key = key.to_owned();
         return Ok(Some(MacroAiScriptEntry::Step(step)));
     }
 
-    if trimmed.eq_ignore_ascii_case("hide_toolbox") || trimmed.eq_ignore_ascii_case("hide toolbox")
+    if trimmed.eq_ignore_ascii_case("hide_toolbox") || trimmed.eq_ignore_ascii_case("hide hud")
     {
         let mut step = MacroStep::default();
-        step.action = MacroAction::HideToolbox;
+        step.action = MacroAction::HideHud;
         return Ok(Some(MacroAiScriptEntry::Step(step)));
     }
 
@@ -1638,17 +1638,17 @@ fn parse_macro_ai_plan_json(text: &str, prompt: &str) -> Result<MacroAiPlan> {
                 let steps = sanitize_steps_for_prompt_allow_empty(prompt, plan.steps)?;
                 if steps.is_empty() {
                     let synthesized_steps =
-                        synthesize_custom_trigger_steps(&user_request, &plan.custom_presets)?;
+                        synthesize_command_trigger_steps(&user_request, &plan.command_presets)?;
                     if !synthesized_steps.is_empty() {
                         let mut plan = MacroAiPlan {
                             steps: synthesized_steps,
-                            custom_presets: plan.custom_presets,
+                            command_presets: plan.command_presets,
                         };
-                        attach_custom_preset_drafts_to_steps(&mut plan.steps, &plan.custom_presets);
-                        normalize_wait_delay_before_custom_trigger(&user_request, &mut plan.steps);
+                        attach_command_preset_drafts_to_steps(&mut plan.steps, &plan.command_presets);
+                        normalize_wait_delay_before_command_trigger(&user_request, &mut plan.steps);
                         return Ok(plan);
                     }
-                    if !plan.custom_presets.is_empty() {
+                    if !plan.command_presets.is_empty() {
                         bail!(
                             "AI output only contained custom presets, but the request did not include an actionable macro step"
                         );
@@ -1656,10 +1656,10 @@ fn parse_macro_ai_plan_json(text: &str, prompt: &str) -> Result<MacroAiPlan> {
                 }
                 let mut plan = MacroAiPlan {
                     steps,
-                    custom_presets: plan.custom_presets,
+                    command_presets: plan.command_presets,
                 };
-                attach_custom_preset_drafts_to_steps(&mut plan.steps, &plan.custom_presets);
-                normalize_wait_delay_before_custom_trigger(&user_request, &mut plan.steps);
+                attach_command_preset_drafts_to_steps(&mut plan.steps, &plan.command_presets);
+                normalize_wait_delay_before_command_trigger(&user_request, &mut plan.steps);
                 return Ok(plan);
             }
             Err(error) => last_error = Some(error),
@@ -1685,7 +1685,7 @@ fn parse_macro_ai_plan_json_candidate(text: &str) -> Result<MacroAiPlan> {
             }
             Ok(MacroAiPlan {
                 steps,
-                custom_presets: Vec::new(),
+                command_presets: Vec::new(),
             })
         }
         serde_json::Value::Object(_) => {
@@ -1698,7 +1698,7 @@ fn parse_macro_ai_plan_json_candidate(text: &str) -> Result<MacroAiPlan> {
                 .collect::<Vec<_>>();
             Ok(MacroAiPlan {
                 steps,
-                custom_presets: draft.custom_presets,
+                command_presets: draft.command_presets,
             })
         }
         _ => bail!("AI output must be a JSON array or object"),
@@ -1732,7 +1732,7 @@ fn parse_crosshair_style_patch_json(text: &str, _prompt: &str) -> Result<Crossha
         .unwrap_or_else(|| anyhow::anyhow!("AI output did not contain valid crosshair JSON")))
 }
 
-fn parse_custom_preset_patch_json(text: &str, _prompt: &str) -> Result<CustomPresetPatch> {
+fn parse_custom_preset_patch_json(text: &str, _prompt: &str) -> Result<CommandPresetPatch> {
     let mut attempts = Vec::new();
     let trimmed = text.trim();
     if !trimmed.is_empty() {
@@ -1749,7 +1749,7 @@ fn parse_custom_preset_patch_json(text: &str, _prompt: &str) -> Result<CustomPre
 
     let mut last_error = None;
     for candidate in attempts {
-        match serde_json::from_str::<CustomPresetPatch>(&candidate) {
+        match serde_json::from_str::<CommandPresetPatch>(&candidate) {
             Ok(patch) => return Ok(patch),
             Err(error) => last_error = Some(error.into()),
         }
@@ -1834,11 +1834,11 @@ fn sanitize_steps_for_prompt_impl(
     Ok(steps)
 }
 
-fn synthesize_custom_trigger_steps(
+fn synthesize_command_trigger_steps(
     _user_request: &str,
-    custom_presets: &[CustomPresetPatch],
+    command_presets: &[CommandPresetPatch],
 ) -> Result<Vec<MacroStep>> {
-    let custom_names = custom_presets
+    let custom_names = command_presets
         .iter()
         .filter_map(|preset| preset.name.as_ref())
         .map(|name| name.trim())
@@ -1853,7 +1853,7 @@ fn synthesize_custom_trigger_steps(
     let mut steps = Vec::with_capacity(custom_names.len());
     for name in custom_names {
         let mut step = MacroStep::default();
-        step.action = MacroAction::TriggerCustomPreset;
+        step.action = MacroAction::TriggerCommandPreset;
         step.key = name;
         steps.push(step);
     }
@@ -2319,23 +2319,23 @@ fn extract_typeable_text_from_steps(steps: &[MacroStep]) -> Option<String> {
 struct PromptCatalogs {
     macro_group_presets: HashMap<String, u32>,
     pin_presets: HashMap<String, u32>,
-    toolbox_presets: HashMap<String, u32>,
+    hud_presets: HashMap<String, u32>,
     window_presets: HashMap<String, u32>,
     focus_presets: HashMap<String, u32>,
     zoom_presets: HashMap<String, u32>,
     sound_presets: HashMap<String, u32>,
     mouse_sensitivity_presets: HashMap<String, u32>,
     mouse_path_presets: HashMap<String, u32>,
-    custom_presets: HashMap<String, u32>,
-    image_search_presets: HashMap<String, u32>,
-    image_search_timing_presets: HashMap<String, u32>,
+    command_presets: HashMap<String, u32>,
+    vision_presets: HashMap<String, u32>,
+    vision_timing_presets: HashMap<String, u32>,
 }
 
 fn extract_prompt_catalogs(prompt: &str) -> PromptCatalogs {
     PromptCatalogs {
         macro_group_presets: extract_named_id_catalog(prompt, "Current macro group presets:"),
         pin_presets: extract_named_id_catalog(prompt, "Available pin presets:"),
-        toolbox_presets: extract_named_id_catalog(prompt, "Available toolbox presets:"),
+        hud_presets: extract_named_id_catalog(prompt, "Available HUD presets:"),
         window_presets: extract_named_id_catalog(prompt, "Available window presets:"),
         focus_presets: extract_named_id_catalog(prompt, "Available focus presets:"),
         zoom_presets: extract_named_id_catalog(prompt, "Available zoom presets:"),
@@ -2345,9 +2345,9 @@ fn extract_prompt_catalogs(prompt: &str) -> PromptCatalogs {
             "Available mouse sensitivity presets:",
         ),
         mouse_path_presets: extract_named_id_catalog(prompt, "Available mouse path presets:"),
-        custom_presets: extract_named_id_catalog(prompt, "Available custom presets:"),
-        image_search_presets: extract_named_id_catalog(prompt, "Available image search presets:"),
-        image_search_timing_presets: extract_named_id_catalog(
+        command_presets: extract_named_id_catalog(prompt, "Available Command presets:"),
+        vision_presets: extract_named_id_catalog(prompt, "Available image search presets:"),
+        vision_timing_presets: extract_named_id_catalog(
             prompt,
             "Available image search timing presets:",
         ),
@@ -2412,7 +2412,7 @@ fn normalize_named_target_keys(catalogs: &PromptCatalogs, steps: &mut [MacroStep
             | MacroAction::DisableMacroPreset => {
                 resolve_catalog_id(&catalogs.macro_group_presets, key)
             }
-            MacroAction::TriggerCustomPreset => resolve_catalog_id(&catalogs.custom_presets, key),
+            MacroAction::TriggerCommandPreset => resolve_catalog_id(&catalogs.command_presets, key),
             MacroAction::EnablePinPreset => resolve_catalog_id(&catalogs.pin_presets, key),
             MacroAction::PlayMousePathPreset => {
                 resolve_catalog_id(&catalogs.mouse_path_presets, key)
@@ -2422,15 +2422,15 @@ fn normalize_named_target_keys(catalogs: &PromptCatalogs, steps: &mut [MacroStep
             }
             MacroAction::EnableZoomPreset => resolve_catalog_id(&catalogs.zoom_presets, key),
             MacroAction::PlaySoundPreset => resolve_catalog_id(&catalogs.sound_presets, key),
-            MacroAction::StartImageSearch
-            | MacroAction::TriggerImageSearchMove
-            | MacroAction::StopImageSearch => {
-                resolve_catalog_id(&catalogs.image_search_presets, key)
+            MacroAction::StartVisionSearch
+            | MacroAction::TriggerVisionMove
+            | MacroAction::StopVision => {
+                resolve_catalog_id(&catalogs.vision_presets, key)
             }
-            MacroAction::TriggerImageSearchTiming => {
-                resolve_catalog_id(&catalogs.image_search_timing_presets, key)
+            MacroAction::TriggerVisionTiming => {
+                resolve_catalog_id(&catalogs.vision_timing_presets, key)
             }
-            MacroAction::ShowToolbox => resolve_catalog_id(&catalogs.toolbox_presets, key),
+            MacroAction::ShowHud => resolve_catalog_id(&catalogs.hud_presets, key),
             _ => None,
         };
 
