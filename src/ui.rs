@@ -1791,7 +1791,7 @@ impl CrosshairApp {
     }
 
     fn modal_safe_rect(ctx: &egui::Context) -> egui::Rect {
-        ctx.content_rect().shrink(18.0)
+        ctx.screen_rect().shrink(18.0)
     }
 
     fn centered_modal_placement(
@@ -2656,13 +2656,16 @@ impl CrosshairApp {
     ) -> &'static str {
         match language {
             UiLanguage::Vietnamese => {
-                if !vietnamese.is_empty() {
-                    vietnamese
-                } else {
-                    Self::normalize_vietnamese(
-                        crate::lang::translate(language, english).unwrap_or(english),
-                    )
+                // 1. Check the central JSON translation system first.
+                if let Some(translated) = crate::lang::translate(language, english) {
+                    return Self::normalize_vietnamese(translated);
                 }
+                // 2. Fall back to the custom Vietnamese string if it was provided and is distinct from English.
+                if !vietnamese.is_empty() && vietnamese != english {
+                    return vietnamese;
+                }
+                // 3. Ultimate fallback.
+                english
             }
             UiLanguage::English | UiLanguage::Icon => english,
         }
@@ -16033,7 +16036,7 @@ impl CrosshairApp {
         }
 
         if let Some((group_id, preset_id)) = self.pending_macro_infinite_loop_enable {
-            let title = Self::tr_lang(language, "⚠️ Dangerous Macro Detection", "⚠️ Phát hiện Macro nguy hiểm");
+            let title = Self::tr_lang(language, "⚠ Dangerous Macro Detection", "⚠ Phát hiện Macro nguy hiểm");
             let msg = Self::tr_lang(
                 language,
                 "This macro contains an infinite loop and is triggered via Press or Release.\nRunning it may cause the program to cycle indefinitely until manually stopped via the Master hotkey.\n\nAre you absolutely sure you want to enable it?",
@@ -16783,8 +16786,8 @@ impl CrosshairApp {
                             ui.label("");
                             ui.label(egui::RichText::new(Self::tr_lang(
                                 language,
-                                "⚠️ OpenCV library not installed! Check Settings.",
-                                "⚠️ Chưa cài đặt thư viện OpenCV! Hãy kiểm tra Cài đặt.",
+                                "⚠ OpenCV library not installed! Check Settings.",
+                                "⚠ Chưa cài đặt thư viện OpenCV! Hãy kiểm tra Cài đặt.",
                             )).color(egui::Color32::from_rgb(255, 110, 110)));
                             ui.end_row();
                         }
