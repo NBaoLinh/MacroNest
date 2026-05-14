@@ -3068,57 +3068,107 @@ impl CrosshairApp {
 
     fn render_update_settings(&mut self, ui: &mut egui::Ui, ctx: &egui::Context) {
         let language = self.state.ui_language;
-        ui.add_space(8.0);
-        Frame::group(ui.style()).show(ui, |ui| {
-            ui.label(RichText::new(Self::tr_lang(language, "Update", "Cáº­p nháº­t")).strong());
-            ui.add_space(6.0);
-            match &self.update_status {
-                UpdateStatus::Idle => {
-                    if ui.button(Self::tr_lang(language, "Check for update", "Kiá»ƒm tra cáº­p nháº­t")).clicked() {
-                        self.check_for_update(ctx);
+        Self::settings_card_frame(ui).show(ui, |ui| {
+            ui.set_min_width(ui.available_width());
+            ui.vertical(|ui| {
+                ui.label(
+                    RichText::new(Self::tr_lang(language, "Update", "Cập nhật"))
+                        .strong()
+                        .size(14.0),
+                );
+                ui.add_space(8.0);
+                match &self.update_status {
+                    UpdateStatus::Idle => {
+                        if ui
+                            .button(Self::tr_lang(
+                                language,
+                                "Check for update",
+                                "Kiểm tra cập nhật",
+                            ))
+                            .clicked()
+                        {
+                            self.check_for_update(ctx);
+                        }
+                    }
+                    UpdateStatus::Checking => {
+                        ui.horizontal(|ui| {
+                            ui.spinner();
+                            ui.label(Self::tr_lang(
+                                language,
+                                "Checking for updates...",
+                                "Đang kiểm tra cập nhật...",
+                            ));
+                        });
+                    }
+                    UpdateStatus::Available(version, body, url) => {
+                        ui.label(
+                            RichText::new(format!("New version available: v{}", version))
+                                .color(Color32::GREEN),
+                        );
+                        if !body.is_empty() {
+                            ui.label(RichText::new(body).small().weak());
+                        }
+                        if ui
+                            .button(Self::tr_lang(
+                                language,
+                                "Download and Update",
+                                "Tải xuống và Cập nhật",
+                            ))
+                            .clicked()
+                        {
+                            self.start_download_update(ctx, url.clone());
+                        }
+                    }
+                    UpdateStatus::Downloading => {
+                        ui.horizontal(|ui| {
+                            ui.spinner();
+                            ui.label(Self::tr_lang(
+                                language,
+                                "Downloading update...",
+                                "Đang tải cập nhật...",
+                            ));
+                        });
+                    }
+                    UpdateStatus::ReadyToRestart(path) => {
+                        ui.label(RichText::new("Update downloaded!").color(Color32::GREEN));
+                        let path = path.clone();
+                        if ui
+                            .button(
+                                RichText::new(Self::tr_lang(
+                                    language,
+                                    "Restart App",
+                                    "Khởi động lại",
+                                ))
+                                .strong(),
+                            )
+                            .clicked()
+                        {
+                            self.restart_and_apply_update(path);
+                        }
+                    }
+                    UpdateStatus::UpToDate => {
+                        ui.label(Self::tr_lang(
+                            language,
+                            "App is up to date.",
+                            "Ứng dụng đã ở bản mới nhất.",
+                        ));
+                        ui.add_space(4.0);
+                        if ui
+                            .button(Self::tr_lang(language, "Check again", "Kiểm tra lại"))
+                            .clicked()
+                        {
+                            self.check_for_update(ctx);
+                        }
+                    }
+                    UpdateStatus::Error(e) => {
+                        ui.label(RichText::new(format!("Error: {}", e)).color(Color32::RED));
+                        ui.add_space(4.0);
+                        if ui.button(Self::tr_lang(language, "Retry", "Thử lại")).clicked() {
+                            self.check_for_update(ctx);
+                        }
                     }
                 }
-                UpdateStatus::Checking => {
-                    ui.horizontal(|ui| {
-                        ui.spinner();
-                        ui.label(Self::tr_lang(language, "Checking for updates...", "Äang kiá»ƒm tra cáº­p nháº­t..."));
-                    });
-                }
-                UpdateStatus::Available(version, body, url) => {
-                    ui.label(RichText::new(format!("New version available: v{}", version)).color(Color32::GREEN));
-                    if !body.is_empty() {
-                        ui.label(RichText::new(body).small().weak());
-                    }
-                    if ui.button(Self::tr_lang(language, "Download and Update", "Táº£i xuá»‘ng vÃ  Cáº­p nháº­t")).clicked() {
-                        self.start_download_update(ctx, url.clone());
-                    }
-                }
-                UpdateStatus::Downloading => {
-                    ui.horizontal(|ui| {
-                        ui.spinner();
-                        ui.label(Self::tr_lang(language, "Downloading update...", "Äang táº£i cáº­p nháº­t..."));
-                    });
-                }
-                UpdateStatus::ReadyToRestart(path) => {
-                    ui.label(RichText::new("Update downloaded!").color(Color32::GREEN));
-                    let path = path.clone();
-                    if ui.button(RichText::new(Self::tr_lang(language, "Restart App", "Khá»Ÿi Ä‘á»™ng láº¡i")).strong()).clicked() {
-                        self.restart_and_apply_update(path);
-                    }
-                }
-                UpdateStatus::UpToDate => {
-                    ui.label(Self::tr_lang(language, "App is up to date.", "á»¨ng dá»¥ng Ä‘Ã£ á»Ÿ báº£n má»›i nháº¥t."));
-                    if ui.button(Self::tr_lang(language, "Check again", "Kiá»ƒm tra láº¡i")).clicked() {
-                        self.check_for_update(ctx);
-                    }
-                }
-                UpdateStatus::Error(e) => {
-                    ui.label(RichText::new(format!("Error: {}", e)).color(Color32::RED));
-                    if ui.button(Self::tr_lang(language, "Retry", "Thá»­ láº¡i")).clicked() {
-                        self.check_for_update(ctx);
-                    }
-                }
-            }
+            });
         });
     }
     fn app_version_label(&self) -> &'static str {
@@ -17916,194 +17966,253 @@ impl CrosshairApp {
         self.trim_timeline_zoom = trim_timeline_zoom;
     }
 
+    fn settings_card_frame(ui: &egui::Ui) -> egui::Frame {
+        egui::Frame::group(ui.style())
+            .fill(Color32::from_rgba_premultiplied(32, 36, 42, 160))
+            .stroke(egui::Stroke::new(1.0, Color32::from_rgba_premultiplied(90, 100, 115, 80)))
+            .corner_radius(14.0)
+            .inner_margin(egui::Margin::same(16))
+    }
+
     fn render_settings_popup(&mut self, ui: &mut egui::Ui) {
         let language = self.state.ui_language;
-        ui.add_space(2.0);
-        let mut groq_changed = false;
-        Frame::group(ui.style()).show(ui, |ui| {
-            ui.horizontal(|ui| {
-                if ui
-                    .selectable_label(
-                        self.state.groq_settings.details_open,
-                        RichText::new("API").strong(),
-                    )
-                    .clicked()
-                {
-                    self.state.groq_settings.details_open = !self.state.groq_settings.details_open;
-                    groq_changed = true;
-                }
-            });
-            if self.state.groq_settings.details_open {
-                ui.add_space(6.0);
-                ui.horizontal(|ui| {
-                    ui.label("API Key");
-                    let key_editor = TextEdit::singleline(&mut self.state.groq_settings.api_key)
-                        .hint_text("gsk_...");
-                    let response = ui.add_sized(
-                        [(ui.available_width() - 88.0).max(180.0), 24.0],
-                        if self.state.groq_settings.show_api_key {
-                            key_editor
-                        } else {
-                            key_editor.password(true)
-                        },
-                    );
-                    Self::apply_vietnamese_input_if_changed(
-                        &response,
-                        self.state.vietnamese_input_enabled,
-                        self.state.vietnamese_input_mode,
-                        &mut self.state.groq_settings.api_key,
-                    );
-                    groq_changed |= response.changed();
-                    if ui
-                        .button(if self.state.groq_settings.show_api_key {
-                            Self::tr_lang(language, "Hide", "Hide")
-                        } else {
-                            Self::tr_lang(language, "Show", "Show")
-                        })
-                        .clicked()
-                    {
-                        self.state.groq_settings.show_api_key =
-                            !self.state.groq_settings.show_api_key;
-                        groq_changed = true;
-                    }
-                });
-                ui.add_space(6.0);
-                ui.horizontal(|ui| {
-                    ui.label("Model");
-                    let selected_text = {
-                        let model = self.state.groq_settings.model.trim();
-                        Self::groq_model_catalog()
-                            .iter()
-                            .find(|(_, model_id)| model_id.eq_ignore_ascii_case(model))
-                            .map(|(label, model_id)| format!("{label} ({model_id})"))
-                            .unwrap_or_else(|| model.to_owned())
-                    };
-                    egui::ComboBox::from_id_salt("groq-model-picker")
-                        .selected_text(selected_text)
-                        .width((ui.available_width() - 96.0).max(200.0))
-                        .show_ui(ui, |ui| {
-                            for (label, model_id) in Self::groq_model_catalog() {
-                                let selected = self.state.groq_settings.model.trim().eq(*model_id);
-                                if ui
-                                    .selectable_label(selected, format!("{label} ({model_id})"))
-                                    .clicked()
-                                {
-                                    self.state.groq_settings.model = (*model_id).to_owned();
-                                    groq_changed = true;
-                                    ui.close();
+        egui::ScrollArea::vertical()
+            .max_height(ui.available_height())
+            .auto_shrink([false; 2])
+            .show(ui, |ui| {
+                ui.vertical(|ui| {
+                    ui.add_space(4.0);
+                    let mut groq_changed = false;
+                    Self::settings_card_frame(ui).show(ui, |ui| {
+                        ui.set_min_width(ui.available_width());
+                        ui.vertical(|ui| {
+                            ui.horizontal(|ui| {
+                                ui.selectable_value(
+                                    &mut self.state.groq_settings.details_open,
+                                    true,
+                                    RichText::new("API (Groq / OpenAI)").strong().size(14.0),
+                                );
+                                if self.state.groq_settings.details_open {
+                                    if ui.small_button("Close").clicked() {
+                                        self.state.groq_settings.details_open = false;
+                                    }
                                 }
+                            });
+                            if self.state.groq_settings.details_open {
+                                ui.add_space(8.0);
+                                ui.horizontal(|ui| {
+                                    ui.label("API Key");
+                                    let key_editor =
+                                        TextEdit::singleline(&mut self.state.groq_settings.api_key)
+                                            .hint_text("gsk_...");
+                                    let response = ui.add_sized(
+                                        [(ui.available_width() - 96.0).max(180.0), 24.0],
+                                        if self.state.groq_settings.show_api_key {
+                                            key_editor
+                                        } else {
+                                            key_editor.password(true)
+                                        },
+                                    );
+                                    Self::apply_vietnamese_input_if_changed(
+                                        &response,
+                                        self.state.vietnamese_input_enabled,
+                                        self.state.vietnamese_input_mode,
+                                        &mut self.state.groq_settings.api_key,
+                                    );
+                                    groq_changed |= response.changed();
+                                    if ui
+                                        .button(if self.state.groq_settings.show_api_key {
+                                            Self::tr_lang(language, "Hide", "Ẩn")
+                                        } else {
+                                            Self::tr_lang(language, "Show", "Hiện")
+                                        })
+                                        .clicked()
+                                    {
+                                        self.state.groq_settings.show_api_key =
+                                            !self.state.groq_settings.show_api_key;
+                                        groq_changed = true;
+                                    }
+                                });
+                                ui.add_space(8.0);
+                                ui.horizontal(|ui| {
+                                    ui.label("Model");
+                                    let selected_text = {
+                                        let model = self.state.groq_settings.model.trim();
+                                        Self::groq_model_catalog()
+                                            .iter()
+                                            .find(|(_, model_id)| {
+                                                model_id.eq_ignore_ascii_case(model)
+                                            })
+                                            .map(|(label, model_id)| {
+                                                format!("{label} ({model_id})")
+                                            })
+                                            .unwrap_or_else(|| model.to_owned())
+                                    };
+                                    egui::ComboBox::from_id_salt("groq-model-picker")
+                                        .selected_text(selected_text)
+                                        .width((ui.available_width() - 96.0).max(200.0))
+                                        .show_ui(ui, |ui| {
+                                            for (label, model_id) in Self::groq_model_catalog() {
+                                                let selected =
+                                                    self.state.groq_settings.model.trim().eq(*model_id);
+                                                if ui
+                                                    .selectable_label(
+                                                        selected,
+                                                        format!("{label} ({model_id})"),
+                                                    )
+                                                    .clicked()
+                                                {
+                                                    self.state.groq_settings.model =
+                                                        (*model_id).to_owned();
+                                                    groq_changed = true;
+                                                    ui.close();
+                                                }
+                                            }
+                                        });
+                                });
+                                ui.add_space(4.0);
+                                ui.horizontal(|ui| {
+                                    let response = ui.add_sized(
+                                        [ui.available_width() - 110.0, 24.0],
+                                        TextEdit::singleline(&mut self.state.groq_settings.model)
+                                            .hint_text("openai/gpt-oss-120b"),
+                                    );
+                                    Self::apply_vietnamese_input_if_changed(
+                                        &response,
+                                        self.state.vietnamese_input_enabled,
+                                        self.state.vietnamese_input_mode,
+                                        &mut self.state.groq_settings.model,
+                                    );
+                                    groq_changed |= response.changed();
+                                    if ui.button("Get API key").clicked() {
+                                        let _ = crate::platform::open_url_in_browser(
+                                            "https://console.groq.com/keys",
+                                        );
+                                    }
+                                });
+                            } else {
+                                ui.label(
+                                    RichText::new("Click to expand API configurations.")
+                                        .small()
+                                        .weak(),
+                                );
                             }
                         });
-                });
-                ui.horizontal(|ui| {
-                    let response = ui.add_sized(
-                        [ui.available_width(), 24.0],
-                        TextEdit::singleline(&mut self.state.groq_settings.model)
-                            .hint_text("openai/gpt-oss-120b"),
-                    );
-                    Self::apply_vietnamese_input_if_changed(
-                        &response,
-                        self.state.vietnamese_input_enabled,
-                        self.state.vietnamese_input_mode,
-                        &mut self.state.groq_settings.model,
-                    );
-                    groq_changed |= response.changed();
-                });
-                ui.horizontal(|ui| {
-                    if ui.button("Get API key").clicked() {
-                        let _ =
-                            crate::platform::open_url_in_browser("https://console.groq.com/keys");
+                    });
+                    if groq_changed {
+                        self.persist();
                     }
+                    ui.add_space(12.0);
+                    Self::settings_card_frame(ui).show(ui, |ui| {
+                        ui.set_min_width(ui.available_width());
+                        ui.vertical(|ui| {
+                            ui.label(
+                                RichText::new(Self::tr_lang(language, "Safety", "An toàn"))
+                                    .strong()
+                                    .size(14.0),
+                            );
+                            ui.add_space(8.0);
+                            let mut safety_changed = false;
+                            safety_changed |= ui
+                                .checkbox(
+                                    &mut self.state.macro_infinite_loop_warning_enabled,
+                                    Self::tr_lang(
+                                        language,
+                                        "Warn on infinite loop macros",
+                                        "Cảnh báo macro lặp vô hạn",
+                                    ),
+                                )
+                                .changed();
+                            if safety_changed {
+                                self.persist();
+                            }
+                        });
+                    });
+                    ui.add_space(12.0);
+                    Self::settings_card_frame(ui).show(ui, |ui| {
+                        ui.set_min_width(ui.available_width());
+                        ui.vertical(|ui| {
+                            ui.label(
+                                RichText::new(Self::tr_lang(
+                                    language,
+                                    "Vietnamese input",
+                                    "Gõ tiếng Việt",
+                                ))
+                                .strong()
+                                .size(14.0),
+                            );
+                            ui.add_space(8.0);
+                            let mut vietnamese_input_changed = false;
+                            ui.horizontal(|ui| {
+                                vietnamese_input_changed |= ui
+                                    .radio_value(
+                                        &mut self.state.vietnamese_input_mode,
+                                        VietnameseInputMode::Telex,
+                                        "Telex",
+                                    )
+                                    .changed();
+                                ui.add_space(12.0);
+                                vietnamese_input_changed |= ui
+                                    .radio_value(
+                                        &mut self.state.vietnamese_input_mode,
+                                        VietnameseInputMode::Vni,
+                                        "VNI",
+                                    )
+                                    .changed();
+                            });
+                            if vietnamese_input_changed {
+                                self.persist();
+                            }
+                        });
+                    });
+                    ui.add_space(12.0);
+                    Self::settings_card_frame(ui).show(ui, |ui| {
+                        ui.set_min_width(ui.available_width());
+                        ui.vertical(|ui| {
+                            ui.label(
+                                RichText::new(Self::tr_lang(language, "App data", "Thư mục dữ liệu"))
+                                    .strong()
+                                    .size(14.0),
+                            );
+                            ui.add_space(8.0);
+                            ui.horizontal(|ui| {
+                                if ui
+                                    .button(Self::tr_lang(
+                                        language,
+                                        "Open data folder",
+                                        "Mở thư mục dữ liệu",
+                                    ))
+                                    .clicked()
+                                {
+                                    self.open_app_data_folder();
+                                }
+                                ui.add_space(8.0);
+                                ui.label(
+                                    RichText::new(self.paths.root.display().to_string())
+                                        .monospace()
+                                        .small()
+                                        .weak(),
+                                );
+                            });
+                        });
+                    });
+                    ui.add_space(12.0);
+                    self.render_opencv_settings(ui);
+                    ui.add_space(12.0);
+                    let ctx_clone = ui.ctx().clone();
+                    self.render_update_settings(ui, &ctx_clone);
+                    ui.add_space(8.0);
                 });
-            }
-        });
-        if groq_changed {
-            self.persist();
-        }
-        ui.add_space(8.0);
-        Frame::group(ui.style()).show(ui, |ui| {
-            ui.horizontal(|ui| {
-                ui.label(RichText::new(Self::tr_lang(language, "Safety", "An toÃ n")).strong());
             });
-            ui.add_space(6.0);
-            let mut safety_changed = false;
-            safety_changed |= ui
-                .checkbox(
-                    &mut self.state.macro_infinite_loop_warning_enabled,
-                    Self::tr_lang(
-                        language,
-                        "Warn on infinite loop macros",
-                        "Cáº£nh bÃ¡o macro láº·p vÃ´ háº¡n",
-                    ),
-                )
-                .changed();
-            if safety_changed {
-                self.persist();
-            }
-        });
-        ui.add_space(8.0);
-        Frame::group(ui.style()).show(ui, |ui| {
-            ui.horizontal(|ui| {
-                ui.label(RichText::new("Vietnamese input").strong());
-            });
-            ui.add_space(6.0);
-            let mut vietnamese_input_changed = false;
-            ui.horizontal(|ui| {
-                vietnamese_input_changed |= ui
-                    .radio_value(
-                        &mut self.state.vietnamese_input_mode,
-                        VietnameseInputMode::Telex,
-                        "Telex",
-                    )
-                    .changed();
-                vietnamese_input_changed |= ui
-                    .radio_value(
-                        &mut self.state.vietnamese_input_mode,
-                        VietnameseInputMode::Vni,
-                        "VNI",
-                    )
-                    .changed();
-            });
-            if vietnamese_input_changed {
-                self.persist();
-            }
-        });
-        ui.add_space(8.0);
-        ui.add_space(8.0);
-        Frame::group(ui.style()).show(ui, |ui| {
-            ui.label(
-                RichText::new(Self::tr_lang(language, "App data", "ThÃ†Â° mÃ¡Â»Â¥c dÃ¡Â»Â¯ liÃ¡Â»â€¡u")).strong(),
-            );
-            ui.add_space(6.0);
-            if ui
-                .button(Self::tr_lang(
-                    language,
-                    "Open data folder",
-                    "MÃ¡Â»Å¸ thÃ†Â° mÃ¡Â»Â¥c dÃ¡Â»Â¯ liÃ¡Â»â€¡u",
-                ))
-                .clicked()
-            {
-                self.open_app_data_folder();
-            }
-            ui.add_space(4.0);
-            ui.label(
-                RichText::new(self.paths.root.display().to_string())
-                    .monospace()
-                    .small(),
-            );
-        });
-        ui.add_space(8.0);
-        self.render_opencv_settings(ui);
-        let ctx_clone = ui.ctx().clone(); self.render_update_settings(ui, &ctx_clone);
     }
 
     fn render_opencv_settings(&mut self, ui: &mut egui::Ui) {
         let language = self.state.ui_language;
-        Frame::group(ui.style()).show(ui, |ui| {
-            ui.horizontal(|ui| {
-                ui.label(RichText::new("Vision Support (OpenCV)").strong());
-            });
-            ui.add_space(6.0);
+        Self::settings_card_frame(ui).show(ui, |ui| {
+            ui.set_min_width(ui.available_width());
+            ui.vertical(|ui| {
+                ui.label(RichText::new("Vision Support (OpenCV)").strong().size(14.0));
+                ui.add_space(8.0);
 
             if self.opencv_installed {
                 ui.horizontal(|ui| {
@@ -18135,7 +18244,8 @@ impl CrosshairApp {
                 });
             }
         });
-    }
+    });
+}
 
     fn start_opencv_download(&mut self) {
         if self.opencv_download_job.is_some() {
@@ -19851,7 +19961,7 @@ impl eframe::App for CrosshairApp {
             } else {
                 self.render_modal_backdrop(ctx, true);
                 let (panel_size, panel_pos) =
-                    Self::centered_modal_placement(ctx, vec2(560.0, 260.0), vec2(440.0, 220.0));
+                    Self::centered_modal_placement(ctx, vec2(600.0, 620.0), vec2(500.0, 500.0));
                 let mut close_request = false;
                 egui::Area::new(egui::Id::new("settings_popup_modal"))
                     .order(Order::Foreground)
