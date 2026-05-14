@@ -204,7 +204,7 @@ impl VisionTimingPreset {
             match_duplicate_window_titles: true,
             target_color: None,
             target_colors: Vec::new(),
-            search_region_is_circle: true,
+            search_region_is_circle: false,
             show_search_region_overlay: false,
             color_tolerance: default_image_search_color_tolerance(),
             color_scan_rate_hz: default_image_search_color_scan_rate_hz(),

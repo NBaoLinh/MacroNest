@@ -17176,11 +17176,7 @@ impl CrosshairApp {
                     .num_columns(2)
                     .spacing([14.0, 8.0])
                     .show(ui, |ui| {
-                        ui.label(Self::tr_lang(language, "Preset Name", "Preset Name"));
-                        timing_live_sync |= ui
-                            .add_sized([260.0, 24.0], TextEdit::singleline(&mut preset.name))
-                            .changed();
-                        ui.end_row();
+
 
                         ui.label(Self::tr_lang(language, "Area", "Area"));
                         ui.horizontal_wrapped(|ui| {
