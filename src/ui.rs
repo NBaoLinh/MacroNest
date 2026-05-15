@@ -13534,7 +13534,7 @@ impl CrosshairApp {
                                     let right_width = 540.0;
                                     let left_width =
                                         (available_width - right_width - 8.0).max(260.0);
-                                    let label_width = 72.0;
+                                    let label_width = 84.0;
                                     let binding_width = (left_width - label_width - 6.0).max(160.0);
 
                                     ui.allocate_ui_with_layout(
@@ -13545,23 +13545,44 @@ impl CrosshairApp {
                                                 vec2(label_width, 0.0),
                                                 egui::Layout::top_down(egui::Align::LEFT),
                                                 |ui| {
-                                                    ui.label(Self::tr_lang(
-                                                        language,
-                                                        if preset.trigger_mode
-                                                            == MacroTriggerMode::Release
-                                                        {
-                                                            "Release"
-                                                        } else {
-                                                            "Trigger"
-                                                        },
-                                                        if preset.trigger_mode
-                                                            == MacroTriggerMode::Release
-                                                        {
-                                                            "Thả"
-                                                        } else {
-                                                            "Kích hoạt"
-                                                        },
-                                                    ));
+                                                    let label_text = Self::tr_lang(
+                                                         language,
+                                                         if preset.trigger_mode
+                                                             == MacroTriggerMode::Release
+                                                         {
+                                                             "Release"
+                                                         } else {
+                                                             "Trigger"
+                                                         },
+                                                         if preset.trigger_mode
+                                                             == MacroTriggerMode::Release
+                                                         {
+                                                             "Thả"
+                                                         } else {
+                                                             "Kích hoạt"
+                                                         },
+                                                     );
+
+                                                     let has_preset_inf_loop = preset.enabled
+                                                         && matches!(preset.trigger_mode, MacroTriggerMode::Press | MacroTriggerMode::Release)
+                                                         && preset.steps.iter().any(|s| s.action == MacroAction::LoopStart && s.is_infinite_loop());
+
+                                                     if has_preset_inf_loop {
+                                                         ui.horizontal(|ui| {
+                                                             ui.spacing_mut().item_spacing.x = 2.0;
+                                                             ui.label(
+                                                                 Self::material_icon_text(0xe002, 16.0)
+                                                                     .color(Color32::from_rgb(255, 60, 60))
+                                                             ).on_hover_text(Self::tr_lang(
+                                                                 language,
+                                                                 "Warning: Infinite loop detected inside this macro preset!",
+                                                                 "Cảnh báo: Phát hiện vòng lặp vô hạn bên trong macro này!"
+                                                             ));
+                                                             ui.label(label_text);
+                                                         });
+                                                     } else {
+                                                         ui.label(label_text);
+                                                     }
                                                 },
                                             );
                                             ui.allocate_ui_with_layout(
