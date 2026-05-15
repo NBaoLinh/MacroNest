@@ -20460,17 +20460,6 @@ impl eframe::App for CrosshairApp {
             crate::platform::bring_native_window_to_front(frame);
         }
 
-        let close_requested = ctx.input(|input| input.viewport().close_requested());
-        if close_requested && !self.quit_requested {
-            if !self.tray_close_request_consumed {
-                self.tray_close_request_consumed = true;
-                ctx.send_viewport_cmd(egui::ViewportCommand::CancelClose);
-                crate::platform::set_native_window_shadow(frame, false);
-                self.native_shadow_applied = false;
-                self.begin_close_to_tray_animation(ctx);
-            }
-        }
-
         if let Some(progress) = self.startup_splash_progress(ctx) {
             self.render_startup_splash(ctx, progress);
             return;
