@@ -106,7 +106,7 @@ enum VisionCaptureTarget {
 
 #[derive(Clone, Copy, PartialEq, Eq)]
 struct MouseMoveAbsoluteCaptureTarget {
-    group_id: u32,
+    group_id: Option<u32>,
     preset_id: u32,
     step_index: usize,
 }
@@ -8398,19 +8398,27 @@ impl CrosshairApp {
         screen_x: i32,
         screen_y: i32,
     ) {
-        let Some(step) = self
-            .state
-            .macro_groups
-            .iter_mut()
-            .find(|group| group.id == target.group_id)
-            .and_then(|group| {
-                group
-                    .presets
-                    .iter_mut()
-                    .find(|preset| preset.id == target.preset_id)
-            })
-            .and_then(|preset| preset.steps.get_mut(target.step_index))
-        else {
+        let step_result = if let Some(group_id) = target.group_id {
+            self.state
+                .macro_groups
+                .iter_mut()
+                .find(|group| group.id == group_id)
+                .and_then(|group| {
+                    group
+                        .presets
+                        .iter_mut()
+                        .find(|preset| preset.id == target.preset_id)
+                })
+                .and_then(|preset| preset.steps.get_mut(target.step_index))
+        } else {
+            self.state
+                .vision_timing_presets
+                .iter_mut()
+                .find(|p| p.id == target.preset_id)
+                .and_then(|p| p.steps.get_mut(target.step_index))
+        };
+
+        let Some(step) = step_result else {
             self.cancel_mouse_move_absolute_capture(ctx);
             self.status = Self::tr_lang(
                 self.state.ui_language,
@@ -8441,7 +8449,11 @@ impl CrosshairApp {
         ));
         ctx.request_repaint_after(Duration::from_millis(33));
         self.persist();
-        self.sync_macro_presets();
+        if target.group_id.is_some() {
+            self.sync_macro_presets();
+        } else {
+            self.sync_vision_timing_presets();
+        }
     }
 
     fn restore_mouse_move_absolute_viewport(&mut self, ctx: &egui::Context) {
@@ -15738,7 +15750,7 @@ impl CrosshairApp {
                                                     .changed();
                                                 if step.action == MacroAction::MouseMoveAbsolute {
                                                     let capture_target = MouseMoveAbsoluteCaptureTarget {
-                                                        group_id: group.id,
+                                                        group_id: Some(group.id),
                                                         preset_id: preset.id,
                                                         step_index,
                                                     };
