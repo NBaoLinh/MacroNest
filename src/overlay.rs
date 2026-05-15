@@ -583,6 +583,7 @@ mod windows_overlay {
         dirty: bool,
     }
 
+    #[derive(Debug, Clone, Copy, PartialEq, Eq)]
     enum MacroRunFlow {
         Continue,
         BreakLoop,
@@ -1293,6 +1294,7 @@ mod windows_overlay {
                                     width,
                                     height,
                                     is_circle: false,
+                                    angle_offset_deg: None, angle_span_deg: None,
                                 };
                                 if hook_state.vision_capture_preview_region != Some(region) {
                                     hook_state.vision_capture_preview_region = Some(region);
@@ -1330,6 +1332,7 @@ mod windows_overlay {
                             width: 1,
                             height: 1,
                             is_circle: false,
+                            angle_offset_deg: None, angle_span_deg: None,
                         });
                         let ui_tx = hook_state.ui_tx.clone();
                         drop(hook_state);
@@ -4927,7 +4930,14 @@ mod windows_overlay {
                         }
                     }
                 }
-                MacroAction::TriggerVisionTiming => {
+                MacroAction::TriggerVisionTiming
+                | MacroAction::StartVisionTiming
+                | MacroAction::StopVisionTiming => {
+                    let force_state = match step.action {
+                        MacroAction::StartVisionTiming => Some(true),
+                        MacroAction::StopVisionTiming => Some(false),
+                        _ => None,
+                    };
                     if let Some(preset) = vision_timing_preset_by_id(&step.key).ok() {
                         if let MacroRunFlow::StopExecution =
                             trigger_vision_timing_with_options(
@@ -4937,6 +4947,7 @@ mod windows_overlay {
                                 target_window_title,
                                 extra_target_window_titles,
                                 match_duplicate_window_titles,
+                                force_state,
                             )
                         {
                             return MacroRunFlow::StopExecution;
@@ -5229,7 +5240,14 @@ mod windows_overlay {
                         }
                     }
                 }
-                MacroAction::TriggerVisionTiming => {
+                MacroAction::TriggerVisionTiming
+                | MacroAction::StartVisionTiming
+                | MacroAction::StopVisionTiming => {
+                    let force_state = match step.action {
+                        MacroAction::StartVisionTiming => Some(true),
+                        MacroAction::StopVisionTiming => Some(false),
+                        _ => None,
+                    };
                     if let Some(preset) = vision_timing_preset_by_id(&step.key).ok() {
                         if let MacroRunFlow::StopExecution =
                             trigger_vision_timing_with_options(
@@ -5239,6 +5257,7 @@ mod windows_overlay {
                                 target_window_title,
                                 extra_target_window_titles,
                                 match_duplicate_window_titles,
+                                force_state,
                             )
                         {
                             return MacroRunFlow::StopExecution;
@@ -5861,6 +5880,8 @@ mod windows_overlay {
                 | MacroAction::StartVisionSearch
                 | MacroAction::TriggerVisionMove
                 | MacroAction::TriggerVisionTiming
+                | MacroAction::StartVisionTiming
+                | MacroAction::StopVisionTiming
                 | MacroAction::StopVisionWait
                 | MacroAction::StopVision => {}
                 MacroAction::LoopStart
@@ -5990,6 +6011,8 @@ mod windows_overlay {
             | MacroAction::StartVisionSearch
             | MacroAction::TriggerVisionMove
             | MacroAction::TriggerVisionTiming
+            | MacroAction::StartVisionTiming
+            | MacroAction::StopVisionTiming
             | MacroAction::StopVisionWait
             | MacroAction::StopVision => return Ok(()),
             MacroAction::LoopStart
@@ -6628,6 +6651,8 @@ mod windows_overlay {
         width: i32,
         height: i32,
         is_circle: bool,
+        angle_offset_deg: Option<f32>,
+        angle_span_deg: Option<f32>,
     }
 
     fn rgba_to_color_mat(rgba: &[u8], width: usize, height: usize) -> Result<Mat> {
@@ -6815,6 +6840,7 @@ mod windows_overlay {
             width,
             height,
             is_circle: preset.search_region_is_circle,
+            angle_offset_deg: None, angle_span_deg: None,
         })
     }
 
@@ -6829,6 +6855,8 @@ mod windows_overlay {
             width,
             height,
             is_circle,
+            angle_offset_deg,
+            angle_span_deg,
         } = region;
         let target_width = width.max(min_width.max(1));
         let target_height = height.max(min_height.max(1));
@@ -6869,6 +6897,8 @@ mod windows_overlay {
             width: (next_right - next_left).max(1),
             height: (next_bottom - next_top).max(1),
             is_circle,
+            angle_offset_deg,
+            angle_span_deg,
         }
     }
 
@@ -7293,6 +7323,8 @@ mod windows_overlay {
             width,
             height,
             is_circle: preset.search_region_is_circle,
+            angle_offset_deg: Some(preset.timing_angle_offset_deg),
+            angle_span_deg: Some(preset.timing_angle_span_deg),
         })
     }
 
@@ -7304,6 +7336,7 @@ mod windows_overlay {
     }
 
     fn image_search_timing_position_percent(
+        preset: &VisionTimingPreset,
         screen: &window_list::ScreenCaptureFrame,
         hit: &ColorMatchHit,
         region: Option<&VisionRegion>,
@@ -7325,11 +7358,17 @@ mod windows_overlay {
             let dx = hit_screen_x - center_x;
             let dy = hit_screen_y - center_y;
             
+            // NORMALIZE TO PERFECT ELLIPSE BY INDEPENDENT X/Y RADII!
+            let rx = (region.width as f32 / 2.0).max(1.0);
+            let ry = (region.height as f32 / 2.0).max(1.0);
+            let dx_norm = dx as f32 / rx;
+            let dy_norm = dy as f32 / ry;
+
             // atan2 returns angle in radians from -PI to PI
             // 0 is at 3 o'clock. We want 0 at 12 o'clock and clockwise.
             // Standard atan2: x is horizontal, y is vertical.
             // We flip signs or swap to get 12 o'clock as 0.
-            let angle_rad = (dx as f32).atan2(-dy as f32);
+            let angle_rad = dx_norm.atan2(-dy_norm);
             
             // Normalize to 0..2*PI
             let mut normalized_angle = angle_rad;
@@ -7337,8 +7376,20 @@ mod windows_overlay {
                 normalized_angle += 2.0 * std::f32::consts::PI;
             }
             
-            // Convert to percent (0..100)
-            return ((normalized_angle / (2.0 * std::f32::consts::PI)) * 100.0).clamp(0.0, 100.0) as u32;
+            // Convert to degrees for user friendly shift
+            let mut angle_deg = normalized_angle.to_degrees();
+            
+            // Apply manual shift of the 0% start point!
+            angle_deg = (angle_deg - preset.timing_angle_offset_deg) % 360.0;
+            if angle_deg < 0.0 {
+                angle_deg += 360.0;
+            }
+            
+            // Map to manual SPAN (e.g. 180 degrees for arc)
+            let span = preset.timing_angle_span_deg.clamp(1.0, 360.0);
+            
+            // Convert to percent (0..100) based on the configured angle span!
+            return ((angle_deg / span) * 100.0).clamp(0.0, 100.0) as u32;
         }
 
         let hit_screen_x = screen.screen_x + hit.x;
@@ -7353,8 +7404,24 @@ mod windows_overlay {
         preset: &VisionTimingPreset,
         position_percent: u32,
     ) -> u64 {
+        let mut percent = position_percent.min(100) as f32 / 100.0;
+
+        // 1. Apply reverse direction
+        if preset.timing_reverse {
+            percent = 1.0 - percent;
+        }
+
+        // 2. Apply non-linear exponent curve (Gamma) for Ellipses!
+        let exp = preset.timing_exponent.clamp(0.1, 10.0);
+        percent = percent.powf(exp);
+
         let cycle_ms = preset.timing_cycle_ms.max(1);
-        cycle_ms.saturating_mul(position_percent.min(100) as u64) / 100
+        let mut calculated_delay = (cycle_ms as f32 * percent) as i64;
+
+        // 3. Apply static millisecond offset (e.g., press 50ms earlier)
+        calculated_delay += preset.timing_offset_ms as i64;
+
+        calculated_delay.clamp(0, 600_000) as u64
     }
 
     fn find_image_search_timing_hit(
@@ -7411,7 +7478,7 @@ mod windows_overlay {
         let screen_x = screen.screen_x + hit.x;
         let screen_y = screen.screen_y + hit.y;
         let position_percent =
-            image_search_timing_position_percent(&screen, &hit, configured_region.as_ref());
+            image_search_timing_position_percent(preset, &screen, &hit, configured_region.as_ref());
         let delay_ms = image_search_timing_delay_ms(preset, position_percent);
         Ok(Some(ImageSearchTimingHit {
             screen_x,
@@ -7762,6 +7829,8 @@ mod windows_overlay {
         let wait_generation = image_search_timing_wait_generation(preset.id);
         let mut sent_wait_status = false;
         let mut waiting_for_disappearance = false;
+        let mut disappearance_timer: Option<Instant> = None;
+        println!("[DEBUG] VisionTiming: [{}] Luồng scan được kích hoạt thành công (ID={}). Thế hệ đợi = {}.", preset.name, preset.id, wait_generation);
 
         let wait_for_loop_delay = |delay_ms: u64| -> bool {
             if delay_ms == 0 {
@@ -7805,10 +7874,18 @@ mod windows_overlay {
             )));
         }
 
-        let poll_interval_ms = (1000u64 / preset.color_scan_rate_hz.max(1) as u64).clamp(8, 100);
-
         while image_search_timing_loop_is_active(preset.id) {
+            let latest_preset = {
+                let guard = HOOK_STATE.lock();
+                guard.vision_timing_presets.iter().find(|p| p.id == preset.id).cloned()
+            };
+            let Some(preset) = latest_preset else {
+                println!("[DEBUG] VisionTiming: [{}] Dừng luồng vì KHÔNG TÌM THẤY PRESET TRONG STATE.", preset.name);
+                break;
+            };
+            let poll_interval_ms = (1000u64 / preset.color_scan_rate_hz.max(1) as u64).clamp(8, 100);
             if image_search_timing_wait_generation(preset.id) != wait_generation {
+                println!("[DEBUG] VisionTiming: [{}] Dừng luồng vì THẾ HỆ ĐỢI ĐÃ THAY ĐỔI (Bị ngắt bởi trigger khác).", preset.name);
                 if let Some(tx) = ui_tx.as_ref() {
                     let _ = tx.send(UiCommand::VisionFinished(format!(
                         "{}: loop cancelled.",
@@ -7822,6 +7899,7 @@ mod windows_overlay {
                 &extra_target_window_titles,
                 match_duplicate_window_titles,
             ) {
+                println!("[DEBUG] VisionTiming: [{}] Dừng luồng vì WINDOW TARGET KHÔNG KHỚP (Mất focus cửa sổ).", preset.name);
                 break;
             }
             if stop_immediately_on_retrigger
@@ -7829,12 +7907,19 @@ mod windows_overlay {
                     .lock()
                     .contains(&macro_preset_id)
             {
+                println!("[DEBUG] VisionTiming: [{}] Dừng luồng vì CÓ YÊU CẦU DỪNG MACRO (Stop requested).", preset.name);
                 break;
             }
 
             let hit = match find_image_search_timing_hit(&preset) {
-                Ok(hit) => hit,
+                Ok(hit) => {
+                    if hit.is_some() {
+                        println!("[DEBUG] VisionTiming: [{}] -> ĐÃ PHÁT HIỆN MÀU!", preset.name);
+                    }
+                    hit
+                },
                 Err(error) => {
+                    println!("[DEBUG] VisionTiming: [{}] LỖI KHI QUÉT MÀU: {}", preset.name, error);
                     eprintln!("Vision timing preset failed: {error}");
                     if let Some(tx) = ui_tx.as_ref() {
                         let _ = tx.send(UiCommand::VisionFinished(format!(
@@ -7848,8 +7933,14 @@ mod windows_overlay {
 
             if waiting_for_disappearance {
                 if hit.is_none() {
-                    waiting_for_disappearance = false;
-                    sent_wait_status = false;
+                    let elapsed = disappearance_timer.get_or_insert_with(Instant::now).elapsed();
+                    if elapsed.as_millis() >= (preset.min_disappearance_ms as u128) {
+                        waiting_for_disappearance = false;
+                        disappearance_timer = None;
+                        sent_wait_status = false;
+                    }
+                } else {
+                    disappearance_timer = None; // Reset timer if color is detected again
                 }
                 thread::sleep(Duration::from_millis(poll_interval_ms));
                 continue;
@@ -7888,14 +7979,16 @@ mod windows_overlay {
 
             // WAIT
             if wait_for_loop_delay(hit.delay_ms) {
+                println!("[DEBUG] VisionTiming: [{}] Dừng luồng trong lúc chờ đợi delay.", preset.name);
                 break;
             }
 
             // TRIGGER ACTION
             if !preset.steps.is_empty() {
+                println!("[DEBUG] VisionTiming: [{}] Bắt đầu thực thi {} macro steps...", preset.name, preset.steps.len());
                 let mut locked_keys = Vec::new();
                 let mut locked_mouse = 0usize;
-                let _ = execute_macro_sequence(
+                let flow_result = execute_macro_sequence(
                     macro_preset_id,
                     &preset.steps,
                     &mut locked_keys,
@@ -7905,12 +7998,14 @@ mod windows_overlay {
                     &extra_target_window_titles,
                     match_duplicate_window_titles,
                 );
+                println!("[DEBUG] VisionTiming: [{}] Đã thực thi xong các bước. Luồng kết thúc với: {:?}", preset.name, flow_result);
             }
 
             // ENTER DISAPPEARANCE WAIT STATE
             waiting_for_disappearance = true;
         }
 
+        println!("[DEBUG] VisionTiming: [{}] Luồng scan kết thúc.", preset.name);
         set_image_search_timing_loop_active(preset.id, false);
         if let Some(tx) = ui_tx {
             let _ = tx.send(UiCommand::VisionFinished(format!(
@@ -7927,8 +8022,23 @@ mod windows_overlay {
         target_window_title: Option<&str>,
         extra_target_window_titles: &[String],
         match_duplicate_window_titles: bool,
+        force_state: Option<bool>,
     ) -> MacroRunFlow {
-        if image_search_timing_loop_is_active(preset.id) {
+        let is_active = image_search_timing_loop_is_active(preset.id);
+        println!(
+            "[DEBUG] VisionTiming: Yêu cầu preset '{}' (ID={}). Hiện tại: {}, Bắt buộc: {:?}",
+            preset.name, preset.id, is_active, force_state
+        );
+
+        if let Some(target) = force_state {
+            if target == is_active {
+                println!("[DEBUG] VisionTiming: Preset '{}' đã ở trạng thái mong muốn.", preset.name);
+                return MacroRunFlow::Continue;
+            }
+        }
+
+        if is_active {
+            println!("[DEBUG] VisionTiming: Dừng luồng lặp cho '{}'.", preset.name);
             set_image_search_timing_loop_active(preset.id, false);
             bump_image_search_timing_wait_generation(preset.id);
             if let Some(tx) = HOOK_STATE.lock().ui_tx.clone() {
@@ -9142,6 +9252,29 @@ mod windows_overlay {
                     region.height,
                     outline,
                 );
+                let center_x = region.left + region.width / 2;
+                let center_y = region.top + region.height / 2;
+                let rx = region.width as f32 / 2.0;
+                let ry = region.height as f32 / 2.0;
+
+                if let Some(angle_deg) = region.angle_offset_deg {
+                    // 1. Draw START ANGLE (0% - Orange Line)
+                    let rad0 = angle_deg.to_radians();
+                    let x0 = center_x as f32 + rx * rad0.sin();
+                    let y0 = center_y as f32 - ry * rad0.cos();
+                    draw_line_rgba(pixels, screen_width as usize, screen_height as usize, center_x, center_y, x0 as i32, y0 as i32, [255, 120, 0, 255]);
+                    
+                    // 2. Draw END ANGLE (100% - Bright Green Line) based on SPAN!
+                    if let Some(span) = region.angle_span_deg {
+                        if span < 360.0 {
+                            let end_deg = (angle_deg + span) % 360.0;
+                            let rad1 = end_deg.to_radians();
+                            let x1 = center_x as f32 + rx * rad1.sin();
+                            let y1 = center_y as f32 - ry * rad1.cos();
+                            draw_line_rgba(pixels, screen_width as usize, screen_height as usize, center_x, center_y, x1 as i32, y1 as i32, [50, 255, 50, 255]);
+                        }
+                    }
+                }
             } else {
                 fill_rect_rgba(
                     pixels,

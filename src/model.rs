@@ -150,8 +150,20 @@ fn default_image_search_timing_cycle_ms() -> u64 {
     1500
 }
 
+fn default_image_search_timing_min_disappearance_ms() -> u64 {
+    0
+}
+
 fn default_image_search_timing_loop_duration_secs() -> u32 {
     30
+}
+
+fn default_image_search_timing_exponent() -> f32 {
+    1.0
+}
+
+fn default_image_search_timing_angle_span_deg() -> f32 {
+    360.0
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
@@ -180,6 +192,18 @@ pub struct VisionTimingPreset {
     pub dual_color_scan_midpoint: bool,
     #[serde(default = "default_image_search_timing_cycle_ms")]
     pub timing_cycle_ms: u64,
+    #[serde(default = "default_image_search_timing_min_disappearance_ms")]
+    pub min_disappearance_ms: u64,
+    #[serde(default)]
+    pub timing_offset_ms: i32,
+    #[serde(default = "default_image_search_timing_exponent")]
+    pub timing_exponent: f32,
+    #[serde(default)]
+    pub timing_angle_offset_deg: f32,
+    #[serde(default = "default_image_search_timing_angle_span_deg")]
+    pub timing_angle_span_deg: f32,
+    #[serde(default)]
+    pub timing_reverse: bool,
     pub search_region_screen_x: Option<i32>,
     pub search_region_screen_y: Option<i32>,
     pub search_region_width: Option<i32>,
@@ -205,6 +229,12 @@ impl VisionTimingPreset {
             color_scan_rate_hz: default_image_search_color_scan_rate_hz(),
             dual_color_scan_midpoint: false,
             timing_cycle_ms: default_image_search_timing_cycle_ms(),
+            min_disappearance_ms: default_image_search_timing_min_disappearance_ms(),
+            timing_offset_ms: 0,
+            timing_exponent: default_image_search_timing_exponent(),
+            timing_angle_offset_deg: 0.0,
+            timing_angle_span_deg: default_image_search_timing_angle_span_deg(),
+            timing_reverse: false,
             search_region_screen_x: None,
             search_region_screen_y: None,
             search_region_width: None,
@@ -410,6 +440,10 @@ pub enum MacroAction {
     TriggerVisionMove,
     #[serde(alias = "TriggerImageSearchTiming")]
     TriggerVisionTiming,
+    #[serde(alias = "StartImageSearchTiming")]
+    StartVisionTiming,
+    #[serde(alias = "StopImageSearchTiming")]
+    StopVisionTiming,
     #[serde(alias = "StopImageSearchWait")]
     StopVisionWait,
     #[serde(alias = "StopImageSearch")]

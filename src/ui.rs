@@ -4476,6 +4476,8 @@ impl CrosshairApp {
             MacroAction::StartVisionSearch => "StartImageSearch",
             MacroAction::TriggerVisionMove => "TriggerImageSearchMove",
             MacroAction::TriggerVisionTiming => "TriggerImageSearchTiming",
+            MacroAction::StartVisionTiming => "StartImageSearchTiming",
+            MacroAction::StopVisionTiming => "StopImageSearchTiming",
             MacroAction::StopVisionWait => "StopImageSearchWait",
             MacroAction::StopVision => "StopImageSearch",
             MacroAction::LoopStart => "LoopStart",
@@ -4550,6 +4552,12 @@ impl CrosshairApp {
             }
             MacroAction::TriggerVisionTiming => {
                 "Toggle a timing preset loop on or off. It can run for a set number of seconds or forever until you trigger it again."
+            }
+            MacroAction::StartVisionTiming => {
+                "Turn a timing preset loop explicitly ON. It will do nothing if it is already running."
+            }
+            MacroAction::StopVisionTiming => {
+                "Turn a timing preset loop explicitly OFF. It will do nothing if it is not running."
             }
             MacroAction::StopVisionWait => {
                 "Stop waiting for one image-search preset to match."
@@ -4628,6 +4636,8 @@ impl CrosshairApp {
             MacroAction::StartVisionSearch => 0xe8b6,
             MacroAction::TriggerVisionMove => 0xe8f9,
             MacroAction::TriggerVisionTiming => 0xe8f9,
+            MacroAction::StartVisionTiming => 0xe037,
+            MacroAction::StopVisionTiming => 0xe034,
             MacroAction::StopVisionWait => 0xe047,
             MacroAction::StopVision => 0xe047,
             MacroAction::LoopStart => 0xe028,
@@ -4682,7 +4692,7 @@ impl CrosshairApp {
                 MacroAction::TriggerMacroPreset => "Tự động",
                 MacroAction::TriggerCommandPreset => "Commands",
                 MacroAction::EnableCrosshairProfile => "Tâm ngắm",
-                MacroAction::DisableCrosshair => "Tắt tâm ngắm",
+            MacroAction::DisableCrosshair => "Tắt tâm ngắm",
                 MacroAction::EnablePinPreset => "Ghim",
                 MacroAction::DisablePin => "Bỏ ghim",
                 MacroAction::PlayMousePathPreset => "Đường chuột",
@@ -4693,6 +4703,8 @@ impl CrosshairApp {
                 MacroAction::StartVisionSearch => "Tìm ảnh",
                 MacroAction::TriggerVisionMove => "Di chuyển",
                 MacroAction::TriggerVisionTiming => "Timing",
+                MacroAction::StartVisionTiming => "Bật Timing",
+                MacroAction::StopVisionTiming => "Tắt Timing",
                 MacroAction::StopVisionWait => "Chờ",
                 MacroAction::StopVision => "Dừng",
                 MacroAction::LoopStart => "Lặp",
@@ -4749,6 +4761,8 @@ impl CrosshairApp {
                 MacroAction::StartVisionSearch => "Start",
                 MacroAction::TriggerVisionMove => "Move",
                 MacroAction::TriggerVisionTiming => "Timing",
+                MacroAction::StartVisionTiming => "TimeOn",
+                MacroAction::StopVisionTiming => "TimeOff",
                 MacroAction::StopVisionWait => "Wait",
                 MacroAction::StopVision => "Stop",
                 MacroAction::LoopStart => "Loop",
@@ -4805,6 +4819,8 @@ impl CrosshairApp {
                 MacroAction::StartVisionSearch => "Start",
                 MacroAction::TriggerVisionMove => "Move",
                 MacroAction::TriggerVisionTiming => "Timing",
+                MacroAction::StartVisionTiming => "TimeOn",
+                MacroAction::StopVisionTiming => "TimeOff",
                 MacroAction::StopVisionWait => "Wait",
                 MacroAction::StopVision => "Stop",
                 MacroAction::LoopStart => "Loop",
@@ -4959,6 +4975,8 @@ impl CrosshairApp {
                 | MacroAction::StartVisionSearch
                 | MacroAction::TriggerVisionMove
                 | MacroAction::TriggerVisionTiming
+                | MacroAction::StartVisionTiming
+                | MacroAction::StopVisionTiming
                 | MacroAction::StopVisionWait
                 | MacroAction::StopVision
                 | MacroAction::LoopStart
@@ -6232,6 +6250,10 @@ impl CrosshairApp {
             MacroAction::StartVisionSearch,
             MacroAction::TriggerVisionMove,
             MacroAction::TriggerVisionTiming,
+            MacroAction::StartVisionTiming,
+            MacroAction::StopVisionTiming,
+            MacroAction::StartVisionTiming,
+            MacroAction::StopVisionTiming,
             MacroAction::StopVisionWait,
             MacroAction::StopVision,
         ]
@@ -13993,6 +14015,8 @@ impl CrosshairApp {
                                                             MacroAction::ApplyMouseSensitivityPreset,
                                                             MacroAction::StopVisionWait,
                                                             MacroAction::TriggerVisionTiming,
+                                                            MacroAction::StartVisionTiming,
+                                                            MacroAction::StopVisionTiming,
                                                             MacroAction::LoopStart,
                                                             MacroAction::LoopEnd,
                                                             MacroAction::StopIfKeyPressed,
@@ -14351,9 +14375,7 @@ impl CrosshairApp {
                                                                 }
                                                         }
                                                     });
-                                                } else if step.action
-                                                    == MacroAction::TriggerVisionTiming
-                                                {
+                                                } else if step.action == MacroAction::TriggerVisionTiming || step.action == MacroAction::StartVisionTiming || step.action == MacroAction::StopVisionTiming {
                                                     let selected_id =
                                                         step.key.trim().parse::<u32>().ok();
                                                     let selected_label =
@@ -14970,6 +14992,8 @@ impl CrosshairApp {
                                                                 MacroAction::ApplyMouseSensitivityPreset,
                                                                 MacroAction::StopVisionWait,
                                                                 MacroAction::TriggerVisionTiming,
+                                                                MacroAction::StartVisionTiming,
+                                                                MacroAction::StopVisionTiming,
                                                                 MacroAction::LoopStart,
                                                                 MacroAction::LoopEnd,
                                                                 MacroAction::StopIfKeyPressed,
@@ -15414,9 +15438,7 @@ impl CrosshairApp {
                                                                 }
                                                             }
                                                         });
-                                                    } else if step.action
-                                                        == MacroAction::TriggerVisionTiming
-                                                    {
+                                                    } else if step.action == MacroAction::TriggerVisionTiming || step.action == MacroAction::StartVisionTiming || step.action == MacroAction::StopVisionTiming {
                                                         let selected_id =
                                                             step.key.trim().parse::<u32>().ok();
                                                         let selected_label =
@@ -15720,7 +15742,10 @@ impl CrosshairApp {
                                                                 }
                                                             }
                                                         });
-                                                } else if step.action == MacroAction::TriggerVisionTiming {
+                                                } else if step.action == MacroAction::TriggerVisionTiming
+                                             || step.action == MacroAction::StartVisionTiming
+                                             || step.action == MacroAction::StopVisionTiming
+                                         {
                                                     let selected_id = step.key.trim().parse::<u32>().ok();
                                                     let selected_label = selected_id
                                                         .and_then(|id| {
@@ -17475,28 +17500,68 @@ impl CrosshairApp {
                         ui.end_row();
 
                         ui.label(Self::tr_lang(language, "Color", "Màu sắc"));
-                        ui.horizontal_wrapped(|ui| {
-                            Self::image_search_target_color_swatch(
-                                ui,
-                                preset
-                                    .target_color
-                                    .or_else(|| preset.target_colors.first().copied()),
-                            );
-                            ui.monospace(Self::image_search_timing_color_text(preset));
-                            if ui
-                                .button(Self::tr_lang(language, "Pick color", "Chọn màu"))
-                                .clicked()
-                            {
-                                start_color_pick_capture = Some(preset.id);
+                        ui.vertical(|ui| {
+                            let colors = if !preset.target_colors.is_empty() {
+                                preset.target_colors.clone()
+                            } else {
+                                preset.target_color.into_iter().collect::<Vec<_>>()
+                            };
+                            let uses_legacy_single_color = preset.target_colors.is_empty()
+                                && preset.target_color.is_some();
+                            if colors.is_empty() {
+                                ui.monospace("None");
+                            } else {
+                                let mut remove_color_index = None;
+                                egui::Grid::new((preset.id, "image-search-timing-color-grid"))
+                                    .num_columns(8)
+                                    .spacing([4.0, 4.0])
+                                    .show(ui, |ui| {
+                                        for (index, color) in colors.iter().copied().enumerate()
+                                        {
+                                            if Self::image_search_color_tile(ui, color)
+                                                .clicked()
+                                            {
+                                                remove_color_index = Some(index);
+                                            }
+                                            if (index + 1) % 8 == 0 {
+                                                ui.end_row();
+                                            }
+                                        }
+                                    });
+                                if let Some(index) = remove_color_index {
+                                    if uses_legacy_single_color && index == 0 {
+                                        preset.target_color = None;
+                                        timing_live_sync = true;
+                                    } else if !preset.target_colors.is_empty() {
+                                        preset.target_colors = preset
+                                            .target_colors
+                                            .iter()
+                                            .copied()
+                                            .enumerate()
+                                            .filter_map(|(i, item)| {
+                                                (i != index).then_some(item)
+                                            })
+                                            .collect();
+                                        preset.target_color =
+                                            preset.target_colors.first().copied();
+                                        timing_live_sync = true;
+                                    }
+                                }
                             }
-                            if ui
-                                .button(Self::tr_lang(language, "Clear color", "Xóa màu"))
-                                .clicked()
-                            {
-                                preset.target_color = None;
-                                preset.target_colors.clear();
-                                timing_live_sync = true;
-                            }
+                            ui.add_space(4.0);
+                            ui.horizontal(|ui| {
+                                if Self::image_search_add_color_button(ui, language).clicked() {
+                                    start_color_pick_capture = Some(preset.id);
+                                }
+                                if ui
+                                    .button(Self::tr_lang(language, "Clear color", "Xóa màu"))
+                                    .clicked()
+                                {
+                                    preset.target_color = None;
+                                    preset.target_colors.clear();
+                                    timing_live_sync = true;
+                                }
+                            });
                         });
                         ui.end_row();
 
@@ -17527,6 +17592,90 @@ impl CrosshairApp {
                                     .range(100..=60_000)
                                     .suffix(" ms"),
                             )
+                            .changed();
+                        ui.end_row();
+
+                        ui.label(Self::tr_lang(language, "Reset cooldown", "Hồi chu kỳ"));
+                        timing_live_sync |= ui
+                            .add(
+                                DragValue::new(&mut preset.min_disappearance_ms)
+                                    .range(0..=10_000)
+                                    .suffix(" ms"),
+                            )
+                            .on_hover_text(Self::tr_lang(
+                                language,
+                                "Minimum time that color must be absent continuously before starting next cycle.",
+                                "Thời gian tối thiểu màu mục tiêu phải biến mất liên tục trước khi reset chu kỳ mới.",
+                            ))
+                            .changed();
+                        ui.end_row();
+
+                        ui.label(Self::tr_lang(language, "Time offset", "Lệch thời gian"));
+                        timing_live_sync |= ui
+                            .add(
+                                DragValue::new(&mut preset.timing_offset_ms)
+                                    .range(-5000..=5000)
+                                    .suffix(" ms"),
+                            )
+                            .on_hover_text(Self::tr_lang(
+                                language,
+                                "Shift the dynamic click time earlier (negative) or later (positive).",
+                                "Tự tay tăng/giảm thời gian trễ tính được (âm là click sớm hơn, dương là click trễ hơn).",
+                            ))
+                            .changed();
+                        ui.end_row();
+
+                        ui.label(Self::tr_lang(language, "Curvature", "Độ cong (Mũ)"));
+                        timing_live_sync |= ui
+                            .add(
+                                DragValue::new(&mut preset.timing_exponent)
+                                    .range(0.1..=5.0)
+                                    .speed(0.05)
+                                    .suffix(" x"),
+                            )
+                            .on_hover_text(Self::tr_lang(
+                                language,
+                                "Adjust to match Ellipse non-linear speed. Exponent > 1 bends time later, < 1 bends earlier.",
+                                "Điều chỉnh hệ số cong để khớp với tốc độ phi tuyến của Ellipse (Hình bầu dục/cung).",
+                            ))
+                            .changed();
+                        ui.end_row();
+
+                        if preset.search_region_is_circle {
+                            ui.label(Self::tr_lang(language, "Start angle", "Góc bắt đầu"));
+                            timing_live_sync |= ui
+                                .add(
+                                    DragValue::new(&mut preset.timing_angle_offset_deg)
+                                        .range(0.0..=360.0)
+                                        .suffix("°"),
+                                )
+                                .on_hover_text(Self::tr_lang(
+                                    language,
+                                    "Rotate the 0% point of the circle/ellipse. Perfect for rainbow arcs.",
+                                    "Xoay điểm xuất phát 0% của vòng tròn/ellipse. Hoàn hảo cho các vòng cung dạng cầu vồng.",
+                                ))
+                                .changed();
+                            ui.end_row();
+
+                            ui.label(Self::tr_lang(language, "Angle span", "Góc quét"));
+                            timing_live_sync |= ui
+                                .add(
+                                    DragValue::new(&mut preset.timing_angle_span_deg)
+                                        .range(1.0..=360.0)
+                                        .suffix("°"),
+                                )
+                                .on_hover_text(Self::tr_lang(
+                                    language,
+                                    "Total sweep angle of the arc (e.g. 180° for rainbow arc). Renders a Green line at 100%.",
+                                    "Tổng độ rộng góc của vòng cung (VD 180° cho cầu vồng). Sẽ vẽ thêm vạch Xanh Lá để báo mốc 100%.",
+                                ))
+                                .changed();
+                            ui.end_row();
+                        }
+
+                        ui.label(Self::tr_lang(language, "Reverse scan", "Đảo chiều quét"));
+                        timing_live_sync |= ui
+                            .checkbox(&mut preset.timing_reverse, "")
                             .changed();
                         ui.end_row();
 
@@ -17710,6 +17859,8 @@ impl CrosshairApp {
                                                         MacroAction::ApplyMouseSensitivityPreset,
                                                         MacroAction::StopVisionWait,
                                                         MacroAction::TriggerVisionTiming,
+                                                        MacroAction::StartVisionTiming,
+                                                        MacroAction::StopVisionTiming,
                                                         MacroAction::LoopStart,
                                                         MacroAction::LoopEnd,
                                                         MacroAction::StopIfKeyPressed,
@@ -17912,7 +18063,7 @@ impl CrosshairApp {
                                                         }
                                                     }
                                                 });
-                                        } else if step.action == MacroAction::TriggerVisionTiming {
+                                        } else if step.action == MacroAction::TriggerVisionTiming || step.action == MacroAction::StartVisionTiming || step.action == MacroAction::StopVisionTiming {
                                             let selected_id = step.key.trim().parse::<u32>().ok();
                                             let selected_label = Self::image_search_timing_preset_label(&image_search_timing_preset_options, selected_id, "Select timing preset");
                                             egui::ComboBox::from_id_salt(("vision-timing-timing-preset", preset.id, step_index))
