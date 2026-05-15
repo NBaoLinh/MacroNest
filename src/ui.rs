@@ -13817,21 +13817,8 @@ impl CrosshairApp {
                                                 ))
                                                 .clicked()
                                             {
-                                                let next_enabled = !preset.enabled;
-                                                if next_enabled
-                                                    && self.state.macro_infinite_loop_warning_enabled
-                                                    && matches!(
-                                                        preset.trigger_mode,
-                                                        MacroTriggerMode::Press | MacroTriggerMode::Release
-                                                    )
-                                                    && preset.steps.iter().any(|s| s.is_infinite_loop())
-                                                {
-                                                    self.pending_macro_infinite_loop_enable =
-                                                        Some((group.id, preset.id));
-                                                } else {
-                                                    preset.enabled = next_enabled;
-                                                    live_sync = true;
-                                                }
+                                                preset.enabled = !preset.enabled;
+                                                live_sync = true;
                                             }
                                         },
                                     );
@@ -13867,15 +13854,6 @@ impl CrosshairApp {
                                         {
                                             preset.trigger_mode = mode;
                                             live_sync = true;
-
-                                            if preset.enabled
-                                                && self.state.macro_infinite_loop_warning_enabled
-                                                && matches!(mode, MacroTriggerMode::Press | MacroTriggerMode::Release)
-                                                && preset.steps.iter().any(|s| s.is_infinite_loop())
-                                            {
-                                                preset.enabled = false;
-                                                self.pending_macro_infinite_loop_enable = Some((group.id, preset.id));
-                                            }
                                         }
                                     }
                                 });
@@ -14535,15 +14513,6 @@ impl CrosshairApp {
                                                             "1".to_owned()
                                                         };
                                                         live_sync = true;
-
-                                                         if infinite
-                                                             && preset.enabled
-                                                             && self.state.macro_infinite_loop_warning_enabled
-                                                             && matches!(preset.trigger_mode, MacroTriggerMode::Press | MacroTriggerMode::Release)
-                                                         {
-                                                             preset.enabled = false;
-                                                             self.pending_macro_infinite_loop_enable = Some((group.id, preset.id));
-                                                         }
                                                      }
                                                     if !infinite {
                                                         let mut loop_count =
@@ -14867,6 +14836,13 @@ impl CrosshairApp {
                                 if !step.enabled {
                                     row_fill = Color32::from_rgba_unmultiplied(62, 62, 62, 220);
                                 }
+                                let has_infinite_loop_warning = preset.enabled
+                                    && matches!(preset.trigger_mode, MacroTriggerMode::Press | MacroTriggerMode::Release)
+                                    && step.action == MacroAction::LoopStart
+                                    && step.is_infinite_loop();
+                                if has_infinite_loop_warning {
+                                    row_fill = Color32::from_rgba_unmultiplied(255, 60, 60, 30);
+                                }
                                 let drag_payload = MacroStepDragPayload {
                                     group_id: group.id,
                                     preset_id: preset.id,
@@ -14950,12 +14926,22 @@ impl CrosshairApp {
                                                 )
                                                 .on_hover_cursor(egui::CursorIcon::Grab);
                                             drag_handle.dnd_set_drag_payload(drag_payload.clone());
-                                            ui.add_sized(
-                                                [30.0, 18.0],
-                                                egui::Label::new(
-                                                    RichText::new(format!("{}", step_index + 1)).monospace(),
-                                                ),
-                                            );
+                                            if has_infinite_loop_warning {
+                                                 ui.label(
+                                                     Self::material_icon_text(0xe002, 16.0)
+                                                         .color(Color32::from_rgb(255, 70, 70))
+                                                 ).on_hover_text(Self::tr_lang(
+                                                     language,
+                                                     "Dangerous: Infinite loop in Press/Release mode! Runs forever until Stopped.",
+                                                     "Nguy hiểm: Vòng lặp vô hạn ở chế độ Nhấn/Thả! Chạy vĩnh viễn cho tới khi Dừng."
+                                                 ));
+                                             }
+                                             ui.add_sized(
+                                                 [if has_infinite_loop_warning { 18.0 } else { 30.0 }, 18.0],
+                                                 egui::Label::new(
+                                                     RichText::new(format!("{}", step_index + 1)).monospace(),
+                                                 ),
+                                             );
                                             live_sync |= ui
                                                 .add_sized(
                                                     [54.0, 18.0],
@@ -15592,15 +15578,6 @@ impl CrosshairApp {
                                                             "1".to_owned()
                                                         };
                                                         live_sync = true;
-
-                                                         if infinite
-                                                             && preset.enabled
-                                                             && self.state.macro_infinite_loop_warning_enabled
-                                                             && matches!(preset.trigger_mode, MacroTriggerMode::Press | MacroTriggerMode::Release)
-                                                         {
-                                                             preset.enabled = false;
-                                                             self.pending_macro_infinite_loop_enable = Some((group.id, preset.id));
-                                                         }
                                                      }
                                                     if !infinite {
                                                         let mut loop_count =
@@ -16200,67 +16177,7 @@ impl CrosshairApp {
             }
         }
 
-        // Infallible Reactive Safety Watcher
-        if self.state.macro_infinite_loop_warning_enabled && self.pending_macro_infinite_loop_enable.is_none() {
-            let mut found_violation = None;
 
-            for group in &mut self.state.macro_groups {
-                for preset in &mut group.presets {
-                    let is_dangerous = matches!(preset.trigger_mode, MacroTriggerMode::Press | MacroTriggerMode::Release)
-                        && preset.steps.iter().any(|s| s.is_infinite_loop());
-
-                    if !is_dangerous {
-                        preset.acknowledged_infinite_loop = false;
-                    } else if preset.enabled && !preset.acknowledged_infinite_loop {
-                        found_violation = Some((group.id, preset.id));
-                    }
-                }
-            }
-
-            if let Some((g_id, p_id)) = found_violation {
-                if let Some(group) = self.state.macro_groups.iter_mut().find(|g| g.id == g_id) {
-                    if let Some(preset) = group.presets.iter_mut().find(|p| p.id == p_id) {
-                        preset.enabled = false;
-                        self.pending_macro_infinite_loop_enable = Some((g_id, p_id));
-                        // CRITICAL BUG FIX: Instantly save & sync the disarmed state to the background overlay thread!
-                        self.persist_macro_presets();
-                    }
-                }
-            }
-        }
-
-        if let Some((group_id, preset_id)) = self.pending_macro_infinite_loop_enable {
-            let title = Self::tr_lang(language, "⚠ Dangerous Macro Detection", "⚠ Phát hiện Macro nguy hiểm");
-            let msg = Self::tr_lang(
-                language,
-                "This macro contains an infinite loop and is triggered via Press or Release.\nRunning it may cause the program to cycle indefinitely until manually stopped via the Master hotkey.\n\nAre you absolutely sure you want to enable it?",
-                "Macro này chứa vòng lặp vô hạn và được kích hoạt bằng Nhấn hoặc Thả.\nChạy nó có thể làm chương trình lặp vô hạn cho đến khi dừng bằng phím tắt Master.\n\nBạn có chắc chắn muốn bật nó không?"
-            );
-            let confirm_lbl = Self::tr_lang(language, "Enable Anyway", "Vẫn cho phép");
-            let cancel_lbl = Self::tr_lang(language, "Cancel", "Hủy bỏ");
-            if let Some(result) = self.render_blocking_confirmation_modal(
-                ui.ctx(),
-                "macro-infinite-loop-confirm",
-                &title,
-                &msg,
-                &confirm_lbl,
-                &cancel_lbl,
-            ) {
-                if result {
-                    if let Some(group) = self.state.macro_groups.iter_mut().find(|g| g.id == group_id) {
-                        if let Some(preset) = group.presets.iter_mut().find(|p| p.id == preset_id) {
-                            preset.enabled = true;
-                            preset.acknowledged_infinite_loop = true;
-                            self.persist_macro_presets();
-                        }
-                    }
-                } else {
-                    // Ensure the background overlay thread gets the absolute state sync if they click Cancel!
-                    self.persist_macro_presets();
-                }
-                self.pending_macro_infinite_loop_enable = None;
-            }
-        }
     }
 
     fn render_mouse_path_preview(
@@ -19022,28 +18939,7 @@ impl CrosshairApp {
                     ui.add_space(12.0);
                     Self::settings_card_frame(ui).show(ui, |ui| {
                         ui.set_min_width(ui.available_width());
-                        ui.vertical(|ui| {
-                            ui.label(
-                                RichText::new(Self::tr_lang(language, "Safety", "An toàn"))
-                                    .strong()
-                                    .size(14.0),
-                            );
-                            ui.add_space(8.0);
-                            let mut safety_changed = false;
-                            safety_changed |= ui
-                                .checkbox(
-                                    &mut self.state.macro_infinite_loop_warning_enabled,
-                                    Self::tr_lang(
-                                        language,
-                                        "Warn on infinite loop macros",
-                                        "Cảnh báo macro lặp vô hạn",
-                                    ),
-                                )
-                                .changed();
-                            if safety_changed {
-                                self.persist();
-                            }
-                        });
+
                     });
                     ui.add_space(12.0);
                     Self::settings_card_frame(ui).show(ui, |ui| {
