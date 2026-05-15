@@ -13321,6 +13321,27 @@ impl CrosshairApp {
                                     self.selected_macro_groups.remove(&group.id);
                                 }
                             }
+                            let has_group_inf_loop = group.enabled
+                                && group.presets.iter().any(|preset| {
+                                    preset.enabled
+                                        && (
+                                            (preset.trigger_mode == MacroTriggerMode::Press && !preset.stop_on_retrigger_immediate)
+                                            || preset.trigger_mode == MacroTriggerMode::Release
+                                        )
+                                        && preset.steps.iter().any(|s| s.action == MacroAction::LoopStart && s.is_infinite_loop())
+                                });
+                            if has_group_inf_loop {
+                                ui.add_space(2.0);
+                                ui.label(
+                                    Self::material_icon_text(0xe002, 18.0)
+                                        .color(Color32::from_rgb(255, 10, 10))
+                                ).on_hover_text(Self::tr_lang(
+                                    language,
+                                    "Critical Danger: Infinite Loop Macro is active in this Group!",
+                                    "Cảnh báo Cực kỳ Nguy hiểm: Nhóm Macro này chứa Macro Lặp vô hạn đang Bật!"
+                                ));
+                                ui.add_space(2.0);
+                            }
                             let name_width = Self::preset_header_name_width(ui);
                             if group.collapsed {
                                 ui.add_sized(
@@ -13534,7 +13555,7 @@ impl CrosshairApp {
                                     let right_width = 540.0;
                                     let left_width =
                                         (available_width - right_width - 8.0).max(260.0);
-                                    let label_width = 84.0;
+                                    let label_width = 72.0;
                                     let binding_width = (left_width - label_width - 6.0).max(160.0);
 
                                     ui.allocate_ui_with_layout(
@@ -13545,7 +13566,7 @@ impl CrosshairApp {
                                                 vec2(label_width, 0.0),
                                                 egui::Layout::top_down(egui::Align::LEFT),
                                                 |ui| {
-                                                    let label_text = Self::tr_lang(
+                                                    ui.label(Self::tr_lang(
                                                          language,
                                                          if preset.trigger_mode
                                                              == MacroTriggerMode::Release
@@ -13561,28 +13582,7 @@ impl CrosshairApp {
                                                          } else {
                                                              "Kích hoạt"
                                                          },
-                                                     );
-
-                                                     let has_preset_inf_loop = preset.enabled
-                                                         && matches!(preset.trigger_mode, MacroTriggerMode::Press | MacroTriggerMode::Release)
-                                                         && preset.steps.iter().any(|s| s.action == MacroAction::LoopStart && s.is_infinite_loop());
-
-                                                     if has_preset_inf_loop {
-                                                         ui.horizontal(|ui| {
-                                                             ui.spacing_mut().item_spacing.x = 2.0;
-                                                             ui.label(
-                                                                 Self::material_icon_text(0xe002, 16.0)
-                                                                     .color(Color32::from_rgb(255, 60, 60))
-                                                             ).on_hover_text(Self::tr_lang(
-                                                                 language,
-                                                                 "Warning: Infinite loop detected inside this macro preset!",
-                                                                 "Cảnh báo: Phát hiện vòng lặp vô hạn bên trong macro này!"
-                                                             ));
-                                                             ui.label(label_text);
-                                                         });
-                                                     } else {
-                                                         ui.label(label_text);
-                                                     }
+                                                     ));
                                                 },
                                             );
                                             ui.allocate_ui_with_layout(
@@ -13841,7 +13841,25 @@ impl CrosshairApp {
                                                 preset.enabled = !preset.enabled;
                                                 live_sync = true;
                                             }
-                                        },
+                                             let has_preset_inf_loop = preset.enabled
+                                                 && (
+                                                     (preset.trigger_mode == MacroTriggerMode::Press && !preset.stop_on_retrigger_immediate)
+                                                     || preset.trigger_mode == MacroTriggerMode::Release
+                                                 )
+                                                 && preset.steps.iter().any(|s| s.action == MacroAction::LoopStart && s.is_infinite_loop());
+
+                                             if has_preset_inf_loop {
+                                                 ui.add_space(4.0);
+                                                 ui.label(
+                                                     Self::material_icon_text(0xe002, 18.0)
+                                                         .color(Color32::from_rgb(255, 90, 0))
+                                                 ).on_hover_text(Self::tr_lang(
+                                                     language,
+                                                     "Warning: Infinite Loop inside! Running it might loop indefinitely.",
+                                                     "Cảnh báo: Vòng lặp Vô hạn bên trong! Chạy macro này có thể lặp vô tận."
+                                                 ));
+                                             }
+                                            },
                                     );
                                 });
                                 if !preset.collapsed {
@@ -14858,11 +14876,14 @@ impl CrosshairApp {
                                     row_fill = Color32::from_rgba_unmultiplied(62, 62, 62, 220);
                                 }
                                 let has_infinite_loop_warning = preset.enabled
-                                    && matches!(preset.trigger_mode, MacroTriggerMode::Press | MacroTriggerMode::Release)
+                                    && (
+                                        (preset.trigger_mode == MacroTriggerMode::Press && !preset.stop_on_retrigger_immediate)
+                                        || preset.trigger_mode == MacroTriggerMode::Release
+                                    )
                                     && step.action == MacroAction::LoopStart
                                     && step.is_infinite_loop();
                                 if has_infinite_loop_warning {
-                                    row_fill = Color32::from_rgba_unmultiplied(255, 60, 60, 30);
+                                    row_fill = Color32::from_rgba_unmultiplied(255, 90, 0, 25);
                                 }
                                 let drag_payload = MacroStepDragPayload {
                                     group_id: group.id,
@@ -14949,8 +14970,7 @@ impl CrosshairApp {
                                             drag_handle.dnd_set_drag_payload(drag_payload.clone());
                                             if has_infinite_loop_warning {
                                                  ui.label(
-                                                     Self::material_icon_text(0xe002, 16.0)
-                                                         .color(Color32::from_rgb(255, 70, 70))
+                                                     Self::material_icon_text(0xe002, 16.0).color(Color32::from_rgb(255, 90, 0))
                                                  ).on_hover_text(Self::tr_lang(
                                                      language,
                                                      "Dangerous: Infinite loop in Press/Release mode! Runs forever until Stopped.",
