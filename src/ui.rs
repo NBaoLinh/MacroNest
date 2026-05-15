@@ -1848,7 +1848,7 @@ impl CrosshairApp {
     ) -> Option<bool> {
         self.render_modal_backdrop(ctx, true);
         let (panel_size, panel_pos) =
-            Self::centered_modal_placement(ctx, vec2(480.0, 320.0), vec2(400.0, 240.0));
+            Self::centered_modal_placement(ctx, vec2(380.0, 160.0), vec2(320.0, 140.0));
         let mut outcome = None;
         egui::Area::new(egui::Id::new((modal_key, "blocking-confirmation-modal")))
             .order(Order::Foreground)
@@ -13332,13 +13332,15 @@ impl CrosshairApp {
                                 });
                             if has_group_inf_loop {
                                 ui.add_space(2.0);
-                                ui.label(
-                                    Self::material_icon_text(0xe002, 18.0)
-                                        .color(Color32::from_rgb(255, 10, 10))
+                                ui.add(
+                                    egui::Label::new(
+                                        Self::material_icon_text(0xe002, 18.0)
+                                            .color(Color32::from_rgb(255, 10, 10))
+                                    ).sense(egui::Sense::hover())
                                 ).on_hover_text(Self::tr_lang(
                                     language,
-                                    "Critical Danger: Infinite Loop Macro is active in this Group!",
-                                    "Cảnh báo Cực kỳ Nguy hiểm: Nhóm Macro này chứa Macro Lặp vô hạn đang Bật!"
+                                    "Danger: This group contains one or more enabled infinite loop macros! Enabling this group could lead to persistent looping upon keypress.",
+                                    "Nguy hiểm: Nhóm macro này chứa một hoặc nhiều macro bị lặp vô tận đang bật! Kích hoạt nhóm này có thể dẫn tới lặp vĩnh viễn khi bấm phím."
                                 ));
                                 ui.add_space(2.0);
                             }
@@ -13850,13 +13852,15 @@ impl CrosshairApp {
 
                                              if has_preset_inf_loop {
                                                  ui.add_space(4.0);
-                                                 ui.label(
-                                                     Self::material_icon_text(0xe002, 18.0)
-                                                         .color(Color32::from_rgb(255, 90, 0))
+                                                 ui.add(
+                                                     egui::Label::new(
+                                                         Self::material_icon_text(0xe002, 18.0)
+                                                             .color(Color32::from_rgb(255, 90, 0))
+                                                     ).sense(egui::Sense::hover())
                                                  ).on_hover_text(Self::tr_lang(
                                                      language,
-                                                     "Warning: Infinite Loop inside! Running it might loop indefinitely.",
-                                                     "Cảnh báo: Vòng lặp Vô hạn bên trong! Chạy macro này có thể lặp vô tận."
+                                                     "Warning: This macro contains an infinite loop and is active. Ensure you know how to stop it to avoid system hang!",
+                                                     "Cảnh báo: Macro này chứa vòng lặp vô hạn và đang ở chế độ tự kích hoạt. Hãy đảm bảo bạn đã biết cách dừng nó để tránh treo máy!"
                                                  ));
                                              }
                                             },
@@ -14969,14 +14973,17 @@ impl CrosshairApp {
                                                 .on_hover_cursor(egui::CursorIcon::Grab);
                                             drag_handle.dnd_set_drag_payload(drag_payload.clone());
                                             if has_infinite_loop_warning {
-                                                 ui.label(
-                                                     Self::material_icon_text(0xe002, 16.0).color(Color32::from_rgb(255, 90, 0))
-                                                 ).on_hover_text(Self::tr_lang(
-                                                     language,
-                                                     "Dangerous: Infinite loop in Press/Release mode! Runs forever until Stopped.",
-                                                     "Nguy hiểm: Vòng lặp vô hạn ở chế độ Nhấn/Thả! Chạy vĩnh viễn cho tới khi Dừng."
-                                                 ));
-                                             }
+                                                  ui.add(
+                                                      egui::Label::new(
+                                                          Self::material_icon_text(0xe002, 16.0)
+                                                              .color(Color32::from_rgb(255, 90, 0))
+                                                      ).sense(egui::Sense::hover())
+                                                  ).on_hover_text(Self::tr_lang(
+                                                      language,
+                                                      "Infinite Loop: This step starts an infinite loop without an end point. The macro will run forever until you manually stop it.",
+                                                      "Vòng lặp vô tận: Bước này khởi đầu một vòng lặp vô tận mà không có điểm dừng, macro sẽ chạy mãi mãi cho đến khi bạn chủ động bấm dừng."
+                                                  ));
+                                              }
                                              ui.add_sized(
                                                  [if has_infinite_loop_warning { 18.0 } else { 30.0 }, 18.0],
                                                  egui::Label::new(
