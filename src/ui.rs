@@ -18984,11 +18984,7 @@ impl CrosshairApp {
                     if groq_changed {
                         self.persist();
                     }
-                    ui.add_space(12.0);
-                    Self::settings_card_frame(ui).show(ui, |ui| {
-                        ui.set_min_width(ui.available_width());
-
-                    });
+                    
                     ui.add_space(12.0);
                     Self::settings_card_frame(ui).show(ui, |ui| {
                         ui.set_min_width(ui.available_width());
