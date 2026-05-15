@@ -6195,7 +6195,7 @@ mod windows_overlay {
         up_flags: MOUSE_EVENT_FLAGS,
         mouse_data: u32,
     ) -> Result<()> {
-        const CLICK_HOLD_MS: u64 = 12;
+        const CLICK_HOLD_MS: u64 = 16;
 
         if send_mouse_strokes_interception(prefer_interception, &[down_stroke]) {
             thread::sleep(Duration::from_millis(CLICK_HOLD_MS));
