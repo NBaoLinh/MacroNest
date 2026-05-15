@@ -1514,7 +1514,7 @@ impl CrosshairApp {
     fn image_search_timing_preset_label(
         options: &[(u32, String)],
         selected_id: Option<u32>,
-        empty_label: &'static str,
+        empty_label: &str,
     ) -> String {
         selected_id
             .and_then(|id| {
@@ -8070,20 +8070,7 @@ impl CrosshairApp {
         }
     }
     
-    fn image_search_timing_preset_label(
-        options: &[(u32, String)],
-        selected_id: Option<u32>,
-        default: &str,
-    ) -> String {
-        selected_id
-            .and_then(|id| {
-                options
-                    .iter()
-                    .find(|(p_id, _)| *p_id == id)
-                    .map(|(_, label)| label.clone())
-            })
-            .unwrap_or_else(|| default.to_owned())
-    }
+
 
     fn set_active_macro_folder_view(&mut self, folder_id: Option<u32>) {
         self.active_macro_folder_view = folder_id;
@@ -8117,29 +8104,77 @@ impl CrosshairApp {
         selected_indices.sort_unstable();
         selected_indices.dedup();
 
-        let Some(group) = self
-            .state
-            .macro_groups
-            .iter()
-            .find(|group| group.id == group_id)
-        else {
-            self.status = "Macro group not found.".to_owned();
-            return;
-        };
-        let Some(preset) = group.presets.iter().find(|preset| preset.id == preset_id) else {
-            self.status = "Macro preset not found.".to_owned();
-            return;
-        };
+        let mut clipboard = Vec::new();
+        if group_id == 0 {
+            if let Some(preset) = self.state.vision_timing_presets.iter().find(|p| p.id == preset_id) {
+                for &index in &selected_indices {
+                    if let Some(step) = preset.steps.get(index) {
+                        clipboard.push(step.clone());
+                    }
+                }
+            } else {
+                self.status = "Vision preset not found.".to_owned();
+                return;
+            }
+        } else {
+            if let Some(group) = self.state.macro_groups.iter().find(|g| g.id == group_id) {
+                if let Some(preset) = group.presets.iter().find(|p| p.id == preset_id) {
+                    for &index in &selected_indices {
+                        if let Some(step) = preset.steps.get(index) {
+                            clipboard.push(step.clone());
+                        }
+                    }
+                } else {
+                    self.status = "Macro preset not found.".to_owned();
+                    return;
+                }
+            } else {
+                self.status = "Macro group not found.".to_owned();
+                return;
+            }
+        }
 
-        self.macro_step_clipboard = selected_indices
-            .into_iter()
-            .filter_map(|step_index| preset.steps.get(step_index).cloned())
-            .collect::<Vec<_>>();
+        self.macro_step_clipboard = clipboard;
         if self.macro_step_clipboard.is_empty() {
             self.status = "No selected steps to copy.".to_owned();
         } else {
             self.status = format!("Copied {} step(s).", self.macro_step_clipboard.len());
         }
+    }
+
+    fn remove_selected_macro_steps_for_preset(&mut self, group_id: u32, preset_id: u32) {
+        let mut selected_indices = self
+            .selected_macro_steps
+            .iter()
+            .filter_map(|(selected_group, selected_preset, selected_index)| {
+                (*selected_group == group_id && *selected_preset == preset_id)
+                    .then_some(*selected_index)
+            })
+            .collect::<Vec<_>>();
+        selected_indices.sort_unstable();
+        selected_indices.dedup();
+        selected_indices.reverse();
+
+        if group_id == 0 {
+            if let Some(preset) = self.state.vision_timing_presets.iter_mut().find(|p| p.id == preset_id) {
+                for index in selected_indices {
+                    if index < preset.steps.len() {
+                        preset.steps.remove(index);
+                    }
+                }
+            }
+        } else {
+            if let Some(group) = self.state.macro_groups.iter_mut().find(|g| g.id == group_id) {
+                if let Some(preset) = group.presets.iter_mut().find(|p| p.id == preset_id) {
+                    for index in selected_indices {
+                        if index < preset.steps.len() {
+                            preset.steps.remove(index);
+                        }
+                    }
+                }
+            }
+        }
+        self.selected_macro_steps.retain(|(g_id, p_id, _)| *g_id != group_id || *p_id != preset_id);
     }
 
     fn paste_macro_steps_after(
@@ -8153,32 +8188,38 @@ impl CrosshairApp {
             return None;
         }
 
-        let Some(group) = self
-            .state
-            .macro_groups
-            .iter_mut()
-            .find(|group| group.id == group_id)
-        else {
-            self.status = "Macro group not found.".to_owned();
-            return None;
-        };
-        let Some(preset) = group
-            .presets
-            .iter_mut()
-            .find(|preset| preset.id == preset_id)
-        else {
-            self.status = "Macro preset not found.".to_owned();
-            return None;
-        };
-
-        let insert_at = (step_index + 1).min(preset.steps.len());
         let clipboard_steps = self.macro_step_clipboard.clone();
         let pasted_count = clipboard_steps.len();
-        for (offset, step) in clipboard_steps.into_iter().enumerate() {
-            preset.steps.insert(insert_at + offset, step);
+        let mut final_insert_at = 0;
+
+        if group_id == 0 {
+            let Some(preset) = self.state.vision_timing_presets.iter_mut().find(|p| p.id == preset_id) else {
+                self.status = "Vision preset not found.".to_owned();
+                return None;
+            };
+            let insert_at = (step_index + 1).min(preset.steps.len());
+            final_insert_at = insert_at;
+            for (offset, step) in clipboard_steps.into_iter().enumerate() {
+                preset.steps.insert(insert_at + offset, step);
+            }
+        } else {
+            let Some(group) = self.state.macro_groups.iter_mut().find(|g| g.id == group_id) else {
+                self.status = "Macro group not found.".to_owned();
+                return None;
+            };
+            let Some(preset) = group.presets.iter_mut().find(|p| p.id == preset_id) else {
+                self.status = "Macro preset not found.".to_owned();
+                return None;
+            };
+            let insert_at = (step_index + 1).min(preset.steps.len());
+            final_insert_at = insert_at;
+            for (offset, step) in clipboard_steps.into_iter().enumerate() {
+                preset.steps.insert(insert_at + offset, step);
+            }
         }
+
         self.status = format!("Pasted {} step(s).", pasted_count);
-        Some((insert_at..insert_at + pasted_count).collect::<Vec<_>>())
+        Some((final_insert_at..final_insert_at + pasted_count).collect::<Vec<_>>())
     }
 
     fn cut_selected_macro_groups(&mut self) {
@@ -16745,6 +16786,8 @@ impl CrosshairApp {
         let language = self.state.ui_language;
         let capture_target_snapshot = self.capture_target.clone();
         let selected_steps_snapshot = self.selected_macro_steps.clone();
+        let mut cancel_mouse_move_absolute_capture = false;
+        let mut next_mouse_move_absolute_capture_target = None;
         ui.add_space(2.0);
 
         ui.horizontal(|ui| {
@@ -16788,8 +16831,10 @@ impl CrosshairApp {
         let mut pending_step_selection = None;
         let mut next_capture_target = None;
         let mut cancel_active_capture = false;
-        let mut pending_custom_preset_save = None;
+        let mut pending_custom_preset_save: Option<()> = None;
         let mut open_macro_ai_target: Option<(u32, u32, MacroAiMode)> = None;
+        let mut paste_steps_target = None;
+        let mut remove_selected_steps_target = None;
 
 
         for index in 0..self.state.vision_presets.len() {
@@ -17527,8 +17572,7 @@ impl CrosshairApp {
                                 ))
                                 .clicked()
                             {
-                                self.paste_macro_steps_after(0, preset.id, preset.steps.len());
-                                timing_live_sync = true;
+                                paste_steps_target = Some((preset.id, preset.steps.len()));
                             }
                             if ui
                                 .add_sized([48.0, 20.0], Button::new(Self::tr_lang(language, "Copy", "Sao chép")))
@@ -17542,8 +17586,7 @@ impl CrosshairApp {
                                 .on_hover_text(Self::tr_lang(language, "Remove selected steps", "Xóa các bước đã chọn"))
                                 .clicked()
                             {
-                                self.remove_selected_macro_steps_for_preset(0, preset.id);
-                                timing_live_sync = true;
+                                remove_selected_steps_target = Some(preset.id);
                             }
                         });
                         ui.end_row();
@@ -18020,43 +18063,6 @@ impl CrosshairApp {
                     }
                 }
 
-                    if let Some((p_id, s_idx)) = insert_step_after {
-                        if let Some(preset) = self.state.vision_timing_presets.iter_mut().find(|p| p.id == p_id) {
-                            preset.steps.insert(s_idx + 1, MacroStep::default());
-                            timing_live_sync = true;
-                        }
-                    }
-                    if let Some((p_id, s_idx)) = remove_step {
-                        if let Some(preset) = self.state.vision_timing_presets.iter_mut().find(|p| p.id == p_id) {
-                            preset.steps.remove(s_idx);
-                            timing_live_sync = true;
-                        }
-                    }
-                    if let Some((p_id, s_idx)) = move_step_up {
-                        if let Some(preset) = self.state.vision_timing_presets.iter_mut().find(|p| p.id == p_id) {
-                            if s_idx > 0 {
-                                preset.steps.swap(s_idx, s_idx - 1);
-                                timing_live_sync = true;
-                            }
-                        }
-                    }
-                    if let Some((p_id, s_idx)) = move_step_down {
-                        if let Some(preset) = self.state.vision_timing_presets.iter_mut().find(|p| p.id == p_id) {
-                            if s_idx + 1 < preset.steps.len() {
-                                preset.steps.swap(s_idx, s_idx + 1);
-                                timing_live_sync = true;
-                            }
-                        }
-                    }
-                    if let Some(p_id) = copy_selected_steps {
-                        self.copy_selected_macro_steps_for_preset(0, p_id);
-                    }
-                    if let Some((group_id, preset_id, step_index, additive)) = pending_step_selection {
-                        let currently_selected = self.selected_macro_steps.contains(&(group_id, preset_id, step_index));
-                        let selected_count_in_preset = self.selected_macro_steps.iter().filter(|(g, p, _)| *g == group_id && *p == preset_id).count();
-                        self.select_macro_step(group_id, preset_id, step_index, additive, currently_selected, selected_count_in_preset);
-                    }
-                }
             });
 
             if let Some(preset_id) = start_search_region_capture {
@@ -18073,6 +18079,51 @@ impl CrosshairApp {
                     VisionCaptureMode::ColorSample,
                 );
             }
+        }
+
+        if let Some((p_id, s_idx)) = insert_step_after {
+            if let Some(preset) = self.state.vision_timing_presets.iter_mut().find(|p| p.id == p_id) {
+                preset.steps.insert(s_idx + 1, MacroStep::default());
+                timing_live_sync = true;
+            }
+        }
+        if let Some((p_id, s_idx)) = remove_step {
+            if let Some(preset) = self.state.vision_timing_presets.iter_mut().find(|p| p.id == p_id) {
+                preset.steps.remove(s_idx);
+                timing_live_sync = true;
+            }
+        }
+        if let Some((p_id, s_idx)) = move_step_up {
+            if let Some(preset) = self.state.vision_timing_presets.iter_mut().find(|p| p.id == p_id) {
+                if s_idx > 0 {
+                    preset.steps.swap(s_idx, s_idx - 1);
+                    timing_live_sync = true;
+                }
+            }
+        }
+        if let Some((p_id, s_idx)) = move_step_down {
+            if let Some(preset) = self.state.vision_timing_presets.iter_mut().find(|p| p.id == p_id) {
+                if s_idx + 1 < preset.steps.len() {
+                    preset.steps.swap(s_idx, s_idx + 1);
+                    timing_live_sync = true;
+                }
+            }
+        }
+        if let Some(p_id) = copy_selected_steps {
+            self.copy_selected_macro_steps_for_preset(0, p_id);
+        }
+        if let Some((p_id, s_idx)) = paste_steps_target {
+            self.paste_macro_steps_after(0, p_id, s_idx);
+            timing_live_sync = true;
+        }
+        if let Some(p_id) = remove_selected_steps_target {
+            self.remove_selected_macro_steps_for_preset(0, p_id);
+            timing_live_sync = true;
+        }
+        if let Some((group_id, preset_id, step_index, additive)) = pending_step_selection {
+            let currently_selected = self.selected_macro_steps.contains(&(group_id, preset_id, step_index));
+            let selected_count_in_preset = self.selected_macro_steps.iter().filter(|(g, p, _)| *g == group_id && *p == preset_id).count();
+            self.select_macro_step(group_id, preset_id, step_index, additive, currently_selected, selected_count_in_preset);
         }
 
         if let Some(remove_id) = remove_id {
@@ -18104,6 +18155,11 @@ impl CrosshairApp {
         }
         if cancel_active_capture {
             self.cancel_capture();
+        }
+        if cancel_mouse_move_absolute_capture {
+            self.cancel_mouse_move_absolute_capture(ctx);
+        } else if let Some(target) = next_mouse_move_absolute_capture_target {
+            self.begin_mouse_move_absolute_capture(ctx, target);
         }
         if let Some((group_id, preset_id, mode)) = open_macro_ai_target {
             self.open_macro_ai_dialog_for_preset_with_mode(group_id, preset_id, mode);
