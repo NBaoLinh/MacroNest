@@ -14704,9 +14704,9 @@ impl CrosshairApp {
                                         if ui
                                             .add_sized(
                                                 [64.0, 20.0],
-                                                Button::new(Self::tr_lang(language, "Clear all", "Clear all")),
+                                                Button::new(Self::tr_lang(language, "Clear all", "Xóa hết")),
                                             )
-                                            .on_hover_text(Self::tr_lang(language, "Clear all steps", "Clear all steps"))
+                                            .on_hover_text(Self::tr_lang(language, "Clear all steps", "Xóa tất cả các bước"))
                                             .clicked()
                                         {
                                             preset.steps.clear();
@@ -14818,7 +14818,7 @@ impl CrosshairApp {
                                             let select_label = if is_selected { "[x]" } else { "[ ]" };
                                             if ui
                                                 .add_sized([22.0, 18.0], Button::new("+"))
-                                                .on_hover_text("Add a new step below this one")
+                                                .on_hover_text(Self::tr_lang(language, "Add a new step below this one", "Thêm một bước mới phía dưới"))
                                                 .clicked()
                                             {
                                                 insert_step_after = Some((preset.id, step_index));
@@ -14862,7 +14862,7 @@ impl CrosshairApp {
                                                 .on_hover_text(Self::tr_lang(
                                                     language,
                                                     "Enable this step",
-                                                    "Bật step này",
+                                                    "Bật bước này",
                                                 ))
                                                 .changed();
                                             if ui
@@ -14873,7 +14873,7 @@ impl CrosshairApp {
                                                 .on_hover_text(Self::tr_lang(
                                                     language,
                                                     "Remove this step",
-                                                    "Xóa step này",
+                                                    "Xóa bước này",
                                                 ))
                                                 .clicked()
                                             {
@@ -16749,7 +16749,7 @@ impl CrosshairApp {
 
         ui.horizontal(|ui| {
             if ui
-                .button(self.tr("+ Detect image", "+ Detect image"))
+                .button(Self::tr_lang(language, "+ Detect image", "+ Phát hiện ảnh"))
                 .clicked()
             {
                 let id = self.state.next_vision_preset_id.max(1);
@@ -16761,7 +16761,7 @@ impl CrosshairApp {
                 self.persist();
             }
             if ui
-                .button(self.tr("+ Detect color", "+ Detect color"))
+                .button(Self::tr_lang(language, "+ Detect color", "+ Phát hiện màu"))
                 .clicked()
             {
                 let id = self.state.next_vision_preset_id.max(1);
@@ -16835,7 +16835,7 @@ impl CrosshairApp {
                             .on_hover_text(Self::tr_lang(
                                 language,
                                 "Enable / disable preset",
-                                "Enable / disable preset",
+                                "Bật / tắt preset",
                             ))
                             .clicked()
                         {
@@ -16848,9 +16848,9 @@ impl CrosshairApp {
                         if Self::sound_style_toggle_button(
                             ui,
                             if preset.collapsed {
-                                Self::tr_lang(language, "Show", "Show")
+                                Self::tr_lang(language, "Show", "Hiện")
                             } else {
-                                Self::tr_lang(language, "Hide", "Hide")
+                                Self::tr_lang(language, "Hide", "Ẩn")
                             },
                         )
                         .clicked()
@@ -16869,7 +16869,7 @@ impl CrosshairApp {
                     .num_columns(2)
                     .spacing([14.0, 8.0])
                     .show(ui, |ui| {
-                        ui.label(Self::tr_lang(language, "Hotkey", "Hotkey"));
+                        ui.label(Self::tr_lang(language, "Hotkey", "Phím tắt"));
                         ui.horizontal_wrapped(|ui| {
                             let (begin_capture, cancel_capture) =
                                 Self::render_hotkey_capture_control(
@@ -16887,7 +16887,7 @@ impl CrosshairApp {
                                     Self::tr_lang(
                                         language,
                                         "Press a hotkey for this preset.",
-                                        "Bam phim tat cho preset nay.",
+                                        "Nhấn phím tắt cho preset này.",
                                     )
                                     .to_owned(),
                                 ));
@@ -16898,12 +16898,12 @@ impl CrosshairApp {
                         });
                         ui.end_row();
 
-                        ui.label(Self::tr_lang(language, "Mode", "Mode"));
+                        ui.label(Self::tr_lang(language, "Mode", "Chế độ"));
                         ui.horizontal_wrapped(|ui| {
                             if ui
                                 .selectable_label(
                                     !preset.use_color_matching,
-                                    Self::tr_lang(language, "Detect image", "Detect image"),
+                                    Self::tr_lang(language, "Detect image", "Phát hiện ảnh"),
                                 )
                                 .clicked()
                             {
@@ -16913,7 +16913,7 @@ impl CrosshairApp {
                             if ui
                                 .selectable_label(
                                     preset.use_color_matching,
-                                    Self::tr_lang(language, "Detect color", "Detect color"),
+                                    Self::tr_lang(language, "Detect color", "Phát hiện màu"),
                                 )
                                 .clicked()
                             {
@@ -16934,13 +16934,13 @@ impl CrosshairApp {
                         }
 
                         if !preset.use_color_matching {
-                            ui.label(Self::tr_lang(language, "Template", "Template"));
+                            ui.label(Self::tr_lang(language, "Template", "Mẫu"));
                             ui.horizontal_wrapped(|ui| {
                                 if ui
                                     .button(Self::tr_lang(
                                         language,
                                         "Pick from screen",
-                                        "Chon tren man hinh",
+                                        "Chọn trên màn hình",
                                     ))
                                     .clicked()
                                 {
@@ -16950,7 +16950,7 @@ impl CrosshairApp {
                                     .button(Self::tr_lang(
                                         language,
                                         "Clear template",
-                                        "Clear template",
+                                        "Xóa mẫu",
                                     ))
                                     .clicked()
                                 {
@@ -16964,17 +16964,17 @@ impl CrosshairApp {
                             ui.end_row();
                         }
 
-                        ui.label(Self::tr_lang(language, "Area", "Area"));
+                        ui.label(Self::tr_lang(language, "Area", "Khu vực"));
                         ui.horizontal_wrapped(|ui| {
                             ui.monospace(Self::image_search_search_area_text(preset));
                             if ui
-                                .button(Self::tr_lang(language, "Pick area", "Pick area"))
+                                .button(Self::tr_lang(language, "Pick area", "Chọn khu vực"))
                                 .clicked()
                             {
                                 start_search_region_capture = Some(preset.id);
                             }
                             if ui
-                                .button(Self::tr_lang(language, "Clear area", "Clear area"))
+                                .button(Self::tr_lang(language, "Clear area", "Xóa khu vực"))
                                 .clicked()
                             {
                                 preset.search_region_screen_x = None;
@@ -16987,24 +16987,24 @@ impl CrosshairApp {
                             live_sync |= ui
                                 .checkbox(
                                     &mut preset.search_region_is_circle,
-                                    Self::tr_lang(language, "Circle", "Circle"),
+                                    Self::tr_lang(language, "Circle", "Hình tròn"),
                                 )
                                 .on_hover_text(Self::tr_lang(
                                     language,
                                     "Use a circular search region inside the selected box.",
-                                    "Dung vung tim hinh tron nam trong khung da chon.",
+                                    "Dùng vùng tìm kiếm hình tròn bên trong hộp đã chọn.",
                                 ))
                                 .changed();
                             live_sync |= ui
                                 .checkbox(
                                     &mut preset.show_search_region_overlay,
-                                    Self::tr_lang(language, "Overlay", "Overlay"),
+                                    Self::tr_lang(language, "Overlay", "Hiển thị overlay"),
                                 )
                                 .changed();
                         });
                         ui.end_row();
 
-                        ui.label(Self::tr_lang(language, "Offset", "Offset"));
+                        ui.label(Self::tr_lang(language, "Offset", "Độ lệch"));
                         ui.horizontal_wrapped(|ui| {
                             ui.label("X");
                             live_sync |= ui
@@ -17017,7 +17017,7 @@ impl CrosshairApp {
                         });
                         ui.end_row();
 
-                        ui.label(Self::tr_lang(language, "Repeat", "Repeat"));
+                        ui.label(Self::tr_lang(language, "Repeat", "Lặp lại"));
                         ui.horizontal_wrapped(|ui| {
                             live_sync |= ui
                                 .checkbox(
@@ -17025,7 +17025,7 @@ impl CrosshairApp {
                                     Self::tr_lang(
                                         language,
                                         "Repeat until triggered again",
-                                        "Lap cho den khi bam trigger lai",
+                                        "Lặp lại cho đến khi kích hoạt lần nữa",
                                     ),
                                 )
                                 .changed();
@@ -17033,7 +17033,7 @@ impl CrosshairApp {
                         ui.end_row();
 
                         if preset.use_color_matching {
-                            ui.label(Self::tr_lang(language, "Color", "Color"));
+                            ui.label(Self::tr_lang(language, "Color", "Màu sắc"));
                             ui.vertical(|ui| {
                                 let colors = Self::image_search_target_colors(&preset);
                                 let uses_legacy_single_color = preset.target_colors.is_empty()
@@ -17085,7 +17085,7 @@ impl CrosshairApp {
                             });
                             ui.end_row();
                         } else {
-                            ui.label(Self::tr_lang(language, "Accuracy", "Accuracy"));
+                            ui.label(Self::tr_lang(language, "Accuracy", "Độ chính xác"));
                             ui.horizontal_wrapped(|ui| {
                                 live_sync |= ui
                                     .add(
@@ -17098,7 +17098,7 @@ impl CrosshairApp {
                             ui.end_row();
                         }
 
-                        ui.label(Self::tr_lang(language, "Advanced", "Advanced"));
+                        ui.label(Self::tr_lang(language, "Advanced", "Nâng cao"));
                         ui.horizontal_wrapped(|ui| {
                             if Self::sized_button(
                                 ui,
@@ -17111,9 +17111,9 @@ impl CrosshairApp {
                                         "Show"
                                     },
                                     if preset.image_search_advanced_open {
-                                        "An"
+                                        "Ẩn"
                                     } else {
-                                        "Hien"
+                                        "Hiện"
                                     },
                                 ),
                             )
@@ -17129,16 +17129,16 @@ impl CrosshairApp {
                         ui.end_row();
 
                         if preset.image_search_advanced_open {
-                            ui.label(Self::tr_lang(language, "Move", "Move"));
+                            ui.label(Self::tr_lang(language, "Move", "Di chuyển"));
                             ui.horizontal_wrapped(|ui| {
-                                ui.label(Self::tr_lang(language, "Passes", "Passes"));
+                                ui.label(Self::tr_lang(language, "Passes", "Số lần"));
                                 live_sync |= ui
                                     .add(
                                         DragValue::new(&mut preset.non_interception_move_passes)
                                             .range(1..=10),
                                     )
                                     .changed();
-                                ui.label(Self::tr_lang(language, "Delay", "Delay"));
+                                ui.label(Self::tr_lang(language, "Delay", "Độ trễ"));
                                 live_sync |= ui
                                     .add(
                                         DragValue::new(&mut preset.non_interception_move_delay_ms)
@@ -17149,7 +17149,7 @@ impl CrosshairApp {
                             });
                             ui.end_row();
 
-                            ui.label(Self::tr_lang(language, "Driver", "Driver"));
+                            ui.label(Self::tr_lang(language, "Driver", "Trình điều khiển"));
                             ui.horizontal_wrapped(|ui| {
                                 live_sync |= ui
                                     .checkbox(
@@ -17161,16 +17161,16 @@ impl CrosshairApp {
                             ui.end_row();
 
                             if preset.use_color_matching {
-                                ui.label(Self::tr_lang(language, "Color scan", "Color scan"));
+                                ui.label(Self::tr_lang(language, "Color scan", "Quét màu"));
                                 ui.horizontal_wrapped(|ui| {
-                                    ui.label(Self::tr_lang(language, "Tolerance", "Tolerance"));
+                                    ui.label(Self::tr_lang(language, "Tolerance", "Sai số"));
                                     live_sync |= ui
                                         .add(
                                             DragValue::new(&mut preset.color_tolerance)
                                                 .range(0..=96),
                                         )
                                         .changed();
-                                    ui.label(Self::tr_lang(language, "Rate", "Rate"));
+                                    ui.label(Self::tr_lang(language, "Rate", "Tần suất"));
                                     live_sync |= ui
                                         .add(
                                             DragValue::new(&mut preset.color_scan_rate_hz)
@@ -17184,19 +17184,19 @@ impl CrosshairApp {
                                 ui.label(Self::tr_lang(
                                     language,
                                     "Color priority",
-                                    "Color priority",
+                                    "Ưu tiên màu",
                                 ));
                                 ui.horizontal_wrapped(|ui| {
                                     live_sync |= ui
                                         .checkbox(
                                             &mut preset.dual_color_scan_midpoint,
-                                            Self::tr_lang(language, "Midpoint", "Midpoint"),
+                                            Self::tr_lang(language, "Midpoint", "Điểm giữa"),
                                         )
                                         .changed();
                                     live_sync |= ui
                                         .checkbox(
                                             &mut preset.color_priority_from_anchor,
-                                            Self::tr_lang(language, "From point", "From point"),
+                                            Self::tr_lang(language, "From point", "Từ điểm cố định"),
                                         )
                                         .changed();
                                     let anchor = preset
@@ -17209,7 +17209,7 @@ impl CrosshairApp {
                                             .on_hover_text(Self::tr_lang(
                                                 language,
                                                 "Clear priority point",
-                                                "Xoa diem uu tien",
+                                                "Xóa điểm ưu tiên",
                                             ))
                                             .clicked()
                                         {
@@ -17223,7 +17223,7 @@ impl CrosshairApp {
                                             .button(Self::tr_lang(
                                                 language,
                                                 "Pick point",
-                                                "Chon diem",
+                                                "Chọn điểm",
                                             ))
                                             .clicked()
                                     {
@@ -17234,11 +17234,11 @@ impl CrosshairApp {
                             }
                         }
 
-                        ui.label(Self::tr_lang(language, "Target window", "Target window"));
+                        ui.label(Self::tr_lang(language, "Target window", "Cửa sổ mục tiêu"));
                         live_sync |= Self::render_multi_window_targets_with_duplicate_mode(
                             ui,
                             (preset.id, "image-search-target"),
-                            Self::tr_lang(language, "Any screen", "Any screen"),
+                            Self::tr_lang(language, "Any screen", "Bất kỳ màn hình"),
                             &mut preset.target_window_title,
                             &mut preset.extra_target_window_titles,
                             &mut preset.match_duplicate_window_titles,
@@ -17301,7 +17301,7 @@ impl CrosshairApp {
         ui.separator();
         ui.horizontal(|ui| {
             if ui
-                .button(self.tr("+ Add timing preset", "+ Add timing preset"))
+                .button(Self::tr_lang(language, "+ Add timing preset", "+ Thêm preset thời gian"))
                 .clicked()
             {
                 let id = self.state.next_vision_timing_preset_id.max(1);
@@ -17350,7 +17350,7 @@ impl CrosshairApp {
                             .on_hover_text(Self::tr_lang(
                                 language,
                                 "Enable / disable preset",
-                                "Enable / disable preset",
+                                "Bật / tắt preset",
                             ))
                             .clicked()
                         {
@@ -17363,9 +17363,9 @@ impl CrosshairApp {
                         if Self::sound_style_toggle_button(
                             ui,
                             if preset.collapsed {
-                                Self::tr_lang(language, "Show", "Show")
+                                Self::tr_lang(language, "Show", "Hiện")
                             } else {
-                                Self::tr_lang(language, "Hide", "Hide")
+                                Self::tr_lang(language, "Hide", "Ẩn")
                             },
                         )
                         .clicked()
@@ -17385,17 +17385,17 @@ impl CrosshairApp {
                     .show(ui, |ui| {
 
 
-                        ui.label(Self::tr_lang(language, "Area", "Area"));
+                        ui.label(Self::tr_lang(language, "Area", "Khu vực"));
                         ui.horizontal_wrapped(|ui| {
                             ui.monospace(Self::image_search_timing_area_text(preset));
                             if ui
-                                .button(Self::tr_lang(language, "Pick area", "Pick area"))
+                                .button(Self::tr_lang(language, "Pick area", "Chọn khu vực"))
                                 .clicked()
                             {
                                 start_search_region_capture = Some(preset.id);
                             }
                             if ui
-                                .button(Self::tr_lang(language, "Clear area", "Clear area"))
+                                .button(Self::tr_lang(language, "Clear area", "Xóa khu vực"))
                                 .clicked()
                             {
                                 preset.search_region_screen_x = None;
@@ -17407,29 +17407,29 @@ impl CrosshairApp {
                         });
                         ui.end_row();
 
-                        ui.label(Self::tr_lang(language, "Shape", "Shape"));
+                        ui.label(Self::tr_lang(language, "Shape", "Hình dạng"));
                         ui.horizontal_wrapped(|ui| {
                             timing_live_sync |= ui
                                 .checkbox(
                                     &mut preset.search_region_is_circle,
-                                    Self::tr_lang(language, "Circle area", "Circle area"),
+                                    Self::tr_lang(language, "Circle area", "Vùng hình tròn"),
                                 )
                                 .on_hover_text(Self::tr_lang(
                                     language,
                                     "Use a circular search region inside the selected box.",
-                                    "Dung vung tim hinh tron nam trong khung da chon.",
+                                    "Dùng vùng tìm kiếm hình tròn bên trong hộp đã chọn.",
                                 ))
                                 .changed();
                             timing_live_sync |= ui
                                 .checkbox(
                                     &mut preset.show_search_region_overlay,
-                                    Self::tr_lang(language, "Overlay", "Overlay"),
+                                    Self::tr_lang(language, "Overlay", "Hiển thị overlay"),
                                 )
                                 .changed();
                         });
                         ui.end_row();
 
-                        ui.label(Self::tr_lang(language, "Color", "Color"));
+                        ui.label(Self::tr_lang(language, "Color", "Màu sắc"));
                         ui.horizontal_wrapped(|ui| {
                             Self::image_search_target_color_swatch(
                                 ui,
@@ -17439,13 +17439,13 @@ impl CrosshairApp {
                             );
                             ui.monospace(Self::image_search_timing_color_text(preset));
                             if ui
-                                .button(Self::tr_lang(language, "Pick color", "Pick color"))
+                                .button(Self::tr_lang(language, "Pick color", "Chọn màu"))
                                 .clicked()
                             {
                                 start_color_pick_capture = Some(preset.id);
                             }
                             if ui
-                                .button(Self::tr_lang(language, "Clear color", "Clear color"))
+                                .button(Self::tr_lang(language, "Clear color", "Xóa màu"))
                                 .clicked()
                             {
                                 preset.target_color = None;
@@ -17455,7 +17455,7 @@ impl CrosshairApp {
                         });
                         ui.end_row();
 
-                        ui.label(Self::tr_lang(language, "Tolerance", "Tolerance"));
+                        ui.label(Self::tr_lang(language, "Tolerance", "Sai số"));
                         timing_live_sync |= ui
                             .add(
                                 DragValue::new(&mut preset.color_tolerance)
@@ -17465,7 +17465,7 @@ impl CrosshairApp {
                             .changed();
                         ui.end_row();
 
-                        ui.label(Self::tr_lang(language, "Scan rate", "Scan rate"));
+                        ui.label(Self::tr_lang(language, "Scan rate", "Tần suất quét"));
                         timing_live_sync |= ui
                             .add(
                                 DragValue::new(&mut preset.color_scan_rate_hz)
@@ -17475,7 +17475,7 @@ impl CrosshairApp {
                             .changed();
                         ui.end_row();
 
-                        ui.label(Self::tr_lang(language, "Cycle", "Cycle"));
+                        ui.label(Self::tr_lang(language, "Cycle", "Chu kỳ"));
                         timing_live_sync |= ui
                             .add(
                                 DragValue::new(&mut preset.timing_cycle_ms)
@@ -17501,15 +17501,15 @@ impl CrosshairApp {
                             }
                             ui.add_sized([24.0, 18.0], egui::Label::new(""));
                             ui.add_sized([30.0, 18.0], egui::Label::new(RichText::new("#").strong()));
-                            ui.add_sized([54.0, 18.0], egui::Label::new(RichText::new(Self::tr_lang(language, "Delay", "Delay")).strong()));
-                            ui.add_sized([154.0, 18.0], egui::Label::new(RichText::new(Self::tr_lang(language, "Action", "Action")).strong()));
+                            ui.add_sized([54.0, 18.0], egui::Label::new(RichText::new(Self::tr_lang(language, "Delay", "Độ trễ")).strong()));
+                            ui.add_sized([154.0, 18.0], egui::Label::new(RichText::new(Self::tr_lang(language, "Action", "Hành động")).strong()));
                             ui.add_sized([146.0, 18.0], egui::Label::new(""));
                             if ui
                                 .add_sized(
                                     [64.0, 20.0],
-                                    Button::new(Self::tr_lang(language, "Clear all", "Clear all")),
+                                    Button::new(Self::tr_lang(language, "Clear all", "Xóa hết")),
                                 )
-                                .on_hover_text(Self::tr_lang(language, "Clear all steps", "Clear all steps"))
+                                .on_hover_text(Self::tr_lang(language, "Clear all steps", "Xóa tất cả các bước"))
                                 .clicked()
                             {
                                 preset.steps.clear();
@@ -17531,15 +17531,15 @@ impl CrosshairApp {
                                 timing_live_sync = true;
                             }
                             if ui
-                                .add_sized([48.0, 20.0], Button::new(Self::tr_lang(language, "Copy", "Chép")))
-                                .on_hover_text(Self::tr_lang(language, "Copy selected steps", "Copy selected steps"))
+                                .add_sized([48.0, 20.0], Button::new(Self::tr_lang(language, "Copy", "Sao chép")))
+                                .on_hover_text(Self::tr_lang(language, "Copy selected steps", "Sao chép các bước đã chọn"))
                                 .clicked()
                             {
                                 copy_selected_steps = Some(preset.id);
                             }
                             if ui
                                 .add_sized([48.0, 20.0], Button::new(Self::tr_lang(language, "Delete", "Xóa")))
-                                .on_hover_text(Self::tr_lang(language, "Remove selected steps", "Remove selected steps"))
+                                .on_hover_text(Self::tr_lang(language, "Remove selected steps", "Xóa các bước đã chọn"))
                                 .clicked()
                             {
                                 self.remove_selected_macro_steps_for_preset(0, preset.id);
@@ -17633,7 +17633,7 @@ impl CrosshairApp {
                                         )
                                         .changed();
 
-                                    let action_combo = egui::ComboBox::from_id_salt((preset.id, step_index, "action"))
+                                    let action_combo = egui::ComboBox::from_id_salt(("vision-timing-action", preset.id, step_index))
                                         .width(148.0)
                                         .selected_text(format!(
                                             "{} {}",
@@ -17641,7 +17641,7 @@ impl CrosshairApp {
                                             Self::macro_action_selected_label(step.action, language)
                                         ))
                                         .show_ui(ui, |ui| {
-                                            egui::Grid::new((preset.id, step_index, "action-grid"))
+                                            egui::Grid::new(("vision-timing-action-grid", preset.id, step_index))
                                                 .num_columns(5)
                                                 .spacing([6.0, 6.0])
                                                 .show(ui, |ui| {
@@ -17650,6 +17650,11 @@ impl CrosshairApp {
                                                         MacroAction::KeyDown,
                                                         MacroAction::KeyUp,
                                                         MacroAction::TypeText,
+                                                        MacroAction::MouseLeftClick,
+                                                        MacroAction::MouseLeftDown,
+                                                        MacroAction::MouseLeftUp,
+                                                        MacroAction::MouseRightClick,
+                                                        MacroAction::MouseMoveAbsolute,
                                                         MacroAction::ApplyWindowPreset,
                                                         MacroAction::FocusWindowPreset,
                                                         MacroAction::TriggerMacroPreset,
@@ -17669,8 +17674,8 @@ impl CrosshairApp {
                                                         MacroAction::HideHud,
                                                         MacroAction::LockKeys,
                                                         MacroAction::UnlockKeys,
-                                                        MacroAction::EnableMacroPreset,
-                                                        MacroAction::DisableMacroPreset,
+                                                         MacroAction::EnableMacroPreset,
+                                                         MacroAction::DisableMacroPreset,
                                                     ]
                                                     .into_iter()
                                                     .enumerate()
@@ -17689,14 +17694,14 @@ impl CrosshairApp {
                                                     Self::render_mouse_action_group_option(
                                                         ui,
                                                         language,
-                                                        (0, preset.id, step_index, "mouse-group"),
+                                                        ("vision-timing-mouse-group", preset.id, step_index),
                                                         &mut step.action,
                                                         &mut timing_live_sync,
                                                     );
                                                     Self::render_image_search_action_group_option(
                                                         ui,
                                                         language,
-                                                        (0, preset.id, step_index, "image-search-group"),
+                                                        ("vision-timing-image-search-group", preset.id, step_index),
                                                         &mut step.action,
                                                         &mut timing_live_sync,
                                                     );
@@ -17713,8 +17718,8 @@ impl CrosshairApp {
                                                 .and_then(|id| {
                                                     self.state.window_presets.iter().find(|p| p.id == id).map(|p| p.name.clone())
                                                 })
-                                                .unwrap_or_else(|| "Select window preset".to_owned());
-                                            egui::ComboBox::from_id_salt((preset.id, step_index, "window-preset-step"))
+                                                .unwrap_or_else(|| Self::tr_lang(language, "Select window preset", "Chọn preset cửa sổ").to_owned());
+                                            egui::ComboBox::from_id_salt(("vision-timing-window-preset", preset.id, step_index))
                                                 .width(146.0)
                                                 .selected_text(selected_label)
                                                 .show_ui(ui, |ui| {
@@ -17731,8 +17736,8 @@ impl CrosshairApp {
                                                 .and_then(|id| {
                                                     self.state.window_focus_presets.iter().find(|p| p.id == id).map(|p| p.name.clone())
                                                 })
-                                                .unwrap_or_else(|| "Select focus preset".to_owned());
-                                            egui::ComboBox::from_id_salt((preset.id, step_index, "focus-window-preset-step"))
+                                                .unwrap_or_else(|| Self::tr_lang(language, "Select focus preset", "Chọn preset focus").to_owned());
+                                            egui::ComboBox::from_id_salt(("vision-timing-focus-preset", preset.id, step_index))
                                                 .width(160.0)
                                                 .selected_text(selected_label)
                                                 .show_ui(ui, |ui| {
@@ -17749,8 +17754,8 @@ impl CrosshairApp {
                                                 .and_then(|id| {
                                                     macro_preset_options.iter().find(|(p_id, _)| *p_id == id).map(|(_, label)| label.clone())
                                                 })
-                                                .unwrap_or_else(|| "Select macro preset".to_owned());
-                                            egui::ComboBox::from_id_salt((preset.id, step_index, "trigger-macro-preset-step"))
+                                                .unwrap_or_else(|| Self::tr_lang(language, "Select macro preset", "Chọn preset macro").to_owned());
+                                            egui::ComboBox::from_id_salt(("vision-timing-macro-preset", preset.id, step_index))
                                                 .width(160.0)
                                                 .selected_text(selected_label)
                                                 .show_ui(ui, |ui| {
@@ -17767,8 +17772,8 @@ impl CrosshairApp {
                                                 .and_then(|id| {
                                                     command_presets_snapshot.iter().find(|p| p.id == id).map(|p| p.name.clone())
                                                 })
-                                                .unwrap_or_else(|| "Select command".to_owned());
-                                            egui::ComboBox::from_id_salt((preset.id, step_index, "trigger-command-preset-step"))
+                                                .unwrap_or_else(|| Self::tr_lang(language, "Select command", "Chọn lệnh").to_owned());
+                                            egui::ComboBox::from_id_salt(("vision-timing-command-preset", preset.id, step_index))
                                                 .width(160.0)
                                                 .selected_text(selected_label)
                                                 .show_ui(ui, |ui| {
@@ -17785,8 +17790,8 @@ impl CrosshairApp {
                                                 .and_then(|id| {
                                                     macro_preset_options.iter().find(|(p_id, _)| *p_id == id).map(|(_, label)| label.clone())
                                                 })
-                                                .unwrap_or_else(|| "Select macro preset".to_owned());
-                                            egui::ComboBox::from_id_salt((preset.id, step_index, "macro-enable-preset-step"))
+                                                .unwrap_or_else(|| Self::tr_lang(language, "Select macro preset", "Chọn preset macro").to_owned());
+                                            egui::ComboBox::from_id_salt(("vision-timing-macro-toggle", preset.id, step_index))
                                                 .width(160.0)
                                                 .selected_text(selected_label)
                                                 .show_ui(ui, |ui| {
@@ -17798,8 +17803,8 @@ impl CrosshairApp {
                                                     }
                                                 });
                                         } else if step.action == MacroAction::EnableCrosshairProfile {
-                                            let selected_label = if step.key.trim().is_empty() { "Select crosshair preset".to_owned() } else { step.key.clone() };
-                                            egui::ComboBox::from_id_salt((preset.id, step_index, "crosshair-profile-step"))
+                                            let selected_label = if step.key.trim().is_empty() { Self::tr_lang(language, "Select crosshair preset", "Chọn tâm").to_owned() } else { step.key.clone() };
+                                            egui::ComboBox::from_id_salt(("vision-timing-crosshair", preset.id, step_index))
                                                 .width(146.0)
                                                 .selected_text(selected_label)
                                                 .show_ui(ui, |ui| {
@@ -17816,8 +17821,8 @@ impl CrosshairApp {
                                                 .and_then(|id| {
                                                     self.state.pin_presets.iter().find(|p| p.id == id).map(|p| p.name.clone())
                                                 })
-                                                .unwrap_or_else(|| "Select pin preset".to_owned());
-                                            egui::ComboBox::from_id_salt((preset.id, step_index, "pin-preset-step"))
+                                                .unwrap_or_else(|| Self::tr_lang(language, "Select pin preset", "Chọn pin").to_owned());
+                                            egui::ComboBox::from_id_salt(("vision-timing-pin", preset.id, step_index))
                                                 .width(146.0)
                                                 .selected_text(selected_label)
                                                 .show_ui(ui, |ui| {
@@ -17834,8 +17839,8 @@ impl CrosshairApp {
                                                 .and_then(|id| {
                                                     self.state.mouse_path_presets.iter().find(|p| p.id == id).map(|p| p.name.clone())
                                                 })
-                                                .unwrap_or_else(|| "Select mouse path".to_owned());
-                                            egui::ComboBox::from_id_salt((preset.id, step_index, "mouse-path-preset-step"))
+                                                .unwrap_or_else(|| Self::tr_lang(language, "Select mouse path", "Chọn đường di chuột").to_owned());
+                                            egui::ComboBox::from_id_salt(("vision-timing-mouse-path", preset.id, step_index))
                                                 .width(146.0)
                                                 .selected_text(selected_label)
                                                 .show_ui(ui, |ui| {
@@ -17852,8 +17857,8 @@ impl CrosshairApp {
                                                 .and_then(|id| {
                                                     image_search_preset_options.iter().find(|(p_id, _)| *p_id == id).map(|(_, label)| label.clone())
                                                 })
-                                                .unwrap_or_else(|| "Select image search preset".to_owned());
-                                            egui::ComboBox::from_id_salt((preset.id, step_index, "image-search-preset-step"))
+                                                .unwrap_or_else(|| Self::tr_lang(language, "Select image search preset", "Chọn tìm ảnh").to_owned());
+                                            egui::ComboBox::from_id_salt(("vision-timing-vision-preset", preset.id, step_index))
                                                 .width(146.0)
                                                 .selected_text(selected_label)
                                                 .show_ui(ui, |ui| {
@@ -17867,7 +17872,7 @@ impl CrosshairApp {
                                         } else if step.action == MacroAction::TriggerVisionTiming {
                                             let selected_id = step.key.trim().parse::<u32>().ok();
                                             let selected_label = Self::image_search_timing_preset_label(&image_search_timing_preset_options, selected_id, "Select timing preset");
-                                            egui::ComboBox::from_id_salt((preset.id, step_index, "image-search-timing-preset-step"))
+                                            egui::ComboBox::from_id_salt(("vision-timing-timing-preset", preset.id, step_index))
                                                 .width(180.0)
                                                 .selected_text(selected_label)
                                                 .show_ui(ui, |ui| {
@@ -17884,8 +17889,8 @@ impl CrosshairApp {
                                                 .and_then(|id| {
                                                     mouse_sensitivity_presets_snapshot.iter().find(|p| p.id == id).map(|p| p.name.clone())
                                                 })
-                                                .unwrap_or_else(|| "Select speed preset".to_owned());
-                                            egui::ComboBox::from_id_salt((preset.id, step_index, "mouse-sensitivity-preset-step"))
+                                                .unwrap_or_else(|| Self::tr_lang(language, "Select speed preset", "Chọn tốc độ").to_owned());
+                                            egui::ComboBox::from_id_salt(("vision-timing-speed-preset", preset.id, step_index))
                                                 .width(160.0)
                                                 .selected_text(format!("{selected_label} ▾"))
                                                 .show_ui(ui, |ui| {
@@ -17902,8 +17907,8 @@ impl CrosshairApp {
                                                 .and_then(|id| {
                                                     self.state.zoom_presets.iter().find(|p| p.id == id).map(|p| p.name.clone())
                                                 })
-                                                .unwrap_or_else(|| "Select zoom preset".to_owned());
-                                            egui::ComboBox::from_id_salt((preset.id, step_index, "zoom-preset-step"))
+                                                .unwrap_or_else(|| Self::tr_lang(language, "Select zoom preset", "Chọn zoom").to_owned());
+                                            egui::ComboBox::from_id_salt(("vision-timing-zoom", preset.id, step_index))
                                                 .width(146.0)
                                                 .selected_text(selected_label)
                                                 .show_ui(ui, |ui| {
@@ -17920,8 +17925,8 @@ impl CrosshairApp {
                                                 .and_then(|id| {
                                                     self.state.audio_settings.presets.iter().find(|p| p.id == id).map(|p| p.name.clone())
                                                 })
-                                                .unwrap_or_else(|| "Select sound preset".to_owned());
-                                            egui::ComboBox::from_id_salt((preset.id, step_index, "sound-preset-step"))
+                                                .unwrap_or_else(|| Self::tr_lang(language, "Select sound preset", "Chọn âm thanh").to_owned());
+                                            egui::ComboBox::from_id_salt(("vision-timing-sound", preset.id, step_index))
                                                 .width(146.0)
                                                 .selected_text(selected_label)
                                                 .show_ui(ui, |ui| {
@@ -17950,24 +17955,24 @@ impl CrosshairApp {
                                                 .and_then(|id| {
                                                     self.state.hud_presets.iter().find(|p| p.id == id).map(|p| p.name.clone())
                                                 })
-                                                .unwrap_or_else(|| "Select toolbox preset".to_owned());
+                                                .unwrap_or_else(|| Self::tr_lang(language, "Select toolbox", "Chọn toolbox").to_owned());
                                             ui.horizontal(|ui| {
-                                                egui::ComboBox::from_id_salt((preset.id, step_index, "toolbox-preset-step"))
+                                                egui::ComboBox::from_id_salt(("vision-timing-toolbox", preset.id, step_index))
                                                     .width(104.0)
                                                     .selected_text(selected_label)
                                                     .show_ui(ui, |ui| {
                                                         for toolbox_preset in &self.state.hud_presets {
                                                             if ui.selectable_label(selected_id == Some(toolbox_preset.id), &toolbox_preset.name).clicked() {
-                                                                step.key = toolbox_preset.id.to_string();
+                                                                 step.key = toolbox_preset.id.to_string();
                                                                 timing_live_sync = true;
                                                             }
                                                         }
                                                     });
-                                                let response = ui.add_sized([120.0, 18.0], TextEdit::singleline(&mut step.text_override).hint_text("Text override"));
+                                                let response = ui.add_sized([120.0, 18.0], TextEdit::singleline(&mut step.text_override).hint_text(Self::tr_lang(language, "Text override", "Ghi đè text")));
                                                 timing_live_sync |= response.changed();
                                             });
                                         } else if step.action == MacroAction::TypeText {
-                                            let response = ui.add_sized([220.0, 18.0], TextEdit::singleline(&mut step.key).hint_text("Text to type"));
+                                            let response = ui.add_sized([220.0, 18.0], TextEdit::singleline(&mut step.key).hint_text(Self::tr_lang(language, "Text to type", "Text cần gõ")));
                                             timing_live_sync |= response.changed();
                                         } else {
                                             timing_live_sync |= ui.add_sized([160.0, 18.0], TextEdit::singleline(&mut step.key)).changed();
@@ -17977,8 +17982,21 @@ impl CrosshairApp {
                                     if Self::macro_action_uses_position(step.action) {
                                         timing_live_sync |= ui.add_sized([58.0, 18.0], DragValue::new(&mut step.x).range(-30000..=30000)).changed();
                                         timing_live_sync |= ui.add_sized([58.0, 18.0], DragValue::new(&mut step.y).range(-30000..=30000)).changed();
+                                        
+                                        if step.action == MacroAction::MouseMoveAbsolute {
+                                            let capture_target = MouseMoveAbsoluteCaptureTarget {
+                                                group_id: None,
+                                                preset_id: preset.id,
+                                                step_index,
+                                            };
+                                            let capture_active = self.mouse_move_absolute_capture_target == Some(capture_target);
+                                            if ui.add_sized([28.0, 18.0], Button::new(Self::pick_point_button_text(language, capture_active))).clicked() {
+                                                if capture_active { cancel_mouse_move_absolute_capture = true; }
+                                                else { next_mouse_move_absolute_capture_target = Some(capture_target); }
+                                            }
+                                        }
                                     } else if step.action == MacroAction::ShowHud {
-                                        timing_live_sync |= ui.checkbox(&mut step.timed_override, "T").on_hover_text("Timed display").changed();
+                                        timing_live_sync |= ui.checkbox(&mut step.timed_override, "T").on_hover_text(Self::tr_lang(language, "Timed display", "Hiển thị có thời hạn")).changed();
                                         ui.add_enabled_ui(step.timed_override, |ui| {
                                             timing_live_sync |= ui.add_sized([72.0, 18.0], DragValue::new(&mut step.duration_override_ms).range(50..=60_000).suffix(" ms")).changed();
                                         });
@@ -17994,7 +18012,7 @@ impl CrosshairApp {
                                         };
                                         if ui.add_sized([if capture_active { 92.0 } else { 28.0 }, 18.0], capture_button).clicked() {
                                             if capture_active { cancel_active_capture = true; }
-                                            else { next_capture_target = Some((capture_target, "Capture input for step".to_owned())); }
+                                            else { next_capture_target = Some((capture_target, Self::tr_lang(language, "Capture input for step", "Bắt phím cho bước này").to_owned())); }
                                         }
                                     }
                                 });
