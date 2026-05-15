@@ -180,16 +180,11 @@ pub struct VisionTimingPreset {
     pub dual_color_scan_midpoint: bool,
     #[serde(default = "default_image_search_timing_cycle_ms")]
     pub timing_cycle_ms: u64,
-    #[serde(default = "default_true")]
-    pub loop_enabled: bool,
-    #[serde(default = "default_true")]
-    pub loop_forever: bool,
-    #[serde(default = "default_image_search_timing_loop_duration_secs")]
-    pub loop_duration_secs: u32,
     pub search_region_screen_x: Option<i32>,
     pub search_region_screen_y: Option<i32>,
     pub search_region_width: Option<i32>,
     pub search_region_height: Option<i32>,
+    pub steps: Vec<MacroStep>,
 }
 
 impl VisionTimingPreset {
@@ -210,13 +205,11 @@ impl VisionTimingPreset {
             color_scan_rate_hz: default_image_search_color_scan_rate_hz(),
             dual_color_scan_midpoint: false,
             timing_cycle_ms: default_image_search_timing_cycle_ms(),
-            loop_enabled: true,
-            loop_forever: true,
-            loop_duration_secs: default_image_search_timing_loop_duration_secs(),
             search_region_screen_x: None,
             search_region_screen_y: None,
             search_region_width: None,
             search_region_height: None,
+            steps: Vec::new(),
         }
     }
 }
@@ -545,6 +538,10 @@ pub enum CaptureRequest {
     CommandPresetHotkey(u32),
     MacroStepInput {
         group_id: u32,
+        preset_id: u32,
+        step_index: usize,
+    },
+    VisionTimingStepInput {
         preset_id: u32,
         step_index: usize,
     },

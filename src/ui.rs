@@ -1492,17 +1492,13 @@ impl CrosshairApp {
         } else {
             "No area"
         };
-        let loop_text = if preset.loop_enabled {
-            if preset.loop_forever {
-                "Loop forever".to_owned()
-            } else {
-                format!("Loop {} s", preset.loop_duration_secs.max(1))
-            }
+        let steps_text = if preset.steps.is_empty() {
+            "No steps".to_owned()
         } else {
-            "One-shot".to_owned()
+            format!("{} steps", preset.steps.len())
         };
         format!(
-            "{area} | {color_text} | {} ms | {loop_text}",
+            "{area} | {color_text} | {} ms | {steps_text}",
             preset.timing_cycle_ms.max(1)
         )
     }
@@ -8073,6 +8069,21 @@ impl CrosshairApp {
             step.key = new_id.to_string();
         }
     }
+    
+    fn image_search_timing_preset_label(
+        options: &[(u32, String)],
+        selected_id: Option<u32>,
+        default: &str,
+    ) -> String {
+        selected_id
+            .and_then(|id| {
+                options
+                    .iter()
+                    .find(|(p_id, _)| *p_id == id)
+                    .map(|(_, label)| label.clone())
+            })
+            .unwrap_or_else(|| default.to_owned())
+    }
 
     fn set_active_macro_folder_view(&mut self, folder_id: Option<u32>) {
         self.active_macro_folder_view = folder_id;
@@ -8297,6 +8308,18 @@ impl CrosshairApp {
                 .find(|group| group.id == *group_id)
                 .and_then(|group| group.presets.iter().find(|preset| preset.id == *preset_id))
                 .and_then(|preset| preset.steps.get(*step_index))
+                .is_some_and(|step| {
+                    matches!(step.action, MacroAction::LockKeys | MacroAction::UnlockKeys)
+                }),
+            CaptureRequest::VisionTimingStepInput {
+                preset_id,
+                step_index,
+            } => self
+                .state
+                .vision_timing_presets
+                .iter()
+                .find(|p| p.id == *preset_id)
+                .and_then(|p| p.steps.get(*step_index))
                 .is_some_and(|step| {
                     matches!(step.action, MacroAction::LockKeys | MacroAction::UnlockKeys)
                 }),
@@ -10082,6 +10105,73 @@ impl CrosshairApp {
                     self.status = format!("Captured step input for preset {preset_id}.");
                 }
                 self.sync_macro_presets();
+            }
+            (
+                CaptureRequest::VisionTimingStepInput {
+                    preset_id,
+                    step_index,
+                },
+                CapturedInput::Binding(binding),
+            ) => {
+                if let Some(step) = self
+                    .state
+                    .vision_timing_presets
+                    .iter_mut()
+                    .find(|p| p.id == preset_id)
+                    .and_then(|p| p.steps.get_mut(step_index))
+                {
+                    if matches!(step.action, MacroAction::LockKeys | MacroAction::UnlockKeys) {
+                        let key = binding.key;
+                        let existing = step
+                            .key
+                            .split(',')
+                            .map(str::trim)
+                            .filter(|part| !part.is_empty())
+                            .map(str::to_owned)
+                            .collect::<Vec<_>>();
+                        if existing.iter().any(|part| part.eq_ignore_ascii_case(&key)) {
+                            self.status = format!("Key {key} is already in that lock list.");
+                        } else if existing.is_empty() {
+                            step.key = key.clone();
+                            self.status = format!("Captured lock key {key} for preset {preset_id}.");
+                        } else {
+                            step.key = format!("{},{}", step.key.trim(), key);
+                            self.status = format!("Added lock key {key} for preset {preset_id}.");
+                        }
+                    } else {
+                        step.key = binding.key;
+                        if step.action == MacroAction::MouseMoveAbsolute
+                            || step.action == MacroAction::MouseMoveRelative
+                        {
+                            step.action = MacroAction::KeyPress;
+                        }
+                        self.status = format!("Captured step input for preset {preset_id}.");
+                    }
+                }
+                self.sync_vision_presets();
+            }
+            (
+                CaptureRequest::VisionTimingStepInput {
+                    preset_id,
+                    step_index,
+                },
+                CapturedInput::Step(mut captured_step),
+            ) => {
+                captured_step.delay_ms = 0;
+                if let Some(step) = self
+                    .state
+                    .vision_timing_presets
+                    .iter_mut()
+                    .find(|p| p.id == preset_id)
+                    .and_then(|p| p.steps.get_mut(step_index))
+                {
+                    step.key = captured_step.key;
+                    step.action = captured_step.action;
+                    step.x = captured_step.x;
+                    step.y = captured_step.y;
+                    self.status = format!("Captured step input for preset {preset_id}.");
+                }
+                self.sync_vision_presets();
             }
             _ => {
                 self.status = "Capture type mismatch.".to_owned();
@@ -15538,6 +15628,84 @@ impl CrosshairApp {
                                                         [146.0, 18.0],
                                                         egui::Label::new(Self::tr_lang(language, "No input", "No input")),
                                                     );
+                                                } else if matches!(step.action, MacroAction::StartVisionSearch | MacroAction::TriggerVisionMove | MacroAction::StopVision | MacroAction::StopVisionWait) {
+                                                    let selected_id = step.key.trim().parse::<u32>().ok();
+                                                    let selected_label = selected_id
+                                                        .and_then(|id| {
+                                                            self.state
+                                                                .vision_presets
+                                                                .iter()
+                                                                .find(|p| p.id == id)
+                                                                .map(|p| p.name.clone())
+                                                        })
+                                                        .unwrap_or_else(|| {
+                                                            if step.key.trim().is_empty() {
+                                                                Self::tr_lang(
+                                                                    language,
+                                                                    "Select vision preset",
+                                                                    "Chọn preset hình ảnh",
+                                                                )
+                                                                .to_owned()
+                                                            } else {
+                                                                format!("ID: {}", step.key)
+                                                            }
+                                                        });
+                                                    egui::ComboBox::from_id_salt((group.id, preset.id, step_index, "vision-preset-step"))
+                                                        .width(146.0)
+                                                        .selected_text(selected_label)
+                                                        .show_ui(ui, |ui| {
+                                                            for vision_preset in &self.state.vision_presets {
+                                                                if ui
+                                                                    .selectable_label(
+                                                                        selected_id == Some(vision_preset.id),
+                                                                        &vision_preset.name,
+                                                                    )
+                                                                    .clicked()
+                                                                {
+                                                                    step.key = vision_preset.id.to_string();
+                                                                    live_sync = true;
+                                                                }
+                                                            }
+                                                        });
+                                                } else if step.action == MacroAction::TriggerVisionTiming {
+                                                    let selected_id = step.key.trim().parse::<u32>().ok();
+                                                    let selected_label = selected_id
+                                                        .and_then(|id| {
+                                                            self.state
+                                                                .vision_timing_presets
+                                                                .iter()
+                                                                .find(|p| p.id == id)
+                                                                .map(|p| p.name.clone())
+                                                        })
+                                                        .unwrap_or_else(|| {
+                                                            if step.key.trim().is_empty() {
+                                                                Self::tr_lang(
+                                                                    language,
+                                                                    "Select timing preset",
+                                                                    "Chọn preset timing",
+                                                                )
+                                                                .to_owned()
+                                                            } else {
+                                                                format!("ID: {}", step.key)
+                                                            }
+                                                        });
+                                                    egui::ComboBox::from_id_salt((group.id, preset.id, step_index, "vision-timing-preset-step"))
+                                                        .width(146.0)
+                                                        .selected_text(selected_label)
+                                                        .show_ui(ui, |ui| {
+                                                            for timing_preset in &self.state.vision_timing_presets {
+                                                                if ui
+                                                                    .selectable_label(
+                                                                        selected_id == Some(timing_preset.id),
+                                                                        &timing_preset.name,
+                                                                    )
+                                                                    .clicked()
+                                                                {
+                                                                    step.key = timing_preset.id.to_string();
+                                                                    live_sync = true;
+                                                                }
+                                                            }
+                                                        });
                                                 } else {
                                                     let response =
                                                         ui.add_sized([146.0, 18.0], TextEdit::singleline(&mut step.key));
@@ -16561,8 +16729,10 @@ impl CrosshairApp {
         }
     }
 
-        fn render_vision_panel(&mut self, ui: &mut egui::Ui, ctx: &egui::Context) {
+    fn render_vision_panel(&mut self, ui: &mut egui::Ui, ctx: &egui::Context) {
         let language = self.state.ui_language;
+        let capture_target_snapshot = self.capture_target.clone();
+        let selected_steps_snapshot = self.selected_macro_steps.clone();
         ui.add_space(2.0);
 
         ui.horizontal(|ui| {
@@ -16598,6 +16768,17 @@ impl CrosshairApp {
         let mut live_sync = false;
         let mut remove_timing_id = None;
         let mut timing_live_sync = false;
+        let mut insert_step_after = None;
+        let mut remove_step = None;
+        let mut move_step_up = None;
+        let mut move_step_down = None;
+        let mut copy_selected_steps = None;
+        let mut pending_step_selection = None;
+        let mut next_capture_target = None;
+        let mut cancel_active_capture = false;
+        let mut pending_custom_preset_save = None;
+        let mut open_macro_ai_target: Option<(u32, u32, MacroAiMode)> = None;
+
 
         for index in 0..self.state.vision_presets.len() {
             let preset_snapshot = self.state.vision_presets[index].clone();
@@ -16607,8 +16788,8 @@ impl CrosshairApp {
             } else {
                 self.image_search_preview_for_preset(ctx, &preset_snapshot)
             };
-            let mut next_capture = None;
-            let mut cancel_active_capture = false;
+            let mut next_capture_local = None;
+            let mut cancel_active_capture_local = false;
             let mut start_image_search_capture = None;
             let mut start_search_region_capture = None;
             let mut start_color_pick_capture = None;
@@ -16689,7 +16870,7 @@ impl CrosshairApp {
                                     &mut live_sync,
                                 );
                             if begin_capture {
-                                next_capture = Some((
+                                next_capture_local = Some((
                                     hotkey_capture_target.clone(),
                                     Self::tr_lang(
                                         language,
@@ -16700,7 +16881,7 @@ impl CrosshairApp {
                                 ));
                             }
                             if cancel_capture {
-                                cancel_active_capture = true;
+                                cancel_active_capture_local = true;
                             }
                         });
                         ui.end_row();
@@ -17068,7 +17249,7 @@ impl CrosshairApp {
                 }
             });
 
-            if let Some((target, status)) = next_capture {
+            if let Some((target, status)) = next_capture_local {
                 self.begin_capture(target, status);
             }
             if let Some(preset_id) = start_image_search_capture {
@@ -17099,7 +17280,7 @@ impl CrosshairApp {
                     VisionCaptureMode::ColorPriorityAnchor,
                 );
             }
-            if cancel_active_capture {
+            if cancel_active_capture_local {
                 self.cancel_capture();
             }
         }
@@ -17119,6 +17300,20 @@ impl CrosshairApp {
                 timing_live_sync = true;
             }
         });
+
+        let macro_preset_options: Vec<(u32, String)> = self.state.macro_groups.iter().flat_map(|group| {
+            group.presets.iter().map(move |preset| {
+                (preset.id, format!("{} - ID:{}", group.name, preset.id))
+            })
+        }).collect();
+        let command_presets_snapshot = self.state.command_presets.clone();
+        let mouse_sensitivity_presets_snapshot = self.state.mouse_sensitivity_presets.clone();
+        let image_search_preset_options: Vec<(u32, String)> = self.state.vision_presets.iter().map(|p| {
+            (p.id, format!("{} - ID:{}", p.name, p.id))
+        }).collect();
+        let image_search_timing_preset_options: Vec<(u32, String)> = self.state.vision_timing_presets.iter().map(|p| {
+            (p.id, format!("{} - ID:{}", p.name, p.id))
+        }).collect();
 
         for index in 0..self.state.vision_timing_presets.len() {
             let mut start_search_region_capture = None;
@@ -17278,38 +17473,560 @@ impl CrosshairApp {
                             .changed();
                         ui.end_row();
 
-                        ui.label(Self::tr_lang(language, "Loop", "Loop"));
-                        ui.horizontal_wrapped(|ui| {
-                            timing_live_sync |= ui
-                                .checkbox(
-                                    &mut preset.loop_enabled,
-                                    Self::tr_lang(language, "Enable loop", "Enable loop"),
+                        ui.label(Self::tr_lang(language, "Steps", "Bước"));
+                        ui.horizontal(|ui| {
+                            if ui
+                                .add_sized([22.0, 18.0], Button::new(RichText::new("+").strong()))
+                                .on_hover_text(Self::tr_lang(
+                                    language,
+                                    "Add step",
+                                    "Thêm một bước vào đầu preset này",
+                                ))
+                                .clicked()
+                            {
+                                preset.steps.insert(0, MacroStep::default());
+                                timing_live_sync = true;
+                            }
+                            ui.add_sized([24.0, 18.0], egui::Label::new(""));
+                            ui.add_sized([30.0, 18.0], egui::Label::new(RichText::new("#").strong()));
+                            ui.add_sized([54.0, 18.0], egui::Label::new(RichText::new(Self::tr_lang(language, "Delay", "Delay")).strong()));
+                            ui.add_sized([154.0, 18.0], egui::Label::new(RichText::new(Self::tr_lang(language, "Action", "Action")).strong()));
+                            ui.add_sized([146.0, 18.0], egui::Label::new(""));
+                            if ui
+                                .add_sized(
+                                    [64.0, 20.0],
+                                    Button::new(Self::tr_lang(language, "Clear all", "Clear all")),
                                 )
-                                .changed();
-                            if preset.loop_enabled {
-                                timing_live_sync |= ui
-                                    .checkbox(
-                                        &mut preset.loop_forever,
-                                        Self::tr_lang(language, "Infinite", "Infinite"),
-                                    )
-                                    .changed();
-                                if !preset.loop_forever {
-                                    ui.label(Self::tr_lang(language, "Seconds", "Seconds"));
-                                    timing_live_sync |= ui
-                                        .add(
-                                            DragValue::new(&mut preset.loop_duration_secs)
-                                                .range(1..=86400)
-                                                .suffix(" s"),
-                                        )
-                                        .changed();
-                                }
+                                .on_hover_text(Self::tr_lang(language, "Clear all steps", "Clear all steps"))
+                                .clicked()
+                            {
+                                preset.steps.clear();
+                                timing_live_sync = true;
+                            }
+                            if ui
+                                .add_sized(
+                                    [48.0, 20.0],
+                                    Button::new(Self::tr_lang(language, "Paste", "Dán")),
+                                )
+                                .on_hover_text(Self::tr_lang(
+                                    language,
+                                    "Paste steps from clipboard after the last step",
+                                    "Dán các bước từ bộ nhớ tạm vào sau bước cuối cùng",
+                                ))
+                                .clicked()
+                            {
+                                self.paste_macro_steps_after(0, preset.id, preset.steps.len());
+                                timing_live_sync = true;
+                            }
+                            if ui
+                                .add_sized([48.0, 20.0], Button::new(Self::tr_lang(language, "Copy", "Chép")))
+                                .on_hover_text(Self::tr_lang(language, "Copy selected steps", "Copy selected steps"))
+                                .clicked()
+                            {
+                                copy_selected_steps = Some(preset.id);
+                            }
+                            if ui
+                                .add_sized([48.0, 20.0], Button::new(Self::tr_lang(language, "Delete", "Xóa")))
+                                .on_hover_text(Self::tr_lang(language, "Remove selected steps", "Remove selected steps"))
+                                .clicked()
+                            {
+                                self.remove_selected_macro_steps_for_preset(0, preset.id);
+                                timing_live_sync = true;
                             }
                         });
                         ui.end_row();
-
-                        ui.label(Self::tr_lang(language, "Match", "Match"));
-                        ui.end_row();
                     });
+
+                if !preset.steps.is_empty() {
+                    ui.add_space(4.0);
+                    let steps_len = preset.steps.len();
+                    for step_index in 0..steps_len {
+                        let step = &mut preset.steps[step_index];
+                        let is_selected = selected_steps_snapshot.iter().any(|(g_id, p_id, s_idx)| *g_id == 0 && *p_id == preset.id && *s_idx == step_index);
+                        
+                        let row_fill = if is_selected {
+                            Color32::from_rgba_premultiplied(88, 148, 220, 130)
+                        } else {
+                            ui.visuals().faint_bg_color
+                        };
+
+                        Frame::group(ui.style())
+                            .fill(row_fill)
+                            .inner_margin(egui::Margin::symmetric(4, 2))
+                            .show(ui, |ui| {
+                                ui.horizontal(|ui| {
+                                    if ui
+                                        .add_sized([22.0, 18.0], Button::new("+"))
+                                        .on_hover_text("Add a new step below this one")
+                                        .clicked()
+                                    {
+                                        insert_step_after = Some((preset.id, step_index));
+                                    }
+
+                                    if ui
+                                        .add_sized([22.0, 18.0], Button::new("▲"))
+                                        .on_hover_text("Move this step up")
+                                        .clicked()
+                                    {
+                                        move_step_up = Some((preset.id, step_index));
+                                    }
+
+                                    if ui
+                                        .add_sized([22.0, 18.0], Button::new("▼"))
+                                        .on_hover_text("Move this step down")
+                                        .clicked()
+                                    {
+                                        move_step_down = Some((preset.id, step_index));
+                                    }
+
+                                    let select_label = if is_selected { "[x]" } else { "[ ]" };
+                                    if ui.add_sized([24.0, 18.0], Button::new(select_label)).clicked() {
+                                        pending_step_selection = Some((
+                                            0, // dummy group id
+                                            preset.id,
+                                            step_index,
+                                            ui.input(|input| input.modifiers.ctrl),
+                                        ));
+                                    }
+
+                                    timing_live_sync |= ui
+                                        .add_sized(
+                                            [18.0, 18.0],
+                                            egui::Checkbox::new(&mut step.enabled, ""),
+                                        )
+                                        .changed();
+
+                                    if ui
+                                        .add_sized(
+                                            [28.0, 18.0],
+                                            Button::new(Self::material_icon_text(0xe872, 18.0)),
+                                        )
+                                        .on_hover_text("Remove this step")
+                                        .clicked()
+                                    {
+                                        remove_step = Some((preset.id, step_index));
+                                    }
+
+                                    ui.add_sized(
+                                        [30.0, 18.0],
+                                        egui::Label::new(
+                                            RichText::new(format!("{}", step_index + 1)).monospace(),
+                                        ),
+                                    );
+
+                                    timing_live_sync |= ui
+                                        .add_sized(
+                                            [54.0, 18.0],
+                                            DragValue::new(&mut step.delay_ms).range(0..=600000),
+                                        )
+                                        .changed();
+
+                                    let action_combo = egui::ComboBox::from_id_salt((preset.id, step_index, "action"))
+                                        .width(148.0)
+                                        .selected_text(format!(
+                                            "{} {}",
+                                            Self::macro_action_icon(step.action),
+                                            Self::macro_action_selected_label(step.action, language)
+                                        ))
+                                        .show_ui(ui, |ui| {
+                                            egui::Grid::new((preset.id, step_index, "action-grid"))
+                                                .num_columns(5)
+                                                .spacing([6.0, 6.0])
+                                                .show(ui, |ui| {
+                                                for (index, action) in [
+                                                        MacroAction::KeyPress,
+                                                        MacroAction::KeyDown,
+                                                        MacroAction::KeyUp,
+                                                        MacroAction::TypeText,
+                                                        MacroAction::ApplyWindowPreset,
+                                                        MacroAction::FocusWindowPreset,
+                                                        MacroAction::TriggerMacroPreset,
+                                                        MacroAction::TriggerCommandPreset,
+                                                        MacroAction::EnableCrosshairProfile,
+                                                        MacroAction::DisableCrosshair,
+                                                        MacroAction::EnablePinPreset,
+                                                        MacroAction::DisablePin,
+                                                        MacroAction::PlaySoundPreset,
+                                                        MacroAction::ApplyMouseSensitivityPreset,
+                                                        MacroAction::StopVisionWait,
+                                                        MacroAction::TriggerVisionTiming,
+                                                        MacroAction::LoopStart,
+                                                        MacroAction::LoopEnd,
+                                                        MacroAction::StopIfKeyPressed,
+                                                        MacroAction::ShowHud,
+                                                        MacroAction::HideHud,
+                                                        MacroAction::LockKeys,
+                                                        MacroAction::UnlockKeys,
+                                                        MacroAction::EnableMacroPreset,
+                                                        MacroAction::DisableMacroPreset,
+                                                    ]
+                                                    .into_iter()
+                                                    .enumerate()
+                                                    {
+                                                        Self::render_macro_action_option(
+                                                            ui,
+                                                            language,
+                                                            &mut step.action,
+                                                            action,
+                                                            &mut timing_live_sync,
+                                                        );
+                                                        if (index + 1) % 5 == 0 {
+                                                            ui.end_row();
+                                                        }
+                                                    }
+                                                    Self::render_mouse_action_group_option(
+                                                        ui,
+                                                        language,
+                                                        (0, preset.id, step_index, "mouse-group"),
+                                                        &mut step.action,
+                                                        &mut timing_live_sync,
+                                                    );
+                                                    Self::render_image_search_action_group_option(
+                                                        ui,
+                                                        language,
+                                                        (0, preset.id, step_index, "image-search-group"),
+                                                        &mut step.action,
+                                                        &mut timing_live_sync,
+                                                    );
+                                                });
+                                        });
+
+                                    let action_uses_key = Self::macro_action_uses_key(step.action);
+                                    let action_supports_capture = Self::macro_action_supports_capture(step.action);
+
+                                    if action_uses_key {
+                                        if step.action == MacroAction::ApplyWindowPreset {
+                                            let selected_id = step.key.trim().parse::<u32>().ok();
+                                            let selected_label = selected_id
+                                                .and_then(|id| {
+                                                    self.state.window_presets.iter().find(|p| p.id == id).map(|p| p.name.clone())
+                                                })
+                                                .unwrap_or_else(|| "Select window preset".to_owned());
+                                            egui::ComboBox::from_id_salt((preset.id, step_index, "window-preset-step"))
+                                                .width(146.0)
+                                                .selected_text(selected_label)
+                                                .show_ui(ui, |ui| {
+                                                    for preset_option in &self.state.window_presets {
+                                                        if ui.selectable_label(selected_id == Some(preset_option.id), &preset_option.name).clicked() {
+                                                            step.key = preset_option.id.to_string();
+                                                            timing_live_sync = true;
+                                                        }
+                                                    }
+                                                });
+                                        } else if step.action == MacroAction::FocusWindowPreset {
+                                            let selected_id = step.key.trim().parse::<u32>().ok();
+                                            let selected_label = selected_id
+                                                .and_then(|id| {
+                                                    self.state.window_focus_presets.iter().find(|p| p.id == id).map(|p| p.name.clone())
+                                                })
+                                                .unwrap_or_else(|| "Select focus preset".to_owned());
+                                            egui::ComboBox::from_id_salt((preset.id, step_index, "focus-window-preset-step"))
+                                                .width(160.0)
+                                                .selected_text(selected_label)
+                                                .show_ui(ui, |ui| {
+                                                    for preset_option in &self.state.window_focus_presets {
+                                                        if ui.selectable_label(selected_id == Some(preset_option.id), &preset_option.name).clicked() {
+                                                            step.key = preset_option.id.to_string();
+                                                            timing_live_sync = true;
+                                                        }
+                                                    }
+                                                });
+                                        } else if step.action == MacroAction::TriggerMacroPreset {
+                                            let selected_id = step.key.trim().parse::<u32>().ok();
+                                            let selected_label = selected_id
+                                                .and_then(|id| {
+                                                    macro_preset_options.iter().find(|(p_id, _)| *p_id == id).map(|(_, label)| label.clone())
+                                                })
+                                                .unwrap_or_else(|| "Select macro preset".to_owned());
+                                            egui::ComboBox::from_id_salt((preset.id, step_index, "trigger-macro-preset-step"))
+                                                .width(160.0)
+                                                .selected_text(selected_label)
+                                                .show_ui(ui, |ui| {
+                                                    for (preset_option_id, preset_option_label) in &macro_preset_options {
+                                                        if ui.selectable_label(selected_id == Some(*preset_option_id), preset_option_label).clicked() {
+                                                            step.key = preset_option_id.to_string();
+                                                            timing_live_sync = true;
+                                                        }
+                                                    }
+                                                });
+                                        } else if step.action == MacroAction::TriggerCommandPreset {
+                                            let selected_id = step.key.trim().parse::<u32>().ok();
+                                            let selected_label = selected_id
+                                                .and_then(|id| {
+                                                    command_presets_snapshot.iter().find(|p| p.id == id).map(|p| p.name.clone())
+                                                })
+                                                .unwrap_or_else(|| "Select command".to_owned());
+                                            egui::ComboBox::from_id_salt((preset.id, step_index, "trigger-command-preset-step"))
+                                                .width(160.0)
+                                                .selected_text(selected_label)
+                                                .show_ui(ui, |ui| {
+                                                    for preset_option in &command_presets_snapshot {
+                                                        if ui.selectable_label(selected_id == Some(preset_option.id), &preset_option.name).clicked() {
+                                                            step.key = preset_option.id.to_string();
+                                                            timing_live_sync = true;
+                                                        }
+                                                    }
+                                                });
+                                        } else if matches!(step.action, MacroAction::EnableMacroPreset | MacroAction::DisableMacroPreset) {
+                                            let selected_id = step.key.trim().parse::<u32>().ok();
+                                            let selected_label = selected_id
+                                                .and_then(|id| {
+                                                    macro_preset_options.iter().find(|(p_id, _)| *p_id == id).map(|(_, label)| label.clone())
+                                                })
+                                                .unwrap_or_else(|| "Select macro preset".to_owned());
+                                            egui::ComboBox::from_id_salt((preset.id, step_index, "macro-enable-preset-step"))
+                                                .width(160.0)
+                                                .selected_text(selected_label)
+                                                .show_ui(ui, |ui| {
+                                                    for (preset_option_id, preset_option_label) in &macro_preset_options {
+                                                        if ui.selectable_label(selected_id == Some(*preset_option_id), preset_option_label).clicked() {
+                                                            step.key = preset_option_id.to_string();
+                                                            timing_live_sync = true;
+                                                        }
+                                                    }
+                                                });
+                                        } else if step.action == MacroAction::EnableCrosshairProfile {
+                                            let selected_label = if step.key.trim().is_empty() { "Select crosshair preset".to_owned() } else { step.key.clone() };
+                                            egui::ComboBox::from_id_salt((preset.id, step_index, "crosshair-profile-step"))
+                                                .width(146.0)
+                                                .selected_text(selected_label)
+                                                .show_ui(ui, |ui| {
+                                                    for profile in &self.state.profiles {
+                                                        if ui.selectable_label(step.key == profile.name, &profile.name).clicked() {
+                                                            step.key = profile.name.clone();
+                                                            timing_live_sync = true;
+                                                        }
+                                                    }
+                                                });
+                                        } else if step.action == MacroAction::EnablePinPreset {
+                                            let selected_id = step.key.trim().parse::<u32>().ok();
+                                            let selected_label = selected_id
+                                                .and_then(|id| {
+                                                    self.state.pin_presets.iter().find(|p| p.id == id).map(|p| p.name.clone())
+                                                })
+                                                .unwrap_or_else(|| "Select pin preset".to_owned());
+                                            egui::ComboBox::from_id_salt((preset.id, step_index, "pin-preset-step"))
+                                                .width(146.0)
+                                                .selected_text(selected_label)
+                                                .show_ui(ui, |ui| {
+                                                    for preset_option in &self.state.pin_presets {
+                                                        if ui.selectable_label(selected_id == Some(preset_option.id), &preset_option.name).clicked() {
+                                                            step.key = preset_option.id.to_string();
+                                                            timing_live_sync = true;
+                                                        }
+                                                    }
+                                                });
+                                        } else if step.action == MacroAction::PlayMousePathPreset {
+                                            let selected_id = step.key.trim().parse::<u32>().ok();
+                                            let selected_label = selected_id
+                                                .and_then(|id| {
+                                                    self.state.mouse_path_presets.iter().find(|p| p.id == id).map(|p| p.name.clone())
+                                                })
+                                                .unwrap_or_else(|| "Select mouse path".to_owned());
+                                            egui::ComboBox::from_id_salt((preset.id, step_index, "mouse-path-preset-step"))
+                                                .width(146.0)
+                                                .selected_text(selected_label)
+                                                .show_ui(ui, |ui| {
+                                                    for preset_option in &self.state.mouse_path_presets {
+                                                        if ui.selectable_label(selected_id == Some(preset_option.id), &preset_option.name).clicked() {
+                                                            step.key = preset_option.id.to_string();
+                                                            timing_live_sync = true;
+                                                        }
+                                                    }
+                                                });
+                                        } else if matches!(step.action, MacroAction::StartVisionSearch | MacroAction::TriggerVisionMove | MacroAction::StopVision) {
+                                            let selected_id = step.key.trim().parse::<u32>().ok();
+                                            let selected_label = selected_id
+                                                .and_then(|id| {
+                                                    image_search_preset_options.iter().find(|(p_id, _)| *p_id == id).map(|(_, label)| label.clone())
+                                                })
+                                                .unwrap_or_else(|| "Select image search preset".to_owned());
+                                            egui::ComboBox::from_id_salt((preset.id, step_index, "image-search-preset-step"))
+                                                .width(146.0)
+                                                .selected_text(selected_label)
+                                                .show_ui(ui, |ui| {
+                                                    for (preset_option_id, preset_option_label) in &image_search_preset_options {
+                                                        if ui.selectable_label(selected_id == Some(*preset_option_id), preset_option_label).clicked() {
+                                                            step.key = preset_option_id.to_string();
+                                                            timing_live_sync = true;
+                                                        }
+                                                    }
+                                                });
+                                        } else if step.action == MacroAction::TriggerVisionTiming {
+                                            let selected_id = step.key.trim().parse::<u32>().ok();
+                                            let selected_label = Self::image_search_timing_preset_label(&image_search_timing_preset_options, selected_id, "Select timing preset");
+                                            egui::ComboBox::from_id_salt((preset.id, step_index, "image-search-timing-preset-step"))
+                                                .width(180.0)
+                                                .selected_text(selected_label)
+                                                .show_ui(ui, |ui| {
+                                                    for (preset_option_id, preset_option_label) in &image_search_timing_preset_options {
+                                                        if ui.selectable_label(selected_id == Some(*preset_option_id), preset_option_label).clicked() {
+                                                            step.key = preset_option_id.to_string();
+                                                            timing_live_sync = true;
+                                                        }
+                                                    }
+                                                });
+                                        } else if step.action == MacroAction::ApplyMouseSensitivityPreset {
+                                            let selected_id = step.key.trim().parse::<u32>().ok();
+                                            let selected_label = selected_id
+                                                .and_then(|id| {
+                                                    mouse_sensitivity_presets_snapshot.iter().find(|p| p.id == id).map(|p| p.name.clone())
+                                                })
+                                                .unwrap_or_else(|| "Select speed preset".to_owned());
+                                            egui::ComboBox::from_id_salt((preset.id, step_index, "mouse-sensitivity-preset-step"))
+                                                .width(160.0)
+                                                .selected_text(format!("{selected_label} ▾"))
+                                                .show_ui(ui, |ui| {
+                                                    for preset_option in &mouse_sensitivity_presets_snapshot {
+                                                        if ui.selectable_label(selected_id == Some(preset_option.id), &preset_option.name).clicked() {
+                                                            step.key = preset_option.id.to_string();
+                                                            timing_live_sync = true;
+                                                        }
+                                                    }
+                                                });
+                                        } else if step.action == MacroAction::EnableZoomPreset {
+                                            let selected_id = step.key.trim().parse::<u32>().ok();
+                                            let selected_label = selected_id
+                                                .and_then(|id| {
+                                                    self.state.zoom_presets.iter().find(|p| p.id == id).map(|p| p.name.clone())
+                                                })
+                                                .unwrap_or_else(|| "Select zoom preset".to_owned());
+                                            egui::ComboBox::from_id_salt((preset.id, step_index, "zoom-preset-step"))
+                                                .width(146.0)
+                                                .selected_text(selected_label)
+                                                .show_ui(ui, |ui| {
+                                                    for preset_option in &self.state.zoom_presets {
+                                                        if ui.selectable_label(selected_id == Some(preset_option.id), &preset_option.name).clicked() {
+                                                            step.key = preset_option.id.to_string();
+                                                            timing_live_sync = true;
+                                                        }
+                                                    }
+                                                });
+                                        } else if step.action == MacroAction::PlaySoundPreset {
+                                            let selected_id = step.key.trim().parse::<u32>().ok();
+                                            let selected_label = selected_id
+                                                .and_then(|id| {
+                                                    self.state.audio_settings.presets.iter().find(|p| p.id == id).map(|p| p.name.clone())
+                                                })
+                                                .unwrap_or_else(|| "Select sound preset".to_owned());
+                                            egui::ComboBox::from_id_salt((preset.id, step_index, "sound-preset-step"))
+                                                .width(146.0)
+                                                .selected_text(selected_label)
+                                                .show_ui(ui, |ui| {
+                                                    for preset_option in &self.state.audio_settings.presets {
+                                                        if ui.selectable_label(selected_id == Some(preset_option.id), &preset_option.name).clicked() {
+                                                            step.key = preset_option.id.to_string();
+                                                            timing_live_sync = true;
+                                                        }
+                                                    }
+                                                });
+                                        } else if matches!(step.action, MacroAction::LockKeys | MacroAction::UnlockKeys) {
+                                            let response = ui.add_sized([146.0, 18.0], TextEdit::singleline(&mut step.key).hint_text("A,S,W,D"));
+                                            timing_live_sync |= response.changed();
+                                        } else if step.action == MacroAction::LoopStart {
+                                            let mut loop_count = step.key.trim().parse::<u32>().unwrap_or(1).max(1);
+                                            if ui.add_sized([80.0, 18.0], DragValue::new(&mut loop_count).range(1..=1_000_000)).changed() {
+                                                step.key = loop_count.to_string();
+                                                timing_live_sync = true;
+                                            }
+                                        } else if step.action == MacroAction::StopIfKeyPressed {
+                                            let response = ui.add_sized([146.0, 18.0], TextEdit::singleline(&mut step.key).hint_text("Stop key"));
+                                            timing_live_sync |= response.changed();
+                                        } else if step.action == MacroAction::ShowHud {
+                                            let selected_id = step.key.trim().parse::<u32>().ok();
+                                            let selected_label = selected_id
+                                                .and_then(|id| {
+                                                    self.state.hud_presets.iter().find(|p| p.id == id).map(|p| p.name.clone())
+                                                })
+                                                .unwrap_or_else(|| "Select toolbox preset".to_owned());
+                                            ui.horizontal(|ui| {
+                                                egui::ComboBox::from_id_salt((preset.id, step_index, "toolbox-preset-step"))
+                                                    .width(104.0)
+                                                    .selected_text(selected_label)
+                                                    .show_ui(ui, |ui| {
+                                                        for toolbox_preset in &self.state.hud_presets {
+                                                            if ui.selectable_label(selected_id == Some(toolbox_preset.id), &toolbox_preset.name).clicked() {
+                                                                step.key = toolbox_preset.id.to_string();
+                                                                timing_live_sync = true;
+                                                            }
+                                                        }
+                                                    });
+                                                let response = ui.add_sized([120.0, 18.0], TextEdit::singleline(&mut step.text_override).hint_text("Text override"));
+                                                timing_live_sync |= response.changed();
+                                            });
+                                        } else if step.action == MacroAction::TypeText {
+                                            let response = ui.add_sized([220.0, 18.0], TextEdit::singleline(&mut step.key).hint_text("Text to type"));
+                                            timing_live_sync |= response.changed();
+                                        } else {
+                                            timing_live_sync |= ui.add_sized([160.0, 18.0], TextEdit::singleline(&mut step.key)).changed();
+                                        }
+                                    }
+
+                                    if Self::macro_action_uses_position(step.action) {
+                                        timing_live_sync |= ui.add_sized([58.0, 18.0], DragValue::new(&mut step.x).range(-30000..=30000)).changed();
+                                        timing_live_sync |= ui.add_sized([58.0, 18.0], DragValue::new(&mut step.y).range(-30000..=30000)).changed();
+                                    } else if step.action == MacroAction::ShowHud {
+                                        timing_live_sync |= ui.checkbox(&mut step.timed_override, "T").on_hover_text("Timed display").changed();
+                                        ui.add_enabled_ui(step.timed_override, |ui| {
+                                            timing_live_sync |= ui.add_sized([72.0, 18.0], DragValue::new(&mut step.duration_override_ms).range(50..=60_000).suffix(" ms")).changed();
+                                        });
+                                    }
+
+                                    if action_supports_capture {
+                                        let capture_target = CaptureRequest::VisionTimingStepInput { preset_id: preset.id, step_index };
+                                        let capture_active = capture_target_snapshot.as_ref() == Some(&capture_target);
+                                        let capture_button = if capture_active {
+                                            Button::new(Self::capture_button_text(language, true)).fill(Color32::from_rgb(88, 84, 44))
+                                        } else {
+                                            Button::new(Self::material_icon_text(0xe312, 18.0))
+                                        };
+                                        if ui.add_sized([if capture_active { 92.0 } else { 28.0 }, 18.0], capture_button).clicked() {
+                                            if capture_active { cancel_active_capture = true; }
+                                            else { next_capture_target = Some((capture_target, "Capture input for step".to_owned())); }
+                                        }
+                                    }
+                                });
+                            });
+                    }
+                }
+
+                    if let Some((p_id, s_idx)) = insert_step_after {
+                        if let Some(preset) = self.state.vision_timing_presets.iter_mut().find(|p| p.id == p_id) {
+                            preset.steps.insert(s_idx + 1, MacroStep::default());
+                            timing_live_sync = true;
+                        }
+                    }
+                    if let Some((p_id, s_idx)) = remove_step {
+                        if let Some(preset) = self.state.vision_timing_presets.iter_mut().find(|p| p.id == p_id) {
+                            preset.steps.remove(s_idx);
+                            timing_live_sync = true;
+                        }
+                    }
+                    if let Some((p_id, s_idx)) = move_step_up {
+                        if let Some(preset) = self.state.vision_timing_presets.iter_mut().find(|p| p.id == p_id) {
+                            if s_idx > 0 {
+                                preset.steps.swap(s_idx, s_idx - 1);
+                                timing_live_sync = true;
+                            }
+                        }
+                    }
+                    if let Some((p_id, s_idx)) = move_step_down {
+                        if let Some(preset) = self.state.vision_timing_presets.iter_mut().find(|p| p.id == p_id) {
+                            if s_idx + 1 < preset.steps.len() {
+                                preset.steps.swap(s_idx, s_idx + 1);
+                                timing_live_sync = true;
+                            }
+                        }
+                    }
+                    if let Some(p_id) = copy_selected_steps {
+                        self.copy_selected_macro_steps_for_preset(0, p_id);
+                    }
+                    if let Some((group_id, preset_id, step_index, additive)) = pending_step_selection {
+                        let currently_selected = self.selected_macro_steps.contains(&(group_id, preset_id, step_index));
+                        let selected_count_in_preset = self.selected_macro_steps.iter().filter(|(g, p, _)| *g == group_id && *p == preset_id).count();
+                        self.select_macro_step(group_id, preset_id, step_index, additive, currently_selected, selected_count_in_preset);
+                    }
+                }
             });
 
             if let Some(preset_id) = start_search_region_capture {
@@ -17350,6 +18067,16 @@ impl CrosshairApp {
                 .vision_timing_presets
                 .retain(|preset| preset.id != remove_timing_id);
             timing_live_sync = true;
+        }
+
+        if let Some((target, status)) = next_capture_target {
+            self.begin_capture(target, status);
+        }
+        if cancel_active_capture {
+            self.cancel_capture();
+        }
+        if let Some((group_id, preset_id, mode)) = open_macro_ai_target {
+            self.open_macro_ai_dialog_for_preset_with_mode(group_id, preset_id, mode);
         }
 
         if live_sync || timing_live_sync {

@@ -7760,13 +7760,9 @@ mod windows_overlay {
         ui_tx: Option<Sender<UiCommand>>,
     ) {
         let wait_generation = image_search_timing_wait_generation(preset.id);
-        let poll_interval_ms = (1000u64 / preset.color_scan_rate_hz.max(1) as u64).clamp(8, 100);
-        let loop_deadline = if preset.loop_forever {
-            None
-        } else {
-            Some(Instant::now() + Duration::from_secs(preset.loop_duration_secs.max(1) as u64))
-        };
         let mut sent_wait_status = false;
+        let mut waiting_for_disappearance = false;
+
         let wait_for_loop_delay = |delay_ms: u64| -> bool {
             if delay_ms == 0 {
                 return !image_search_timing_loop_is_active(preset.id)
@@ -7803,16 +7799,13 @@ mod windows_overlay {
         };
 
         if let Some(tx) = ui_tx.as_ref() {
-            let mode_label = if preset.loop_forever {
-                "forever".to_owned()
-            } else {
-                format!("{} s", preset.loop_duration_secs.max(1))
-            };
             let _ = tx.send(UiCommand::VisionFinished(format!(
-                "{}: loop started for {}.",
-                preset.name, mode_label
+                "{}: loop started.",
+                preset.name
             )));
         }
+
+        let poll_interval_ms = (1000u64 / preset.color_scan_rate_hz.max(1) as u64).clamp(8, 100);
 
         while image_search_timing_loop_is_active(preset.id) {
             if image_search_timing_wait_generation(preset.id) != wait_generation {
@@ -7823,17 +7816,6 @@ mod windows_overlay {
                     )));
                 }
                 break;
-            }
-            if let Some(deadline) = loop_deadline {
-                if Instant::now() >= deadline {
-                    if let Some(tx) = ui_tx.as_ref() {
-                        let _ = tx.send(UiCommand::VisionFinished(format!(
-                            "{}: loop duration ended.",
-                            preset.name
-                        )));
-                    }
-                    break;
-                }
             }
             if !macro_runtime_target_matches(
                 target_window_title.as_deref(),
@@ -7864,6 +7846,15 @@ mod windows_overlay {
                 }
             };
 
+            if waiting_for_disappearance {
+                if hit.is_none() {
+                    waiting_for_disappearance = false;
+                    sent_wait_status = false;
+                }
+                thread::sleep(Duration::from_millis(poll_interval_ms));
+                continue;
+            }
+
             let Some(hit) = hit else {
                 if !sent_wait_status {
                     if let Some(tx) = ui_tx.as_ref() {
@@ -7894,21 +7885,36 @@ mod windows_overlay {
                     preset.name, trigger_status
                 )));
             }
+
+            // WAIT
             if wait_for_loop_delay(hit.delay_ms) {
                 break;
             }
 
-            let cycle_ms = preset.timing_cycle_ms.max(1);
-            let remaining_cycle_ms = cycle_ms.saturating_sub(hit.delay_ms.min(cycle_ms));
-            if remaining_cycle_ms > 0 && wait_for_loop_delay(remaining_cycle_ms) {
-                break;
+            // TRIGGER ACTION
+            if !preset.steps.is_empty() {
+                let mut locked_keys = Vec::new();
+                let mut locked_mouse = 0usize;
+                let _ = execute_macro_sequence(
+                    macro_preset_id,
+                    &preset.steps,
+                    &mut locked_keys,
+                    &mut locked_mouse,
+                    stop_immediately_on_retrigger,
+                    target_window_title.as_deref(),
+                    &extra_target_window_titles,
+                    match_duplicate_window_titles,
+                );
             }
+
+            // ENTER DISAPPEARANCE WAIT STATE
+            waiting_for_disappearance = true;
         }
 
         set_image_search_timing_loop_active(preset.id, false);
         if let Some(tx) = ui_tx {
             let _ = tx.send(UiCommand::VisionFinished(format!(
-                "{}: loop stopped.",
+                "{}: stopped.",
                 preset.name
             )));
         }
@@ -7936,7 +7942,7 @@ mod windows_overlay {
         if !preset.enabled {
             return MacroRunFlow::Continue;
         }
-        if preset.loop_enabled {
+        {
             set_image_search_timing_loop_active(preset.id, true);
             bump_image_search_timing_wait_generation(preset.id);
             let ui_tx = HOOK_STATE.lock().ui_tx.clone();
@@ -7954,86 +7960,6 @@ mod windows_overlay {
                     ui_tx,
                 )
             });
-            return MacroRunFlow::Continue;
-        }
-        let ui_tx = HOOK_STATE.lock().ui_tx.clone();
-        let wait_generation = image_search_timing_wait_generation(preset.id);
-        let mut sent_wait_status = false;
-        let poll_interval_ms = (1000u64 / preset.color_scan_rate_hz.max(1) as u64).clamp(8, 100);
-
-        loop {
-            if !macro_runtime_target_matches(
-                target_window_title,
-                extra_target_window_titles,
-                match_duplicate_window_titles,
-            ) {
-                return MacroRunFlow::StopExecution;
-            }
-            if stop_immediately_on_retrigger
-                && STOP_REQUESTED_MACRO_PRESETS
-                    .lock()
-                    .contains(&macro_preset_id)
-            {
-                return MacroRunFlow::StopExecution;
-            }
-            if image_search_timing_wait_generation(preset.id) != wait_generation {
-                if let Some(tx) = ui_tx.as_ref() {
-                    let _ = tx.send(UiCommand::VisionFinished(format!(
-                        "{}: waiting cancelled.",
-                        preset.name
-                    )));
-                }
-                return MacroRunFlow::Continue;
-            }
-
-            let hit = match find_image_search_timing_hit(preset) {
-                Ok(hit) => hit,
-                Err(error) => {
-                    eprintln!("Vision timing preset failed: {error}");
-                    return MacroRunFlow::Continue;
-                }
-            };
-
-            let Some(hit) = hit else {
-                if !sent_wait_status {
-                    if let Some(tx) = ui_tx.as_ref() {
-                        let _ = tx.send(UiCommand::VisionFinished(format!(
-                            "{}: waiting...",
-                            preset.name
-                        )));
-                    }
-                    sent_wait_status = true;
-                }
-                thread::sleep(Duration::from_millis(poll_interval_ms));
-                continue;
-            };
-
-            let trigger_status = format!(
-                "Matched color #{:02X}{:02X}{:02X} at {}, {}; timing {}% -> {} ms.",
-                hit.matched_color.r,
-                hit.matched_color.g,
-                hit.matched_color.b,
-                hit.screen_x,
-                hit.screen_y,
-                hit.position_percent.min(100),
-                hit.delay_ms
-            );
-            if let Some(tx) = ui_tx.as_ref() {
-                let _ = tx.send(UiCommand::VisionFinished(format!(
-                    "{}: {}",
-                    preset.name, trigger_status
-                )));
-            }
-            if sleep_for_macro_delay(
-                macro_preset_id,
-                hit.delay_ms,
-                stop_immediately_on_retrigger,
-                target_window_title,
-                extra_target_window_titles,
-                match_duplicate_window_titles,
-            ) {
-                return MacroRunFlow::StopExecution;
-            }
             return MacroRunFlow::Continue;
         }
     }
