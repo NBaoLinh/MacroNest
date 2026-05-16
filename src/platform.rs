@@ -239,40 +239,25 @@ mod windows_platform {
             bail!("Folder does not exist: {}", path.display());
         }
 
-        let mut path_str = path.to_string_lossy().to_string();
-        if !path_str.ends_with('\\') && !path_str.ends_with('/') {
-            path_str.push('\\');
-        }
-        let mut path_wide: Vec<u16> = path_str.encode_utf16().collect();
-        path_wide.push(0); // Null terminator for the string
-        path_wide.push(0); // Double null terminator for the list
+        let path_str = path.to_string_lossy().to_string();
+        
+        #[cfg(windows)]
+        use std::os::windows::process::CommandExt;
 
-        let size = std::mem::size_of::<DROPFILES>() + (path_wide.len() * 2);
-        unsafe {
-            let h_global = GlobalAlloc(GHND, size)?;
-            let ptr = GlobalLock(h_global);
-            if ptr.is_null() {
-                bail!("GlobalLock failed");
-            }
+        let mut cmd = std::process::Command::new("powershell");
+        #[cfg(windows)]
+        cmd.creation_flags(0x08000000); // CREATE_NO_WINDOW
 
-            let drop_files = ptr as *mut DROPFILES;
-            (*drop_files).pFiles = std::mem::size_of::<DROPFILES>() as u32;
-            (*drop_files).fWide = true.into();
+        let status = cmd.args([
+                "-NoProfile",
+                "-NonInteractive",
+                "-Command",
+                &format!("Set-Clipboard -LiteralPath '{}'", path_str.replace("'", "''")),
+            ])
+            .status()?;
 
-            let dest_path_ptr = (ptr as *mut u8).add(std::mem::size_of::<DROPFILES>()) as *mut u16;
-            std::ptr::copy_nonoverlapping(path_wide.as_ptr(), dest_path_ptr, path_wide.len());
-
-            GlobalUnlock(h_global)?;
-
-            if OpenClipboard(None).is_err() {
-                bail!("OpenClipboard failed");
-            }
-            let _ = EmptyClipboard();
-            if SetClipboardData(15, Some(HANDLE(h_global.0))).is_err() {
-                let _ = CloseClipboard();
-                bail!("SetClipboardData failed");
-            }
-            let _ = CloseClipboard();
+        if !status.success() {
+            bail!("PowerShell Set-Clipboard failed");
         }
 
         Ok(())
