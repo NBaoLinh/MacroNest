@@ -10943,18 +10943,6 @@ impl CrosshairApp {
                         .num_columns(2)
                         .spacing([14.0, 8.0])
                         .show(ui, |ui| {
-                            ui.label(Self::tr_lang(language, "Preset Name", "Preset Name"));
-                            let response =
-                                ui.add_sized([260.0, 24.0], TextEdit::singleline(&mut preset.name));
-                            Self::apply_vietnamese_input_if_changed(
-                                &response,
-                                self.state.vietnamese_input_enabled,
-                                self.state.vietnamese_input_mode,
-                                &mut preset.name,
-                            );
-                            live_sync |= response.changed();
-                            ui.end_row();
-
                             ui.label(Self::tr_lang(language, "Size", "Size"));
                             ui.horizontal(|ui| {
                                 ui.label(Self::tr_lang(language, "Width", "Width"));
@@ -11346,18 +11334,6 @@ impl CrosshairApp {
                     .num_columns(2)
                     .spacing([14.0, 8.0])
                     .show(ui, |ui| {
-                        ui.label("Preset Name");
-                        let response =
-                            ui.add_sized([260.0, 24.0], TextEdit::singleline(&mut preset.name));
-                        Self::apply_vietnamese_input_if_changed(
-                            &response,
-                            self.state.vietnamese_input_enabled,
-                            self.state.vietnamese_input_mode,
-                            &mut preset.name,
-                        );
-                        live_sync |= response.changed();
-                        ui.end_row();
-
                         ui.label("Source");
                         ui.horizontal(|ui| {
                             ui.label("X");
@@ -15813,15 +15789,6 @@ impl CrosshairApp {
                     .num_columns(2)
                     .spacing([14.0, 8.0])
                     .show(ui, |ui| {
-                        ui.label(Self::tr_lang(language, "Preset Name", "Preset Name"));
-                        mouse_sensitivity_live_sync |= ui
-                            .add_sized(
-                                [260.0, 24.0],
-                                TextEdit::singleline(&mut preset.name),
-                            )
-                            .changed();
-                        ui.end_row();
-
                         ui.label(Self::tr_lang(language, "Hotkey", "Hotkey"));
                         ui.horizontal_wrapped(|ui| {
                             let capture_target =
@@ -15995,15 +15962,6 @@ impl CrosshairApp {
                     .num_columns(2)
                     .spacing([14.0, 8.0])
                     .show(ui, |ui| {
-                        ui.label(Self::tr_lang(language, "Preset Name", "Preset Name"));
-                        live_sync |= ui
-                            .add_sized(
-                                [260.0, 24.0],
-                                TextEdit::singleline(&mut preset.name),
-                            )
-                            .changed();
-                        ui.end_row();
-
                         ui.label(Self::tr_lang(language, "Record Hotkey", "Record Hotkey"));
                         ui.horizontal_wrapped(|ui| {
                             let capture_target =
