@@ -80,9 +80,6 @@ fn main() -> Result<()> {
         restore_on_exit: state.mouse_sensitivity_restore_on_exit,
         restore_speed: state.mouse_sensitivity_restore_speed,
     });
-    overlay.send(OverlayCommand::UpdateMouseDriverSettings(
-        state.mouse_use_interception_driver,
-    ));
     overlay.send(OverlayCommand::UpdateKeyboardArrowMouseSettings {
         enabled: state.keyboard_arrow_mouse_enabled,
         step_px: state.keyboard_arrow_mouse_step_px,

@@ -144,20 +144,6 @@ mod windows_overlay {
         position_percent: u32,
         delay_ms: u64,
     }
-    const INTERCEPTION_MOUSE_DEVICE_START: i32 = 11;
-    const INTERCEPTION_MOUSE_DEVICE_END: i32 = 20;
-    const INTERCEPTION_MOUSE_LEFT_BUTTON_DOWN: u16 = 0x001;
-    const INTERCEPTION_MOUSE_LEFT_BUTTON_UP: u16 = 0x002;
-    const INTERCEPTION_MOUSE_RIGHT_BUTTON_DOWN: u16 = 0x004;
-    const INTERCEPTION_MOUSE_RIGHT_BUTTON_UP: u16 = 0x008;
-    const INTERCEPTION_MOUSE_MIDDLE_BUTTON_DOWN: u16 = 0x010;
-    const INTERCEPTION_MOUSE_MIDDLE_BUTTON_UP: u16 = 0x020;
-    const INTERCEPTION_MOUSE_BUTTON_4_DOWN: u16 = 0x040;
-    const INTERCEPTION_MOUSE_BUTTON_4_UP: u16 = 0x080;
-    const INTERCEPTION_MOUSE_BUTTON_5_DOWN: u16 = 0x100;
-    const INTERCEPTION_MOUSE_BUTTON_5_UP: u16 = 0x200;
-    const INTERCEPTION_MOUSE_WHEEL: u16 = 0x400;
-    const INTERCEPTION_MOUSE_MOVE_ABSOLUTE: u16 = 0x001;
 
     const MENU_SHOW: usize = 2002;
     const MENU_EXIT: usize = 2003;
@@ -177,10 +163,7 @@ mod windows_overlay {
     static MOUSE_RECORDING: Lazy<Mutex<Option<MouseRecordingSession>>> =
         Lazy::new(|| Mutex::new(None));
     static HOOK_STATE: Lazy<Mutex<HookState>> = Lazy::new(|| Mutex::new(HookState::default()));
-    thread_local! {
-        static INTERCEPTION_MOUSE_SENDER: RefCell<InterceptionMouseSender> =
-            RefCell::new(InterceptionMouseSender::default());
-    }
+    
     static OVERLAY_COMMAND_TX: Lazy<Mutex<Option<Sender<OverlayCommand>>>> =
         Lazy::new(|| Mutex::new(None));
     static UI_CONTEXT: Lazy<Mutex<Option<egui::Context>>> = Lazy::new(|| Mutex::new(None));
@@ -204,7 +187,7 @@ mod windows_overlay {
             restore_on_exit: bool,
             restore_speed: u32,
         },
-        UpdateMouseDriverSettings(bool),
+
         UpdateKeyboardArrowMouseSettings {
             enabled: bool,
             step_px: u32,
@@ -324,7 +307,7 @@ mod windows_overlay {
         mouse_sensitivity_presets: Vec<MouseSensitivityPreset>,
         active_mouse_sensitivity_preset_id: Option<u32>,
         mouse_sensitivity_restore_speed: Option<u32>,
-        mouse_use_interception_driver: bool,
+
         keyboard_arrow_mouse_enabled: bool,
         keyboard_arrow_mouse_step_px: u32,
         vision_presets: Vec<VisionPreset>,
@@ -333,7 +316,7 @@ mod windows_overlay {
         vision_timing_active_presets: HashSet<u32>,
         vision_dir: PathBuf,
         opencv_dll_path: PathBuf,
-        interception_dll_path: PathBuf,
+
         mouse_sensitivity_restore_on_exit: bool,
         mouse_sensitivity_exit_restore_speed: u32,
         active_pin_preset_id: Option<u32>,
@@ -381,7 +364,7 @@ mod windows_overlay {
                 mouse_sensitivity_presets: Vec::new(),
                 active_mouse_sensitivity_preset_id: None,
                 mouse_sensitivity_restore_speed: None,
-                mouse_use_interception_driver: false,
+
                 keyboard_arrow_mouse_enabled: false,
                 keyboard_arrow_mouse_step_px: 12,
                 vision_presets: Vec::new(),
@@ -390,7 +373,7 @@ mod windows_overlay {
                 vision_timing_active_presets: HashSet::new(),
                 vision_dir: PathBuf::new(),
                 opencv_dll_path: PathBuf::new(),
-                interception_dll_path: PathBuf::new(),
+
                 mouse_sensitivity_restore_on_exit: false,
                 mouse_sensitivity_exit_restore_speed: 6,
                 active_pin_preset_id: None,
@@ -428,123 +411,6 @@ mod windows_overlay {
         }
     }
 
-    type InterceptionContext = *mut c_void;
-    type InterceptionDevice = i32;
-    type InterceptionCreateContextFn = unsafe extern "C" fn() -> InterceptionContext;
-    type InterceptionDestroyContextFn = unsafe extern "C" fn(InterceptionContext);
-    type InterceptionSendFn = unsafe extern "C" fn(
-        InterceptionContext,
-        InterceptionDevice,
-        *const InterceptionMouseStroke,
-        u32,
-    ) -> i32;
-
-    #[repr(C)]
-    #[derive(Clone, Copy)]
-    struct InterceptionMouseStroke {
-        state: u16,
-        flags: u16,
-        rolling: i16,
-        x: i32,
-        y: i32,
-        information: u32,
-    }
-
-    struct InterceptionApi {
-        _library: Library,
-        create_context: InterceptionCreateContextFn,
-        destroy_context: InterceptionDestroyContextFn,
-        send: InterceptionSendFn,
-    }
-
-    impl InterceptionApi {
-        unsafe fn load(dll_path: &Path) -> Option<Self> {
-            let library = Library::new(dll_path).ok()?;
-            let create_context = *library
-                .get::<InterceptionCreateContextFn>(b"interception_create_context\0")
-                .ok()?;
-            let destroy_context = *library
-                .get::<InterceptionDestroyContextFn>(b"interception_destroy_context\0")
-                .ok()?;
-            let send = *library
-                .get::<InterceptionSendFn>(b"interception_send\0")
-                .ok()?;
-            Some(Self {
-                _library: library,
-                create_context,
-                destroy_context,
-                send,
-            })
-        }
-    }
-
-    #[derive(Default)]
-    struct InterceptionMouseSender {
-        api: Option<InterceptionApi>,
-        context: Option<InterceptionContext>,
-        mouse_device: Option<i32>,
-        loaded_dll_path: Option<PathBuf>,
-    }
-
-    impl InterceptionMouseSender {
-        fn reset(&mut self) {
-            if let (Some(api), Some(context)) = (self.api.as_ref(), self.context.take()) {
-                unsafe { (api.destroy_context)(context) };
-            }
-            self.api = None;
-            self.mouse_device = None;
-            self.loaded_dll_path = None;
-        }
-
-        fn ensure_api(&mut self, dll_path: &Path) -> bool {
-            if self.loaded_dll_path.as_deref() == Some(dll_path) && self.api.is_some() {
-                return true;
-            }
-            self.reset();
-            let Some(api) = (unsafe { InterceptionApi::load(dll_path) }) else {
-                return false;
-            };
-            let context = unsafe { (api.create_context)() };
-            if context.is_null() {
-                return false;
-            }
-            self.context = Some(context);
-            self.loaded_dll_path = Some(dll_path.to_path_buf());
-            self.api = Some(api);
-            true
-        }
-
-        fn send(&mut self, dll_path: &Path, strokes: &[InterceptionMouseStroke]) -> bool {
-            if !dll_path.exists() || !self.ensure_api(dll_path) {
-                return false;
-            }
-            let preferred_device = self.mouse_device;
-            let Some(api) = self.api.as_ref() else {
-                return false;
-            };
-            let Some(context) = self.context else {
-                return false;
-            };
-
-            if let Some(device) = preferred_device
-                && unsafe { (api.send)(context, device, strokes.as_ptr(), strokes.len() as u32) }
-                    > 0
-            {
-                return true;
-            }
-
-            for device in INTERCEPTION_MOUSE_DEVICE_START..=INTERCEPTION_MOUSE_DEVICE_END {
-                if unsafe { (api.send)(context, device, strokes.as_ptr(), strokes.len() as u32) }
-                    > 0
-                {
-                    self.mouse_device = Some(device);
-                    return true;
-                }
-            }
-
-            false
-        }
-    }
 
     struct Runtime {
         rx: Receiver<OverlayCommand>,
@@ -667,7 +533,7 @@ mod windows_overlay {
     ) -> Result<()> {
         {
             let mut hook_state = HOOK_STATE.lock();
-            hook_state.interception_dll_path = paths.interception_dll_file.clone();
+            
             hook_state.vision_dir = paths.vision_dir.clone();
             hook_state.opencv_dll_path = paths.opencv_dll.clone();
         }
@@ -2766,9 +2632,7 @@ mod windows_overlay {
                     hook_state.mouse_sensitivity_restore_on_exit = restore_on_exit;
                     hook_state.mouse_sensitivity_exit_restore_speed = restore_speed.clamp(1, 20);
                 }
-                OverlayCommand::UpdateMouseDriverSettings(enabled) => {
-                    HOOK_STATE.lock().mouse_use_interception_driver = enabled;
-                }
+                
                 OverlayCommand::UpdateKeyboardArrowMouseSettings { enabled, step_px } => {
                     let mut hook_state = HOOK_STATE.lock();
                     hook_state.keyboard_arrow_mouse_enabled = enabled;
@@ -4387,7 +4251,7 @@ mod windows_overlay {
             .trim()
             .parse::<u32>()
             .context("Mouse path preset id is invalid")?;
-        let (events, use_interception_driver, replay_relative_motion) = {
+        let (events, _, replay_relative_motion) = {
             let hook_state = HOOK_STATE.lock();
             hook_state
                 .mouse_path_presets
@@ -4396,7 +4260,7 @@ mod windows_overlay {
                 .map(|preset| {
                     (
                         preset.events.clone(),
-                        preset.use_interception_driver,
+                        false,
                         preset.replay_relative_motion,
                     )
                 })
@@ -4419,15 +4283,7 @@ mod windows_overlay {
                     MousePathEventKind::Move => {
                         if replay_relative_motion {
                             if let Some((from_x, from_y)) = last_move_pos {
-                                settle_mouse_path_relative_segment(
-                                    from_x,
-                                    from_y,
-                                    event.x,
-                                    event.y,
-                                    speed,
-                                    use_interception_driver,
-                                    preset_id,
-                                    stop_immediately_on_retrigger,
+                                settle_mouse_path_relative_segment(from_x, from_y, event.x, event.y, speed, preset_id, stop_immediately_on_retrigger,
                                 )?;
                             }
                             last_move_pos = Some((event.x, event.y));
@@ -4449,10 +4305,9 @@ mod windows_overlay {
                                 let t = index as f32 / steps as f32;
                                 let x = from_x as f32 + dx as f32 * t;
                                 let y = from_y as f32 + dy as f32 * t;
-                                send_mouse_move_absolute_backend(
+                                send_mouse_move_absolute(
                                     x.round() as i32,
                                     y.round() as i32,
-                                    use_interception_driver,
                                 )?;
                                 if sleep_for_mouse_path_delay(
                                     preset_id,
@@ -4464,10 +4319,9 @@ mod windows_overlay {
                             }
                             last_move_pos = Some((event.x, event.y));
                         } else {
-                            send_mouse_move_absolute_backend(
+                            send_mouse_move_absolute(
                                 event.x,
                                 event.y,
-                                use_interception_driver,
                             )?;
                             last_move_pos = Some((event.x, event.y));
                         }
@@ -4496,7 +4350,7 @@ mod windows_overlay {
                             y: event.y,
                             ..MacroStep::default()
                         };
-                        send_mouse_event_with_backend(&pseudo_step, use_interception_driver)?;
+                        send_mouse_event(&pseudo_step)?;
                     }
                 }
             }
@@ -4513,10 +4367,9 @@ mod windows_overlay {
                 match event.kind {
                     MousePathEventKind::Move if replay_relative_motion => {
                         if let Some((from_x, from_y)) = last_move_pos {
-                            send_mouse_move_relative_with_backend(
+                            send_mouse_move_relative(
                                 event.x - from_x,
                                 event.y - from_y,
-                                use_interception_driver,
                             )?;
                         }
                         last_move_pos = Some((event.x, event.y));
@@ -4528,7 +4381,7 @@ mod windows_overlay {
                             y: event.y,
                             ..MacroStep::default()
                         };
-                        send_mouse_event_with_backend(&pseudo_step, use_interception_driver)?;
+                        send_mouse_event(&pseudo_step)?;
                     }
                     _ => {
                         let pseudo_step = MacroStep {
@@ -4547,7 +4400,7 @@ mod windows_overlay {
                             y: event.y,
                             ..MacroStep::default()
                         };
-                        send_mouse_event_with_backend(&pseudo_step, use_interception_driver)?;
+                        send_mouse_event(&pseudo_step)?;
                     }
                 }
             }
@@ -6125,42 +5978,7 @@ mod windows_overlay {
         Ok(())
     }
 
-    fn current_interception_dll_path() -> PathBuf {
-        HOOK_STATE.lock().interception_dll_path.clone()
-    }
-
-    fn interception_mouse_stroke(
-        state: u16,
-        flags: u16,
-        rolling: i16,
-        x: i32,
-        y: i32,
-    ) -> InterceptionMouseStroke {
-        InterceptionMouseStroke {
-            state,
-            flags,
-            rolling,
-            x,
-            y,
-            information: 0,
-        }
-    }
-
-    fn send_mouse_strokes_interception(
-        prefer_interception: bool,
-        strokes: &[InterceptionMouseStroke],
-    ) -> bool {
-        if !prefer_interception {
-            return false;
-        }
-        let dll_path = current_interception_dll_path();
-        INTERCEPTION_MOUSE_SENDER.with(|sender| sender.borrow_mut().send(&dll_path, strokes))
-    }
-
-    fn send_mouse_event(step: &MacroStep) -> Result<()> {
-        let prefer_interception = HOOK_STATE.lock().mouse_use_interception_driver;
-        send_mouse_event_with_backend(step, prefer_interception)
-    }
+    
 
     fn send_mouse_input(dw_flags: MOUSE_EVENT_FLAGS, mouse_data: u32) -> Result<()> {
         let input = INPUT {
@@ -6176,320 +5994,75 @@ mod windows_overlay {
                 },
             },
         };
-
         unsafe {
             let sent = SendInput(&[input], size_of::<INPUT>() as i32);
             if sent == 0 {
                 bail!("SendInput failed");
             }
         }
-
         Ok(())
     }
 
-    fn send_mouse_click_with_backend(
-        prefer_interception: bool,
-        down_stroke: InterceptionMouseStroke,
-        up_stroke: InterceptionMouseStroke,
-        down_flags: MOUSE_EVENT_FLAGS,
-        up_flags: MOUSE_EVENT_FLAGS,
-        mouse_data: u32,
-    ) -> Result<()> {
-        const CLICK_HOLD_MS: u64 = 16;
-
-        if send_mouse_strokes_interception(prefer_interception, &[down_stroke]) {
-            thread::sleep(Duration::from_millis(CLICK_HOLD_MS));
-            if send_mouse_strokes_interception(prefer_interception, &[up_stroke]) {
-                return Ok(());
-            }
-            return send_mouse_input(up_flags, mouse_data);
-        }
-
-        send_mouse_input(down_flags, mouse_data)?;
-        thread::sleep(Duration::from_millis(CLICK_HOLD_MS));
-        send_mouse_input(up_flags, mouse_data)
-    }
-
-    fn send_mouse_event_with_backend(step: &MacroStep, prefer_interception: bool) -> Result<()> {
+    fn send_mouse_event(step: &MacroStep) -> Result<()> {
         match step.action {
             MacroAction::MouseMoveAbsolute => {
-                send_mouse_move_absolute_backend(step.x, step.y, prefer_interception)?;
-                return Ok(());
+                return send_mouse_move_absolute(step.x, step.y);
             }
             MacroAction::MouseMoveRelative => {
-                send_mouse_move_relative_with_backend(step.x, step.y, prefer_interception)?;
-                return Ok(());
+                return send_mouse_move_relative(step.x, step.y);
             }
             MacroAction::MouseLeftClick => {
-                return send_mouse_click_with_backend(
-                    prefer_interception,
-                    interception_mouse_stroke(INTERCEPTION_MOUSE_LEFT_BUTTON_DOWN, 0, 0, 0, 0),
-                    interception_mouse_stroke(INTERCEPTION_MOUSE_LEFT_BUTTON_UP, 0, 0, 0, 0),
-                    MOUSEEVENTF_LEFTDOWN,
-                    MOUSEEVENTF_LEFTUP,
-                    0,
-                );
+                send_mouse_input(MOUSEEVENTF_LEFTDOWN, 0)?;
+                thread::sleep(Duration::from_millis(16));
+                return send_mouse_input(MOUSEEVENTF_LEFTUP, 0);
             }
             MacroAction::MouseRightClick => {
-                return send_mouse_click_with_backend(
-                    prefer_interception,
-                    interception_mouse_stroke(INTERCEPTION_MOUSE_RIGHT_BUTTON_DOWN, 0, 0, 0, 0),
-                    interception_mouse_stroke(INTERCEPTION_MOUSE_RIGHT_BUTTON_UP, 0, 0, 0, 0),
-                    MOUSEEVENTF_RIGHTDOWN,
-                    MOUSEEVENTF_RIGHTUP,
-                    0,
-                );
+                send_mouse_input(MOUSEEVENTF_RIGHTDOWN, 0)?;
+                thread::sleep(Duration::from_millis(16));
+                return send_mouse_input(MOUSEEVENTF_RIGHTUP, 0);
             }
             MacroAction::MouseMiddleClick => {
-                return send_mouse_click_with_backend(
-                    prefer_interception,
-                    interception_mouse_stroke(INTERCEPTION_MOUSE_MIDDLE_BUTTON_DOWN, 0, 0, 0, 0),
-                    interception_mouse_stroke(INTERCEPTION_MOUSE_MIDDLE_BUTTON_UP, 0, 0, 0, 0),
-                    MOUSEEVENTF_MIDDLEDOWN,
-                    MOUSEEVENTF_MIDDLEUP,
-                    0,
-                );
+                send_mouse_input(MOUSEEVENTF_MIDDLEDOWN, 0)?;
+                thread::sleep(Duration::from_millis(16));
+                return send_mouse_input(MOUSEEVENTF_MIDDLEUP, 0);
             }
             MacroAction::MouseX1Click => {
-                return send_mouse_click_with_backend(
-                    prefer_interception,
-                    interception_mouse_stroke(INTERCEPTION_MOUSE_BUTTON_4_DOWN, 0, 0, 0, 0),
-                    interception_mouse_stroke(INTERCEPTION_MOUSE_BUTTON_4_UP, 0, 0, 0, 0),
-                    MOUSEEVENTF_XDOWN,
-                    MOUSEEVENTF_XUP,
-                    XBUTTON1_DATA as u32,
-                );
+                send_mouse_input(MOUSEEVENTF_XDOWN, XBUTTON1_DATA as u32)?;
+                thread::sleep(Duration::from_millis(16));
+                return send_mouse_input(MOUSEEVENTF_XUP, XBUTTON1_DATA as u32);
             }
             MacroAction::MouseX2Click => {
-                return send_mouse_click_with_backend(
-                    prefer_interception,
-                    interception_mouse_stroke(INTERCEPTION_MOUSE_BUTTON_5_DOWN, 0, 0, 0, 0),
-                    interception_mouse_stroke(INTERCEPTION_MOUSE_BUTTON_5_UP, 0, 0, 0, 0),
-                    MOUSEEVENTF_XDOWN,
-                    MOUSEEVENTF_XUP,
-                    XBUTTON2_DATA as u32,
-                );
+                send_mouse_input(MOUSEEVENTF_XDOWN, XBUTTON2_DATA as u32)?;
+                thread::sleep(Duration::from_millis(16));
+                return send_mouse_input(MOUSEEVENTF_XUP, XBUTTON2_DATA as u32);
             }
             _ => {}
         }
 
-        let (flags, mouse_data, repeat_up, interception_strokes) = match step.action {
-            MacroAction::MouseLeftDown => (
-                MOUSEEVENTF_LEFTDOWN,
-                0,
-                None,
-                Some(vec![interception_mouse_stroke(
-                    INTERCEPTION_MOUSE_LEFT_BUTTON_DOWN,
-                    0,
-                    0,
-                    0,
-                    0,
-                )]),
-            ),
-            MacroAction::MouseLeftUp => (
-                MOUSEEVENTF_LEFTUP,
-                0,
-                None,
-                Some(vec![interception_mouse_stroke(
-                    INTERCEPTION_MOUSE_LEFT_BUTTON_UP,
-                    0,
-                    0,
-                    0,
-                    0,
-                )]),
-            ),
-            MacroAction::MouseRightDown => (
-                MOUSEEVENTF_RIGHTDOWN,
-                0,
-                None,
-                Some(vec![interception_mouse_stroke(
-                    INTERCEPTION_MOUSE_RIGHT_BUTTON_DOWN,
-                    0,
-                    0,
-                    0,
-                    0,
-                )]),
-            ),
-            MacroAction::MouseRightUp => (
-                MOUSEEVENTF_RIGHTUP,
-                0,
-                None,
-                Some(vec![interception_mouse_stroke(
-                    INTERCEPTION_MOUSE_RIGHT_BUTTON_UP,
-                    0,
-                    0,
-                    0,
-                    0,
-                )]),
-            ),
-            MacroAction::MouseMiddleDown => (
-                MOUSEEVENTF_MIDDLEDOWN,
-                0,
-                None,
-                Some(vec![interception_mouse_stroke(
-                    INTERCEPTION_MOUSE_MIDDLE_BUTTON_DOWN,
-                    0,
-                    0,
-                    0,
-                    0,
-                )]),
-            ),
-            MacroAction::MouseMiddleUp => (
-                MOUSEEVENTF_MIDDLEUP,
-                0,
-                None,
-                Some(vec![interception_mouse_stroke(
-                    INTERCEPTION_MOUSE_MIDDLE_BUTTON_UP,
-                    0,
-                    0,
-                    0,
-                    0,
-                )]),
-            ),
-            MacroAction::MouseX1Down => (
-                MOUSEEVENTF_XDOWN,
-                XBUTTON1_DATA as u32,
-                None,
-                Some(vec![interception_mouse_stroke(
-                    INTERCEPTION_MOUSE_BUTTON_4_DOWN,
-                    0,
-                    0,
-                    0,
-                    0,
-                )]),
-            ),
-            MacroAction::MouseX1Up => (
-                MOUSEEVENTF_XUP,
-                XBUTTON1_DATA as u32,
-                None,
-                Some(vec![interception_mouse_stroke(
-                    INTERCEPTION_MOUSE_BUTTON_4_UP,
-                    0,
-                    0,
-                    0,
-                    0,
-                )]),
-            ),
-            MacroAction::MouseX2Down => (
-                MOUSEEVENTF_XDOWN,
-                XBUTTON2_DATA as u32,
-                None,
-                Some(vec![interception_mouse_stroke(
-                    INTERCEPTION_MOUSE_BUTTON_5_DOWN,
-                    0,
-                    0,
-                    0,
-                    0,
-                )]),
-            ),
-            MacroAction::MouseX2Up => (
-                MOUSEEVENTF_XUP,
-                XBUTTON2_DATA as u32,
-                None,
-                Some(vec![interception_mouse_stroke(
-                    INTERCEPTION_MOUSE_BUTTON_5_UP,
-                    0,
-                    0,
-                    0,
-                    0,
-                )]),
-            ),
-            MacroAction::MouseWheelUp => (
-                MOUSEEVENTF_WHEEL,
-                120u32,
-                None,
-                Some(vec![interception_mouse_stroke(
-                    INTERCEPTION_MOUSE_WHEEL,
-                    0,
-                    120,
-                    0,
-                    0,
-                )]),
-            ),
-            MacroAction::MouseWheelDown => (
-                MOUSEEVENTF_WHEEL,
-                (-120i32) as u32,
-                None,
-                Some(vec![interception_mouse_stroke(
-                    INTERCEPTION_MOUSE_WHEEL,
-                    0,
-                    -120,
-                    0,
-                    0,
-                )]),
-            ),
+        let (flags, mouse_data) = match step.action {
+            MacroAction::MouseLeftDown => (MOUSEEVENTF_LEFTDOWN, 0),
+            MacroAction::MouseLeftUp => (MOUSEEVENTF_LEFTUP, 0),
+            MacroAction::MouseRightDown => (MOUSEEVENTF_RIGHTDOWN, 0),
+            MacroAction::MouseRightUp => (MOUSEEVENTF_RIGHTUP, 0),
+            MacroAction::MouseMiddleDown => (MOUSEEVENTF_MIDDLEDOWN, 0),
+            MacroAction::MouseMiddleUp => (MOUSEEVENTF_MIDDLEUP, 0),
+            MacroAction::MouseX1Down => (MOUSEEVENTF_XDOWN, XBUTTON1_DATA as u32),
+            MacroAction::MouseX1Up => (MOUSEEVENTF_XUP, XBUTTON1_DATA as u32),
+            MacroAction::MouseX2Down => (MOUSEEVENTF_XDOWN, XBUTTON2_DATA as u32),
+            MacroAction::MouseX2Up => (MOUSEEVENTF_XUP, XBUTTON2_DATA as u32),
+            MacroAction::MouseWheelUp => (MOUSEEVENTF_WHEEL, 120u32),
+            MacroAction::MouseWheelDown => (MOUSEEVENTF_WHEEL, (-120i32) as u32),
             _ => bail!("Unsupported mouse action"),
         };
 
-        if let Some(strokes) = interception_strokes.as_deref()
-            && send_mouse_strokes_interception(prefer_interception, strokes)
-        {
-            return Ok(());
-        }
-
-        let input = INPUT {
-            r#type: INPUT_MOUSE,
-            Anonymous: INPUT_0 {
-                mi: MOUSEINPUT {
-                    dx: 0,
-                    dy: 0,
-                    mouseData: mouse_data,
-                    dwFlags: flags,
-                    time: 0,
-                    dwExtraInfo: 0,
-                },
-            },
-        };
-
-        unsafe {
-            let mut inputs = vec![input];
-            if let Some(up_flags) = repeat_up {
-                inputs.push(INPUT {
-                    r#type: INPUT_MOUSE,
-                    Anonymous: INPUT_0 {
-                        mi: MOUSEINPUT {
-                            dx: 0,
-                            dy: 0,
-                            mouseData: mouse_data,
-                            dwFlags: up_flags,
-                            time: 0,
-                            dwExtraInfo: 0,
-                        },
-                    },
-                });
-            }
-            let sent = SendInput(&inputs, size_of::<INPUT>() as i32);
-            if sent == 0 {
-                bail!("SendInput failed");
-            }
-        }
-
-        Ok(())
+        send_mouse_input(flags, mouse_data)
     }
 
     fn send_mouse_move_absolute(x: i32, y: i32) -> Result<()> {
-        send_mouse_move_absolute_backend(x, y, false)
-    }
-
-    fn send_mouse_move_absolute_backend(x: i32, y: i32, prefer_interception: bool) -> Result<()> {
         let screen_w = unsafe { GetSystemMetrics(SM_CXSCREEN) }.max(1);
         let screen_h = unsafe { GetSystemMetrics(SM_CYSCREEN) }.max(1);
-        let normalized_x =
-            ((x.clamp(0, screen_w - 1) as i64) * 65535 / (screen_w - 1).max(1) as i64) as i32;
-        let normalized_y =
-            ((y.clamp(0, screen_h - 1) as i64) * 65535 / (screen_h - 1).max(1) as i64) as i32;
-        if send_mouse_strokes_interception(
-            prefer_interception,
-            &[interception_mouse_stroke(
-                0,
-                INTERCEPTION_MOUSE_MOVE_ABSOLUTE,
-                0,
-                normalized_x,
-                normalized_y,
-            )],
-        ) {
-            return Ok(());
-        }
+        let normalized_x = ((x.clamp(0, screen_w - 1) as i64) * 65535 / (screen_w - 1).max(1) as i64) as i32;
+        let normalized_y = ((y.clamp(0, screen_h - 1) as i64) * 65535 / (screen_h - 1).max(1) as i64) as i32;
         let input = INPUT {
             r#type: INPUT_MOUSE,
             Anonymous: INPUT_0 {
@@ -6515,17 +6088,12 @@ mod windows_overlay {
     fn settle_image_search_mouse_move(
         x: i32,
         y: i32,
-        prefer_interception: bool,
         move_passes: u8,
         move_delay_ms: u64,
     ) -> Result<()> {
-        let attempts = if prefer_interception {
-            1
-        } else {
-            move_passes.max(1) as usize
-        };
+        let attempts = move_passes.max(1) as usize;
         for attempt in 0..attempts {
-            send_mouse_move_absolute_backend(x, y, prefer_interception)?;
+            send_mouse_move_absolute(x, y)?;
             if attempt + 1 < attempts && move_delay_ms > 0 {
                 thread::sleep(Duration::from_millis(move_delay_ms));
             }
@@ -6539,7 +6107,6 @@ mod windows_overlay {
         to_x: i32,
         to_y: i32,
         speed: f32,
-        prefer_interception: bool,
         preset_id: Option<u32>,
         stop_immediately_on_retrigger: bool,
     ) -> Result<()> {
@@ -6559,10 +6126,9 @@ mod windows_overlay {
             let t = index as f32 / steps as f32;
             let next_x = (from_x as f32 + dx as f32 * t).round() as i32;
             let next_y = (from_y as f32 + dy as f32 * t).round() as i32;
-            send_mouse_move_relative_with_backend(
+            send_mouse_move_relative(
                 next_x - prev_x,
                 next_y - prev_y,
-                prefer_interception,
             )?;
             prev_x = next_x;
             prev_y = next_y;
@@ -6574,20 +6140,6 @@ mod windows_overlay {
     }
 
     fn send_mouse_move_relative(dx: i32, dy: i32) -> Result<()> {
-        send_mouse_move_relative_with_backend(dx, dy, false)
-    }
-
-    fn send_mouse_move_relative_with_backend(
-        dx: i32,
-        dy: i32,
-        prefer_interception: bool,
-    ) -> Result<()> {
-        if send_mouse_strokes_interception(
-            prefer_interception,
-            &[interception_mouse_stroke(0, 0, 0, dx, dy)],
-        ) {
-            return Ok(());
-        }
         let input = INPUT {
             r#type: INPUT_MOUSE,
             Anonymous: INPUT_0 {
@@ -6613,25 +6165,13 @@ mod windows_overlay {
     }
 
     fn send_mouse_left_click() -> Result<()> {
-        send_mouse_click_with_backend(
-            false,
-            interception_mouse_stroke(INTERCEPTION_MOUSE_LEFT_BUTTON_DOWN, 0, 0, 0, 0),
-            interception_mouse_stroke(INTERCEPTION_MOUSE_LEFT_BUTTON_UP, 0, 0, 0, 0),
-            MOUSEEVENTF_LEFTDOWN,
-            MOUSEEVENTF_LEFTUP,
-            0,
-        )
+        send_mouse_input(MOUSEEVENTF_LEFTDOWN, 0)?;
+        thread::sleep(Duration::from_millis(16));
+        send_mouse_input(MOUSEEVENTF_LEFTUP, 0)
     }
 
-    fn send_mouse_left_click_backend(prefer_interception: bool) -> Result<()> {
-        send_mouse_click_with_backend(
-            prefer_interception,
-            interception_mouse_stroke(INTERCEPTION_MOUSE_LEFT_BUTTON_DOWN, 0, 0, 0, 0),
-            interception_mouse_stroke(INTERCEPTION_MOUSE_LEFT_BUTTON_UP, 0, 0, 0, 0),
-            MOUSEEVENTF_LEFTDOWN,
-            MOUSEEVENTF_LEFTUP,
-            0,
-        )
+    fn send_mouse_left_click_backend() -> Result<()> {
+        send_mouse_left_click()
     }
 
     #[derive(Clone, Copy, Debug)]
@@ -7577,17 +7117,12 @@ mod windows_overlay {
             let moved_x = center_x + preset.move_offset_x;
             let moved_y = center_y + preset.move_offset_y;
             if move_cursor {
-                settle_image_search_mouse_move(
-                    moved_x,
-                    moved_y,
-                    preset.use_interception_driver,
-                    preset.non_interception_move_passes,
-                    preset.non_interception_move_delay_ms,
+                settle_image_search_mouse_move(moved_x, moved_y, preset.non_interception_move_passes, preset.non_interception_move_delay_ms,
                 )?;
             }
             if fire_click {
                 thread::sleep(Duration::from_millis(12));
-                send_mouse_left_click_backend(preset.use_interception_driver)?;
+                send_mouse_left_click_backend()?;
             }
             return Ok(VisionRunOutcome {
                 matched: true,
@@ -7742,17 +7277,12 @@ mod windows_overlay {
             });
         }
         if move_cursor {
-            settle_image_search_mouse_move(
-                moved_x,
-                moved_y,
-                preset.use_interception_driver,
-                preset.non_interception_move_passes,
-                preset.non_interception_move_delay_ms,
+            settle_image_search_mouse_move(moved_x, moved_y, preset.non_interception_move_passes, preset.non_interception_move_delay_ms,
             )?;
         }
         if fire_click {
             thread::sleep(Duration::from_millis(12));
-            send_mouse_left_click_backend(preset.use_interception_driver)?;
+            send_mouse_left_click_backend()?;
         }
         Ok(VisionRunOutcome {
             matched: true,
@@ -9626,7 +9156,7 @@ mod fallback {
         UpdateWindowExpandControls(WindowExpandControls),
         UpdateMacroPresets(Vec<MacroGroup>),
         UpdateAudioSettings(AudioSettings),
-        UpdateMouseDriverSettings(bool),
+
         UpdateKeyboardArrowMouseSettings {
             enabled: bool,
             step_px: u32,

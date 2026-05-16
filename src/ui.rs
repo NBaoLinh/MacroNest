@@ -855,13 +855,7 @@ impl CrosshairApp {
             });
     }
 
-    fn sync_mouse_driver_settings(&self) {
-        let _ = self
-            .overlay_tx
-            .send(OverlayCommand::UpdateMouseDriverSettings(
-                self.state.mouse_use_interception_driver,
-            ));
-    }
+    fn sync_mouse_driver_settings(&self) {}
 
     fn sync_keyboard_arrow_mouse_settings(&self) {
         let _ = self
@@ -1954,23 +1948,13 @@ impl CrosshairApp {
         None
     }
 
-    fn mouse_interception_driver_downloaded(&self) -> bool {
-        self.paths.interception_installer_exe.exists()
-    }
+    
 
     #[cfg(windows)]
-    fn mouse_interception_driver_installed(&self) -> bool {
-        let windows_dir = std::env::var_os("WINDIR")
-            .map(std::path::PathBuf::from)
-            .unwrap_or_else(|| std::path::PathBuf::from(r"C:\Windows"));
-        let driver_dir = windows_dir.join("System32").join("drivers");
-        driver_dir.join("keyboard.sys").exists() && driver_dir.join("mouse.sys").exists()
-    }
+    
 
     #[cfg(not(windows))]
-    fn mouse_interception_driver_installed(&self) -> bool {
-        false
-    }
+    
 
     #[cfg(windows)]
     fn download_and_install_interception_driver(&mut self) -> anyhow::Result<String> {
@@ -16725,29 +16709,6 @@ impl CrosshairApp {
                         });
                         ui.end_row();
 
-                        ui.label(Self::tr_lang(language, "Driver", "Driver"));
-                        ui.horizontal_wrapped(|ui| {
-                            live_sync |= ui
-                                .checkbox(
-                                    &mut preset.use_interception_driver,
-                                    Self::tr_lang(
-                                        language,
-                                        "Use Interception",
-                                        "Dùng Interception",
-                                    ),
-                                )
-                                .changed();
-                            ui.label(
-                                RichText::new(if preset.use_interception_driver {
-                                    Self::tr_lang(language, "Interception", "Interception")
-                                } else {
-                                    Self::tr_lang(language, "SendInput", "SendInput")
-                                })
-                                .small(),
-                            );
-                        });
-                        ui.end_row();
-
                         ui.label(Self::tr_lang(language, "Replay mode", "Replay mode"));
                         ui.horizontal_wrapped(|ui| {
                             live_sync |= ui
@@ -17200,17 +17161,6 @@ impl CrosshairApp {
                                         DragValue::new(&mut preset.non_interception_move_delay_ms)
                                             .range(0..=100)
                                             .suffix(" ms"),
-                                    )
-                                    .changed();
-                            });
-                            ui.end_row();
-
-                            ui.label(Self::tr_lang(language, "Driver", "Trình điều khiển"));
-                            ui.horizontal_wrapped(|ui| {
-                                live_sync |= ui
-                                    .checkbox(
-                                        &mut preset.use_interception_driver,
-                                        Self::tr_lang(language, "Interception", "Interception"),
                                     )
                                     .changed();
                             });
