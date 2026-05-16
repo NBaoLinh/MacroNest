@@ -976,6 +976,18 @@ impl CrosshairApp {
         changed
     }
 
+    fn disable_window_presets_preview_modes(&mut self) -> bool {
+        let mut changed = false;
+        for preset in &mut self.state.window_presets {
+            if preset.preview_enabled {
+                preset.preview_enabled = false;
+                changed = true;
+                self.zoom_preview_cache.remove(&(200_000 + preset.id));
+            }
+        }
+        changed
+    }
+
     fn persist(&mut self) {
         if let Err(error) = self.paths.save_profiles(&self.state.profiles) {
             self.status = format!("Failed to save profiles: {error}");
@@ -11047,7 +11059,19 @@ impl CrosshairApp {
                                 &self.open_windows,
                             );
                             ui.end_row();
+
+                            ui.label(Self::tr_lang(language, "Preview", "Xem trước"));
+                            ui.horizontal_wrapped(|ui| {
+                                live_sync |= ui
+                                    .checkbox(&mut preset.preview_enabled, Self::tr_lang(language, "Stream preview in editor", "Xem trước stream"))
+                                    .changed();
+                            });
+                            ui.end_row();
                         });
+                    if preset.preview_enabled {
+                        ui.add_space(8.0);
+                        self.render_window_preset_preview(ui, language, preset);
+                    }
                 });
             }
             if let Some((target, status)) = next_capture_target.take() {
@@ -15560,6 +15584,140 @@ impl CrosshairApp {
         }
     }
 
+    fn render_window_preset_preview(
+        &mut self,
+        ui: &mut egui::Ui,
+        language: UiLanguage,
+        preset: &WindowPreset,
+    ) {
+        let preview = self.window_preview_for_target(
+            ui.ctx(),
+            200_000 + preset.id,
+            preset.target_window_title.as_ref(),
+            &preset.extra_target_window_titles,
+            preset.match_duplicate_window_titles,
+        );
+
+        let screen_size = Self::screen_size();
+        let aspect_ratio = if screen_size.y > 0.0 { screen_size.x / screen_size.y } else { 16.0 / 9.0 };
+        let width = ui.available_width();
+        let height = width / aspect_ratio;
+        let max_height = 240.0;
+        let (desired_width, desired_height) = if height > max_height {
+            (max_height * aspect_ratio, max_height)
+        } else {
+            (width, height)
+        };
+        let desired = vec2(desired_width, desired_height);
+        let (canvas_rect, _) = ui.allocate_exact_size(desired, Sense::hover());
+        let draw_rect = canvas_rect.shrink(4.0);
+
+        // Draw monitor screen background
+        ui.painter().rect_filled(
+            draw_rect,
+            6.0,
+            Color32::from_rgba_premultiplied(18, 24, 22, 220),
+        );
+        ui.painter().rect_stroke(
+            draw_rect,
+            6.0,
+            egui::Stroke::new(1.5, Color32::from_rgb(104, 148, 124)),
+            egui::StrokeKind::Outside,
+        );
+
+        // Calculate mapped window rect
+        let scale_x = draw_rect.width() / screen_size.x.max(1.0);
+        let scale_y = draw_rect.height() / screen_size.y.max(1.0);
+
+        let (wx, wy) = if let Some(pos) = Self::window_anchor_preview_position(preset) {
+            pos
+        } else {
+            (preset.x, preset.y)
+        };
+        let ww = preset.width;
+        let wh = preset.height;
+
+        let left = draw_rect.left() + wx as f32 * scale_x;
+        let top = draw_rect.top() + wy as f32 * scale_y;
+        let w = ww as f32 * scale_x;
+        let h = wh as f32 * scale_y;
+
+        let window_rect = egui::Rect::from_min_size(egui::pos2(left, top), egui::vec2(w, h));
+
+        // Clip/intersect window rect with draw_rect
+        let clipped_window_rect = window_rect.intersect(draw_rect);
+
+        if !clipped_window_rect.is_negative() {
+            if let Some(preview_view) = &preview {
+                let uv_min_x = ((clipped_window_rect.left() - window_rect.left()) / window_rect.width().max(1.0)).clamp(0.0, 1.0);
+                let uv_max_x = ((clipped_window_rect.right() - window_rect.left()) / window_rect.width().max(1.0)).clamp(0.0, 1.0);
+                let uv_min_y = ((clipped_window_rect.top() - window_rect.top()) / window_rect.height().max(1.0)).clamp(0.0, 1.0);
+                let uv_max_y = ((clipped_window_rect.bottom() - window_rect.top()) / window_rect.height().max(1.0)).clamp(0.0, 1.0);
+
+                let uv = egui::Rect::from_min_max(egui::pos2(uv_min_x, uv_min_y), egui::pos2(uv_max_x, uv_max_y));
+
+                ui.painter().image(
+                    preview_view.texture.id(),
+                    clipped_window_rect,
+                    uv,
+                    Color32::WHITE,
+                );
+            } else {
+                ui.painter().rect_filled(
+                    clipped_window_rect,
+                    4.0,
+                    Color32::from_rgba_premultiplied(40, 52, 68, 200),
+                );
+                let display_text = if let Some(title) = &preset.target_window_title {
+                    title.clone()
+                } else {
+                    Self::tr_lang(language, "Target Window", "Cửa sổ mục tiêu").to_string()
+                };
+                let font_id = egui::FontId::proportional(12.0);
+                ui.painter().text(
+                    clipped_window_rect.center(),
+                    egui::Align2::CENTER_CENTER,
+                    display_text,
+                    font_id,
+                    Color32::from_rgb(180, 200, 220),
+                );
+            }
+
+            // Draw window borders
+            ui.painter().rect_stroke(
+                clipped_window_rect,
+                4.0,
+                egui::Stroke::new(2.0, Color32::from_rgb(0, 191, 255)),
+                egui::StrokeKind::Outside,
+            );
+
+            // Size text label
+            let size_text = format!("{}x{}", ww, wh);
+            ui.painter().text(
+                clipped_window_rect.left_top() + egui::vec2(4.0, 4.0),
+                egui::Align2::LEFT_TOP,
+                size_text,
+                egui::FontId::proportional(10.0),
+                Color32::from_rgb(0, 191, 255),
+            );
+        }
+
+        // Draw monitor label
+        let monitor_label = format!(
+            "{} ({}x{})",
+            Self::tr_lang(language, "Monitor Screen", "Màn hình PC"),
+            screen_size.x as i32,
+            screen_size.y as i32
+        );
+        ui.painter().text(
+            draw_rect.center_bottom() - egui::vec2(0.0, 4.0),
+            egui::Align2::CENTER_BOTTOM,
+            monitor_label,
+            egui::FontId::proportional(10.0),
+            Color32::from_rgb(104, 148, 124),
+        );
+    }
+
     fn render_mouse_path_preview(
         ui: &mut egui::Ui,
         language: UiLanguage,
@@ -15569,8 +15727,14 @@ impl CrosshairApp {
         let screen_size = Self::screen_size();
         let aspect_ratio = if screen_size.y > 0.0 { screen_size.x / screen_size.y } else { 16.0 / 9.0 };
         let width = ui.available_width();
-        let height = (width / aspect_ratio).min(320.0).max(180.0);
-        let desired = vec2(width, height);
+        let height = width / aspect_ratio;
+        let max_height = 240.0;
+        let (desired_width, desired_height) = if height > max_height {
+            (max_height * aspect_ratio, max_height)
+        } else {
+            (width, height)
+        };
+        let desired = vec2(desired_width, desired_height);
         let (canvas_rect, _) = ui.allocate_exact_size(desired, Sense::hover());
         let draw_rect = canvas_rect.shrink(8.0);
         ui.painter().rect_filled(
@@ -15584,6 +15748,22 @@ impl CrosshairApp {
             egui::Stroke::new(1.0, Color32::from_rgb(104, 148, 124)),
             egui::StrokeKind::Outside,
         );
+
+        // Draw monitor label
+        let monitor_label = format!(
+            "{} ({}x{})",
+            Self::tr_lang(language, "Monitor Screen", "Màn hình PC"),
+            screen_size.x as i32,
+            screen_size.y as i32
+        );
+        ui.painter().text(
+            draw_rect.center_bottom() - egui::vec2(0.0, 4.0),
+            egui::Align2::CENTER_BOTTOM,
+            &monitor_label,
+            egui::FontId::proportional(10.0),
+            Color32::from_rgb(104, 148, 124),
+        );
+
         let moves = events
             .iter()
             .filter(|event| matches!(event.kind, MousePathEventKind::Move))
@@ -18706,6 +18886,10 @@ impl eframe::App for CrosshairApp {
         }
         let keep_toolbox_preview = viewport_focused && self.state.active_panel == AppPanel::Hud;
         if !keep_toolbox_preview && self.disable_hud_preview_modes() {
+            self.persist();
+        }
+        let keep_window_preset_preview = viewport_focused && self.state.active_panel == AppPanel::WindowPresets;
+        if !keep_window_preset_preview && self.disable_window_presets_preview_modes() {
             self.persist();
         }
 
