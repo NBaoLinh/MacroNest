@@ -18909,14 +18909,15 @@ impl CrosshairApp {
                                 if ui
                                     .button(Self::tr_lang(
                                         language,
-                                        "Copy path",
-                                        "Sao chép đường dẫn",
+                                        "Copy folder",
+                                        "Sao chép thư mục",
                                     ))
                                     .clicked()
                                 {
-                                    if let Ok(mut clipboard) = arboard::Clipboard::new() {
-                                        let _ = clipboard.set_text(self.paths.root.display().to_string());
-                                        self.status = Self::tr_lang(language, "Data path copied to clipboard.", "Đã chép đường dẫn dữ liệu.").to_owned();
+                                    if let Err(e) = crate::platform::copy_folder_to_clipboard(&self.paths.root) {
+                                        self.status = format!("Failed to copy folder: {e}");
+                                    } else {
+                                        self.status = Self::tr_lang(language, "Folder copied to clipboard.", "Đã chép thư mục vào clipboard.").to_owned();
                                     }
                                 }
                                 ui.add_space(8.0);

@@ -21,13 +21,17 @@ mod windows_platform {
             },
             UI::{
                 Shell::{
-                    IsUserAnAdmin, SetCurrentProcessExplicitAppUserModelID, ShellExecuteW,
+                    IsUserAnAdmin, SetCurrentProcessExplicitAppUserModelID, ShellExecuteW, DROPFILES,
                 },
                 WindowsAndMessaging::{
                     BringWindowToTop, HWND_NOTOPMOST, HWND_TOPMOST, SW_RESTORE, SW_SHOWNORMAL,
                     SWP_NOMOVE, SWP_NOSIZE, SWP_SHOWWINDOW, SetForegroundWindow, SetWindowPos,
                     ShowWindow,
                 },
+            },
+            System::{
+                DataExchange::{CloseClipboard, EmptyClipboard, OpenClipboard, SetClipboardData},
+                Memory::{GlobalAlloc, GlobalLock, GlobalUnlock, GHND},
             },
         },
         core::{PCWSTR, w},
@@ -230,6 +234,50 @@ mod windows_platform {
         Ok(())
     }
 
+    pub fn copy_folder_to_clipboard(path: &Path) -> Result<()> {
+        if !path.exists() {
+            bail!("Folder does not exist: {}", path.display());
+        }
+
+        let mut path_str = path.to_string_lossy().to_string();
+        if !path_str.ends_with('\\') && !path_str.ends_with('/') {
+            path_str.push('\\');
+        }
+        let mut path_wide: Vec<u16> = path_str.encode_utf16().collect();
+        path_wide.push(0); // Null terminator for the string
+        path_wide.push(0); // Double null terminator for the list
+
+        let size = std::mem::size_of::<DROPFILES>() + (path_wide.len() * 2);
+        unsafe {
+            let h_global = GlobalAlloc(GHND, size)?;
+            let ptr = GlobalLock(h_global);
+            if ptr.is_null() {
+                bail!("GlobalLock failed");
+            }
+
+            let drop_files = ptr as *mut DROPFILES;
+            (*drop_files).pFiles = std::mem::size_of::<DROPFILES>() as u32;
+            (*drop_files).fWide = true.into();
+
+            let dest_path_ptr = (ptr as *mut u8).add(std::mem::size_of::<DROPFILES>()) as *mut u16;
+            std::ptr::copy_nonoverlapping(path_wide.as_ptr(), dest_path_ptr, path_wide.len());
+
+            GlobalUnlock(h_global)?;
+
+            if OpenClipboard(None).is_err() {
+                bail!("OpenClipboard failed");
+            }
+            let _ = EmptyClipboard();
+            if SetClipboardData(15, Some(HANDLE(h_global.0))).is_err() {
+                let _ = CloseClipboard();
+                bail!("SetClipboardData failed");
+            }
+            let _ = CloseClipboard();
+        }
+
+        Ok(())
+    }
+
     fn widestring(value: &str) -> Vec<u16> {
         let mut wide: Vec<u16> = value.encode_utf16().collect();
         wide.push(0);
@@ -268,6 +316,10 @@ mod fallback {
     }
 
     pub fn open_url_in_browser(_url: &str) -> Result<()> {
+        Ok(())
+    }
+
+    pub fn copy_folder_to_clipboard(_path: &std::path::Path) -> Result<()> {
         Ok(())
     }
 }
