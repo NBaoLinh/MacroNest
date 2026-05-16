@@ -613,24 +613,7 @@ pub struct CrosshairApp {
 
 impl CrosshairApp {
     fn groq_model_catalog() -> &'static [(&'static str, &'static str)] {
-        &[
-            ("GPT OSS 120B", "openai/gpt-oss-120b"),
-            ("GPT OSS 20B", "openai/gpt-oss-20b"),
-            ("Llama 3.1 8B Instant", "llama-3.1-8b-instant"),
-            ("Llama 3.3 70B Versatile", "llama-3.3-70b-versatile"),
-            ("Qwen 3 32B", "qwen/qwen3-32b"),
-            ("Qwen 2.5 32B", "qwen/qwen-2.5-32b"),
-            ("Gemma 2 9B IT", "gemma2-9b-it"),
-            ("Gemma 2 27B IT", "gemma2-27b-it"),
-            (
-                "DeepSeek R1 Distill Llama 70B",
-                "deepseek-r1-distill-llama-70b",
-            ),
-            (
-                "DeepSeek R1 Distill Qwen 32B",
-                "deepseek-r1-distill-qwen-32b",
-            ),
-        ]
+        &[("GPT OSS 120B", "openai/gpt-oss-120b")]
     }
 
     pub fn new(
@@ -18921,6 +18904,20 @@ impl CrosshairApp {
                                     .clicked()
                                 {
                                     self.open_app_data_folder();
+                                }
+                                ui.add_space(8.0);
+                                if ui
+                                    .button(Self::tr_lang(
+                                        language,
+                                        "Copy path",
+                                        "Sao chép đường dẫn",
+                                    ))
+                                    .clicked()
+                                {
+                                    if let Ok(mut clipboard) = arboard::Clipboard::new() {
+                                        let _ = clipboard.set_text(self.paths.root.display().to_string());
+                                        self.status = Self::tr_lang(language, "Data path copied to clipboard.", "Đã chép đường dẫn dữ liệu.").to_owned();
+                                    }
                                 }
                                 ui.add_space(8.0);
                                 ui.label(
