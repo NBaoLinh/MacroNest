@@ -2434,7 +2434,7 @@ impl CrosshairApp {
     fn format_binding_ui(language: UiLanguage, binding: Option<&HotkeyBinding>) -> String {
         let label = hotkey::format_binding(binding);
         if label == "Not set" {
-            Self::tr_lang(language, "Not set", "Chưa đặt").to_owned()
+            Self::tr_lang(language, "Not set", "Chưa gán").to_owned()
         } else {
             label
         }
@@ -2652,7 +2652,7 @@ impl CrosshairApp {
         let bindings = Self::macro_trigger_bindings(preset);
         let label = hotkey::format_binding_list(&bindings);
         if label == "Not set" {
-            Self::tr_lang(language, "Not set", "Chưa đặt").to_owned()
+            Self::tr_lang(language, "Not set", "Chưa gán").to_owned()
         } else {
             label
         }
@@ -10653,14 +10653,14 @@ impl CrosshairApp {
                 ui.label(Self::tr_lang(
                     language,
                     "Crosshair color",
-                    "Crosshair color",
+                    "Màu tâm ngắm",
                 ));
                 let response = Self::edit_rgba_color(ui, &mut style.color);
                 changed |= response.changed();
                 dragging |= response.dragged();
                 ui.end_row();
 
-                ui.label(Self::tr_lang(language, "Outline color", "Outline color"));
+                ui.label(Self::tr_lang(language, "Outline color", "Màu viền"));
                 let response = Self::edit_rgba_color(ui, &mut style.outline_color);
                 changed |= response.changed();
                 dragging |= response.dragged();
@@ -11118,7 +11118,7 @@ impl CrosshairApp {
                             live_sync |= Self::render_multi_window_targets_with_duplicate_mode(
                                 ui,
                                 (preset.id, "window-target"),
-                                "Focus",
+                                Self::tr_lang(language, "Focus", "Cửa sổ đang focus"),
                                 &mut preset.target_window_title,
                                 &mut preset.extra_target_window_titles,
                                 &mut preset.match_duplicate_window_titles,
@@ -11231,7 +11231,7 @@ impl CrosshairApp {
                         live_sync |= Self::render_multi_window_targets_with_duplicate_mode(
                             ui,
                             (preset.id, "window-focus-target"),
-                            Self::tr_lang(language, "Focus", "Focus"),
+                            Self::tr_lang(language, "Focus", "Cửa sổ đang focus"),
                             &mut preset.target_window_title,
                             &mut preset.extra_target_window_titles,
                             &mut preset.match_duplicate_window_titles,
@@ -11388,7 +11388,7 @@ impl CrosshairApp {
                         live_sync |= Self::render_multi_window_targets(
                             ui,
                             (preset.id, "zoom-target-window"),
-                            "Any focused window",
+                            Self::tr_lang(language, "Any focused window", "Cửa sổ đang focus"),
                             &mut preset.target_window_title,
                             &mut preset.extra_target_window_titles,
                             &self.open_windows,
@@ -11604,7 +11604,7 @@ impl CrosshairApp {
                         let target_changed = Self::render_multi_window_targets_with_duplicate_mode(
                             ui,
                             (preset.id, "pin-target-window"),
-                            Self::tr_lang(language, "Focus", "Focus"),
+                            Self::tr_lang(language, "Focus", "Cửa sổ đang focus"),
                             &mut preset.target_window_title,
                             &mut preset.extra_target_window_titles,
                             &mut preset.match_duplicate_window_titles,
@@ -12956,7 +12956,7 @@ impl CrosshairApp {
                                     Self::tr_lang(
                                         language,
                                         "Any focused window",
-                                        "Any focused window",
+                                        "Cửa sổ đang focus",
                                     ),
                                     &mut group.target_window_title,
                                     &mut group.extra_target_window_titles,
@@ -15834,7 +15834,7 @@ impl CrosshairApp {
                             Self::render_multi_window_targets_with_duplicate_mode(
                                 ui,
                                 (preset.id, "mouse-sensitivity-target"),
-                                Self::tr_lang(language, "Any window", "Any window"),
+                                Self::tr_lang(language, "Any window", "Cửa sổ đang focus"),
                                 &mut preset.target_window_title,
                                 &mut preset.extra_target_window_titles,
                                 &mut preset.match_duplicate_window_titles,
@@ -16558,7 +16558,7 @@ impl CrosshairApp {
                         live_sync |= Self::render_multi_window_targets_with_duplicate_mode(
                             ui,
                             (preset.id, "image-search-target"),
-                            Self::tr_lang(language, "Any screen", "Bất kỳ màn hình"),
+                            Self::tr_lang(language, "Any screen", "Toàn màn hình"),
                             &mut preset.target_window_title,
                             &mut preset.extra_target_window_titles,
                             &mut preset.match_duplicate_window_titles,
@@ -16883,6 +16883,7 @@ impl CrosshairApp {
         }
 
         if let Some(preset_id) = remove_sound_preset {
+            audio::stop_preview();
             self.state
                 .audio_settings
                 .presets
@@ -18209,7 +18210,7 @@ impl CrosshairApp {
         ui.add_space(2.0);
         ui.horizontal(|ui| {
             if ui
-                .button(self.tr("+ Add command preset", "+ Thêm command preset"))
+                .button(self.tr("+ Add command preset", "+ Thêm preset lệnh"))
                 .clicked()
             {
                 self.add_custom_preset();
@@ -18325,7 +18326,7 @@ impl CrosshairApp {
                         changed |= Self::render_multi_window_targets_with_duplicate_mode(
                             ui,
                             (preset.id, "custom-target-window"),
-                            Self::tr_lang(language, "Any focused window", "Any focused window"),
+                            Self::tr_lang(language, "Any focused window", "Cửa sổ đang focus"),
                             &mut preset.target_window_title,
                             &mut preset.extra_target_window_titles,
                             &mut preset.match_duplicate_window_titles,
