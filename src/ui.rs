@@ -15733,7 +15733,7 @@ impl CrosshairApp {
         let aspect_ratio = if screen_size.y > 0.0 { screen_size.x / screen_size.y } else { 16.0 / 9.0 };
         let width = ui.available_width();
         let height = width / aspect_ratio;
-        let max_height = 240.0;
+        let max_height = 480.0;
         let (desired_width, desired_height) = if height > max_height {
             (max_height * aspect_ratio, max_height)
         } else {
