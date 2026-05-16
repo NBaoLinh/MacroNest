@@ -2060,8 +2060,8 @@ impl CrosshairApp {
         }
     }
 
-    fn preset_header_name_width(ui: &egui::Ui) -> f32 {
-        (ui.available_width() * 0.5).clamp(150.0, 240.0)
+    fn preset_header_name_width(_ui: &egui::Ui) -> f32 {
+        160.0
     }
 
     fn show_preset_card<R>(
