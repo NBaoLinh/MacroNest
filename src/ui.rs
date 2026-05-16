@@ -3051,14 +3051,14 @@ impl CrosshairApp {
     }
 
     fn titlebar_minimize_tooltip(&self) -> &'static str {
-        self.tr("Minimize", "Minimize")
+        self.tr("Minimize", "Thu nhỏ")
     }
 
     fn titlebar_maximize_tooltip(&self, maximized: bool) -> &'static str {
         if maximized {
             self.tr("Restore", "Khôi phục")
         } else {
-            self.tr("Maximize", "Maximize")
+            self.tr("Maximize", "Phóng to")
         }
     }
 
@@ -10845,7 +10845,7 @@ impl CrosshairApp {
         let language = self.state.ui_language;
         ui.horizontal(|ui| {
             if ui
-                .button(self.tr("+ Resize preset", "+ Resize preset"))
+                .button(self.tr("+ Resize preset", "+ Thêm preset kích thước"))
                 .clicked()
             {
                 self.add_window_preset();
@@ -10862,7 +10862,7 @@ impl CrosshairApp {
 
         let mut remove_id = None;
         let mut live_sync = false;
-        ui.label(RichText::new(Self::tr_lang(language, "Resize", "Resize")).strong());
+        ui.label(RichText::new(Self::tr_lang(language, "Resize", "Kích thước")).strong());
         for index in 0..self.state.window_presets.len() {
             let mut next_capture_target = None;
             let mut cancel_active_capture = false;
@@ -15650,14 +15650,14 @@ impl CrosshairApp {
 
         ui.horizontal(|ui| {
             if ui
-                .button(self.tr("+ Add sensitivity preset", "+ Add sensitivity preset"))
+                .button(self.tr("+ Add sensitivity preset", "+ Thêm preset độ nhạy"))
                 .clicked()
             {
                 self.add_mouse_sensitivity_preset();
                 self.persist_mouse_sensitivity_presets();
             }
             if ui
-                .button(self.tr("+ Add path preset", "+ Add path preset"))
+                .button(self.tr("+ Add path preset", "+ Thêm preset đường chuột"))
                 .clicked()
             {
                 self.add_mouse_path_preset();
@@ -17128,11 +17128,11 @@ impl CrosshairApp {
         let mut trim_timeline_zoom = self.trim_timeline_zoom;
 
         ui.horizontal(|ui| {
-            if ui.button(self.tr("Back", "Back")).clicked() {
+            if ui.button(self.tr("Back", "Quay lại")).clicked() {
                 self.close_audio_editor();
             }
             if ui
-                .button(self.tr("Choose audio file", "Choose audio file"))
+                .button(self.tr("Choose audio file", "Chọn file âm thanh"))
                 .clicked()
             {
                 match target {
