@@ -357,7 +357,6 @@ impl AiMacroStepDraft {
                 | MacroAction::DisableMacroPreset
                 | MacroAction::StartVisionSearch
                 | MacroAction::TriggerVisionMove
-                | MacroAction::TriggerVisionTiming
                 | MacroAction::StopVisionWait
                 | MacroAction::StopVision
                 | MacroAction::LoopStart
@@ -1139,14 +1138,6 @@ fn parse_macro_ai_script_line(line: &str) -> Result<Option<MacroAiScriptEntry>> 
         ));
     }
 
-    if let Some(rest) = strip_case_insensitive_prefix(trimmed, "trigger_image_search_timing_")
-        .or_else(|| strip_case_insensitive_prefix(trimmed, "trigger_image_search_timing "))
-    {
-        return Ok(parse_macro_ai_key_step(
-            MacroAction::TriggerVisionTiming,
-            rest,
-        ));
-    }
 
     if let Some(rest) = strip_case_insensitive_prefix(trimmed, "stop_image_search_wait_")
         .or_else(|| strip_case_insensitive_prefix(trimmed, "stop_image_search_wait "))
@@ -2328,7 +2319,6 @@ struct PromptCatalogs {
     mouse_path_presets: HashMap<String, u32>,
     command_presets: HashMap<String, u32>,
     vision_presets: HashMap<String, u32>,
-    vision_timing_presets: HashMap<String, u32>,
 }
 
 fn extract_prompt_catalogs(prompt: &str) -> PromptCatalogs {
@@ -2347,10 +2337,6 @@ fn extract_prompt_catalogs(prompt: &str) -> PromptCatalogs {
         mouse_path_presets: extract_named_id_catalog(prompt, "Available mouse path presets:"),
         command_presets: extract_named_id_catalog(prompt, "Available Command presets:"),
         vision_presets: extract_named_id_catalog(prompt, "Available image search presets:"),
-        vision_timing_presets: extract_named_id_catalog(
-            prompt,
-            "Available image search timing presets:",
-        ),
     }
 }
 
@@ -2426,9 +2412,6 @@ fn normalize_named_target_keys(catalogs: &PromptCatalogs, steps: &mut [MacroStep
             | MacroAction::TriggerVisionMove
             | MacroAction::StopVision => {
                 resolve_catalog_id(&catalogs.vision_presets, key)
-            }
-            MacroAction::TriggerVisionTiming => {
-                resolve_catalog_id(&catalogs.vision_timing_presets, key)
             }
             MacroAction::ShowHud => resolve_catalog_id(&catalogs.hud_presets, key),
             _ => None,

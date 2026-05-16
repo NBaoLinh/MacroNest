@@ -61,7 +61,7 @@ fn main() -> Result<()> {
 
     app_icon::ensure_ico_file(&paths.icon_file, 64)?;
     app_icon::ensure_disabled_ico_file(&paths.icon_file_disabled, 64)?;
-    let (mut state, state_load_status) = paths.load_state()?;
+    let (mut state, _) = paths.load_state()?;
     state.show_window = true;
     let (ui_tx, ui_rx) = unbounded();
     let overlay = overlay::start(paths.clone(), state.active_style.clone(), ui_tx.clone())?;
@@ -124,10 +124,6 @@ fn main() -> Result<()> {
             Ok(Box::new(CrosshairApp::new(
                 paths,
                 state,
-                matches!(
-                    state_load_status,
-                    storage::StateLoadStatus::RecoveredInvalid
-                ),
                 overlay_tx,
                 ui_tx,
                 ui_rx,

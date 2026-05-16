@@ -106,7 +106,7 @@ mod windows_overlay {
         ai, audio, hotkey,
         model::{
             AudioSettings, CrosshairStyle, CommandPreset, HotkeyBinding, VisionPreset,
-            VisionTimingPreset, MacroAction, MacroGroup, MacroPreset, MacroStep,
+            MacroAction, MacroGroup, MacroPreset, MacroStep,
             MacroTriggerMode, MousePathEvent, MousePathEventKind, MousePathPreset,
             MouseSensitivityPreset, PinOverlayStyle, PinPreset, ProfileRecord, RgbaColor,
             SoundLibraryItem, SoundPreset, HudPreset, WindowAnchor, WindowExpandControls,
@@ -136,14 +136,6 @@ mod windows_overlay {
         status: String,
     }
 
-    #[derive(Debug, Clone)]
-    struct ImageSearchTimingHit {
-        screen_x: i32,
-        screen_y: i32,
-        matched_color: RgbaColor,
-        position_percent: u32,
-        delay_ms: u64,
-    }
 
     const MENU_SHOW: usize = 2002;
     const MENU_EXIT: usize = 2003;
@@ -153,8 +145,6 @@ mod windows_overlay {
     static STOP_REQUESTED_MACRO_PRESETS: Lazy<Mutex<HashSet<u32>>> =
         Lazy::new(|| Mutex::new(HashSet::new()));
     static IMAGE_SEARCH_WAIT_GENERATIONS: Lazy<Mutex<HashMap<u32, u64>>> =
-        Lazy::new(|| Mutex::new(HashMap::new()));
-    static IMAGE_SEARCH_TIMING_WAIT_GENERATIONS: Lazy<Mutex<HashMap<u32, u64>>> =
         Lazy::new(|| Mutex::new(HashMap::new()));
     static HUD_DISPLAY: Lazy<Mutex<Option<HudDisplayState>>> =
         Lazy::new(|| Mutex::new(None));
@@ -193,9 +183,7 @@ mod windows_overlay {
             step_px: u32,
         },
         UpdateVisionPresets(Vec<VisionPreset>),
-        UpdateVisionTimingPresets(Vec<VisionTimingPreset>),
         InvalidateVisionWaits(Vec<u32>),
-        InvalidateVisionTimingWaits(Vec<u32>),
         ApplyMouseSensitivityPreset(u32),
         RestoreMouseSensitivity,
         UpdateHudPresets(Vec<HudPreset>),
@@ -238,7 +226,6 @@ mod windows_overlay {
         },
         VisionPointCaptured {
             preset_id: u32,
-            timing_preset: bool,
             priority_anchor: bool,
             screen_x: i32,
             screen_y: i32,
@@ -252,7 +239,6 @@ mod windows_overlay {
         },
         VisionRegionCaptured {
             preset_id: u32,
-            timing_preset: bool,
             template_mode: bool,
             screen_x: i32,
             screen_y: i32,
@@ -311,9 +297,7 @@ mod windows_overlay {
         keyboard_arrow_mouse_enabled: bool,
         keyboard_arrow_mouse_step_px: u32,
         vision_presets: Vec<VisionPreset>,
-        vision_timing_presets: Vec<VisionTimingPreset>,
         vision_following_presets: HashSet<u32>,
-        vision_timing_active_presets: HashSet<u32>,
         vision_dir: PathBuf,
         opencv_dll_path: PathBuf,
 
@@ -368,9 +352,7 @@ mod windows_overlay {
                 keyboard_arrow_mouse_enabled: false,
                 keyboard_arrow_mouse_step_px: 12,
                 vision_presets: Vec::new(),
-                vision_timing_presets: Vec::new(),
                 vision_following_presets: HashSet::new(),
-                vision_timing_active_presets: HashSet::new(),
                 vision_dir: PathBuf::new(),
                 opencv_dll_path: PathBuf::new(),
 
@@ -1402,12 +1384,6 @@ mod windows_overlay {
             .contains(&preset_id)
     }
 
-    fn image_search_timing_loop_is_active(preset_id: u32) -> bool {
-        HOOK_STATE
-            .lock()
-            .vision_timing_active_presets
-            .contains(&preset_id)
-    }
 
     fn image_search_wait_generation(preset_id: u32) -> u64 {
         IMAGE_SEARCH_WAIT_GENERATIONS
@@ -1417,13 +1393,6 @@ mod windows_overlay {
             .unwrap_or(0)
     }
 
-    fn image_search_timing_wait_generation(preset_id: u32) -> u64 {
-        IMAGE_SEARCH_TIMING_WAIT_GENERATIONS
-            .lock()
-            .get(&preset_id)
-            .copied()
-            .unwrap_or(0)
-    }
 
     fn set_image_search_following_active(preset_id: u32, active: bool) {
         let mut hook_state = HOOK_STATE.lock();
@@ -1434,18 +1403,6 @@ mod windows_overlay {
         }
     }
 
-    fn set_image_search_timing_loop_active(preset_id: u32, active: bool) {
-        let mut hook_state = HOOK_STATE.lock();
-        if active {
-            hook_state
-                .vision_timing_active_presets
-                .insert(preset_id);
-        } else {
-            hook_state
-                .vision_timing_active_presets
-                .remove(&preset_id);
-        }
-    }
 
     fn bump_image_search_wait_generation(preset_id: u32) {
         let mut guard = IMAGE_SEARCH_WAIT_GENERATIONS.lock();
@@ -1453,11 +1410,6 @@ mod windows_overlay {
         *generation = generation.saturating_add(1);
     }
 
-    fn bump_image_search_timing_wait_generation(preset_id: u32) {
-        let mut guard = IMAGE_SEARCH_TIMING_WAIT_GENERATIONS.lock();
-        let generation = guard.entry(preset_id).or_insert(0);
-        *generation = generation.saturating_add(1);
-    }
 
     fn run_image_search_follow_loop(preset: VisionPreset, ui_tx: Option<Sender<UiCommand>>) {
         if let Some(tx) = ui_tx.as_ref() {
@@ -2653,19 +2605,8 @@ mod windows_overlay {
                     }
                     let _ = refresh_search_area_overlay(runtime);
                 }
-                OverlayCommand::UpdateVisionTimingPresets(presets) => {
-                    HOOK_STATE.lock().vision_timing_presets = presets;
-                    let _ = refresh_search_area_overlay(runtime);
-                }
                 OverlayCommand::InvalidateVisionWaits(preset_ids) => {
                     let mut guard = IMAGE_SEARCH_WAIT_GENERATIONS.lock();
-                    for preset_id in preset_ids {
-                        let generation = guard.entry(preset_id).or_insert(0);
-                        *generation = generation.saturating_add(1);
-                    }
-                }
-                OverlayCommand::InvalidateVisionTimingWaits(preset_ids) => {
-                    let mut guard = IMAGE_SEARCH_TIMING_WAIT_GENERATIONS.lock();
                     for preset_id in preset_ids {
                         let generation = guard.entry(preset_id).or_insert(0);
                         *generation = generation.saturating_add(1);
@@ -2978,14 +2919,6 @@ mod windows_overlay {
                 .filter(|preset| preset.show_search_region_overlay)
                 .filter_map(|preset| configured_image_search_region(preset))
                 .collect::<Vec<_>>();
-            regions.extend(
-                hook_state
-                    .vision_timing_presets
-                    .iter()
-                    .filter(|preset| preset.show_search_region_overlay)
-                    .filter_map(|preset| configured_image_search_timing_region(preset))
-                    .collect::<Vec<_>>(),
-            );
             (regions, hook_state.vision_capture_preview_region)
         };
 
@@ -4535,7 +4468,6 @@ mod windows_overlay {
                     );
                 }
             }
-            MacroAction::TriggerVisionTiming => {}
             MacroAction::StopVisionWait => {
                 let _ = stop_vision_waiting(&step.key);
             }
@@ -4779,30 +4711,6 @@ mod windows_overlay {
                             extra_target_window_titles,
                             match_duplicate_window_titles,
                         ) {
-                            return MacroRunFlow::StopExecution;
-                        }
-                    }
-                }
-                MacroAction::TriggerVisionTiming
-                | MacroAction::StartVisionTiming
-                | MacroAction::StopVisionTiming => {
-                    let force_state = match step.action {
-                        MacroAction::StartVisionTiming => Some(true),
-                        MacroAction::StopVisionTiming => Some(false),
-                        _ => None,
-                    };
-                    if let Some(preset) = vision_timing_preset_by_id(&step.key).ok() {
-                        if let MacroRunFlow::StopExecution =
-                            trigger_vision_timing_with_options(
-                                &preset,
-                                preset_id,
-                                stop_immediately_on_retrigger,
-                                target_window_title,
-                                extra_target_window_titles,
-                                match_duplicate_window_titles,
-                                force_state,
-                            )
-                        {
                             return MacroRunFlow::StopExecution;
                         }
                     }
@@ -5089,30 +4997,6 @@ mod windows_overlay {
                             extra_target_window_titles,
                             match_duplicate_window_titles,
                         ) {
-                            return MacroRunFlow::StopExecution;
-                        }
-                    }
-                }
-                MacroAction::TriggerVisionTiming
-                | MacroAction::StartVisionTiming
-                | MacroAction::StopVisionTiming => {
-                    let force_state = match step.action {
-                        MacroAction::StartVisionTiming => Some(true),
-                        MacroAction::StopVisionTiming => Some(false),
-                        _ => None,
-                    };
-                    if let Some(preset) = vision_timing_preset_by_id(&step.key).ok() {
-                        if let MacroRunFlow::StopExecution =
-                            trigger_vision_timing_with_options(
-                                &preset,
-                                preset_id,
-                                stop_immediately_on_retrigger,
-                                target_window_title,
-                                extra_target_window_titles,
-                                match_duplicate_window_titles,
-                                force_state,
-                            )
-                        {
                             return MacroRunFlow::StopExecution;
                         }
                     }
@@ -5732,9 +5616,6 @@ mod windows_overlay {
                 | MacroAction::PlaySoundPreset
                 | MacroAction::StartVisionSearch
                 | MacroAction::TriggerVisionMove
-                | MacroAction::TriggerVisionTiming
-                | MacroAction::StartVisionTiming
-                | MacroAction::StopVisionTiming
                 | MacroAction::StopVisionWait
                 | MacroAction::StopVision => {}
                 MacroAction::LoopStart
@@ -5783,6 +5664,7 @@ mod windows_overlay {
                 | MacroAction::MouseWheelDown
                 | MacroAction::MouseMoveAbsolute
                 | MacroAction::MouseMoveRelative => {}
+                _ => {}
             }
         }
 
@@ -5863,9 +5745,6 @@ mod windows_overlay {
             | MacroAction::PlaySoundPreset
             | MacroAction::StartVisionSearch
             | MacroAction::TriggerVisionMove
-            | MacroAction::TriggerVisionTiming
-            | MacroAction::StartVisionTiming
-            | MacroAction::StopVisionTiming
             | MacroAction::StopVisionWait
             | MacroAction::StopVision => return Ok(()),
             MacroAction::LoopStart
@@ -5881,6 +5760,7 @@ mod windows_overlay {
             | MacroAction::EnableMacroPreset
             | MacroAction::DisableMacroPreset => return Ok(()),
             MacroAction::KeyPress | MacroAction::KeyDown | MacroAction::KeyUp => {}
+            _ => return Ok(()),
         }
 
         let Some(vk) = hotkey::key_name_to_vk(&step.key) else {
@@ -6815,220 +6695,6 @@ mod windows_overlay {
             .join(format!("preset-{preset_id}.png"))
     }
 
-    fn vision_timing_preset_by_id(spec: &str) -> Result<VisionTimingPreset> {
-        let preset_id = spec
-            .trim()
-            .parse::<u32>()
-            .context("Vision timing preset id is invalid")?;
-        HOOK_STATE
-            .lock()
-            .vision_timing_presets
-            .iter()
-            .find(|preset| preset.id == preset_id)
-            .cloned()
-            .context("Vision timing preset was not found")
-    }
-
-    fn configured_image_search_timing_region(
-        preset: &VisionTimingPreset,
-    ) -> Option<VisionRegion> {
-        let (Some(region_x), Some(region_y), Some(region_width), Some(region_height)) = (
-            preset.search_region_screen_x,
-            preset.search_region_screen_y,
-            preset.search_region_width,
-            preset.search_region_height,
-        ) else {
-            return None;
-        };
-        if region_width <= 0 || region_height <= 0 {
-            return None;
-        }
-
-        let (virtual_left, virtual_top, virtual_width, virtual_height) =
-            window_list::virtual_screen_bounds();
-        let virtual_right = virtual_left + virtual_width;
-        let virtual_bottom = virtual_top + virtual_height;
-        let left = region_x.max(virtual_left);
-        let top = region_y.max(virtual_top);
-        let right = (region_x + region_width).min(virtual_right);
-        let bottom = (region_y + region_height).min(virtual_bottom);
-        let width = right - left;
-        let height = bottom - top;
-        if width <= 0 || height <= 0 {
-            return None;
-        }
-        Some(VisionRegion {
-            left,
-            top,
-            width,
-            height,
-            is_circle: preset.search_region_is_circle,
-            angle_offset_deg: Some(preset.timing_angle_offset_deg),
-            angle_span_deg: Some(preset.timing_angle_span_deg),
-        })
-    }
-
-    fn image_search_timing_target_colors(preset: &VisionTimingPreset) -> Vec<RgbaColor> {
-        if !preset.target_colors.is_empty() {
-            return preset.target_colors.clone();
-        }
-        preset.target_color.into_iter().collect()
-    }
-
-    fn image_search_timing_position_percent(
-        preset: &VisionTimingPreset,
-        screen: &window_list::ScreenCaptureFrame,
-        hit: &ColorMatchHit,
-        region: Option<&VisionRegion>,
-    ) -> u32 {
-        let Some(region) = region else {
-            return 0;
-        };
-        
-        if region.is_circle && region.width > 0 && region.height > 0 {
-            // Calculate center of the region in screen coordinates
-            let center_x = region.left + region.width / 2;
-            let center_y = region.top + region.height / 2;
-            
-            // Hit position in screen coordinates
-            let hit_screen_x = screen.screen_x + hit.x;
-            let hit_screen_y = screen.screen_y + hit.y;
-            
-            // Relative coordinates from center
-            let dx = hit_screen_x - center_x;
-            let dy = hit_screen_y - center_y;
-            
-            // NORMALIZE TO PERFECT ELLIPSE BY INDEPENDENT X/Y RADII!
-            let rx = (region.width as f32 / 2.0).max(1.0);
-            let ry = (region.height as f32 / 2.0).max(1.0);
-            let dx_norm = dx as f32 / rx;
-            let dy_norm = dy as f32 / ry;
-
-            // atan2 returns angle in radians from -PI to PI
-            // 0 is at 3 o'clock. We want 0 at 12 o'clock and clockwise.
-            // Standard atan2: x is horizontal, y is vertical.
-            // We flip signs or swap to get 12 o'clock as 0.
-            let angle_rad = dx_norm.atan2(-dy_norm);
-            
-            // Normalize to 0..2*PI
-            let mut normalized_angle = angle_rad;
-            if normalized_angle < 0.0 {
-                normalized_angle += 2.0 * std::f32::consts::PI;
-            }
-            
-            // Convert to degrees for user friendly shift
-            let mut angle_deg = normalized_angle.to_degrees();
-            
-            // Apply manual shift of the 0% start point!
-            angle_deg = (angle_deg - preset.timing_angle_offset_deg) % 360.0;
-            if angle_deg < 0.0 {
-                angle_deg += 360.0;
-            }
-            
-            // Map to manual SPAN (e.g. 180 degrees for arc)
-            let span = preset.timing_angle_span_deg.clamp(1.0, 360.0);
-            
-            // Convert to percent (0..100) based on the configured angle span!
-            return ((angle_deg / span) * 100.0).clamp(0.0, 100.0) as u32;
-        }
-
-        let hit_screen_x = screen.screen_x + hit.x;
-        let relative_x = (hit_screen_x - region.left).clamp(0, region.width.saturating_sub(1));
-        if region.width <= 1 {
-            return 0;
-        }
-        ((relative_x as u64 * 100) / region.width as u64).min(100) as u32
-    }
-
-    fn image_search_timing_delay_ms(
-        preset: &VisionTimingPreset,
-        position_percent: u32,
-    ) -> u64 {
-        let mut percent = position_percent.min(100) as f32 / 100.0;
-
-        // 1. Apply reverse direction
-        if preset.timing_reverse {
-            percent = 1.0 - percent;
-        }
-
-        // 2. Apply non-linear exponent curve (Gamma) for Ellipses!
-        let exp = preset.timing_exponent.clamp(0.1, 10.0);
-        percent = percent.powf(exp);
-
-        let cycle_ms = preset.timing_cycle_ms.max(1);
-        let mut calculated_delay = (cycle_ms as f32 * percent) as i64;
-
-        // 3. Apply static millisecond offset (e.g., press 50ms earlier)
-        calculated_delay += preset.timing_offset_ms as i64;
-
-        calculated_delay.clamp(0, 600_000) as u64
-    }
-
-    fn find_image_search_timing_hit(
-        preset: &VisionTimingPreset,
-    ) -> Result<Option<ImageSearchTimingHit>> {
-        let target_colors = image_search_timing_target_colors(preset);
-        if target_colors.is_empty() {
-            bail!("No target colors have been picked yet.");
-        }
-        let configured_region = configured_image_search_timing_region(preset);
-        let screen = if let Some(region) = configured_region {
-            window_list::capture_virtual_screen_region(
-                region.left,
-                region.top,
-                region.width,
-                region.height,
-            )
-            .context("Failed to capture the selected search area")?
-        } else if preset.target_window_title.is_some()
-            || !preset.extra_target_window_titles.is_empty()
-        {
-            window_list::capture_window_region_with_candidates(
-                preset.target_window_title.as_deref(),
-                &preset.extra_target_window_titles,
-                preset.match_duplicate_window_titles,
-            )
-            .context("Failed to capture the target window")?
-        } else {
-            let (left, top, width, height) = window_list::virtual_screen_bounds();
-            window_list::capture_virtual_screen_region(left, top, width, height)
-                .context("Failed to capture the screen")?
-        };
-
-        let hit = if preset.dual_color_scan_midpoint {
-            find_dual_color_midpoint_match(
-                &screen,
-                &target_colors,
-                preset.color_tolerance,
-                configured_region.as_ref(),
-            )
-        } else {
-            find_color_match(
-                &screen,
-                &target_colors,
-                preset.color_tolerance,
-                configured_region.as_ref(),
-            )
-        };
-
-        let Some(hit) = hit else {
-            return Ok(None);
-        };
-
-        let screen_x = screen.screen_x + hit.x;
-        let screen_y = screen.screen_y + hit.y;
-        let position_percent =
-            image_search_timing_position_percent(preset, &screen, &hit, configured_region.as_ref());
-        let delay_ms = image_search_timing_delay_ms(preset, position_percent);
-        Ok(Some(ImageSearchTimingHit {
-            screen_x,
-            screen_y,
-            matched_color: hit.matched_color,
-            position_percent,
-            delay_ms,
-        }))
-    }
-
     fn run_vision_once_with_options(
         preset: &VisionPreset,
         move_cursor: bool,
@@ -7345,263 +7011,6 @@ mod windows_overlay {
             )));
         }
         Ok(())
-    }
-
-    fn run_vision_timing_loop(
-        preset: VisionTimingPreset,
-        macro_preset_id: u32,
-        stop_immediately_on_retrigger: bool,
-        target_window_title: Option<String>,
-        extra_target_window_titles: Vec<String>,
-        match_duplicate_window_titles: bool,
-        ui_tx: Option<Sender<UiCommand>>,
-    ) {
-        let wait_generation = image_search_timing_wait_generation(preset.id);
-        let mut sent_wait_status = false;
-        let mut waiting_for_disappearance = false;
-        let mut disappearance_timer: Option<Instant> = None;
-        println!("[DEBUG] VisionTiming: [{}] Luồng scan được kích hoạt thành công (ID={}). Thế hệ đợi = {}.", preset.name, preset.id, wait_generation);
-
-        let wait_for_loop_delay = |delay_ms: u64| -> bool {
-            if delay_ms == 0 {
-                return !image_search_timing_loop_is_active(preset.id)
-                    || image_search_timing_wait_generation(preset.id) != wait_generation;
-            }
-
-            let mut remaining_ms = delay_ms;
-            while remaining_ms > 0 {
-                if !image_search_timing_loop_is_active(preset.id) {
-                    return true;
-                }
-                if image_search_timing_wait_generation(preset.id) != wait_generation {
-                    return true;
-                }
-                if stop_immediately_on_retrigger
-                    && STOP_REQUESTED_MACRO_PRESETS
-                        .lock()
-                        .contains(&macro_preset_id)
-                {
-                    return true;
-                }
-                if !macro_runtime_target_matches(
-                    target_window_title.as_deref(),
-                    &extra_target_window_titles,
-                    match_duplicate_window_titles,
-                ) {
-                    return true;
-                }
-                let chunk_ms = remaining_ms.min(10);
-                thread::sleep(Duration::from_millis(chunk_ms));
-                remaining_ms = remaining_ms.saturating_sub(chunk_ms);
-            }
-            false
-        };
-
-        if let Some(tx) = ui_tx.as_ref() {
-            let _ = tx.send(UiCommand::VisionFinished(format!(
-                "{}: loop started.",
-                preset.name
-            )));
-        }
-
-        while image_search_timing_loop_is_active(preset.id) {
-            let latest_preset = {
-                let guard = HOOK_STATE.lock();
-                guard.vision_timing_presets.iter().find(|p| p.id == preset.id).cloned()
-            };
-            let Some(preset) = latest_preset else {
-                println!("[DEBUG] VisionTiming: [{}] Dừng luồng vì KHÔNG TÌM THẤY PRESET TRONG STATE.", preset.name);
-                break;
-            };
-            let poll_interval_ms = (1000u64 / preset.color_scan_rate_hz.max(1) as u64).clamp(8, 100);
-            if image_search_timing_wait_generation(preset.id) != wait_generation {
-                println!("[DEBUG] VisionTiming: [{}] Dừng luồng vì THẾ HỆ ĐỢI ĐÃ THAY ĐỔI (Bị ngắt bởi trigger khác).", preset.name);
-                if let Some(tx) = ui_tx.as_ref() {
-                    let _ = tx.send(UiCommand::VisionFinished(format!(
-                        "{}: loop cancelled.",
-                        preset.name
-                    )));
-                }
-                break;
-            }
-            if !macro_runtime_target_matches(
-                target_window_title.as_deref(),
-                &extra_target_window_titles,
-                match_duplicate_window_titles,
-            ) {
-                println!("[DEBUG] VisionTiming: [{}] Dừng luồng vì WINDOW TARGET KHÔNG KHỚP (Mất focus cửa sổ).", preset.name);
-                break;
-            }
-            if stop_immediately_on_retrigger
-                && STOP_REQUESTED_MACRO_PRESETS
-                    .lock()
-                    .contains(&macro_preset_id)
-            {
-                println!("[DEBUG] VisionTiming: [{}] Dừng luồng vì CÓ YÊU CẦU DỪNG MACRO (Stop requested).", preset.name);
-                break;
-            }
-
-            let hit = match find_image_search_timing_hit(&preset) {
-                Ok(hit) => {
-                    if hit.is_some() {
-                        println!("[DEBUG] VisionTiming: [{}] -> ĐÃ PHÁT HIỆN MÀU!", preset.name);
-                    }
-                    hit
-                },
-                Err(error) => {
-                    println!("[DEBUG] VisionTiming: [{}] LỖI KHI QUÉT MÀU: {}", preset.name, error);
-                    eprintln!("Vision timing preset failed: {error}");
-                    if let Some(tx) = ui_tx.as_ref() {
-                        let _ = tx.send(UiCommand::VisionFinished(format!(
-                            "{}: timing loop failed: {error}",
-                            preset.name
-                        )));
-                    }
-                    break;
-                }
-            };
-
-            if waiting_for_disappearance {
-                if hit.is_none() {
-                    let elapsed = disappearance_timer.get_or_insert_with(Instant::now).elapsed();
-                    if elapsed.as_millis() >= (preset.min_disappearance_ms as u128) {
-                        waiting_for_disappearance = false;
-                        disappearance_timer = None;
-                        sent_wait_status = false;
-                    }
-                } else {
-                    disappearance_timer = None; // Reset timer if color is detected again
-                }
-                thread::sleep(Duration::from_millis(poll_interval_ms));
-                continue;
-            }
-
-            let Some(hit) = hit else {
-                if !sent_wait_status {
-                    if let Some(tx) = ui_tx.as_ref() {
-                        let _ = tx.send(UiCommand::VisionFinished(format!(
-                            "{}: waiting...",
-                            preset.name
-                        )));
-                    }
-                    sent_wait_status = true;
-                }
-                thread::sleep(Duration::from_millis(poll_interval_ms));
-                continue;
-            };
-
-            let trigger_status = format!(
-                "Matched color #{:02X}{:02X}{:02X} at {}, {}; timing {}% -> {} ms.",
-                hit.matched_color.r,
-                hit.matched_color.g,
-                hit.matched_color.b,
-                hit.screen_x,
-                hit.screen_y,
-                hit.position_percent.min(100),
-                hit.delay_ms
-            );
-            if let Some(tx) = ui_tx.as_ref() {
-                let _ = tx.send(UiCommand::VisionFinished(format!(
-                    "{}: {}",
-                    preset.name, trigger_status
-                )));
-            }
-
-            // WAIT
-            if wait_for_loop_delay(hit.delay_ms) {
-                println!("[DEBUG] VisionTiming: [{}] Dừng luồng trong lúc chờ đợi delay.", preset.name);
-                break;
-            }
-
-            // TRIGGER ACTION
-            if !preset.steps.is_empty() {
-                println!("[DEBUG] VisionTiming: [{}] Bắt đầu thực thi {} macro steps...", preset.name, preset.steps.len());
-                let mut locked_keys = Vec::new();
-                let mut locked_mouse = 0usize;
-                let flow_result = execute_macro_sequence(
-                    macro_preset_id,
-                    &preset.steps,
-                    &mut locked_keys,
-                    &mut locked_mouse,
-                    stop_immediately_on_retrigger,
-                    target_window_title.as_deref(),
-                    &extra_target_window_titles,
-                    match_duplicate_window_titles,
-                );
-                println!("[DEBUG] VisionTiming: [{}] Đã thực thi xong các bước. Luồng kết thúc với: {:?}", preset.name, flow_result);
-            }
-
-            // ENTER DISAPPEARANCE WAIT STATE
-            waiting_for_disappearance = true;
-        }
-
-        println!("[DEBUG] VisionTiming: [{}] Luồng scan kết thúc.", preset.name);
-        set_image_search_timing_loop_active(preset.id, false);
-        if let Some(tx) = ui_tx {
-            let _ = tx.send(UiCommand::VisionFinished(format!(
-                "{}: stopped.",
-                preset.name
-            )));
-        }
-    }
-
-    fn trigger_vision_timing_with_options(
-        preset: &VisionTimingPreset,
-        macro_preset_id: u32,
-        stop_immediately_on_retrigger: bool,
-        target_window_title: Option<&str>,
-        extra_target_window_titles: &[String],
-        match_duplicate_window_titles: bool,
-        force_state: Option<bool>,
-    ) -> MacroRunFlow {
-        let is_active = image_search_timing_loop_is_active(preset.id);
-        println!(
-            "[DEBUG] VisionTiming: Yêu cầu preset '{}' (ID={}). Hiện tại: {}, Bắt buộc: {:?}",
-            preset.name, preset.id, is_active, force_state
-        );
-
-        if let Some(target) = force_state {
-            if target == is_active {
-                println!("[DEBUG] VisionTiming: Preset '{}' đã ở trạng thái mong muốn.", preset.name);
-                return MacroRunFlow::Continue;
-            }
-        }
-
-        if is_active {
-            println!("[DEBUG] VisionTiming: Dừng luồng lặp cho '{}'.", preset.name);
-            set_image_search_timing_loop_active(preset.id, false);
-            bump_image_search_timing_wait_generation(preset.id);
-            if let Some(tx) = HOOK_STATE.lock().ui_tx.clone() {
-                let _ = tx.send(UiCommand::VisionFinished(format!(
-                    "{}: loop stopped.",
-                    preset.name
-                )));
-            }
-            return MacroRunFlow::Continue;
-        }
-        if !preset.enabled {
-            return MacroRunFlow::Continue;
-        }
-        {
-            set_image_search_timing_loop_active(preset.id, true);
-            bump_image_search_timing_wait_generation(preset.id);
-            let ui_tx = HOOK_STATE.lock().ui_tx.clone();
-            let preset = preset.clone();
-            let target_window_title = target_window_title.map(|title| title.to_owned());
-            let extra_target_window_titles = extra_target_window_titles.to_vec();
-            thread::spawn(move || {
-                run_vision_timing_loop(
-                    preset,
-                    macro_preset_id,
-                    stop_immediately_on_retrigger,
-                    target_window_title,
-                    extra_target_window_titles,
-                    match_duplicate_window_titles,
-                    ui_tx,
-                )
-            });
-            return MacroRunFlow::Continue;
-        }
     }
 
     fn trigger_vision_move_with_options(
@@ -9173,29 +8582,6 @@ mod fallback {
         ShowWindow,
         Exit,
         VisionFinished(String),
-        VisionPointCaptured {
-            preset_id: u32,
-            timing_preset: bool,
-            priority_anchor: bool,
-            screen_x: i32,
-            screen_y: i32,
-            color: Option<RgbaColor>,
-        },
-        VisionRegionPreview {
-            screen_x: i32,
-            screen_y: i32,
-            width: i32,
-            height: i32,
-        },
-        VisionRegionCaptured {
-            preset_id: u32,
-            timing_preset: bool,
-            template_mode: bool,
-            screen_x: i32,
-            screen_y: i32,
-            width: i32,
-            height: i32,
-        },
         VisionPointCaptureCancelled(String),
     }
 

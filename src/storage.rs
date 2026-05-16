@@ -11,7 +11,6 @@ use crate::model::{AppState, VisionPreset, ProfileRecord, VietnameseInputMode};
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum StateLoadStatus {
     Loaded,
-    RecoveredInvalid,
 }
 
 #[derive(Debug, Clone)]
@@ -88,10 +87,10 @@ impl AppPaths {
                 Err(error) => {
                     if content.trim().is_empty() {
                         eprintln!("state.json was empty; recreating defaults.");
+                        (AppState::default(), StateLoadStatus::Loaded)
                     } else {
-                        eprintln!("state.json was invalid; recreating defaults: {error}");
+                        anyhow::bail!("state.json is invalid: {error}. Please fix the file or restore from a backup to prevent data loss. The application will not start in this state.");
                     }
-                    (AppState::default(), StateLoadStatus::RecoveredInvalid)
                 }
             }
         };
@@ -409,7 +408,7 @@ impl AppPaths {
             item.collapsed = true;
         }
 
-        if !self.state_file.exists() || status == StateLoadStatus::RecoveredInvalid {
+        if !self.state_file.exists() {
             self.save_state(&state)?;
         }
 

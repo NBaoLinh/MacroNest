@@ -24,7 +24,7 @@ use crate::{
     ai, audio, hotkey,
     model::{
         AppPanel, AppState, AudioClipSettings, CaptureRequest, CapturedInput, CrosshairStyle,
-        CommandPreset, HotkeyBinding, VisionPreset, VisionTimingPreset, MacroAction,
+        CommandPreset, HotkeyBinding, VisionPreset, MacroAction,
         MacroFolder, MacroGroup, MacroPreset, MacroStep, MacroTriggerMode, MasterMacroGroupState,
         MasterMacroPresetState, MasterPreset, MasterWindowFocusPresetState,
         MasterWindowPresetState, MasterZoomPresetState, MousePathEvent, MousePathEventKind,
@@ -101,7 +101,6 @@ enum VisionCaptureMode {
 #[derive(Clone, Copy, PartialEq, Eq)]
 enum VisionCaptureTarget {
     Preset(u32),
-    TimingPreset(u32),
 }
 
 #[derive(Clone, Copy, PartialEq, Eq)]
@@ -502,7 +501,6 @@ enum MacroActionSubmenuKind {
 pub struct CrosshairApp {
     pub paths: AppPaths,
     pub state: AppState,
-    state_write_protected: bool,
     overlay_tx: Sender<OverlayCommand>,
     ui_tx: Sender<UiCommand>,
     ui_rx: Receiver<UiCommand>,
@@ -619,7 +617,6 @@ impl CrosshairApp {
     pub fn new(
         paths: AppPaths,
         state: AppState,
-        state_write_protected: bool,
         overlay_tx: Sender<OverlayCommand>,
         ui_tx: Sender<UiCommand>,
         ui_rx: Receiver<UiCommand>,
@@ -641,16 +638,10 @@ impl CrosshairApp {
         let mut app = Self {
             paths,
             state,
-            state_write_protected,
             overlay_tx,
             ui_tx,
             ui_rx,
-            status: if state_write_protected {
-                "State file was invalid; running in recovery mode and will not overwrite state.json."
-                    .to_owned()
-            } else {
-                String::new()
-            },
+            status: String::new(),
             save_name,
             import_code_buffer: String::new(),
             export_code_buffer: String::new(),
@@ -787,7 +778,6 @@ impl CrosshairApp {
         app.sync_macro_presets();
         app.sync_audio_settings();
         app.sync_vision_presets();
-        app.sync_vision_timing_presets();
         app.sync_hud_presets();
         app.sync_command_presets();
         app.sync_macro_master_enabled();
@@ -861,23 +851,6 @@ impl CrosshairApp {
             .overlay_tx
             .send(OverlayCommand::UpdateVisionPresets(
                 self.state.vision_presets.clone(),
-            ));
-    }
-
-    fn sync_vision_timing_presets(&self) {
-        let preset_ids = self
-            .state
-            .vision_timing_presets
-            .iter()
-            .map(|preset| preset.id)
-            .collect::<Vec<_>>();
-        let _ = self
-            .overlay_tx
-            .send(OverlayCommand::InvalidateVisionTimingWaits(preset_ids));
-        let _ = self
-            .overlay_tx
-            .send(OverlayCommand::UpdateVisionTimingPresets(
-                self.state.vision_timing_presets.clone(),
             ));
     }
 
@@ -997,9 +970,6 @@ impl CrosshairApp {
     fn persist(&mut self) {
         if let Err(error) = self.paths.save_profiles(&self.state.profiles) {
             self.status = format!("Failed to save profiles: {error}");
-            return;
-        }
-        if self.state_write_protected {
             return;
         }
         if let Err(error) = self.paths.save_state(&self.state) {
@@ -1399,106 +1369,6 @@ impl CrosshairApp {
                 rest.len()
             ),
         }
-    }
-
-    fn image_search_timing_color_text(preset: &VisionTimingPreset) -> String {
-        let colors = if !preset.target_colors.is_empty() {
-            preset.target_colors.clone()
-        } else {
-            preset.target_color.into_iter().collect()
-        };
-        match colors.as_slice() {
-            [] => "None".to_owned(),
-            [color] => format!("#{:02X}{:02X}{:02X}", color.r, color.g, color.b),
-            [first, rest @ ..] => format!(
-                "#{:02X}{:02X}{:02X} +{}",
-                first.r,
-                first.g,
-                first.b,
-                rest.len()
-            ),
-        }
-    }
-
-    fn image_search_timing_area_text(preset: &VisionTimingPreset) -> String {
-        match (
-            preset.search_region_screen_x,
-            preset.search_region_screen_y,
-            preset.search_region_width,
-            preset.search_region_height,
-        ) {
-            (Some(x), Some(y), Some(width), Some(height)) if width > 0 && height > 0 => {
-                let shape = if preset.search_region_is_circle {
-                    "Circle"
-                } else {
-                    "Rect"
-                };
-                format!("{shape} {x}, {y}  {width}x{height}")
-            }
-            _ => "Any screen".to_owned(),
-        }
-    }
-
-    fn image_search_timing_preset_text(preset: &VisionTimingPreset) -> String {
-        let colors = if !preset.target_colors.is_empty() {
-            preset.target_colors.clone()
-        } else {
-            preset.target_color.into_iter().collect()
-        };
-        let color_text = match colors.as_slice() {
-            [] => "No color".to_owned(),
-            [color] => format!("#{:02X}{:02X}{:02X}", color.r, color.g, color.b),
-            [first, rest @ ..] => format!(
-                "#{:02X}{:02X}{:02X} +{}",
-                first.r,
-                first.g,
-                first.b,
-                rest.len()
-            ),
-        };
-        let area = if preset
-            .search_region_screen_x
-            .zip(preset.search_region_screen_y)
-            .zip(preset.search_region_width)
-            .zip(preset.search_region_height)
-            .is_some()
-        {
-            "Area set"
-        } else {
-            "No area"
-        };
-        let steps_text = if preset.steps.is_empty() {
-            "No steps".to_owned()
-        } else {
-            format!("{} steps", preset.steps.len())
-        };
-        format!(
-            "{area} | {color_text} | {} ms | {steps_text}",
-            preset.timing_cycle_ms.max(1)
-        )
-    }
-
-    fn image_search_timing_preset_options(&self) -> Vec<(u32, String)> {
-        self.state
-            .vision_timing_presets
-            .iter()
-            .map(|preset| (preset.id, preset.name.clone()))
-            .collect()
-    }
-
-    fn image_search_timing_preset_label(
-        options: &[(u32, String)],
-        selected_id: Option<u32>,
-        empty_label: &str,
-    ) -> String {
-        selected_id
-            .and_then(|id| {
-                options
-                    .iter()
-                    .find(|(preset_id, _)| *preset_id == id)
-                    .map(|(_, label)| label.clone())
-            })
-            .unwrap_or_else(|| empty_label.to_owned())
     }
 
     fn image_search_target_colors(preset: &VisionPreset) -> Vec<RgbaColor> {
@@ -4350,9 +4220,6 @@ impl CrosshairApp {
             MacroAction::PlaySoundPreset => "PlaySoundPreset",
             MacroAction::StartVisionSearch => "StartImageSearch",
             MacroAction::TriggerVisionMove => "TriggerImageSearchMove",
-            MacroAction::TriggerVisionTiming => "TriggerImageSearchTiming",
-            MacroAction::StartVisionTiming => "StartImageSearchTiming",
-            MacroAction::StopVisionTiming => "StopImageSearchTiming",
             MacroAction::StopVisionWait => "StopImageSearchWait",
             MacroAction::StopVision => "StopImageSearch",
             MacroAction::LoopStart => "LoopStart",
@@ -4386,6 +4253,7 @@ impl CrosshairApp {
             MacroAction::MouseWheelDown => "MouseWheelDown",
             MacroAction::MouseMoveAbsolute => "MouseMoveAbsolute",
             MacroAction::MouseMoveRelative => "MouseMoveRelative",
+            _ => "Legacy (Deprecated)",
         }
     }
 
@@ -4424,15 +4292,6 @@ impl CrosshairApp {
             }
             MacroAction::TriggerVisionMove => {
                 "Move the mouse to the latest image-search match, or run one search now."
-            }
-            MacroAction::TriggerVisionTiming => {
-                "Toggle a timing preset loop on or off. It can run for a set number of seconds or forever until you trigger it again."
-            }
-            MacroAction::StartVisionTiming => {
-                "Turn a timing preset loop explicitly ON. It will do nothing if it is already running."
-            }
-            MacroAction::StopVisionTiming => {
-                "Turn a timing preset loop explicitly OFF. It will do nothing if it is not running."
             }
             MacroAction::StopVisionWait => {
                 "Stop waiting for one image-search preset to match."
@@ -4485,6 +4344,7 @@ impl CrosshairApp {
             MacroAction::MouseMoveRelative => {
                 "Move the mouse by the X/Y offset from the current position."
             }
+            _ => "Legacy action (deprecated).",
         }
     }
 
@@ -4510,9 +4370,6 @@ impl CrosshairApp {
             MacroAction::PlaySoundPreset => 0xe050,
             MacroAction::StartVisionSearch => 0xe8b6,
             MacroAction::TriggerVisionMove => 0xe8f9,
-            MacroAction::TriggerVisionTiming => 0xe8f9,
-            MacroAction::StartVisionTiming => 0xe037,
-            MacroAction::StopVisionTiming => 0xe034,
             MacroAction::StopVisionWait => 0xe047,
             MacroAction::StopVision => 0xe047,
             MacroAction::LoopStart => 0xe028,
@@ -4546,6 +4403,7 @@ impl CrosshairApp {
             MacroAction::MouseWheelDown => 0xe5db,
             MacroAction::MouseMoveAbsolute => 0xe89f,
             MacroAction::MouseMoveRelative => 0xe8d5,
+            _ => 0xe8b5,
         };
         char::from_u32(codepoint).unwrap_or('?')
     }
@@ -4577,9 +4435,6 @@ impl CrosshairApp {
                 MacroAction::PlaySoundPreset => "Âm thanh",
                 MacroAction::StartVisionSearch => "Tìm ảnh",
                 MacroAction::TriggerVisionMove => "Di chuyển",
-                MacroAction::TriggerVisionTiming => "Timing",
-                MacroAction::StartVisionTiming => "Bật Timing",
-                MacroAction::StopVisionTiming => "Tắt Timing",
                 MacroAction::StopVisionWait => "Chờ",
                 MacroAction::StopVision => "Dừng",
                 MacroAction::LoopStart => "Lặp",
@@ -4613,6 +4468,7 @@ impl CrosshairApp {
                 MacroAction::MouseWheelDown => "Xuống",
                 MacroAction::MouseMoveAbsolute => "Tuyệt đối",
                 MacroAction::MouseMoveRelative => "Tương đối",
+                _ => "Cũ (Bỏ)",
             }),
             UiLanguage::English => match action {
                 MacroAction::KeyPress => "Press",
@@ -4635,9 +4491,6 @@ impl CrosshairApp {
                 MacroAction::PlaySoundPreset => "Sound",
                 MacroAction::StartVisionSearch => "Start",
                 MacroAction::TriggerVisionMove => "Move",
-                MacroAction::TriggerVisionTiming => "Timing",
-                MacroAction::StartVisionTiming => "TimeOn",
-                MacroAction::StopVisionTiming => "TimeOff",
                 MacroAction::StopVisionWait => "Wait",
                 MacroAction::StopVision => "Stop",
                 MacroAction::LoopStart => "Loop",
@@ -4671,6 +4524,7 @@ impl CrosshairApp {
                 MacroAction::MouseWheelDown => "WhDn",
                 MacroAction::MouseMoveAbsolute => "MoveTo",
                 MacroAction::MouseMoveRelative => "MoveBy",
+                _ => "Legacy",
             },
             UiLanguage::Icon => match action {
                 MacroAction::KeyPress => "Press",
@@ -4693,9 +4547,6 @@ impl CrosshairApp {
                 MacroAction::PlaySoundPreset => "Sound",
                 MacroAction::StartVisionSearch => "Start",
                 MacroAction::TriggerVisionMove => "Move",
-                MacroAction::TriggerVisionTiming => "Timing",
-                MacroAction::StartVisionTiming => "TimeOn",
-                MacroAction::StopVisionTiming => "TimeOff",
                 MacroAction::StopVisionWait => "Wait",
                 MacroAction::StopVision => "Stop",
                 MacroAction::LoopStart => "Loop",
@@ -4729,6 +4580,7 @@ impl CrosshairApp {
                 MacroAction::MouseWheelDown => "WhDn",
                 MacroAction::MouseMoveAbsolute => "MoveTo",
                 MacroAction::MouseMoveRelative => "MoveBy",
+                _ => "Legacy",
             },
         }
     }
@@ -4849,9 +4701,6 @@ impl CrosshairApp {
                 | MacroAction::DisableMacroPreset
                 | MacroAction::StartVisionSearch
                 | MacroAction::TriggerVisionMove
-                | MacroAction::TriggerVisionTiming
-                | MacroAction::StartVisionTiming
-                | MacroAction::StopVisionTiming
                 | MacroAction::StopVisionWait
                 | MacroAction::StopVision
                 | MacroAction::LoopStart
@@ -6124,11 +5973,6 @@ impl CrosshairApp {
         &[
             MacroAction::StartVisionSearch,
             MacroAction::TriggerVisionMove,
-            MacroAction::TriggerVisionTiming,
-            MacroAction::StartVisionTiming,
-            MacroAction::StopVisionTiming,
-            MacroAction::StartVisionTiming,
-            MacroAction::StopVisionTiming,
             MacroAction::StopVisionWait,
             MacroAction::StopVision,
         ]
@@ -7319,15 +7163,6 @@ impl CrosshairApp {
                     .map(|preset| (preset.id, preset.name.clone()))
                     .collect::<Vec<_>>(),
             ),
-            Self::format_id_name_catalog(
-                "Available image search timing presets:",
-                &self
-                    .state
-                    .vision_timing_presets
-                    .iter()
-                    .map(|preset| (preset.id, preset.name.clone()))
-                    .collect::<Vec<_>>(),
-            ),
         ]
         .join("\n");
         let mode_label = match mode {
@@ -8002,33 +7837,20 @@ impl CrosshairApp {
         selected_indices.dedup();
 
         let mut clipboard = Vec::new();
-        if group_id == 0 {
-            if let Some(preset) = self.state.vision_timing_presets.iter().find(|p| p.id == preset_id) {
+        if let Some(group) = self.state.macro_groups.iter().find(|g| g.id == group_id) {
+            if let Some(preset) = group.presets.iter().find(|p| p.id == preset_id) {
                 for &index in &selected_indices {
                     if let Some(step) = preset.steps.get(index) {
                         clipboard.push(step.clone());
                     }
                 }
             } else {
-                self.status = "Vision preset not found.".to_owned();
+                self.status = "Macro preset not found.".to_owned();
                 return;
             }
         } else {
-            if let Some(group) = self.state.macro_groups.iter().find(|g| g.id == group_id) {
-                if let Some(preset) = group.presets.iter().find(|p| p.id == preset_id) {
-                    for &index in &selected_indices {
-                        if let Some(step) = preset.steps.get(index) {
-                            clipboard.push(step.clone());
-                        }
-                    }
-                } else {
-                    self.status = "Macro preset not found.".to_owned();
-                    return;
-                }
-            } else {
-                self.status = "Macro group not found.".to_owned();
-                return;
-            }
+            self.status = "Macro group not found.".to_owned();
+            return;
         }
 
         self.macro_step_clipboard = clipboard;
@@ -8052,21 +7874,11 @@ impl CrosshairApp {
         selected_indices.dedup();
         selected_indices.reverse();
 
-        if group_id == 0 {
-            if let Some(preset) = self.state.vision_timing_presets.iter_mut().find(|p| p.id == preset_id) {
+        if let Some(group) = self.state.macro_groups.iter_mut().find(|g| g.id == group_id) {
+            if let Some(preset) = group.presets.iter_mut().find(|p| p.id == preset_id) {
                 for index in selected_indices {
                     if index < preset.steps.len() {
                         preset.steps.remove(index);
-                    }
-                }
-            }
-        } else {
-            if let Some(group) = self.state.macro_groups.iter_mut().find(|g| g.id == group_id) {
-                if let Some(preset) = group.presets.iter_mut().find(|p| p.id == preset_id) {
-                    for index in selected_indices {
-                        if index < preset.steps.len() {
-                            preset.steps.remove(index);
-                        }
                     }
                 }
             }
@@ -8089,30 +7901,18 @@ impl CrosshairApp {
         let pasted_count = clipboard_steps.len();
         let mut final_insert_at = 0;
 
-        if group_id == 0 {
-            let Some(preset) = self.state.vision_timing_presets.iter_mut().find(|p| p.id == preset_id) else {
-                self.status = "Vision preset not found.".to_owned();
-                return None;
-            };
-            let insert_at = (step_index + 1).min(preset.steps.len());
-            final_insert_at = insert_at;
-            for (offset, step) in clipboard_steps.into_iter().enumerate() {
-                preset.steps.insert(insert_at + offset, step);
-            }
-        } else {
-            let Some(group) = self.state.macro_groups.iter_mut().find(|g| g.id == group_id) else {
-                self.status = "Macro group not found.".to_owned();
-                return None;
-            };
-            let Some(preset) = group.presets.iter_mut().find(|p| p.id == preset_id) else {
-                self.status = "Macro preset not found.".to_owned();
-                return None;
-            };
-            let insert_at = (step_index + 1).min(preset.steps.len());
-            final_insert_at = insert_at;
-            for (offset, step) in clipboard_steps.into_iter().enumerate() {
-                preset.steps.insert(insert_at + offset, step);
-            }
+        let Some(group) = self.state.macro_groups.iter_mut().find(|g| g.id == group_id) else {
+            self.status = "Macro group not found.".to_owned();
+            return None;
+        };
+        let Some(preset) = group.presets.iter_mut().find(|p| p.id == preset_id) else {
+            self.status = "Macro preset not found.".to_owned();
+            return None;
+        };
+        let insert_at = (step_index + 1).min(preset.steps.len());
+        final_insert_at = insert_at;
+        for (offset, step) in clipboard_steps.into_iter().enumerate() {
+            preset.steps.insert(insert_at + offset, step);
         }
 
         self.status = format!("Pasted {} step(s).", pasted_count);
@@ -8249,18 +8049,6 @@ impl CrosshairApp {
                 .is_some_and(|step| {
                     matches!(step.action, MacroAction::LockKeys | MacroAction::UnlockKeys)
                 }),
-            CaptureRequest::VisionTimingStepInput {
-                preset_id,
-                step_index,
-            } => self
-                .state
-                .vision_timing_presets
-                .iter()
-                .find(|p| p.id == *preset_id)
-                .and_then(|p| p.steps.get(*step_index))
-                .is_some_and(|step| {
-                    matches!(step.action, MacroAction::LockKeys | MacroAction::UnlockKeys)
-                }),
             _ => false,
         }
     }
@@ -8349,11 +8137,7 @@ impl CrosshairApp {
                 })
                 .and_then(|preset| preset.steps.get_mut(target.step_index))
         } else {
-            self.state
-                .vision_timing_presets
-                .iter_mut()
-                .find(|p| p.id == target.preset_id)
-                .and_then(|p| p.steps.get_mut(target.step_index))
+            None
         };
 
         let Some(step) = step_result else {
@@ -8389,8 +8173,6 @@ impl CrosshairApp {
         self.persist();
         if target.group_id.is_some() {
             self.sync_macro_presets();
-        } else {
-            self.sync_vision_timing_presets();
         }
     }
 
@@ -8669,10 +8451,7 @@ impl CrosshairApp {
                         self.status = "No image search preset is active.".to_owned();
                         return;
                     };
-                    let (preset_id, timing_preset) = match target {
-                        VisionCaptureTarget::Preset(preset_id) => (preset_id, false),
-                        VisionCaptureTarget::TimingPreset(preset_id) => (preset_id, true),
-                    };
+                    let VisionCaptureTarget::Preset(preset_id) = target;
                     let template_mode = matches!(
                         self.vision_capture_mode,
                         Some(VisionCaptureMode::Template)
@@ -8680,7 +8459,6 @@ impl CrosshairApp {
                     self.finish_image_search_region_capture_command(
                         ctx,
                         preset_id,
-                        timing_preset,
                         template_mode,
                         x,
                         y,
@@ -8692,7 +8470,25 @@ impl CrosshairApp {
                     self.status = "Image area capture cancelled.".to_owned();
                 }
             }
-            VisionCaptureMode::ColorSample | VisionCaptureMode::ColorPriorityAnchor => {}
+            VisionCaptureMode::ColorSample | VisionCaptureMode::ColorPriorityAnchor => {
+                let Some(target) = self.vision_capture_target else {
+                    self.cancel_image_search_capture(ctx);
+                    self.status = "No image search preset is active.".to_owned();
+                    return;
+                };
+                let VisionCaptureTarget::Preset(preset_id) = target;
+                let priority_anchor = matches!(
+                    self.vision_capture_mode,
+                    Some(VisionCaptureMode::ColorPriorityAnchor)
+                );
+                self.finish_image_search_point_capture_command_from_screen(
+                    ctx,
+                    preset_id,
+                    priority_anchor,
+                    screen_x,
+                    screen_y,
+                );
+            }
         }
     }
 
@@ -8702,15 +8498,11 @@ impl CrosshairApp {
         target: VisionCaptureTarget,
         priority_anchor: bool,
     ) {
-        let (preset_id, timing_preset) = match target {
-            VisionCaptureTarget::Preset(preset_id) => (preset_id, false),
-            VisionCaptureTarget::TimingPreset(preset_id) => (preset_id, true),
-        };
+        let VisionCaptureTarget::Preset(preset_id) = target;
         Self::spawn_image_search_point_capture_thread(
             ui_tx,
             ctx,
             preset_id,
-            timing_preset,
             priority_anchor,
         );
     }
@@ -8720,7 +8512,6 @@ impl CrosshairApp {
         ui_tx: Sender<UiCommand>,
         ctx: egui::Context,
         preset_id: u32,
-        timing_preset: bool,
         priority_anchor: bool,
     ) {
         std::thread::spawn(move || {
@@ -8761,7 +8552,6 @@ impl CrosshairApp {
                         };
                         let _ = ui_tx.send(UiCommand::VisionPointCaptured {
                             preset_id,
-                            timing_preset,
                             priority_anchor,
                             screen_x: point.x,
                             screen_y: point.y,
@@ -8785,7 +8575,6 @@ impl CrosshairApp {
         ui_tx: Sender<UiCommand>,
         ctx: egui::Context,
         _preset_id: u32,
-        _timing_preset: bool,
         _priority_anchor: bool,
     ) {
         let _ = ui_tx.send(UiCommand::VisionPointCaptureCancelled(
@@ -8800,15 +8589,11 @@ impl CrosshairApp {
         target: VisionCaptureTarget,
         template_mode: bool,
     ) {
-        let (preset_id, timing_preset) = match target {
-            VisionCaptureTarget::Preset(preset_id) => (preset_id, false),
-            VisionCaptureTarget::TimingPreset(preset_id) => (preset_id, true),
-        };
+        let VisionCaptureTarget::Preset(preset_id) = target;
         Self::spawn_image_search_region_capture_thread(
             ui_tx,
             ctx,
             preset_id,
-            timing_preset,
             template_mode,
         );
     }
@@ -8818,7 +8603,6 @@ impl CrosshairApp {
         ui_tx: Sender<UiCommand>,
         ctx: egui::Context,
         preset_id: u32,
-        timing_preset: bool,
         template_mode: bool,
     ) {
         std::thread::spawn(move || {
@@ -8865,7 +8649,6 @@ impl CrosshairApp {
                         if width >= 2 && height >= 2 {
                             let _ = ui_tx.send(UiCommand::VisionRegionCaptured {
                                 preset_id,
-                                timing_preset,
                                 template_mode,
                                 screen_x: x,
                                 screen_y: y,
@@ -8891,7 +8674,6 @@ impl CrosshairApp {
         ui_tx: Sender<UiCommand>,
         ctx: egui::Context,
         _preset_id: u32,
-        _timing_preset: bool,
         _template_mode: bool,
     ) {
         let _ = ui_tx.send(UiCommand::VisionPointCaptureCancelled(
@@ -8930,12 +8712,6 @@ impl CrosshairApp {
                 .iter()
                 .find(|preset| preset.id == preset_id)
                 .map(|preset| preset.name.clone()),
-            VisionCaptureTarget::TimingPreset(preset_id) => self
-                .state
-                .vision_timing_presets
-                .iter()
-                .find(|preset| preset.id == preset_id)
-                .map(|preset| preset.name.clone()),
         }
     }
 
@@ -8944,12 +8720,6 @@ impl CrosshairApp {
             VisionCaptureTarget::Preset(preset_id) => self
                 .state
                 .vision_presets
-                .iter()
-                .find(|preset| preset.id == preset_id)
-                .is_some_and(|preset| preset.search_region_is_circle),
-            VisionCaptureTarget::TimingPreset(preset_id) => self
-                .state
-                .vision_timing_presets
                 .iter()
                 .find(|preset| preset.id == preset_id)
                 .is_some_and(|preset| preset.search_region_is_circle),
@@ -9037,35 +8807,9 @@ impl CrosshairApp {
                             true,
                         )
                     }
-                    VisionCaptureTarget::TimingPreset(preset_id) => {
-                        if let Some(preset) = self
-                            .state
-                            .vision_timing_presets
-                            .iter_mut()
-                            .find(|preset| preset.id == preset_id)
-                        {
-                            preset.collapsed = false;
-                            preset.search_region_screen_x = Some(capture.screen_x);
-                            preset.search_region_screen_y = Some(capture.screen_y);
-                            preset.search_region_width = Some(capture.width as i32);
-                            preset.search_region_height = Some(capture.height as i32);
-                        }
-                        (
-                            format!(
-                                "Saved timing area {}x{} at {}, {} for preset #{}.",
-                                capture.width,
-                                capture.height,
-                                capture.screen_x,
-                                capture.screen_y,
-                                preset_id
-                            ),
-                            true,
-                        )
-                    }
                 };
                 if sync_required {
                     self.sync_vision_presets();
-                    self.sync_vision_timing_presets();
                     self.persist();
                 }
                 self.status = status;
@@ -9093,26 +8837,6 @@ impl CrosshairApp {
                             self.persist();
                             self.status = format!(
                                 "Saved search area {}x{} at {}, {} for preset #{}.",
-                                width, height, screen_x, screen_y, preset_id
-                            );
-                        }
-                        VisionCaptureTarget::TimingPreset(preset_id) => {
-                            if let Some(preset) = self
-                                .state
-                                .vision_timing_presets
-                                .iter_mut()
-                                .find(|preset| preset.id == preset_id)
-                            {
-                                preset.collapsed = false;
-                                preset.search_region_screen_x = Some(screen_x);
-                                preset.search_region_screen_y = Some(screen_y);
-                                preset.search_region_width = Some(width);
-                                preset.search_region_height = Some(height);
-                            }
-                            self.sync_vision_timing_presets();
-                            self.persist();
-                            self.status = format!(
-                                "Saved timing area {}x{} at {}, {} for preset #{}.",
                                 width, height, screen_x, screen_y, preset_id
                             );
                         }
@@ -9242,28 +8966,6 @@ impl CrosshairApp {
                     color.r, color.g, color.b, preset_id
                 )
             }
-            VisionCaptureTarget::TimingPreset(preset_id) => {
-                if let Some(preset) = self
-                    .state
-                    .vision_timing_presets
-                    .iter_mut()
-                    .find(|preset| preset.id == preset_id)
-                {
-                    preset.collapsed = false;
-                    if preset.target_colors.is_empty()
-                        && let Some(existing) = preset.target_color
-                    {
-                        preset.target_colors.push(existing);
-                    }
-                    preset.target_colors.push(color);
-                    preset.target_color = preset.target_colors.first().copied();
-                }
-                self.sync_vision_timing_presets();
-                format!(
-                    "Picked color #{:02X}{:02X}{:02X} for timing preset #{}.",
-                    color.r, color.g, color.b, preset_id
-                )
-            }
         }
     }
 
@@ -9289,9 +8991,6 @@ impl CrosshairApp {
                 self.sync_vision_presets();
                 format!("Saved priority point at {screen_x}, {screen_y} for preset #{preset_id}.")
             }
-            VisionCaptureTarget::TimingPreset(_) => {
-                "Priority point capture is not used for timing presets.".to_owned()
-            }
         }
     }
 
@@ -9299,17 +8998,12 @@ impl CrosshairApp {
         &mut self,
         ctx: &egui::Context,
         preset_id: u32,
-        timing_preset: bool,
         priority_anchor: bool,
         screen_x: i32,
         screen_y: i32,
         color: Option<RgbaColor>,
     ) {
-        let target = if timing_preset {
-            VisionCaptureTarget::TimingPreset(preset_id)
-        } else {
-            VisionCaptureTarget::Preset(preset_id)
-        };
+        let target = VisionCaptureTarget::Preset(preset_id);
         self.clear_image_search_capture_state();
         self.restore_image_search_capture_window(ctx);
         self.status = if priority_anchor {
@@ -9321,6 +9015,45 @@ impl CrosshairApp {
         };
         self.persist();
         ctx.request_repaint();
+    }
+
+    fn finish_image_search_point_capture_command_from_screen(
+        &mut self,
+        ctx: &egui::Context,
+        preset_id: u32,
+        priority_anchor: bool,
+        screen_x: i32,
+        screen_y: i32,
+    ) {
+        self.clear_image_search_capture_state();
+        ctx.send_viewport_cmd(egui::ViewportCommand::Visible(false));
+        let _ = self.overlay_tx.send(OverlayCommand::SetUiVisible(false));
+        std::thread::sleep(Duration::from_millis(70));
+        let color = if priority_anchor {
+            None
+        } else {
+            window_list::capture_virtual_screen_region(screen_x, screen_y, 1, 1).and_then(|f| {
+                (f.rgba.len() >= 4).then(|| RgbaColor {
+                    r: f.rgba[0],
+                    g: f.rgba[1],
+                    b: f.rgba[2],
+                    a: 255,
+                })
+            })
+        };
+        self.restore_image_search_capture_window(ctx);
+        ctx.send_viewport_cmd(egui::ViewportCommand::Visible(true));
+        ctx.send_viewport_cmd(egui::ViewportCommand::Minimized(false));
+        let _ = self.overlay_tx.send(OverlayCommand::SetUiVisible(true));
+
+        self.finish_image_search_point_capture_command(
+            ctx,
+            preset_id,
+            priority_anchor,
+            screen_x,
+            screen_y,
+            color,
+        );
     }
 
     fn finish_image_search_color_pick_from_screen(
@@ -9386,28 +9119,6 @@ impl CrosshairApp {
                     color.r, color.g, color.b, preset_id
                 )
             }
-            VisionCaptureTarget::TimingPreset(preset_id) => {
-                if let Some(preset) = self
-                    .state
-                    .vision_timing_presets
-                    .iter_mut()
-                    .find(|preset| preset.id == preset_id)
-                {
-                    preset.collapsed = false;
-                    if preset.target_colors.is_empty() {
-                        if let Some(existing) = preset.target_color {
-                            preset.target_colors.push(existing);
-                        }
-                    }
-                    preset.target_colors.push(color);
-                    preset.target_color = preset.target_colors.first().copied();
-                }
-                self.sync_vision_timing_presets();
-                format!(
-                    "Picked color #{:02X}{:02X}{:02X} for timing preset #{}.",
-                    color.r, color.g, color.b, preset_id
-                )
-            }
         };
         self.persist();
         self.status = status;
@@ -9441,18 +9152,13 @@ impl CrosshairApp {
         &mut self,
         ctx: &egui::Context,
         preset_id: u32,
-        timing_preset: bool,
         template_mode: bool,
         screen_x: i32,
         screen_y: i32,
         width: i32,
         height: i32,
     ) {
-        let target = if timing_preset {
-            VisionCaptureTarget::TimingPreset(preset_id)
-        } else {
-            VisionCaptureTarget::Preset(preset_id)
-        };
+        let target = VisionCaptureTarget::Preset(preset_id);
         self.clear_image_search_capture_state();
 
         if template_mode {
@@ -9526,26 +9232,6 @@ impl CrosshairApp {
                     width, height, screen_x, screen_y, preset_id
                 );
             }
-            VisionCaptureTarget::TimingPreset(preset_id) => {
-                if let Some(preset) = self
-                    .state
-                    .vision_timing_presets
-                    .iter_mut()
-                    .find(|preset| preset.id == preset_id)
-                {
-                    preset.collapsed = false;
-                    preset.search_region_screen_x = Some(screen_x);
-                    preset.search_region_screen_y = Some(screen_y);
-                    preset.search_region_width = Some(width);
-                    preset.search_region_height = Some(height);
-                }
-                self.sync_vision_timing_presets();
-                self.persist();
-                self.status = format!(
-                    "Saved timing area {}x{} at {}, {} for preset #{}.",
-                    width, height, screen_x, screen_y, preset_id
-                );
-            }
         }
         ctx.request_repaint();
     }
@@ -9616,28 +9302,6 @@ impl CrosshairApp {
                     color.r, color.g, color.b, preset_id
                 )
             }
-            VisionCaptureTarget::TimingPreset(preset_id) => {
-                if let Some(preset) = self
-                    .state
-                    .vision_timing_presets
-                    .iter_mut()
-                    .find(|preset| preset.id == preset_id)
-                {
-                    preset.collapsed = false;
-                    if preset.target_colors.is_empty() {
-                        if let Some(existing) = preset.target_color {
-                            preset.target_colors.push(existing);
-                        }
-                    }
-                    preset.target_colors.push(color);
-                    preset.target_color = preset.target_colors.first().copied();
-                }
-                self.sync_vision_timing_presets();
-                format!(
-                    "Picked color #{:02X}{:02X}{:02X} for timing preset #{}.",
-                    color.r, color.g, color.b, preset_id
-                )
-            }
         };
         self.persist();
         self.status = status;
@@ -9692,9 +9356,6 @@ impl CrosshairApp {
                     "Saved priority point at {}, {} for preset #{}.",
                     screen_x, screen_y, preset_id
                 );
-            }
-            VisionCaptureTarget::TimingPreset(_) => {
-                self.status = "Priority point capture is not used for timing presets.".to_owned();
             }
         }
         ctx.request_repaint();
@@ -10055,73 +9716,6 @@ impl CrosshairApp {
                     self.status = format!("Captured step input for preset {preset_id}.");
                 }
                 self.sync_macro_presets();
-            }
-            (
-                CaptureRequest::VisionTimingStepInput {
-                    preset_id,
-                    step_index,
-                },
-                CapturedInput::Binding(binding),
-            ) => {
-                if let Some(step) = self
-                    .state
-                    .vision_timing_presets
-                    .iter_mut()
-                    .find(|p| p.id == preset_id)
-                    .and_then(|p| p.steps.get_mut(step_index))
-                {
-                    if matches!(step.action, MacroAction::LockKeys | MacroAction::UnlockKeys) {
-                        let key = binding.key;
-                        let existing = step
-                            .key
-                            .split(',')
-                            .map(str::trim)
-                            .filter(|part| !part.is_empty())
-                            .map(str::to_owned)
-                            .collect::<Vec<_>>();
-                        if existing.iter().any(|part| part.eq_ignore_ascii_case(&key)) {
-                            self.status = format!("Key {key} is already in that lock list.");
-                        } else if existing.is_empty() {
-                            step.key = key.clone();
-                            self.status = format!("Captured lock key {key} for preset {preset_id}.");
-                        } else {
-                            step.key = format!("{},{}", step.key.trim(), key);
-                            self.status = format!("Added lock key {key} for preset {preset_id}.");
-                        }
-                    } else {
-                        step.key = binding.key;
-                        if step.action == MacroAction::MouseMoveAbsolute
-                            || step.action == MacroAction::MouseMoveRelative
-                        {
-                            step.action = MacroAction::KeyPress;
-                        }
-                        self.status = format!("Captured step input for preset {preset_id}.");
-                    }
-                }
-                self.sync_vision_presets();
-            }
-            (
-                CaptureRequest::VisionTimingStepInput {
-                    preset_id,
-                    step_index,
-                },
-                CapturedInput::Step(mut captured_step),
-            ) => {
-                captured_step.delay_ms = 0;
-                if let Some(step) = self
-                    .state
-                    .vision_timing_presets
-                    .iter_mut()
-                    .find(|p| p.id == preset_id)
-                    .and_then(|p| p.steps.get_mut(step_index))
-                {
-                    step.key = captured_step.key;
-                    step.action = captured_step.action;
-                    step.x = captured_step.x;
-                    step.y = captured_step.y;
-                    self.status = format!("Captured step input for preset {preset_id}.");
-                }
-                self.sync_vision_presets();
             }
             _ => {
                 self.status = "Capture type mismatch.".to_owned();
@@ -13152,7 +12746,6 @@ impl CrosshairApp {
                     continue;
                 }
 
-                let image_search_timing_preset_options = self.image_search_timing_preset_options();
                 {
                     let group = &mut self.state.macro_groups[group_index];
                     Self::show_preset_card(ui, group.enabled, |ui| {
@@ -13924,9 +13517,6 @@ impl CrosshairApp {
                                                             MacroAction::PlaySoundPreset,
                                                             MacroAction::ApplyMouseSensitivityPreset,
                                                             MacroAction::StopVisionWait,
-                                                            MacroAction::TriggerVisionTiming,
-                                                            MacroAction::StartVisionTiming,
-                                                            MacroAction::StopVisionTiming,
                                                             MacroAction::LoopStart,
                                                             MacroAction::LoopEnd,
                                                             MacroAction::StopIfKeyPressed,
@@ -14283,38 +13873,6 @@ impl CrosshairApp {
                                                                     step.key = preset_option_id.to_string();
                                                                     live_sync = true;
                                                                 }
-                                                        }
-                                                    });
-                                                } else if step.action == MacroAction::TriggerVisionTiming || step.action == MacroAction::StartVisionTiming || step.action == MacroAction::StopVisionTiming {
-                                                    let selected_id =
-                                                        step.key.trim().parse::<u32>().ok();
-                                                    let selected_label =
-                                                        Self::image_search_timing_preset_label(
-                                                            &image_search_timing_preset_options,
-                                                            selected_id,
-                                                            "Select timing preset",
-                                                        );
-                                                    egui::ComboBox::from_id_salt((
-                                                        group.id,
-                                                        preset.id,
-                                                        "hold-stop-image-search-timing",
-                                                    ))
-                                                    .width(180.0)
-                                                    .selected_text(selected_label)
-                                                    .show_ui(ui, |ui| {
-                                                        for (preset_option_id, preset_option_label) in
-                                                            &image_search_timing_preset_options
-                                                        {
-                                                            if ui
-                                                                .selectable_label(
-                                                                    selected_id == Some(*preset_option_id),
-                                                                    preset_option_label,
-                                                                )
-                                                                .clicked()
-                                                            {
-                                                                step.key = preset_option_id.to_string();
-                                                                live_sync = true;
-                                                            }
                                                         }
                                                     });
                                                 } else if step.action == MacroAction::ApplyMouseSensitivityPreset {
@@ -14921,9 +14479,6 @@ impl CrosshairApp {
                                                                 MacroAction::PlaySoundPreset,
                                                                 MacroAction::ApplyMouseSensitivityPreset,
                                                                 MacroAction::StopVisionWait,
-                                                                MacroAction::TriggerVisionTiming,
-                                                                MacroAction::StartVisionTiming,
-                                                                MacroAction::StopVisionTiming,
                                                                 MacroAction::LoopStart,
                                                                 MacroAction::LoopEnd,
                                                                 MacroAction::StopIfKeyPressed,
@@ -15368,32 +14923,6 @@ impl CrosshairApp {
                                                                 }
                                                             }
                                                         });
-                                                    } else if step.action == MacroAction::TriggerVisionTiming || step.action == MacroAction::StartVisionTiming || step.action == MacroAction::StopVisionTiming {
-                                                        let selected_id =
-                                                            step.key.trim().parse::<u32>().ok();
-                                                        let selected_label =
-                                                            Self::image_search_timing_preset_label(
-                                                                &image_search_timing_preset_options,
-                                                                selected_id,
-                                                                "Select timing preset",
-                                                            );
-                                                        egui::ComboBox::from_id_salt((group.id, preset.id, step_index, "image-search-timing-preset-step"))
-                                                            .width(180.0)
-                                                            .selected_text(selected_label)
-                                                            .show_ui(ui, |ui| {
-                                                                for (preset_option_id, preset_option_label) in &image_search_timing_preset_options {
-                                                                    if ui
-                                                                        .selectable_label(
-                                                                            selected_id == Some(*preset_option_id),
-                                                                            preset_option_label,
-                                                                        )
-                                                                        .clicked()
-                                                                    {
-                                                                        step.key = preset_option_id.to_string();
-                                                                        live_sync = true;
-                                                                    }
-                                                                }
-                                                            });
                                                     }
                                                         });
                                                     }
@@ -15659,48 +15188,6 @@ impl CrosshairApp {
                                                                     .clicked()
                                                                 {
                                                                     step.key = vision_preset.id.to_string();
-                                                                    live_sync = true;
-                                                                }
-                                                            }
-                                                        });
-                                                } else if step.action == MacroAction::TriggerVisionTiming
-                                             || step.action == MacroAction::StartVisionTiming
-                                             || step.action == MacroAction::StopVisionTiming
-                                         {
-                                                    let selected_id = step.key.trim().parse::<u32>().ok();
-                                                    let selected_label = selected_id
-                                                        .and_then(|id| {
-                                                            self.state
-                                                                .vision_timing_presets
-                                                                .iter()
-                                                                .find(|p| p.id == id)
-                                                                .map(|p| p.name.clone())
-                                                        })
-                                                        .unwrap_or_else(|| {
-                                                            if step.key.trim().is_empty() {
-                                                                Self::tr_lang(
-                                                                    language,
-                                                                    "Select timing preset",
-                                                                    "Chọn preset timing",
-                                                                )
-                                                                .to_owned()
-                                                            } else {
-                                                                format!("ID: {}", step.key)
-                                                            }
-                                                        });
-                                                    egui::ComboBox::from_id_salt((group.id, preset.id, step_index, "vision-timing-preset-step"))
-                                                        .width(146.0)
-                                                        .selected_text(selected_label)
-                                                        .show_ui(ui, |ui| {
-                                                            for timing_preset in &self.state.vision_timing_presets {
-                                                                if ui
-                                                                    .selectable_label(
-                                                                        selected_id == Some(timing_preset.id),
-                                                                        &timing_preset.name,
-                                                                    )
-                                                                    .clicked()
-                                                                {
-                                                                    step.key = timing_preset.id.to_string();
                                                                     live_sync = true;
                                                                 }
                                                             }
@@ -16684,20 +16171,10 @@ impl CrosshairApp {
         ui.add_space(4.0);
         let mut remove_id = None;
         let mut live_sync = false;
-        let mut remove_timing_id = None;
-        let mut timing_live_sync = false;
-        let mut insert_step_after = None;
-        let mut remove_step = None;
-        let mut move_step_up = None;
-        let mut move_step_down = None;
-        let mut copy_selected_steps = None;
-        let mut pending_step_selection = None;
         let mut next_capture_target = None;
         let mut cancel_active_capture = false;
         let mut pending_custom_preset_save: Option<()> = None;
         let mut open_macro_ai_target: Option<(u32, u32, MacroAiMode)> = None;
-        let mut paste_steps_target = None;
-        let mut remove_selected_steps_target = None;
 
 
         for index in 0..self.state.vision_presets.len() {
@@ -17194,915 +16671,6 @@ impl CrosshairApp {
             }
         }
 
-        ui.add_space(10.0);
-        ui.separator();
-        ui.horizontal(|ui| {
-            if ui
-                .button(Self::tr_lang(language, "+ Add timing preset", "+ Thêm preset thời gian"))
-                .clicked()
-            {
-                let id = self.state.next_vision_timing_preset_id.max(1);
-                self.state.next_vision_timing_preset_id = id + 1;
-                self.state
-                    .vision_timing_presets
-                    .push(VisionTimingPreset::new(id));
-                timing_live_sync = true;
-            }
-        });
-
-        let macro_preset_options: Vec<(u32, String)> = self.state.macro_groups.iter().flat_map(|group| {
-            group.presets.iter().map(move |preset| {
-                (preset.id, format!("{} - ID:{}", group.name, preset.id))
-            })
-        }).collect();
-        let command_presets_snapshot = self.state.command_presets.clone();
-        let mouse_sensitivity_presets_snapshot = self.state.mouse_sensitivity_presets.clone();
-        let image_search_preset_options: Vec<(u32, String)> = self.state.vision_presets.iter().map(|p| {
-            (p.id, format!("{} - ID:{}", p.name, p.id))
-        }).collect();
-        let image_search_timing_preset_options: Vec<(u32, String)> = self.state.vision_timing_presets.iter().map(|p| {
-            (p.id, format!("{} - ID:{}", p.name, p.id))
-        }).collect();
-
-        for index in 0..self.state.vision_timing_presets.len() {
-            let mut start_search_region_capture = None;
-            let mut start_color_pick_capture = None;
-            let preset = &mut self.state.vision_timing_presets[index];
-
-            ui.add_space(6.0);
-            Self::show_preset_card(ui, preset.enabled, |ui| {
-                ui.horizontal(|ui| {
-                    let name_width = Self::preset_header_name_width(ui);
-                    let response =
-                        ui.add_sized([name_width, 24.0], TextEdit::singleline(&mut preset.name));
-                    Self::apply_vietnamese_input_if_changed(
-                        &response,
-                        self.state.vietnamese_input_enabled,
-                        self.state.vietnamese_input_mode,
-                        &mut preset.name,
-                    );
-                    timing_live_sync |= response.changed();
-                    ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
-                        if Self::enabled_icon_button(ui, preset.enabled)
-                            .on_hover_text(Self::tr_lang(
-                                language,
-                                "Enable / disable preset",
-                                "Bật / tắt preset",
-                            ))
-                            .clicked()
-                        {
-                            preset.enabled = !preset.enabled;
-                            timing_live_sync = true;
-                        }
-                        if Self::sound_style_remove_button(ui).clicked() {
-                            remove_timing_id = Some(preset.id);
-                        }
-                        if Self::sound_style_toggle_button(
-                            ui,
-                            if preset.collapsed {
-                                Self::tr_lang(language, "Show", "Hiện")
-                            } else {
-                                Self::tr_lang(language, "Hide", "Ẩn")
-                            },
-                        )
-                        .clicked()
-                        {
-                            preset.collapsed = !preset.collapsed;
-                            timing_live_sync = true;
-                        }
-                    });
-                });
-                if preset.collapsed {
-                    return;
-                }
-
-                egui::Grid::new((preset.id, "image-search-timing-grid"))
-                    .num_columns(2)
-                    .spacing([14.0, 8.0])
-                    .show(ui, |ui| {
-
-
-                        ui.label(Self::tr_lang(language, "Area", "Khu vực"));
-                        ui.horizontal_wrapped(|ui| {
-                            ui.monospace(Self::image_search_timing_area_text(preset));
-                            if ui
-                                .button(Self::tr_lang(language, "Pick area", "Chọn khu vực"))
-                                .clicked()
-                            {
-                                start_search_region_capture = Some(preset.id);
-                            }
-                            if ui
-                                .button(Self::tr_lang(language, "Clear area", "Xóa khu vực"))
-                                .clicked()
-                            {
-                                preset.search_region_screen_x = None;
-                                preset.search_region_screen_y = None;
-                                preset.search_region_width = None;
-                                preset.search_region_height = None;
-                                timing_live_sync = true;
-                            }
-                        });
-                        ui.end_row();
-
-                        ui.label(Self::tr_lang(language, "Shape", "Hình dạng"));
-                        ui.horizontal_wrapped(|ui| {
-                            timing_live_sync |= ui
-                                .checkbox(
-                                    &mut preset.search_region_is_circle,
-                                    Self::tr_lang(language, "Circle area", "Vùng hình tròn"),
-                                )
-                                .on_hover_text(Self::tr_lang(
-                                    language,
-                                    "Use a circular search region inside the selected box.",
-                                    "Dùng vùng tìm kiếm hình tròn bên trong hộp đã chọn.",
-                                ))
-                                .changed();
-                            timing_live_sync |= ui
-                                .checkbox(
-                                    &mut preset.show_search_region_overlay,
-                                    Self::tr_lang(language, "Overlay", "Hiển thị overlay"),
-                                )
-                                .changed();
-                        });
-                        ui.end_row();
-
-                        ui.label(Self::tr_lang(language, "Color", "Màu sắc"));
-                        ui.vertical(|ui| {
-                            let colors = if !preset.target_colors.is_empty() {
-                                preset.target_colors.clone()
-                            } else {
-                                preset.target_color.into_iter().collect::<Vec<_>>()
-                            };
-                            let uses_legacy_single_color = preset.target_colors.is_empty()
-                                && preset.target_color.is_some();
-                            if colors.is_empty() {
-                                ui.monospace("None");
-                            } else {
-                                let mut remove_color_index = None;
-                                egui::Grid::new((preset.id, "image-search-timing-color-grid"))
-                                    .num_columns(8)
-                                    .spacing([4.0, 4.0])
-                                    .show(ui, |ui| {
-                                        for (index, color) in colors.iter().copied().enumerate()
-                                        {
-                                            if Self::image_search_color_tile(ui, color)
-                                                .clicked()
-                                            {
-                                                remove_color_index = Some(index);
-                                            }
-                                            if (index + 1) % 8 == 0 {
-                                                ui.end_row();
-                                            }
-                                        }
-                                    });
-                                if let Some(index) = remove_color_index {
-                                    if uses_legacy_single_color && index == 0 {
-                                        preset.target_color = None;
-                                        timing_live_sync = true;
-                                    } else if !preset.target_colors.is_empty() {
-                                        preset.target_colors = preset
-                                            .target_colors
-                                            .iter()
-                                            .copied()
-                                            .enumerate()
-                                            .filter_map(|(i, item)| {
-                                                (i != index).then_some(item)
-                                            })
-                                            .collect();
-                                        preset.target_color =
-                                            preset.target_colors.first().copied();
-                                        timing_live_sync = true;
-                                    }
-                                }
-                            }
-                            ui.add_space(4.0);
-                            ui.horizontal(|ui| {
-                                if Self::image_search_add_color_button(ui, language).clicked() {
-                                    start_color_pick_capture = Some(preset.id);
-                                }
-                                if ui
-                                    .button(Self::tr_lang(language, "Clear color", "Xóa màu"))
-                                    .clicked()
-                                {
-                                    preset.target_color = None;
-                                    preset.target_colors.clear();
-                                    timing_live_sync = true;
-                                }
-                            });
-                        });
-                        ui.end_row();
-
-                        ui.label(Self::tr_lang(language, "Tolerance", "Sai số"));
-                        timing_live_sync |= ui
-                            .add(
-                                DragValue::new(&mut preset.color_tolerance)
-                                    .range(0..=255)
-                                    .suffix(" / 255"),
-                            )
-                            .changed();
-                        ui.end_row();
-
-                        ui.label(Self::tr_lang(language, "Scan rate", "Tần suất quét"));
-                        timing_live_sync |= ui
-                            .add(
-                                DragValue::new(&mut preset.color_scan_rate_hz)
-                                    .range(1..=240)
-                                    .suffix(" Hz"),
-                            )
-                            .changed();
-                        ui.end_row();
-
-                        ui.label(Self::tr_lang(language, "Cycle", "Chu kỳ"));
-                        timing_live_sync |= ui
-                            .add(
-                                DragValue::new(&mut preset.timing_cycle_ms)
-                                    .range(100..=60_000)
-                                    .suffix(" ms"),
-                            )
-                            .changed();
-                        ui.end_row();
-
-                        ui.label(Self::tr_lang(language, "Reset cooldown", "Hồi chu kỳ"));
-                        timing_live_sync |= ui
-                            .add(
-                                DragValue::new(&mut preset.min_disappearance_ms)
-                                    .range(0..=10_000)
-                                    .suffix(" ms"),
-                            )
-                            .on_hover_text(Self::tr_lang(
-                                language,
-                                "Minimum time that color must be absent continuously before starting next cycle.",
-                                "Thời gian tối thiểu màu mục tiêu phải biến mất liên tục trước khi reset chu kỳ mới.",
-                            ))
-                            .changed();
-                        ui.end_row();
-
-                        ui.label(Self::tr_lang(language, "Time offset", "Lệch thời gian"));
-                        timing_live_sync |= ui
-                            .add(
-                                DragValue::new(&mut preset.timing_offset_ms)
-                                    .range(-5000..=5000)
-                                    .suffix(" ms"),
-                            )
-                            .on_hover_text(Self::tr_lang(
-                                language,
-                                "Shift the dynamic click time earlier (negative) or later (positive).",
-                                "Tự tay tăng/giảm thời gian trễ tính được (âm là click sớm hơn, dương là click trễ hơn).",
-                            ))
-                            .changed();
-                        ui.end_row();
-
-                        ui.label(Self::tr_lang(language, "Curvature", "Độ cong (Mũ)"));
-                        timing_live_sync |= ui
-                            .add(
-                                DragValue::new(&mut preset.timing_exponent)
-                                    .range(0.1..=5.0)
-                                    .speed(0.05)
-                                    .suffix(" x"),
-                            )
-                            .on_hover_text(Self::tr_lang(
-                                language,
-                                "Adjust to match Ellipse non-linear speed. Exponent > 1 bends time later, < 1 bends earlier.",
-                                "Điều chỉnh hệ số cong để khớp với tốc độ phi tuyến của Ellipse (Hình bầu dục/cung).",
-                            ))
-                            .changed();
-                        ui.end_row();
-
-                        if preset.search_region_is_circle {
-                            ui.label(Self::tr_lang(language, "Start angle", "Góc bắt đầu"));
-                            timing_live_sync |= ui
-                                .add(
-                                    DragValue::new(&mut preset.timing_angle_offset_deg)
-                                        .range(0.0..=360.0)
-                                        .suffix("°"),
-                                )
-                                .on_hover_text(Self::tr_lang(
-                                    language,
-                                    "Rotate the 0% point of the circle/ellipse. Perfect for rainbow arcs.",
-                                    "Xoay điểm xuất phát 0% của vòng tròn/ellipse. Hoàn hảo cho các vòng cung dạng cầu vồng.",
-                                ))
-                                .changed();
-                            ui.end_row();
-
-                            ui.label(Self::tr_lang(language, "Angle span", "Góc quét"));
-                            timing_live_sync |= ui
-                                .add(
-                                    DragValue::new(&mut preset.timing_angle_span_deg)
-                                        .range(1.0..=360.0)
-                                        .suffix("°"),
-                                )
-                                .on_hover_text(Self::tr_lang(
-                                    language,
-                                    "Total sweep angle of the arc (e.g. 180° for rainbow arc). Renders a Green line at 100%.",
-                                    "Tổng độ rộng góc của vòng cung (VD 180° cho cầu vồng). Sẽ vẽ thêm vạch Xanh Lá để báo mốc 100%.",
-                                ))
-                                .changed();
-                            ui.end_row();
-                        }
-
-                        ui.label(Self::tr_lang(language, "Reverse scan", "Đảo chiều quét"));
-                        timing_live_sync |= ui
-                            .checkbox(&mut preset.timing_reverse, "")
-                            .changed();
-                        ui.end_row();
-
-                        ui.label(Self::tr_lang(language, "Steps", "Bước"));
-                        ui.horizontal(|ui| {
-                            if ui
-                                .add_sized([22.0, 18.0], Button::new(RichText::new("+").strong()))
-                                .on_hover_text(Self::tr_lang(
-                                    language,
-                                    "Add step",
-                                    "Thêm một bước vào đầu preset này",
-                                ))
-                                .clicked()
-                            {
-                                preset.steps.insert(0, MacroStep::default());
-                                timing_live_sync = true;
-                            }
-                            ui.add_sized([24.0, 18.0], egui::Label::new(""));
-                            ui.add_sized([30.0, 18.0], egui::Label::new(RichText::new("#").strong()));
-                            ui.add_sized([54.0, 18.0], egui::Label::new(RichText::new(Self::tr_lang(language, "Delay", "Độ trễ")).strong()));
-                            ui.add_sized([154.0, 18.0], egui::Label::new(RichText::new(Self::tr_lang(language, "Action", "Hành động")).strong()));
-                            ui.add_sized([146.0, 18.0], egui::Label::new(""));
-                            if ui
-                                .add_sized(
-                                    [64.0, 20.0],
-                                    Button::new(Self::tr_lang(language, "Clear all", "Xóa hết")),
-                                )
-                                .on_hover_text(Self::tr_lang(language, "Clear all steps", "Xóa tất cả các bước"))
-                                .clicked()
-                            {
-                                preset.steps.clear();
-                                timing_live_sync = true;
-                            }
-                            if ui
-                                .add_sized(
-                                    [48.0, 20.0],
-                                    Button::new(Self::tr_lang(language, "Paste", "Dán")),
-                                )
-                                .on_hover_text(Self::tr_lang(
-                                    language,
-                                    "Paste steps from clipboard after the last step",
-                                    "Dán các bước từ bộ nhớ tạm vào sau bước cuối cùng",
-                                ))
-                                .clicked()
-                            {
-                                paste_steps_target = Some((preset.id, preset.steps.len()));
-                            }
-                            if ui
-                                .add_sized([48.0, 20.0], Button::new(Self::tr_lang(language, "Copy", "Sao chép")))
-                                .on_hover_text(Self::tr_lang(language, "Copy selected steps", "Sao chép các bước đã chọn"))
-                                .clicked()
-                            {
-                                copy_selected_steps = Some(preset.id);
-                            }
-                            if ui
-                                .add_sized([48.0, 20.0], Button::new(Self::tr_lang(language, "Delete", "Xóa")))
-                                .on_hover_text(Self::tr_lang(language, "Remove selected steps", "Xóa các bước đã chọn"))
-                                .clicked()
-                            {
-                                remove_selected_steps_target = Some(preset.id);
-                            }
-                        });
-                        ui.end_row();
-                    });
-
-                if !preset.steps.is_empty() {
-                    ui.add_space(4.0);
-                    let steps_len = preset.steps.len();
-                    for step_index in 0..steps_len {
-                        let step = &mut preset.steps[step_index];
-                        let is_selected = selected_steps_snapshot.iter().any(|(g_id, p_id, s_idx)| *g_id == 0 && *p_id == preset.id && *s_idx == step_index);
-                        
-                        let row_fill = if is_selected {
-                            Color32::from_rgba_premultiplied(88, 148, 220, 130)
-                        } else {
-                            ui.visuals().faint_bg_color
-                        };
-
-                        Frame::group(ui.style())
-                            .fill(row_fill)
-                            .inner_margin(egui::Margin::symmetric(4, 2))
-                            .show(ui, |ui| {
-                                ui.horizontal(|ui| {
-                                    if ui
-                                        .add_sized([22.0, 18.0], Button::new("+"))
-                                        .on_hover_text("Add a new step below this one")
-                                        .clicked()
-                                    {
-                                        insert_step_after = Some((preset.id, step_index));
-                                    }
-
-                                    if ui
-                                        .add_sized([22.0, 18.0], Button::new("▲"))
-                                        .on_hover_text("Move this step up")
-                                        .clicked()
-                                    {
-                                        move_step_up = Some((preset.id, step_index));
-                                    }
-
-                                    if ui
-                                        .add_sized([22.0, 18.0], Button::new("▼"))
-                                        .on_hover_text("Move this step down")
-                                        .clicked()
-                                    {
-                                        move_step_down = Some((preset.id, step_index));
-                                    }
-
-                                    let select_label = if is_selected { "[x]" } else { "[ ]" };
-                                    if ui.add_sized([24.0, 18.0], Button::new(select_label)).clicked() {
-                                        pending_step_selection = Some((
-                                            0, // dummy group id
-                                            preset.id,
-                                            step_index,
-                                            ui.input(|input| input.modifiers.ctrl),
-                                        ));
-                                    }
-
-                                    timing_live_sync |= ui
-                                        .add_sized(
-                                            [18.0, 18.0],
-                                            egui::Checkbox::new(&mut step.enabled, ""),
-                                        )
-                                        .changed();
-
-                                    if ui
-                                        .add_sized(
-                                            [28.0, 18.0],
-                                            Button::new(Self::material_icon_text(0xe872, 18.0)),
-                                        )
-                                        .on_hover_text("Remove this step")
-                                        .clicked()
-                                    {
-                                        remove_step = Some((preset.id, step_index));
-                                    }
-
-                                    ui.add_sized(
-                                        [30.0, 18.0],
-                                        egui::Label::new(
-                                            RichText::new(format!("{}", step_index + 1)).monospace(),
-                                        ),
-                                    );
-
-                                    timing_live_sync |= ui
-                                        .add_sized(
-                                            [54.0, 18.0],
-                                            DragValue::new(&mut step.delay_ms).range(0..=600000),
-                                        )
-                                        .changed();
-
-                                    let action_combo = egui::ComboBox::from_id_salt(("vision-timing-action", preset.id, step_index))
-                                        .width(148.0)
-                                        .selected_text(format!(
-                                            "{} {}",
-                                            Self::macro_action_icon(step.action),
-                                            Self::macro_action_selected_label(step.action, language)
-                                        ))
-                                        .show_ui(ui, |ui| {
-                                            egui::Grid::new(("vision-timing-action-grid", preset.id, step_index))
-                                                .num_columns(5)
-                                                .spacing([6.0, 6.0])
-                                                .show(ui, |ui| {
-                                                for (index, action) in [
-                                                        MacroAction::KeyPress,
-                                                        MacroAction::KeyDown,
-                                                        MacroAction::KeyUp,
-                                                        MacroAction::TypeText,
-                                                        MacroAction::MouseLeftClick,
-                                                        MacroAction::MouseLeftDown,
-                                                        MacroAction::MouseLeftUp,
-                                                        MacroAction::MouseRightClick,
-                                                        MacroAction::MouseMoveAbsolute,
-                                                        MacroAction::ApplyWindowPreset,
-                                                        MacroAction::FocusWindowPreset,
-                                                        MacroAction::TriggerMacroPreset,
-                                                        MacroAction::TriggerCommandPreset,
-                                                        MacroAction::EnableCrosshairProfile,
-                                                        MacroAction::DisableCrosshair,
-                                                        MacroAction::EnablePinPreset,
-                                                        MacroAction::DisablePin,
-                                                        MacroAction::PlaySoundPreset,
-                                                        MacroAction::ApplyMouseSensitivityPreset,
-                                                        MacroAction::StopVisionWait,
-                                                        MacroAction::TriggerVisionTiming,
-                                                        MacroAction::StartVisionTiming,
-                                                        MacroAction::StopVisionTiming,
-                                                        MacroAction::LoopStart,
-                                                        MacroAction::LoopEnd,
-                                                        MacroAction::StopIfKeyPressed,
-                                                        MacroAction::ShowHud,
-                                                        MacroAction::HideHud,
-                                                        MacroAction::LockKeys,
-                                                        MacroAction::UnlockKeys,
-                                                         MacroAction::EnableMacroPreset,
-                                                         MacroAction::DisableMacroPreset,
-                                                    ]
-                                                    .into_iter()
-                                                    .enumerate()
-                                                    {
-                                                        Self::render_macro_action_option(
-                                                            ui,
-                                                            language,
-                                                            &mut step.action,
-                                                            action,
-                                                            &mut timing_live_sync,
-                                                        );
-                                                        if (index + 1) % 5 == 0 {
-                                                            ui.end_row();
-                                                        }
-                                                    }
-                                                    Self::render_mouse_action_group_option(
-                                                        ui,
-                                                        language,
-                                                        ("vision-timing-mouse-group", preset.id, step_index),
-                                                        &mut step.action,
-                                                        &mut timing_live_sync,
-                                                    );
-                                                    Self::render_image_search_action_group_option(
-                                                        ui,
-                                                        language,
-                                                        ("vision-timing-image-search-group", preset.id, step_index),
-                                                        &mut step.action,
-                                                        &mut timing_live_sync,
-                                                    );
-                                                });
-                                        });
-
-                                    let action_uses_key = Self::macro_action_uses_key(step.action);
-                                    let action_supports_capture = Self::macro_action_supports_capture(step.action);
-
-                                    if action_uses_key {
-                                        if step.action == MacroAction::ApplyWindowPreset {
-                                            let selected_id = step.key.trim().parse::<u32>().ok();
-                                            let selected_label = selected_id
-                                                .and_then(|id| {
-                                                    self.state.window_presets.iter().find(|p| p.id == id).map(|p| p.name.clone())
-                                                })
-                                                .unwrap_or_else(|| Self::tr_lang(language, "Select window preset", "Chọn preset cửa sổ").to_owned());
-                                            egui::ComboBox::from_id_salt(("vision-timing-window-preset", preset.id, step_index))
-                                                .width(146.0)
-                                                .selected_text(selected_label)
-                                                .show_ui(ui, |ui| {
-                                                    for preset_option in &self.state.window_presets {
-                                                        if ui.selectable_label(selected_id == Some(preset_option.id), &preset_option.name).clicked() {
-                                                            step.key = preset_option.id.to_string();
-                                                            timing_live_sync = true;
-                                                        }
-                                                    }
-                                                });
-                                        } else if step.action == MacroAction::FocusWindowPreset {
-                                            let selected_id = step.key.trim().parse::<u32>().ok();
-                                            let selected_label = selected_id
-                                                .and_then(|id| {
-                                                    self.state.window_focus_presets.iter().find(|p| p.id == id).map(|p| p.name.clone())
-                                                })
-                                                .unwrap_or_else(|| Self::tr_lang(language, "Select focus preset", "Chọn preset focus").to_owned());
-                                            egui::ComboBox::from_id_salt(("vision-timing-focus-preset", preset.id, step_index))
-                                                .width(160.0)
-                                                .selected_text(selected_label)
-                                                .show_ui(ui, |ui| {
-                                                    for preset_option in &self.state.window_focus_presets {
-                                                        if ui.selectable_label(selected_id == Some(preset_option.id), &preset_option.name).clicked() {
-                                                            step.key = preset_option.id.to_string();
-                                                            timing_live_sync = true;
-                                                        }
-                                                    }
-                                                });
-                                        } else if step.action == MacroAction::TriggerMacroPreset {
-                                            let selected_id = step.key.trim().parse::<u32>().ok();
-                                            let selected_label = selected_id
-                                                .and_then(|id| {
-                                                    macro_preset_options.iter().find(|(p_id, _)| *p_id == id).map(|(_, label)| label.clone())
-                                                })
-                                                .unwrap_or_else(|| Self::tr_lang(language, "Select macro preset", "Chọn preset macro").to_owned());
-                                            egui::ComboBox::from_id_salt(("vision-timing-macro-preset", preset.id, step_index))
-                                                .width(160.0)
-                                                .selected_text(selected_label)
-                                                .show_ui(ui, |ui| {
-                                                    for (preset_option_id, preset_option_label) in &macro_preset_options {
-                                                        if ui.selectable_label(selected_id == Some(*preset_option_id), preset_option_label).clicked() {
-                                                            step.key = preset_option_id.to_string();
-                                                            timing_live_sync = true;
-                                                        }
-                                                    }
-                                                });
-                                        } else if step.action == MacroAction::TriggerCommandPreset {
-                                            let selected_id = step.key.trim().parse::<u32>().ok();
-                                            let selected_label = selected_id
-                                                .and_then(|id| {
-                                                    command_presets_snapshot.iter().find(|p| p.id == id).map(|p| p.name.clone())
-                                                })
-                                                .unwrap_or_else(|| Self::tr_lang(language, "Select command", "Chọn lệnh").to_owned());
-                                            egui::ComboBox::from_id_salt(("vision-timing-command-preset", preset.id, step_index))
-                                                .width(160.0)
-                                                .selected_text(selected_label)
-                                                .show_ui(ui, |ui| {
-                                                    for preset_option in &command_presets_snapshot {
-                                                        if ui.selectable_label(selected_id == Some(preset_option.id), &preset_option.name).clicked() {
-                                                            step.key = preset_option.id.to_string();
-                                                            timing_live_sync = true;
-                                                        }
-                                                    }
-                                                });
-                                        } else if matches!(step.action, MacroAction::EnableMacroPreset | MacroAction::DisableMacroPreset) {
-                                            let selected_id = step.key.trim().parse::<u32>().ok();
-                                            let selected_label = selected_id
-                                                .and_then(|id| {
-                                                    macro_preset_options.iter().find(|(p_id, _)| *p_id == id).map(|(_, label)| label.clone())
-                                                })
-                                                .unwrap_or_else(|| Self::tr_lang(language, "Select macro preset", "Chọn preset macro").to_owned());
-                                            egui::ComboBox::from_id_salt(("vision-timing-macro-toggle", preset.id, step_index))
-                                                .width(160.0)
-                                                .selected_text(selected_label)
-                                                .show_ui(ui, |ui| {
-                                                    for (preset_option_id, preset_option_label) in &macro_preset_options {
-                                                        if ui.selectable_label(selected_id == Some(*preset_option_id), preset_option_label).clicked() {
-                                                            step.key = preset_option_id.to_string();
-                                                            timing_live_sync = true;
-                                                        }
-                                                    }
-                                                });
-                                        } else if step.action == MacroAction::EnableCrosshairProfile {
-                                            let selected_label = if step.key.trim().is_empty() { Self::tr_lang(language, "Select crosshair preset", "Chọn tâm").to_owned() } else { step.key.clone() };
-                                            egui::ComboBox::from_id_salt(("vision-timing-crosshair", preset.id, step_index))
-                                                .width(146.0)
-                                                .selected_text(selected_label)
-                                                .show_ui(ui, |ui| {
-                                                    for profile in &self.state.profiles {
-                                                        if ui.selectable_label(step.key == profile.name, &profile.name).clicked() {
-                                                            step.key = profile.name.clone();
-                                                            timing_live_sync = true;
-                                                        }
-                                                    }
-                                                });
-                                        } else if step.action == MacroAction::EnablePinPreset {
-                                            let selected_id = step.key.trim().parse::<u32>().ok();
-                                            let selected_label = selected_id
-                                                .and_then(|id| {
-                                                    self.state.pin_presets.iter().find(|p| p.id == id).map(|p| p.name.clone())
-                                                })
-                                                .unwrap_or_else(|| Self::tr_lang(language, "Select pin preset", "Chọn pin").to_owned());
-                                            egui::ComboBox::from_id_salt(("vision-timing-pin", preset.id, step_index))
-                                                .width(146.0)
-                                                .selected_text(selected_label)
-                                                .show_ui(ui, |ui| {
-                                                    for preset_option in &self.state.pin_presets {
-                                                        if ui.selectable_label(selected_id == Some(preset_option.id), &preset_option.name).clicked() {
-                                                            step.key = preset_option.id.to_string();
-                                                            timing_live_sync = true;
-                                                        }
-                                                    }
-                                                });
-                                        } else if step.action == MacroAction::PlayMousePathPreset {
-                                            let selected_id = step.key.trim().parse::<u32>().ok();
-                                            let selected_label = selected_id
-                                                .and_then(|id| {
-                                                    self.state.mouse_path_presets.iter().find(|p| p.id == id).map(|p| p.name.clone())
-                                                })
-                                                .unwrap_or_else(|| Self::tr_lang(language, "Select mouse path", "Chọn đường di chuột").to_owned());
-                                            egui::ComboBox::from_id_salt(("vision-timing-mouse-path", preset.id, step_index))
-                                                .width(146.0)
-                                                .selected_text(selected_label)
-                                                .show_ui(ui, |ui| {
-                                                    for preset_option in &self.state.mouse_path_presets {
-                                                        if ui.selectable_label(selected_id == Some(preset_option.id), &preset_option.name).clicked() {
-                                                            step.key = preset_option.id.to_string();
-                                                            timing_live_sync = true;
-                                                        }
-                                                    }
-                                                });
-                                        } else if matches!(step.action, MacroAction::StartVisionSearch | MacroAction::TriggerVisionMove | MacroAction::StopVision) {
-                                            let selected_id = step.key.trim().parse::<u32>().ok();
-                                            let selected_label = selected_id
-                                                .and_then(|id| {
-                                                    image_search_preset_options.iter().find(|(p_id, _)| *p_id == id).map(|(_, label)| label.clone())
-                                                })
-                                                .unwrap_or_else(|| Self::tr_lang(language, "Select image search preset", "Chọn tìm ảnh").to_owned());
-                                            egui::ComboBox::from_id_salt(("vision-timing-vision-preset", preset.id, step_index))
-                                                .width(146.0)
-                                                .selected_text(selected_label)
-                                                .show_ui(ui, |ui| {
-                                                    for (preset_option_id, preset_option_label) in &image_search_preset_options {
-                                                        if ui.selectable_label(selected_id == Some(*preset_option_id), preset_option_label).clicked() {
-                                                            step.key = preset_option_id.to_string();
-                                                            timing_live_sync = true;
-                                                        }
-                                                    }
-                                                });
-                                        } else if step.action == MacroAction::TriggerVisionTiming || step.action == MacroAction::StartVisionTiming || step.action == MacroAction::StopVisionTiming {
-                                            let selected_id = step.key.trim().parse::<u32>().ok();
-                                            let selected_label = Self::image_search_timing_preset_label(&image_search_timing_preset_options, selected_id, "Select timing preset");
-                                            egui::ComboBox::from_id_salt(("vision-timing-timing-preset", preset.id, step_index))
-                                                .width(180.0)
-                                                .selected_text(selected_label)
-                                                .show_ui(ui, |ui| {
-                                                    for (preset_option_id, preset_option_label) in &image_search_timing_preset_options {
-                                                        if ui.selectable_label(selected_id == Some(*preset_option_id), preset_option_label).clicked() {
-                                                            step.key = preset_option_id.to_string();
-                                                            timing_live_sync = true;
-                                                        }
-                                                    }
-                                                });
-                                        } else if step.action == MacroAction::ApplyMouseSensitivityPreset {
-                                            let selected_id = step.key.trim().parse::<u32>().ok();
-                                            let selected_label = selected_id
-                                                .and_then(|id| {
-                                                    mouse_sensitivity_presets_snapshot.iter().find(|p| p.id == id).map(|p| p.name.clone())
-                                                })
-                                                .unwrap_or_else(|| Self::tr_lang(language, "Select speed preset", "Chọn tốc độ").to_owned());
-                                            egui::ComboBox::from_id_salt(("vision-timing-speed-preset", preset.id, step_index))
-                                                .width(160.0)
-                                                .selected_text(format!("{selected_label} ▾"))
-                                                .show_ui(ui, |ui| {
-                                                    for preset_option in &mouse_sensitivity_presets_snapshot {
-                                                        if ui.selectable_label(selected_id == Some(preset_option.id), &preset_option.name).clicked() {
-                                                            step.key = preset_option.id.to_string();
-                                                            timing_live_sync = true;
-                                                        }
-                                                    }
-                                                });
-                                        } else if step.action == MacroAction::EnableZoomPreset {
-                                            let selected_id = step.key.trim().parse::<u32>().ok();
-                                            let selected_label = selected_id
-                                                .and_then(|id| {
-                                                    self.state.zoom_presets.iter().find(|p| p.id == id).map(|p| p.name.clone())
-                                                })
-                                                .unwrap_or_else(|| Self::tr_lang(language, "Select zoom preset", "Chọn zoom").to_owned());
-                                            egui::ComboBox::from_id_salt(("vision-timing-zoom", preset.id, step_index))
-                                                .width(146.0)
-                                                .selected_text(selected_label)
-                                                .show_ui(ui, |ui| {
-                                                    for preset_option in &self.state.zoom_presets {
-                                                        if ui.selectable_label(selected_id == Some(preset_option.id), &preset_option.name).clicked() {
-                                                            step.key = preset_option.id.to_string();
-                                                            timing_live_sync = true;
-                                                        }
-                                                    }
-                                                });
-                                        } else if step.action == MacroAction::PlaySoundPreset {
-                                            let selected_id = step.key.trim().parse::<u32>().ok();
-                                            let selected_label = selected_id
-                                                .and_then(|id| {
-                                                    self.state.audio_settings.presets.iter().find(|p| p.id == id).map(|p| p.name.clone())
-                                                })
-                                                .unwrap_or_else(|| Self::tr_lang(language, "Select sound preset", "Chọn âm thanh").to_owned());
-                                            egui::ComboBox::from_id_salt(("vision-timing-sound", preset.id, step_index))
-                                                .width(146.0)
-                                                .selected_text(selected_label)
-                                                .show_ui(ui, |ui| {
-                                                    for preset_option in &self.state.audio_settings.presets {
-                                                        if ui.selectable_label(selected_id == Some(preset_option.id), &preset_option.name).clicked() {
-                                                            step.key = preset_option.id.to_string();
-                                                            timing_live_sync = true;
-                                                        }
-                                                    }
-                                                });
-                                        } else if matches!(step.action, MacroAction::LockKeys | MacroAction::UnlockKeys) {
-                                            let response = ui.add_sized([146.0, 18.0], TextEdit::singleline(&mut step.key).hint_text("A,S,W,D"));
-                                            timing_live_sync |= response.changed();
-                                        } else if step.action == MacroAction::LoopStart {
-                                            let mut loop_count = step.key.trim().parse::<u32>().unwrap_or(1).max(1);
-                                            if ui.add_sized([80.0, 18.0], DragValue::new(&mut loop_count).range(1..=1_000_000)).changed() {
-                                                step.key = loop_count.to_string();
-                                                timing_live_sync = true;
-                                            }
-                                        } else if step.action == MacroAction::StopIfKeyPressed {
-                                            let response = ui.add_sized([146.0, 18.0], TextEdit::singleline(&mut step.key).hint_text("Stop key"));
-                                            timing_live_sync |= response.changed();
-                                        } else if step.action == MacroAction::ShowHud {
-                                            let selected_id = step.key.trim().parse::<u32>().ok();
-                                            let selected_label = selected_id
-                                                .and_then(|id| {
-                                                    self.state.hud_presets.iter().find(|p| p.id == id).map(|p| p.name.clone())
-                                                })
-                                                .unwrap_or_else(|| Self::tr_lang(language, "Select toolbox", "Chọn toolbox").to_owned());
-                                            ui.horizontal(|ui| {
-                                                egui::ComboBox::from_id_salt(("vision-timing-toolbox", preset.id, step_index))
-                                                    .width(104.0)
-                                                    .selected_text(selected_label)
-                                                    .show_ui(ui, |ui| {
-                                                        for toolbox_preset in &self.state.hud_presets {
-                                                            if ui.selectable_label(selected_id == Some(toolbox_preset.id), &toolbox_preset.name).clicked() {
-                                                                 step.key = toolbox_preset.id.to_string();
-                                                                timing_live_sync = true;
-                                                            }
-                                                        }
-                                                    });
-                                                let response = ui.add_sized([120.0, 18.0], TextEdit::singleline(&mut step.text_override).hint_text(Self::tr_lang(language, "Text override", "Ghi đè text")));
-                                                timing_live_sync |= response.changed();
-                                            });
-                                        } else if step.action == MacroAction::TypeText {
-                                            let response = ui.add_sized([220.0, 18.0], TextEdit::singleline(&mut step.key).hint_text(Self::tr_lang(language, "Text to type", "Text cần gõ")));
-                                            timing_live_sync |= response.changed();
-                                        } else {
-                                            timing_live_sync |= ui.add_sized([160.0, 18.0], TextEdit::singleline(&mut step.key)).changed();
-                                        }
-                                    }
-
-                                    if Self::macro_action_uses_position(step.action) {
-                                        timing_live_sync |= ui.add_sized([58.0, 18.0], DragValue::new(&mut step.x).range(-30000..=30000)).changed();
-                                        timing_live_sync |= ui.add_sized([58.0, 18.0], DragValue::new(&mut step.y).range(-30000..=30000)).changed();
-                                        
-                                        if step.action == MacroAction::MouseMoveAbsolute {
-                                            let capture_target = MouseMoveAbsoluteCaptureTarget {
-                                                group_id: None,
-                                                preset_id: preset.id,
-                                                step_index,
-                                            };
-                                            let capture_active = self.mouse_move_absolute_capture_target == Some(capture_target);
-                                            if ui.add_sized([28.0, 18.0], Button::new(Self::pick_point_button_text(language, capture_active))).clicked() {
-                                                if capture_active { cancel_mouse_move_absolute_capture = true; }
-                                                else { next_mouse_move_absolute_capture_target = Some(capture_target); }
-                                            }
-                                        }
-                                    } else if step.action == MacroAction::ShowHud {
-                                        timing_live_sync |= ui.checkbox(&mut step.timed_override, "T").on_hover_text(Self::tr_lang(language, "Timed display", "Hiển thị có thời hạn")).changed();
-                                        ui.add_enabled_ui(step.timed_override, |ui| {
-                                            timing_live_sync |= ui.add_sized([72.0, 18.0], DragValue::new(&mut step.duration_override_ms).range(50..=60_000).suffix(" ms")).changed();
-                                        });
-                                    }
-
-                                    if action_supports_capture {
-                                        let capture_target = CaptureRequest::VisionTimingStepInput { preset_id: preset.id, step_index };
-                                        let capture_active = capture_target_snapshot.as_ref() == Some(&capture_target);
-                                        let capture_button = if capture_active {
-                                            Button::new(Self::capture_button_text(language, true)).fill(Color32::from_rgb(88, 84, 44))
-                                        } else {
-                                            Button::new(Self::material_icon_text(0xe312, 18.0))
-                                        };
-                                        if ui.add_sized([if capture_active { 92.0 } else { 28.0 }, 18.0], capture_button).clicked() {
-                                            if capture_active { cancel_active_capture = true; }
-                                            else { next_capture_target = Some((capture_target, Self::tr_lang(language, "Capture input for step", "Bắt phím cho bước này").to_owned())); }
-                                        }
-                                    }
-                                });
-                            });
-                    }
-                }
-
-            });
-
-            if let Some(preset_id) = start_search_region_capture {
-                self.begin_image_search_capture(
-                    ctx,
-                    VisionCaptureTarget::TimingPreset(preset_id),
-                    VisionCaptureMode::SearchRegion,
-                );
-            }
-            if let Some(preset_id) = start_color_pick_capture {
-                self.begin_image_search_capture(
-                    ctx,
-                    VisionCaptureTarget::TimingPreset(preset_id),
-                    VisionCaptureMode::ColorSample,
-                );
-            }
-        }
-
-        if let Some((p_id, s_idx)) = insert_step_after {
-            if let Some(preset) = self.state.vision_timing_presets.iter_mut().find(|p| p.id == p_id) {
-                preset.steps.insert(s_idx + 1, MacroStep::default());
-                timing_live_sync = true;
-            }
-        }
-        if let Some((p_id, s_idx)) = remove_step {
-            if let Some(preset) = self.state.vision_timing_presets.iter_mut().find(|p| p.id == p_id) {
-                preset.steps.remove(s_idx);
-                timing_live_sync = true;
-            }
-        }
-        if let Some((p_id, s_idx)) = move_step_up {
-            if let Some(preset) = self.state.vision_timing_presets.iter_mut().find(|p| p.id == p_id) {
-                if s_idx > 0 {
-                    preset.steps.swap(s_idx, s_idx - 1);
-                    timing_live_sync = true;
-                }
-            }
-        }
-        if let Some((p_id, s_idx)) = move_step_down {
-            if let Some(preset) = self.state.vision_timing_presets.iter_mut().find(|p| p.id == p_id) {
-                if s_idx + 1 < preset.steps.len() {
-                    preset.steps.swap(s_idx, s_idx + 1);
-                    timing_live_sync = true;
-                }
-            }
-        }
-        if let Some(p_id) = copy_selected_steps {
-            self.copy_selected_macro_steps_for_preset(0, p_id);
-        }
-        if let Some((p_id, s_idx)) = paste_steps_target {
-            self.paste_macro_steps_after(0, p_id, s_idx);
-            timing_live_sync = true;
-        }
-        if let Some(p_id) = remove_selected_steps_target {
-            self.remove_selected_macro_steps_for_preset(0, p_id);
-            timing_live_sync = true;
-        }
-        if let Some((group_id, preset_id, step_index, additive)) = pending_step_selection {
-            let currently_selected = self.selected_macro_steps.contains(&(group_id, preset_id, step_index));
-            let selected_count_in_preset = self.selected_macro_steps.iter().filter(|(g, p, _)| *g == group_id && *p == preset_id).count();
-            self.select_macro_step(group_id, preset_id, step_index, additive, currently_selected, selected_count_in_preset);
-        }
 
         if let Some(remove_id) = remove_id {
             if let Some(preset) = self
@@ -18121,12 +16689,6 @@ impl CrosshairApp {
             live_sync = true;
         }
 
-        if let Some(remove_timing_id) = remove_timing_id {
-            self.state
-                .vision_timing_presets
-                .retain(|preset| preset.id != remove_timing_id);
-            timing_live_sync = true;
-        }
 
         if let Some((target, status)) = next_capture_target {
             self.begin_capture(target, status);
@@ -18143,9 +16705,8 @@ impl CrosshairApp {
             self.open_macro_ai_dialog_for_preset_with_mode(group_id, preset_id, mode);
         }
 
-        if live_sync || timing_live_sync {
+        if live_sync {
             self.sync_vision_presets();
-            self.sync_vision_timing_presets();
             self.persist();
         }
     }
@@ -20135,7 +18696,6 @@ impl eframe::App for CrosshairApp {
                 }
                 UiCommand::VisionPointCaptured {
                     preset_id,
-                    timing_preset,
                     priority_anchor,
                     screen_x,
                     screen_y,
@@ -20144,7 +18704,6 @@ impl eframe::App for CrosshairApp {
                     self.finish_image_search_point_capture_command(
                         ctx,
                         preset_id,
-                        timing_preset,
                         priority_anchor,
                         screen_x,
                         screen_y,
@@ -20165,7 +18724,6 @@ impl eframe::App for CrosshairApp {
                 }
                 UiCommand::VisionRegionCaptured {
                     preset_id,
-                    timing_preset,
                     template_mode,
                     screen_x,
                     screen_y,
@@ -20175,7 +18733,6 @@ impl eframe::App for CrosshairApp {
                     self.finish_image_search_region_capture_command(
                         ctx,
                         preset_id,
-                        timing_preset,
                         template_mode,
                         screen_x,
                         screen_y,

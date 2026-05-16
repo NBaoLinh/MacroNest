@@ -146,109 +146,8 @@ fn default_image_search_distance_far_speed() -> f32 {
     5.0
 }
 
-fn default_image_search_timing_cycle_ms() -> u64 {
-    1500
-}
 
-fn default_image_search_timing_min_disappearance_ms() -> u64 {
-    0
-}
 
-fn default_image_search_timing_loop_duration_secs() -> u32 {
-    30
-}
-
-fn default_image_search_timing_exponent() -> f32 {
-    1.0
-}
-
-fn default_image_search_timing_angle_span_deg() -> f32 {
-    360.0
-}
-
-#[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
-#[serde(default)]
-pub struct VisionTimingPreset {
-    pub id: u32,
-    pub name: String,
-    pub enabled: bool,
-    pub collapsed: bool,
-    pub target_window_title: Option<String>,
-    pub extra_target_window_titles: Vec<String>,
-    #[serde(default = "default_true")]
-    pub match_duplicate_window_titles: bool,
-    pub target_color: Option<RgbaColor>,
-    #[serde(default)]
-    pub target_colors: Vec<RgbaColor>,
-    #[serde(default)]
-    pub search_region_is_circle: bool,
-    #[serde(default)]
-    pub show_search_region_overlay: bool,
-    #[serde(default)]
-    pub color_tolerance: u8,
-    #[serde(default = "default_image_search_color_scan_rate_hz")]
-    pub color_scan_rate_hz: u32,
-    #[serde(default)]
-    pub dual_color_scan_midpoint: bool,
-    #[serde(default = "default_image_search_timing_cycle_ms")]
-    pub timing_cycle_ms: u64,
-    #[serde(default = "default_image_search_timing_min_disappearance_ms")]
-    pub min_disappearance_ms: u64,
-    #[serde(default)]
-    pub timing_offset_ms: i32,
-    #[serde(default = "default_image_search_timing_exponent")]
-    pub timing_exponent: f32,
-    #[serde(default)]
-    pub timing_angle_offset_deg: f32,
-    #[serde(default = "default_image_search_timing_angle_span_deg")]
-    pub timing_angle_span_deg: f32,
-    #[serde(default)]
-    pub timing_reverse: bool,
-    pub search_region_screen_x: Option<i32>,
-    pub search_region_screen_y: Option<i32>,
-    pub search_region_width: Option<i32>,
-    pub search_region_height: Option<i32>,
-    pub steps: Vec<MacroStep>,
-}
-
-impl VisionTimingPreset {
-    pub fn new(id: u32) -> Self {
-        Self {
-            id,
-            name: format!("Timing Preset {id}"),
-            enabled: true,
-            collapsed: true,
-            target_window_title: None,
-            extra_target_window_titles: Vec::new(),
-            match_duplicate_window_titles: true,
-            target_color: None,
-            target_colors: Vec::new(),
-            search_region_is_circle: false,
-            show_search_region_overlay: false,
-            color_tolerance: default_image_search_color_tolerance(),
-            color_scan_rate_hz: default_image_search_color_scan_rate_hz(),
-            dual_color_scan_midpoint: false,
-            timing_cycle_ms: default_image_search_timing_cycle_ms(),
-            min_disappearance_ms: default_image_search_timing_min_disappearance_ms(),
-            timing_offset_ms: 0,
-            timing_exponent: default_image_search_timing_exponent(),
-            timing_angle_offset_deg: 0.0,
-            timing_angle_span_deg: default_image_search_timing_angle_span_deg(),
-            timing_reverse: false,
-            search_region_screen_x: None,
-            search_region_screen_y: None,
-            search_region_width: None,
-            search_region_height: None,
-            steps: Vec::new(),
-        }
-    }
-}
-
-impl Default for VisionTimingPreset {
-    fn default() -> Self {
-        Self::new(1)
-    }
-}
 
 #[derive(Debug, Clone, Copy, Serialize, Deserialize, PartialEq, Eq, Default)]
 pub enum AppPanel {
@@ -438,12 +337,6 @@ pub enum MacroAction {
     StartVisionSearch,
     #[serde(alias = "TriggerImageSearchMove")]
     TriggerVisionMove,
-    #[serde(alias = "TriggerImageSearchTiming")]
-    TriggerVisionTiming,
-    #[serde(alias = "StartImageSearchTiming")]
-    StartVisionTiming,
-    #[serde(alias = "StopImageSearchTiming")]
-    StopVisionTiming,
     #[serde(alias = "StopImageSearchWait")]
     StopVisionWait,
     #[serde(alias = "StopImageSearch")]
@@ -481,6 +374,9 @@ pub enum MacroAction {
     MouseWheelDown,
     MouseMoveAbsolute,
     MouseMoveRelative,
+    TriggerVisionTiming,
+    StartVisionTiming,
+    StopVisionTiming,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
@@ -572,10 +468,6 @@ pub enum CaptureRequest {
     CommandPresetHotkey(u32),
     MacroStepInput {
         group_id: u32,
-        preset_id: u32,
-        step_index: usize,
-    },
-    VisionTimingStepInput {
         preset_id: u32,
         step_index: usize,
     },
@@ -1484,10 +1376,6 @@ pub struct AppState {
     pub vision_presets: Vec<VisionPreset>,
     #[serde(alias = "next_image_search_preset_id")]
     pub next_vision_preset_id: u32,
-    #[serde(alias = "image_search_timing_presets")]
-    pub vision_timing_presets: Vec<VisionTimingPreset>,
-    #[serde(alias = "next_image_search_timing_preset_id")]
-    pub next_vision_timing_preset_id: u32,
     pub ai_settings: AiSettings,
     pub groq_settings: GroqSettings,
     pub audio_settings: AudioSettings,
@@ -1549,8 +1437,6 @@ impl Default for AppState {
             macro_infinite_loop_warning_enabled: true,
             vision_presets: vec![VisionPreset::default()],
             next_vision_preset_id: 2,
-            vision_timing_presets: vec![VisionTimingPreset::default()],
-            next_vision_timing_preset_id: 2,
             ai_settings: AiSettings::default(),
             groq_settings: GroqSettings::default(),
             audio_settings: AudioSettings::default(),
