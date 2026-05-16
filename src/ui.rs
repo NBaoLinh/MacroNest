@@ -12323,17 +12323,7 @@ impl CrosshairApp {
                     self.set_active_macro_folder_view(None);
                 }
             }
-            if active_folder_for_controls.is_some()
-                && ui
-                    .add_sized(
-                        [28.0, 28.0],
-                        Button::new(Self::material_icon_text(0xe5c4, 18.0)),
-                    )
-                    .on_hover_text(Self::tr_lang(language, "Back", "Back"))
-                    .clicked()
-            {
-                self.set_active_macro_folder_view(None);
-            }
+
 
             if let Some(binding) = hotkey_preview.as_ref() {
                 let label = hotkey::format_binding(Some(binding));
@@ -12502,8 +12492,17 @@ impl CrosshairApp {
         let mut paste_preset_to_group: Option<u32> = None;
 
         ui.separator();
-        if self.macro_folders_panel_open && self.active_macro_folder_view.is_none() {
-            ui.label(RichText::new(Self::tr_lang(language, "Folders", "Thư mục")).strong());
+        #[derive(Debug, Clone, Copy, PartialEq, Eq)]
+        enum RenderItem {
+            FolderHeader(u32),
+            MacroGroup(usize),
+        }
+
+        let search_query = self.macro_preset_search_query.trim().to_owned();
+        Self::sort_macro_groups(&mut self.state.macro_groups);
+
+        let mut render_items = Vec::new();
+        if self.macro_folders_panel_open {
             if self.state.macro_folders.is_empty() {
                 ui.label(Self::tr_lang(
                     language,
@@ -12511,90 +12510,49 @@ impl CrosshairApp {
                     "Chưa có thư mục nào. Nếu muốn, macro group có thể nằm ngoài thư mục.",
                 ));
             }
-            let mut open_folder_id = None;
-            let mut renamed_folder: Option<(u32, String)> = None;
             for folder in &self.state.macro_folders {
-                let folder_group_count = self
-                    .state
-                    .macro_groups
-                    .iter()
-                    .filter(|group| group.folder_id == Some(folder.id))
-                    .count();
-                let folder_has_enabled_content = self.state.macro_groups.iter().any(|group| {
-                    group.folder_id == Some(folder.id)
-                        && group.enabled
-                        && group.presets.iter().any(|preset| preset.enabled)
-                });
-                let folder_id = folder.id;
-                let mut folder_name = folder.name.clone();
-                Self::show_preset_card(ui, folder_has_enabled_content, |ui| {
-                    ui.horizontal(|ui| {
-                        if ui
-                            .add_sized(
-                                [28.0, 24.0],
-                                Button::new(Self::folder_icon_text(false, 18.0)),
-                            )
-                            .clicked()
-                        {
-                            open_folder_id = Some(folder_id);
-                        }
-                        let response =
-                            ui.add_sized([220.0, 24.0], TextEdit::singleline(&mut folder_name));
-                        Self::apply_vietnamese_input_if_changed(
-                            &response,
-                            self.state.vietnamese_input_enabled,
-                            self.state.vietnamese_input_mode,
-                            &mut folder_name,
-                        );
-                        if response.changed() {
-                            renamed_folder = Some((folder_id, folder_name.clone()));
-                        }
-                        ui.add_sized(
-                            [96.0, 24.0],
-                            egui::Label::new(match language {
-                                UiLanguage::Vietnamese => format!("{folder_group_count} nhóm"),
-                                _ => format!("{folder_group_count} group(s)"),
-                            }),
-                        );
-
-                        ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
-                            if Self::sound_style_remove_button(ui).clicked() {
-                                if folder_group_count > 0 {
-                                    self.confirm_delete_folder_id = Some(folder_id);
-                                } else {
-                                    delete_folder_id = Some(folder_id);
+                render_items.push(RenderItem::FolderHeader(folder.id));
+                if !folder.collapsed {
+                    for (index, group) in self.state.macro_groups.iter().enumerate() {
+                        if group.folder_id == Some(folder.id) {
+                            if Self::macro_group_matches_search_query(group, &search_query) {
+                                if match self.macro_groups_favorite_filter {
+                                    MacroGroupFavoriteFilter::All => true,
+                                    MacroGroupFavoriteFilter::Star => group.favorite,
+                                } {
+                                    render_items.push(RenderItem::MacroGroup(index));
                                 }
                             }
-                            if ui
-                                .add_sized(
-                                    [70.0, 24.0],
-                                    Button::new(Self::tr_lang(language, "Open", "Mở")),
-                                )
-                                .clicked()
-                            {
-                                open_folder_id = Some(folder_id);
-                            }
-                        });
-                    });
-                });
-                ui.add_space(4.0);
-            }
-            if let Some((folder_id, name)) = renamed_folder {
-                if let Some(folder) = self
-                    .state
-                    .macro_folders
-                    .iter_mut()
-                    .find(|folder| folder.id == folder_id)
-                {
-                    folder.name = name;
-                    self.persist();
+                        }
+                    }
                 }
             }
-            if let Some(folder_id) = open_folder_id {
-                self.set_active_macro_folder_view(Some(folder_id));
+        } else {
+            for (index, group) in self.state.macro_groups.iter().enumerate() {
+                if group.folder_id.is_none() {
+                    if Self::macro_group_matches_search_query(group, &search_query) {
+                        if match self.macro_groups_favorite_filter {
+                            MacroGroupFavoriteFilter::All => true,
+                            MacroGroupFavoriteFilter::Star => group.favorite,
+                        } {
+                            render_items.push(RenderItem::MacroGroup(index));
+                        }
+                    }
+                }
             }
         }
-        let show_groups = !self.macro_folders_panel_open || self.active_macro_folder_view.is_some();
+
+        if !self.macro_folders_panel_open && render_items.is_empty() {
+            ui.label(Self::tr_lang(
+                language,
+                "No macro groups outside folders.",
+                "Không có macro group nào ngoài thư mục.",
+            ));
+        }
+
+        let mut toggle_collapsed_folder_id = None;
+        let mut add_group_to_folder_id = None;
+        let mut renamed_folder: Option<(u32, String)> = None;
         let mut pending_custom_preset_save: Option<(
             u32,
             u32,
@@ -12603,78 +12561,106 @@ impl CrosshairApp {
             String,
             bool,
         )> = None;
-        if show_groups {
-            let search_query = self.macro_preset_search_query.trim().to_owned();
-            Self::sort_macro_groups(&mut self.state.macro_groups);
-            let mut visible_group_indices: Vec<usize> = self
-                .state
-                .macro_groups
-                .iter()
-                .enumerate()
-                .filter(|(_, group)| {
-                    if self.macro_folders_panel_open {
-                        match self.active_macro_folder_view {
-                            Some(folder_id) => group.folder_id == Some(folder_id),
-                            None => false,
-                        }
-                    } else {
-                        group.folder_id.is_none()
-                    }
-                })
-                .filter(|(_, group)| match self.macro_groups_favorite_filter {
-                    MacroGroupFavoriteFilter::All => true,
-                    MacroGroupFavoriteFilter::Star => group.favorite,
-                })
-                .filter(|(_, group)| Self::macro_group_matches_search_query(group, &search_query))
-                .map(|(index, _)| index)
-                .collect();
-            if visible_group_indices.is_empty()
-                && search_query.is_empty()
-                && self.macro_groups_favorite_filter != MacroGroupFavoriteFilter::All
-            {
-                self.macro_groups_favorite_filter = MacroGroupFavoriteFilter::All;
-                visible_group_indices = self
-                    .state
-                    .macro_groups
-                    .iter()
-                    .enumerate()
-                    .filter(|(_, group)| {
-                        if self.macro_folders_panel_open {
-                            match self.active_macro_folder_view {
-                                Some(folder_id) => group.folder_id == Some(folder_id),
-                                None => false,
+
+        let command_presets_snapshot = self.state.command_presets.clone();
+
+        for item in render_items {
+            match item {
+                RenderItem::FolderHeader(folder_id) => {
+                    let folder = self.state.macro_folders.iter().find(|f| f.id == folder_id).unwrap();
+                    let folder_group_count = self
+                        .state
+                        .macro_groups
+                        .iter()
+                        .filter(|group| group.folder_id == Some(folder.id))
+                        .count();
+                    let folder_has_enabled_content = self.state.macro_groups.iter().any(|group| {
+                        group.folder_id == Some(folder.id)
+                            && group.enabled
+                            && group.presets.iter().any(|preset| preset.enabled)
+                    });
+                    let mut folder_name = folder.name.clone();
+                    Self::show_preset_card(ui, folder_has_enabled_content, |ui| {
+                        ui.horizontal(|ui| {
+                            if ui
+                                .add_sized(
+                                    [28.0, 24.0],
+                                    Button::new(Self::folder_icon_text(!folder.collapsed, 18.0)),
+                                )
+                                .clicked()
+                            {
+                                toggle_collapsed_folder_id = Some(folder_id);
                             }
-                        } else {
-                            group.folder_id.is_none()
-                        }
-                    })
-                    .filter(|(_, group)| Self::macro_group_matches_search_query(group, &search_query))
-                    .map(|(index, _)| index)
-                    .collect();
-            }
-            if visible_group_indices.is_empty() {
-                let empty_text = Self::tr_lang(
-                    language,
-                    "This folder does not have any macro groups yet.",
-                    "This folder does not have any macro groups yet.",
-                );
-                ui.label(empty_text);
-            }
-            let command_presets_snapshot = self.state.command_presets.clone();
-            for group_index in visible_group_indices {
-                let mut next_capture_target = None;
-                let mut cancel_active_capture = false;
-                let mut remove_step = None;
-                let mut insert_step_after = None;
-                let mut move_step_to: Option<(u32, Vec<usize>, usize)> = None;
-                let mut remove_preset = None;
-                let mut pending_step_selection = None;
-                let mut selection_after_move = None;
-                let mut selection_after_paste = None;
-                let mut clear_step_selection = None;
-                let mut copy_selected_steps = None;
-                let mut paste_step_after = None;
-                let selected_steps_snapshot = self.selected_macro_steps.clone();
+                            let response =
+                                ui.add_sized([220.0, 24.0], TextEdit::singleline(&mut folder_name));
+                            Self::apply_vietnamese_input_if_changed(
+                                &response,
+                                self.state.vietnamese_input_enabled,
+                                self.state.vietnamese_input_mode,
+                                &mut folder_name,
+                            );
+                            if response.changed() {
+                                renamed_folder = Some((folder_id, folder_name.clone()));
+                            }
+                            ui.add_sized(
+                                [96.0, 24.0],
+                                egui::Label::new(match language {
+                                    UiLanguage::Vietnamese => format!("{folder_group_count} nhóm"),
+                                    _ => format!("{folder_group_count} group(s)"),
+                                }),
+                            );
+
+                            ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
+                                if Self::sound_style_remove_button(ui).clicked() {
+                                    if folder_group_count > 0 {
+                                        self.confirm_delete_folder_id = Some(folder_id);
+                                    } else {
+                                        delete_folder_id = Some(folder_id);
+                                    }
+                                }
+                                let is_collapsed = folder.collapsed;
+                                let button_text = if is_collapsed {
+                                    Self::tr_lang(language, "Show", "Hiện")
+                                } else {
+                                    Self::tr_lang(language, "Hide", "Ẩn")
+                                };
+                                if ui
+                                    .add_sized(
+                                        [70.0, 24.0],
+                                        Button::new(button_text),
+                                    )
+                                    .clicked()
+                                {
+                                    toggle_collapsed_folder_id = Some(folder_id);
+                                }
+                                if ui
+                                    .add_sized(
+                                        [86.0, 24.0],
+                                        Button::new(Self::tr_lang(language, "+ Group", "+ Nhóm")),
+                                    )
+                                    .clicked()
+                                {
+                                    add_group_to_folder_id = Some(folder_id);
+                                }
+                            });
+                        });
+                    });
+                    ui.add_space(4.0);
+                }
+                RenderItem::MacroGroup(group_index) => {
+                    let mut next_capture_target = None;
+                    let mut cancel_active_capture = false;
+                    let mut remove_step = None;
+                    let mut insert_step_after = None;
+                    let mut move_step_to: Option<(u32, Vec<usize>, usize)> = None;
+                    let mut remove_preset = None;
+                    let mut pending_step_selection = None;
+                    let mut selection_after_move = None;
+                    let mut selection_after_paste = None;
+                    let mut clear_step_selection = None;
+                    let mut copy_selected_steps = None;
+                    let mut paste_step_after = None;
+                    let selected_steps_snapshot = self.selected_macro_steps.clone();
                 let render_preset_indices = {
                     let group = &self.state.macro_groups[group_index];
                     let query = search_query.as_str();
@@ -12700,6 +12686,11 @@ impl CrosshairApp {
                     let group = &mut self.state.macro_groups[group_index];
                     Self::show_preset_card(ui, group.enabled, |ui| {
                         ui.horizontal(|ui| {
+                            if self.macro_folders_panel_open {
+                                ui.add_space(16.0);
+                            }
+                            ui.vertical(|ui| {
+                                ui.horizontal(|ui| {
                             let star_icon = if group.favorite { 0xe838 } else { 0xe83a };
                             let star_fill = if group.favorite {
                                 Color32::from_rgb(104, 82, 18)
@@ -15386,6 +15377,8 @@ impl CrosshairApp {
                             live_sync = true;
                             clear_step_selection = Some((group.id, preset_id));
                         }
+                            });
+                        });
                     });
                     if let Some((group_id, preset_id, step_index, name, command, use_powershell)) =
                         pending_custom_preset_save.take()
@@ -15480,6 +15473,7 @@ impl CrosshairApp {
                 }
             }
         }
+    }
 
         if let Some((group_id, preset_id, mode)) = open_macro_ai_target {
             self.open_macro_ai_dialog_for_preset_with_mode(group_id, preset_id, mode);
@@ -15558,7 +15552,40 @@ impl CrosshairApp {
             }
         }
 
-
+        if let Some((folder_id, name)) = renamed_folder {
+            if let Some(folder) = self
+                .state
+                .macro_folders
+                .iter_mut()
+                .find(|folder| folder.id == folder_id)
+            {
+                folder.name = name;
+                self.persist();
+            }
+        }
+        if let Some(folder_id) = toggle_collapsed_folder_id {
+            if let Some(folder) = self
+                .state
+                .macro_folders
+                .iter_mut()
+                .find(|folder| folder.id == folder_id)
+            {
+                folder.collapsed = !folder.collapsed;
+                self.persist();
+            }
+        }
+        if let Some(folder_id) = add_group_to_folder_id {
+            self.add_macro_group_to_folder(folder_id);
+            if let Some(folder) = self
+                .state
+                .macro_folders
+                .iter_mut()
+                .find(|folder| folder.id == folder_id)
+            {
+                folder.collapsed = false;
+            }
+            self.persist();
+        }
     }
 
     fn render_mouse_path_preview(
