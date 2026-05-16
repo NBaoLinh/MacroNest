@@ -16033,7 +16033,7 @@ impl CrosshairApp {
                         });
                         ui.end_row();
 
-                        ui.label(Self::tr_lang(language, "Replay mode", "Replay mode"));
+                        ui.label(Self::tr_lang(language, "Replay mode", "Chế độ phát lại"));
                         ui.horizontal_wrapped(|ui| {
                             live_sync |= ui
                                 .checkbox(
