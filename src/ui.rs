@@ -15843,7 +15843,7 @@ impl CrosshairApp {
             }
         }
 
-        if response.drag_released() {
+        if ui.input(|i| i.pointer.any_released()) {
             active_handle = DragHandle::None;
             ui.data_mut(|d| d.insert_temp(drag_id, active_handle));
         }
