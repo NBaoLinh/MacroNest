@@ -10885,6 +10885,19 @@ impl CrosshairApp {
             let active_capture_target = self.capture_target.clone();
             let pending_combo_keys = self.capture_hotkey_combo_keys.clone();
             ui.add_space(6.0);
+            let preset_snapshot = self.state.window_presets[index].clone();
+            let preview = if preset_snapshot.preview_enabled && !preset_snapshot.collapsed {
+                self.window_preview_for_target(
+                    ui.ctx(),
+                    200_000 + preset_snapshot.id,
+                    preset_snapshot.target_window_title.as_ref(),
+                    &preset_snapshot.extra_target_window_titles,
+                    preset_snapshot.match_duplicate_window_titles,
+                )
+            } else {
+                self.zoom_preview_cache.remove(&(200_000 + preset_snapshot.id));
+                None
+            };
             {
                 let preset = &mut self.state.window_presets[index];
                 Self::show_preset_card(ui, preset.enabled, |ui| {
@@ -11070,7 +11083,7 @@ impl CrosshairApp {
                         });
                     if preset.preview_enabled {
                         ui.add_space(8.0);
-                        self.render_window_preset_preview(ui, language, preset);
+                        Self::render_window_preset_preview(ui, language, preset, preview.as_ref());
                     }
                 });
             }
@@ -15585,19 +15598,11 @@ impl CrosshairApp {
     }
 
     fn render_window_preset_preview(
-        &mut self,
         ui: &mut egui::Ui,
         language: UiLanguage,
         preset: &WindowPreset,
+        preview: Option<&ZoomPreviewView>,
     ) {
-        let preview = self.window_preview_for_target(
-            ui.ctx(),
-            200_000 + preset.id,
-            preset.target_window_title.as_ref(),
-            &preset.extra_target_window_titles,
-            preset.match_duplicate_window_titles,
-        );
-
         let screen_size = Self::screen_size();
         let aspect_ratio = if screen_size.y > 0.0 { screen_size.x / screen_size.y } else { 16.0 / 9.0 };
         let width = ui.available_width();
@@ -15722,7 +15727,7 @@ impl CrosshairApp {
         ui: &mut egui::Ui,
         language: UiLanguage,
         events: &[MousePathEvent],
-        desired_height: f32,
+        _desired_height: f32,
     ) {
         let screen_size = Self::screen_size();
         let aspect_ratio = if screen_size.y > 0.0 { screen_size.x / screen_size.y } else { 16.0 / 9.0 };
