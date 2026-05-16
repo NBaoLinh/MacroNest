@@ -5077,25 +5077,27 @@ impl CrosshairApp {
 
         ui.vertical(|ui| {
             ui.horizontal(|ui| {
-                let manual_response = ui
-                    .add_sized(
-                        [24.0, 24.0],
-                        Button::new(Self::window_anchor_icon(WindowAnchor::Manual))
-                            .selected(preset.anchor == WindowAnchor::Manual),
-                    )
-                    .on_hover_text("Manual X/Y position");
-                if manual_response.clicked() {
-                    preset.anchor = WindowAnchor::Manual;
-                    changed = true;
-                }
+                ui.vertical(|ui| {
+                    let manual_response = ui
+                        .add_sized(
+                            [24.0, 24.0],
+                            Button::new(Self::window_anchor_icon(WindowAnchor::Manual))
+                                .selected(preset.anchor == WindowAnchor::Manual),
+                        )
+                        .on_hover_text("Manual X/Y position");
+                    if manual_response.clicked() {
+                        preset.anchor = WindowAnchor::Manual;
+                        changed = true;
+                    }
+                });
 
-                ui.add_space(6.0);
+                ui.add_space(10.0);
 
-                egui::Grid::new(("window-anchor-grid", preset.id))
-                    .num_columns(3)
-                    .spacing([4.0, 4.0])
-                    .show(ui, |ui| {
-                        for row in rows {
+                ui.vertical(|ui| {
+                    ui.spacing_mut().item_spacing = egui::vec2(4.0, 4.0);
+                    for row in rows {
+                        ui.horizontal(|ui| {
+                            ui.spacing_mut().item_spacing = egui::vec2(4.0, 4.0);
                             for anchor in row {
                                 let selected = preset.anchor == anchor;
                                 let response = ui
@@ -5110,9 +5112,9 @@ impl CrosshairApp {
                                     changed = true;
                                 }
                             }
-                            ui.end_row();
-                        }
-                    });
+                        });
+                    }
+                });
             });
         });
 
@@ -12378,15 +12380,36 @@ impl CrosshairApp {
             ) {
                 match (action, result) {
                     (MacroDestructiveConfirmAction::DeleteFolder(folder_id), true) => {
-                        delete_folder_id = Some(folder_id);
+                        self.state
+                            .macro_groups
+                            .retain(|group| group.folder_id != Some(folder_id));
+                        self.state
+                            .macro_folders
+                            .retain(|folder| folder.id != folder_id);
                         self.confirm_delete_folder_id = None;
+                        self.confirm_release_folder_id = None;
+                        if self.active_macro_folder_view == Some(folder_id) {
+                            self.set_active_macro_folder_view(None);
+                        }
+                        self.persist_macro_presets();
                     }
                     (MacroDestructiveConfirmAction::DeleteFolder(_), false) => {
                         self.confirm_delete_folder_id = None;
                     }
                     (MacroDestructiveConfirmAction::ReleaseFolder(folder_id), true) => {
-                        release_folder_id = Some(folder_id);
+                        self.state
+                            .macro_folders
+                            .retain(|folder| folder.id != folder_id);
+                        for group in &mut self.state.macro_groups {
+                            if group.folder_id == Some(folder_id) {
+                                group.folder_id = None;
+                            }
+                        }
                         self.confirm_release_folder_id = None;
+                        if self.active_macro_folder_view == Some(folder_id) {
+                            self.set_active_macro_folder_view(None);
+                        }
+                        self.persist_macro_presets();
                     }
                     (MacroDestructiveConfirmAction::ReleaseFolder(_), false) => {
                         self.confirm_release_folder_id = None;
