@@ -10947,6 +10947,9 @@ impl CrosshairApp {
                                     .clicked()
                                     {
                                         preset.collapsed = !preset.collapsed;
+                                        if preset.collapsed {
+                                            preset.preview_enabled = false;
+                                        }
                                         live_sync = true;
                                     }
                                 },
