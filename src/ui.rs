@@ -248,8 +248,6 @@ struct VisionPreviewCache {
 const MATERIAL_ICONS_FONT: &str = "material_icons";
 const UI_SANS_FONT: &str = "ui_sans";
 const UI_SANS_SEMIBOLD_FONT: &str = "ui_sans_semibold";
-const INTERCEPTION_RELEASE_URL: &str =
-    "https://github.com/oblitum/Interception/releases/download/v1.0.1/Interception.zip";
 
 pub fn configure_fonts(ctx: &egui::Context) {
     let mut fonts = FontDefinitions::default();
@@ -1949,96 +1947,6 @@ impl CrosshairApp {
     }
 
     
-
-    #[cfg(windows)]
-    
-
-    #[cfg(not(windows))]
-    
-
-    #[cfg(windows)]
-    fn download_and_install_interception_driver(&mut self) -> anyhow::Result<String> {
-        fs::create_dir_all(&self.paths.interception_dir)?;
-        let archive = reqwest::blocking::get(INTERCEPTION_RELEASE_URL)?
-            .error_for_status()?
-            .bytes()?;
-        fs::write(&self.paths.interception_zip_file, &archive)?;
-
-        if self.paths.interception_extract_dir.exists() {
-            fs::remove_dir_all(&self.paths.interception_extract_dir)?;
-        }
-        fs::create_dir_all(&self.paths.interception_dir)?;
-
-        let zip = Self::powershell_quote(&self.paths.interception_zip_file.to_string_lossy());
-        let extract =
-            Self::powershell_quote(&self.paths.interception_extract_dir.to_string_lossy());
-        let expand_status = Command::new("powershell")
-            .args([
-                "-NoProfile",
-                "-NonInteractive",
-                "-ExecutionPolicy",
-                "Bypass",
-                "-Command",
-                &format!("Expand-Archive -LiteralPath '{zip}' -DestinationPath '{extract}' -Force"),
-            ])
-            .status()?;
-        if !expand_status.success() {
-            anyhow::bail!("Failed to extract Interception.zip");
-        }
-        if !self.paths.interception_installer_exe.exists() {
-            anyhow::bail!("install-interception.exe was not found after extraction");
-        }
-
-        let install_status = Command::new(&self.paths.interception_installer_exe)
-            .arg("/install")
-            .current_dir(&self.paths.interception_installer_dir)
-            .status()?;
-        if !install_status.success() {
-            anyhow::bail!("install-interception.exe /install failed");
-        }
-
-        Ok(match self.state.ui_language {
-            UiLanguage::Vietnamese => {
-                "Đã tải và cài Interception driver. Nếu Windows chưa nhận ngay, hãy khởi động lại máy.".to_owned()
-            }
-            _ => "Interception installed. Restart Windows if needed.".to_owned(),
-        })
-    }
-
-    #[cfg(not(windows))]
-    fn download_and_install_interception_driver(&mut self) -> anyhow::Result<String> {
-        anyhow::bail!("Interception is supported on Windows only")
-    }
-
-    #[cfg(windows)]
-    fn uninstall_and_remove_interception_driver(&mut self) -> anyhow::Result<String> {
-        if self.paths.interception_installer_exe.exists() {
-            let uninstall_status = Command::new(&self.paths.interception_installer_exe)
-                .arg("/uninstall")
-                .current_dir(&self.paths.interception_installer_dir)
-                .status()?;
-            if !uninstall_status.success() {
-                anyhow::bail!("install-interception.exe /uninstall failed");
-            }
-        }
-
-        if self.paths.interception_dir.exists() {
-            fs::remove_dir_all(&self.paths.interception_dir)?;
-        }
-        fs::create_dir_all(&self.paths.interception_dir)?;
-
-        Ok(match self.state.ui_language {
-            UiLanguage::Vietnamese => {
-                "Đã gỡ Interception driver và xóa bộ cài đã tải. Có thể cần khởi động lại Windows để gỡ hẳn.".to_owned()
-            }
-            _ => "Removed Interception and deleted the package. Restart Windows if needed.".to_owned(),
-        })
-    }
-
-    #[cfg(not(windows))]
-    fn uninstall_and_remove_interception_driver(&mut self) -> anyhow::Result<String> {
-        anyhow::bail!("Interception is supported on Windows only")
-    }
 
     fn powershell_quote(value: &str) -> String {
         value.replace('\'', "''")

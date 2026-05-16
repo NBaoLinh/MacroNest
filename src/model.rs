@@ -803,7 +803,6 @@ pub struct MousePathPreset {
     pub enabled: bool,
     pub collapsed: bool,
     pub record_hotkey: Option<HotkeyBinding>,
-    pub use_interception_driver: bool,
     #[serde(default)]
     pub replay_relative_motion: bool,
     pub events: Vec<MousePathEvent>,
@@ -817,7 +816,6 @@ impl MousePathPreset {
             enabled: true,
             collapsed: true,
             record_hotkey: None,
-            use_interception_driver: false,
             replay_relative_motion: false,
             events: Vec::new(),
         }
@@ -1203,7 +1201,6 @@ pub struct VisionPreset {
     pub match_duplicate_window_titles: bool,
     pub hotkey: Option<HotkeyBinding>,
     pub click_after_move: bool,
-    pub use_interception_driver: bool,
     #[serde(default = "default_image_search_offset_px")]
     pub move_offset_x: i32,
     #[serde(default = "default_image_search_offset_px")]
@@ -1265,7 +1262,6 @@ impl VisionPreset {
             match_duplicate_window_titles: true,
             hotkey: None,
             click_after_move: false,
-            use_interception_driver: false,
             move_offset_x: default_image_search_offset_px(),
             move_offset_y: default_image_search_offset_px(),
             non_interception_move_passes: default_image_search_move_passes(),
@@ -1457,7 +1453,6 @@ pub struct AppState {
     pub next_mouse_path_preset_id: u32,
     pub mouse_sensitivity_presets: Vec<MouseSensitivityPreset>,
     pub next_mouse_sensitivity_preset_id: u32,
-    pub mouse_use_interception_driver: bool,
     pub keyboard_arrow_mouse_enabled: bool,
     pub keyboard_arrow_mouse_step_px: u32,
     pub mouse_sensitivity_restore_on_exit: bool,
@@ -1530,7 +1525,6 @@ impl Default for AppState {
             next_mouse_path_preset_id: 1,
             mouse_sensitivity_presets: Vec::new(),
             next_mouse_sensitivity_preset_id: 1,
-            mouse_use_interception_driver: false,
             keyboard_arrow_mouse_enabled: false,
             keyboard_arrow_mouse_step_px: 4,
             mouse_sensitivity_restore_on_exit: false,

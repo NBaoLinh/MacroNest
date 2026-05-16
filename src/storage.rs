@@ -22,13 +22,6 @@ pub struct AppPaths {
     pub asset_dir: PathBuf,
     pub icon_file: PathBuf,
     pub icon_file_disabled: PathBuf,
-    pub interception_dir: PathBuf,
-    pub interception_zip_file: PathBuf,
-    pub interception_extract_dir: PathBuf,
-    pub interception_package_root: PathBuf,
-    pub interception_installer_dir: PathBuf,
-    pub interception_installer_exe: PathBuf,
-    pub interception_dll_file: PathBuf,
     pub vision_dir: PathBuf,
     pub vision_template_file: PathBuf,
     pub bin_dir: PathBuf,
@@ -54,17 +47,6 @@ impl AppPaths {
         let asset_dir = root.join("custom-crosshairs");
         let icon_file = root.join("app-icon.ico");
         let icon_file_disabled = root.join("app-icon-disabled.ico");
-        let interception_dir = root.join("interception");
-        let interception_zip_file = interception_dir.join("Interception.zip");
-        let interception_extract_dir = interception_dir.join("package");
-        let interception_package_root = interception_extract_dir.join("Interception");
-        let interception_installer_dir = interception_package_root.join("command line installer");
-        let interception_installer_exe =
-            interception_installer_dir.join("install-interception.exe");
-        let interception_dll_file = interception_package_root
-            .join("library")
-            .join("x64")
-            .join("interception.dll");
         let vision_dir = root.join("vision");
         let vision_template_file = vision_dir.join("template.png");
         let bin_dir = root.join("bin");
@@ -73,7 +55,6 @@ impl AppPaths {
         fs::create_dir_all(&root)?;
         fs::create_dir_all(&profiles_dir)?;
         fs::create_dir_all(&asset_dir)?;
-        fs::create_dir_all(&interception_dir)?;
         fs::create_dir_all(&vision_dir)?;
         fs::create_dir_all(&bin_dir)?;
 
@@ -84,13 +65,6 @@ impl AppPaths {
             asset_dir,
             icon_file,
             icon_file_disabled,
-            interception_dir,
-            interception_zip_file,
-            interception_extract_dir,
-            interception_package_root,
-            interception_installer_dir,
-            interception_installer_exe,
-            interception_dll_file,
             vision_dir,
             vision_template_file,
             bin_dir,
