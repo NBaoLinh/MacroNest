@@ -227,6 +227,8 @@ pub struct WindowPreset {
     pub extra_target_window_titles: Vec<String>,
     #[serde(default = "default_true")]
     pub match_duplicate_window_titles: bool,
+    #[serde(default)]
+    pub preview_enabled: bool,
 }
 
 impl WindowPreset {
@@ -251,6 +253,7 @@ impl WindowPreset {
             target_window_title: None,
             extra_target_window_titles: Vec::new(),
             match_duplicate_window_titles: true,
+            preview_enabled: false,
         }
     }
 }
