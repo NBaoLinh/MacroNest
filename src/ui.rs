@@ -12063,6 +12063,8 @@ impl CrosshairApp {
                 {
                     self.add_macro_folder();
                     self.persist();
+                    self.macro_folders_panel_open = true;
+                    self.active_macro_folder_view = None;
                 }
             }
             if Self::sized_button(
@@ -12526,37 +12528,43 @@ impl CrosshairApp {
                 let folder_id = folder.id;
                 let mut folder_name = folder.name.clone();
                 Self::show_preset_card(ui, folder_has_enabled_content, |ui| {
-                    egui::Grid::new((folder_id, "macro-folder-row"))
-                        .num_columns(6)
-                        .spacing([8.0, 6.0])
-                        .show(ui, |ui| {
-                            if ui
-                                .add_sized(
-                                    [28.0, 24.0],
-                                    Button::new(Self::folder_icon_text(false, 18.0)),
-                                )
-                                .clicked()
-                            {
-                                open_folder_id = Some(folder_id);
+                    ui.horizontal(|ui| {
+                        if ui
+                            .add_sized(
+                                [28.0, 24.0],
+                                Button::new(Self::folder_icon_text(false, 18.0)),
+                            )
+                            .clicked()
+                        {
+                            open_folder_id = Some(folder_id);
+                        }
+                        let response =
+                            ui.add_sized([220.0, 24.0], TextEdit::singleline(&mut folder_name));
+                        Self::apply_vietnamese_input_if_changed(
+                            &response,
+                            self.state.vietnamese_input_enabled,
+                            self.state.vietnamese_input_mode,
+                            &mut folder_name,
+                        );
+                        if response.changed() {
+                            renamed_folder = Some((folder_id, folder_name.clone()));
+                        }
+                        ui.add_sized(
+                            [96.0, 24.0],
+                            egui::Label::new(match language {
+                                UiLanguage::Vietnamese => format!("{folder_group_count} nhóm"),
+                                _ => format!("{folder_group_count} group(s)"),
+                            }),
+                        );
+
+                        ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
+                            if Self::sound_style_remove_button(ui).clicked() {
+                                if folder_group_count > 0 {
+                                    self.confirm_delete_folder_id = Some(folder_id);
+                                } else {
+                                    delete_folder_id = Some(folder_id);
+                                }
                             }
-                            let response =
-                                ui.add_sized([220.0, 24.0], TextEdit::singleline(&mut folder_name));
-                            Self::apply_vietnamese_input_if_changed(
-                                &response,
-                                self.state.vietnamese_input_enabled,
-                                self.state.vietnamese_input_mode,
-                                &mut folder_name,
-                            );
-                            if response.changed() {
-                                renamed_folder = Some((folder_id, folder_name.clone()));
-                            }
-                            ui.add_sized(
-                                [96.0, 24.0],
-                                egui::Label::new(match language {
-                                    UiLanguage::Vietnamese => format!("{folder_group_count} nhóm"),
-                                    _ => format!("{folder_group_count} group(s)"),
-                                }),
-                            );
                             if ui
                                 .add_sized(
                                     [70.0, 24.0],
@@ -12566,30 +12574,8 @@ impl CrosshairApp {
                             {
                                 open_folder_id = Some(folder_id);
                             }
-                            if ui
-                                .add_sized(
-                                    [82.0, 24.0],
-                                    Button::new(Self::tr_lang(language, "Release", "Nhả")),
-                                )
-                                .clicked()
-                            {
-                                self.confirm_release_folder_id = Some(folder_id);
-                            }
-                            if ui
-                                .add_sized(
-                                    [70.0, 24.0],
-                                    Button::new(Self::tr_lang(language, "Delete", "Delete")),
-                                )
-                                .clicked()
-                            {
-                                if folder_group_count > 0 {
-                                    self.confirm_delete_folder_id = Some(folder_id);
-                                } else {
-                                    delete_folder_id = Some(folder_id);
-                                }
-                            }
-                            ui.end_row();
                         });
+                    });
                 });
                 ui.add_space(4.0);
             }
@@ -16009,14 +15995,6 @@ impl CrosshairApp {
                                     ),
                                 )
                                 .changed();
-                            ui.label(
-                                RichText::new(Self::tr_lang(
-                                    language,
-                                    "3D/game mode",
-                                    "Chế độ 3D/game",
-                                ))
-                                .small(),
-                            );
                         });
                         ui.end_row();
                     });
