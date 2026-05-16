@@ -1883,7 +1883,11 @@ mod windows_overlay {
                 && !is_repeat
             {
                 matched_any_window = true;
-                window_actions.push(WindowHotkeyAction::Apply(preset.clone()));
+                if preset.animate_enabled {
+                    window_actions.push(WindowHotkeyAction::Animate(preset.clone()));
+                } else {
+                    window_actions.push(WindowHotkeyAction::Apply(preset.clone()));
+                }
             }
         }
 
@@ -1924,34 +1928,7 @@ mod windows_overlay {
             return Some(false);
         }
 
-        for preset in &hook_state.window_presets {
-            if !preset.enabled {
-                continue;
-            }
-            if !window_focus_matches(
-                preset.target_window_title.as_deref(),
-                &preset.extra_target_window_titles,
-                false,
-            ) {
-                continue;
-            }
-            if preset.animate_enabled
-                && let Some(hotkey) = preset.animate_hotkey.as_ref()
-                && hotkey::binding_matches(hotkey, binding)
-                && !is_repeat
-            {
-                matched_any_window = true;
-                window_actions.push(WindowHotkeyAction::Animate(preset.clone()));
-            }
-            if preset.restore_titlebar_enabled
-                && let Some(hotkey) = preset.titlebar_hotkey.as_ref()
-                && hotkey::binding_matches(hotkey, binding)
-                && !is_repeat
-            {
-                matched_any_window = true;
-                window_actions.push(WindowHotkeyAction::RestoreTitleBar(preset.clone()));
-            }
-        }
+
 
         if !hook_state.macros_master_enabled {
             drop(hook_state);

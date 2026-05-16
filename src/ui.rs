@@ -871,6 +871,15 @@ impl CrosshairApp {
 
     fn sync_macro_presets(&self) {
         let mut macro_groups = self.state.macro_groups.clone();
+        for group in &mut macro_groups {
+            if let Some(folder_id) = group.folder_id {
+                if let Some(folder) = self.state.macro_folders.iter().find(|f| f.id == folder_id) {
+                    if !folder.enabled {
+                        group.enabled = false;
+                    }
+                }
+            }
+        }
         Self::sort_macro_groups(&mut macro_groups);
         let _ = self
             .overlay_tx
@@ -5070,7 +5079,7 @@ impl CrosshairApp {
             ui.horizontal(|ui| {
                 let manual_response = ui
                     .add_sized(
-                        [42.0, 24.0],
+                        [24.0, 24.0],
                         Button::new(Self::window_anchor_icon(WindowAnchor::Manual))
                             .selected(preset.anchor == WindowAnchor::Manual),
                     )
@@ -5091,7 +5100,7 @@ impl CrosshairApp {
                                 let selected = preset.anchor == anchor;
                                 let response = ui
                                     .add_sized(
-                                        [32.0, 22.0],
+                                        [24.0, 24.0],
                                         Button::new(Self::window_anchor_icon(anchor))
                                             .selected(selected),
                                     )
@@ -5105,13 +5114,6 @@ impl CrosshairApp {
                         }
                     });
             });
-
-            ui.add_space(2.0);
-            ui.label(
-                RichText::new(Self::window_anchor_summary(preset.anchor))
-                    .small()
-                    .italics(),
-            );
         });
 
         changed
@@ -10972,12 +10974,6 @@ impl CrosshairApp {
                                         .add(DragValue::new(&mut preset.y).range(-20000..=20000))
                                         .changed();
                                 });
-                                if preset.anchor != WindowAnchor::Manual {
-                                    ui.label(
-                                        RichText::new(format!("Auto X={} Y={}", preset.x, preset.y))
-                                            .italics(),
-                                    );
-                                }
                             });
                             ui.end_row();
 
@@ -11025,92 +11021,16 @@ impl CrosshairApp {
                                 live_sync |= ui
                                     .checkbox(&mut preset.animate_enabled, Self::tr_lang(language, "Enabled", "Enabled"))
                                     .changed();
-                                ui.label(Self::tr_lang(language, "Duration", "Duration"));
-                                live_sync |= ui
-                                    .add(
-                                        DragValue::new(&mut preset.animate_duration_ms)
-                                            .range(60..=10_000)
-                                            .suffix(" ms"),
-                                    )
-                                    .changed();
-                            });
-                            ui.end_row();
-
-                            ui.label(Self::tr_lang(language, "Animate Hotkey", "Animate Hotkey"));
-                            ui.horizontal_wrapped(|ui| {
-                                ui.add_enabled_ui(preset.animate_enabled, |ui| {
-                                    let capture_target =
-                                        CaptureRequest::WindowPresetAnimateHotkey(preset.id);
-                                    let (begin_capture, cancel_capture) =
-                                        Self::render_hotkey_capture_control(
-                                            ui,
-                                            language,
-                                            &mut preset.animate_hotkey,
-                                            &capture_target,
-                                            active_capture_target.as_ref(),
-                                            pending_combo_keys.as_ref(),
-                                            &mut live_sync,
-                                        );
-                                    if begin_capture {
-                                        next_capture_target = Some((
-                                            capture_target,
-                                            format!(
-                                                "Capturing animated preset hotkey for {}.",
-                                                preset.name
-                                            ),
-                                        ));
-                                    }
-                                    if cancel_capture {
-                                        cancel_active_capture = true;
-                                    }
-                                });
-                            });
-                            ui.end_row();
-
-                            ui.label(Self::tr_lang(language, "Restore", "Restore"));
-                            live_sync |= ui
-                                .checkbox(
-                                    &mut preset.restore_titlebar_enabled,
-                                    Self::tr_lang(language, "Separate hotkey", "Separate hotkey"),
-                                )
-                                .on_hover_text(
-                                    Self::tr_lang(
-                                        language,
-                                        "Only adds a second restore hotkey.",
-                                        "Tùy chọn này không đổi hành động Apply bình thường hay Animated Apply. Nó chỉ bật thêm một phím tắt để khôi phục thanh tiêu đề về sau.",
-                                    ),
-                                )
-                                .changed();
-                            ui.end_row();
-
-                            ui.label(Self::tr_lang(language, "Restore Key", "Restore Key"));
-                            ui.horizontal_wrapped(|ui| {
-                                ui.add_enabled_ui(preset.restore_titlebar_enabled, |ui| {
-                                    let capture_target =
-                                        CaptureRequest::WindowPresetTitlebarHotkey(preset.id);
-                                    let (begin_capture, cancel_capture) =
-                                        Self::render_hotkey_capture_control(
-                                            ui,
-                                            language,
-                                            &mut preset.titlebar_hotkey,
-                                            &capture_target,
-                                            active_capture_target.as_ref(),
-                                            pending_combo_keys.as_ref(),
-                                            &mut live_sync,
-                                        );
-                                    if begin_capture {
-                                        next_capture_target = Some((
-                                            capture_target,
-                                            format!(
-                                                "Capturing restore title bar hotkey for {}.",
-                                                preset.name
-                                            ),
-                                        ));
-                                    }
-                                    if cancel_capture {
-                                        cancel_active_capture = true;
-                                    }
-                                });
+                                if preset.animate_enabled {
+                                    ui.label(Self::tr_lang(language, "Duration", "Duration"));
+                                    live_sync |= ui
+                                        .add(
+                                            DragValue::new(&mut preset.animate_duration_ms)
+                                                .range(60..=10_000)
+                                                .suffix(" ms"),
+                                        )
+                                        .changed();
+                                }
                             });
                             ui.end_row();
 
@@ -12553,6 +12473,9 @@ impl CrosshairApp {
         let mut toggle_collapsed_folder_id = None;
         let mut add_group_to_folder_id = None;
         let mut renamed_folder: Option<(u32, String)> = None;
+        let mut toggle_folder_enabled_id = None;
+        let mut enable_all_folder_id = None;
+        let mut disable_all_folder_id = None;
         let mut pending_custom_preset_save: Option<(
             u32,
             u32,
@@ -12580,7 +12503,8 @@ impl CrosshairApp {
                             && group.presets.iter().any(|preset| preset.enabled)
                     });
                     let mut folder_name = folder.name.clone();
-                    Self::show_preset_card(ui, folder_has_enabled_content, |ui| {
+                    let card_active = folder.enabled && folder_has_enabled_content;
+                    Self::show_preset_card(ui, card_active, |ui| {
                         ui.horizontal(|ui| {
                             if ui
                                 .add_sized(
@@ -12590,6 +12514,10 @@ impl CrosshairApp {
                                 .clicked()
                             {
                                 toggle_collapsed_folder_id = Some(folder_id);
+                            }
+                            let mut folder_enabled = folder.enabled;
+                            if ui.checkbox(&mut folder_enabled, "").changed() {
+                                toggle_folder_enabled_id = Some(folder_id);
                             }
                             let response =
                                 ui.add_sized([220.0, 24.0], TextEdit::singleline(&mut folder_name));
@@ -12632,6 +12560,24 @@ impl CrosshairApp {
                                     .clicked()
                                 {
                                     toggle_collapsed_folder_id = Some(folder_id);
+                                }
+                                if ui
+                                    .add_sized(
+                                        [75.0, 24.0],
+                                        Button::new(Self::tr_lang(language, "Disable All", "Tắt hết")),
+                                    )
+                                    .clicked()
+                                {
+                                    disable_all_folder_id = Some(folder_id);
+                                }
+                                if ui
+                                    .add_sized(
+                                        [70.0, 24.0],
+                                        Button::new(Self::tr_lang(language, "Enable All", "Bật hết")),
+                                    )
+                                    .clicked()
+                                {
+                                    enable_all_folder_id = Some(folder_id);
                                 }
                                 if ui
                                     .add_sized(
@@ -12704,7 +12650,7 @@ impl CrosshairApp {
                             };
                             if ui
                                 .add_sized(
-                                    [28.0, 22.0],
+                                    [28.0, 24.0],
                                     Button::new(Self::material_icon_text(star_icon, 15.0).color(
                                         if group.favorite {
                                             Color32::from_rgb(255, 224, 110)
@@ -12730,7 +12676,8 @@ impl CrosshairApp {
                                     self.selected_macro_groups.remove(&group.id);
                                 }
                             }
-                            let has_group_inf_loop = group.enabled
+                            let has_group_inf_loop = self.state.macro_infinite_loop_warning_enabled
+                                && group.enabled
                                 && group.presets.iter().any(|preset| {
                                     preset.enabled
                                         && (
@@ -13259,7 +13206,8 @@ impl CrosshairApp {
                                                 preset.enabled = !preset.enabled;
                                                 live_sync = true;
                                             }
-                                             let has_preset_inf_loop = preset.enabled
+                                             let has_preset_inf_loop = self.state.macro_infinite_loop_warning_enabled
+                                                 && preset.enabled
                                                  && (
                                                      (preset.trigger_mode == MacroTriggerMode::Press && !preset.stop_on_retrigger_immediate)
                                                      || preset.trigger_mode == MacroTriggerMode::Release
@@ -14267,7 +14215,8 @@ impl CrosshairApp {
                                 if !step.enabled {
                                     row_fill = Color32::from_rgba_unmultiplied(62, 62, 62, 220);
                                 }
-                                let has_infinite_loop_warning = preset.enabled
+                                let has_infinite_loop_warning = self.state.macro_infinite_loop_warning_enabled
+                                    && preset.enabled
                                     && (
                                         (preset.trigger_mode == MacroTriggerMode::Press && !preset.stop_on_retrigger_immediate)
                                         || preset.trigger_mode == MacroTriggerMode::Release
