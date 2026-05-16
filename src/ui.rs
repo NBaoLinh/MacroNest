@@ -15581,7 +15581,11 @@ impl CrosshairApp {
         events: &[MousePathEvent],
         desired_height: f32,
     ) {
-        let desired = vec2(ui.available_width().max(560.0), desired_height.max(180.0));
+        let screen_size = Self::screen_size();
+        let aspect_ratio = if screen_size.y > 0.0 { screen_size.x / screen_size.y } else { 16.0 / 9.0 };
+        let width = ui.available_width();
+        let height = (width / aspect_ratio).min(320.0).max(180.0);
+        let desired = vec2(width, height);
         let (canvas_rect, _) = ui.allocate_exact_size(desired, Sense::hover());
         let draw_rect = canvas_rect.shrink(8.0);
         ui.painter().rect_filled(
@@ -15614,21 +15618,12 @@ impl CrosshairApp {
             return;
         }
 
-        let min_x = moves.iter().map(|event| event.x).min().unwrap_or(0) as f32;
-        let max_x = moves.iter().map(|event| event.x).max().unwrap_or(1) as f32;
-        let min_y = moves.iter().map(|event| event.y).min().unwrap_or(0) as f32;
-        let max_y = moves.iter().map(|event| event.y).max().unwrap_or(1) as f32;
-        let span_x = (max_x - min_x).max(1.0);
-        let span_y = (max_y - min_y).max(1.0);
-        let scale = ((draw_rect.width() - 20.0) / span_x)
-            .min((draw_rect.height() - 20.0) / span_y)
-            .max(0.01);
-        let content_size = vec2(span_x * scale, span_y * scale);
-        let offset = draw_rect.center().to_vec2() - content_size * 0.5;
+        let scale_x = draw_rect.width() / screen_size.x.max(1.0);
+        let scale_y = draw_rect.height() / screen_size.y.max(1.0);
         let to_pos = |event: &MousePathEvent| {
             egui::pos2(
-                offset.x + (event.x as f32 - min_x) * scale,
-                offset.y + (event.y as f32 - min_y) * scale,
+                draw_rect.left() + event.x as f32 * scale_x,
+                draw_rect.top() + event.y as f32 * scale_y,
             )
         };
         let mut last = None;
@@ -15686,8 +15681,8 @@ impl CrosshairApp {
             ui.label(
                 RichText::new(Self::tr_lang(
                     language,
-                    "Restore",
-                    "Khôi phục khi thoát",
+                    "Restore sensitivity on exit",
+                    "Khôi phục độ nhạy khi tắt app",
                 ))
                 .strong(),
             );
@@ -15701,6 +15696,19 @@ impl CrosshairApp {
                         .range(1..=20),
                 )
                 .changed();
+
+            if let Some(current) = Self::current_mouse_speed() {
+                ui.add_space(14.0);
+                ui.label(
+                    RichText::new(format!(
+                        "{} {}",
+                        Self::tr_lang(language, "Current sensitivity:", "Độ nhạy hiện tại:"),
+                        current
+                    ))
+                    .strong()
+                    .color(Color32::from_rgb(96, 172, 224)),
+                );
+            }
         });
 
         for index in 0..self.state.mouse_sensitivity_presets.len() {
@@ -15847,32 +15855,6 @@ impl CrosshairApp {
                             .add(Slider::new(&mut preset.speed, 1..=20).show_value(true))
                             .changed();
                         ui.end_row();
-
-                        ui.label(Self::tr_lang(
-                            language,
-                            "Live",
-                            "Tốc độ hiện tại",
-                        ));
-                        ui.horizontal_wrapped(|ui| match Self::current_mouse_speed() {
-                            Some(current_speed) => {
-                                ui.monospace(format!("{current_speed}"));
-                                if current_speed == preset.speed {
-                                    ui.label(Self::tr_lang(
-                                        language,
-                                        "matches this preset",
-                                        "khớp với preset này",
-                                    ));
-                                }
-                            }
-                            None => {
-                                ui.label(Self::tr_lang(
-                                    language,
-                                    "Unavailable",
-                                    "Không đọc được",
-                                ));
-                            }
-                        });
-                        ui.end_row();
                     });
             });
         }
@@ -16001,39 +15983,21 @@ impl CrosshairApp {
                         });
                         ui.end_row();
 
-                        ui.horizontal_wrapped(|ui| {
-                            if self.active_mouse_record_preset_id == Some(preset.id) {
-                                ui.label(
-                                    RichText::new(Self::tr_lang(
-                                        language,
-                                        "Recording via hotkey...",
-                                        "Đang ghi bằng phím tắt...",
-                                    ))
-                                    .color(Color32::from_rgb(255, 96, 96))
-                                    .strong(),
-                                );
-                            }
-                            if ui
-                                .button(Self::tr_lang(
+                        if self.active_mouse_record_preset_id == Some(preset.id) {
+                            ui.label("");
+                            ui.label(
+                                RichText::new(Self::tr_lang(
                                     language,
-                                    "Clear path",
-                                    "Xóa đường chuột",
+                                    "Recording via hotkey...",
+                                    "Đang ghi bằng phím tắt...",
                                 ))
-                                .clicked()
-                            {
-                                preset.events.clear();
-                                live_sync = true;
-                            }
-                            ui.label(match language {
-                                UiLanguage::Vietnamese => {
-                                    format!("{} sự kiện", preset.events.len())
-                                }
-                                _ => format!("{} events", preset.events.len()),
-                            });
-                        });
-                        ui.end_row();
+                                .color(Color32::from_rgb(255, 96, 96))
+                                .strong(),
+                            );
+                            ui.end_row();
+                        }
 
-                        ui.label(Self::tr_lang(language, "Replay mode", "Chế độ phát lại"));
+                        ui.label("");
                         ui.horizontal_wrapped(|ui| {
                             live_sync |= ui
                                 .checkbox(
