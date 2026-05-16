@@ -11086,7 +11086,7 @@ impl CrosshairApp {
                         });
                     if preset.preview_enabled {
                         ui.add_space(8.0);
-                        Self::render_window_preset_preview(ui, language, preset, preview.as_ref());
+                        Self::render_window_preset_preview(ui, language, preset, preview.as_ref(), &mut live_sync);
                     }
                 });
             }
@@ -15603,9 +15603,24 @@ impl CrosshairApp {
     fn render_window_preset_preview(
         ui: &mut egui::Ui,
         language: UiLanguage,
-        preset: &WindowPreset,
+        preset: &mut WindowPreset,
         preview: Option<&ZoomPreviewView>,
+        live_sync: &mut bool,
     ) {
+        #[derive(Clone, Copy, Debug, PartialEq, Eq)]
+        enum DragHandle {
+            None,
+            Center,
+            TopLeft,
+            TopRight,
+            BottomLeft,
+            BottomRight,
+            Left,
+            Right,
+            Top,
+            Bottom,
+        }
+
         let screen_size = Self::screen_size();
         let aspect_ratio = if screen_size.y > 0.0 { screen_size.x / screen_size.y } else { 16.0 / 9.0 };
         let width = ui.available_width();
@@ -15617,7 +15632,7 @@ impl CrosshairApp {
             (width, height)
         };
         let desired = vec2(desired_width, desired_height);
-        let (canvas_rect, _) = ui.allocate_exact_size(desired, Sense::hover());
+        let (canvas_rect, response) = ui.allocate_exact_size(desired, Sense::drag());
         let draw_rect = canvas_rect.shrink(4.0);
 
         // Draw monitor screen background
@@ -15651,6 +15666,243 @@ impl CrosshairApp {
         let h = wh as f32 * scale_y;
 
         let window_rect = egui::Rect::from_min_size(egui::pos2(left, top), egui::vec2(w, h));
+
+        // Interaction Handling
+        let drag_id = ui.make_persistent_id((preset.id, "preview-drag-handle"));
+        let mut active_handle: DragHandle = ui.data_mut(|d| d.get_temp(drag_id).unwrap_or(DragHandle::None));
+
+        if response.drag_started() {
+            if let Some(pointer_pos) = response.interact_pointer_pos() {
+                let dist_tl = pointer_pos.distance(window_rect.left_top());
+                let dist_tr = pointer_pos.distance(window_rect.right_top());
+                let dist_bl = pointer_pos.distance(window_rect.left_bottom());
+                let dist_br = pointer_pos.distance(window_rect.right_bottom());
+                
+                active_handle = if dist_tl < 12.0 {
+                    DragHandle::TopLeft
+                } else if dist_tr < 12.0 {
+                    DragHandle::TopRight
+                } else if dist_bl < 12.0 {
+                    DragHandle::BottomLeft
+                } else if dist_br < 12.0 {
+                    DragHandle::BottomRight
+                } else if (pointer_pos.x - window_rect.left()).abs() < 8.0 && pointer_pos.y >= window_rect.top() && pointer_pos.y <= window_rect.bottom() {
+                    DragHandle::Left
+                } else if (pointer_pos.x - window_rect.right()).abs() < 8.0 && pointer_pos.y >= window_rect.top() && pointer_pos.y <= window_rect.bottom() {
+                    DragHandle::Right
+                } else if (pointer_pos.y - window_rect.top()).abs() < 8.0 && pointer_pos.x >= window_rect.left() && pointer_pos.x <= window_rect.right() {
+                    DragHandle::Top
+                } else if (pointer_pos.y - window_rect.bottom()).abs() < 8.0 && pointer_pos.x >= window_rect.left() && pointer_pos.x <= window_rect.right() {
+                    DragHandle::Bottom
+                } else if window_rect.contains(pointer_pos) {
+                    DragHandle::Center
+                } else {
+                    DragHandle::None
+                };
+                ui.data_mut(|d| d.insert_temp(drag_id, active_handle));
+            }
+        }
+
+        if response.dragged() && active_handle != DragHandle::None {
+            let delta = response.drag_delta();
+            let delta_x = delta.x / scale_x;
+            let delta_y = delta.y / scale_y;
+            let shift_pressed = ui.input(|i| i.modifiers.shift);
+            let original_aspect = if preset.height > 0 { preset.width as f32 / preset.height as f32 } else { 16.0 / 9.0 };
+
+            *live_sync = true;
+
+            match active_handle {
+                DragHandle::Center => {
+                    preset.x += delta_x.round() as i32;
+                    preset.y += delta_y.round() as i32;
+                }
+                DragHandle::Right => {
+                    let new_w = (preset.width as f32 + delta_x).max(10.0);
+                    if shift_pressed {
+                        let new_h = new_w / original_aspect;
+                        preset.width = new_w.round() as i32;
+                        preset.height = new_h.round() as i32;
+                    } else {
+                        preset.width = new_w.round() as i32;
+                    }
+                }
+                DragHandle::Left => {
+                    let new_w = (preset.width as f32 - delta_x).max(10.0);
+                    let actual_w = new_w.round() as i32;
+                    let dx = preset.width - actual_w;
+                    if shift_pressed {
+                        let new_h = new_w / original_aspect;
+                        let actual_h = new_h.round() as i32;
+                        let dy = preset.height - actual_h;
+                        preset.x += dx;
+                        preset.y += dy;
+                        preset.width = actual_w;
+                        preset.height = actual_h;
+                    } else {
+                        preset.x += dx;
+                        preset.width = actual_w;
+                    }
+                }
+                DragHandle::Bottom => {
+                    let new_h = (preset.height as f32 + delta_y).max(10.0);
+                    if shift_pressed {
+                        let new_w = new_h * original_aspect;
+                        preset.width = new_w.round() as i32;
+                        preset.height = new_h.round() as i32;
+                    } else {
+                        preset.height = new_h.round() as i32;
+                    }
+                }
+                DragHandle::Top => {
+                    let new_h = (preset.height as f32 - delta_y).max(10.0);
+                    let actual_h = new_h.round() as i32;
+                    let dy = preset.height - actual_h;
+                    if shift_pressed {
+                        let new_w = new_h * original_aspect;
+                        let actual_w = new_w.round() as i32;
+                        let dx = preset.width - actual_w;
+                        preset.x += dx;
+                        preset.y += dy;
+                        preset.width = actual_w;
+                        preset.height = actual_h;
+                    } else {
+                        preset.y += dy;
+                        preset.height = actual_h;
+                    }
+                }
+                DragHandle::BottomRight => {
+                    let new_w = (preset.width as f32 + delta_x).max(10.0);
+                    if shift_pressed {
+                        let new_h = new_w / original_aspect;
+                        preset.width = new_w.round() as i32;
+                        preset.height = new_h.round() as i32;
+                    } else {
+                        let new_h = (preset.height as f32 + delta_y).max(10.0);
+                        preset.width = new_w.round() as i32;
+                        preset.height = new_h.round() as i32;
+                    }
+                }
+                DragHandle::TopLeft => {
+                    let new_w = (preset.width as f32 - delta_x).max(10.0);
+                    if shift_pressed {
+                        let new_h = new_w / original_aspect;
+                        let actual_w = new_w.round() as i32;
+                        let actual_h = new_h.round() as i32;
+                        preset.x += preset.width - actual_w;
+                        preset.y += preset.height - actual_h;
+                        preset.width = actual_w;
+                        preset.height = actual_h;
+                    } else {
+                        let new_h = (preset.height as f32 - delta_y).max(10.0);
+                        let actual_w = new_w.round() as i32;
+                        let actual_h = new_h.round() as i32;
+                        preset.x += preset.width - actual_w;
+                        preset.y += preset.height - actual_h;
+                        preset.width = actual_w;
+                        preset.height = actual_h;
+                    }
+                }
+                DragHandle::TopRight => {
+                    let new_w = (preset.width as f32 + delta_x).max(10.0);
+                    if shift_pressed {
+                        let new_h = new_w / original_aspect;
+                        let actual_w = new_w.round() as i32;
+                        let actual_h = new_h.round() as i32;
+                        preset.y += preset.height - actual_h;
+                        preset.width = actual_w;
+                        preset.height = actual_h;
+                    } else {
+                        let new_h = (preset.height as f32 - delta_y).max(10.0);
+                        let actual_w = new_w.round() as i32;
+                        let actual_h = new_h.round() as i32;
+                        preset.y += preset.height - actual_h;
+                        preset.width = actual_w;
+                        preset.height = actual_h;
+                    }
+                }
+                DragHandle::BottomLeft => {
+                    let new_w = (preset.width as f32 - delta_x).max(10.0);
+                    if shift_pressed {
+                        let new_h = new_w / original_aspect;
+                        let actual_w = new_w.round() as i32;
+                        let actual_h = new_h.round() as i32;
+                        preset.x += preset.width - actual_w;
+                        preset.width = actual_w;
+                        preset.height = actual_h;
+                    } else {
+                        let new_h = (preset.height as f32 + delta_y).max(10.0);
+                        let actual_w = new_w.round() as i32;
+                        let actual_h = new_h.round() as i32;
+                        preset.x += preset.width - actual_w;
+                        preset.width = actual_w;
+                        preset.height = actual_h;
+                    }
+                }
+                DragHandle::None => {}
+            }
+        }
+
+        if response.drag_released() {
+            active_handle = DragHandle::None;
+            ui.data_mut(|d| d.insert_temp(drag_id, active_handle));
+        }
+
+        if response.hovered() || active_handle != DragHandle::None {
+            if let Some(pointer_pos) = ui.input(|i| i.pointer.hover_pos()) {
+                let dist_tl = pointer_pos.distance(window_rect.left_top());
+                let dist_tr = pointer_pos.distance(window_rect.right_top());
+                let dist_bl = pointer_pos.distance(window_rect.left_bottom());
+                let dist_br = pointer_pos.distance(window_rect.right_bottom());
+
+                let handle_to_use = if active_handle != DragHandle::None {
+                    active_handle
+                } else if dist_tl < 12.0 {
+                    DragHandle::TopLeft
+                } else if dist_tr < 12.0 {
+                    DragHandle::TopRight
+                } else if dist_bl < 12.0 {
+                    DragHandle::BottomLeft
+                } else if dist_br < 12.0 {
+                    DragHandle::BottomRight
+                } else if (pointer_pos.x - window_rect.left()).abs() < 8.0 && pointer_pos.y >= window_rect.top() && pointer_pos.y <= window_rect.bottom() {
+                    DragHandle::Left
+                } else if (pointer_pos.x - window_rect.right()).abs() < 8.0 && pointer_pos.y >= window_rect.top() && pointer_pos.y <= window_rect.bottom() {
+                    DragHandle::Right
+                } else if (pointer_pos.y - window_rect.top()).abs() < 8.0 && pointer_pos.x >= window_rect.left() && pointer_pos.x <= window_rect.right() {
+                    DragHandle::Top
+                } else if (pointer_pos.y - window_rect.bottom()).abs() < 8.0 && pointer_pos.x >= window_rect.left() && pointer_pos.x <= window_rect.right() {
+                    DragHandle::Bottom
+                } else if window_rect.contains(pointer_pos) {
+                    DragHandle::Center
+                } else {
+                    DragHandle::None
+                };
+
+                match handle_to_use {
+                    DragHandle::TopLeft | DragHandle::BottomRight => {
+                        ui.ctx().set_cursor_icon(egui::CursorIcon::ResizeNwSe);
+                    }
+                    DragHandle::TopRight | DragHandle::BottomLeft => {
+                        ui.ctx().set_cursor_icon(egui::CursorIcon::ResizeNeSw);
+                    }
+                    DragHandle::Left | DragHandle::Right => {
+                        ui.ctx().set_cursor_icon(egui::CursorIcon::ResizeHorizontal);
+                    }
+                    DragHandle::Top | DragHandle::Bottom => {
+                        ui.ctx().set_cursor_icon(egui::CursorIcon::ResizeVertical);
+                    }
+                    DragHandle::Center => {
+                        if active_handle == DragHandle::Center {
+                            ui.ctx().set_cursor_icon(egui::CursorIcon::Grabbing);
+                        } else {
+                            ui.ctx().set_cursor_icon(egui::CursorIcon::Grab);
+                        }
+                    }
+                    _ => {}
+                }
+            }
+        }
 
         // Clip/intersect window rect with draw_rect
         let clipped_window_rect = window_rect.intersect(draw_rect);
@@ -15700,7 +15952,7 @@ impl CrosshairApp {
             );
 
             // Size text label
-            let size_text = format!("{}x{}", ww, wh);
+            let size_text = format!("{}x{}", preset.width, preset.height);
             ui.painter().text(
                 clipped_window_rect.left_top() + egui::vec2(4.0, 4.0),
                 egui::Align2::LEFT_TOP,
