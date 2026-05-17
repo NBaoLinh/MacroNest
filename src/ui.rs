@@ -13623,7 +13623,12 @@ impl CrosshairApp {
                                                  )
                                                  && preset.steps.iter().any(|s| s.action == MacroAction::LoopStart && s.is_infinite_loop());
 
-                                             if has_preset_inf_loop {
+                                             let has_preset_vision_leak = preset.enabled
+                                                 && (preset.trigger_mode == MacroTriggerMode::Press || preset.trigger_mode == MacroTriggerMode::Release)
+                                                 && preset.steps.iter().any(|s| s.action == MacroAction::StartVisionSearch && s.enabled)
+                                                 && !preset.steps.iter().any(|s| s.action == MacroAction::StopVision && s.enabled);
+
+                                             if has_preset_inf_loop || has_preset_vision_leak {
                                                  ui.add_space(4.0);
                                                  let response = ui.add_sized([24.0, 24.0], egui::Button::new(
                                                      Self::material_icon_text(0xe002, 18.0).color(Color32::from_rgb(255, 90, 0))
@@ -13633,13 +13638,22 @@ impl CrosshairApp {
                                                      egui::show_tooltip_at_pointer(ui.ctx(), ui.layer_id(), response.id.with("preset-tip"), |ui| {
                                                          ui.horizontal(|ui| {
                                                              ui.label(Self::material_icon_text(0xe002, 14.0).color(Color32::from_rgb(255, 90, 0)));
-                                                             ui.label(RichText::new(Self::tr_lang(language, "INFINITE LOOP WARNING", "CẢNH BÁO LẶP VÔ HẠN")).strong().color(Color32::from_rgb(255, 90, 0)));
+                                                             ui.label(RichText::new(Self::tr_lang(language, "MACRO WARNING", "CẢNH BÁO MACRO")).strong().color(Color32::from_rgb(255, 90, 0)));
                                                          });
-                                                         ui.label(Self::tr_lang(
-                                                             language,
-                                                             "This macro contains an infinite loop and is active. Ensure you know how to stop it to avoid system hang!",
-                                                             "Macro này chứa vòng lặp vô hạn và đang ở chế độ tự kích hoạt. Hãy đảm bảo bạn đã biết cách dừng nó để tránh treo máy!"
-                                                         ));
+                                                         if has_preset_inf_loop {
+                                                             ui.label(Self::tr_lang(
+                                                                 language,
+                                                                 "This macro contains an infinite loop and is active. Ensure you know how to stop it to avoid system hang!",
+                                                                 "Macro này chứa vòng lặp vô hạn và đang ở chế độ tự kích hoạt. Hãy đảm bảo bạn đã biết cách dừng nó để tránh treo máy!"
+                                                             ));
+                                                         }
+                                                         if has_preset_vision_leak {
+                                                             ui.label(Self::tr_lang(
+                                                                 language,
+                                                                 "This macro starts image search (Press/Release trigger) but does not contain a 'StopImageSearch' action! This could lead to a persistent background CPU thread. Add a 'StopImageSearch' step or change trigger to 'Hold'.",
+                                                                 "Macro này bắt đầu tìm kiếm hình ảnh (chế độ Nhấn/Thả) nhưng không có bước dừng tìm ảnh! Điều này có thể dẫn tới luồng chạy ngầm liên tục gây hao CPU. Hãy thêm bước dừng tìm ảnh hoặc đổi trigger sang Giữ (Hold)."
+                                                             ));
+                                                         }
                                                      });
                                                  }
                                              }
