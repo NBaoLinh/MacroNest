@@ -1798,15 +1798,11 @@ mod windows_overlay {
             let hook_state = HOOK_STATE.lock();
             let mut found = None;
             for group in &hook_state.macro_groups {
-                if group.enabled {
-                    for preset in &group.presets {
-                        if preset.enabled {
-                            if let Some(record_hotkey) = &preset.record_hotkey {
-                                if hotkey::binding_matches(record_hotkey, binding) {
-                                    found = Some((group.id, preset.id, group.name.clone()));
-                                    break;
-                                }
-                            }
+                for preset in &group.presets {
+                    if let Some(record_hotkey) = &preset.record_hotkey {
+                        if hotkey::binding_matches(record_hotkey, binding) {
+                            found = Some((group.id, preset.id, group.name.clone()));
+                            break;
                         }
                     }
                 }
