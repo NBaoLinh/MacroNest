@@ -16109,9 +16109,11 @@ impl CrosshairApp {
         } else {
             (width, height)
         };
-        let desired = vec2(desired_width, desired_height);
-        let (canvas_rect, _) = ui.allocate_exact_size(desired, Sense::hover());
-        let draw_rect = canvas_rect.shrink(8.0);
+        let (canvas_rect, _) = ui.allocate_exact_size(vec2(width, desired_height), Sense::hover());
+        let draw_rect = egui::Rect::from_center_size(
+            canvas_rect.center(),
+            vec2(desired_width, desired_height)
+        ).shrink(8.0);
         ui.painter().rect_filled(
             draw_rect,
             8.0,
@@ -16122,21 +16124,6 @@ impl CrosshairApp {
             8.0,
             egui::Stroke::new(1.0, Color32::from_rgb(104, 148, 124)),
             egui::StrokeKind::Outside,
-        );
-
-        // Draw monitor label
-        let monitor_label = format!(
-            "{} ({}x{})",
-            Self::tr_lang(language, "Monitor Screen", "Màn hình PC"),
-            screen_size.x as i32,
-            screen_size.y as i32
-        );
-        ui.painter().text(
-            draw_rect.center_bottom() - egui::vec2(0.0, 4.0),
-            egui::Align2::CENTER_BOTTOM,
-            &monitor_label,
-            egui::FontId::proportional(10.0),
-            Color32::from_rgb(104, 148, 124),
         );
 
         let moves = events
