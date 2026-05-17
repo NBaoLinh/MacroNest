@@ -13079,7 +13079,14 @@ impl CrosshairApp {
                                         )
                                         && preset.steps.iter().any(|s| s.action == MacroAction::LoopStart && s.is_infinite_loop())
                                 });
-                            if has_group_inf_loop {
+                            let has_group_vision_leak = group.enabled
+                                && group.presets.iter().any(|preset| {
+                                    preset.enabled
+                                        && (preset.trigger_mode == MacroTriggerMode::Press || preset.trigger_mode == MacroTriggerMode::Release)
+                                        && preset.steps.iter().any(|s| s.action == MacroAction::StartVisionSearch && s.enabled)
+                                        && !preset.steps.iter().any(|s| s.action == MacroAction::StopVision && s.enabled)
+                                });
+                            if has_group_inf_loop || has_group_vision_leak {
                                 ui.add_space(2.0);
                                 let response = ui.add_sized([24.0, 24.0], egui::Button::new(
                                     Self::material_icon_text(0xe002, 18.0).color(Color32::from_rgb(255, 10, 10))
@@ -13091,11 +13098,20 @@ impl CrosshairApp {
                                             ui.label(Self::material_icon_text(0xe002, 14.0).color(Color32::from_rgb(255, 10, 10)));
                                             ui.label(RichText::new(Self::tr_lang(language, "CRITICAL WARNING", "CẢNH BÁO NGUY HIỂM")).strong().color(Color32::from_rgb(255, 10, 10)));
                                         });
-                                        ui.label(Self::tr_lang(
-                                            language,
-                                            "This group contains one or more enabled infinite loop macros! Enabling this group could lead to persistent looping upon keypress.",
-                                            "Nhóm macro này chứa một hoặc nhiều macro bị lặp vô tận đang bật! Kích hoạt nhóm này có thể dẫn tới lặp vĩnh viễn khi bấm phím."
-                                        ));
+                                        if has_group_inf_loop {
+                                            ui.label(Self::tr_lang(
+                                                language,
+                                                "This group contains one or more enabled infinite loop macros! Enabling this group could lead to persistent looping upon keypress.",
+                                                "Nhóm macro này chứa một hoặc nhiều macro bị lặp vô tận đang bật! Kích hoạt nhóm này có thể dẫn tới lặp vĩnh viễn khi bấm phím."
+                                            ));
+                                        }
+                                        if has_group_vision_leak {
+                                            ui.label(Self::tr_lang(
+                                                language,
+                                                "This group contains one or more macros that start image search (Press/Release trigger) but never stop it! This could cause background CPU thread leaks.",
+                                                "Nhóm macro này chứa một hoặc nhiều macro bắt đầu tìm ảnh (kích hoạt bằng Nhấn/Thả) nhưng không dừng lại! Điều này có thể gây chạy luồng ngầm liên tục hao CPU."
+                                            ));
+                                        }
                                     });
                                 }
                                 ui.add_space(2.0);
