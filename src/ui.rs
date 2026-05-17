@@ -13443,25 +13443,25 @@ impl CrosshairApp {
                                             let mouse_trigger_options = [
                                                 (
                                                     "MouseLeft",
-                                                    Self::tr_lang(language, "LClick", "LClick"),
+                                                    Self::tr_lang(language, "Left Click", "Click Trái"),
                                                 ),
                                                 (
                                                     "MouseRight",
-                                                    Self::tr_lang(language, "RClick", "RClick"),
+                                                    Self::tr_lang(language, "Right Click", "Click Phải"),
                                                 ),
                                                 (
                                                     "MouseMiddle",
-                                                    Self::tr_lang(language, "MClick", "MClick"),
+                                                    Self::tr_lang(language, "Middle Click", "Click Giữa"),
                                                 ),
-                                                ("MouseX1", Self::tr_lang(language, "X1", "X1")),
-                                                ("MouseX2", Self::tr_lang(language, "X2", "X2")),
+                                                ("MouseX1", Self::tr_lang(language, "Mouse X1", "Nút Phụ 1 (X1)")),
+                                                ("MouseX2", Self::tr_lang(language, "Mouse X2", "Nút Phụ 2 (X2)")),
                                                 (
                                                     "MouseWheelUp",
-                                                    Self::tr_lang(language, "WhUp", "WhUp"),
+                                                    Self::tr_lang(language, "Wheel Up", "Cuộn Lên"),
                                                 ),
                                                 (
                                                     "MouseWheelDown",
-                                                    Self::tr_lang(language, "WhDn", "WhDn"),
+                                                    Self::tr_lang(language, "Wheel Down", "Cuộn Xuống"),
                                                 ),
                                             ];
                                             let selected_mouse_key =
@@ -13499,7 +13499,7 @@ impl CrosshairApp {
                                                         preset.id,
                                                         "mouse-trigger-dropdown",
                                                     ))
-                                                    .width(72.0)
+                                                    .width(96.0)
                                                     .selected_text(selected_mouse_label)
                                                     .show_ui(ui, |ui| {
                                                         for (option_key, option_label) in
