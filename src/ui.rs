@@ -11090,8 +11090,8 @@ impl CrosshairApp {
                             ui.add_space(6.0);
                             if ui
                                 .add_sized(
-                                    [56.0, 24.0],
-                                    Button::new(Self::ai_badge_text(true))
+                                    [40.0, 24.0],
+                                    Button::new(Self::ai_badge_text(false))
                                         .fill(Self::ai_badge_fill())
                                         .stroke(Self::ai_badge_stroke())
                                         .corner_radius(9.0),
