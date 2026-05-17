@@ -15981,6 +15981,7 @@ impl CrosshairApp {
             }
             self.persist();
         }
+        ui.add_space((ui.ctx().screen_rect().height() - 250.0).max(0.0));
     }
 
     fn render_window_preset_preview(
@@ -18361,9 +18362,11 @@ impl CrosshairApp {
                         .corner_radius(24.0)
                         .inner_margin(Margin::same(16))
                         .show(ui, |ui| {
-                            ui.set_min_size(panel_size);
+                            ui.set_min_width(panel_size.x);
+                            ui.set_max_width(panel_size.x);
                             ui.vertical(|ui| {
                                 ui.horizontal(|ui| {
+                                    ui.set_min_width(ui.available_width());
                                     ui.vertical(|ui| {
                                         ui.label(RichText::new("AI Macro").strong());
                                         ui.label(
@@ -18524,9 +18527,11 @@ impl CrosshairApp {
                         .corner_radius(24.0)
                         .inner_margin(Margin::same(16))
                         .show(ui, |ui| {
-                            ui.set_min_size(panel_size);
+                            ui.set_min_width(panel_size.x);
+                            ui.set_max_width(panel_size.x);
                             ui.vertical(|ui| {
                                 ui.horizontal(|ui| {
+                                    ui.set_min_width(ui.available_width());
                                     ui.vertical(|ui| {
                                         ui.label(RichText::new("AI Custom").strong());
                                         ui.label(
@@ -19106,14 +19111,26 @@ impl CrosshairApp {
                         ui.label(Self::material_icon_text(0xeb8e, 15.0));
                         ui.end_row();
 
-                        ui.label(Self::tr_lang(language, "Command", "Command"));
+                        ui.horizontal(|ui| {
+                            ui.label(Self::tr_lang(language, "Command", "Command"));
+                            let ai_btn = Button::new(Self::ai_badge_text(true))
+                                .fill(Self::ai_badge_fill())
+                                .stroke(Self::ai_badge_stroke())
+                                .corner_radius(6.0);
+                            if ui.add_sized([42.0, 18.0], ai_btn)
+                                .on_hover_text(Self::tr_lang(language, "Generate or edit command with AI", "Tạo hoặc sửa câu lệnh bằng AI"))
+                                .clicked()
+                            {
+                                open_ai_dialog = Some(preset.id);
+                            }
+                        });
                         let command_hint = RichText::new(Self::tr_lang(
                             language,
                             "Example: shutdown /s /t 0",
                             "Example: shutdown /s /t 0",
                         ))
                         .italics()
-                        .color(ui.visuals().weak_text_color());
+                        .color(Color32::from_rgba_unmultiplied(120, 120, 120, 140));
                         changed |= ui
                             .add_sized(
                                 [ui.available_width().max(240.0), 92.0],
