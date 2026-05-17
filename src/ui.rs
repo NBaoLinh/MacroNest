@@ -5321,8 +5321,20 @@ impl CrosshairApp {
         if response.dragged() && active_handle != SelectionDragHandle::None {
             let delta = response.drag_delta();
             let shift_pressed = ui.input(|i| i.modifiers.shift);
-            let aspect = if rect.height() > 0.0 { rect.width() / rect.height() } else { 16.0 / 9.0 };
-            let lock_aspect = keep_aspect_ratio.unwrap_or(if shift_pressed { aspect } else { 0.0 });
+            let target_aspect = if let Some(preview_frame) = preview {
+                if preview_frame.logical_height > 0 {
+                    preview_frame.logical_width as f32 / preview_frame.logical_height as f32
+                } else {
+                    16.0 / 9.0
+                }
+            } else {
+                if screen_size.y > 0.0 {
+                    screen_size.x / screen_size.y
+                } else {
+                    16.0 / 9.0
+                }
+            };
+            let lock_aspect = keep_aspect_ratio.unwrap_or(if shift_pressed { target_aspect } else { 0.0 });
 
             changed = true;
 
