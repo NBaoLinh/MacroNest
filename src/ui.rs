@@ -14666,9 +14666,8 @@ impl CrosshairApp {
                                     .inner_margin(egui::Margin::symmetric(4, 2))
                                     .show(ui, |ui| {
                                         ui.horizontal(|ui| {
-                                            let select_label = if is_selected { "[x]" } else { "[ ]" };
                                             if ui
-                                                .add_sized([22.0, 18.0], Button::new("+"))
+                                                .add_sized([22.0, 20.0], Button::new(Self::material_icon_text(0xe145, 12.0)))
                                                 .on_hover_text(Self::tr_lang(language, "Add a new step below this one", "Thêm một bước mới phía dưới"))
                                                 .clicked()
                                             {
@@ -14676,7 +14675,7 @@ impl CrosshairApp {
                                             }
                                             if ui
                                                 .add_sized(
-                                                    [28.0, 18.0],
+                                                    [28.0, 20.0],
                                                     Button::new(Self::ai_badge_text(false))
                                                         .fill(Self::ai_badge_fill())
                                                         .stroke(Self::ai_badge_stroke())
@@ -14695,8 +14694,13 @@ impl CrosshairApp {
                                                     MacroAiMode::AppendSteps,
                                                 ));
                                             }
+                                            let select_icon = if is_selected {
+                                                Self::material_icon_text(0xe834, 12.0).color(Color32::from_rgb(90, 190, 255))
+                                            } else {
+                                                Self::material_icon_text(0xe835, 12.0)
+                                            };
                                             let select_response = ui
-                                                .add_sized([24.0, 18.0], Button::new(select_label));
+                                                .add_sized([22.0, 20.0], Button::new(select_icon));
                                             if select_response.clicked() {
                                                 pending_step_selection = Some((
                                                     group.id,
@@ -14705,21 +14709,23 @@ impl CrosshairApp {
                                                     ui.input(|input| input.modifiers.ctrl),
                                                 ));
                                             }
-                                            live_sync |= ui
-                                                .add_sized(
-                                                    [18.0, 18.0],
-                                                    egui::Checkbox::new(&mut step.enabled, ""),
-                                                )
-                                                .on_hover_text(Self::tr_lang(
-                                                    language,
-                                                    "Enable this step",
-                                                    "Bật bước này",
-                                                ))
-                                                .changed();
+                                            let enabled_icon = if step.enabled {
+                                                Self::material_icon_text(0xe5ca, 12.0).color(Color32::from_rgb(0, 255, 170))
+                                            } else {
+                                                Self::material_icon_text(0xe5cd, 12.0).color(Color32::from_rgb(180, 180, 180))
+                                            };
+                                            if ui
+                                                .add_sized([22.0, 20.0], Button::new(enabled_icon))
+                                                .on_hover_text(Self::tr_lang(language, "Toggle step enabled", "Bật/Tắt bước này"))
+                                                .clicked()
+                                            {
+                                                step.enabled = !step.enabled;
+                                                live_sync = true;
+                                            }
                                             if ui
                                                 .add_sized(
-                                                    [28.0, 18.0],
-                                                    Button::new(Self::material_icon_text(0xe872, 18.0)),
+                                                    [22.0, 20.0],
+                                                    Button::new(Self::material_icon_text(0xe872, 13.0)),
                                                 )
                                                 .on_hover_text(Self::tr_lang(
                                                     language,
@@ -14732,8 +14738,8 @@ impl CrosshairApp {
                                             }
                                             let drag_handle = ui
                                                 .add_sized(
-                                                    [24.0, 18.0],
-                                                    Button::new(RichText::new("::").monospace())
+                                                    [22.0, 20.0],
+                                                    Button::new(RichText::new("::").monospace().strong().size(11.0))
                                                         .sense(Sense::drag()),
                                                 )
                                                 .on_hover_cursor(egui::CursorIcon::Grab);
