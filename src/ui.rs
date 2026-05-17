@@ -18966,11 +18966,12 @@ impl CrosshairApp {
                             changed = true;
                         }
                         if ui
-                            .add(
+                            .add_sized(
+                                [40.0, 24.0],
                                 Button::new(Self::ai_badge_text(false))
                                     .fill(Self::ai_badge_fill())
                                     .stroke(Self::ai_badge_stroke())
-                                    .min_size(vec2(34.0, 24.0)),
+                                    .corner_radius(9.0),
                             )
                             .clicked()
                         {
