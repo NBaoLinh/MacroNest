@@ -1302,7 +1302,8 @@ mod windows_overlay {
                     _ => {}
                 }
             }
-            if is_ui_in_foreground() {
+            let is_recording = MACRO_RECORDING.lock().is_some() || MOUSE_RECORDING.lock().is_some();
+            if is_ui_in_foreground() && !is_recording {
                 return CallNextHookEx(None, code, wparam, lparam);
             }
             let event = match (wparam.0 as u32, ((info.mouseData >> 16) & 0xFFFF) as u16) {
@@ -2082,7 +2083,18 @@ mod windows_overlay {
             send_overlay_command(OverlayCommand::SetMacrosMasterEnabled(enabled));
             return Some(true);
         }
-        if is_ui_in_foreground() {
+        let is_record_hotkey = {
+            let hook_state = HOOK_STATE.lock();
+            hook_state.macro_groups.iter().any(|g| {
+                g.presets.iter().any(|p| {
+                    p.record_hotkey.as_ref().is_some_and(|h| hotkey::binding_matches(h, binding))
+                })
+            }) || hook_state.mouse_path_presets.iter().any(|p| {
+                p.record_hotkey.as_ref().is_some_and(|h| hotkey::binding_matches(h, binding))
+            })
+        };
+
+        if is_ui_in_foreground() && !is_record_hotkey {
             return Some(false);
         }
 

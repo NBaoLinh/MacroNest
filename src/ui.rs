@@ -10045,6 +10045,7 @@ impl CrosshairApp {
     }
 
     fn apply_captured_input(&mut self, target: CaptureRequest, captured: CapturedInput) -> bool {
+        let target_clone = target.clone();
         let keep_capture_open = self.capture_request_keeps_open(&target);
         match (target, captured) {
             (CaptureRequest::WindowPresetHotkey(preset_id), CapturedInput::Binding(binding)) => {
@@ -10426,7 +10427,11 @@ impl CrosshairApp {
             }
         }
         self.persist();
-        keep_capture_open
+        if matches!(target_clone, CaptureRequest::MacroPresetRecordHotkey(_, _)) {
+            false
+        } else {
+            keep_capture_open
+        }
     }
 
     fn poll_capture_input(&mut self, ctx: &egui::Context) {
