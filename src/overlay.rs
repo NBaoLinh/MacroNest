@@ -96,6 +96,7 @@ mod windows_overlay {
                     GA_ROOT, GW_OWNER, GWLP_USERDATA, GetAncestor, GetClassNameW, GetClientRect,
                     GetCursorPos, GetForegroundWindow, GetMessageW, GetSystemMetrics, GetWindow,
                     GetWindowLongPtrW, GetWindowRect, GetWindowThreadProcessId, HC_ACTION, HHOOK,
+                    WindowFromPoint,
                     HMENU, HTTRANSPARENT, HWND_NOTOPMOST, HWND_TOPMOST, IDC_ARROW, IMAGE_ICON,
                     IsIconic, IsZoomed, KBDLLHOOKSTRUCT, KillTimer, LR_LOADFROMFILE, LoadCursorW,
                     LoadImageW, MA_NOACTIVATE, MF_SEPARATOR, MF_STRING, MSG, MSLLHOOKSTRUCT,
@@ -1675,7 +1676,7 @@ mod windows_overlay {
     }
 
     fn record_macro_mouse_event(message: u32, info: &MSLLHOOKSTRUCT) {
-        if is_ui_in_foreground() {
+        if is_click_inside_ui(info.pt) {
             return;
         }
         let mut guard = MACRO_RECORDING.lock();
@@ -7414,6 +7415,20 @@ mod windows_overlay {
                 return false;
             }
             let root = GetAncestor(foreground, GA_ROOT);
+            if root.0.is_null() {
+                return false;
+            }
+            window_belongs_to_current_process(root) && !is_internal_app_window(root)
+        }
+    }
+
+    fn is_click_inside_ui(pt: POINT) -> bool {
+        unsafe {
+            let hwnd = WindowFromPoint(pt);
+            if hwnd.0.is_null() {
+                return false;
+            }
+            let root = GetAncestor(hwnd, GA_ROOT);
             if root.0.is_null() {
                 return false;
             }
