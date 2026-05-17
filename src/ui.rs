@@ -7246,7 +7246,7 @@ impl CrosshairApp {
 
         let groq_settings = self.state.groq_settings.clone();
         let prompt_body = self.build_custom_ai_prompt(&preset, &prompt);
-        let system_instruction = "You are a deterministic MacroNest custom preset compiler. Return one JSON object only. Use only fields that exist in CommandPreset. The command field must contain a shell or PowerShell command string, not macro steps. Do not return markdown, arrays, or prose.";
+        let system_instruction = "You are a deterministic MacroNest custom preset compiler. Return one JSON object only. Use only fields that exist in CommandPreset. You MUST also generate an appropriate, concise, descriptive name in the 'name' field that summarizes the command. The command field must contain a shell or PowerShell command string. Do not return markdown, arrays, or prose.";
         let (tx, rx) = crossbeam_channel::bounded(1);
         let token = self.command_ai_next_token.max(1);
         self.command_ai_next_token = token + 1;
