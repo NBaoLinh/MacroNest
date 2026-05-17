@@ -7332,6 +7332,7 @@ impl CrosshairApp {
                         self.status = "Updated step command.".to_owned();
                     }
                 }
+                self.persist();
                 self.state.command_presets.retain(|p| p.id != 999999);
             }
             return;
@@ -7373,6 +7374,9 @@ impl CrosshairApp {
                 match result.outcome {
                     Ok(patch) => {
                         self.apply_custom_ai_generated_patch(result.preset_id, patch);
+                        if result.preset_id == 999999 {
+                            self.command_ai_dialog = None;
+                        }
                         self.command_ai_feedback =
                             Some("Custom preset updated successfully.".to_owned());
                         self.status = "Custom preset updated successfully.".to_owned();
@@ -18814,7 +18818,6 @@ impl CrosshairApp {
                                 });
                                 if enter_generate {
                                     generate_request = true;
-                                    close_request = true;
                                 }
                             });
                         });
