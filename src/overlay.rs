@@ -271,6 +271,7 @@ mod windows_overlay {
         UpdateAvailable(String, String, String), // version, body, download_url
         MacroRecordingStarted(u32, String),
         MacroRecordingFinished(u32, u32, Vec<MacroRecordingEvent>, String),
+        MacroRealtimeStepAdded(u32, u32, crate::model::MacroStep),
         UpdateDownloadStarted,
         UpdateDownloadFinished(String), // new_exe_path
         UpdateError(String),
@@ -1060,9 +1061,6 @@ mod windows_overlay {
         wparam: WPARAM,
         lparam: LPARAM,
     ) -> LRESULT {
-        if code == HC_ACTION as i32 && is_ui_in_foreground() {
-            return CallNextHookEx(None, code, wparam, lparam);
-        }
         if code == HC_ACTION as i32 {
             let info = *(lparam.0 as *const KBDLLHOOKSTRUCT);
             let msg = wparam.0 as u32;
@@ -1073,6 +1071,7 @@ mod windows_overlay {
                 let is_key_up = matches!(msg, WM_KEYUP | WM_SYSKEYUP);
                 let key_name = hotkey::vk_to_key_name(info.vkCode).map(str::to_owned);
 
+                // Realtime keyboard recording
                 if is_key_down {
                     let mut rec_guard = MACRO_RECORDING.lock();
                     if let Some(session) = rec_guard.as_mut() {
@@ -1084,14 +1083,49 @@ mod windows_overlay {
                         if let Some(k_name) = key_name.clone() {
                             session.last_event_at = now;
                             session.events.push(MacroRecordingEvent {
-                                key: Some(k_name),
+                                key: Some(k_name.clone()),
                                 action: crate::model::MacroAction::KeyPress,
                                 delay_ms,
                                 x: 0,
                                 y: 0,
                             });
+
+                            if let Some(tx) = &HOOK_STATE.lock().ui_tx {
+                                let mut step = crate::model::MacroStep::default();
+                                step.action = crate::model::MacroAction::KeyPress;
+                                step.delay_ms = delay_ms;
+                                step.key = k_name;
+                                let _ = tx.send(UiCommand::MacroRealtimeStepAdded(
+                                    session.group_id,
+                                    session.preset_id,
+                                    step,
+                                ));
+                            }
                         }
                     }
+                }
+
+                // Global record toggle hotkey processing
+                if let Some(key_name) = key_name.clone() {
+                    let binding = binding_from_trigger_event(&key_name);
+                    if is_key_down {
+                        let repeat = is_repeat_key(&key_name);
+                        if let Some(swallow) = process_macro_record_hotkey(&binding, repeat) {
+                            update_modifier_state(info.vkCode, is_key_down);
+                            if swallow {
+                                return LRESULT(1);
+                            }
+                        }
+                    }
+                }
+
+                // Skip normal hotkeys if UI is focused
+                if is_ui_in_foreground() {
+                    if let Some(key_name) = key_name.clone() {
+                        update_held_key(&key_name, is_key_down, is_key_up);
+                    }
+                    update_modifier_state(info.vkCode, is_key_down);
+                    return CallNextHookEx(None, code, wparam, lparam);
                 }
 
                 if let Some(key_name) = key_name.clone() {
@@ -1641,6 +1675,9 @@ mod windows_overlay {
     }
 
     fn record_macro_mouse_event(message: u32, info: &MSLLHOOKSTRUCT) {
+        if is_ui_in_foreground() {
+            return;
+        }
         let mut guard = MACRO_RECORDING.lock();
         let Some(session) = guard.as_mut() else {
             return;
@@ -1683,6 +1720,19 @@ mod windows_overlay {
                 x: info.pt.x,
                 y: info.pt.y,
             });
+
+            if let Some(tx) = &HOOK_STATE.lock().ui_tx {
+                let mut step = crate::model::MacroStep::default();
+                step.action = action;
+                step.delay_ms = delay_ms;
+                step.x = info.pt.x;
+                step.y = info.pt.y;
+                let _ = tx.send(UiCommand::MacroRealtimeStepAdded(
+                    session.group_id,
+                    session.preset_id,
+                    step,
+                ));
+            }
         }
     }
 
@@ -1736,6 +1786,41 @@ mod windows_overlay {
                 preset_id,
                 format!("Recording macro for {preset_name}. Press Stop in the UI to finish."),
             ));
+        }
+    }
+
+    fn process_macro_record_hotkey(binding: &HotkeyBinding, is_repeat: bool) -> Option<bool> {
+        if is_repeat {
+            return None;
+        }
+        let matched = {
+            let hook_state = HOOK_STATE.lock();
+            let mut found = None;
+            for group in &hook_state.macro_groups {
+                if group.enabled {
+                    for preset in &group.presets {
+                        if preset.enabled {
+                            if let Some(record_hotkey) = &preset.record_hotkey {
+                                if hotkey::binding_matches(record_hotkey, binding) {
+                                    found = Some((group.id, preset.id, group.name.clone()));
+                                    break;
+                                }
+                            }
+                        }
+                    }
+                }
+                if found.is_some() {
+                    break;
+                }
+            }
+            found
+        };
+
+        if let Some((group_id, preset_id, group_name)) = matched {
+            toggle_macro_recording(group_id, preset_id, group_name);
+            Some(true)
+        } else {
+            None
         }
     }
 

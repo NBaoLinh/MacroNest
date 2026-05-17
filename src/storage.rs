@@ -242,6 +242,7 @@ impl AppPaths {
                         hold_stop_step_enabled: false,
                         hold_stop_step: crate::model::MacroStep::default(),
                         steps: legacy.steps,
+                        record_hotkey: None,
                         acknowledged_infinite_loop: false,
                     }
                 })

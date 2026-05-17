@@ -466,6 +466,7 @@ pub enum CaptureRequest {
     VisionPresetHotkey(u32),
     MacrosMasterHotkey,
     MacroPresetHotkey(u32, u32),
+    MacroPresetRecordHotkey(u32, u32),
     MacroPresetReleaseWaitKey(u32, u32),
     MacroPresetHoldStopInput(u32, u32),
     CommandPresetHotkey(u32),
@@ -948,6 +949,7 @@ pub struct MacroPreset {
     pub hold_stop_step_enabled: bool,
     pub hold_stop_step: MacroStep,
     pub steps: Vec<MacroStep>,
+    pub record_hotkey: Option<HotkeyBinding>,
     #[serde(skip)]
     pub acknowledged_infinite_loop: bool,
 }
@@ -967,6 +969,7 @@ impl MacroPreset {
             hold_stop_step_enabled: false,
             hold_stop_step: MacroStep::default(),
             steps: vec![MacroStep::default()],
+            record_hotkey: None,
             acknowledged_infinite_loop: false,
         }
     }

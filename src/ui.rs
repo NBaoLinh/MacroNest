@@ -10215,6 +10215,27 @@ impl CrosshairApp {
                 }
                 self.sync_macro_presets();
             }
+            (
+                CaptureRequest::MacroPresetRecordHotkey(group_id, preset_id),
+                CapturedInput::Binding(binding),
+            ) => {
+                if let Some(preset) = self
+                    .state
+                    .macro_groups
+                    .iter_mut()
+                    .find(|group| group.id == group_id)
+                    .and_then(|group| {
+                        group
+                            .presets
+                            .iter_mut()
+                            .find(|preset| preset.id == preset_id)
+                    })
+                {
+                    preset.record_hotkey = Some(binding);
+                    self.status = format!("Captured record trigger key for macro preset {preset_id}.");
+                }
+                self.sync_macro_presets();
+            }
             (CaptureRequest::CommandPresetHotkey(preset_id), CapturedInput::Binding(binding)) => {
                 if let Some(preset) = self
                     .state
@@ -14911,6 +14932,76 @@ impl CrosshairApp {
                                                 preset.id,
                                                 group.name.clone(),
                                             ));
+                                        }
+
+                                        // Keyboard Trigger Hotkey Capture UI
+                                        let capture_target = CaptureRequest::MacroPresetRecordHotkey(group.id, preset.id);
+                                        let has_rec_hotkey = preset.record_hotkey.is_some();
+                                        let kbd_btn_text = if has_rec_hotkey {
+                                            Self::format_binding_ui(language, preset.record_hotkey.as_ref())
+                                        } else {
+                                            Self::tr_lang(language, "Bind Trigger", "Phím tắt").to_string()
+                                        };
+                                        
+                                        let capture_active = self.capture_target.as_ref() == Some(&capture_target);
+                                        let pulse = if capture_active {
+                                            let capture_time = ui.ctx().input(|input| input.time) as f32;
+                                            0.5 + 0.5 * (capture_time * 6.0).sin().abs()
+                                        } else {
+                                            0.0
+                                        };
+                                        let capture_fill = if capture_active {
+                                            Color32::from_rgba_premultiplied(
+                                                (88.0 + pulse * 28.0) as u8,
+                                                (84.0 + pulse * 28.0) as u8,
+                                                (44.0 + pulse * 10.0) as u8,
+                                                255,
+                                            )
+                                        } else {
+                                            ui.visuals().widgets.inactive.bg_fill
+                                        };
+                                        
+                                        let kbd_btn = Button::new(
+                                            RichText::new(format!("{} {}", Self::material_icon_text(0xe312, 10.0).text(), kbd_btn_text))
+                                                .strong()
+                                        )
+                                        .fill(capture_fill);
+                                        
+                                        if ui.add(kbd_btn)
+                                            .on_hover_text(Self::tr_lang(
+                                                language,
+                                                "Click to bind a keyboard key to start/stop macro recording dynamically",
+                                                "Nhấp để gán phím tắt bắt đầu/dừng ghi macro nhanh",
+                                            ))
+                                            .clicked()
+                                        {
+                                            if capture_active {
+                                                cancel_active_capture = true;
+                                            } else {
+                                                next_capture_target = Some(capture_target.clone());
+                                            }
+                                        }
+                                        
+                                        if has_rec_hotkey && !capture_active {
+                                            if ui.button(RichText::new(Self::material_icon_text(0xe14c, 10.0).text()).color(Color32::LIGHT_RED))
+                                                .on_hover_text(Self::tr_lang(language, "Clear hotkey", "Xóa phím tắt"))
+                                                .clicked()
+                                            {
+                                                preset.record_hotkey = None;
+                                                live_sync = true;
+                                            }
+                                        }
+
+                                        // Overlay status text label: "Recording..." / "Đang ghi..."
+                                        if is_recording_this {
+                                            let label_color = Color32::from_rgb(255, 96, 96);
+                                            let is_even = (std::time::SystemTime::now().duration_since(std::time::SystemTime::UNIX_EPOCH).unwrap_or_default().as_millis() / 500) % 2 == 0;
+                                            let text_color = if is_even { label_color } else { label_color.linear_multiply(0.6) };
+                                            ui.label(
+                                                RichText::new(Self::tr_lang(language, "Recording...", "Đang ghi..."))
+                                                    .color(text_color)
+                                                    .strong()
+                                            );
                                         }
                                         ui.add_sized([30.0, 18.0], egui::Label::new(RichText::new("#").strong()));
                                         ui.add_sized([54.0, 18.0], egui::Label::new(RichText::new(Self::tr_lang(language, "Delay", "Delay")).strong()));
@@ -19895,19 +19986,7 @@ impl eframe::App for CrosshairApp {
                     self.active_macro_record_preset_id = Some(preset_id);
                     self.status = status;
                 }
-                UiCommand::MacroRecordingFinished(group_id, preset_id, events, status) => {
-                    let mut events = events;
-                    while let Some(last) = events.last() {
-                        if let Some(key) = &last.key {
-                            let k = key.trim().to_ascii_lowercase();
-                            if k == "alt" || k == "tab" || k == "lmenu" || k == "rmenu" || k == "lwin" || k == "rwin" || k == "escape" {
-                                events.pop();
-                                continue;
-                            }
-                        }
-                        break;
-                    }
-
+                UiCommand::MacroRealtimeStepAdded(group_id, preset_id, step) => {
                     if let Some(group) = self
                         .state
                         .macro_groups
@@ -19919,28 +19998,49 @@ impl eframe::App for CrosshairApp {
                             .iter_mut()
                             .find(|p| p.id == preset_id)
                         {
-                            let mut steps = Vec::new();
-                            for ev in events {
-                                let mut step = MacroStep::default();
-                                step.action = ev.action;
-                                step.delay_ms = ev.delay_ms;
-                                step.x = ev.x;
-                                step.y = ev.y;
-                                if let Some(key) = ev.key {
-                                    step.key = key;
-                                }
-                                steps.push(step);
+                            if preset.steps.len() == 1
+                                && preset.steps[0].action == MacroAction::KeyPress
+                                && preset.steps[0].key.is_empty()
+                                && preset.steps[0].delay_ms == 100
+                            {
+                                preset.steps.clear();
                             }
-                            if !steps.is_empty() {
-                                preset.steps = steps;
-                            } else {
-                                preset.steps = vec![MacroStep::default()];
+                            preset.steps.push(step);
+                        }
+                    }
+                    ctx.request_repaint();
+                }
+                UiCommand::MacroRecordingFinished(group_id, preset_id, _events, status) => {
+                    if let Some(group) = self
+                        .state
+                        .macro_groups
+                        .iter_mut()
+                        .find(|g| g.id == group_id)
+                    {
+                        if let Some(preset) = group
+                            .presets
+                            .iter_mut()
+                            .find(|p| p.id == preset_id)
+                        {
+                            while let Some(last) = preset.steps.last() {
+                                if last.action == MacroAction::KeyPress {
+                                    let k = last.key.trim().to_ascii_lowercase();
+                                    if k == "alt" || k == "tab" || k == "lmenu" || k == "rmenu" || k == "lwin" || k == "rwin" || k == "escape" {
+                                        preset.steps.pop();
+                                        continue;
+                                    }
+                                }
+                                break;
+                            }
+                            if preset.steps.is_empty() {
+                                preset.steps.push(MacroStep::default());
                             }
                         }
                     }
                     self.active_macro_record_preset_id = None;
                     self.persist();
                     self.status = status;
+                    ctx.request_repaint();
                 }
                 UiCommand::MousePathRecordingFinished(preset_id, events, status) => {
                     if let Some(preset) = self
