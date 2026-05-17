@@ -11087,7 +11087,6 @@ impl CrosshairApp {
                                 {
                                     copy_crosshair_profile = Some(preset_snapshot.clone());
                                 }
-                            ui.add_space(6.0);
                             if ui
                                 .add_sized(
                                     [40.0, 24.0],
@@ -11104,7 +11103,6 @@ impl CrosshairApp {
                             if Self::sound_style_remove_button(ui).clicked() {
                                 remove = true;
                             }
-                            ui.add_space(6.0);
                             if Self::sound_style_toggle_button(
                                 ui,
                                 if preset.collapsed {
