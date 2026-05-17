@@ -14497,7 +14497,7 @@ impl CrosshairApp {
                                 .show(ui, |ui| {
                                     ui.horizontal(|ui| {
                                         if ui
-                                            .add_sized([22.0, 18.0], Button::new(RichText::new("+").strong()))
+                                            .add_sized([22.0, 20.0], Button::new(Self::material_icon_text(0xe145, 12.0)))
                                             .on_hover_text(Self::tr_lang(
                                                 language,
                                                 "Add step",
@@ -14510,7 +14510,7 @@ impl CrosshairApp {
                                         }
                                         if ui
                                             .add_sized(
-                                                [28.0, 18.0],
+                                                [28.0, 20.0],
                                                 Button::new(Self::ai_badge_text(false))
                                                     .fill(Self::ai_badge_fill())
                                                     .stroke(Self::ai_badge_stroke())
@@ -14519,7 +14519,7 @@ impl CrosshairApp {
                                             .on_hover_text(Self::tr_lang(
                                                 language,
                                                 "Append next steps with AI",
-                                                "Thêm cầc bước tiếp theo bằng AI",
+                                                "Thêm các bước tiếp theo bằng AI",
                                             ))
                                             .clicked()
                                         {
@@ -14529,8 +14529,8 @@ impl CrosshairApp {
                                                 MacroAiMode::AppendSteps,
                                             ));
                                         }
-                                        ui.add_sized([24.0, 18.0], egui::Label::new(""));
-                                        ui.add_sized([24.0, 18.0], egui::Label::new(""));
+                                        ui.add_sized([22.0, 20.0], egui::Label::new(""));
+                                        ui.add_sized([22.0, 20.0], egui::Label::new(""));
                                         ui.add_sized([30.0, 18.0], egui::Label::new(RichText::new("#").strong()));
                                         ui.add_sized([54.0, 18.0], egui::Label::new(RichText::new(Self::tr_lang(language, "Delay", "Delay")).strong()));
                                         ui.add_sized([154.0, 18.0], egui::Label::new(RichText::new(Self::tr_lang(language, "Action", "Action")).strong()));
@@ -14695,9 +14695,9 @@ impl CrosshairApp {
                                                 ));
                                             }
                                             let select_icon = if is_selected {
-                                                Self::material_icon_text(0xe834, 12.0).color(Color32::from_rgb(90, 190, 255))
+                                                Self::material_icon_text(0xe3fa, 12.0).color(Color32::from_rgb(90, 190, 255))
                                             } else {
-                                                Self::material_icon_text(0xe835, 12.0)
+                                                Self::material_icon_text(0xe3f9, 12.0)
                                             };
                                             let select_response = ui
                                                 .add_sized([22.0, 20.0], Button::new(select_icon));
@@ -14710,9 +14710,9 @@ impl CrosshairApp {
                                                 ));
                                             }
                                             let enabled_icon = if step.enabled {
-                                                Self::material_icon_text(0xe5ca, 12.0).color(Color32::from_rgb(0, 255, 170))
+                                                Self::material_icon_text(0xe834, 12.0).color(Color32::from_rgb(0, 255, 170))
                                             } else {
-                                                Self::material_icon_text(0xe5cd, 12.0).color(Color32::from_rgb(180, 180, 180))
+                                                Self::material_icon_text(0xe835, 12.0).color(Color32::from_rgb(180, 180, 180))
                                             };
                                             if ui
                                                 .add_sized([22.0, 20.0], Button::new(enabled_icon))
