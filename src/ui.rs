@@ -597,6 +597,7 @@ pub struct CrosshairApp {
     command_ai_job: Option<CommandAiJob>,
     command_ai_next_token: u64,
     command_ai_feedback: Option<String>,
+    command_ai_step_target: Option<(u32, u32, Option<usize>)>,
     macro_ai_dialog: Option<MacroAiDialog>,
     macro_ai_job: Option<MacroAiJob>,
     macro_ai_next_token: u64,
@@ -737,6 +738,7 @@ impl CrosshairApp {
             command_ai_job: None,
             command_ai_next_token: 1,
             command_ai_feedback: None,
+            command_ai_step_target: None,
             macro_ai_dialog: None,
             macro_ai_job: None,
             macro_ai_next_token: 1,
@@ -7280,6 +7282,60 @@ impl CrosshairApp {
     }
 
     fn apply_custom_ai_generated_patch(&mut self, preset_id: u32, patch: ai::CommandPresetPatch) {
+        if preset_id == 999999 {
+            if let Some(target) = self.command_ai_step_target.take() {
+                let (group_id, preset_id, step_index) = target;
+                let mut temp_preset = CommandPreset::new(999999);
+                if let Some(group) = self
+                    .state
+                    .macro_groups
+                    .iter()
+                    .find(|group| group.id == group_id)
+                {
+                    if let Some(preset) = group
+                        .presets
+                        .iter()
+                        .find(|preset| preset.id == preset_id)
+                    {
+                        if let Some(step_index) = step_index {
+                            if let Some(step) = preset.steps.get(step_index) {
+                                temp_preset.command = step.command_preset_command.clone();
+                                temp_preset.use_powershell = step.command_preset_use_powershell;
+                            }
+                        } else {
+                            temp_preset.command = preset.hold_stop_step.command_preset_command.clone();
+                            temp_preset.use_powershell = preset.hold_stop_step.command_preset_use_powershell;
+                        }
+                    }
+                }
+                patch.apply_to(&mut temp_preset);
+                if let Some(group) = self
+                    .state
+                    .macro_groups
+                    .iter_mut()
+                    .find(|group| group.id == group_id)
+                {
+                    if let Some(preset) = group
+                        .presets
+                        .iter_mut()
+                        .find(|preset| preset.id == preset_id)
+                    {
+                        if let Some(step_index) = step_index {
+                            if let Some(step) = preset.steps.get_mut(step_index) {
+                                step.command_preset_command = temp_preset.command;
+                                step.command_preset_use_powershell = temp_preset.use_powershell;
+                            }
+                        } else {
+                            preset.hold_stop_step.command_preset_command = temp_preset.command;
+                            preset.hold_stop_step.command_preset_use_powershell = temp_preset.use_powershell;
+                        }
+                        self.status = "Updated step command.".to_owned();
+                    }
+                }
+                self.state.command_presets.retain(|p| p.id != 999999);
+            }
+            return;
+        }
         let preset_name = {
             let Some(preset) = self
                 .state
@@ -7848,7 +7904,7 @@ impl CrosshairApp {
     ) -> (
         bool,
         Option<(Option<usize>, String, String, bool)>,
-        Option<(Option<usize>, String, String, bool)>,
+        Option<(Option<usize>, String, String, bool, bool)>,
         Option<u32>,
     ) {
         let mut changed = false;
@@ -7934,7 +7990,8 @@ impl CrosshairApp {
                                 step_index,
                                 preset_name,
                                 command_text,
-                                false,
+                                step.command_preset_use_powershell,
+                                true, // is_ad_hoc
                             ));
                         }
                     }
@@ -12891,7 +12948,6 @@ impl CrosshairApp {
                 }
             }
         }
-
         if !self.macro_folders_panel_open && render_items.is_empty() {
             ui.label(Self::tr_lang(
                 language,
@@ -12921,6 +12977,7 @@ impl CrosshairApp {
             String,
             String,
             bool,
+            bool, // is_ad_hoc
         )> = None;
         let mut pending_open_ai_preset_id: Option<u32> = None;
 
@@ -14085,7 +14142,7 @@ impl CrosshairApp {
                                                              use_powershell,
                                                          ));
                                                      }
-                                                     if let Some((step_index, name, command, use_powershell)) = custom_save_and_open_ai_request {
+                                                     if let Some((step_index, name, command, use_powershell, is_ad_hoc)) = custom_save_and_open_ai_request {
                                                          pending_custom_preset_save_and_open_ai = Some((
                                                              group.id,
                                                              preset.id,
@@ -14093,6 +14150,7 @@ impl CrosshairApp {
                                                              name,
                                                              command,
                                                              use_powershell,
+                                                             is_ad_hoc,
                                                          ));
                                                      }
                                                      if let Some(preset_id) = open_ai_preset_id {
@@ -15081,7 +15139,7 @@ impl CrosshairApp {
                                                              use_powershell,
                                                          ));
                                                      }
-                                                     if let Some((save_step_index, name, command, use_powershell)) = custom_save_and_open_ai_request {
+                                                     if let Some((save_step_index, name, command, use_powershell, is_ad_hoc)) = custom_save_and_open_ai_request {
                                                          pending_custom_preset_save_and_open_ai = Some((
                                                              group.id,
                                                              preset.id,
@@ -15089,6 +15147,7 @@ impl CrosshairApp {
                                                              name,
                                                              command,
                                                              use_powershell,
+                                                             is_ad_hoc,
                                                          ));
                                                      }
                                                      if let Some(preset_id) = open_ai_preset_id {
@@ -15881,53 +15940,64 @@ impl CrosshairApp {
                             }
                         }
                     }
-                    if let Some((group_id, preset_id, step_index, name, command, use_powershell)) =
+                    if let Some((group_id, preset_id, step_index, name, command, use_powershell, is_ad_hoc)) =
                         pending_custom_preset_save_and_open_ai.take()
-                        && let Some(saved_id) = self.upsert_custom_preset_from_step_draft_values(
+                    {
+                        if is_ad_hoc {
+                            self.command_ai_step_target = Some((group_id, preset_id, step_index));
+                            self.state.command_presets.retain(|preset| preset.id != 999999);
+                            let mut temp_preset = CommandPreset::new(999999);
+                            temp_preset.name = "Step Custom Command".to_owned();
+                            temp_preset.command = command;
+                            temp_preset.use_powershell = use_powershell;
+                            temp_preset.collapsed = true;
+                            self.state.command_presets.push(temp_preset);
+                            self.open_command_ai_dialog_for_preset(999999);
+                        } else if let Some(saved_id) = self.upsert_custom_preset_from_step_draft_values(
                             name,
                             command,
                             use_powershell,
-                        )
-                    {
-                        live_sync = true;
-                        if let Some(step_index) = step_index {
-                            if let Some(group) = self
-                                .state
-                                .macro_groups
-                                .iter_mut()
-                                .find(|group| group.id == group_id)
-                            {
-                                if let Some(preset) = group
-                                    .presets
+                        ) {
+                            live_sync = true;
+                            if let Some(step_index) = step_index {
+                                if let Some(group) = self
+                                    .state
+                                    .macro_groups
                                     .iter_mut()
-                                    .find(|preset| preset.id == preset_id)
+                                    .find(|group| group.id == group_id)
                                 {
-                                    if let Some(step) = preset.steps.get_mut(step_index) {
-                                        step.key = saved_id.to_string();
-                                        step.command_preset_command = "".to_owned();
-                                        step.command_preset_use_powershell = false;
+                                    if let Some(preset) = group
+                                        .presets
+                                        .iter_mut()
+                                        .find(|preset| preset.id == preset_id)
+                                    {
+                                        if let Some(step) = preset.steps.get_mut(step_index) {
+                                            step.key = saved_id.to_string();
+                                            step.command_preset_command = "".to_owned();
+                                            step.command_preset_use_powershell = false;
+                                        }
+                                    }
+                                }
+                            } else {
+                                if let Some(group) = self
+                                    .state
+                                    .macro_groups
+                                    .iter_mut()
+                                    .find(|group| group.id == group_id)
+                                {
+                                    if let Some(preset) = group
+                                        .presets
+                                        .iter_mut()
+                                        .find(|preset| preset.id == preset_id)
+                                    {
+                                        preset.hold_stop_step.key = saved_id.to_string();
+                                        preset.hold_stop_step.command_preset_command = "".to_owned();
+                                        preset.hold_stop_step.command_preset_use_powershell = false;
                                     }
                                 }
                             }
-                        } else {
-                            if let Some(group) = self
-                                .state
-                                .macro_groups
-                                .iter_mut()
-                                .find(|group| group.id == group_id)
-                            {
-                                if let Some(preset) = group
-                                    .presets
-                                    .iter_mut()
-                                    .find(|preset| preset.id == preset_id)
-                                {
-                                    preset.hold_stop_step.key = saved_id.to_string();
-                                    preset.hold_stop_step.command_preset_command = "".to_owned();
-                                    preset.hold_stop_step.command_preset_use_powershell = false;
-                                }
-                            }
+                            self.open_command_ai_dialog_for_preset(saved_id);
                         }
-                        self.open_command_ai_dialog_for_preset(saved_id);
                     }
                     if let Some(preset_id) = pending_open_ai_preset_id.take() {
                         self.open_command_ai_dialog_for_preset(preset_id);
@@ -18757,7 +18827,10 @@ impl CrosshairApp {
         }
         if close_request {
             self.command_ai_dialog = None;
-            return;
+        }
+        if self.command_ai_dialog.is_none() {
+            self.command_ai_step_target = None;
+            self.state.command_presets.retain(|preset| preset.id != 999999);
         }
         if self.command_ai_dialog.is_some() {
             ctx.request_repaint_after(Duration::from_millis(16));
