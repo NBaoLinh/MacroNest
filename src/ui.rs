@@ -14955,14 +14955,8 @@ impl CrosshairApp {
                                                     MacroAiMode::AppendSteps,
                                                 ));
                                             }
-                                            let select_icon = if is_selected {
-                                                Self::material_icon_text(0xe3fa, 12.0).color(Color32::from_rgb(90, 190, 255))
-                                            } else {
-                                                Self::material_icon_text(0xe3f9, 12.0)
-                                            };
-                                            let select_response = ui
-                                                .add_sized([22.0, 20.0], Button::new(select_icon));
-                                            if select_response.clicked() {
+                                            let mut select_val = is_selected;
+                                            if ui.checkbox(&mut select_val, "").changed() {
                                                 pending_step_selection = Some((
                                                     group.id,
                                                     preset.id,
