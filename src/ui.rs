@@ -14273,7 +14273,7 @@ impl CrosshairApp {
                                                         });
                                                     let (custom_draft_changed, custom_save_request, custom_save_and_open_ai_request, open_ai_preset_id) = Self::render_custom_preset_step_draft_popup(
                                                          ui,
-                                                         &hold_stop_combo.response,
+                                                         &custom_preset_combo.response,
                                                          &custom_preset_combo.response,
                                                          step,
                                                          (group.id, preset.id, "hold-stop"),
@@ -15258,19 +15258,9 @@ impl CrosshairApp {
                                                                 }
                                                             }
                                                         });
-                                                    let row_hover_response = ui.interact(
-                                                        ui.min_rect().expand(4.0),
-                                                        ui.id().with((
-                                                            group.id,
-                                                            preset.id,
-                                                            step_index,
-                                                            "custom-preset-row-hover",
-                                                        )),
-                                                        Sense::hover(),
-                                                    );
                                                     let (custom_draft_changed, custom_save_request, custom_save_and_open_ai_request, open_ai_preset_id) = Self::render_custom_preset_step_draft_popup(
                                                          ui,
-                                                         &row_hover_response,
+                                                         &custom_preset_combo.response,
                                                          &custom_preset_combo.response,
                                                          step,
                                                          (group.id, preset.id, step_index),
