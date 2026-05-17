@@ -7902,7 +7902,8 @@ impl CrosshairApp {
             }
             let area = egui::Area::new(popup_id)
                 .order(egui::Order::Foreground)
-                .fixed_pos(pos);
+                .fixed_pos(pos)
+                .interactable(true);
             let area_response = area.show(ui.ctx(), |ui| {
                 egui::Frame::popup(ui.style()).show(ui, |ui| {
                     ui.set_min_width(300.0);
@@ -7911,9 +7912,8 @@ impl CrosshairApp {
                         ui.label(Self::tr_lang(language, "Custom command", "Custom command"));
                         let ai_btn = egui::Button::new(Self::ai_badge_text(true))
                             .fill(Self::ai_badge_fill())
-                            .stroke(Self::ai_badge_stroke())
-                            .corner_radius(6.0);
-                        if ui.add_sized([42.0, 18.0], ai_btn)
+                            .stroke(Self::ai_badge_stroke());
+                        if ui.add(ai_btn)
                             .on_hover_text(Self::tr_lang(language, "Generate or edit command with AI", "Tạo hoặc sửa câu lệnh bằng AI"))
                             .clicked()
                         {
@@ -11131,7 +11131,6 @@ impl CrosshairApp {
                                     Button::new(Self::ai_badge_text(false))
                                         .fill(Self::ai_badge_fill())
                                         .stroke(Self::ai_badge_stroke())
-                                        .corner_radius(9.0),
                                 )
                                 .on_hover_text("Edit this crosshair with AI")
                                 .clicked()
@@ -13465,7 +13464,6 @@ impl CrosshairApp {
                                                     Button::new(Self::ai_badge_text(false))
                                                         .fill(Self::ai_badge_fill())
                                                         .stroke(Self::ai_badge_stroke())
-                                                        .corner_radius(9.0),
                                                 )
                                                 .on_hover_text("Generate steps for this preset")
                                                 .clicked()
@@ -14573,7 +14571,6 @@ impl CrosshairApp {
                                                 Button::new(Self::ai_badge_text(false))
                                                     .fill(Self::ai_badge_fill())
                                                     .stroke(Self::ai_badge_stroke())
-                                                    .corner_radius(7.0),
                                             )
                                             .on_hover_text(Self::tr_lang(
                                                 language,
@@ -14736,7 +14733,6 @@ impl CrosshairApp {
                                                     Button::new(Self::ai_badge_text(false))
                                                         .fill(Self::ai_badge_fill())
                                                         .stroke(Self::ai_badge_stroke())
-                                                        .corner_radius(7.0),
                                                 )
                                                 .on_hover_text(Self::tr_lang(
                                                     language,
@@ -15849,20 +15845,40 @@ impl CrosshairApp {
                         )
                     {
                         live_sync = true;
-                        if let Some(step_index) = step_index
-                            && let Some(group) = self
+                        if let Some(step_index) = step_index {
+                            if let Some(group) = self
                                 .state
                                 .macro_groups
                                 .iter_mut()
                                 .find(|group| group.id == group_id)
-                            && let Some(preset) = group
-                                .presets
+                            {
+                                if let Some(preset) = group
+                                    .presets
+                                    .iter_mut()
+                                    .find(|preset| preset.id == preset_id)
+                                {
+                                    if let Some(step) = preset.steps.get_mut(step_index) {
+                                        step.key = saved_id.to_string();
+                                        step.command_preset_use_powershell = false;
+                                    }
+                                }
+                            }
+                        } else {
+                            if let Some(group) = self
+                                .state
+                                .macro_groups
                                 .iter_mut()
-                                .find(|preset| preset.id == preset_id)
-                            && let Some(step) = preset.steps.get_mut(step_index)
-                        {
-                            step.key = saved_id.to_string();
-                            step.command_preset_use_powershell = false;
+                                .find(|group| group.id == group_id)
+                            {
+                                if let Some(preset) = group
+                                    .presets
+                                    .iter_mut()
+                                    .find(|preset| preset.id == preset_id)
+                                {
+                                    preset.hold_stop_step.key = saved_id.to_string();
+                                    preset.hold_stop_step.command_preset_use_powershell = false;
+                                }
+                            }
                         }
                     }
                     if let Some((group_id, preset_id, step_index, name, command, use_powershell)) =
@@ -15874,21 +15890,42 @@ impl CrosshairApp {
                         )
                     {
                         live_sync = true;
-                        if let Some(step_index) = step_index
-                            && let Some(group) = self
+                        if let Some(step_index) = step_index {
+                            if let Some(group) = self
                                 .state
                                 .macro_groups
                                 .iter_mut()
                                 .find(|group| group.id == group_id)
-                            && let Some(preset) = group
-                                .presets
+                            {
+                                if let Some(preset) = group
+                                    .presets
+                                    .iter_mut()
+                                    .find(|preset| preset.id == preset_id)
+                                {
+                                    if let Some(step) = preset.steps.get_mut(step_index) {
+                                        step.key = saved_id.to_string();
+                                        step.command_preset_command = "".to_owned();
+                                        step.command_preset_use_powershell = false;
+                                    }
+                                }
+                            }
+                        } else {
+                            if let Some(group) = self
+                                .state
+                                .macro_groups
                                 .iter_mut()
-                                .find(|preset| preset.id == preset_id)
-                            && let Some(step) = preset.steps.get_mut(step_index)
-                        {
-                            step.key = saved_id.to_string();
-                            step.command_preset_command = "".to_owned();
-                            step.command_preset_use_powershell = false;
+                                .find(|group| group.id == group_id)
+                            {
+                                if let Some(preset) = group
+                                    .presets
+                                    .iter_mut()
+                                    .find(|preset| preset.id == preset_id)
+                                {
+                                    preset.hold_stop_step.key = saved_id.to_string();
+                                    preset.hold_stop_step.command_preset_command = "".to_owned();
+                                    preset.hold_stop_step.command_preset_use_powershell = false;
+                                }
+                            }
                         }
                         self.open_command_ai_dialog_for_preset(saved_id);
                     }
@@ -19126,7 +19163,6 @@ impl CrosshairApp {
                                 Button::new(Self::ai_badge_text(false))
                                     .fill(Self::ai_badge_fill())
                                     .stroke(Self::ai_badge_stroke())
-                                    .corner_radius(9.0),
                             )
                             .clicked()
                         {
@@ -19210,19 +19246,7 @@ impl CrosshairApp {
                         ui.label(Self::material_icon_text(0xeb8e, 15.0));
                         ui.end_row();
 
-                        ui.horizontal(|ui| {
-                            ui.label(Self::tr_lang(language, "Command", "Command"));
-                            let ai_btn = Button::new(Self::ai_badge_text(true))
-                                .fill(Self::ai_badge_fill())
-                                .stroke(Self::ai_badge_stroke())
-                                .corner_radius(6.0);
-                            if ui.add_sized([42.0, 18.0], ai_btn)
-                                .on_hover_text(Self::tr_lang(language, "Generate or edit command with AI", "Tạo hoặc sửa câu lệnh bằng AI"))
-                                .clicked()
-                            {
-                                open_ai_dialog = Some(preset.id);
-                            }
-                        });
+                        ui.label(Self::tr_lang(language, "Command", "Command"));
                         let command_hint = RichText::new(Self::tr_lang(
                             language,
                             "Example: shutdown /s /t 0",
