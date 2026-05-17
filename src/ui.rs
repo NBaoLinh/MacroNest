@@ -14119,14 +14119,14 @@ impl CrosshairApp {
                                         Self::tr_lang(
                                             language,
                                             "Wait until every other held input is released",
-                                            "Chờ cho tất cả các phím giữ khác được thả ra",
+                                            "Đợi nhả hết các phím khác mới kích hoạt",
                                         ),
                                     )
                                     .on_hover_text(
                                         Self::tr_lang(
                                             language,
                                             "If enabled, releasing the trigger key or mouse button will not fire while any other key or mouse button is still held down.",
-                                            "Nếu bật, việc nhả phím kích hoạt hoặc nút chuột sẽ không kích hoạt macro khi bất kỳ phím hoặc nút chuột nào khác vẫn đang được giữ.",
+                                            "Nếu bật, khi bạn thả phím kích hoạt ra, macro sẽ chưa chạy ngay nếu vẫn còn các phím/nút chuột khác đang được giữ. Nó sẽ đợi cho đến khi toàn bộ các phím đó được nhả ra hết rồi mới chính thức kích hoạt.",
                                         ),
                                     )
                                     .changed();
