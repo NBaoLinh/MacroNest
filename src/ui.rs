@@ -14646,7 +14646,12 @@ impl CrosshairApp {
                                     )
                                     && step.action == MacroAction::LoopStart
                                     && step.is_infinite_loop();
-                                if has_infinite_loop_warning {
+                                let has_step_vision_leak = preset.enabled
+                                    && (preset.trigger_mode == MacroTriggerMode::Press || preset.trigger_mode == MacroTriggerMode::Release)
+                                    && step.action == MacroAction::StartVisionSearch
+                                    && step.enabled
+                                    && !preset.steps.iter().any(|s| s.action == MacroAction::StopVision && s.enabled);
+                                if has_infinite_loop_warning || has_step_vision_leak {
                                     row_fill = Color32::from_rgba_unmultiplied(255, 90, 0, 25);
                                 }
                                 let drag_payload = MacroStepDragPayload {
@@ -14732,7 +14737,7 @@ impl CrosshairApp {
                                                 )
                                                 .on_hover_cursor(egui::CursorIcon::Grab);
                                             drag_handle.dnd_set_drag_payload(drag_payload.clone());
-                                            if has_infinite_loop_warning {
+                                            if has_infinite_loop_warning || has_step_vision_leak {
                                                   let response = ui.add_sized([20.0, 20.0], egui::Button::new(
                                                       Self::material_icon_text(0xe002, 16.0).color(Color32::from_rgb(255, 90, 0))
                                                   ).frame(false));
@@ -14741,18 +14746,27 @@ impl CrosshairApp {
                                                       egui::show_tooltip_at_pointer(ui.ctx(), ui.layer_id(), response.id.with("step-tip"), |ui| {
                                                           ui.horizontal(|ui| {
                                                               ui.label(Self::material_icon_text(0xe002, 14.0).color(Color32::from_rgb(255, 90, 0)));
-                                                              ui.label(RichText::new(Self::tr_lang(language, "INFINITE STEP", "BƯỚC LẶP VÔ TẬN")).strong().color(Color32::from_rgb(255, 90, 0)));
+                                                              ui.label(RichText::new(Self::tr_lang(language, "STEP WARNING", "CẢNH BÁO BƯỚC")).strong().color(Color32::from_rgb(255, 90, 0)));
                                                           });
-                                                          ui.label(Self::tr_lang(
-                                                              language,
-                                                              "This step starts an infinite loop without an end point. The macro will run forever until you manually stop it.",
-                                                              "Bước này khởi đầu một vòng lặp vô tận mà không có điểm dừng, macro sẽ chạy mãi mãi cho đến khi bạn chủ động bấm dừng."
-                                                          ));
+                                                          if has_infinite_loop_warning {
+                                                              ui.label(Self::tr_lang(
+                                                                  language,
+                                                                  "This step starts an infinite loop without an end point. The macro will run forever until you manually stop it.",
+                                                                  "Bước này khởi đầu một vòng lặp vô tận mà không có điểm dừng, macro sẽ chạy mãi mãi cho đến khi bạn chủ động bấm dừng."
+                                                              ));
+                                                          }
+                                                          if has_step_vision_leak {
+                                                              ui.label(Self::tr_lang(
+                                                                  language,
+                                                                  "This step starts image search under Press/Release trigger, but there is no 'StopImageSearch' action in this macro! This could lead to a persistent background CPU thread. Add a 'StopImageSearch' step or change trigger to 'Hold'.",
+                                                                  "Bước này bắt đầu tìm ảnh (chế độ Nhấn/Thả) nhưng macro không có bước dừng tìm ảnh! Điều này có thể gây chạy ngầm hao CPU. Hãy thêm bước dừng tìm ảnh hoặc đổi trigger sang Giữ (Hold)."
+                                                              ));
+                                                          }
                                                       });
                                                   }
                                               }
                                              ui.add_sized(
-                                                 [if has_infinite_loop_warning { 18.0 } else { 30.0 }, 18.0],
+                                                 [if has_infinite_loop_warning || has_step_vision_leak { 18.0 } else { 30.0 }, 18.0],
                                                  egui::Label::new(
                                                      RichText::new(format!("{}", step_index + 1)).monospace(),
                                                  ),
