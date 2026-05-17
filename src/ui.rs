@@ -5087,16 +5087,111 @@ impl CrosshairApp {
             ],
         ];
 
+        let mut draw_anchor_btn = |ui: &mut egui::Ui, anchor: WindowAnchor, selected: bool, hover_text: &str| -> egui::Response {
+            let (rect, response) = ui.allocate_exact_size(egui::vec2(24.0, 24.0), egui::Sense::click());
+            let visuals = ui.style().interact(&response);
+            
+            let bg_fill = if selected {
+                ui.visuals().selection.bg_fill
+            } else if response.hovered() {
+                visuals.bg_fill
+            } else {
+                egui::Color32::from_rgb(54, 54, 54)
+            };
+            
+            let rounding = egui::Rounding::same(6.0);
+            ui.painter().rect_filled(rect, rounding, bg_fill);
+            
+            if selected {
+                ui.painter().rect_stroke(
+                    rect,
+                    rounding,
+                    egui::Stroke::new(1.0, ui.visuals().selection.stroke.color),
+                    egui::StrokeKind::Inside,
+                );
+            }
+
+            let fg_color = if selected {
+                ui.visuals().selection.fg_stroke.color
+            } else {
+                egui::Color32::from_rgb(220, 220, 220)
+            };
+
+            let center = rect.center();
+
+            match anchor {
+                WindowAnchor::Manual => {
+                    ui.painter().text(
+                        center + egui::vec2(0.0, -0.5),
+                        egui::Align2::CENTER_CENTER,
+                        "XY",
+                        egui::FontId::proportional(11.0),
+                        fg_color,
+                    );
+                }
+                WindowAnchor::Center => {
+                    ui.painter().circle_filled(center, 2.0, fg_color);
+                    ui.painter().circle_stroke(
+                        center,
+                        5.0,
+                        egui::Stroke::new(1.5, fg_color),
+                    );
+                    ui.painter().circle_stroke(
+                        center,
+                        8.0,
+                        egui::Stroke::new(1.5, fg_color),
+                    );
+                }
+                _ => {
+                    let angle = match anchor {
+                        WindowAnchor::TopLeft => 5.0 * std::f32::consts::PI / 4.0,
+                        WindowAnchor::Top => 3.0 * std::f32::consts::PI / 2.0,
+                        WindowAnchor::TopRight => 7.0 * std::f32::consts::PI / 4.0,
+                        WindowAnchor::Left => std::f32::consts::PI,
+                        WindowAnchor::Right => 0.0,
+                        WindowAnchor::BottomLeft => 3.0 * std::f32::consts::PI / 4.0,
+                        WindowAnchor::Bottom => std::f32::consts::PI / 2.0,
+                        WindowAnchor::BottomRight => std::f32::consts::PI / 4.0,
+                        _ => 0.0,
+                    };
+
+                    let dir = egui::vec2(angle.cos(), angle.sin());
+                    let dir_perp = egui::vec2(-dir.y, dir.x);
+
+                    let shaft_start = center - dir * 5.0;
+                    let shaft_end = center + dir * 1.5;
+                    ui.painter().line_segment(
+                        [shaft_start, shaft_end],
+                        egui::Stroke::new(2.8, fg_color),
+                    );
+
+                    let tip = center + dir * 6.5;
+                    let left_wing = center + dir * 1.0 + dir_perp * 3.8;
+                    let right_wing = center + dir * 1.0 - dir_perp * 3.8;
+                    
+                    ui.painter().colored_polygon(
+                        vec![tip, left_wing, right_wing],
+                        fg_color,
+                    );
+                }
+            }
+
+            if !hover_text.is_empty() {
+                response.on_hover_text(hover_text)
+            } else {
+                response
+            }
+        };
+
         ui.vertical(|ui| {
             ui.horizontal(|ui| {
                 ui.vertical(|ui| {
-                    let manual_response = ui
-                        .add_sized(
-                            [24.0, 24.0],
-                            Button::new(Self::window_anchor_icon(WindowAnchor::Manual))
-                                .selected(preset.anchor == WindowAnchor::Manual),
-                        )
-                        .on_hover_text("Manual X/Y position");
+                    let manual_response = draw_anchor_btn(
+                        ui,
+                        WindowAnchor::Manual,
+                        preset.anchor == WindowAnchor::Manual,
+                        "Manual X/Y position",
+                    );
                     if manual_response.clicked() {
                         preset.anchor = WindowAnchor::Manual;
                         changed = true;
@@ -5112,13 +5207,12 @@ impl CrosshairApp {
                             ui.spacing_mut().item_spacing = egui::vec2(4.0, 4.0);
                             for anchor in row {
                                 let selected = preset.anchor == anchor;
-                                let response = ui
-                                    .add_sized(
-                                        [24.0, 24.0],
-                                        Button::new(Self::window_anchor_icon(anchor))
-                                            .selected(selected),
-                                    )
-                                    .on_hover_text(Self::window_anchor_label(anchor));
+                                let response = draw_anchor_btn(
+                                    ui,
+                                    anchor,
+                                    selected,
+                                    Self::window_anchor_label(anchor),
+                                );
                                 if response.clicked() {
                                     preset.anchor = anchor;
                                     changed = true;
