@@ -15732,15 +15732,17 @@ impl CrosshairApp {
         let aspect_ratio = if screen_size.y > 0.0 { screen_size.x / screen_size.y } else { 16.0 / 9.0 };
         let width = ui.available_width();
         let height = width / aspect_ratio;
-        let max_height = 240.0;
+        let max_height = 400.0;
         let (desired_width, desired_height) = if height > max_height {
             (max_height * aspect_ratio, max_height)
         } else {
             (width, height)
         };
-        let desired = vec2(desired_width, desired_height);
-        let (canvas_rect, response) = ui.allocate_exact_size(desired, Sense::drag());
-        let draw_rect = canvas_rect.shrink(4.0);
+        let (canvas_rect, response) = ui.allocate_exact_size(vec2(width, desired_height), Sense::drag());
+        let draw_rect = egui::Rect::from_center_size(
+            canvas_rect.center(),
+            vec2(desired_width, desired_height)
+        ).shrink(4.0);
 
         // Draw monitor screen background
         ui.painter().rect_filled(
