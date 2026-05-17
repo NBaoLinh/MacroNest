@@ -4470,10 +4470,10 @@ impl CrosshairApp {
             MacroAction::FocusWindowPreset => 0xe89e,
             MacroAction::TriggerMacroPreset => 0xe037,
             MacroAction::TriggerCommandPreset => 0xeb8e,
-            MacroAction::EnableCrosshairProfile => 0xe55c,
-            MacroAction::DisableCrosshair => 0xe55d,
-            MacroAction::EnablePinPreset => 0xf115,
-            MacroAction::DisablePin => 0xf116,
+            MacroAction::EnableCrosshairProfile => 0xe3c5,
+            MacroAction::DisableCrosshair => 0xe1b7,
+            MacroAction::EnablePinPreset => 0xe0c8,
+            MacroAction::DisablePin => 0xe0c7,
             MacroAction::PlayMousePathPreset => 0xe913,
             MacroAction::ApplyMouseSensitivityPreset => 0xe837,
             MacroAction::EnableZoomPreset => 0xe8ff,
@@ -6411,7 +6411,6 @@ impl CrosshairApp {
         &[
             MacroAction::StartVisionSearch,
             MacroAction::TriggerVisionMove,
-            MacroAction::StopVisionWait,
             MacroAction::StopVision,
         ]
     }
@@ -14163,8 +14162,7 @@ impl CrosshairApp {
                                                             MacroAction::DisablePin,
                                                             MacroAction::PlaySoundPreset,
                                                             MacroAction::ApplyMouseSensitivityPreset,
-                                                            MacroAction::StopVisionWait,
-                                                            MacroAction::LoopStart,
+                                                                                                                        MacroAction::LoopStart,
                                                             MacroAction::LoopEnd,
                                                             MacroAction::StopIfKeyPressed,
                                                             MacroAction::ShowHud,
