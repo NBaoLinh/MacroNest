@@ -14111,25 +14111,30 @@ impl CrosshairApp {
                             } else {
                                 preset.hold_stop_step_enabled = false;
                             }
+                            if preset.trigger_mode == MacroTriggerMode::Release {
+                                ui.add_space(8.0);
+                                live_sync |= ui
+                                    .checkbox(
+                                        &mut preset.release_requires_all_inputs_released,
+                                        Self::tr_lang(
+                                            language,
+                                            "Wait until every other held input is released",
+                                            "Chờ cho tất cả các phím giữ khác được thả ra",
+                                        ),
+                                    )
+                                    .on_hover_text(
+                                        Self::tr_lang(
+                                            language,
+                                            "If enabled, releasing the trigger key or mouse button will not fire while any other key or mouse button is still held down.",
+                                            "Nếu bật, việc nhả phím kích hoạt hoặc nút chuột sẽ không kích hoạt macro khi bất kỳ phím hoặc nút chuột nào khác vẫn đang được giữ.",
+                                        ),
+                                    )
+                                    .changed();
+                            } else {
+                                preset.release_requires_all_inputs_released = false;
+                            }
                         });
                                     if preset.trigger_mode == MacroTriggerMode::Release {
-                                        live_sync |= ui
-                                .checkbox(
-                                    &mut preset.release_requires_all_inputs_released,
-                                    Self::tr_lang(
-                                        language,
-                                        "Wait until every other held input is released",
-                                        "Wait until every other held input is released",
-                                    ),
-                                )
-                                .on_hover_text(
-                                    Self::tr_lang(
-                                        language,
-                                        "If enabled, releasing the trigger key or mouse button will not fire while any other key or mouse button is still held down.",
-                                        "If enabled, releasing the trigger key or mouse button will not fire while any other key or mouse button is still held down.",
-                                    ),
-                                )
-                                .changed();
                                         if preset.release_requires_all_inputs_released {
                                             ui.horizontal(|ui| {
                                                 live_sync |= Self::render_key_list_chips(
