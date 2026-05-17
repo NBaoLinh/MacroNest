@@ -1105,44 +1105,25 @@ mod windows_overlay {
                             .as_millis()
                             .min(u64::MAX as u128) as u64;
                         if let Some(k_name) = key_name.clone() {
-                            let binding = binding_from_trigger_event(&k_name);
-                            if k_name.eq_ignore_ascii_case("Tab") && binding.alt {
-                                let mut popped = false;
-                                if let Some(last_event) = session.events.last() {
-                                    if last_event.key.as_ref().is_some_and(|k| k.eq_ignore_ascii_case("Alt")) {
-                                        session.events.pop();
-                                        popped = true;
-                                    }
-                                }
-                                if popped {
-                                    if let Some(tx) = &HOOK_STATE.lock().ui_tx {
-                                        let _ = tx.send(UiCommand::MacroRealtimeStepRemoved(
-                                            session.group_id,
-                                            session.preset_id,
-                                        ));
-                                    }
-                                }
-                            } else {
-                                session.last_event_at = now;
-                                session.events.push(MacroRecordingEvent {
-                                    key: Some(k_name.clone()),
-                                    action: crate::model::MacroAction::KeyPress,
-                                    delay_ms,
-                                    x: 0,
-                                    y: 0,
-                                });
+                            session.last_event_at = now;
+                            session.events.push(MacroRecordingEvent {
+                                key: Some(k_name.clone()),
+                                action: crate::model::MacroAction::KeyPress,
+                                delay_ms,
+                                x: 0,
+                                y: 0,
+                            });
 
-                                if let Some(tx) = &HOOK_STATE.lock().ui_tx {
-                                    let mut step = crate::model::MacroStep::default();
-                                    step.action = crate::model::MacroAction::KeyPress;
-                                    step.delay_ms = delay_ms;
-                                    step.key = k_name;
-                                    let _ = tx.send(UiCommand::MacroRealtimeStepAdded(
-                                        session.group_id,
-                                        session.preset_id,
-                                        step,
-                                    ));
-                                }
+                            if let Some(tx) = &HOOK_STATE.lock().ui_tx {
+                                let mut step = crate::model::MacroStep::default();
+                                step.action = crate::model::MacroAction::KeyPress;
+                                step.delay_ms = delay_ms;
+                                step.key = k_name;
+                                let _ = tx.send(UiCommand::MacroRealtimeStepAdded(
+                                    session.group_id,
+                                    session.preset_id,
+                                    step,
+                                ));
                             }
                         }
                     }
@@ -1824,7 +1805,18 @@ mod windows_overlay {
         };
 
         let ui_tx = HOOK_STATE.lock().ui_tx.clone();
-        if let Some((finished_group_id, finished_preset_id, events, is_same)) = finished {
+        if let Some((finished_group_id, finished_preset_id, mut events, is_same)) = finished {
+            if is_ui_in_foreground() {
+                while let Some(last) = events.last() {
+                    if let Some(k) = &last.key {
+                        if k.eq_ignore_ascii_case("Alt") || k.eq_ignore_ascii_case("Tab") {
+                            events.pop();
+                            continue;
+                        }
+                    }
+                    break;
+                }
+            }
             if let Some(tx) = &ui_tx {
                 let _ = tx.send(UiCommand::MacroRecordingFinished(
                     finished_group_id,
