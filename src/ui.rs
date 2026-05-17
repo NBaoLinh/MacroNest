@@ -14118,8 +14118,8 @@ impl CrosshairApp {
                                         &mut preset.release_requires_all_inputs_released,
                                         Self::tr_lang(
                                             language,
-                                            "Wait until every other held input is released",
-                                            "Đợi nhả hết các phím khác mới kích hoạt",
+                                            "Wait for other keys to release before triggering",
+                                            "Đợi các phím khác nhả ra rồi mới kích hoạt",
                                         ),
                                     )
                                     .on_hover_text(
