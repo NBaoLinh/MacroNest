@@ -14165,11 +14165,10 @@ impl CrosshairApp {
                                             });
                                         }
                                     }
-                                    if preset.trigger_mode == MacroTriggerMode::Hold {
+                                    if preset.trigger_mode == MacroTriggerMode::Hold && preset.hold_stop_step_enabled {
                                         Frame::group(ui.style())
                                 .inner_margin(egui::Margin::symmetric(6, 4))
                                 .show(ui, |ui| {
-                                    if preset.hold_stop_step_enabled {
                                         let mut clear_hold_stop_step = false;
                                         let step = &mut preset.hold_stop_step;
                                         ui.horizontal_wrapped(|ui| {
@@ -14877,7 +14876,6 @@ impl CrosshairApp {
                                             preset.hold_stop_step = MacroStep::default();
                                             live_sync = true;
                                         }
-                                    }
                                 });
                                     }
                                     ui.scope(|ui| {
