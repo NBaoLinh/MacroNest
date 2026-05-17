@@ -4282,94 +4282,180 @@ impl CrosshairApp {
         }
     }
 
-    fn macro_action_tooltip(action: MacroAction) -> &'static str {
-        match action {
-            MacroAction::KeyPress => "Press and release one keyboard key.",
-            MacroAction::KeyDown => "Hold a keyboard key down.",
-            MacroAction::KeyUp => "Release a held keyboard key.",
-            MacroAction::Wait => "Wait for the number of milliseconds in Delay, then continue.",
-            MacroAction::TypeText => "Type the whole text from the Input field.",
-            MacroAction::ApplyWindowPreset => "Run one Window Preset from the selected preset.",
-            MacroAction::FocusWindowPreset => {
-                "Bring one window forward with the selected focus preset."
+        fn macro_action_tooltip(action: MacroAction, language: UiLanguage) -> &'static str {
+        match language {
+            UiLanguage::Vietnamese => match action {
+                MacroAction::KeyPress => "Nhấn và nhả một phím trên bàn phím.",
+                MacroAction::KeyDown => "Nhấn giữ một phím bàn phím.",
+                MacroAction::KeyUp => "Nhả một phím đang giữ trên bàn phím.",
+                MacroAction::Wait => "Chờ trong khoảng thời gian (Delay - Mili giây), sau đó tiếp tục.",
+                MacroAction::TypeText => "Nhập chuỗi văn bản từ ô nhập liệu.",
+                MacroAction::ApplyWindowPreset => "Áp dụng một preset cửa sổ đã chọn.",
+                MacroAction::FocusWindowPreset => {
+                    "Đưa cửa sổ lên phía trước bằng preset focus đã chọn."
+                }
+                MacroAction::TriggerMacroPreset => {
+                    "Chạy một preset macro khác trong cùng nhóm macro."
+                }
+                MacroAction::TriggerCommandPreset => {
+                    "Chạy một preset câu lệnh tùy chỉnh từ tab Dòng lệnh."
+                }
+                MacroAction::EnableCrosshairProfile => "Bật một cấu hình tâm ngắm đã lưu.",
+                MacroAction::DisableCrosshair => "Tắt hiển thị tâm ngắm overlay.",
+                MacroAction::EnablePinPreset => "Bật một preset ghim cửa sổ đã lưu từ tab Ghim.",
+                MacroAction::DisablePin => "Tắt hiển thị cửa sổ overlay đang ghim.",
+                MacroAction::PlayMousePathPreset => {
+                    "Chạy một preset đường di chuyển chuột đã ghi từ tab Chuột."
+                }
+                MacroAction::ApplyMouseSensitivityPreset => {
+                    "Áp dụng một preset độ nhạy chuột từ tab Chuột."
+                }
+                MacroAction::EnableZoomPreset => "Bật một preset phóng to đã lưu.",
+                MacroAction::DisableZoom => "Tắt hiển thị phóng to overlay.",
+                MacroAction::PlaySoundPreset => "Phát một preset âm thanh đã chọn từ tab Âm thanh.",
+                MacroAction::StartVisionSearch => {
+                    "Bắt đầu quét tìm hình ảnh trong nền bằng preset tìm ảnh đã chọn."
+                }
+                MacroAction::TriggerVisionMove => {
+                    "Di chuyển chuột tới vị trí tìm thấy hình ảnh gần nhất, hoặc thực hiện tìm kiếm ngay."
+                }
+                MacroAction::StopVisionWait => {
+                    "Dừng chờ kết quả tìm kiếm hình ảnh."
+                }
+                MacroAction::StopVision => {
+                    "Dừng quét tìm hình ảnh đang chạy trong nền."
+                }
+                MacroAction::LoopStart => {
+                    "Bắt đầu vòng lặp cho các bước kế tiếp. Nhập số lần lặp, hoặc bật Vô tận (Infinite)."
+                }
+                MacroAction::LoopEnd => "Kết thúc khối vòng lặp hiện tại.",
+                MacroAction::StopIfTriggerPressedAgain => {
+                    "Dừng vòng lặp hiện tại nếu bạn nhấn lại phím kích hoạt macro một lần nữa."
+                }
+                MacroAction::StopIfKeyPressed => {
+                    "Thoát vòng lặp hiện tại nếu phím chỉ định trong ô Nhập được nhấn, sau đó tiếp tục các bước sau vòng lặp."
+                }
+                MacroAction::ShowHud => "Hiển thị HUD (Menu công cụ) từ tab HUD.",
+                MacroAction::HideHud => "Ẩn HUD (Menu công cụ) đang hiển thị.",
+                MacroAction::LockKeys => "Khóa các phím được liệt kê trong ô Nhập.",
+                MacroAction::UnlockKeys => "Mở khóa các phím được liệt kê trong ô Nhập.",
+                MacroAction::LockMouse => {
+                    "Khóa di chuyển chuột, các cú nhấp chuột và cuộn chuột cho đến khi được mở khóa hoặc dừng macro."
+                }
+                MacroAction::UnlockMouse => "Mở khóa lại di chuyển chuột và các nút chuột.",
+                MacroAction::EnableMacroPreset => {
+                    "Bật một preset macro khác trong cùng nhóm macro."
+                }
+                MacroAction::DisableMacroPreset => {
+                    "Tắt một preset macro khác trong cùng nhóm macro."
+                }
+                MacroAction::MouseLeftClick => "Click chuột trái.",
+                MacroAction::MouseLeftDown => "Nhấn giữ chuột trái.",
+                MacroAction::MouseLeftUp => "Nhả chuột trái.",
+                MacroAction::MouseRightClick => "Click chuột phải.",
+                MacroAction::MouseRightDown => "Nhấn giữ chuột phải.",
+                MacroAction::MouseRightUp => "Nhả chuột phải.",
+                MacroAction::MouseMiddleClick => "Click chuột giữa.",
+                MacroAction::MouseMiddleDown => "Nhấn giữ chuột giữa.",
+                MacroAction::MouseMiddleUp => "Nhả chuột giữa.",
+                MacroAction::MouseX1Click => "Click nút chuột X1.",
+                MacroAction::MouseX1Down => "Nhấn giữ nút chuột X1.",
+                MacroAction::MouseX1Up => "Nhả nút chuột X1.",
+                MacroAction::MouseX2Click => "Click nút chuột X2.",
+                MacroAction::MouseX2Down => "Nhấn giữ nút chuột X2.",
+                MacroAction::MouseX2Up => "Nhả nút chuột X2.",
+                MacroAction::MouseWheelUp => "Cuộn chuột lên.",
+                MacroAction::MouseWheelDown => "Cuộn chuột xuống.",
+                MacroAction::MouseMoveAbsolute => "Di chuyển chuột tới tọa độ tuyệt đối.",
+                MacroAction::MouseMoveRelative => "Di chuyển chuột tương đối (theo lượng pixel).",
+                _ => "Tính năng cũ (Không dùng)",
+            },
+            _ => match action {
+                MacroAction::KeyPress => "Press and release one keyboard key.",
+                MacroAction::KeyDown => "Hold a keyboard key down.",
+                MacroAction::KeyUp => "Release a held keyboard key.",
+                MacroAction::Wait => "Wait for the number of milliseconds in Delay, then continue.",
+                MacroAction::TypeText => "Type the whole text from the Input field.",
+                MacroAction::ApplyWindowPreset => "Run one Window Preset from the selected preset.",
+                MacroAction::FocusWindowPreset => {
+                    "Bring one window forward with the selected focus preset."
+                }
+                MacroAction::TriggerMacroPreset => {
+                    "Run another macro preset from the same macro group."
+                }
+                MacroAction::TriggerCommandPreset => {
+                    "Run one custom command preset from the Custom tab."
+                }
+                MacroAction::EnableCrosshairProfile => "Enable one saved crosshair profile.",
+                MacroAction::DisableCrosshair => "Turn the overlay crosshair off.",
+                MacroAction::EnablePinPreset => "Enable one saved pin preset from the Pin tab.",
+                MacroAction::DisablePin => "Turn the pinned app overlay off.",
+                MacroAction::PlayMousePathPreset => {
+                    "Play one recorded mouse path preset from the Mouse tab."
+                }
+                MacroAction::ApplyMouseSensitivityPreset => {
+                    "Apply one mouse sensitivity preset from the Mouse tab."
+                }
+                MacroAction::EnableZoomPreset => "Enable one saved zoom preset.",
+                MacroAction::DisableZoom => "Turn the zoom overlay off.",
+                MacroAction::PlaySoundPreset => "Play one sound preset from the Sound tab.",
+                MacroAction::StartVisionSearch => {
+                    "Start scanning one image-search preset in the background."
+                }
+                MacroAction::TriggerVisionMove => {
+                    "Move the mouse to the latest image-search match, or run one search now."
+                }
+                MacroAction::StopVisionWait => {
+                    "Stop waiting for one image-search preset to match."
+                }
+                MacroAction::StopVision => {
+                    "Stop one image-search preset that is currently scanning."
+                }
+                MacroAction::LoopStart => {
+                    "Start looping the next adjacent steps. Input = loop count, or turn on Infinite."
+                }
+                MacroAction::LoopEnd => "End the current loop block.",
+                MacroAction::StopIfTriggerPressedAgain => {
+                    "Stop the current loop if you press the trigger again."
+                }
+                MacroAction::StopIfKeyPressed => {
+                    "Break only the current loop if the key in Input is pressed, then continue with the steps after the loop."
+                }
+                MacroAction::ShowHud => "Show one HUD preset from the HUD tab.",
+                MacroAction::HideHud => "Hide the currently visible HUD.",
+                MacroAction::LockKeys => "Lock the keys listed in Input.",
+                MacroAction::UnlockKeys => "Unlock the keys listed in Input.",
+                MacroAction::LockMouse => {
+                    "Lock mouse movement, clicks, and wheel input until it is unlocked or the macro ends."
+                }
+                MacroAction::UnlockMouse => "Unlock mouse movement and mouse buttons again.",
+                MacroAction::EnableMacroPreset => {
+                    "Enable one other macro preset from the same macro group."
+                }
+                MacroAction::DisableMacroPreset => {
+                    "Disable one other macro preset from the same macro group."
+                }
+                MacroAction::MouseLeftClick => "Press and release left mouse button.",
+                MacroAction::MouseLeftDown => "Hold left mouse button down.",
+                MacroAction::MouseLeftUp => "Release held left mouse button.",
+                MacroAction::MouseRightClick => "Press and release right mouse button.",
+                MacroAction::MouseRightDown => "Hold right mouse button down.",
+                MacroAction::MouseRightUp => "Release held right mouse button.",
+                MacroAction::MouseMiddleClick => "Press and release middle mouse button.",
+                MacroAction::MouseMiddleDown => "Hold middle mouse button down.",
+                MacroAction::MouseMiddleUp => "Release held middle mouse button.",
+                MacroAction::MouseX1Click => "Press and release mouse button X1.",
+                MacroAction::MouseX1Down => "Hold mouse button X1 down.",
+                MacroAction::MouseX1Up => "Release held mouse button X1.",
+                MacroAction::MouseX2Click => "Press and release mouse button X2.",
+                MacroAction::MouseX2Down => "Hold mouse button X2 down.",
+                MacroAction::MouseX2Up => "Release held mouse button X2.",
+                MacroAction::MouseWheelUp => "Scroll mouse wheel up.",
+                MacroAction::MouseWheelDown => "Scroll mouse wheel down.",
+                MacroAction::MouseMoveAbsolute => "Move mouse to absolute coordinates.",
+                MacroAction::MouseMoveRelative => "Move mouse relative to current position.",
+                _ => "Legacy (Deprecated)",
             }
-            MacroAction::TriggerMacroPreset => {
-                "Run another macro preset from the same macro group."
-            }
-            MacroAction::TriggerCommandPreset => {
-                "Run one custom command preset from the Custom tab."
-            }
-            MacroAction::EnableCrosshairProfile => "Enable one saved crosshair profile.",
-            MacroAction::DisableCrosshair => "Turn the overlay crosshair off.",
-            MacroAction::EnablePinPreset => "Enable one saved pin preset from the Pin tab.",
-            MacroAction::DisablePin => "Turn the pinned app overlay off.",
-            MacroAction::PlayMousePathPreset => {
-                "Play one recorded mouse path preset from the Mouse tab."
-            }
-            MacroAction::ApplyMouseSensitivityPreset => {
-                "Apply one mouse sensitivity preset from the Mouse tab."
-            }
-            MacroAction::EnableZoomPreset => "Enable one saved zoom preset.",
-            MacroAction::DisableZoom => "Turn the zoom overlay off.",
-            MacroAction::PlaySoundPreset => "Play one sound preset from the Sound tab.",
-            MacroAction::StartVisionSearch => {
-                "Start scanning one image-search preset in the background."
-            }
-            MacroAction::TriggerVisionMove => {
-                "Move the mouse to the latest image-search match, or run one search now."
-            }
-            MacroAction::StopVisionWait => {
-                "Stop waiting for one image-search preset to match."
-            }
-            MacroAction::StopVision => {
-                "Stop one image-search preset that is currently scanning."
-            }
-            MacroAction::LoopStart => {
-                "Start looping the next adjacent steps. Input = loop count, or turn on Infinite."
-            }
-            MacroAction::LoopEnd => "End the current loop block.",
-            MacroAction::StopIfTriggerPressedAgain => {
-                "Stop the current loop if you press the trigger again."
-            }
-            MacroAction::StopIfKeyPressed => {
-                "Break only the current loop if the key in Input is pressed, then continue with the steps after the loop."
-            }
-            MacroAction::ShowHud => "Show one toolbox preset from the Toolbox tab.",
-            MacroAction::HideHud => "Hide the currently visible toolbox.",
-            MacroAction::LockKeys => "Lock the keys listed in Input.",
-            MacroAction::UnlockKeys => "Unlock the keys listed in Input.",
-            MacroAction::LockMouse => {
-                "Lock mouse movement, clicks, and wheel input until it is unlocked or the macro ends."
-            }
-            MacroAction::UnlockMouse => "Unlock mouse movement and mouse buttons again.",
-            MacroAction::EnableMacroPreset => {
-                "Enable one other macro preset from the same macro group."
-            }
-            MacroAction::DisableMacroPreset => {
-                "Disable one other macro preset from the same macro group."
-            }
-            MacroAction::MouseLeftClick => "Left mouse click.",
-            MacroAction::MouseLeftDown => "Hold left mouse button down.",
-            MacroAction::MouseLeftUp => "Release left mouse button.",
-            MacroAction::MouseRightClick => "Right mouse click.",
-            MacroAction::MouseRightDown => "Hold right mouse button down.",
-            MacroAction::MouseRightUp => "Release right mouse button.",
-            MacroAction::MouseMiddleClick => "Middle mouse click.",
-            MacroAction::MouseMiddleDown => "Hold middle mouse button down.",
-            MacroAction::MouseMiddleUp => "Release middle mouse button.",
-            MacroAction::MouseX1Click => "Mouse button 4 click.",
-            MacroAction::MouseX1Down => "Hold mouse button 4 down.",
-            MacroAction::MouseX1Up => "Release mouse button 4.",
-            MacroAction::MouseX2Click => "Mouse button 5 click.",
-            MacroAction::MouseX2Down => "Hold mouse button 5 down.",
-            MacroAction::MouseX2Up => "Release mouse button 5.",
-            MacroAction::MouseWheelUp => "Scroll mouse wheel up.",
-            MacroAction::MouseWheelDown => "Scroll mouse wheel down.",
-            MacroAction::MouseMoveAbsolute => "Move the mouse to the exact screen X/Y.",
-            MacroAction::MouseMoveRelative => {
-                "Move the mouse by the X/Y offset from the current position."
-            }
-            _ => "Legacy action (deprecated).",
         }
     }
 
@@ -4466,8 +4552,8 @@ impl CrosshairApp {
                 MacroAction::LoopEnd => "Kết thúc",
                 MacroAction::StopIfTriggerPressedAgain => "Dừng",
                 MacroAction::StopIfKeyPressed => "Thoát",
-                MacroAction::ShowHud => "Công cụ",
-                MacroAction::HideHud => "Ẩn",
+                MacroAction::ShowHud => "Hiện HUD",
+                MacroAction::HideHud => "Ẩn HUD",
                 MacroAction::LockKeys => "Khóa phím",
                 MacroAction::UnlockKeys => "Mở phím",
                 MacroAction::LockMouse => "Khóa chuột",
@@ -4522,8 +4608,8 @@ impl CrosshairApp {
                 MacroAction::LoopEnd => "End",
                 MacroAction::StopIfTriggerPressedAgain => "Stop",
                 MacroAction::StopIfKeyPressed => "Break",
-                MacroAction::ShowHud => "Tool",
-                MacroAction::HideHud => "Hide",
+                MacroAction::ShowHud => "Show HUD",
+                MacroAction::HideHud => "Hide HUD",
                 MacroAction::LockKeys => "KL On",
                 MacroAction::UnlockKeys => "KL Off",
                 MacroAction::LockMouse => "ML On",
@@ -4578,8 +4664,8 @@ impl CrosshairApp {
                 MacroAction::LoopEnd => "End",
                 MacroAction::StopIfTriggerPressedAgain => "Stop",
                 MacroAction::StopIfKeyPressed => "Break",
-                MacroAction::ShowHud => "Tool",
-                MacroAction::HideHud => "Hide",
+                MacroAction::ShowHud => "Show HUD",
+                MacroAction::HideHud => "Hide HUD",
                 MacroAction::LockKeys => "KL On",
                 MacroAction::UnlockKeys => "KL Off",
                 MacroAction::LockMouse => "ML On",
@@ -6178,7 +6264,7 @@ impl CrosshairApp {
             format!(
                 "{}\n{}",
                 Self::macro_action_label(candidate),
-                Self::macro_action_tooltip(candidate)
+                Self::macro_action_tooltip(candidate, language)
             ),
         );
         if response.clicked() {
@@ -14121,7 +14207,7 @@ impl CrosshairApp {
                                             Self::show_instant_hover_tooltip(
                                                 ui,
                                                 &hold_stop_combo.response,
-                                                Self::macro_action_tooltip(step.action),
+                                                Self::macro_action_tooltip(step.action, language),
                                             );
 
                                             let action_uses_key = Self::macro_action_uses_key(step.action);
@@ -14645,7 +14731,7 @@ impl CrosshairApp {
                                                         let response = ui.add_sized(
                                                             [120.0, 22.0],
                                                             TextEdit::singleline(&mut step.text_override)
-                                                                .hint_text("Text override"),
+                                                                .hint_text(RichText::new(Self::tr_lang(language, "Text override", "Ghi đè văn bản")).color(Color32::from_rgba_unmultiplied(120, 120, 120, 140)).italics()),
                                                         );
                                                         Self::apply_vietnamese_input_if_changed(
                                                             &response,
@@ -14864,6 +14950,33 @@ impl CrosshairApp {
                                     preview_drawn = true;
                                     paint_drop_preview(ui);
                                 }
+                                let has_step_break_loop_warning = {
+                                    let current_step = &preset.steps[step_index];
+                                    current_step.action == MacroAction::StopIfKeyPressed
+                                        && current_step.enabled
+                                        && !{
+                                            let mut depth = 0;
+                                            let mut inside = false;
+                                            for (idx, s) in preset.steps.iter().enumerate() {
+                                                if idx == step_index {
+                                                    if depth > 0 {
+                                                        inside = true;
+                                                    }
+                                                    break;
+                                                }
+                                                if s.enabled {
+                                                    if s.action == MacroAction::LoopStart {
+                                                        depth += 1;
+                                                    } else if s.action == MacroAction::LoopEnd {
+                                                        if depth > 0 {
+                                                            depth -= 1;
+                                                        }
+                                                    }
+                                                }
+                                            }
+                                            inside
+                                        }
+                                };
                                 let step = &mut preset.steps[step_index];
                                 let is_selected = selected_steps_snapshot
                                     .contains(&(group.id, preset.id, step_index));
@@ -14912,6 +15025,8 @@ impl CrosshairApp {
                                     && !has_stop_vision;
                                 if has_infinite_loop_warning || has_step_vision_leak {
                                     row_fill = Color32::from_rgba_unmultiplied(255, 90, 0, 25);
+                                } else if has_step_break_loop_warning {
+                                    row_fill = Color32::from_rgba_unmultiplied(255, 200, 0, 15);
                                 }
                                 let drag_payload = MacroStepDragPayload {
                                     group_id: group.id,
@@ -14995,16 +15110,21 @@ impl CrosshairApp {
                                                 )
                                                 .on_hover_cursor(egui::CursorIcon::Grab);
                                             drag_handle.dnd_set_drag_payload(drag_payload.clone());
-                                            if has_infinite_loop_warning || has_step_vision_leak {
+                                            if has_infinite_loop_warning || has_step_vision_leak || has_step_break_loop_warning {
+                                                  let warn_color = if has_infinite_loop_warning || has_step_vision_leak {
+                                                      Color32::from_rgb(255, 90, 0)
+                                                  } else {
+                                                      Color32::from_rgb(255, 200, 0)
+                                                  };
                                                   let response = ui.add_sized([20.0, 20.0], egui::Button::new(
-                                                      Self::material_icon_text(0xe002, 16.0).color(Color32::from_rgb(255, 90, 0))
+                                                      Self::material_icon_text(0xe002, 16.0).color(warn_color)
                                                   ).frame(false));
                                                   
                                                   if response.contains_pointer() {
                                                       egui::show_tooltip_at_pointer(ui.ctx(), ui.layer_id(), response.id.with("step-tip"), |ui| {
                                                           ui.horizontal(|ui| {
-                                                              ui.label(Self::material_icon_text(0xe002, 14.0).color(Color32::from_rgb(255, 90, 0)));
-                                                              ui.label(RichText::new(Self::tr_lang(language, "STEP WARNING", "CẢNH BÁO BƯỚC")).strong().color(Color32::from_rgb(255, 90, 0)));
+                                                              ui.label(Self::material_icon_text(0xe002, 14.0).color(warn_color));
+                                                              ui.label(RichText::new(Self::tr_lang(language, "STEP WARNING", "CẢNH BÁO BƯỚC")).strong().color(warn_color));
                                                           });
                                                           if has_infinite_loop_warning {
                                                               ui.label(Self::tr_lang(
@@ -15020,11 +15140,18 @@ impl CrosshairApp {
                                                                   "Bước này bắt đầu tìm ảnh (chế độ Nhấn/Thả) nhưng macro không có bước dừng tìm ảnh! Điều này có thể gây chạy ngầm hao CPU. Hãy thêm bước dừng tìm ảnh hoặc đổi trigger sang Giữ (Hold)."
                                                               ));
                                                           }
+                                                          if has_step_break_loop_warning {
+                                                              ui.label(Self::tr_lang(
+                                                                  language,
+                                                                  "This step breaks a loop, but it is not placed inside any Loop Start / Loop End block! It will have no effect.",
+                                                                  "Bước này thoát vòng lặp, nhưng nó hiện không nằm trong cặp khối Lặp (Loop Start) / Hết lặp (Loop End) nào! Nó sẽ không có tác dụng."
+                                                              ));
+                                                          }
                                                       });
                                                   }
                                               }
                                              ui.add_sized(
-                                                 [if has_infinite_loop_warning || has_step_vision_leak { 18.0 } else { 30.0 }, 18.0],
+                                                 [if has_infinite_loop_warning || has_step_vision_leak || has_step_break_loop_warning { 18.0 } else { 30.0 }, 18.0],
                                                  egui::Label::new(
                                                      RichText::new(format!("{}", step_index + 1)).monospace(),
                                                  ),
@@ -15106,7 +15233,7 @@ impl CrosshairApp {
                                             Self::show_instant_hover_tooltip(
                                                 ui,
                                                 &action_combo.response,
-                                                Self::macro_action_tooltip(step.action),
+                                                Self::macro_action_tooltip(step.action, language),
                                             );
 
                                             let action_uses_key = Self::macro_action_uses_key(step.action);
@@ -15711,7 +15838,7 @@ impl CrosshairApp {
                                                         let response = ui.add_sized(
                                                             [122.0, 18.0],
                                                             TextEdit::singleline(&mut step.text_override)
-                                                                .hint_text(Self::tr_lang(language, "Text override", "Text override")),
+                                                                .hint_text(RichText::new(Self::tr_lang(language, "Text override", "Ghi đè văn bản")).color(Color32::from_rgba_unmultiplied(120, 120, 120, 140)).italics()),
                                                         );
                                                         Self::apply_vietnamese_input_if_changed(
                                                             &response,
