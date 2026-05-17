@@ -33,7 +33,7 @@ use crate::{
         VietnameseInputMode, WindowAnchor, WindowExpandDirection, WindowFocusPreset, WindowPreset,
         ZoomPreset,
     },
-    overlay::{OverlayCommand, UiCommand},
+    overlay::{OverlayCommand, UiCommand, MacroRecordingEvent},
     profile_code,
     storage::AppPaths,
     window_list,
@@ -588,6 +588,7 @@ pub struct CrosshairApp {
     vietnamese_input_enabled_texture: Option<TextureHandle>,
     vietnamese_input_disabled_texture: Option<TextureHandle>,
     active_mouse_record_preset_id: Option<u32>,
+    active_macro_record_preset_id: Option<u32>,
     active_hud_preview_preset_id: Option<u32>,
     crosshair_ai_dialog: Option<CrosshairAiDialog>,
     crosshair_ai_job: Option<CrosshairAiJob>,
@@ -729,6 +730,7 @@ impl CrosshairApp {
             vietnamese_input_enabled_texture: None,
             vietnamese_input_disabled_texture: None,
             active_mouse_record_preset_id: None,
+            active_macro_record_preset_id: None,
             active_hud_preview_preset_id: None,
             crosshair_ai_dialog: None,
             crosshair_ai_job: None,
@@ -14873,8 +14875,43 @@ impl CrosshairApp {
                                                 MacroAiMode::AppendSteps,
                                             ));
                                         }
-                                        ui.add_sized([22.0, 20.0], egui::Label::new(""));
-                                        ui.add_sized([22.0, 20.0], egui::Label::new(""));
+                                        let is_recording_this = self.active_macro_record_preset_id == Some(preset.id);
+                                        let record_icon = if is_recording_this { 0xe047 } else { 0xe061 }; // stop square or solid circle
+                                        let mut dot_color = Color32::from_rgb(255, 60, 60);
+                                        if is_recording_this {
+                                            let ms = std::time::SystemTime::now()
+                                                .duration_since(std::time::SystemTime::UNIX_EPOCH)
+                                                .unwrap_or_default()
+                                                .as_millis();
+                                            if (ms / 500) % 2 == 0 {
+                                                dot_color = Color32::from_rgba_unmultiplied(255, 60, 60, 80);
+                                            }
+                                            ui.ctx().request_repaint_after(std::time::Duration::from_millis(250));
+                                        }
+                                        let record_text = if is_recording_this {
+                                            Self::tr_lang(language, "Stop", "Dừng")
+                                        } else {
+                                            Self::tr_lang(language, "Record", "Ghi")
+                                        };
+                                        let record_btn = Button::new(
+                                            RichText::new(format!("{} {}", Self::material_icon_text(record_icon, 10.0).text(), record_text))
+                                                .color(dot_color)
+                                                .strong()
+                                        );
+                                        if ui.add_sized([64.0, 20.0], record_btn)
+                                            .on_hover_text(Self::tr_lang(
+                                                language,
+                                                "Record your keyboard and mouse clicks globally to automatically generate macro steps",
+                                                "Ghi lại thao tác phím và click chuột toàn màn hình để tự động tạo bước macro",
+                                            ))
+                                            .clicked()
+                                        {
+                                            let _ = self.overlay_tx.send(crate::overlay::OverlayCommand::ToggleMacroRecording(
+                                                group.id,
+                                                preset.id,
+                                                group.name.clone(),
+                                            ));
+                                        }
                                         ui.add_sized([30.0, 18.0], egui::Label::new(RichText::new("#").strong()));
                                         ui.add_sized([54.0, 18.0], egui::Label::new(RichText::new(Self::tr_lang(language, "Delay", "Delay")).strong()));
                                         ui.add_sized([154.0, 18.0], egui::Label::new(RichText::new(Self::tr_lang(language, "Action", "Action")).strong()));
@@ -19852,6 +19889,57 @@ impl eframe::App for CrosshairApp {
                 }
                 UiCommand::MousePathRecordingStarted(preset_id, status) => {
                     self.active_mouse_record_preset_id = Some(preset_id);
+                    self.status = status;
+                }
+                UiCommand::MacroRecordingStarted(preset_id, status) => {
+                    self.active_macro_record_preset_id = Some(preset_id);
+                    self.status = status;
+                }
+                UiCommand::MacroRecordingFinished(group_id, preset_id, events, status) => {
+                    let mut events = events;
+                    while let Some(last) = events.last() {
+                        if let Some(key) = &last.key {
+                            let k = key.trim().to_ascii_lowercase();
+                            if k == "alt" || k == "tab" || k == "lmenu" || k == "rmenu" || k == "lwin" || k == "rwin" || k == "escape" {
+                                events.pop();
+                                continue;
+                            }
+                        }
+                        break;
+                    }
+
+                    if let Some(group) = self
+                        .state
+                        .macro_groups
+                        .iter_mut()
+                        .find(|g| g.id == group_id)
+                    {
+                        if let Some(preset) = group
+                            .presets
+                            .iter_mut()
+                            .find(|p| p.id == preset_id)
+                        {
+                            let mut steps = Vec::new();
+                            for ev in events {
+                                let mut step = MacroStep::default();
+                                step.action = ev.action;
+                                step.delay_ms = ev.delay_ms;
+                                step.x = ev.x;
+                                step.y = ev.y;
+                                if let Some(key) = ev.key {
+                                    step.key = key;
+                                }
+                                steps.push(step);
+                            }
+                            if !steps.is_empty() {
+                                preset.steps = steps;
+                            } else {
+                                preset.steps = vec![MacroStep::default()];
+                            }
+                        }
+                    }
+                    self.active_macro_record_preset_id = None;
+                    self.persist();
                     self.status = status;
                 }
                 UiCommand::MousePathRecordingFinished(preset_id, events, status) => {

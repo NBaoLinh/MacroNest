@@ -1,7 +1,25 @@
 #![allow(unsafe_op_in_unsafe_fn)]
 
+#[derive(Debug, Clone)]
+pub struct MacroRecordingEvent {
+    pub key: Option<String>,
+    pub action: crate::model::MacroAction,
+    pub delay_ms: u64,
+    pub x: i32,
+    pub y: i32,
+}
+
+#[derive(Debug, Clone)]
+pub struct MacroRecordingSession {
+    pub group_id: u32,
+    pub preset_id: u32,
+    pub last_event_at: std::time::Instant,
+    pub events: Vec<MacroRecordingEvent>,
+}
+
 #[cfg(windows)]
 mod windows_overlay {
+    use super::{MacroRecordingEvent, MacroRecordingSession};
     use std::{
         cell::RefCell,
         collections::{HashMap, HashSet},
@@ -152,6 +170,8 @@ mod windows_overlay {
         Lazy::new(|| Mutex::new(None));
     static MOUSE_RECORDING: Lazy<Mutex<Option<MouseRecordingSession>>> =
         Lazy::new(|| Mutex::new(None));
+    static MACRO_RECORDING: Lazy<Mutex<Option<MacroRecordingSession>>> =
+        Lazy::new(|| Mutex::new(None));
     static HOOK_STATE: Lazy<Mutex<HookState>> = Lazy::new(|| Mutex::new(HookState::default()));
     
     static OVERLAY_COMMAND_TX: Lazy<Mutex<Option<Sender<OverlayCommand>>>> =
@@ -199,6 +219,7 @@ mod windows_overlay {
         SetUiVisible(bool),
         SetTrayIconVisible(bool),
         Exit,
+        ToggleMacroRecording(u32, u32, String),
     }
 
     #[derive(Debug, Clone)]
@@ -248,6 +269,8 @@ mod windows_overlay {
         VisionPointCaptureCancelled(String),
         UpdateCheckStarted,
         UpdateAvailable(String, String, String), // version, body, download_url
+        MacroRecordingStarted(u32, String),
+        MacroRecordingFinished(u32, u32, Vec<MacroRecordingEvent>, String),
         UpdateDownloadStarted,
         UpdateDownloadFinished(String), // new_exe_path
         UpdateError(String),
@@ -1050,6 +1073,27 @@ mod windows_overlay {
                 let is_key_up = matches!(msg, WM_KEYUP | WM_SYSKEYUP);
                 let key_name = hotkey::vk_to_key_name(info.vkCode).map(str::to_owned);
 
+                if is_key_down {
+                    let mut rec_guard = MACRO_RECORDING.lock();
+                    if let Some(session) = rec_guard.as_mut() {
+                        let now = std::time::Instant::now();
+                        let delay_ms = now
+                            .saturating_duration_since(session.last_event_at)
+                            .as_millis()
+                            .min(u64::MAX as u128) as u64;
+                        if let Some(k_name) = key_name.clone() {
+                            session.last_event_at = now;
+                            session.events.push(MacroRecordingEvent {
+                                key: Some(k_name),
+                                action: crate::model::MacroAction::KeyPress,
+                                delay_ms,
+                                x: 0,
+                                y: 0,
+                            });
+                        }
+                    }
+                }
+
                 if let Some(key_name) = key_name.clone() {
                     let binding = binding_from_trigger_event(&key_name);
                     if key_name.eq_ignore_ascii_case("Tab") && binding.alt {
@@ -1106,6 +1150,7 @@ mod windows_overlay {
             }
             let message = wparam.0 as u32;
             record_mouse_event(message, &info);
+            record_macro_mouse_event(message, &info);
             if is_mouse_locked() {
                 match message {
                     WM_MOUSEMOVE
@@ -1593,6 +1638,105 @@ mod windows_overlay {
         };
         let _ = toggle_mouse_sensitivity_preset(&preset);
         Some(true)
+    }
+
+    fn record_macro_mouse_event(message: u32, info: &MSLLHOOKSTRUCT) {
+        let mut guard = MACRO_RECORDING.lock();
+        let Some(session) = guard.as_mut() else {
+            return;
+        };
+        let now = std::time::Instant::now();
+        let delay_ms = now
+            .saturating_duration_since(session.last_event_at)
+            .as_millis()
+            .min(u64::MAX as u128) as u64;
+
+        let kind = match message {
+            WM_LBUTTONDOWN => Some(crate::model::MacroAction::MouseLeftClick),
+            WM_RBUTTONDOWN => Some(crate::model::MacroAction::MouseRightClick),
+            WM_MBUTTONDOWN => Some(crate::model::MacroAction::MouseMiddleClick),
+            WM_XBUTTONDOWN => {
+                let xbutton = ((info.mouseData >> 16) & 0xFFFF) as u16;
+                if xbutton == 1 {
+                    Some(crate::model::MacroAction::MouseX1Click)
+                } else {
+                    Some(crate::model::MacroAction::MouseX2Click)
+                }
+            }
+            WM_MOUSEWHEEL => {
+                let data = ((info.mouseData >> 16) & 0xFFFF) as i16;
+                if data > 0 {
+                    Some(crate::model::MacroAction::MouseWheelUp)
+                } else {
+                    Some(crate::model::MacroAction::MouseWheelDown)
+                }
+            }
+            _ => None,
+        };
+
+        if let Some(action) = kind {
+            session.last_event_at = now;
+            session.events.push(MacroRecordingEvent {
+                key: None,
+                action,
+                delay_ms,
+                x: info.pt.x,
+                y: info.pt.y,
+            });
+        }
+    }
+
+    fn toggle_macro_recording(group_id: u32, preset_id: u32, preset_name: String) {
+        let finished = {
+            let mut guard = MACRO_RECORDING.lock();
+            if guard.is_some() {
+                let session = guard.take().unwrap();
+                if session.preset_id == preset_id {
+                    Some((session.group_id, session.preset_id, session.events, true))
+                } else {
+                    *guard = Some(MacroRecordingSession {
+                        group_id,
+                        preset_id,
+                        last_event_at: std::time::Instant::now(),
+                        events: Vec::new(),
+                    });
+                    Some((session.group_id, session.preset_id, session.events, false))
+                }
+            } else {
+                *guard = Some(MacroRecordingSession {
+                    group_id,
+                    preset_id,
+                    last_event_at: std::time::Instant::now(),
+                    events: Vec::new(),
+                });
+                None
+            }
+        };
+
+        let ui_tx = HOOK_STATE.lock().ui_tx.clone();
+        if let Some((finished_group_id, finished_preset_id, events, is_same)) = finished {
+            if let Some(tx) = &ui_tx {
+                let _ = tx.send(UiCommand::MacroRecordingFinished(
+                    finished_group_id,
+                    finished_preset_id,
+                    events,
+                    format!("Saved macro record."),
+                ));
+            }
+            if !is_same {
+                if let Some(tx) = &ui_tx {
+                    let _ = tx.send(UiCommand::MacroRecordingStarted(
+                        preset_id,
+                        format!("Recording macro for {preset_name}. Press Stop in the UI to finish."),
+                    ));
+                }
+            }
+        } else if let Some(tx) = ui_tx {
+            let _ = tx.send(UiCommand::MacroRecordingStarted(
+                preset_id,
+                format!("Recording macro for {preset_name}. Press Stop in the UI to finish."),
+            ));
+        }
     }
 
     fn record_mouse_event(message: u32, info: &MSLLHOOKSTRUCT) {
@@ -2674,6 +2818,9 @@ mod windows_overlay {
                         let _ = refresh_hud(runtime);
                     }
                 }
+                OverlayCommand::ToggleMacroRecording(group_id, preset_id, preset_name) => {
+                    toggle_macro_recording(group_id, preset_id, preset_name);
+                }
                 OverlayCommand::Exit => {
                     let _ = runtime.ui_tx.send(UiCommand::Exit);
                     let _ = shutdown_application(hwnd, runtime);
@@ -2923,8 +3070,8 @@ mod windows_overlay {
             return 100;
         }
 
-        let mouse_recording_active = MOUSE_RECORDING.lock().is_some();
-        if mouse_recording_active {
+        let recording_active = MOUSE_RECORDING.lock().is_some() || MACRO_RECORDING.lock().is_some();
+        if recording_active {
             return 33;
         }
 
@@ -8552,6 +8699,7 @@ mod fallback {
         SetUiVisible(bool),
         SetTrayIconVisible(bool),
         Exit,
+        ToggleMacroRecording(u32, u32, String),
     }
 
     #[derive(Debug, Clone)]
