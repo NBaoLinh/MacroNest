@@ -7309,7 +7309,48 @@ impl CrosshairApp {
                         }
                     }
                 }
+                let old_name = temp_preset.name.clone();
                 patch.apply_to(&mut temp_preset);
+
+                // Robust Fallback: If the name wasn't renamed by AI, but the command changed, let's auto-generate a descriptive name!
+                if temp_preset.name.trim().eq_ignore_ascii_case(old_name.trim()) && temp_preset.command.trim() != old_name.trim() {
+                    let cmd_lower = temp_preset.command.to_ascii_lowercase();
+                    let new_fallback_name = if cmd_lower.contains("shutdown") {
+                        "Tắt máy".to_owned()
+                    } else if cmd_lower.contains("mspaint") || cmd_lower.contains("pbrush") {
+                        "Mở Paint".to_owned()
+                    } else if cmd_lower.contains("calc") {
+                        "Mở Máy tính".to_owned()
+                    } else if cmd_lower.contains("notepad") {
+                        "Mở Notepad".to_owned()
+                    } else if cmd_lower.contains("discord") {
+                        "Mở Discord".to_owned()
+                    } else if cmd_lower.contains("chrome") {
+                        "Mở Chrome".to_owned()
+                    } else if cmd_lower.contains("edge") || cmd_lower.contains("msedge") {
+                        "Mở Edge".to_owned()
+                    } else {
+                        let mut parts = temp_preset.command.split_whitespace();
+                        if let Some(first) = parts.next() {
+                            let name_part = first
+                                .trim_end_matches(".exe")
+                                .trim_end_matches(".bat")
+                                .trim_end_matches(".cmd")
+                                .to_owned();
+                            let mut chars = name_part.chars();
+                            if let Some(first_char) = chars.next() {
+                                let capitalized = first_char.to_uppercase().collect::<String>() + chars.as_str();
+                                format!("Mở {}", capitalized)
+                            } else {
+                                temp_preset.name.clone()
+                            }
+                        } else {
+                            temp_preset.name.clone()
+                        }
+                    };
+                    temp_preset.name = new_fallback_name;
+                }
+
                 if let Some(group) = self
                     .state
                     .macro_groups
@@ -7325,12 +7366,14 @@ impl CrosshairApp {
                             if let Some(step) = preset.steps.get_mut(step_index) {
                                 step.command_preset_command = temp_preset.command;
                                 step.command_preset_use_powershell = temp_preset.use_powershell;
+                                step.key = temp_preset.name.clone();
                             }
                         } else {
                             preset.hold_stop_step.command_preset_command = temp_preset.command;
                             preset.hold_stop_step.command_preset_use_powershell = temp_preset.use_powershell;
+                            preset.hold_stop_step.key = temp_preset.name.clone();
                         }
-                        self.status = "Updated step command.".to_owned();
+                        self.status = "Updated step command and preset name.".to_owned();
                     }
                 }
                 self.persist();
@@ -8087,6 +8130,22 @@ impl CrosshairApp {
                         .changed();
                     if command_changed {
                         changed = true;
+                    }
+                    if resolved_preset.is_none() {
+                        ui.horizontal(|ui| {
+                            ui.label(Self::tr_lang(language, "Preset name:", "Tên preset:"));
+                            let name_changed = ui
+                                .add(
+                                    TextEdit::singleline(&mut step.key)
+                                        .hint_text(Self::tr_lang(language, "Enter name...", "Nhập tên..."))
+                                        .desired_width(180.0),
+                                )
+                                .changed();
+                            if name_changed {
+                                changed = true;
+                            }
+                        });
+                        ui.add_space(2.0);
                     }
                     if !is_saved_custom_preset {
                         ui.horizontal(|ui| {
