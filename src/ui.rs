@@ -8703,6 +8703,7 @@ impl CrosshairApp {
     fn capture_request_keeps_open(&self, target: &CaptureRequest) -> bool {
         match target {
             CaptureRequest::MacroPresetHotkey(_, _) => true,
+            CaptureRequest::MacroPresetRecordHotkey(_, _) => true,
             CaptureRequest::CommandPresetHotkey(_) => true,
             CaptureRequest::MacroPresetReleaseWaitKey(_, _) => true,
             CaptureRequest::MacroPresetHoldStopInput(group_id, preset_id) => self
@@ -10538,7 +10539,12 @@ impl CrosshairApp {
         }
 
         if let Some(target) = capture_target
-            && matches!(target, CaptureRequest::MacroPresetHotkey(_, _))
+            && matches!(
+                target,
+                CaptureRequest::MacroPresetHotkey(_, _)
+                    | CaptureRequest::MacroPresetRecordHotkey(_, _)
+                    | CaptureRequest::CommandPresetHotkey(_)
+            )
             && let Some(pending) = self.capture_hotkey_combo_keys.as_ref()
         {
             self.status = self.capture_combo_status_text(pending);
@@ -14987,6 +14993,33 @@ impl CrosshairApp {
                                             } else {
                                                 next_capture_target = Some(capture_target.clone());
                                             }
+                                        }
+                                        
+                                        // Text output of hotkey capture state or value
+                                        let preview_binding = if capture_active {
+                                            self.capture_hotkey_combo_keys.clone()
+                                                .map(|keys| Self::hotkey_binding_from_combo_keys(keys))
+                                                .or_else(|| preset.record_hotkey.clone())
+                                        } else {
+                                            preset.record_hotkey.clone()
+                                        };
+
+                                        if capture_active {
+                                            let label_text = if let Some(binding) = &preview_binding {
+                                                Self::format_binding_ui(language, Some(binding))
+                                            } else {
+                                                Self::tr_lang(language, "Press key...", "Nhấn phím...").to_string()
+                                            };
+                                            ui.colored_label(
+                                                Color32::from_rgb(255, 232, 96), // pulsing yellow/gold
+                                                format!(" ({label_text})")
+                                            );
+                                        } else if let Some(binding) = &preset.record_hotkey {
+                                            let key_name = Self::format_binding_ui(language, Some(binding));
+                                            ui.colored_label(
+                                                Color32::from_rgb(96, 232, 255), // light blue/cyan for standard label
+                                                format!(" [{key_name}]")
+                                            );
                                         }
                                         
                                         if has_rec_hotkey && !capture_active {
@@ -20030,15 +20063,21 @@ impl eframe::App for CrosshairApp {
                             .iter_mut()
                             .find(|p| p.id == preset_id)
                         {
-                            while let Some(last) = preset.steps.last() {
-                                if last.action == MacroAction::KeyPress {
-                                    let k = last.key.trim().to_ascii_lowercase();
-                                    if k == "alt" || k == "tab" || k == "lmenu" || k == "rmenu" || k == "lwin" || k == "rwin" || k == "escape" {
-                                        preset.steps.pop();
-                                        continue;
+                            if let Some(record_hotkey) = &preset.record_hotkey {
+                                let hotkey_keys: Vec<String> = crate::hotkey::binding_key_names(record_hotkey)
+                                    .into_iter()
+                                    .map(|k| k.trim().to_ascii_lowercase())
+                                    .collect();
+                                while let Some(last) = preset.steps.last() {
+                                    if last.action == MacroAction::KeyPress {
+                                        let k = last.key.trim().to_ascii_lowercase();
+                                        if hotkey_keys.contains(&k) {
+                                            preset.steps.pop();
+                                            continue;
+                                        }
                                     }
+                                    break;
                                 }
-                                break;
                             }
                             if preset.steps.is_empty() {
                                 preset.steps.push(MacroStep::default());

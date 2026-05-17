@@ -35,7 +35,10 @@ fn embed_windows_icon() -> Result<()> {
 
     fs::write(
         &rc_path,
-        format!("1 ICON \"{}\"\n", ico_path.display().to_string().replace('\\', "/")),
+        format!(
+            "1 ICON \"{}\"\n",
+            ico_path.display().to_string().replace('\\', "/")
+        ),
     )
     .with_context(|| format!("Failed to write resource file {}", rc_path.display()))?;
 
