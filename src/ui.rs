@@ -20239,40 +20239,28 @@ impl eframe::App for CrosshairApp {
                         let selected = self.state.active_panel == panel;
                         let emphasized = panel == AppPanel::Macros;
                         let text = RichText::new(self.panel_label(panel));
-                        let response = Self::hover_if(
-                            ui.add(self.top_tab_button(text, selected, emphasized)),
-                            show_icon_tooltips,
-                            self.panel_label(panel),
-                        );
+                        let response = ui.add(self.top_tab_button(text, selected, emphasized));
                         if response.clicked() {
                             self.state.active_panel = panel;
                         }
                     }
                     if self.active_audio_editor.is_some() {
                         let text = RichText::new(self.panel_label(AppPanel::Media));
-                        let response = Self::hover_if(
-                            ui.add(self.top_tab_button(
-                                text,
-                                self.state.active_panel == AppPanel::Media,
-                                false,
-                            )),
-                            show_icon_tooltips,
-                            self.panel_label(AppPanel::Media),
-                        );
+                        let response = ui.add(self.top_tab_button(
+                            text,
+                            self.state.active_panel == AppPanel::Media,
+                            false,
+                        ));
                         if response.clicked() {
                             self.state.active_panel = AppPanel::Media;
                         }
                     }
                     let text = RichText::new(self.panel_label(AppPanel::Hud));
-                    let response = Self::hover_if(
-                        ui.add(self.top_tab_button(
-                            text,
-                            self.state.active_panel == AppPanel::Hud,
-                            false,
-                        )),
-                        show_icon_tooltips,
-                        self.panel_label(AppPanel::Hud),
-                    );
+                    let response = ui.add(self.top_tab_button(
+                        text,
+                        self.state.active_panel == AppPanel::Hud,
+                        false,
+                    ));
                     if response.clicked() {
                         self.state.active_panel = AppPanel::Hud;
                     }
