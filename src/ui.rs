@@ -14565,6 +14565,7 @@ impl CrosshairApp {
 
                             let loop_colors = Self::macro_loop_colors(&preset.steps);
                             let steps_len = preset.steps.len();
+                            let has_stop_vision = preset.steps.iter().any(|s| s.action == MacroAction::StopVision && s.enabled);
                             let drag_payload = egui::DragAndDrop::payload::<MacroStepDragPayload>(ui.ctx())
                                 .filter(|payload| payload.group_id == group.id && payload.preset_id == preset.id);
                             let pointer_y = ui.ctx().pointer_interact_pos().map(|pointer| pointer.y);
@@ -14650,7 +14651,7 @@ impl CrosshairApp {
                                     && (preset.trigger_mode == MacroTriggerMode::Press || preset.trigger_mode == MacroTriggerMode::Release)
                                     && step.action == MacroAction::StartVisionSearch
                                     && step.enabled
-                                    && !preset.steps.iter().any(|s| s.action == MacroAction::StopVision && s.enabled);
+                                    && !has_stop_vision;
                                 if has_infinite_loop_warning || has_step_vision_leak {
                                     row_fill = Color32::from_rgba_unmultiplied(255, 90, 0, 25);
                                 }
