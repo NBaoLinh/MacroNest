@@ -14806,7 +14806,6 @@ impl CrosshairApp {
                                                                 MacroAction::DisablePin,
                                                                 MacroAction::PlaySoundPreset,
                                                                 MacroAction::ApplyMouseSensitivityPreset,
-                                                                MacroAction::StopVisionWait,
                                                                 MacroAction::LoopStart,
                                                                 MacroAction::LoopEnd,
                                                                 MacroAction::StopIfKeyPressed,
