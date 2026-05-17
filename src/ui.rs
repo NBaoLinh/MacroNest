@@ -12998,6 +12998,7 @@ impl CrosshairApp {
                     let mut selection_after_paste = None;
                     let mut clear_step_selection = None;
                     let mut copy_selected_steps = None;
+                    let mut delete_selected_steps = None;
                     let mut paste_step_after = None;
                     let selected_steps_snapshot = self.selected_macro_steps.clone();
                 let render_preset_indices = {
@@ -14535,22 +14536,20 @@ impl CrosshairApp {
                                         ui.add_sized([54.0, 18.0], egui::Label::new(RichText::new(Self::tr_lang(language, "Delay", "Delay")).strong()));
                                         ui.add_sized([154.0, 18.0], egui::Label::new(RichText::new(Self::tr_lang(language, "Action", "Action")).strong()));
                                         ui.add_sized([146.0, 18.0], egui::Label::new(""));
+                                        let has_selected_steps = selected_steps_snapshot.iter().any(|(g_id, p_id, _)| *g_id == group.id && *p_id == preset.id);
+                                        let delete_btn = Button::new(Self::tr_lang(language, "Delete", "Xóa"))
+                                            .min_size(egui::vec2(64.0, 20.0));
                                         if ui
-                                            .add_sized(
-                                                [64.0, 20.0],
-                                                Button::new(Self::tr_lang(language, "Clear all", "Xóa hết")),
-                                            )
-                                            .on_hover_text(Self::tr_lang(language, "Clear all steps", "Xóa tất cả các bước"))
+                                            .add_enabled(has_selected_steps, delete_btn)
+                                            .on_hover_text(Self::tr_lang(language, "Delete selected steps", "Xóa các bước đã chọn"))
                                             .clicked()
                                         {
-                                            preset.steps.clear();
-                                            live_sync = true;
+                                            delete_selected_steps = Some((group.id, preset.id));
                                         }
+                                        let copy_btn = Button::new(Self::tr_lang(language, "Copy", "Copy"))
+                                            .min_size(egui::vec2(56.0, 20.0));
                                         if ui
-                                            .add_sized(
-                                                [56.0, 20.0],
-                                                Button::new(Self::tr_lang(language, "Copy", "Copy")),
-                                            )
+                                            .add_enabled(has_selected_steps, copy_btn)
                                             .on_hover_text(Self::tr_lang(
                                                 language,
                                                 "Copy the selected steps in this preset.",
@@ -15811,6 +15810,10 @@ impl CrosshairApp {
                     }
                     if let Some((group_id, preset_id)) = copy_selected_steps {
                         self.copy_selected_macro_steps_for_preset(group_id, preset_id);
+                    }
+                    if let Some((group_id, preset_id)) = delete_selected_steps {
+                        self.remove_selected_macro_steps_for_preset(group_id, preset_id);
+                        live_sync = true;
                     }
                     if let Some((group_id, preset_id, step_index)) = paste_step_after
                         && let Some(selection) =
