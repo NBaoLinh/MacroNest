@@ -286,6 +286,7 @@ mod windows_overlay {
         MacroRecordingStarted(u32, String),
         MacroRecordingFinished(u32, u32, Vec<MacroRecordingEvent>, String),
         MacroRealtimeStepAdded(u32, u32, crate::model::MacroStep),
+        MacroRealtimeStepRemoved(u32, u32),
         UpdateDownloadStarted,
         UpdateDownloadFinished(String), // new_exe_path
         UpdateError(String),
@@ -1104,25 +1105,44 @@ mod windows_overlay {
                             .as_millis()
                             .min(u64::MAX as u128) as u64;
                         if let Some(k_name) = key_name.clone() {
-                            session.last_event_at = now;
-                            session.events.push(MacroRecordingEvent {
-                                key: Some(k_name.clone()),
-                                action: crate::model::MacroAction::KeyPress,
-                                delay_ms,
-                                x: 0,
-                                y: 0,
-                            });
+                            let binding = binding_from_trigger_event(&k_name);
+                            if k_name.eq_ignore_ascii_case("Tab") && binding.alt {
+                                let mut popped = false;
+                                if let Some(last_event) = session.events.last() {
+                                    if last_event.key.as_ref().is_some_and(|k| k.eq_ignore_ascii_case("Alt")) {
+                                        session.events.pop();
+                                        popped = true;
+                                    }
+                                }
+                                if popped {
+                                    if let Some(tx) = &HOOK_STATE.lock().ui_tx {
+                                        let _ = tx.send(UiCommand::MacroRealtimeStepRemoved(
+                                            session.group_id,
+                                            session.preset_id,
+                                        ));
+                                    }
+                                }
+                            } else {
+                                session.last_event_at = now;
+                                session.events.push(MacroRecordingEvent {
+                                    key: Some(k_name.clone()),
+                                    action: crate::model::MacroAction::KeyPress,
+                                    delay_ms,
+                                    x: 0,
+                                    y: 0,
+                                });
 
-                            if let Some(tx) = &HOOK_STATE.lock().ui_tx {
-                                let mut step = crate::model::MacroStep::default();
-                                step.action = crate::model::MacroAction::KeyPress;
-                                step.delay_ms = delay_ms;
-                                step.key = k_name;
-                                let _ = tx.send(UiCommand::MacroRealtimeStepAdded(
-                                    session.group_id,
-                                    session.preset_id,
-                                    step,
-                                ));
+                                if let Some(tx) = &HOOK_STATE.lock().ui_tx {
+                                    let mut step = crate::model::MacroStep::default();
+                                    step.action = crate::model::MacroAction::KeyPress;
+                                    step.delay_ms = delay_ms;
+                                    step.key = k_name;
+                                    let _ = tx.send(UiCommand::MacroRealtimeStepAdded(
+                                        session.group_id,
+                                        session.preset_id,
+                                        step,
+                                    ));
+                                }
                             }
                         }
                     }
@@ -1134,6 +1154,12 @@ mod windows_overlay {
                     if is_key_down {
                         let repeat = is_repeat_key(&key_name);
                         if let Some(swallow) = process_macro_record_hotkey(&binding, repeat) {
+                            update_modifier_state(info.vkCode, is_key_down);
+                            if swallow {
+                                return LRESULT(1);
+                            }
+                        }
+                        if let Some(swallow) = process_mouse_path_record_hotkey(&binding, repeat) {
                             update_modifier_state(info.vkCode, is_key_down);
                             if swallow {
                                 return LRESULT(1);
@@ -2130,9 +2156,7 @@ mod windows_overlay {
             return Some(false);
         }
 
-        if let Some(swallow) = process_mouse_path_record_hotkey(binding, is_repeat) {
-            return Some(swallow);
-        }
+
 
         let hook_state = HOOK_STATE.lock();
         let mut matched_any_window = false;
@@ -8848,6 +8872,7 @@ mod fallback {
         Exit,
         VisionFinished(String),
         VisionPointCaptureCancelled(String),
+        MacroRealtimeStepRemoved(u32, u32),
     }
 
     pub struct OverlayHandle;

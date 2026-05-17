@@ -10427,7 +10427,16 @@ impl CrosshairApp {
             }
         }
         self.persist();
-        if matches!(target_clone, CaptureRequest::MacroPresetRecordHotkey(_, _)) {
+        if matches!(
+            target_clone,
+            CaptureRequest::MacroPresetRecordHotkey(_, _)
+                | CaptureRequest::MacroPresetHotkey(_, _)
+                | CaptureRequest::MousePathRecordHotkey(_)
+                | CaptureRequest::CommandPresetHotkey(_)
+                | CaptureRequest::PinPresetHotkey(_)
+                | CaptureRequest::MouseSensitivityPresetHotkey(_)
+                | CaptureRequest::VisionPresetHotkey(_)
+        ) {
             false
         } else {
             keep_capture_open
@@ -14967,7 +14976,9 @@ impl CrosshairApp {
                                             ui.visuals().widgets.inactive.bg_fill
                                         };
                                         
-                                        let kbd_btn = Button::new(
+                                        ui.label(Self::tr_lang(language, "Record Hotkey:", "Phím ghi:"));
+
+                                         let kbd_btn = Button::new(
                                             RichText::new(Self::material_icon_text(0xe312, 10.0).text())
                                                 .strong()
                                         )
@@ -15013,7 +15024,7 @@ impl CrosshairApp {
                                             let label_text = if let Some(binding) = &preview_binding {
                                                 Self::format_binding_ui(language, Some(binding))
                                             } else {
-                                                Self::tr_lang(language, "Press key...", "Nhấn phím...").to_string()
+                                                Self::tr_lang(language, "Capturing...", "Đang bắt...").to_string()
                                             };
                                             ui.colored_label(
                                                 Color32::from_rgb(255, 232, 96), // pulsing yellow/gold
@@ -20052,6 +20063,23 @@ impl eframe::App for CrosshairApp {
                                 preset.steps.clear();
                             }
                             preset.steps.push(step);
+                        }
+                    }
+                    ctx.request_repaint();
+                }
+                UiCommand::MacroRealtimeStepRemoved(group_id, preset_id) => {
+                    if let Some(group) = self
+                        .state
+                        .macro_groups
+                        .iter_mut()
+                        .find(|g| g.id == group_id)
+                    {
+                        if let Some(preset) = group
+                            .presets
+                            .iter_mut()
+                            .find(|p| p.id == preset_id)
+                        {
+                            preset.steps.pop();
                         }
                     }
                     ctx.request_repaint();
