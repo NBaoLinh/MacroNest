@@ -3174,6 +3174,7 @@ impl CrosshairApp {
 
     fn render_multi_window_targets(
         ui: &mut egui::Ui,
+        language: UiLanguage,
         id_source: impl std::hash::Hash + Copy,
         label_when_none: &str,
         primary: &mut Option<String>,
@@ -3232,7 +3233,7 @@ impl CrosshairApp {
                 changed = true;
             }
 
-            if ui.button("+ Window").clicked() {
+            if ui.button(Self::tr_lang(language, "+ Window", "+ Cửa sổ")).clicked() {
                 let next = open_windows
                     .iter()
                     .find(|title| {
@@ -3398,6 +3399,7 @@ impl CrosshairApp {
 
     fn render_multi_window_targets_with_duplicate_mode(
         ui: &mut egui::Ui,
+        language: UiLanguage,
         id_source: impl std::hash::Hash + Copy,
         label_when_none: &str,
         primary: &mut Option<String>,
@@ -3447,7 +3449,7 @@ impl CrosshairApp {
                 changed = true;
             }
 
-            if ui.button("+ Window").clicked() {
+            if ui.button(Self::tr_lang(language, "+ Window", "+ Cửa sổ")).clicked() {
                 let next = open_windows
                     .iter()
                     .find(|title| {
@@ -11641,6 +11643,7 @@ impl CrosshairApp {
                             ui.label(Self::tr_lang(language, "Target Window", "Target Window"));
                             live_sync |= Self::render_multi_window_targets_with_duplicate_mode(
                                 ui,
+                                language,
                                 (preset.id, "window-target"),
                                 Self::tr_lang(language, "Focus", "Cửa sổ đang focus"),
                                 &mut preset.target_window_title,
@@ -11766,6 +11769,7 @@ impl CrosshairApp {
                         ));
                         live_sync |= Self::render_multi_window_targets_with_duplicate_mode(
                             ui,
+                            language,
                             (preset.id, "window-focus-target"),
                             Self::tr_lang(language, "Focus", "Cửa sổ đang focus"),
                             &mut preset.target_window_title,
@@ -11923,6 +11927,7 @@ impl CrosshairApp {
                         ui.label("Target Window");
                         live_sync |= Self::render_multi_window_targets(
                             ui,
+                            language,
                             (preset.id, "zoom-target-window"),
                             Self::tr_lang(language, "Any focused window", "Cửa sổ đang focus"),
                             &mut preset.target_window_title,
@@ -12139,6 +12144,7 @@ impl CrosshairApp {
                         ));
                         let target_changed = Self::render_multi_window_targets_with_duplicate_mode(
                             ui,
+                            language,
                             (preset.id, "pin-target-window"),
                             Self::tr_lang(language, "Focus", "Cửa sổ đang focus"),
                             &mut preset.target_window_title,
@@ -13539,6 +13545,7 @@ impl CrosshairApp {
                                 ui.label(Self::tr_lang(language, "Target Window", "Target Window"));
                                 live_sync |= Self::render_multi_window_targets_with_duplicate_mode(
                                     ui,
+                                    language,
                                     (group.id, "macro-group-window-target"),
                                     Self::tr_lang(
                                         language,
@@ -13680,17 +13687,6 @@ impl CrosshairApp {
                                                     preset.id,
                                                     MacroAiMode::ReplacePreset,
                                                 ));
-                                            }
-                                            if Self::sized_button(
-                                                ui,
-                                                60.0,
-                                                Self::tr_lang(language, "Clear", "Clear"),
-                                            )
-                                            .clicked()
-                                            {
-                                                let changed =
-                                                    Self::macro_trigger_remove_last_binding(preset);
-                                                live_sync |= changed;
                                             }
                                             let mouse_trigger_options = [
                                                 (
@@ -14143,7 +14139,7 @@ impl CrosshairApp {
                                                                 .map(|preset| preset.name.clone())
                                                         })
                                                         .unwrap_or_else(|| {
-                                                            Self::tr_lang(language, "Select window preset", "Select window preset").to_owned()
+                                                            Self::tr_lang(language, "Select window preset", "Chọn preset cửa sổ").to_owned()
                                                         });
                                                     egui::ComboBox::from_id_salt((group.id, preset.id, "hold-stop-window-preset"))
                                                         .width(160.0)
@@ -14170,7 +14166,7 @@ impl CrosshairApp {
                                                                 .map(|preset| preset.name.clone())
                                                         })
                                                         .unwrap_or_else(|| {
-                                                            Self::tr_lang(language, "Select focus preset", "Select focus preset").to_owned()
+                                                            Self::tr_lang(language, "Select focus preset", "Chọn preset focus").to_owned()
                                                         });
                                                     egui::ComboBox::from_id_salt((group.id, preset.id, "hold-stop-focus-window-preset"))
                                                         .width(146.0)
@@ -15127,7 +15123,7 @@ impl CrosshairApp {
                                                                 .find(|preset| preset.id == id)
                                                                 .map(|preset| preset.name.clone())
                                                         })
-                                                        .unwrap_or_else(|| "Select window preset".to_owned());
+                                                        .unwrap_or_else(|| Self::tr_lang(language, "Select window preset", "Chọn preset cửa sổ").to_owned());
                                                     egui::ComboBox::from_id_salt((group.id, preset.id, step_index, "window-preset-step"))
                                                         .width(146.0)
                                                         .selected_text(selected_label)
@@ -15155,7 +15151,7 @@ impl CrosshairApp {
                                                                 .find(|preset| preset.id == id)
                                                                 .map(|preset| preset.name.clone())
                                                         })
-                                                        .unwrap_or_else(|| "Select focus preset".to_owned());
+                                                        .unwrap_or_else(|| Self::tr_lang(language, "Select focus preset", "Chọn preset focus").to_owned());
                                                     egui::ComboBox::from_id_salt((group.id, preset.id, step_index, "focus-window-preset-step"))
                                                         .width(160.0)
                                                         .selected_text(selected_label)
@@ -16993,6 +16989,7 @@ impl CrosshairApp {
                         mouse_sensitivity_live_sync |=
                             Self::render_multi_window_targets_with_duplicate_mode(
                                 ui,
+                                language,
                                 (preset.id, "mouse-sensitivity-target"),
                                 Self::tr_lang(language, "Any window", "Cửa sổ đang focus"),
                                 &mut preset.target_window_title,
@@ -17665,6 +17662,7 @@ impl CrosshairApp {
                         ui.label(Self::tr_lang(language, "Target window", "Cửa sổ mục tiêu"));
                         live_sync |= Self::render_multi_window_targets_with_duplicate_mode(
                             ui,
+                            language,
                             (preset.id, "image-search-target"),
                             Self::tr_lang(language, "Any screen", "Toàn màn hình"),
                             &mut preset.target_window_title,
@@ -19439,6 +19437,7 @@ impl CrosshairApp {
                         ui.label(Self::tr_lang(language, "Target Window", "Target Window"));
                         changed |= Self::render_multi_window_targets_with_duplicate_mode(
                             ui,
+                            language,
                             (preset.id, "custom-target-window"),
                             Self::tr_lang(language, "Any focused window", "Cửa sổ đang focus"),
                             &mut preset.target_window_title,
@@ -19448,15 +19447,15 @@ impl CrosshairApp {
                         );
                         ui.end_row();
 
-                        ui.label(Self::tr_lang(language, "Shell", "Shell"));
+                        ui.label(Self::tr_lang(language, "Shell", "Shell (Dòng lệnh)"));
                         ui.label(Self::material_icon_text(0xeb8e, 15.0));
                         ui.end_row();
 
-                        ui.label(Self::tr_lang(language, "Command", "Command"));
+                        ui.label(Self::tr_lang(language, "Command", "Câu lệnh"));
                         let command_hint = RichText::new(Self::tr_lang(
                             language,
                             "Example: shutdown /s /t 0",
-                            "Example: shutdown /s /t 0",
+                            "Ví dụ: shutdown /s /t 0",
                         ))
                         .italics()
                         .color(Color32::from_rgba_unmultiplied(120, 120, 120, 140));
