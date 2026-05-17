@@ -14977,7 +14977,7 @@ impl CrosshairApp {
                                             ui.visuals().widgets.inactive.bg_fill
                                         };
                                         
-                                        ui.label(Self::tr_lang(language, "Record Hotkey:", "Phím ghi:"));
+                                        
 
                                          let kbd_btn = Button::new(
                                             RichText::new(Self::material_icon_text(0xe312, 10.0).text())
