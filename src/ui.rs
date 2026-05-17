@@ -10237,6 +10237,7 @@ impl CrosshairApp {
                     self.status = format!("Captured record trigger key for macro preset {preset_id}.");
                 }
                 self.sync_macro_presets();
+                self.persist_macro_presets();
             }
             (CaptureRequest::CommandPresetHotkey(preset_id), CapturedInput::Binding(binding)) => {
                 if let Some(preset) = self
@@ -15015,7 +15016,6 @@ impl CrosshairApp {
                                         let preview_binding = if capture_active {
                                             self.capture_hotkey_combo_keys.clone()
                                                 .map(|keys| Self::hotkey_binding_from_combo_keys(keys))
-                                                .or_else(|| preset.record_hotkey.clone())
                                         } else {
                                             preset.record_hotkey.clone()
                                         };

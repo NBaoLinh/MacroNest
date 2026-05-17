@@ -1805,18 +1805,7 @@ mod windows_overlay {
         };
 
         let ui_tx = HOOK_STATE.lock().ui_tx.clone();
-        if let Some((finished_group_id, finished_preset_id, mut events, is_same)) = finished {
-            if is_ui_in_foreground() {
-                while let Some(last) = events.last() {
-                    if let Some(k) = &last.key {
-                        if k.eq_ignore_ascii_case("Alt") || k.eq_ignore_ascii_case("Tab") {
-                            events.pop();
-                            continue;
-                        }
-                    }
-                    break;
-                }
-            }
+        if let Some((finished_group_id, finished_preset_id, events, is_same)) = finished {
             if let Some(tx) = &ui_tx {
                 let _ = tx.send(UiCommand::MacroRecordingFinished(
                     finished_group_id,
