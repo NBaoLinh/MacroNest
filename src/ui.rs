@@ -7349,9 +7349,41 @@ impl CrosshairApp {
                 self.status = "Custom preset not found.".to_owned();
                 return;
             };
+            let old_name = preset.name.clone();
             patch.apply_to(preset);
             preset.collapsed = false;
-            preset.name.clone()
+            let new_name = preset.name.clone();
+            let new_command = preset.command.clone();
+            let new_use_powershell = preset.use_powershell;
+            
+            // Synchronize all macro steps that reference this preset
+            for group in &mut self.state.macro_groups {
+                for p in &mut group.presets {
+                    for step in &mut p.steps {
+                        if step.action == MacroAction::TriggerCommandPreset {
+                            let is_match = step.key.trim() == old_name.trim()
+                                || step.key.trim() == preset_id.to_string()
+                                || step.key.trim() == new_name.trim();
+                            if is_match {
+                                step.key = preset_id.to_string();
+                                step.command_preset_command = new_command.clone();
+                                step.command_preset_use_powershell = new_use_powershell;
+                            }
+                        }
+                    }
+                    if p.hold_stop_step.action == MacroAction::TriggerCommandPreset {
+                        let is_match = p.hold_stop_step.key.trim() == old_name.trim()
+                            || p.hold_stop_step.key.trim() == preset_id.to_string()
+                            || p.hold_stop_step.key.trim() == new_name.trim();
+                        if is_match {
+                            p.hold_stop_step.key = preset_id.to_string();
+                            p.hold_stop_step.command_preset_command = new_command.clone();
+                            p.hold_stop_step.command_preset_use_powershell = new_use_powershell;
+                        }
+                    }
+                }
+            }
+            new_name
         };
         self.sync_command_presets();
         self.persist();
@@ -8017,16 +8049,25 @@ impl CrosshairApp {
                                 && !ai::normalize_command_text(&step.command_preset_command)
                                     .trim()
                                     .is_empty();
+                            let btn_text = if resolved_preset.is_some() {
+                                Self::tr_lang(language, "Update custom preset", "Cập nhật preset")
+                            } else {
+                                Self::tr_lang(language, "Save as custom preset", "Lưu thành preset mới")
+                            };
                             if ui
                                 .add_enabled(
                                     save_enabled,
-                                    egui::Button::new("Save as custom preset"),
+                                    egui::Button::new(btn_text),
                                 )
                                 .clicked()
                             {
+                                let save_name = resolved_preset
+                                    .as_ref()
+                                    .map(|p| p.name.clone())
+                                    .unwrap_or_else(|| step.key.trim().to_owned());
                                 save_request = Some((
                                     step_index,
-                                    step.key.trim().to_owned(),
+                                    save_name,
                                     ai::normalize_command_text(&step.command_preset_command),
                                     false,
                                 ));
