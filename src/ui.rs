@@ -5099,7 +5099,7 @@ impl CrosshairApp {
                 egui::Color32::from_rgb(54, 54, 54)
             };
             
-            let rounding = egui::Rounding::same(6.0);
+            let rounding = egui::Rounding::same(6);
             ui.painter().rect_filled(rect, rounding, bg_fill);
             
             if selected {
@@ -5112,7 +5112,7 @@ impl CrosshairApp {
             }
 
             let fg_color = if selected {
-                ui.visuals().selection.fg_stroke.color
+                ui.visuals().selection.stroke.color
             } else {
                 egui::Color32::from_rgb(220, 220, 220)
             };
@@ -5169,10 +5169,11 @@ impl CrosshairApp {
                     let left_wing = center + dir * 1.0 + dir_perp * 3.8;
                     let right_wing = center + dir * 1.0 - dir_perp * 3.8;
                     
-                    ui.painter().colored_polygon(
+                    ui.painter().add(egui::Shape::convex_polygon(
                         vec![tip, left_wing, right_wing],
                         fg_color,
-                    );
+                        egui::Stroke::NONE,
+                    ));
                 }
             }
 
