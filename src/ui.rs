@@ -16078,21 +16078,6 @@ impl CrosshairApp {
                 Color32::from_rgb(0, 191, 255),
             );
         }
-
-        // Draw monitor label
-        let monitor_label = format!(
-            "{} ({}x{})",
-            Self::tr_lang(language, "Monitor Screen", "Màn hình PC"),
-            screen_size.x as i32,
-            screen_size.y as i32
-        );
-        ui.painter().text(
-            draw_rect.center_bottom() - egui::vec2(0.0, 4.0),
-            egui::Align2::CENTER_BOTTOM,
-            monitor_label,
-            egui::FontId::proportional(10.0),
-            Color32::from_rgb(104, 148, 124),
-        );
     }
 
     fn render_mouse_path_preview(
