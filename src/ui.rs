@@ -14937,11 +14937,6 @@ impl CrosshairApp {
                                         // Keyboard Trigger Hotkey Capture UI
                                         let capture_target = CaptureRequest::MacroPresetRecordHotkey(group.id, preset.id);
                                         let has_rec_hotkey = preset.record_hotkey.is_some();
-                                        let kbd_btn_text = if has_rec_hotkey {
-                                            Self::format_binding_ui(language, preset.record_hotkey.as_ref())
-                                        } else {
-                                            Self::tr_lang(language, "Bind Trigger", "Phím tắt").to_string()
-                                        };
                                         
                                         let capture_active = self.capture_target.as_ref() == Some(&capture_target);
                                         let pulse = if capture_active {
@@ -14962,17 +14957,29 @@ impl CrosshairApp {
                                         };
                                         
                                         let kbd_btn = Button::new(
-                                            RichText::new(format!("{} {}", Self::material_icon_text(0xe312, 10.0).text(), kbd_btn_text))
+                                            RichText::new(Self::material_icon_text(0xe312, 10.0).text())
                                                 .strong()
                                         )
                                         .fill(capture_fill);
                                         
-                                        if ui.add(kbd_btn)
-                                            .on_hover_text(Self::tr_lang(
+                                        let hover_text = if let Some(binding) = &preset.record_hotkey {
+                                            let key_ui = Self::format_binding_ui(language, Some(binding));
+                                            let fmt = Self::tr_lang(
+                                                language,
+                                                "Bound trigger key: {} (Click to change)",
+                                                "Phím tắt đã gán: {} (Nhấp để thay đổi)",
+                                            );
+                                            fmt.replace("{}", &key_ui)
+                                        } else {
+                                            Self::tr_lang(
                                                 language,
                                                 "Click to bind a keyboard key to start/stop macro recording dynamically",
                                                 "Nhấp để gán phím tắt bắt đầu/dừng ghi macro nhanh",
-                                            ))
+                                            ).to_string()
+                                        };
+
+                                        if ui.add_sized([20.0, 20.0], kbd_btn)
+                                            .on_hover_text(hover_text)
                                             .clicked()
                                         {
                                             if capture_active {
@@ -14983,7 +14990,8 @@ impl CrosshairApp {
                                         }
                                         
                                         if has_rec_hotkey && !capture_active {
-                                            if ui.button(RichText::new(Self::material_icon_text(0xe14c, 10.0).text()).color(Color32::LIGHT_RED))
+                                            let clear_btn = Button::new(RichText::new(Self::material_icon_text(0xe14c, 10.0).text()).color(Color32::LIGHT_RED));
+                                            if ui.add_sized([20.0, 20.0], clear_btn)
                                                 .on_hover_text(Self::tr_lang(language, "Clear hotkey", "Xóa phím tắt"))
                                                 .clicked()
                                             {
