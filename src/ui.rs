@@ -4448,7 +4448,7 @@ impl CrosshairApp {
                 MacroAction::ApplyWindowPreset => "Áp cửa sổ",
                 MacroAction::FocusWindowPreset => "Cửa sổ",
                 MacroAction::TriggerMacroPreset => "Tự động",
-                MacroAction::TriggerCommandPreset => "Commands",
+                MacroAction::TriggerCommandPreset => "Câu lệnh",
                 MacroAction::EnableCrosshairProfile => "Tâm ngắm",
             MacroAction::DisableCrosshair => "Tắt tâm ngắm",
                 MacroAction::EnablePinPreset => "Ghim",
@@ -4504,7 +4504,7 @@ impl CrosshairApp {
                 MacroAction::ApplyWindowPreset => "Wnd",
                 MacroAction::FocusWindowPreset => "Focus",
                 MacroAction::TriggerMacroPreset => "Macro",
-                MacroAction::TriggerCommandPreset => "Commands",
+                MacroAction::TriggerCommandPreset => "Câu lệnh",
                 MacroAction::EnableCrosshairProfile => "Cross",
                 MacroAction::DisableCrosshair => "NoCross",
                 MacroAction::EnablePinPreset => "Pin",
@@ -4560,7 +4560,7 @@ impl CrosshairApp {
                 MacroAction::ApplyWindowPreset => "Wnd",
                 MacroAction::FocusWindowPreset => "Focus",
                 MacroAction::TriggerMacroPreset => "Macro",
-                MacroAction::TriggerCommandPreset => "Commands",
+                MacroAction::TriggerCommandPreset => "Câu lệnh",
                 MacroAction::EnableCrosshairProfile => "Cross",
                 MacroAction::DisableCrosshair => "NoCross",
                 MacroAction::EnablePinPreset => "Pin",
@@ -14243,7 +14243,7 @@ impl CrosshairApp {
                                                                 Self::tr_lang(
                                                                     language,
                                                                     "Select custom preset",
-                                                                    "Select custom preset",
+                                                                    "Chọn preset câu lệnh",
                                                                 )
                                                                 .to_owned()
                                                             } else {
@@ -14366,7 +14366,7 @@ impl CrosshairApp {
                                                                 .map(|preset| preset.name.clone())
                                                         })
                                                         .unwrap_or_else(|| {
-                                                            Self::tr_lang(language, "Select pin preset", "Select pin preset").to_owned()
+                                                            Self::tr_lang(language, "Select pin preset", "Chọn preset ghim").to_owned()
                                                         });
                                                     egui::ComboBox::from_id_salt((group.id, preset.id, "hold-stop-pin-preset"))
                                                         .width(160.0)
@@ -14393,7 +14393,7 @@ impl CrosshairApp {
                                                                 .map(|preset| preset.name.clone())
                                                         })
                                                         .unwrap_or_else(|| {
-                                                            Self::tr_lang(language, "Select mouse path", "Select mouse path").to_owned()
+                                                            Self::tr_lang(language, "Select mouse path", "Chọn preset đường chuột").to_owned()
                                                         });
                                                     egui::ComboBox::from_id_salt((group.id, preset.id, "hold-stop-mouse-path"))
                                                         .width(160.0)
@@ -14468,8 +14468,8 @@ impl CrosshairApp {
                                                         });
                                                     ui.push_id((group.id, preset.id, "mouse-sensitivity-preset-step"), |ui| {
                                                         egui::ComboBox::from_id_salt("mouse-sensitivity-preset-step-combo")
-                                                            .width(260.0)
-                                                            .selected_text(format!("{selected_label} ▾"))
+                                                            .width(146.0)
+                                                            .selected_text(selected_label)
                                                             .show_ui(ui, |ui| {
                                                                 for preset_option in &self.state.mouse_sensitivity_presets {
                                                                     if ui
@@ -14527,7 +14527,7 @@ impl CrosshairApp {
                                                                 .map(|preset| preset.name.clone())
                                                         })
                                                         .unwrap_or_else(|| {
-                                                            Self::tr_lang(language, "Select sound preset", "Select sound preset").to_owned()
+                                                            Self::tr_lang(language, "Select sound preset", "Chọn preset âm thanh").to_owned()
                                                         });
                                                     egui::ComboBox::from_id_salt((group.id, preset.id, "hold-stop-sound"))
                                                         .width(160.0)
@@ -15224,7 +15224,7 @@ impl CrosshairApp {
                                                                 Self::tr_lang(
                                                                     language,
                                                                     "Select custom preset",
-                                                                    "Select custom preset",
+                                                                    "Chọn preset câu lệnh",
                                                                 )
                                                                 .to_owned()
                                                             } else {
@@ -15346,7 +15346,7 @@ impl CrosshairApp {
                                                                 .find(|preset| preset.id == id)
                                                                 .map(|preset| preset.name.clone())
                                                         })
-                                                        .unwrap_or_else(|| "Select pin preset".to_owned());
+                                                        .unwrap_or_else(|| Self::tr_lang(language, "Select pin preset", "Chọn preset ghim").to_owned());
                                                     egui::ComboBox::from_id_salt((group.id, preset.id, step_index, "pin-preset-step"))
                                                         .width(146.0)
                                                         .selected_text(selected_label)
@@ -15374,7 +15374,7 @@ impl CrosshairApp {
                                                                 .find(|preset| preset.id == id)
                                                                 .map(|preset| preset.name.clone())
                                                         })
-                                                        .unwrap_or_else(|| "Select mouse path".to_owned());
+                                                        .unwrap_or_else(|| Self::tr_lang(language, "Select mouse path", "Chọn preset đường chuột").to_owned());
                                                     egui::ComboBox::from_id_salt((group.id, preset.id, step_index, "mouse-path-preset-step"))
                                                         .width(146.0)
                                                         .selected_text(selected_label)
@@ -15551,7 +15551,7 @@ impl CrosshairApp {
                                                                 .find(|preset| preset.id == id)
                                                                 .map(|preset| preset.name.clone())
                                                         })
-                                                        .unwrap_or_else(|| "Select sound preset".to_owned());
+                                                        .unwrap_or_else(|| Self::tr_lang(language, "Select sound preset", "Chọn preset âm thanh").to_owned());
                                                     egui::ComboBox::from_id_salt((group.id, preset.id, step_index, "sound-preset-step"))
                                                         .width(146.0)
                                                         .selected_text(selected_label)
@@ -15588,8 +15588,8 @@ impl CrosshairApp {
                                                             .to_owned()
                                                         });
                                                     egui::ComboBox::from_id_salt((group.id, preset.id, step_index, "mouse-sensitivity-preset-step"))
-                                                        .width(260.0)
-                                                        .selected_text(format!("{selected_label} ▾"))
+                                                        .width(146.0)
+                                                        .selected_text(selected_label)
                                                         .show_ui(ui, |ui| {
                                                             for preset_option in &self.state.mouse_sensitivity_presets {
                                                                 if ui
