@@ -5635,56 +5635,159 @@ impl CrosshairApp {
         }
 
         let rect_id = ui.make_persistent_id((id_source, "toolbox-rect"));
-        let move_axis_lock_id = ui.make_persistent_id((id_source, "toolbox-move-axis-lock"));
-        let move_axis_delta_id = ui.make_persistent_id((id_source, "toolbox-move-axis-delta"));
-        let move_axis_origin_id = ui.make_persistent_id((id_source, "toolbox-move-axis-origin"));
-        let body_response = ui.interact(rect, rect_id, Sense::drag());
-        if body_response.dragged() {
-            let mut delta = ui.input(|input| input.pointer.delta());
-            let shift_down = ui.input(|input| input.modifiers.shift);
-            if shift_down {
-                let origin_rect = ui
-                    .ctx()
-                    .data(|data| data.get_temp::<Option<egui::Rect>>(move_axis_origin_id))
-                    .unwrap_or(None)
-                    .unwrap_or(rect);
-                ui.ctx().data_mut(|data| {
-                    data.insert_temp(move_axis_origin_id, Some(origin_rect));
-                });
-                let mut drag_accum = ui
-                    .ctx()
-                    .data(|data| data.get_temp::<Option<egui::Vec2>>(move_axis_delta_id))
-                    .unwrap_or(None)
-                    .unwrap_or(vec2(0.0, 0.0));
-                drag_accum += delta;
-                let mut axis_lock = ui
-                    .ctx()
-                    .data(|data| data.get_temp::<Option<bool>>(move_axis_lock_id))
-                    .unwrap_or(None);
-                if axis_lock.is_none() && drag_accum.length() >= 6.0 {
-                    axis_lock = Some(drag_accum.x.abs() >= drag_accum.y.abs());
-                }
-                let next_rect = if axis_lock == Some(true) {
-                    origin_rect.translate(vec2(drag_accum.x, 0.0))
-                } else if axis_lock == Some(false) {
-                    origin_rect.translate(vec2(0.0, drag_accum.y))
+        let drag_id = ui.make_persistent_id((id_source, "hud-selection-drag-handle"));
+
+        #[derive(Clone, Copy, Debug, PartialEq, Eq)]
+        enum SelectionDragHandle {
+            None,
+            Center,
+            TopLeft,
+            TopRight,
+            BottomLeft,
+            BottomRight,
+            Left,
+            Right,
+            Top,
+            Bottom,
+        }
+
+        let mut active_handle: SelectionDragHandle = ui.data_mut(|d| d.get_temp(drag_id).unwrap_or(SelectionDragHandle::None));
+
+        if response.drag_started() {
+            if let Some(pointer_pos) = response.interact_pointer_pos() {
+                let dist_tl = pointer_pos.distance(rect.left_top());
+                let dist_tr = pointer_pos.distance(rect.right_top());
+                let dist_bl = pointer_pos.distance(rect.left_bottom());
+                let dist_br = pointer_pos.distance(rect.right_bottom());
+
+                active_handle = if dist_tl < 14.0 {
+                    SelectionDragHandle::TopLeft
+                } else if dist_tr < 14.0 {
+                    SelectionDragHandle::TopRight
+                } else if dist_bl < 14.0 {
+                    SelectionDragHandle::BottomLeft
+                } else if dist_br < 14.0 {
+                    SelectionDragHandle::BottomRight
+                } else if (pointer_pos.x - rect.left()).abs() < 10.0 && pointer_pos.y >= rect.top() && pointer_pos.y <= rect.bottom() {
+                    SelectionDragHandle::Left
+                } else if (pointer_pos.x - rect.right()).abs() < 10.0 && pointer_pos.y >= rect.top() && pointer_pos.y <= rect.bottom() {
+                    SelectionDragHandle::Right
+                } else if (pointer_pos.y - rect.top()).abs() < 10.0 && pointer_pos.x >= rect.left() && pointer_pos.x <= rect.right() {
+                    SelectionDragHandle::Top
+                } else if (pointer_pos.y - rect.bottom()).abs() < 10.0 && pointer_pos.x >= rect.left() && pointer_pos.x <= rect.right() {
+                    SelectionDragHandle::Bottom
+                } else if rect.contains(pointer_pos) {
+                    SelectionDragHandle::Center
                 } else {
-                    origin_rect.translate(drag_accum)
+                    SelectionDragHandle::None
                 };
-                rect = next_rect;
-                ui.ctx().data_mut(|data| {
-                    data.insert_temp(move_axis_delta_id, Some(drag_accum));
-                    data.insert_temp(move_axis_lock_id, axis_lock);
-                });
-            } else {
-                rect = rect.translate(delta);
-                ui.ctx()
-                    .data_mut(|data| data.remove::<Option<bool>>(move_axis_lock_id));
-                ui.ctx()
-                    .data_mut(|data| data.remove::<Option<egui::Vec2>>(move_axis_delta_id));
-                ui.ctx()
-                    .data_mut(|data| data.remove::<Option<egui::Rect>>(move_axis_origin_id));
+                ui.data_mut(|d| d.insert_temp(drag_id, active_handle));
             }
+        }
+
+        if response.dragged() && active_handle != SelectionDragHandle::None {
+            let delta = response.drag_delta();
+            let shift_pressed = ui.input(|i| i.modifiers.shift);
+            let original_aspect = if preset.height > 0 { preset.width as f32 / preset.height as f32 } else { 16.0 / 9.0 };
+            let lock_aspect = if shift_pressed { original_aspect } else { 0.0 };
+
+            changed = true;
+
+            match active_handle {
+                SelectionDragHandle::Center => {
+                    rect = rect.translate(delta);
+                }
+                SelectionDragHandle::Right => {
+                    let new_w = (rect.width() + delta.x).max(min_size.x);
+                    if lock_aspect > 0.0 {
+                        let new_h = new_w / lock_aspect;
+                        rect.max.x = rect.min.x + new_w;
+                        rect.max.y = rect.min.y + new_h;
+                    } else {
+                        rect.max.x = rect.min.x + new_w;
+                    }
+                }
+                SelectionDragHandle::Left => {
+                    let new_w = (rect.width() - delta.x).max(min_size.x);
+                    if lock_aspect > 0.0 {
+                        let new_h = new_w / lock_aspect;
+                        rect.min.x = rect.max.x - new_w;
+                        rect.min.y = rect.max.y - new_h;
+                    } else {
+                        rect.min.x = rect.max.x - new_w;
+                    }
+                }
+                SelectionDragHandle::Bottom => {
+                    let new_h = (rect.height() + delta.y).max(min_size.y);
+                    if lock_aspect > 0.0 {
+                        let new_w = new_h * lock_aspect;
+                        rect.max.x = rect.min.x + new_w;
+                        rect.max.y = rect.min.y + new_h;
+                    } else {
+                        rect.max.y = rect.min.y + new_h;
+                    }
+                }
+                SelectionDragHandle::Top => {
+                    let new_h = (rect.height() - delta.y).max(min_size.y);
+                    if lock_aspect > 0.0 {
+                        let new_w = new_h * lock_aspect;
+                        rect.min.x = rect.max.x - new_w;
+                        rect.min.y = rect.max.y - new_h;
+                    } else {
+                        rect.min.y = rect.max.y - new_h;
+                    }
+                }
+                SelectionDragHandle::BottomRight => {
+                    let new_w = (rect.width() + delta.x).max(min_size.x);
+                    if lock_aspect > 0.0 {
+                        let new_h = new_w / lock_aspect;
+                        rect.max.x = rect.min.x + new_w;
+                        rect.max.y = rect.min.y + new_h;
+                    } else {
+                        let new_h = (rect.height() + delta.y).max(min_size.y);
+                        rect.max.x = rect.min.x + new_w;
+                        rect.max.y = rect.min.y + new_h;
+                    }
+                }
+                SelectionDragHandle::TopLeft => {
+                    let new_w = (rect.width() - delta.x).max(min_size.x);
+                    if lock_aspect > 0.0 {
+                        let new_h = new_w / lock_aspect;
+                        rect.min.x = rect.max.x - new_w;
+                        rect.min.y = rect.max.y - new_h;
+                    } else {
+                        let new_h = (rect.height() - delta.y).max(min_size.y);
+                        rect.min.x = rect.max.x - new_w;
+                        rect.min.y = rect.max.y - new_h;
+                    }
+                }
+                SelectionDragHandle::TopRight => {
+                    let new_w = (rect.width() + delta.x).max(min_size.x);
+                    if lock_aspect > 0.0 {
+                        let new_h = new_w / lock_aspect;
+                        rect.max.x = rect.min.x + new_w;
+                        rect.min.y = rect.max.y - new_h;
+                    } else {
+                        let new_h = (rect.height() - delta.y).max(min_size.y);
+                        rect.max.x = rect.min.x + new_w;
+                        rect.min.y = rect.max.y - new_h;
+                    }
+                }
+                SelectionDragHandle::BottomLeft => {
+                    let new_w = (rect.width() - delta.x).max(min_size.x);
+                    if lock_aspect > 0.0 {
+                        let new_h = new_w / lock_aspect;
+                        rect.min.x = rect.max.x - new_w;
+                        rect.max.y = rect.min.y + new_h;
+                    } else {
+                        let new_h = (rect.height() + delta.y).max(min_size.y);
+                        rect.min.x = rect.max.x - new_w;
+                        rect.max.y = rect.min.y + new_h;
+                    }
+                }
+                SelectionDragHandle::None => {}
+            }
+
             if rect.left() < preview_rect.left() {
                 rect = rect.translate(vec2(preview_rect.left() - rect.left(), 0.0));
             }
@@ -5697,89 +5800,94 @@ impl CrosshairApp {
             if rect.bottom() > preview_rect.bottom() {
                 rect = rect.translate(vec2(0.0, preview_rect.bottom() - rect.bottom()));
             }
-            changed = true;
-        } else if !ui.input(|input| input.pointer.primary_down()) {
-            ui.ctx()
-                .data_mut(|data| data.remove::<Option<bool>>(move_axis_lock_id));
-            ui.ctx()
-                .data_mut(|data| data.remove::<Option<egui::Vec2>>(move_axis_delta_id));
-            ui.ctx()
-                .data_mut(|data| data.remove::<Option<egui::Rect>>(move_axis_origin_id));
+
+            rect.min.x = rect.min.x.clamp(
+                preview_rect.left(),
+                preview_rect.right() - min_size.x,
+            );
+            rect.min.y = rect.min.y.clamp(
+                preview_rect.top(),
+                preview_rect.bottom() - min_size.y,
+            );
+            rect.max.x = rect
+                .max
+                .x
+                .clamp(rect.min.x + min_size.x, preview_rect.right());
+            rect.max.y = rect
+                .max
+                .y
+                .clamp(rect.min.y + min_size.y, preview_rect.bottom());
         }
 
-        let handles = [
-            ("nw", rect.left_top()),
-            ("n", egui::pos2(rect.center().x, rect.top())),
-            ("ne", rect.right_top()),
-            ("e", egui::pos2(rect.right(), rect.center().y)),
-            ("se", rect.right_bottom()),
-            ("s", egui::pos2(rect.center().x, rect.bottom())),
-            ("sw", rect.left_bottom()),
-            ("w", egui::pos2(rect.left(), rect.center().y)),
-        ];
-        for (name, pos) in handles {
-            let handle_rect = egui::Rect::from_center_size(pos, vec2(8.0, 8.0));
-            let response = ui.interact(
-                handle_rect,
-                ui.make_persistent_id((rect_id, name)),
-                Sense::drag(),
-            );
-            if response.dragged() {
-                let delta = ui.input(|input| input.pointer.delta());
-                let shift_down = ui.input(|input| input.modifiers.shift);
-                match name {
-                    "nw" => {
-                        rect.min.x += delta.x;
-                        rect.min.y += delta.y;
+        if ui.input(|i| i.pointer.any_released()) {
+            active_handle = SelectionDragHandle::None;
+            ui.data_mut(|d| d.insert_temp(drag_id, active_handle));
+        }
+
+        if response.hovered() || active_handle != SelectionDragHandle::None {
+            if let Some(pointer_pos) = ui.input(|i| i.pointer.hover_pos()) {
+                let dist_tl = pointer_pos.distance(rect.left_top());
+                let dist_tr = pointer_pos.distance(rect.right_top());
+                let dist_bl = pointer_pos.distance(rect.left_bottom());
+                let dist_br = pointer_pos.distance(rect.right_bottom());
+
+                let handle_to_use = if active_handle != SelectionDragHandle::None {
+                    active_handle
+                } else if dist_tl < 14.0 {
+                    SelectionDragHandle::TopLeft
+                } else if dist_tr < 14.0 {
+                    SelectionDragHandle::TopRight
+                } else if dist_bl < 14.0 {
+                    SelectionDragHandle::BottomLeft
+                } else if dist_br < 14.0 {
+                    SelectionDragHandle::BottomRight
+                } else if (pointer_pos.x - rect.left()).abs() < 10.0 && pointer_pos.y >= rect.top() && pointer_pos.y <= rect.bottom() {
+                    SelectionDragHandle::Left
+                } else if (pointer_pos.x - rect.right()).abs() < 10.0 && pointer_pos.y >= rect.top() && pointer_pos.y <= rect.bottom() {
+                    SelectionDragHandle::Right
+                } else if (pointer_pos.y - rect.top()).abs() < 10.0 && pointer_pos.x >= rect.left() && pointer_pos.x <= rect.right() {
+                    SelectionDragHandle::Top
+                } else if (pointer_pos.y - rect.bottom()).abs() < 10.0 && pointer_pos.x >= rect.left() && pointer_pos.x <= rect.right() {
+                    SelectionDragHandle::Bottom
+                } else if rect.contains(pointer_pos) {
+                    SelectionDragHandle::Center
+                } else {
+                    SelectionDragHandle::None
+                };
+
+                match handle_to_use {
+                    SelectionDragHandle::TopLeft | SelectionDragHandle::BottomRight => {
+                        ui.ctx().set_cursor_icon(egui::CursorIcon::ResizeNwSe);
                     }
-                    "n" => rect.min.y += delta.y,
-                    "ne" => {
-                        rect.max.x += delta.x;
-                        rect.min.y += delta.y;
+                    SelectionDragHandle::TopRight | SelectionDragHandle::BottomLeft => {
+                        ui.ctx().set_cursor_icon(egui::CursorIcon::ResizeNeSw);
                     }
-                    "e" => rect.max.x += delta.x,
-                    "se" => {
-                        rect.max.x += delta.x;
-                        rect.max.y += delta.y;
+                    SelectionDragHandle::Left | SelectionDragHandle::Right => {
+                        ui.ctx().set_cursor_icon(egui::CursorIcon::ResizeHorizontal);
                     }
-                    "s" => rect.max.y += delta.y,
-                    "sw" => {
-                        rect.min.x += delta.x;
-                        rect.max.y += delta.y;
+                    SelectionDragHandle::Top | SelectionDragHandle::Bottom => {
+                        ui.ctx().set_cursor_icon(egui::CursorIcon::ResizeVertical);
                     }
-                    "w" => rect.min.x += delta.x,
+                    SelectionDragHandle::Center => {
+                        if active_handle == SelectionDragHandle::Center {
+                            ui.ctx().set_cursor_icon(egui::CursorIcon::Grabbing);
+                        } else {
+                            ui.ctx().set_cursor_icon(egui::CursorIcon::Grab);
+                        }
+                    }
                     _ => {}
                 }
-                if shift_down {
-                    Self::apply_locked_aspect_ratio(
-                        name,
-                        1.0,
-                        preview_rect,
-                        min_size,
-                        &mut rect,
-                    );
-                }
-                rect.min.x = rect
-                    .min
-                    .x
-                    .clamp(preview_rect.left(), preview_rect.right() - min_size.x);
-                rect.min.y = rect
-                    .min
-                    .y
-                    .clamp(preview_rect.top(), preview_rect.bottom() - min_size.y);
-                rect.max.x = rect
-                    .max
-                    .x
-                    .clamp(rect.min.x + min_size.x, preview_rect.right());
-                rect.max.y = rect
-                    .max
-                    .y
-                    .clamp(rect.min.y + min_size.y, preview_rect.bottom());
-                changed = true;
             }
-            ui.painter()
-                .rect_filled(handle_rect, 2.0, Color32::from_rgb(124, 240, 164));
         }
+
+        let size_text = format!("{}x{}", preset.width, preset.height);
+        ui.painter().text(
+            rect.left_top() + egui::vec2(4.0, 4.0),
+            egui::Align2::LEFT_TOP,
+            size_text,
+            egui::FontId::proportional(10.0),
+            Color32::from_rgb(124, 240, 164),
+        );
 
         let bg_alpha = (preset.background_opacity.clamp(0.0, 1.0) * 255.0).round() as u8;
         let background = Color32::from_rgba_premultiplied(
