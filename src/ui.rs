@@ -7352,6 +7352,51 @@ impl CrosshairApp {
             let old_name = preset.name.clone();
             patch.apply_to(preset);
             preset.collapsed = false;
+
+            // Robust Fallback: If the name wasn't renamed by AI, but the command changed, let's auto-generate a descriptive name!
+            if preset.name.trim().eq_ignore_ascii_case(old_name.trim()) && preset.command.trim() != old_name.trim() {
+                let cmd_lower = preset.command.to_ascii_lowercase();
+                let is_vietnamese = old_name.chars().any(|c| c as u32 > 127);
+                let new_fallback_name = if cmd_lower.contains("shutdown") {
+                    if is_vietnamese { "Tắt máy".to_owned() } else { "Shutdown".to_owned() }
+                } else if cmd_lower.contains("mspaint") || cmd_lower.contains("pbrush") {
+                    if is_vietnamese { "Mở Paint".to_owned() } else { "Start Paint".to_owned() }
+                } else if cmd_lower.contains("calc") {
+                    if is_vietnamese { "Mở Máy tính".to_owned() } else { "Start Calculator".to_owned() }
+                } else if cmd_lower.contains("notepad") {
+                    if is_vietnamese { "Mở Notepad".to_owned() } else { "Start Notepad".to_owned() }
+                } else if cmd_lower.contains("discord") {
+                    if is_vietnamese { "Mở Discord".to_owned() } else { "Start Discord".to_owned() }
+                } else if cmd_lower.contains("chrome") {
+                    if is_vietnamese { "Mở Chrome".to_owned() } else { "Start Chrome".to_owned() }
+                } else if cmd_lower.contains("edge") || cmd_lower.contains("msedge") {
+                    if is_vietnamese { "Mở Edge".to_owned() } else { "Start Edge".to_owned() }
+                } else {
+                    let mut parts = preset.command.split_whitespace();
+                    if let Some(first) = parts.next() {
+                        let name_part = first
+                            .trim_end_matches(".exe")
+                            .trim_end_matches(".bat")
+                            .trim_end_matches(".cmd")
+                            .to_owned();
+                        let mut chars = name_part.chars();
+                        if let Some(first_char) = chars.next() {
+                            let capitalized = first_char.to_uppercase().collect::<String>() + chars.as_str();
+                            if is_vietnamese {
+                                format!("Mở {}", capitalized)
+                            } else {
+                                format!("Start {}", capitalized)
+                            }
+                        } else {
+                            preset.name.clone()
+                        }
+                    } else {
+                        preset.name.clone()
+                    }
+                };
+                preset.name = new_fallback_name;
+            }
+
             let new_name = preset.name.clone();
             let new_command = preset.command.clone();
             let new_use_powershell = preset.use_powershell;
