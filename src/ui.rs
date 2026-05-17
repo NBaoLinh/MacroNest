@@ -5194,7 +5194,7 @@ impl CrosshairApp {
         let mut changed = false;
         ui.label(RichText::new(label).strong());
         let desired = vec2(ui.available_width().max(420.0), 260.0);
-        let (canvas_rect, _) = ui.allocate_exact_size(desired, Sense::hover());
+        let (canvas_rect, response) = ui.allocate_exact_size(desired, Sense::drag());
         let draw_rect = canvas_rect.shrink(8.0);
         let scale = (draw_rect.width() / screen_size.x)
             .min(draw_rect.height() / screen_size.y)
