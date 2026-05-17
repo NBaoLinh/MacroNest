@@ -15947,7 +15947,28 @@ impl CrosshairApp {
             let delta_x = delta.x / scale_x;
             let delta_y = delta.y / scale_y;
             let shift_pressed = ui.input(|i| i.modifiers.shift);
+            let ctrl_pressed = ui.input(|i| i.modifiers.ctrl);
             let original_aspect = if preset.height > 0 { preset.width as f32 / preset.height as f32 } else { 16.0 / 9.0 };
+            let target_aspect = if let Some(preview_frame) = preview {
+                if preview_frame.logical_height > 0 {
+                    preview_frame.logical_width as f32 / preview_frame.logical_height as f32
+                } else {
+                    16.0 / 9.0
+                }
+            } else {
+                if screen_size.y > 0.0 {
+                    screen_size.x / screen_size.y
+                } else {
+                    16.0 / 9.0
+                }
+            };
+            let use_aspect = if ctrl_pressed {
+                Some(target_aspect)
+            } else if shift_pressed {
+                Some(original_aspect)
+            } else {
+                None
+            };
 
             if preset.anchor != WindowAnchor::Manual {
                 if let Some((wx, wy)) = Self::window_anchor_preview_position(preset) {
@@ -15966,8 +15987,8 @@ impl CrosshairApp {
                 }
                 DragHandle::Right => {
                     let new_w = (preset.width as f32 + delta_x).max(10.0);
-                    if shift_pressed {
-                        let new_h = new_w / original_aspect;
+                    if let Some(aspect) = use_aspect {
+                        let new_h = new_w / aspect;
                         preset.width = new_w.round() as i32;
                         preset.height = new_h.round() as i32;
                     } else {
@@ -15978,8 +15999,8 @@ impl CrosshairApp {
                     let new_w = (preset.width as f32 - delta_x).max(10.0);
                     let actual_w = new_w.round() as i32;
                     let dx = preset.width - actual_w;
-                    if shift_pressed {
-                        let new_h = new_w / original_aspect;
+                    if let Some(aspect) = use_aspect {
+                        let new_h = new_w / aspect;
                         let actual_h = new_h.round() as i32;
                         let dy = preset.height - actual_h;
                         preset.x += dx;
@@ -15993,8 +16014,8 @@ impl CrosshairApp {
                 }
                 DragHandle::Bottom => {
                     let new_h = (preset.height as f32 + delta_y).max(10.0);
-                    if shift_pressed {
-                        let new_w = new_h * original_aspect;
+                    if let Some(aspect) = use_aspect {
+                        let new_w = new_h * aspect;
                         preset.width = new_w.round() as i32;
                         preset.height = new_h.round() as i32;
                     } else {
@@ -16005,8 +16026,8 @@ impl CrosshairApp {
                     let new_h = (preset.height as f32 - delta_y).max(10.0);
                     let actual_h = new_h.round() as i32;
                     let dy = preset.height - actual_h;
-                    if shift_pressed {
-                        let new_w = new_h * original_aspect;
+                    if let Some(aspect) = use_aspect {
+                        let new_w = new_h * aspect;
                         let actual_w = new_w.round() as i32;
                         let dx = preset.width - actual_w;
                         preset.x += dx;
@@ -16020,8 +16041,8 @@ impl CrosshairApp {
                 }
                 DragHandle::BottomRight => {
                     let new_w = (preset.width as f32 + delta_x).max(10.0);
-                    if shift_pressed {
-                        let new_h = new_w / original_aspect;
+                    if let Some(aspect) = use_aspect {
+                        let new_h = new_w / aspect;
                         preset.width = new_w.round() as i32;
                         preset.height = new_h.round() as i32;
                     } else {
@@ -16032,8 +16053,8 @@ impl CrosshairApp {
                 }
                 DragHandle::TopLeft => {
                     let new_w = (preset.width as f32 - delta_x).max(10.0);
-                    if shift_pressed {
-                        let new_h = new_w / original_aspect;
+                    if let Some(aspect) = use_aspect {
+                        let new_h = new_w / aspect;
                         let actual_w = new_w.round() as i32;
                         let actual_h = new_h.round() as i32;
                         preset.x += preset.width - actual_w;
@@ -16052,8 +16073,8 @@ impl CrosshairApp {
                 }
                 DragHandle::TopRight => {
                     let new_w = (preset.width as f32 + delta_x).max(10.0);
-                    if shift_pressed {
-                        let new_h = new_w / original_aspect;
+                    if let Some(aspect) = use_aspect {
+                        let new_h = new_w / aspect;
                         let actual_w = new_w.round() as i32;
                         let actual_h = new_h.round() as i32;
                         preset.y += preset.height - actual_h;
@@ -16070,8 +16091,8 @@ impl CrosshairApp {
                 }
                 DragHandle::BottomLeft => {
                     let new_w = (preset.width as f32 - delta_x).max(10.0);
-                    if shift_pressed {
-                        let new_h = new_w / original_aspect;
+                    if let Some(aspect) = use_aspect {
+                        let new_h = new_w / aspect;
                         let actual_w = new_w.round() as i32;
                         let actual_h = new_h.round() as i32;
                         preset.x += preset.width - actual_w;
