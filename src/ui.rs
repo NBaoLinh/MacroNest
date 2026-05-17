@@ -15817,6 +15817,14 @@ impl CrosshairApp {
             let shift_pressed = ui.input(|i| i.modifiers.shift);
             let original_aspect = if preset.height > 0 { preset.width as f32 / preset.height as f32 } else { 16.0 / 9.0 };
 
+            if preset.anchor != WindowAnchor::Manual {
+                if let Some((wx, wy)) = Self::window_anchor_preview_position(preset) {
+                    preset.x = wx;
+                    preset.y = wy;
+                }
+                preset.anchor = WindowAnchor::Manual;
+            }
+
             *live_sync = true;
 
             match active_handle {
