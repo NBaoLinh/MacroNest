@@ -7191,6 +7191,7 @@ impl CrosshairApp {
              - If the user asks for a simple task like shutdown, open app, launch file, or run console commands, encode that as the command string.\n\
              - If the user says center or center of the screen, that is not screen coordinate 0,0; that means the middle of the screen.\n\
              - Keep unrelated fields unchanged.\n\
+             - IMPORTANT: You MUST also generate an appropriate, concise, and descriptive name for the 'name' field (in the same language as the user request, maximum 3-5 words, e.g., 'Start MsPaint' or 'Mở Paint') that summarizes what the new command does. Do not leave the 'name' field unchanged if the command's behavior is changed.\n\
              - The JSON object will be treated as a patch and applied onto the current custom preset.\n\
              \n\
              User request: {}\n",
