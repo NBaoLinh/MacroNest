@@ -7845,11 +7845,18 @@ impl CrosshairApp {
         step_index: Option<usize>,
         language: UiLanguage,
         command_presets: &[CommandPreset],
-    ) -> (bool, Option<(Option<usize>, String, String, bool)>) {
+    ) -> (
+        bool,
+        Option<(Option<usize>, String, String, bool)>,
+        Option<(Option<usize>, String, String, bool)>,
+        Option<u32>,
+    ) {
         let mut changed = false;
         let mut save_request = None;
+        let mut save_and_open_ai_request = None;
+        let mut open_ai_preset_id = None;
         if step.action != MacroAction::TriggerCommandPreset {
-            return (false, None);
+            return (false, None, None, None);
         }
 
         let popup_id = ui.make_persistent_id((id_source, "custom-preset-draft-popup"));
@@ -7899,7 +7906,38 @@ impl CrosshairApp {
             let area_response = area.show(ui.ctx(), |ui| {
                 egui::Frame::popup(ui.style()).show(ui, |ui| {
                     ui.set_min_width(300.0);
-                    ui.label(Self::tr_lang(language, "Custom command", "Custom command"));
+                    let mut trigger_ai = false;
+                    ui.horizontal(|ui| {
+                        ui.label(Self::tr_lang(language, "Custom command", "Custom command"));
+                        let ai_btn = egui::Button::new(Self::ai_badge_text(true))
+                            .fill(Self::ai_badge_fill())
+                            .stroke(Self::ai_badge_stroke())
+                            .corner_radius(6.0);
+                        if ui.add_sized([42.0, 18.0], ai_btn)
+                            .on_hover_text(Self::tr_lang(language, "Generate or edit command with AI", "Tạo hoặc sửa câu lệnh bằng AI"))
+                            .clicked()
+                        {
+                            trigger_ai = true;
+                        }
+                    });
+                    if trigger_ai {
+                        if let Some(preset) = resolved_preset.as_ref() {
+                            open_ai_preset_id = Some(preset.id);
+                        } else {
+                            let preset_name = if step.key.trim().is_empty() {
+                                "Custom Command Step".to_owned()
+                            } else {
+                                step.key.trim().to_owned()
+                            };
+                            let command_text = ai::normalize_command_text(&step.command_preset_command);
+                            save_and_open_ai_request = Some((
+                                step_index,
+                                preset_name,
+                                command_text,
+                                false,
+                            ));
+                        }
+                    }
                     let command_changed = ui
                         .add_sized(
                             [280.0, 72.0],
@@ -7947,11 +7985,11 @@ impl CrosshairApp {
             let hover_popup = pointer_pos.is_some_and(|pos| popup_rect.contains(pos));
             open = response.hovered() || hover_popup;
             ui.ctx().data_mut(|data| data.insert_temp(popup_id, open));
-            return (changed, save_request);
+            return (changed, save_request, save_and_open_ai_request, open_ai_preset_id);
         }
 
         ui.ctx().data_mut(|data| data.insert_temp(popup_id, open));
-        (changed, save_request)
+        (changed, save_request, save_and_open_ai_request, open_ai_preset_id)
     }
 
     fn apply_macro_ai_generated_plan(
@@ -12877,6 +12915,15 @@ impl CrosshairApp {
             String,
             bool,
         )> = None;
+        let mut pending_custom_preset_save_and_open_ai: Option<(
+            u32,
+            u32,
+            Option<usize>,
+            String,
+            String,
+            bool,
+        )> = None;
+        let mut pending_open_ai_preset_id: Option<u32> = None;
 
         let command_presets_snapshot = self.state.command_presets.clone();
 
@@ -14019,29 +14066,40 @@ impl CrosshairApp {
                                                                 }
                                                             }
                                                         });
-                                                    let (custom_draft_changed, custom_save_request) = Self::render_custom_preset_step_draft_popup(
-                                                        ui,
-                                                        &hold_stop_combo.response,
-                                                        &custom_preset_combo.response,
-                                                        step,
-                                                        (group.id, preset.id, "hold-stop"),
-                                                        None,
-                                                        language,
-                                                        &command_presets_snapshot,
-                                                    );
-                                                    live_sync |= custom_draft_changed;
-                                                    if custom_save_request.is_some() {
-                                                        if let Some((step_index, name, command, use_powershell)) = custom_save_request {
-                                                            pending_custom_preset_save = Some((
-                                                                group.id,
-                                                                preset.id,
-                                                                step_index,
-                                                                name,
-                                                                command,
-                                                                use_powershell,
-                                                            ));
-                                                        }
-                                                    }
+                                                    let (custom_draft_changed, custom_save_request, custom_save_and_open_ai_request, open_ai_preset_id) = Self::render_custom_preset_step_draft_popup(
+                                                         ui,
+                                                         &hold_stop_combo.response,
+                                                         &custom_preset_combo.response,
+                                                         step,
+                                                         (group.id, preset.id, "hold-stop"),
+                                                         None,
+                                                         language,
+                                                         &command_presets_snapshot,
+                                                     );
+                                                     live_sync |= custom_draft_changed;
+                                                     if let Some((step_index, name, command, use_powershell)) = custom_save_request {
+                                                         pending_custom_preset_save = Some((
+                                                             group.id,
+                                                             preset.id,
+                                                             step_index,
+                                                             name,
+                                                             command,
+                                                             use_powershell,
+                                                         ));
+                                                     }
+                                                     if let Some((step_index, name, command, use_powershell)) = custom_save_and_open_ai_request {
+                                                         pending_custom_preset_save_and_open_ai = Some((
+                                                             group.id,
+                                                             preset.id,
+                                                             step_index,
+                                                             name,
+                                                             command,
+                                                             use_powershell,
+                                                         ));
+                                                     }
+                                                     if let Some(preset_id) = open_ai_preset_id {
+                                                         pending_open_ai_preset_id = Some(preset_id);
+                                                     }
                                                 } else if matches!(
                                                     step.action,
                                                     MacroAction::EnableMacroPreset
@@ -15006,29 +15064,40 @@ impl CrosshairApp {
                                                         )),
                                                         Sense::hover(),
                                                     );
-                                                    let (custom_draft_changed, custom_save_request) = Self::render_custom_preset_step_draft_popup(
-                                                        ui,
-                                                        &row_hover_response,
-                                                        &custom_preset_combo.response,
-                                                        step,
-                                                        (group.id, preset.id, step_index),
-                                                        Some(step_index),
-                                                        language,
-                                                        &command_presets_snapshot,
-                                                    );
-                                                    live_sync |= custom_draft_changed;
-                                                    if custom_save_request.is_some() {
-                                                        if let Some((save_step_index, name, command, use_powershell)) = custom_save_request {
-                                                            pending_custom_preset_save = Some((
-                                                                group.id,
-                                                                preset.id,
-                                                                save_step_index,
-                                                                name,
-                                                                command,
-                                                                use_powershell,
-                                                            ));
-                                                        }
-                                                    }
+                                                    let (custom_draft_changed, custom_save_request, custom_save_and_open_ai_request, open_ai_preset_id) = Self::render_custom_preset_step_draft_popup(
+                                                         ui,
+                                                         &row_hover_response,
+                                                         &custom_preset_combo.response,
+                                                         step,
+                                                         (group.id, preset.id, step_index),
+                                                         Some(step_index),
+                                                         language,
+                                                         &command_presets_snapshot,
+                                                     );
+                                                     live_sync |= custom_draft_changed;
+                                                     if let Some((save_step_index, name, command, use_powershell)) = custom_save_request {
+                                                         pending_custom_preset_save = Some((
+                                                             group.id,
+                                                             preset.id,
+                                                             save_step_index,
+                                                             name,
+                                                             command,
+                                                             use_powershell,
+                                                         ));
+                                                     }
+                                                     if let Some((save_step_index, name, command, use_powershell)) = custom_save_and_open_ai_request {
+                                                         pending_custom_preset_save_and_open_ai = Some((
+                                                             group.id,
+                                                             preset.id,
+                                                             save_step_index,
+                                                             name,
+                                                             command,
+                                                             use_powershell,
+                                                         ));
+                                                     }
+                                                     if let Some(preset_id) = open_ai_preset_id {
+                                                         pending_open_ai_preset_id = Some(preset_id);
+                                                     }
                                                 } else if matches!(
                                                     step.action,
                                                     MacroAction::EnableMacroPreset
@@ -15795,6 +15864,36 @@ impl CrosshairApp {
                             step.key = saved_id.to_string();
                             step.command_preset_use_powershell = false;
                         }
+                    }
+                    if let Some((group_id, preset_id, step_index, name, command, use_powershell)) =
+                        pending_custom_preset_save_and_open_ai.take()
+                        && let Some(saved_id) = self.upsert_custom_preset_from_step_draft_values(
+                            name,
+                            command,
+                            use_powershell,
+                        )
+                    {
+                        live_sync = true;
+                        if let Some(step_index) = step_index
+                            && let Some(group) = self
+                                .state
+                                .macro_groups
+                                .iter_mut()
+                                .find(|group| group.id == group_id)
+                            && let Some(preset) = group
+                                .presets
+                                .iter_mut()
+                                .find(|preset| preset.id == preset_id)
+                            && let Some(step) = preset.steps.get_mut(step_index)
+                        {
+                            step.key = saved_id.to_string();
+                            step.command_preset_command = "".to_owned();
+                            step.command_preset_use_powershell = false;
+                        }
+                        self.open_command_ai_dialog_for_preset(saved_id);
+                    }
+                    if let Some(preset_id) = pending_open_ai_preset_id.take() {
+                        self.open_command_ai_dialog_for_preset(preset_id);
                     }
                     if cancel_active_capture {
                         self.cancel_capture();
@@ -18393,7 +18492,7 @@ impl CrosshairApp {
                                     );
                                 });
                                 let response = ui.add_sized(
-                                    [panel_size.x - 32.0, 112.0],
+                                    [ui.available_width(), 112.0],
                                     TextEdit::multiline(&mut dialog.prompt).desired_rows(5),
                                 );
                                 Self::apply_vietnamese_input_if_changed(
@@ -18558,7 +18657,7 @@ impl CrosshairApp {
                                     );
                                 });
                                 let response = ui.add_sized(
-                                    [panel_size.x - 32.0, 92.0],
+                                    [ui.available_width(), 92.0],
                                     TextEdit::multiline(&mut dialog.prompt).desired_rows(4),
                                 );
                                 Self::apply_vietnamese_input_if_changed(
@@ -20087,4 +20186,3 @@ fn audio_duration(clip: &AudioClipSettings) -> Option<u64> {
         audio::load_duration_ms(&clip.file_path).ok()
     }
 }
-
