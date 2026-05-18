@@ -538,6 +538,33 @@ mod windows_overlay {
                 unsafe {
                     let foreground = GetForegroundWindow();
                     update_foreground_window(foreground);
+                    
+                    let mut ui_in_foreground = false;
+                    let mut ui_visible = false;
+                    let mut ui_rect = windows::Win32::Foundation::RECT::default();
+                    
+                    if let Some(ui_hwnd) = find_app_ui_window() {
+                        ui_visible = windows::Win32::UI::WindowsAndMessaging::IsWindowVisible(ui_hwnd).as_bool();
+                        if ui_visible {
+                            let _ = GetWindowRect(ui_hwnd, &mut ui_rect);
+                        }
+                        
+                        if !foreground.0.is_null() {
+                            let root = GetAncestor(foreground, GA_ROOT);
+                            if !root.0.is_null() && root == ui_hwnd {
+                                ui_in_foreground = true;
+                            }
+                        }
+                    }
+                    
+                    UI_WINDOW_FOREGROUND.store(ui_in_foreground, Ordering::Relaxed);
+                    UI_WINDOW_VISIBLE.store(ui_visible, Ordering::Relaxed);
+                    if ui_visible {
+                        UI_WINDOW_RECT_LEFT.store(ui_rect.left, Ordering::Relaxed);
+                        UI_WINDOW_RECT_TOP.store(ui_rect.top, Ordering::Relaxed);
+                        UI_WINDOW_RECT_RIGHT.store(ui_rect.right, Ordering::Relaxed);
+                        UI_WINDOW_RECT_BOTTOM.store(ui_rect.bottom, Ordering::Relaxed);
+                    }
                 }
                 thread::sleep(std::time::Duration::from_millis(50));
             }
@@ -1214,25 +1241,17 @@ mod windows_overlay {
             if injected {
                 return CallNextHookEx(None, code, wparam, lparam);
             }
-            if is_ui_in_foreground() {
+            if UI_WINDOW_FOREGROUND.load(Ordering::Relaxed) {
                 return CallNextHookEx(None, code, wparam, lparam);
             }
-            if let Some(ui_hwnd) = find_app_ui_window() {
-                if unsafe { windows::Win32::UI::WindowsAndMessaging::IsWindowVisible(ui_hwnd).as_bool() } {
-                    let mut rect = windows::Win32::Foundation::RECT::default();
-                    if unsafe { GetWindowRect(ui_hwnd, &mut rect).is_ok() } {
-                        if info.pt.x >= rect.left && info.pt.x <= rect.right
-                            && info.pt.y >= rect.top && info.pt.y <= rect.bottom
-                        {
-                            return CallNextHookEx(None, code, wparam, lparam);
-                        }
-                    }
-                }
-            }
-            let hwnd_at_point = WindowFromPoint(info.pt);
-            if !hwnd_at_point.0.is_null() {
-                let root = GetAncestor(hwnd_at_point, GA_ROOT);
-                if !root.0.is_null() && window_belongs_to_current_process(root) {
+            if UI_WINDOW_VISIBLE.load(Ordering::Relaxed) {
+                let left = UI_WINDOW_RECT_LEFT.load(Ordering::Relaxed);
+                let top = UI_WINDOW_RECT_TOP.load(Ordering::Relaxed);
+                let right = UI_WINDOW_RECT_RIGHT.load(Ordering::Relaxed);
+                let bottom = UI_WINDOW_RECT_BOTTOM.load(Ordering::Relaxed);
+                if info.pt.x >= left && info.pt.x <= right
+                    && info.pt.y >= top && info.pt.y <= bottom
+                {
                     return CallNextHookEx(None, code, wparam, lparam);
                 }
             }
@@ -1832,12 +1851,14 @@ mod windows_overlay {
             return;
         };
 
-        // 2. Only check is_click_inside_ui() for actual click or wheel events, which are extremely rare
-        // compared to constant stream of WM_MOUSEMOVE.
-        let hwnd_at_point = unsafe { WindowFromPoint(info.pt) };
-        if !hwnd_at_point.0.is_null() {
-            let root = unsafe { GetAncestor(hwnd_at_point, GA_ROOT) };
-            if !root.0.is_null() && window_belongs_to_current_process(root) {
+        if UI_WINDOW_VISIBLE.load(Ordering::Relaxed) {
+            let left = UI_WINDOW_RECT_LEFT.load(Ordering::Relaxed);
+            let top = UI_WINDOW_RECT_TOP.load(Ordering::Relaxed);
+            let right = UI_WINDOW_RECT_RIGHT.load(Ordering::Relaxed);
+            let bottom = UI_WINDOW_RECT_BOTTOM.load(Ordering::Relaxed);
+            if info.pt.x >= left && info.pt.x <= right
+                && info.pt.y >= top && info.pt.y <= bottom
+            {
                 return;
             }
         }
@@ -7561,17 +7582,7 @@ mod windows_overlay {
     }
 
     fn is_ui_in_foreground() -> bool {
-        unsafe {
-            let foreground = GetForegroundWindow();
-            if foreground.0.is_null() {
-                return false;
-            }
-            let root = GetAncestor(foreground, GA_ROOT);
-            if root.0.is_null() {
-                return false;
-            }
-            window_belongs_to_current_process(root) && !is_internal_app_window(root)
-        }
+        UI_WINDOW_FOREGROUND.load(Ordering::Relaxed)
     }
 
     pub fn find_app_ui_window_for_ui_thread() -> Option<windows::Win32::Foundation::HWND> {
