@@ -1697,15 +1697,9 @@ mod windows_overlay {
         let Some(session) = guard.as_mut() else {
             return;
         };
-        if is_click_inside_ui(info.pt) {
-            return;
-        }
-        let now = std::time::Instant::now();
-        let delay_ms = now
-            .saturating_duration_since(session.last_event_at)
-            .as_millis()
-            .min(u64::MAX as u128) as u64;
 
+        // 1. Identify the event kind first and return early if it's not a recorded macro mouse action.
+        // This avoids calling the heavy is_click_inside_ui() for every single pixel of WM_MOUSEMOVE!
         let kind = match message {
             WM_LBUTTONDOWN => Some(crate::model::MacroAction::MouseLeftClick),
             WM_RBUTTONDOWN => Some(crate::model::MacroAction::MouseRightClick),
@@ -1729,28 +1723,42 @@ mod windows_overlay {
             _ => None,
         };
 
-        if let Some(action) = kind {
-            session.last_event_at = now;
-            session.events.push(MacroRecordingEvent {
-                key: None,
-                action,
-                delay_ms,
-                x: info.pt.x,
-                y: info.pt.y,
-            });
+        let Some(action) = kind else {
+            return;
+        };
 
-            if let Some(tx) = &HOOK_STATE.lock().ui_tx {
-                let mut step = crate::model::MacroStep::default();
-                step.action = action;
-                step.delay_ms = delay_ms;
-                step.x = info.pt.x;
-                step.y = info.pt.y;
-                let _ = tx.send(UiCommand::MacroRealtimeStepAdded(
-                    session.group_id,
-                    session.preset_id,
-                    step,
-                ));
-            }
+        // 2. Only check is_click_inside_ui() for actual click or wheel events, which are extremely rare
+        // compared to constant stream of WM_MOUSEMOVE.
+        if is_click_inside_ui(info.pt) {
+            return;
+        }
+
+        let now = std::time::Instant::now();
+        let delay_ms = now
+            .saturating_duration_since(session.last_event_at)
+            .as_millis()
+            .min(u64::MAX as u128) as u64;
+
+        session.last_event_at = now;
+        session.events.push(MacroRecordingEvent {
+            key: None,
+            action,
+            delay_ms,
+            x: info.pt.x,
+            y: info.pt.y,
+        });
+
+        if let Some(tx) = &HOOK_STATE.lock().ui_tx {
+            let mut step = crate::model::MacroStep::default();
+            step.action = action;
+            step.delay_ms = delay_ms;
+            step.x = info.pt.x;
+            step.y = info.pt.y;
+            let _ = tx.send(UiCommand::MacroRealtimeStepAdded(
+                session.group_id,
+                session.preset_id,
+                step,
+            ));
         }
     }
 
