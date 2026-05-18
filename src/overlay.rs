@@ -20,18 +20,6 @@ pub struct MacroRecordingSession {
 #[cfg(windows)]
 mod windows_overlay {
     use super::{MacroRecordingEvent, MacroRecordingSession};
-    fn log_to_file(msg: &str) {
-        static START: once_cell::sync::Lazy<std::time::Instant> = once_cell::sync::Lazy::new(std::time::Instant::now);
-        let elapsed = START.elapsed().as_millis();
-        if let Ok(mut file) = std::fs::OpenOptions::new()
-            .create(true)
-            .append(true)
-            .open(r"C:\Users\ngbal\.gemini\antigravity\macronest_hook_log.txt")
-        {
-            use std::io::Write;
-            let _ = writeln!(file, "[{:08}ms] {}", elapsed, msg);
-        }
-    }
 
     use std::{
         cell::RefCell,
@@ -1086,14 +1074,6 @@ mod windows_overlay {
                 let is_key_up = matches!(msg, WM_KEYUP | WM_SYSKEYUP);
                 let key_name = hotkey::vk_to_key_name(info.vkCode).map(str::to_owned);
                 
-                log_to_file(&format!(
-                    "KB Hook: key_name={:?}, is_down={}, is_up={}, ui_foreground={}, is_recording={}",
-                    key_name,
-                    is_key_down,
-                    is_key_up,
-                    is_ui_in_foreground(),
-                    MACRO_RECORDING.lock().is_some()
-                ));
 
                 // Realtime keyboard recording
                 if is_key_down {
@@ -1214,14 +1194,6 @@ mod windows_overlay {
             }
             let message = wparam.0 as u32;
             
-            log_to_file(&format!(
-                "Mouse Hook: msg=0x{:X}, x={}, y={}, ui_foreground={}, is_recording={}",
-                message,
-                info.pt.x,
-                info.pt.y,
-                is_ui_in_foreground(),
-                MACRO_RECORDING.lock().is_some() || MOUSE_RECORDING.lock().is_some()
-            ));
 
             record_mouse_event(message, &info);
             record_macro_mouse_event(message, &info);
