@@ -180,6 +180,7 @@ mod windows_overlay {
         Lazy::new(|| Mutex::new(None));
     static UI_CONTEXT: Lazy<Mutex<Option<egui::Context>>> = Lazy::new(|| Mutex::new(None));
     static CONTROLLER_HWND: AtomicIsize = AtomicIsize::new(0);
+    static CACHED_APP_UI_HWND: AtomicIsize = AtomicIsize::new(0);
     #[derive(Debug, Clone)]
     pub enum OverlayCommand {
         Update(CrosshairStyle),
@@ -7398,12 +7399,23 @@ mod windows_overlay {
     }
 
     unsafe fn find_app_ui_window() -> Option<HWND> {
+        let cached = CACHED_APP_UI_HWND.load(Ordering::Relaxed);
+        if cached != 0 {
+            let hwnd = HWND(cached as *mut std::ffi::c_void);
+            if windows::Win32::UI::WindowsAndMessaging::IsWindow(Some(hwnd)).as_bool() {
+                return Some(hwnd);
+            }
+        }
         let mut found = AppUiWindowSearch::default();
         let _ = windows::Win32::UI::WindowsAndMessaging::EnumWindows(
             Some(find_app_ui_window_proc),
             LPARAM((&mut found) as *mut _ as isize),
         );
-        found.visible.or(found.hidden)
+        let res = found.visible.or(found.hidden);
+        if let Some(hwnd) = res {
+            CACHED_APP_UI_HWND.store(hwnd.0 as isize, Ordering::Relaxed);
+        }
+        res
     }
 
     unsafe extern "system" fn find_app_ui_window_proc(
