@@ -1321,8 +1321,7 @@ mod windows_overlay {
                     _ => {}
                 }
             }
-            let is_recording = MACRO_RECORDING.lock().is_some() || MOUSE_RECORDING.lock().is_some();
-            if is_ui_in_foreground() && !is_recording {
+            if is_ui_in_foreground() {
                 return CallNextHookEx(None, code, wparam, lparam);
             }
             let event = match (wparam.0 as u32, ((info.mouseData >> 16) & 0xFFFF) as u16) {
