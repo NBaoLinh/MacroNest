@@ -188,6 +188,8 @@ mod windows_overlay {
     pub static UI_WINDOW_RECT_BOTTOM: std::sync::atomic::AtomicI32 = std::sync::atomic::AtomicI32::new(0);
     pub static UI_WINDOW_VISIBLE: std::sync::atomic::AtomicBool = std::sync::atomic::AtomicBool::new(false);
     pub static UI_WINDOW_FOREGROUND: std::sync::atomic::AtomicBool = std::sync::atomic::AtomicBool::new(false);
+    pub static FOREGROUND_WINDOW_HWND: std::sync::atomic::AtomicIsize = std::sync::atomic::AtomicIsize::new(0);
+    pub static FOREGROUND_WINDOW_TITLE: Lazy<Mutex<Option<String>>> = Lazy::new(|| Mutex::new(None));
     #[derive(Debug, Clone)]
     pub enum OverlayCommand {
         Update(CrosshairStyle),
@@ -7543,6 +7545,20 @@ mod windows_overlay {
         }
     }
 
+    pub fn update_foreground_window(hwnd: HWND) {
+        let current_hwnd = FOREGROUND_WINDOW_HWND.load(Ordering::Relaxed);
+        if hwnd.0 as isize != current_hwnd {
+            FOREGROUND_WINDOW_HWND.store(hwnd.0 as isize, Ordering::Relaxed);
+            let title = if hwnd.0.is_null() {
+                None
+            } else {
+                unsafe { window_title(hwnd) }
+            };
+            let mut guard = FOREGROUND_WINDOW_TITLE.lock();
+            *guard = title;
+        }
+    }
+
     fn is_click_inside_ui(pt: POINT) -> bool {
         if !UI_WINDOW_FOREGROUND.load(Ordering::Relaxed) {
             return false;
@@ -7965,18 +7981,42 @@ mod windows_overlay {
         if group.target_window_title.is_none() && group.extra_target_window_titles.is_empty() {
             return true;
         }
-        unsafe {
-            let foreground = GetForegroundWindow();
-            if foreground.0.is_null() {
-                return false;
-            }
-            window_matches_any_selector(
-                foreground,
-                group.target_window_title.as_deref(),
-                &group.extra_target_window_titles,
-                group.match_duplicate_window_titles,
-            )
+        let foreground = HWND(FOREGROUND_WINDOW_HWND.load(Ordering::Relaxed) as *mut std::ffi::c_void);
+        if foreground.0.is_null() {
+            return false;
         }
+        let title_guard = FOREGROUND_WINDOW_TITLE.lock();
+        let Some(ref title) = *title_guard else {
+            return false;
+        };
+        
+        if let Some(target) = group.target_window_title.as_deref() {
+            if title == target || format!("{title} (0x{:X})", foreground.0 as usize) == target {
+                return true;
+            }
+            let base_title = selector_base_title(target);
+            if base_title != target && title == base_title {
+                return true;
+            }
+            if group.match_duplicate_window_titles && title == selector_base_title(target) {
+                return true;
+            }
+        }
+        
+        group.extra_target_window_titles.iter().any(|target| {
+            let target_str = target.as_str();
+            if title.as_str() == target_str || format!("{title} (0x{:X})", foreground.0 as usize) == target_str {
+                return true;
+            }
+            let base_title = selector_base_title(target_str);
+            if base_title != target_str && title.as_str() == base_title {
+                return true;
+            }
+            if group.match_duplicate_window_titles && title.as_str() == selector_base_title(target_str) {
+                return true;
+            }
+            false
+        })
     }
 
     fn macro_preset_trigger_matches(preset: &MacroPreset, binding: &HotkeyBinding) -> bool {
@@ -8007,18 +8047,42 @@ mod windows_overlay {
         if target_title.is_none() && extra_target_titles.is_empty() {
             return true;
         }
-        unsafe {
-            let foreground = GetForegroundWindow();
-            if foreground.0.is_null() {
-                return false;
-            }
-            window_matches_any_selector(
-                foreground,
-                target_title,
-                extra_target_titles,
-                match_duplicate_window_titles,
-            )
+        let foreground = HWND(FOREGROUND_WINDOW_HWND.load(Ordering::Relaxed) as *mut std::ffi::c_void);
+        if foreground.0.is_null() {
+            return false;
         }
+        let title_guard = FOREGROUND_WINDOW_TITLE.lock();
+        let Some(ref title) = *title_guard else {
+            return false;
+        };
+        
+        if let Some(target) = target_title {
+            if title == target || format!("{title} (0x{:X})", foreground.0 as usize) == target {
+                return true;
+            }
+            let base_title = selector_base_title(target);
+            if base_title != target && title == base_title {
+                return true;
+            }
+            if match_duplicate_window_titles && title == selector_base_title(target) {
+                return true;
+            }
+        }
+        
+        extra_target_titles.iter().any(|target| {
+            let target_str = target.as_str();
+            if title.as_str() == target_str || format!("{title} (0x{:X})", foreground.0 as usize) == target_str {
+                return true;
+            }
+            let base_title = selector_base_title(target_str);
+            if base_title != target_str && title.as_str() == base_title {
+                return true;
+            }
+            if match_duplicate_window_titles && title.as_str() == selector_base_title(target_str) {
+                return true;
+            }
+            false
+        })
     }
 
     fn resolve_window_target(
