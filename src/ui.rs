@@ -11418,10 +11418,13 @@ impl CrosshairApp {
         let mut open_crosshair_ai_target = None;
         let mut copy_crosshair_profile = None;
         let mut paste_crosshair_profile_after = None;
+        let mut refresh_crosshair_profiles = false;
         let can_paste_crosshair = self.crosshair_profile_clipboard.is_some();
         for index in 0..self.state.profiles.len() {
             let mut remove = false;
             let mut preset_changed = false;
+            let is_selected = self.state.selected_profile.as_deref()
+                == Some(self.state.profiles[index].name.as_str());
             {
                 let preset = &mut self.state.profiles[index];
                 let preset_snapshot = preset.clone();
@@ -11449,6 +11452,10 @@ impl CrosshairApp {
                         {
                             preset.enabled = !preset.enabled;
                             preset.style.enabled = preset.enabled;
+                            if is_selected {
+                                self.state.active_style.enabled = preset.enabled;
+                            }
+                            refresh_crosshair_profiles = true;
                             preset_changed = true;
                         }
                         ui.add_space(6.0);
@@ -11533,6 +11540,10 @@ impl CrosshairApp {
         }
         if let Some(index) = paste_crosshair_profile_after {
             self.paste_crosshair_profile_after(index);
+        }
+        if refresh_crosshair_profiles {
+            self.sync_crosshair();
+            self.persist();
         }
         if let Some(index) = remove_index {
             self.flush_crosshair_profile_dirty(true);
