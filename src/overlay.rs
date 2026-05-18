@@ -835,6 +835,7 @@ mod windows_overlay {
                         let _ = set_input_hooks_enabled(runtime, desired_hooks_enabled(runtime));
                         let _ = refresh_overlay(runtime);
                         if ui_foreground {
+                            reset_all_input_and_locks();
                             let _ = ShowWindow(runtime.pin_hwnd, SW_HIDE);
                             let _ = ShowWindow(runtime.hud_hwnd, SW_HIDE);
                             let _ = ShowWindow(runtime.mouse_trail_hwnd, SW_HIDE);
@@ -2754,6 +2755,31 @@ mod windows_overlay {
         } else {
             hook_state.held_mouse_buttons.remove(key_name);
         }
+    }
+
+    fn deactivate_all_hold_macros() {
+        let preset_ids: Vec<u32> = {
+            let hook_state = HOOK_STATE.lock();
+            hook_state.active_hold_macros.keys().cloned().collect()
+        };
+        for preset_id in preset_ids {
+            deactivate_hold_macro(preset_id);
+        }
+    }
+
+    fn reset_all_input_and_locks() {
+        deactivate_all_hold_macros();
+        let mut hook_state = HOOK_STATE.lock();
+        hook_state.locked_mouse_count = 0;
+        hook_state.held_inputs.clear();
+        hook_state.locked_inputs.clear();
+        hook_state.held_mouse_buttons.clear();
+        hook_state.ctrl = false;
+        hook_state.alt = false;
+        hook_state.shift = false;
+        hook_state.win = false;
+        hook_state.keyboard_arrow_mouse_enabled = false;
+        hook_state.vision_capture_mouse_blocked = false;
     }
 
     fn clear_transient_input_state() {
