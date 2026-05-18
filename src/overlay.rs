@@ -1198,6 +1198,9 @@ mod windows_overlay {
             if injected {
                 return CallNextHookEx(None, code, wparam, lparam);
             }
+            if is_click_inside_ui(info.pt) {
+                return CallNextHookEx(None, code, wparam, lparam);
+            }
             let message = wparam.0 as u32;
 
             record_mouse_event(message, &info);
