@@ -7533,7 +7533,7 @@ mod windows_overlay {
             if root.0.is_null() {
                 return false;
             }
-            window_belongs_to_current_process(root) && !is_internal_app_window(root)
+            window_belongs_to_current_process(root)
         }
     }
 
