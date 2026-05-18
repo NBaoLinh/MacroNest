@@ -7525,17 +7525,7 @@ mod windows_overlay {
     }
 
     fn is_ui_in_foreground() -> bool {
-        unsafe {
-            let foreground = GetForegroundWindow();
-            if foreground.0.is_null() {
-                return false;
-            }
-            let root = GetAncestor(foreground, GA_ROOT);
-            if root.0.is_null() {
-                return false;
-            }
-            window_belongs_to_current_process(root)
-        }
+        UI_WINDOW_FOREGROUND.load(Ordering::Relaxed)
     }
 
     pub fn find_app_ui_window_for_ui_thread() -> Option<windows::Win32::Foundation::HWND> {
