@@ -1344,31 +1344,22 @@ mod windows_overlay {
                 _ => None,
             };
             if let Some((binding, is_down)) = event {
-                eprintln!("[DEBUG MOUSE] event: {:?}, is_down: {}", binding, is_down);
                 update_held_mouse_button(message, ((info.mouseData >> 16) & 0xFFFF) as u16);
                 let mut swallow = if is_down {
-                    let r = process_binding_press(&binding, false);
-                    eprintln!("[DEBUG MOUSE] process_binding_press = {:?}", r);
-                    r.unwrap_or(false)
+                    process_binding_press(&binding, false).unwrap_or(false)
                 } else {
-                    let r = process_binding_release(&binding);
-                    eprintln!("[DEBUG MOUSE] process_binding_release = {}", r);
-                    r
+                    process_binding_release(&binding)
                 };
 
                 let macros_master_enabled = {
                     let hook_state = HOOK_STATE.lock();
                     hook_state.macros_master_enabled
                 };
-                eprintln!("[DEBUG MOUSE] macros_master_enabled = {}", macros_master_enabled);
 
                 if macros_master_enabled {
-                    let hold_match = binding_matches_any_hold_macro(&binding);
-                    eprintln!("[DEBUG MOUSE] binding_matches_any_hold_macro = {}", hold_match);
-                    swallow |= hold_match;
+                    swallow |= binding_matches_any_hold_macro(&binding);
                 }
 
-                eprintln!("[DEBUG MOUSE] swallow = {}", swallow);
                 return if swallow {
                     LRESULT(1)
                 } else {
