@@ -114,6 +114,13 @@ impl AppPaths {
         if state.selected_profile.is_none() {
             state.selected_profile = state.profiles.first().map(|p| p.name.clone());
         }
+        if let Some(selected_name) = state.selected_profile.as_deref() {
+            if let Some(profile) = state.profiles.iter().find(|profile| profile.name == selected_name)
+            {
+                state.active_style = profile.style.clone();
+                state.active_style.enabled = profile.enabled;
+            }
+        }
         if matches!(state.vietnamese_input_mode, VietnameseInputMode::Off) {
             state.vietnamese_input_mode = VietnameseInputMode::Telex;
         }

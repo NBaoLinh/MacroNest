@@ -10861,7 +10861,13 @@ impl CrosshairApp {
                         let preset = &mut self.state.profiles[index];
                         Self::show_preset_card(ui, preset.enabled, |ui| {
                             ui.horizontal(|ui| {
-                                changed |= ui.checkbox(&mut preset.enabled, "").changed();
+                                if ui.checkbox(&mut preset.enabled, "").changed() {
+                                    preset.style.enabled = preset.enabled;
+                                    if is_selected {
+                                        self.state.active_style.enabled = preset.enabled;
+                                    }
+                                    changed = true;
+                                }
                                 ui.label(Self::preset_title_text(
                                     dark_mode,
                                     &preset.name,
