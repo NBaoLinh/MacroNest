@@ -7413,14 +7413,12 @@ mod windows_overlay {
                 return Some(hwnd);
             }
         }
-        println!("[Hook] find_app_ui_window: cache is empty/invalid. Scanning system via EnumWindows...");
         let mut found = AppUiWindowSearch::default();
         let _ = windows::Win32::UI::WindowsAndMessaging::EnumWindows(
             Some(find_app_ui_window_proc),
             LPARAM((&mut found) as *mut _ as isize),
         );
         let res = found.visible.or(found.hidden);
-        println!("[Hook] find_app_ui_window: EnumWindows scan completed. Result: {:?}", res);
         if let Some(hwnd) = res {
             CACHED_APP_UI_HWND.store(hwnd.0 as isize, Ordering::Relaxed);
         }
