@@ -15,6 +15,7 @@ pub struct MacroRecordingSession {
     pub preset_id: u32,
     pub last_event_at: std::time::Instant,
     pub events: Vec<MacroRecordingEvent>,
+    pub pressed_key_vks: std::collections::HashSet<u32>,
 }
 
 #[cfg(windows)]
@@ -803,6 +804,9 @@ mod windows_overlay {
                             let _ = refresh_mouse_record_trail(runtime);
                         }
                     }
+                    if ui_foreground {
+                        poll_macro_keyboard_recording();
+                    }
                     if !is_ui_in_foreground() {
                         apply_keyboard_arrow_mouse_movement();
 
@@ -1079,10 +1083,8 @@ mod windows_overlay {
                 let is_key_down = matches!(msg, WM_KEYDOWN | WM_SYSKEYDOWN);
                 let is_key_up = matches!(msg, WM_KEYUP | WM_SYSKEYUP);
                 let key_name = hotkey::vk_to_key_name(info.vkCode).map(str::to_owned);
-                
 
-                // Realtime keyboard recording
-                if is_key_down {
+                if is_key_down && !is_ui_in_foreground() {
                     let mut rec_guard = MACRO_RECORDING.lock();
                     if let Some(session) = rec_guard.as_mut() {
                         let now = std::time::Instant::now();
@@ -1664,6 +1666,73 @@ mod windows_overlay {
         }
     }
 
+    fn macro_record_scan_keys() -> Vec<u32> {
+        let mut keys = Vec::new();
+        keys.extend(0x08..=0x0D);
+        keys.extend([0x01, 0x02, 0x04, 0x05, 0x06]);
+        keys.extend(0x10..=0x14);
+        keys.extend(0x1B..=0x28);
+        keys.extend(0x2C..=0x2E);
+        keys.extend(0x30..=0x39);
+        keys.extend(0x41..=0x5D);
+        keys.extend(0x60..=0x6F);
+        keys.extend(0x70..=0x87);
+        keys.extend([
+            0x90, 0x91, 0xBA, 0xBB, 0xBC, 0xBD, 0xBE, 0xBF, 0xC0, 0xDB, 0xDC, 0xDD, 0xDE,
+        ]);
+        keys
+    }
+
+    fn poll_macro_keyboard_recording() {
+        if !is_ui_in_foreground() {
+            return;
+        }
+
+        let mut guard = MACRO_RECORDING.lock();
+        let Some(session) = guard.as_mut() else {
+            return;
+        };
+
+        let now = Instant::now();
+        for vk in macro_record_scan_keys() {
+            let pressed = unsafe { (GetAsyncKeyState(vk as i32) as u16 & 0x8000) != 0 };
+            if pressed {
+                if !session.pressed_key_vks.insert(vk) {
+                    continue;
+                }
+                let Some(key_name) = hotkey::vk_to_key_name(vk).map(str::to_owned) else {
+                    continue;
+                };
+                let delay_ms = now
+                    .saturating_duration_since(session.last_event_at)
+                    .as_millis()
+                    .min(u64::MAX as u128) as u64;
+                session.last_event_at = now;
+                session.events.push(MacroRecordingEvent {
+                    key: Some(key_name.clone()),
+                    action: crate::model::MacroAction::KeyPress,
+                    delay_ms,
+                    x: 0,
+                    y: 0,
+                });
+
+                if let Some(tx) = &HOOK_STATE.lock().ui_tx {
+                    let mut step = crate::model::MacroStep::default();
+                    step.action = crate::model::MacroAction::KeyPress;
+                    step.delay_ms = delay_ms;
+                    step.key = key_name;
+                    let _ = tx.send(UiCommand::MacroRealtimeStepAdded(
+                        session.group_id,
+                        session.preset_id,
+                        step,
+                    ));
+                }
+            } else {
+                session.pressed_key_vks.remove(&vk);
+            }
+        }
+    }
+
     fn process_mouse_sensitivity_hotkey(binding: &HotkeyBinding, is_repeat: bool) -> Option<bool> {
         if is_repeat {
             return None;
@@ -1777,6 +1846,7 @@ mod windows_overlay {
                         preset_id,
                         last_event_at: std::time::Instant::now(),
                         events: Vec::new(),
+                        pressed_key_vks: std::collections::HashSet::new(),
                     });
                     Some((session.group_id, session.preset_id, session.events, false))
                 }
@@ -1786,6 +1856,7 @@ mod windows_overlay {
                     preset_id,
                     last_event_at: std::time::Instant::now(),
                     events: Vec::new(),
+                    pressed_key_vks: std::collections::HashSet::new(),
                 });
                 None
             }
@@ -3184,13 +3255,13 @@ mod windows_overlay {
             return 16;
         }
 
-        if is_ui_in_foreground() {
-            return 100;
-        }
-
         let recording_active = MOUSE_RECORDING.lock().is_some() || MACRO_RECORDING.lock().is_some();
         if recording_active {
             return 33;
+        }
+
+        if is_ui_in_foreground() {
+            return 100;
         }
 
         let toolbox_active = HUD_DISPLAY.lock().is_some()
