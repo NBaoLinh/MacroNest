@@ -187,6 +187,7 @@ mod windows_overlay {
     pub static UI_WINDOW_RECT_RIGHT: std::sync::atomic::AtomicI32 = std::sync::atomic::AtomicI32::new(0);
     pub static UI_WINDOW_RECT_BOTTOM: std::sync::atomic::AtomicI32 = std::sync::atomic::AtomicI32::new(0);
     pub static UI_WINDOW_VISIBLE: std::sync::atomic::AtomicBool = std::sync::atomic::AtomicBool::new(false);
+    pub static UI_WINDOW_FOREGROUND: std::sync::atomic::AtomicBool = std::sync::atomic::AtomicBool::new(false);
     #[derive(Debug, Clone)]
     pub enum OverlayCommand {
         Update(CrosshairStyle),
@@ -7550,8 +7551,9 @@ mod windows_overlay {
         unsafe { find_app_ui_window() }
     }
 
-    pub fn update_ui_window_metrics(visible: bool, left: i32, top: i32, right: i32, bottom: i32) {
+    pub fn update_ui_window_metrics(visible: bool, is_foreground: bool, left: i32, top: i32, right: i32, bottom: i32) {
         UI_WINDOW_VISIBLE.store(visible, Ordering::Relaxed);
+        UI_WINDOW_FOREGROUND.store(is_foreground, Ordering::Relaxed);
         if visible {
             UI_WINDOW_RECT_LEFT.store(left, Ordering::Relaxed);
             UI_WINDOW_RECT_TOP.store(top, Ordering::Relaxed);
@@ -7561,6 +7563,9 @@ mod windows_overlay {
     }
 
     fn is_click_inside_ui(pt: POINT) -> bool {
+        if !UI_WINDOW_FOREGROUND.load(Ordering::Relaxed) {
+            return false;
+        }
         if !UI_WINDOW_VISIBLE.load(Ordering::Relaxed) {
             return false;
         }
