@@ -19990,8 +19990,6 @@ impl eframe::App for CrosshairApp {
 
     fn update(&mut self, ctx: &egui::Context, frame: &mut eframe::Frame) {
         unsafe {
-            let foreground = windows::Win32::UI::WindowsAndMessaging::GetForegroundWindow();
-            crate::overlay::update_foreground_window(foreground);
             if let Some(hwnd) = crate::overlay::find_app_ui_window_for_ui_thread() {
                 let visible = windows::Win32::UI::WindowsAndMessaging::IsWindowVisible(hwnd).as_bool();
                 let mut rect = windows::Win32::Foundation::RECT::default();

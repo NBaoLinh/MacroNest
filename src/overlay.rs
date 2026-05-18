@@ -532,6 +532,17 @@ mod windows_overlay {
         let running = Arc::new(AtomicBool::new(true));
         let worker_running = running.clone();
 
+        let poll_running = running.clone();
+        thread::spawn(move || {
+            while poll_running.load(Ordering::Relaxed) {
+                unsafe {
+                    let foreground = GetForegroundWindow();
+                    update_foreground_window(foreground);
+                }
+                thread::sleep(std::time::Duration::from_millis(50));
+            }
+        });
+
         thread::spawn(move || {
             let result = run_thread(paths, initial_style, rx, ui_tx, worker_running.clone());
             if let Err(error) = result {
