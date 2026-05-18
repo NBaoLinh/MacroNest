@@ -1217,6 +1217,18 @@ mod windows_overlay {
             if is_ui_in_foreground() {
                 return CallNextHookEx(None, code, wparam, lparam);
             }
+            if let Some(ui_hwnd) = find_app_ui_window() {
+                if unsafe { windows::Win32::UI::WindowsAndMessaging::IsWindowVisible(ui_hwnd).as_bool() } {
+                    let mut rect = windows::Win32::Foundation::RECT::default();
+                    if unsafe { GetWindowRect(ui_hwnd, &mut rect).is_ok() } {
+                        if info.pt.x >= rect.left && info.pt.x <= rect.right
+                            && info.pt.y >= rect.top && info.pt.y <= rect.bottom
+                        {
+                            return CallNextHookEx(None, code, wparam, lparam);
+                        }
+                    }
+                }
+            }
             let hwnd_at_point = WindowFromPoint(info.pt);
             if !hwnd_at_point.0.is_null() {
                 let root = GetAncestor(hwnd_at_point, GA_ROOT);
