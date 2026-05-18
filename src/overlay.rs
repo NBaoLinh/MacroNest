@@ -1688,13 +1688,13 @@ mod windows_overlay {
     }
 
     fn record_macro_mouse_event(message: u32, info: &MSLLHOOKSTRUCT) {
-        if is_click_inside_ui(info.pt) {
-            return;
-        }
         let mut guard = MACRO_RECORDING.lock();
         let Some(session) = guard.as_mut() else {
             return;
         };
+        if is_click_inside_ui(info.pt) {
+            return;
+        }
         let now = std::time::Instant::now();
         let delay_ms = now
             .saturating_duration_since(session.last_event_at)
@@ -7441,15 +7441,19 @@ mod windows_overlay {
 
     fn is_click_inside_ui(pt: POINT) -> bool {
         unsafe {
-            let hwnd = WindowFromPoint(pt);
-            if hwnd.0.is_null() {
+            let Some(app_hwnd) = find_app_ui_window() else {
+                return false;
+            };
+            if !windows::Win32::UI::WindowsAndMessaging::IsWindowVisible(app_hwnd).as_bool() {
                 return false;
             }
-            let root = GetAncestor(hwnd, GA_ROOT);
-            if root.0.is_null() {
-                return false;
+            let mut rect = windows::Win32::Foundation::RECT::default();
+            if GetWindowRect(app_hwnd, &mut rect).is_ok() {
+                if pt.x >= rect.left && pt.x <= rect.right && pt.y >= rect.top && pt.y <= rect.bottom {
+                    return true;
+                }
             }
-            window_belongs_to_current_process(root) && !is_internal_app_window(root)
+            false
         }
     }
 
