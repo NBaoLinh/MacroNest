@@ -19994,13 +19994,7 @@ impl eframe::App for CrosshairApp {
                 let visible = windows::Win32::UI::WindowsAndMessaging::IsWindowVisible(hwnd).as_bool();
                 let mut rect = windows::Win32::Foundation::RECT::default();
                 if visible && windows::Win32::UI::WindowsAndMessaging::GetWindowRect(hwnd, &mut rect).is_ok() {
-                    let foreground = windows::Win32::UI::WindowsAndMessaging::GetForegroundWindow();
-                    let is_foreground = if foreground.0.is_null() {
-                        false
-                    } else {
-                        let root = windows::Win32::UI::WindowsAndMessaging::GetAncestor(foreground, windows::Win32::UI::WindowsAndMessaging::GA_ROOT);
-                        !root.0.is_null() && root == hwnd
-                    };
+                    let is_foreground = ctx.input(|i| i.viewport().focused == Some(true));
                     crate::overlay::update_ui_window_metrics(true, is_foreground, rect.left, rect.top, rect.right, rect.bottom);
                 } else {
                     crate::overlay::update_ui_window_metrics(false, false, 0, 0, 0, 0);
