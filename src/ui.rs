@@ -19972,6 +19972,20 @@ impl eframe::App for CrosshairApp {
     }
 
     fn update(&mut self, ctx: &egui::Context, frame: &mut eframe::Frame) {
+        unsafe {
+            if let Some(hwnd) = crate::overlay::find_app_ui_window_for_ui_thread() {
+                let visible = windows::Win32::UI::WindowsAndMessaging::IsWindowVisible(hwnd).as_bool();
+                let mut rect = windows::Win32::Foundation::RECT::default();
+                if visible && windows::Win32::UI::WindowsAndMessaging::GetWindowRect(hwnd, &mut rect).is_ok() {
+                    crate::overlay::update_ui_window_metrics(true, rect.left, rect.top, rect.right, rect.bottom);
+                } else {
+                    crate::overlay::update_ui_window_metrics(false, 0, 0, 0, 0);
+                }
+            } else {
+                crate::overlay::update_ui_window_metrics(false, 0, 0, 0, 0);
+            }
+        }
+
         if matches!(self.state.active_panel, AppPanel::Zoom | AppPanel::Modes) {
             self.state.active_panel = AppPanel::Pin;
         }

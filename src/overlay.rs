@@ -181,6 +181,11 @@ mod windows_overlay {
     static UI_CONTEXT: Lazy<Mutex<Option<egui::Context>>> = Lazy::new(|| Mutex::new(None));
     static CONTROLLER_HWND: AtomicIsize = AtomicIsize::new(0);
     static CACHED_APP_UI_HWND: AtomicIsize = AtomicIsize::new(0);
+    pub static UI_WINDOW_RECT_LEFT: std::sync::atomic::AtomicI32 = std::sync::atomic::AtomicI32::new(0);
+    pub static UI_WINDOW_RECT_TOP: std::sync::atomic::AtomicI32 = std::sync::atomic::AtomicI32::new(0);
+    pub static UI_WINDOW_RECT_RIGHT: std::sync::atomic::AtomicI32 = std::sync::atomic::AtomicI32::new(0);
+    pub static UI_WINDOW_RECT_BOTTOM: std::sync::atomic::AtomicI32 = std::sync::atomic::AtomicI32::new(0);
+    pub static UI_WINDOW_VISIBLE: std::sync::atomic::AtomicBool = std::sync::atomic::AtomicBool::new(false);
     #[derive(Debug, Clone)]
     pub enum OverlayCommand {
         Update(CrosshairStyle),
@@ -7458,23 +7463,29 @@ mod windows_overlay {
         }
     }
 
-    fn is_click_inside_ui(pt: POINT) -> bool {
-        unsafe {
-            let Some(app_hwnd) = find_app_ui_window() else {
-                return false;
-            };
-            let visible = windows::Win32::UI::WindowsAndMessaging::IsWindowVisible(app_hwnd).as_bool();
-            if !visible {
-                return false;
-            }
-            let mut rect = windows::Win32::Foundation::RECT::default();
-            if GetWindowRect(app_hwnd, &mut rect).is_ok() {
-                if pt.x >= rect.left && pt.x <= rect.right && pt.y >= rect.top && pt.y <= rect.bottom {
-                    return true;
-                }
-            }
-            false
+    pub fn find_app_ui_window_for_ui_thread() -> Option<windows::Win32::Foundation::HWND> {
+        unsafe { find_app_ui_window() }
+    }
+
+    pub fn update_ui_window_metrics(visible: bool, left: i32, top: i32, right: i32, bottom: i32) {
+        UI_WINDOW_VISIBLE.store(visible, Ordering::Relaxed);
+        if visible {
+            UI_WINDOW_RECT_LEFT.store(left, Ordering::Relaxed);
+            UI_WINDOW_RECT_TOP.store(top, Ordering::Relaxed);
+            UI_WINDOW_RECT_RIGHT.store(right, Ordering::Relaxed);
+            UI_WINDOW_RECT_BOTTOM.store(bottom, Ordering::Relaxed);
         }
+    }
+
+    fn is_click_inside_ui(pt: POINT) -> bool {
+        if !UI_WINDOW_VISIBLE.load(Ordering::Relaxed) {
+            return false;
+        }
+        let left = UI_WINDOW_RECT_LEFT.load(Ordering::Relaxed);
+        let top = UI_WINDOW_RECT_TOP.load(Ordering::Relaxed);
+        let right = UI_WINDOW_RECT_RIGHT.load(Ordering::Relaxed);
+        let bottom = UI_WINDOW_RECT_BOTTOM.load(Ordering::Relaxed);
+        pt.x >= left && pt.x <= right && pt.y >= top && pt.y <= bottom
     }
 
     fn hide_ui_window_native() {
