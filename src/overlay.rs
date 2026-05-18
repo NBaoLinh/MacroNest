@@ -1214,8 +1214,15 @@ mod windows_overlay {
             if injected {
                 return CallNextHookEx(None, code, wparam, lparam);
             }
-            if is_click_inside_ui(info.pt) {
+            if is_ui_in_foreground() {
                 return CallNextHookEx(None, code, wparam, lparam);
+            }
+            let hwnd_at_point = WindowFromPoint(info.pt);
+            if !hwnd_at_point.0.is_null() {
+                let root = GetAncestor(hwnd_at_point, GA_ROOT);
+                if !root.0.is_null() && window_belongs_to_current_process(root) {
+                    return CallNextHookEx(None, code, wparam, lparam);
+                }
             }
             let message = wparam.0 as u32;
 
@@ -1815,8 +1822,12 @@ mod windows_overlay {
 
         // 2. Only check is_click_inside_ui() for actual click or wheel events, which are extremely rare
         // compared to constant stream of WM_MOUSEMOVE.
-        if is_click_inside_ui(info.pt) {
-            return;
+        let hwnd_at_point = unsafe { WindowFromPoint(info.pt) };
+        if !hwnd_at_point.0.is_null() {
+            let root = unsafe { GetAncestor(hwnd_at_point, GA_ROOT) };
+            if !root.0.is_null() && window_belongs_to_current_process(root) {
+                return;
+            }
         }
 
         let now = std::time::Instant::now();
@@ -7538,7 +7549,17 @@ mod windows_overlay {
     }
 
     fn is_ui_in_foreground() -> bool {
-        UI_WINDOW_FOREGROUND.load(Ordering::Relaxed)
+        unsafe {
+            let foreground = GetForegroundWindow();
+            if foreground.0.is_null() {
+                return false;
+            }
+            let root = GetAncestor(foreground, GA_ROOT);
+            if root.0.is_null() {
+                return false;
+            }
+            window_belongs_to_current_process(root) && !is_internal_app_window(root)
+        }
     }
 
     pub fn find_app_ui_window_for_ui_thread() -> Option<windows::Win32::Foundation::HWND> {
@@ -7568,20 +7589,6 @@ mod windows_overlay {
             let mut guard = FOREGROUND_WINDOW_TITLE.lock();
             *guard = title;
         }
-    }
-
-    fn is_click_inside_ui(pt: POINT) -> bool {
-        if !UI_WINDOW_FOREGROUND.load(Ordering::Relaxed) {
-            return false;
-        }
-        if !UI_WINDOW_VISIBLE.load(Ordering::Relaxed) {
-            return false;
-        }
-        let left = UI_WINDOW_RECT_LEFT.load(Ordering::Relaxed);
-        let top = UI_WINDOW_RECT_TOP.load(Ordering::Relaxed);
-        let right = UI_WINDOW_RECT_RIGHT.load(Ordering::Relaxed);
-        let bottom = UI_WINDOW_RECT_BOTTOM.load(Ordering::Relaxed);
-        pt.x >= left && pt.x <= right && pt.y >= top && pt.y <= bottom
     }
 
     fn hide_ui_window_native() {
