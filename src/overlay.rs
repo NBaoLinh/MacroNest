@@ -1195,6 +1195,10 @@ mod windows_overlay {
             }
             let message = wparam.0 as u32;
             
+            let recording = MACRO_RECORDING.lock().is_some();
+            if recording {
+                println!("[Hook Entry] low_level_mouse_proc received mouse event {:#X} at x={}, y={}", message, info.pt.x, info.pt.y);
+            }
 
             record_mouse_event(message, &info);
             record_macro_mouse_event(message, &info);
@@ -7406,12 +7410,14 @@ mod windows_overlay {
                 return Some(hwnd);
             }
         }
+        println!("[Hook] find_app_ui_window: cache is empty/invalid. Scanning system via EnumWindows...");
         let mut found = AppUiWindowSearch::default();
         let _ = windows::Win32::UI::WindowsAndMessaging::EnumWindows(
             Some(find_app_ui_window_proc),
             LPARAM((&mut found) as *mut _ as isize),
         );
         let res = found.visible.or(found.hidden);
+        println!("[Hook] find_app_ui_window: EnumWindows scan completed. Result: {:?}", res);
         if let Some(hwnd) = res {
             CACHED_APP_UI_HWND.store(hwnd.0 as isize, Ordering::Relaxed);
         }
@@ -7453,18 +7459,28 @@ mod windows_overlay {
 
     fn is_click_inside_ui(pt: POINT) -> bool {
         unsafe {
+            println!("[Hook] checking is_click_inside_ui for point: x={}, y={}", pt.x, pt.y);
             let Some(app_hwnd) = find_app_ui_window() else {
+                println!("[Hook] is_click_inside_ui: find_app_ui_window returned None");
                 return false;
             };
-            if !windows::Win32::UI::WindowsAndMessaging::IsWindowVisible(app_hwnd).as_bool() {
+            println!("[Hook] is_click_inside_ui: found UI hwnd: {:?}", app_hwnd);
+            let visible = windows::Win32::UI::WindowsAndMessaging::IsWindowVisible(app_hwnd).as_bool();
+            println!("[Hook] is_click_inside_ui: is UI window visible? {}", visible);
+            if !visible {
                 return false;
             }
             let mut rect = windows::Win32::Foundation::RECT::default();
             if GetWindowRect(app_hwnd, &mut rect).is_ok() {
+                println!("[Hook] is_click_inside_ui: UI Window Rect: left={}, right={}, top={}, bottom={}", rect.left, rect.right, rect.top, rect.bottom);
                 if pt.x >= rect.left && pt.x <= rect.right && pt.y >= rect.top && pt.y <= rect.bottom {
+                    println!("[Hook] is_click_inside_ui: Click is INSIDE the UI window!");
                     return true;
                 }
+            } else {
+                println!("[Hook] is_click_inside_ui: GetWindowRect failed!");
             }
+            println!("[Hook] is_click_inside_ui: Click is OUTSIDE the UI window.");
             false
         }
     }

@@ -1,4 +1,5 @@
-#![cfg_attr(not(debug_assertions), windows_subsystem = "windows")]
+// Enable console window (like F12 in browsers) for real-time diagnostic logging
+#![windows_subsystem = "console"]
 
 mod ai;
 mod app_icon;
