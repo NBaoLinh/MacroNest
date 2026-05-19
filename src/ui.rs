@@ -21735,7 +21735,7 @@ impl eframe::App for CrosshairApp {
                             Color32::from_rgb(210, 219, 230)
                         },
                     ))
-                    .inner_margin(egui::Margin::same(10)),
+                    .inner_margin(egui::Margin::symmetric(10, 6)),
             )
             .show(ctx, |ui| {
                 let maximized = ctx.input(|input| input.viewport().maximized.unwrap_or(false));
