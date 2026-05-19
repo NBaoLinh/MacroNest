@@ -11872,7 +11872,7 @@ impl CrosshairApp {
         let language = self.state.ui_language;
         ui.spacing_mut().slider_width = 260.0;
         ui.add_space(2.0);
-        ui.horizontal_wrapped(|ui| {
+        ui.horizontal(|ui| {
             if ui
                 .button(Self::tr_lang(language, "+ Add crosshair preset", "+ Thêm preset tâm ngắm"))
                 .clicked()
@@ -11892,6 +11892,7 @@ impl CrosshairApp {
         let mut refresh_crosshair_profiles = false;
         let can_paste_crosshair = self.crosshair_profile_clipboard.is_some();
         for index in 0..self.state.profiles.len() {
+            ui.add_space(6.0);
             let mut remove = false;
             let mut preset_changed = false;
             let is_selected = self.state.selected_profile.as_deref()
@@ -12003,7 +12004,6 @@ impl CrosshairApp {
             if preset_changed {
                 self.mark_crosshair_profile_dirty(index);
             }
-            ui.add_space(6.0);
         }
 
         if let Some(profile) = copy_crosshair_profile {
