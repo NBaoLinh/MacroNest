@@ -4933,9 +4933,10 @@ mod windows_overlay {
             MacroAction::StartTimerPreset
             | MacroAction::PauseTimerPreset
             | MacroAction::StopTimerPreset => {
+                let t_id = step.timer_preset_id.or_else(|| step.key.trim().parse::<u32>().ok());
                 execute_timer_preset_action(
                     step.action,
-                    step.timer_preset_id,
+                    t_id,
                     step.timer_on_complete_macro_preset_id,
                 );
             }
@@ -5189,9 +5190,10 @@ mod windows_overlay {
                 MacroAction::StartTimerPreset
                 | MacroAction::PauseTimerPreset
                 | MacroAction::StopTimerPreset => {
+                    let t_id = step.timer_preset_id.or_else(|| step.key.trim().parse::<u32>().ok());
                     execute_timer_preset_action(
                         step.action,
-                        step.timer_preset_id,
+                        t_id,
                         step.timer_on_complete_macro_preset_id,
                     );
                 }

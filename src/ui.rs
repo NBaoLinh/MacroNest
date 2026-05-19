@@ -15038,6 +15038,7 @@ impl CrosshairApp {
                                                             for timer in &self.state.timer_presets {
                                                                 if ui.selectable_label(selected_id == Some(timer.id), &timer.name).clicked() {
                                                                     step.key = timer.id.to_string();
+                                                                    step.timer_preset_id = Some(timer.id);
                                                                     live_sync = true;
                                                                 }
                                                             }
@@ -16407,6 +16408,7 @@ impl CrosshairApp {
                                                             for timer in &self.state.timer_presets {
                                                                 if ui.selectable_label(selected_id == Some(timer.id), &timer.name).clicked() {
                                                                     step.key = timer.id.to_string();
+                                                                    step.timer_preset_id = Some(timer.id);
                                                                     live_sync = true;
                                                                 }
                                                             }
