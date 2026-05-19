@@ -19959,9 +19959,9 @@ impl CrosshairApp {
                                 };
                                 let original_extreme_bg = ui.visuals().extreme_bg_color;
                                 ui.visuals_mut().extreme_bg_color = if dark_theme {
-                                    Color32::from_rgba_premultiplied(12, 13, 16, 120)
+                                    Color32::from_rgba_unmultiplied(12, 13, 16, 50)
                                 } else {
-                                    Color32::from_rgba_premultiplied(240, 240, 242, 120)
+                                    Color32::from_rgba_unmultiplied(240, 240, 242, 50)
                                 };
                                 let response = ui.add_sized(
                                     [ui.available_width(), 112.0],
@@ -20142,6 +20142,12 @@ impl CrosshairApp {
                                 } else {
                                     Some(Color32::from_gray(175))
                                 };
+                                let original_extreme_bg = ui.visuals().extreme_bg_color;
+                                ui.visuals_mut().extreme_bg_color = if dark_theme {
+                                    Color32::from_rgba_unmultiplied(12, 13, 16, 50)
+                                } else {
+                                    Color32::from_rgba_unmultiplied(240, 240, 242, 50)
+                                };
                                 let response = ui.add_sized(
                                     [ui.available_width(), 92.0],
                                     TextEdit::multiline(&mut dialog.prompt)
@@ -20153,6 +20159,7 @@ impl CrosshairApp {
                                         )),
                                 );
                                 ui.style_mut().visuals.weak_text_color = original_weak_color;
+                                ui.visuals_mut().extreme_bg_color = original_extreme_bg;
                                 Self::apply_vietnamese_input_if_changed(
                                     &response,
                                     self.state.vietnamese_input_enabled,
@@ -20319,6 +20326,12 @@ impl CrosshairApp {
                                 } else {
                                     Some(Color32::from_gray(175))
                                 };
+                                let original_extreme_bg = ui.visuals().extreme_bg_color;
+                                ui.visuals_mut().extreme_bg_color = if dark_theme {
+                                    Color32::from_rgba_unmultiplied(12, 13, 16, 50)
+                                } else {
+                                    Color32::from_rgba_unmultiplied(240, 240, 242, 50)
+                                };
                                 let response = ui.add_sized(
                                     [panel_size.x - 32.0, 72.0],
                                     TextEdit::multiline(&mut dialog.prompt)
@@ -20330,6 +20343,7 @@ impl CrosshairApp {
                                         )),
                                 );
                                 ui.style_mut().visuals.weak_text_color = original_weak_color;
+                                ui.visuals_mut().extreme_bg_color = original_extreme_bg;
                                 Self::apply_vietnamese_input_if_changed(
                                     &response,
                                     self.state.vietnamese_input_enabled,
