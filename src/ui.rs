@@ -590,6 +590,7 @@ pub struct CrosshairApp {
     active_mouse_record_preset_id: Option<u32>,
     active_macro_record_preset_id: Option<u32>,
     active_hud_preview_preset_id: Option<u32>,
+    active_timer_preview_preset_id: Option<u32>,
     crosshair_ai_dialog: Option<CrosshairAiDialog>,
     crosshair_ai_job: Option<CrosshairAiJob>,
     crosshair_ai_next_token: u64,
@@ -732,6 +733,7 @@ impl CrosshairApp {
             active_mouse_record_preset_id: None,
             active_macro_record_preset_id: None,
             active_hud_preview_preset_id: None,
+            active_timer_preview_preset_id: None,
             crosshair_ai_dialog: None,
             crosshair_ai_job: None,
             crosshair_ai_next_token: 1,
@@ -783,6 +785,7 @@ impl CrosshairApp {
         app.sync_audio_settings();
         app.sync_vision_presets();
         app.sync_hud_presets();
+        app.sync_timer_presets();
         app.sync_command_presets();
         app.sync_macro_master_enabled();
         app.sync_vietnamese_input_enabled();
@@ -976,6 +979,50 @@ impl CrosshairApp {
         }
         if changed {
             self.clear_hud_preview();
+        }
+        changed
+    }
+
+    fn sync_timer_presets(&self) {
+        let _ = self.overlay_tx.send(OverlayCommand::UpdateTimerPresets(
+            self.state.timer_presets.clone(),
+        ));
+    }
+
+    fn sync_timer_preview(&mut self, preset: Option<&TimerPreset>) {
+        let next_id = preset.map(|preset| preset.id);
+        if self.active_timer_preview_preset_id == next_id {
+            if let Some(preset) = preset {
+                let _ = self
+                    .overlay_tx
+                    .send(OverlayCommand::PreviewTimerPreset(Some(preset.clone())));
+            }
+            return;
+        }
+        self.active_timer_preview_preset_id = next_id;
+        let _ = self
+            .overlay_tx
+            .send(OverlayCommand::PreviewTimerPreset(preset.cloned()));
+    }
+
+    fn clear_timer_preview(&mut self) {
+        if self.active_timer_preview_preset_id.take().is_some() {
+            let _ = self
+                .overlay_tx
+                .send(OverlayCommand::PreviewTimerPreset(None));
+        }
+    }
+
+    fn disable_timer_preview_modes(&mut self) -> bool {
+        let mut changed = false;
+        for preset in &mut self.state.timer_presets {
+            if preset.preview_enabled {
+                preset.preview_enabled = false;
+                changed = true;
+            }
+        }
+        if changed {
+            self.clear_timer_preview();
         }
         changed
     }
@@ -11097,6 +11144,11 @@ impl CrosshairApp {
         self.persist();
     }
 
+    fn persist_timer_presets(&mut self) {
+        self.sync_timer_presets();
+        self.persist();
+    }
+
     fn persist_command_presets(&mut self) {
         self.sync_command_presets();
         self.persist();
@@ -20045,6 +20097,11 @@ impl CrosshairApp {
     fn refresh_macro_ai_debug_text_from_trace(&mut self) {}
 
     fn render_hud_panel(&mut self, ui: &mut egui::Ui) {
+        let language = self.state.ui_language;
+        let mut remove_timer_id = None;
+        let mut timer_changed = false;
+        let mut active_timer_preview: Option<TimerPreset> = None;
+
         ui.add_space(2.0);
         ui.horizontal(|ui| {
             if ui
@@ -20054,7 +20111,27 @@ impl CrosshairApp {
                 self.add_toolbox_preset();
                 self.persist_hud_presets();
             }
+            if ui
+                .button(self.tr("+ Add Timer preset", "+ Thêm preset Timer"))
+                .clicked()
+            {
+                let id = self.state.next_timer_preset_id;
+                self.state.next_timer_preset_id += 1;
+                
+                let mut x = 1;
+                while self.state.timer_presets.iter().any(|p| p.name == format!("Timer {x}")) {
+                    x += 1;
+                }
+                
+                let mut new_preset = TimerPreset::new(id);
+                new_preset.name = format!("Timer {x}");
+                self.state.timer_presets.push(new_preset);
+                timer_changed = true;
+            }
         });
+
+        ui.add_space(6.0);
+        ui.label(RichText::new(self.tr("Text Presets", "Thiết lập Văn bản")).strong());
 
         let mut remove_id = None;
         let mut changed = false;
@@ -20214,7 +20291,246 @@ impl CrosshairApp {
         if changed {
             self.persist_hud_presets();
         }
+
+        ui.add_space(14.0);
+        ui.separator();
+        ui.add_space(6.0);
+
+        ui.label(RichText::new(self.tr("Timer Presets", "Thiết lập Hẹn giờ")).strong());
+
+        for index in 0..self.state.timer_presets.len() {
+            ui.add_space(6.0);
+            let preset = &mut self.state.timer_presets[index];
+            Self::show_preset_card(ui, false, |ui| {
+                ui.horizontal(|ui| {
+                    let name_width = Self::preset_header_name_width(ui);
+                    let response =
+                        ui.add_sized([name_width, 24.0], TextEdit::singleline(&mut preset.name));
+                    Self::apply_vietnamese_input_if_changed(
+                        &response,
+                        self.state.vietnamese_input_enabled,
+                        self.state.vietnamese_input_mode,
+                        &mut preset.name,
+                    );
+                    timer_changed |= response.changed();
+                    ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
+                        if Self::sound_style_remove_button(ui).clicked() {
+                            remove_timer_id = Some(preset.id);
+                        }
+                        if Self::sound_style_toggle_button(
+                            ui,
+                            if preset.collapsed {
+                                Self::tr_lang(language, "Show", "Hiện")
+                            } else {
+                                Self::tr_lang(language, "Hide", "Ẩn")
+                            },
+                        )
+                        .clicked()
+                        {
+                            preset.collapsed = !preset.collapsed;
+                            timer_changed = true;
+                        }
+                    });
+                });
+
+                if preset.collapsed {
+                    if preset.preview_enabled {
+                        preset.preview_enabled = false;
+                        timer_changed = true;
+                    }
+                    return;
+                }
+
+                egui::Grid::new((preset.id, "timer-preset-grid"))
+                    .num_columns(2)
+                    .spacing([12.0, 8.0])
+                    .show(ui, |ui| {
+                        ui.label(Self::tr_lang(language, "Type", "Loại"));
+                        ui.horizontal(|ui| {
+                            let mut selected_type = if preset.is_countdown { 1 } else { 0 };
+                            let resp = egui::ComboBox::from_id_salt((preset.id, "timer-type-sel"))
+                                .selected_text(if selected_type == 1 {
+                                    Self::tr_lang(language, "Countdown", "Đếm ngược (Hẹn giờ)")
+                                } else {
+                                    Self::tr_lang(language, "Stopwatch", "Đếm xuôi (Bấm giờ)")
+                                })
+                                .show_ui(ui, |ui| {
+                                    let mut changed = false;
+                                    changed |= ui.selectable_value(&mut selected_type, 0, Self::tr_lang(language, "Stopwatch", "Đếm xuôi (Bấm giờ)")).clicked();
+                                    changed |= ui.selectable_value(&mut selected_type, 1, Self::tr_lang(language, "Countdown", "Đếm ngược (Hẹn giờ)")).clicked();
+                                    changed
+                                });
+                            if resp.inner.unwrap_or(false) {
+                                preset.is_countdown = selected_type == 1;
+                                if !preset.is_countdown {
+                                    preset.show_text = true;
+                                    preset.show_progress_bar = false;
+                                }
+                                timer_changed = true;
+                            }
+                        });
+                        ui.end_row();
+
+                        if preset.is_countdown {
+                            ui.label(Self::tr_lang(language, "Duration", "Thời lượng"));
+                            timer_changed |= ui
+                                .add(
+                                    Slider::new(&mut preset.duration_secs, 1..=3600)
+                                        .text(Self::tr_lang(language, "seconds", "giây"))
+                                        .clamping(egui::SliderClamping::Always),
+                                )
+                                .changed();
+                            ui.end_row();
+                        }
+
+                        if preset.is_countdown {
+                            ui.label(Self::tr_lang(language, "Display", "Hiển thị"));
+                            ui.horizontal(|ui| {
+                                let mut mode = if preset.show_progress_bar { 1 } else { 0 };
+                                let prev_mode = mode;
+                                ui.radio_value(&mut mode, 0, Self::tr_lang(language, "Time Text", "Hiện chữ số"));
+                                ui.radio_value(&mut mode, 1, Self::tr_lang(language, "Progress Bar", "Hiện thanh tiến trình"));
+                                if mode != prev_mode {
+                                    if mode == 1 {
+                                        preset.show_text = false;
+                                        preset.show_progress_bar = true;
+                                    } else {
+                                        preset.show_text = true;
+                                        preset.show_progress_bar = false;
+                                    }
+                                    timer_changed = true;
+                                }
+                            });
+                            ui.end_row();
+                        }
+
+                        if preset.show_progress_bar {
+                            ui.label(Self::tr_lang(language, "Bar Color", "Màu tiến trình"));
+                            timer_changed |= Self::edit_rgba_color(ui, &mut preset.progress_color).changed();
+                            ui.end_row();
+
+                            ui.label(Self::tr_lang(language, "Border", "Đường viền"));
+                            timer_changed |= ui.checkbox(&mut preset.progress_border_enabled, Self::tr_lang(language, "Enable border", "Bật viền")).changed();
+                            ui.end_row();
+
+                            ui.label(Self::tr_lang(language, "Border Color", "Màu viền"));
+                            timer_changed |= Self::edit_rgba_color(ui, &mut preset.progress_border_color).changed();
+                            ui.end_row();
+                        }
+
+                        if preset.show_text {
+                            ui.label(Self::tr_lang(language, "Format", "Định dạng"));
+                            ui.horizontal(|ui| {
+                                timer_changed |= ui.checkbox(&mut preset.show_minutes, Self::tr_lang(language, "Min", "Phút")).changed();
+                                timer_changed |= ui.checkbox(&mut preset.show_seconds, Self::tr_lang(language, "Sec", "Giây")).changed();
+                                timer_changed |= ui.checkbox(&mut preset.show_ms, Self::tr_lang(language, "Ms/Ticks", "Khắc (Ms)")).changed();
+                            });
+                            ui.end_row();
+                        }
+
+                        if preset.show_text {
+                            ui.label(Self::tr_lang(language, "Font Size", "Cỡ chữ"));
+                            timer_changed |= ui
+                                .add(
+                                    Slider::new(&mut preset.font_size, 1.0..=200.0)
+                                        .text("px")
+                                        .clamping(egui::SliderClamping::Always),
+                                )
+                                .changed();
+                            ui.end_row();
+
+                            ui.label(Self::tr_lang(language, "Text Color", "Màu chữ"));
+                            timer_changed |= Self::edit_rgba_color(ui, &mut preset.text_color).changed();
+                            ui.end_row();
+                        }
+
+                        ui.label(Self::tr_lang(language, "Background Color", "Màu nền"));
+                        timer_changed |=
+                            Self::edit_rgba_color(ui, &mut preset.background_color).changed();
+                        ui.end_row();
+
+                        ui.label(Self::tr_lang(
+                            language,
+                            "Background Opacity",
+                            "Độ mờ nền",
+                        ));
+                        timer_changed |= ui
+                            .add(
+                                Slider::new(&mut preset.background_opacity, 0.0..=1.0)
+                                    .text("")
+                                    .clamping(egui::SliderClamping::Always),
+                            )
+                            .changed();
+                        ui.end_row();
+
+                        ui.label(Self::tr_lang(
+                            language,
+                            "Rounded Background",
+                            "Nền bo góc",
+                        ));
+                        timer_changed |= ui
+                            .checkbox(
+                                &mut preset.rounded_background,
+                                Self::tr_lang(language, "Rounded corners", "Rounded corners"),
+                            )
+                            .changed();
+                        ui.end_row();
+
+                        ui.label(Self::tr_lang(language, "Preview", "Preview"));
+                        timer_changed |= ui
+                            .checkbox(
+                                &mut preset.preview_enabled,
+                                Self::tr_lang(
+                                    language,
+                                    "Stream preview in editor",
+                                    "Stream preview trong editor",
+                                ),
+                            )
+                            .changed();
+                        ui.end_row();
+                    });
+
+                ui.add_space(6.0);
+                ui.label(
+                    RichText::new(Self::tr_lang(
+                        language,
+                        "Position Preview",
+                        "Preview vị trí",
+                    ))
+                    .strong(),
+                );
+                timer_changed |=
+                    Self::render_timer_rect_editor(ui, (preset.id, "timer-editor"), preset);
+                ui.horizontal_wrapped(|ui| {
+                    if ui.button(Self::tr_lang(language, "Center X", "Center X")).clicked() {
+                        preset.x = ((Self::screen_size().x as i32 - preset.width.max(1)) / 2).max(0);
+                        timer_changed = true;
+                    }
+                    if ui.button(Self::tr_lang(language, "Center Y", "Center Y")).clicked() {
+                        preset.y = ((Self::screen_size().y as i32 - preset.height.max(1)) / 2).max(0);
+                        timer_changed = true;
+                    }
+                });
+
+                if preset.preview_enabled {
+                    active_timer_preview = Some(preset.clone());
+                }
+            });
+        }
+
+        if let Some(id) = remove_timer_id {
+            self.state.timer_presets.retain(|preset| preset.id != id);
+            timer_changed = true;
+        }
+
+        self.sync_timer_preview(active_timer_preview.as_ref());
+
+        if timer_changed {
+            self.persist_timer_presets();
+        }
     }
+
+
 
     fn render_commands_panel(&mut self, ui: &mut egui::Ui) {
         let language = self.state.ui_language;
@@ -20874,7 +21190,12 @@ impl eframe::App for CrosshairApp {
             self.persist();
         }
         let keep_toolbox_preview = viewport_focused && self.state.active_panel == AppPanel::Hud;
-        if !keep_toolbox_preview && self.disable_hud_preview_modes() {
+        let mut hud_changed = false;
+        if !keep_toolbox_preview {
+            hud_changed |= self.disable_hud_preview_modes();
+            hud_changed |= self.disable_timer_preview_modes();
+        }
+        if hud_changed {
             self.persist();
         }
         let keep_window_preset_preview = viewport_focused && self.state.active_panel == AppPanel::WindowPresets;
@@ -21385,6 +21706,7 @@ impl eframe::App for CrosshairApp {
         self.sync_macro_master_enabled();
         self.sync_audio_settings();
         self.sync_hud_presets();
+        self.sync_timer_presets();
         self.sync_command_presets();
         self.sync_macro_master_hotkey();
         self.sync_vietnamese_input_enabled();
