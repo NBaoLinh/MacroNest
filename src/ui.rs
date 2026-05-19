@@ -21733,7 +21733,7 @@ impl eframe::App for CrosshairApp {
                         let drag_width = ui.available_width().max(120.0);
                         let drag_response = ui
                             .allocate_ui_with_layout(
-                                vec2(drag_width, 42.0),
+                                vec2(drag_width, 30.0),
                                 egui::Layout::left_to_right(egui::Align::Center),
                                 |ui| {
                                     let accent = if self.state.ui_theme == UiThemeMode::Dark {
@@ -21744,22 +21744,22 @@ impl eframe::App for CrosshairApp {
                                     egui::Frame::new()
                                         .fill(button_fill)
                                         .stroke(egui::Stroke::new(1.0, accent.gamma_multiply(0.45)))
-                                        .corner_radius(10.0)
-                                        .inner_margin(egui::Margin::symmetric(12, 8))
+                                        .corner_radius(8.0)
+                                        .inner_margin(egui::Margin::symmetric(10, 4))
                                         .show(ui, |ui| {
                                             ui.horizontal(|ui| {
                                                 ui.label(
                                                     RichText::new(self.app_brand_title())
                                                         .strong()
-                                                        .size(20.0),
+                                                        .size(14.0),
                                                 );
-                                                ui.add_space(6.0);
+                                                ui.add_space(4.0);
                                                 ui.label(
                                                     RichText::new(format!(
                                                         "v{}",
                                                         self.app_version_label()
                                                     ))
-                                                    .size(11.0)
+                                                    .size(9.0)
                                                     .color(
                                                         if self.state.ui_theme == UiThemeMode::Dark
                                                         {
