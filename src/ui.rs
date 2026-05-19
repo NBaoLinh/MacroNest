@@ -29,7 +29,7 @@ use crate::{
         MasterMacroPresetState, MasterPreset, MasterWindowFocusPresetState,
         MasterWindowPresetState, MasterZoomPresetState, MousePathEvent, MousePathEventKind,
         MousePathPreset, MouseSensitivityPreset, PinOverlayStyle, PinPreset, ProfileRecord,
-        RgbaColor, SoundLibraryItem, SoundPreset, HudPreset, UiLanguage, UiThemeMode,
+        RgbaColor, SoundLibraryItem, SoundPreset, HudPreset, UiLanguage, UiThemeMode, TimerPreset,
         VietnameseInputMode, WindowAnchor, WindowExpandDirection, WindowFocusPreset, WindowPreset,
         ZoomPreset,
     },
