@@ -12338,7 +12338,7 @@ impl CrosshairApp {
             }
         }
 
-        ui.separator();
+        ui.add_space(14.0);
         let language = self.state.ui_language;
         ui.label(
             RichText::new(Self::tr_lang(language, "Focus", "Preset focus cửa sổ")).strong(),
@@ -20758,8 +20758,6 @@ impl CrosshairApp {
         }
 
         ui.add_space(14.0);
-        ui.separator();
-        ui.add_space(6.0);
 
         ui.label(RichText::new(self.tr("Timer Presets", "Thiết lập Hẹn giờ")).strong());
 
