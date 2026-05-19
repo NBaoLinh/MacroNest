@@ -13796,16 +13796,10 @@ impl CrosshairApp {
                                             if Self::sound_style_remove_button(ui).clicked() {
                                                 remove_preset = Some(preset.id);
                                             }
-                                            if ui
-                                                .add_enabled(
-                                                    self.macro_preset_clipboard.is_some(),
-                                                    Button::new(Self::tr_lang(
-                                                        language, "Paste", "Paste",
-                                                    ))
-                                                    .min_size(egui::vec2(60.0, 24.0)),
-                                                )
-                                                .clicked()
-                                            {
+                                            let paste_response = ui.add_enabled_ui(self.macro_preset_clipboard.is_some(), |ui| {
+                                                ui.add_sized([60.0, 24.0], Button::new(Self::tr_lang(language, "Paste", "Paste")))
+                                            }).inner;
+                                            if paste_response.clicked() {
                                                 paste_preset_to_group = Some(group.id);
                                             }
                                             if Self::sized_button(
@@ -15148,28 +15142,30 @@ impl CrosshairApp {
                                         ui.add_sized([154.0, 18.0], egui::Label::new(RichText::new(Self::tr_lang(language, "Action", "Action")).strong()));
                                         ui.add_sized([146.0, 18.0], egui::Label::new(""));
                                         let has_selected_steps = selected_steps_snapshot.iter().any(|(g_id, p_id, _)| *g_id == group.id && *p_id == preset.id);
-                                        let delete_btn = Button::new(Self::tr_lang(language, "Delete", "Xóa"))
-                                            .min_size(egui::vec2(64.0, 20.0));
-                                        if ui
-                                            .add_enabled(has_selected_steps, delete_btn)
-                                            .on_hover_text(Self::tr_lang(language, "Delete selected steps", "Xóa các bước đã chọn"))
-                                            .clicked()
-                                        {
-                                            delete_selected_steps = Some((group.id, preset.id));
-                                        }
-                                        let copy_btn = Button::new(Self::tr_lang(language, "Copy", "Copy"))
-                                            .min_size(egui::vec2(56.0, 20.0));
-                                        if ui
-                                            .add_enabled(has_selected_steps, copy_btn)
-                                            .on_hover_text(Self::tr_lang(
-                                                language,
-                                                "Copy the selected steps in this preset.",
-                                                "Copy selected steps in this preset.",
-                                            ))
-                                            .clicked()
-                                        {
-                                            copy_selected_steps = Some((group.id, preset.id));
-                                        }
+                                         if has_selected_steps {
+                                             let delete_btn = Button::new(Self::tr_lang(language, "Delete", "Xóa"))
+                                                 .min_size(egui::vec2(64.0, 20.0));
+                                             if ui
+                                                 .add(delete_btn)
+                                                 .on_hover_text(Self::tr_lang(language, "Delete selected steps", "Xóa các bước đã chọn"))
+                                                 .clicked()
+                                             {
+                                                 delete_selected_steps = Some((group.id, preset.id));
+                                             }
+                                             let copy_btn = Button::new(Self::tr_lang(language, "Copy", "Copy"))
+                                                 .min_size(egui::vec2(56.0, 20.0));
+                                             if ui
+                                                 .add(copy_btn)
+                                                 .on_hover_text(Self::tr_lang(
+                                                     language,
+                                                     "Copy the selected steps in this preset.",
+                                                     "Copy selected steps in this preset.",
+                                                 ))
+                                                 .clicked()
+                                             {
+                                                 copy_selected_steps = Some((group.id, preset.id));
+                                             }
+                                         }
                                         
                                         // Render hotkey label here on the far right to maintain absolute header alignment
                                         if capture_active {
@@ -16311,8 +16307,6 @@ impl CrosshairApp {
                                                         .changed();
                                                 });
                                             } else if action_supports_capture {
-                                                ui.add_sized([48.0, 18.0], egui::Label::new(""));
-                                                ui.add_sized([48.0, 18.0], egui::Label::new(""));
                                                 let step_capture_target = CaptureRequest::MacroStepInput {
                                                     group_id: group.id,
                                                     preset_id: preset.id,
@@ -16320,17 +16314,14 @@ impl CrosshairApp {
                                                 };
                                                 let step_capture_active =
                                                     capture_target_snapshot.as_ref() == Some(&step_capture_target);
-                                                let step_capture_width = if step_capture_active { 92.0 } else { 28.0 };
                                                 let step_capture_button = if step_capture_active {
-                                                    Button::new(Self::capture_button_text(language, true))
-                                                        .min_size(vec2(step_capture_width, 18.0))
+                                                    Button::new(Self::material_icon_text(0xe312, 12.0))
                                                         .fill(Color32::from_rgb(88, 84, 44))
                                                 } else {
-                                                    Button::new(Self::material_icon_text(0xe312, 18.0))
-                                                        .min_size(vec2(step_capture_width, 18.0))
+                                                    Button::new(Self::material_icon_text(0xe312, 12.0))
                                                 };
                                                 if ui
-                                                    .add_sized([step_capture_width, 18.0], step_capture_button)
+                                                    .add_sized([22.0, 18.0], step_capture_button)
                                                     .on_hover_text(Self::tr_lang(
                                                         language,
                                                         "Bắt input",
@@ -16345,8 +16336,8 @@ impl CrosshairApp {
                                                     }
                                                 }
                                                 
-                                                // Dropdown right here
-                                                let menu_response = ui.menu_button(Self::material_icon_text(0xe5d2, 14.0), |ui| {
+                                                // Dropdown right here (equal size: 22.0 wide, 18.0 high)
+                                                let menu_response = ui.menu_button(Self::material_icon_text(0xe5d2, 12.0), |ui| {
                                                     ui.set_max_width(200.0);
                                                     
                                                     ui.menu_button(Self::tr_lang(language, "Letters (A-Z)", "Chữ cái (A-Z)"), |ui| {
@@ -16436,6 +16427,10 @@ impl CrosshairApp {
                                                     "Manually select key",
                                                     "Chọn phím thủ công"
                                                 ));
+                                                
+                                                // Trailing spacers placed after buttons to align columns with other rows having X/Y coords
+                                                ui.add_sized([48.0, 18.0], egui::Label::new(""));
+                                                ui.add_sized([48.0, 18.0], egui::Label::new(""));
                                             } else {
                                                 ui.add_sized([28.0, 18.0], egui::Label::new(""));
                                             }
