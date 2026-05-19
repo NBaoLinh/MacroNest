@@ -3392,6 +3392,15 @@ mod windows_overlay {
             return 16;
         }
 
+        let timer_active = {
+            let hook_state = HOOK_STATE.lock();
+            runtime.preview_timer_preset.is_some()
+                || hook_state.active_timers.values().any(|state| state.running)
+        };
+        if timer_active {
+            return 33;
+        }
+
         let recording_active = MOUSE_RECORDING.lock().is_some() || MACRO_RECORDING.lock().is_some();
         if recording_active {
             return 33;
