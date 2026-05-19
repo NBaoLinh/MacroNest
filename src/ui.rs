@@ -15705,14 +15705,30 @@ impl CrosshairApp {
                                             ui.visuals().widgets.inactive.bg_fill
                                         };
                                         
-                                        
+                                        let kbd_btn_text = if capture_active {
+                                            Self::tr_lang(language, "Capturing...", "Đang bắt...").to_owned()
+                                        } else if let Some(binding) = &preset.record_hotkey {
+                                            Self::format_binding_ui(language, Some(binding))
+                                        } else {
+                                            Self::material_icon_text(0xe312, 10.0).text().to_owned()
+                                        };
 
-                                         let kbd_btn = Button::new(
-                                            RichText::new(Self::material_icon_text(0xe312, 10.0).text())
+                                        let text_color = if capture_active {
+                                            Color32::WHITE
+                                        } else if has_rec_hotkey {
+                                            Color32::from_rgb(96, 232, 255)
+                                        } else {
+                                            ui.visuals().widgets.inactive.text_color()
+                                        };
+
+                                        let kbd_btn = Button::new(
+                                            RichText::new(kbd_btn_text)
+                                                .color(text_color)
                                                 .strong()
                                         )
-                                        .fill(capture_fill);
-                                        
+                                        .fill(capture_fill)
+                                        .min_size(egui::vec2(20.0, 20.0));
+
                                         let hover_text = if let Some(binding) = &preset.record_hotkey {
                                             let key_ui = Self::format_binding_ui(language, Some(binding));
                                             let fmt = Self::tr_lang(
@@ -15729,7 +15745,7 @@ impl CrosshairApp {
                                             ).to_string()
                                         };
 
-                                        if ui.add_sized([22.0, 20.0], kbd_btn)
+                                        if ui.add(kbd_btn)
                                             .on_hover_text(hover_text)
                                             .clicked()
                                         {
@@ -15740,14 +15756,6 @@ impl CrosshairApp {
                                             }
                                         }
                                         
-                                        // Text output of hotkey capture state or value
-                                        let preview_binding = if capture_active {
-                                            self.capture_hotkey_combo_keys.clone()
-                                                .map(|keys| Self::hotkey_binding_from_combo_keys(keys))
-                                        } else {
-                                            preset.record_hotkey.clone()
-                                        };
-
                                         // Overlay status text label: "Recording..." / "Đang ghi..."
                                         if is_recording_this {
                                             let label_color = Color32::from_rgb(255, 96, 96);
@@ -15789,24 +15797,7 @@ impl CrosshairApp {
                                              }
                                          }
                                         
-                                        // Render hotkey label here on the far right to maintain absolute header alignment
-                                        if capture_active {
-                                            let label_text = if let Some(binding) = &preview_binding {
-                                                Self::format_binding_ui(language, Some(binding))
-                                            } else {
-                                                Self::tr_lang(language, "Capturing...", "Đang bắt...").to_string()
-                                            };
-                                            ui.colored_label(
-                                                Color32::from_rgb(255, 232, 96),
-                                                format!(" ({label_text})")
-                                            );
-                                        } else if let Some(binding) = &preset.record_hotkey {
-                                            let key_name = Self::format_binding_ui(language, Some(binding));
-                                            ui.colored_label(
-                                                Color32::from_rgb(96, 232, 255),
-                                                format!(" [{key_name}]")
-                                            );
-                                        }
+
                                         
                                         if has_rec_hotkey && !capture_active {
                                             let clear_btn = Button::new(RichText::new(Self::material_icon_text(0xe14c, 10.0).text()).color(Color32::LIGHT_RED));
