@@ -14676,6 +14676,12 @@ impl CrosshairApp {
                                                 Self::macro_action_selected_label(step.action, language)
                                             ))
                                             .show_ui(ui, |ui| {
+                                                live_sync |= ui.checkbox(&mut step.toggle_enabled_on_run, Self::tr_lang(
+                                                    language,
+                                                    "🔄 Toggle self enabled on run",
+                                                    "🔄 Tự động bật/tắt bước khi chạy"
+                                                )).changed();
+                                                ui.separator();
                                                 egui::Grid::new((group.id, preset.id, "hold-stop-action-grid"))
                                                     .num_columns(5)
                                                     .spacing([6.0, 6.0])
@@ -16029,12 +16035,22 @@ impl CrosshairApp {
                                                       });
                                                   }
                                               }
-                                             ui.add_sized(
-                                                 [if has_infinite_loop_warning || has_step_vision_leak || has_step_break_loop_warning { 18.0 } else { 30.0 }, 18.0],
-                                                 egui::Label::new(
-                                                     RichText::new(format!("{}", step_index + 1)).monospace(),
-                                                 ),
-                                             );
+                                            let step_num_text = if step.toggle_enabled_on_run {
+                                                format!("{} 🔄", step_index + 1)
+                                            } else {
+                                                format!("{}", step_index + 1)
+                                            };
+                                            let label_width = if step.toggle_enabled_on_run {
+                                                if has_infinite_loop_warning || has_step_vision_leak || has_step_break_loop_warning { 32.0 } else { 44.0 }
+                                            } else {
+                                                if has_infinite_loop_warning || has_step_vision_leak || has_step_break_loop_warning { 18.0 } else { 30.0 }
+                                            };
+                                            ui.add_sized(
+                                                [label_width, 18.0],
+                                                egui::Label::new(
+                                                    RichText::new(step_num_text).monospace(),
+                                                ),
+                                            );
                                             live_sync |= ui
                                                 .add_sized(
                                                     [54.0, 18.0],
@@ -16050,6 +16066,12 @@ impl CrosshairApp {
                                                     Self::macro_action_selected_label(step.action, language)
                                                 ))
                                                 .show_ui(ui, |ui| {
+                                                    live_sync |= ui.checkbox(&mut step.toggle_enabled_on_run, Self::tr_lang(
+                                                        language,
+                                                        "🔄 Toggle self enabled on run",
+                                                        "🔄 Tự động bật/tắt bước khi chạy"
+                                                    )).changed();
+                                                    ui.separator();
                                                     egui::Grid::new((group.id, preset.id, step_index, "action-grid"))
                                                         .num_columns(5)
                                                         .spacing([6.0, 6.0])
