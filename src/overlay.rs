@@ -4179,9 +4179,11 @@ mod windows_overlay {
             let cleanup_steps = collect_macro_release_steps(&preset.steps);
             let mut press_locked_keys: Vec<String> = Vec::new();
             let mut press_locked_mouse_count = 0usize;
+            let step_indices: Vec<usize> = (0..preset.steps.len()).collect();
             let _ = execute_macro_sequence(
                 preset.id,
                 &preset.steps,
+                &step_indices,
                 &mut press_locked_keys,
                 &mut press_locked_mouse_count,
                 preset.stop_on_retrigger_immediate,
@@ -4254,9 +4256,11 @@ mod windows_overlay {
             run_token
         };
         thread::spawn(move || {
+            let step_indices: Vec<usize> = (0..preset.steps.len()).collect();
             let flow = execute_hold_macro_sequence(
                 preset.id,
                 &preset.steps,
+                &step_indices,
                 preset.stop_on_retrigger_immediate,
                 run_token,
                 target_window_title.as_deref(),
@@ -5046,9 +5050,50 @@ mod windows_overlay {
         }
     }
 
+    fn is_macro_step_enabled(preset_id: u32, step_index: usize, fallback: bool) -> bool {
+        let hook_state = HOOK_STATE.lock();
+        for group in &hook_state.macro_groups {
+            if let Some(preset) = group.presets.iter().find(|preset| preset.id == preset_id) {
+                if step_index < preset.steps.len() {
+                    return preset.steps[step_index].enabled;
+                }
+            }
+        }
+        fallback
+    }
+
+    fn toggle_macro_step_enabled(preset_id: u32, step_index: usize) -> Option<bool> {
+        let mut hook_state = HOOK_STATE.lock();
+        for group in &mut hook_state.macro_groups {
+            if let Some(preset) = group
+                .presets
+                .iter_mut()
+                .find(|preset| preset.id == preset_id)
+            {
+                if step_index < preset.steps.len() {
+                    preset.steps[step_index].enabled = !preset.steps[step_index].enabled;
+                    let new_enabled = preset.steps[step_index].enabled;
+                    let updated_groups = hook_state.macro_groups.clone();
+                    let status = format!(
+                        "Toggled step {} in macro preset {} to {}.",
+                        step_index + 1,
+                        preset_id,
+                        if new_enabled { "Enabled" } else { "Disabled" }
+                    );
+                    if let Some(tx) = hook_state.ui_tx.clone() {
+                        let _ = tx.send(UiCommand::SyncMacroGroups(updated_groups, status));
+                    }
+                    return Some(new_enabled);
+                }
+            }
+        }
+        None
+    }
+
     fn execute_macro_sequence(
         preset_id: u32,
         steps: &[MacroStep],
+        step_indices: &[usize],
         press_locked_keys: &mut Vec<String>,
         press_locked_mouse_count: &mut usize,
         stop_immediately_on_retrigger: bool,
@@ -5071,7 +5116,15 @@ mod windows_overlay {
                 return MacroRunFlow::StopExecution;
             }
             let step = &steps[index];
-            if !step.enabled {
+            let absolute_index = step_indices[index];
+            let is_enabled = is_macro_step_enabled(preset_id, absolute_index, step.enabled);
+            let mut run_step = is_enabled;
+            if step.toggle_enabled_on_run {
+                if let Some(new_enabled) = toggle_macro_step_enabled(preset_id, absolute_index) {
+                    run_step = !new_enabled;
+                }
+            }
+            if !run_step {
                 index += 1;
                 continue;
             }
@@ -5080,7 +5133,7 @@ mod windows_overlay {
             } else {
                 0
             };
-            if !step.enabled {
+            if !run_step {
                 index += 1;
                 continue;
             }
@@ -5103,12 +5156,14 @@ mod windows_overlay {
                         continue;
                     };
                     let loop_body = &steps[index + 1..loop_end];
+                    let loop_body_indices = &step_indices[index + 1..loop_end];
                     let loop_end_delay_ms = steps[loop_end].delay_ms;
                     if is_infinite_loop_marker(&step.key) {
                         loop {
                             match execute_macro_sequence(
                                 preset_id,
                                 loop_body,
+                                loop_body_indices,
                                 press_locked_keys,
                                 press_locked_mouse_count,
                                 stop_immediately_on_retrigger,
@@ -5139,6 +5194,7 @@ mod windows_overlay {
                             match execute_macro_sequence(
                                 preset_id,
                                 loop_body,
+                                loop_body_indices,
                                 press_locked_keys,
                                 press_locked_mouse_count,
                                 stop_immediately_on_retrigger,
@@ -5346,6 +5402,7 @@ mod windows_overlay {
     fn execute_hold_macro_sequence(
         preset_id: u32,
         steps: &[MacroStep],
+        step_indices: &[usize],
         stop_immediately_on_retrigger: bool,
         run_token: u64,
         target_window_title: Option<&str>,
@@ -5370,7 +5427,15 @@ mod windows_overlay {
                 return MacroRunFlow::StopExecution;
             }
             let step = &steps[index];
-            if !step.enabled {
+            let absolute_index = step_indices[index];
+            let is_enabled = is_macro_step_enabled(preset_id, absolute_index, step.enabled);
+            let mut run_step = is_enabled;
+            if step.toggle_enabled_on_run {
+                if let Some(new_enabled) = toggle_macro_step_enabled(preset_id, absolute_index) {
+                    run_step = !new_enabled;
+                }
+            }
+            if !run_step {
                 index += 1;
                 continue;
             }
@@ -5379,7 +5444,7 @@ mod windows_overlay {
             } else {
                 0
             };
-            if !step.enabled {
+            if !run_step {
                 index += 1;
                 continue;
             }
@@ -5403,12 +5468,14 @@ mod windows_overlay {
                         continue;
                     };
                     let loop_body = &steps[index + 1..loop_end];
+                    let loop_body_indices = &step_indices[index + 1..loop_end];
                     let loop_end_delay_ms = steps[loop_end].delay_ms;
                     if is_infinite_loop_marker(&step.key) {
                         loop {
                             match execute_hold_macro_sequence(
                                 preset_id,
                                 loop_body,
+                                loop_body_indices,
                                 stop_immediately_on_retrigger,
                                 run_token,
                                 target_window_title,
@@ -5439,6 +5506,7 @@ mod windows_overlay {
                             match execute_hold_macro_sequence(
                                 preset_id,
                                 loop_body,
+                                loop_body_indices,
                                 stop_immediately_on_retrigger,
                                 run_token,
                                 target_window_title,
@@ -5799,9 +5867,11 @@ mod windows_overlay {
                 .cloned()
         }
         .context("Macro preset was not found")?;
+        let step_indices: Vec<usize> = (0..preset.steps.len()).collect();
         let _ = execute_macro_sequence(
             preset.id,
             &preset.steps,
+            &step_indices,
             press_locked_keys,
             press_locked_mouse_count,
             stop_immediately_on_retrigger,
@@ -9676,9 +9746,11 @@ mod windows_overlay {
                 let cleanup_steps = collect_macro_release_steps(&preset.steps);
                 let mut press_locked_keys: Vec<String> = Vec::new();
                 let mut press_locked_mouse_count = 0usize;
+                let step_indices: Vec<usize> = (0..preset.steps.len()).collect();
                 let _ = execute_macro_sequence(
                     preset.id,
                     &preset.steps,
+                    &step_indices,
                     &mut press_locked_keys,
                     &mut press_locked_mouse_count,
                     preset.stop_on_retrigger_immediate,
