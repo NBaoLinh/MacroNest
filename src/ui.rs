@@ -9041,13 +9041,8 @@ impl CrosshairApp {
             .vision_capture_mode
             .unwrap_or(VisionCaptureMode::Template)
         {
-            VisionCaptureMode::ColorSample => {
-                self.finish_image_search_color_pick_from_screen(ctx, screen_x, screen_y);
-            }
-            VisionCaptureMode::ColorPriorityAnchor => {
-                self.finish_image_search_color_priority_anchor_pick_from_screen(
-                    ctx, screen_x, screen_y,
-                );
+            VisionCaptureMode::ColorSample | VisionCaptureMode::ColorPriorityAnchor => {
+                // Do nothing on mouse down, wait for mouse up to capture!
             }
             VisionCaptureMode::Template | VisionCaptureMode::SearchRegion => {
                 self.vision_capture_anchor =
