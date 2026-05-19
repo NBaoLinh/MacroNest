@@ -19967,11 +19967,24 @@ impl CrosshairApp {
                                     [ui.available_width(), 112.0],
                                     TextEdit::multiline(&mut dialog.prompt)
                                         .desired_rows(5)
-                                        .hint_text(Self::tr_lang(
-                                            self.state.ui_language,
-                                            "Example: Press A, wait 500ms, then click left mouse button...",
-                                            "Ví dụ: Nhấn phím A, chờ 500ms, sau đó click chuột trái...",
-                                        )),
+                                        .text_color(if dark_theme {
+                                            Color32::from_gray(210)
+                                        } else {
+                                            Color32::from_gray(60)
+                                        })
+                                        .hint_text(
+                                            egui::RichText::new(Self::tr_lang(
+                                                self.state.ui_language,
+                                                "Example: Press A, wait 500ms, then click left mouse button...",
+                                                "Ví dụ: Nhấn phím A, chờ 500ms, sau đó click chuột trái...",
+                                            ))
+                                            .color(if dark_theme {
+                                                Color32::from_rgba_unmultiplied(120, 120, 120, 140)
+                                            } else {
+                                                Color32::from_rgba_unmultiplied(140, 140, 140, 180)
+                                            })
+                                            .italics(),
+                                        ),
                                 );
                                 ui.style_mut().visuals.weak_text_color = original_weak_color;
                                 ui.visuals_mut().extreme_bg_color = original_extreme_bg;
@@ -20152,11 +20165,24 @@ impl CrosshairApp {
                                     [ui.available_width(), 92.0],
                                     TextEdit::multiline(&mut dialog.prompt)
                                         .desired_rows(4)
-                                        .hint_text(Self::tr_lang(
-                                            self.state.ui_language,
-                                            "Example: Open Excel, write text to cell A1, then save...",
-                                            "Ví dụ: Mở Excel, ghi nội dung vào ô A1, sau đó lưu lại...",
-                                        )),
+                                        .text_color(if dark_theme {
+                                            Color32::from_gray(210)
+                                        } else {
+                                            Color32::from_gray(60)
+                                        })
+                                        .hint_text(
+                                            egui::RichText::new(Self::tr_lang(
+                                                self.state.ui_language,
+                                                "Example: Open Excel, write text to cell A1, then save...",
+                                                "Ví dụ: Mở Excel, ghi nội dung vào ô A1, sau đó lưu lại...",
+                                            ))
+                                            .color(if dark_theme {
+                                                Color32::from_rgba_unmultiplied(120, 120, 120, 140)
+                                            } else {
+                                                Color32::from_rgba_unmultiplied(140, 140, 140, 180)
+                                            })
+                                            .italics(),
+                                        ),
                                 );
                                 ui.style_mut().visuals.weak_text_color = original_weak_color;
                                 ui.visuals_mut().extreme_bg_color = original_extreme_bg;
@@ -20336,11 +20362,24 @@ impl CrosshairApp {
                                     [panel_size.x - 32.0, 72.0],
                                     TextEdit::multiline(&mut dialog.prompt)
                                         .desired_rows(3)
-                                        .hint_text(Self::tr_lang(
-                                            self.state.ui_language,
-                                            "Example: Create a green circle crosshair with a dot in the middle...",
-                                            "Ví dụ: Tạo tâm ngắm hình vòng tròn màu xanh lá với dấu chấm ở giữa...",
-                                        )),
+                                        .text_color(if dark_theme {
+                                            Color32::from_gray(210)
+                                        } else {
+                                            Color32::from_gray(60)
+                                        })
+                                        .hint_text(
+                                            egui::RichText::new(Self::tr_lang(
+                                                self.state.ui_language,
+                                                "Example: Create a green circle crosshair with a dot in the middle...",
+                                                "Ví dụ: Tạo tâm ngắm hình vòng tròn màu xanh lá với dấu chấm ở giữa...",
+                                            ))
+                                            .color(if dark_theme {
+                                                Color32::from_rgba_unmultiplied(120, 120, 120, 140)
+                                            } else {
+                                                Color32::from_rgba_unmultiplied(140, 140, 140, 180)
+                                            })
+                                            .italics(),
+                                        ),
                                 );
                                 ui.style_mut().visuals.weak_text_color = original_weak_color;
                                 ui.visuals_mut().extreme_bg_color = original_extreme_bg;
