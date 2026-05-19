@@ -4936,7 +4936,7 @@ mod windows_overlay {
                 execute_timer_preset_action(
                     step.action,
                     step.timer_preset_id,
-                    step.on_complete_macro_preset_id,
+                    step.timer_on_complete_macro_preset_id,
                 );
             }
             MacroAction::LockKeys => {
@@ -5192,16 +5192,7 @@ mod windows_overlay {
                     execute_timer_preset_action(
                         step.action,
                         step.timer_preset_id,
-                        step.on_complete_macro_preset_id,
-                    );
-                }
-                MacroAction::StartTimerPreset
-                | MacroAction::PauseTimerPreset
-                | MacroAction::StopTimerPreset => {
-                    execute_timer_preset_action(
-                        step.action,
-                        step.timer_preset_id,
-                        step.on_complete_macro_preset_id,
+                        step.timer_on_complete_macro_preset_id,
                     );
                 }
                 MacroAction::LockKeys => {
