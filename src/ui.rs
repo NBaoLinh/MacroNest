@@ -21735,14 +21735,14 @@ impl eframe::App for CrosshairApp {
                             Color32::from_rgb(210, 219, 230)
                         },
                     ))
-                    .inner_margin(egui::Margin::symmetric(10, 6)),
+                    .inner_margin(egui::Margin::symmetric(10, 3)),
             )
             .show(ctx, |ui| {
                 let maximized = ctx.input(|input| input.viewport().maximized.unwrap_or(false));
                 let show_icon_tooltips = true;
                 let hide_window_controls = self.close_to_tray_animation.is_some();
                 ui.allocate_ui_with_layout(
-                    vec2(ui.available_width(), 42.0),
+                    vec2(ui.available_width(), 34.0),
                     egui::Layout::right_to_left(egui::Align::Center),
                     |ui| {
                         let button_fill = if self.state.ui_theme == UiThemeMode::Dark {
