@@ -15706,7 +15706,7 @@ impl CrosshairApp {
                                         };
                                         
                                         let kbd_btn_text = if capture_active {
-                                            Self::tr_lang(language, "Capturing...", "Đang bắt...").to_owned()
+                                            Self::tr_lang(language, "capturing", "capturing").to_owned()
                                         } else if let Some(binding) = &preset.record_hotkey {
                                             Self::format_binding_ui(language, Some(binding))
                                         } else {
@@ -15720,14 +15720,6 @@ impl CrosshairApp {
                                         } else {
                                             ui.visuals().widgets.inactive.text_color()
                                         };
-
-                                        let kbd_btn = Button::new(
-                                            RichText::new(kbd_btn_text)
-                                                .color(text_color)
-                                                .strong()
-                                        )
-                                        .fill(capture_fill)
-                                        .min_size(egui::vec2(20.0, 20.0));
 
                                         let hover_text = if let Some(binding) = &preset.record_hotkey {
                                             let key_ui = Self::format_binding_ui(language, Some(binding));
@@ -15745,10 +15737,20 @@ impl CrosshairApp {
                                             ).to_string()
                                         };
 
-                                        if ui.add(kbd_btn)
-                                            .on_hover_text(hover_text)
-                                            .clicked()
-                                        {
+                                        let clicked = ui.scope(|ui| {
+                                            ui.spacing_mut().button_padding = egui::vec2(6.0, 0.0);
+                                            let kbd_btn = Button::new(
+                                                RichText::new(kbd_btn_text)
+                                                    .color(text_color)
+                                                    .strong()
+                                                    .size(10.0)
+                                            )
+                                            .fill(capture_fill)
+                                            .min_size(egui::vec2(20.0, 20.0));
+                                            ui.add(kbd_btn)
+                                        }).inner.on_hover_text(hover_text).clicked();
+
+                                        if clicked {
                                             if capture_active {
                                                 cancel_active_capture = true;
                                             } else {
