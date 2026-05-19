@@ -14982,16 +14982,24 @@ impl CrosshairApp {
                                                                 }
                                                             });
                                                             
+                                                        let target_step_count = group_preset_step_counts.iter()
+                                                            .find(|(id, _)| *id == current_preset_id)
+                                                            .map(|(_, count)| *count)
+                                                            .unwrap_or(0);
+                                                            
+                                                        let original_len = selected_steps.len();
+                                                        selected_steps.retain(|&x| x <= target_step_count);
+                                                        if selected_steps.len() != original_len {
+                                                            let steps_str = selected_steps.iter().map(|s| s.to_string()).collect::<Vec<_>>().join(",");
+                                                            step.key = format!("{}|{}", current_preset_id, steps_str);
+                                                            live_sync = true;
+                                                        }
+                                                        
                                                         let steps_label = if selected_steps.is_empty() {
                                                             Self::tr_lang(language, "Select steps", "Chọn steps").to_owned()
                                                         } else {
                                                             selected_steps.iter().map(|s| s.to_string()).collect::<Vec<_>>().join(", ")
                                                         };
-                                                        
-                                                        let target_step_count = group_preset_step_counts.iter()
-                                                            .find(|(id, _)| *id == current_preset_id)
-                                                            .map(|(_, count)| *count)
-                                                            .unwrap_or(0);
                                                             
                                                         egui::ComboBox::from_id_salt((group.id, preset.id, 0, "step-multi-select"))
                                                             .width(100.0)
@@ -16343,16 +16351,24 @@ impl CrosshairApp {
                                                                 }
                                                             });
                                                             
+                                                        let target_step_count = group_preset_step_counts.iter()
+                                                            .find(|(id, _)| *id == current_preset_id)
+                                                            .map(|(_, count)| *count)
+                                                            .unwrap_or(0);
+                                                            
+                                                        let original_len = selected_steps.len();
+                                                        selected_steps.retain(|&x| x <= target_step_count);
+                                                        if selected_steps.len() != original_len {
+                                                            let steps_str = selected_steps.iter().map(|s| s.to_string()).collect::<Vec<_>>().join(",");
+                                                            step.key = format!("{}|{}", current_preset_id, steps_str);
+                                                            live_sync = true;
+                                                        }
+                                                        
                                                         let steps_label = if selected_steps.is_empty() {
                                                             Self::tr_lang(language, "Select steps", "Chọn steps").to_owned()
                                                         } else {
                                                             selected_steps.iter().map(|s| s.to_string()).collect::<Vec<_>>().join(", ")
                                                         };
-                                                        
-                                                        let target_step_count = group_preset_step_counts.iter()
-                                                            .find(|(id, _)| *id == current_preset_id)
-                                                            .map(|(_, count)| *count)
-                                                            .unwrap_or(0);
                                                             
                                                         egui::ComboBox::from_id_salt((group.id, preset.id, step_index, "step-multi-select"))
                                                             .width(100.0)
