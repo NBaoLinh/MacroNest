@@ -119,6 +119,14 @@ fn default_timer_progress_border_color() -> RgbaColor {
     }
 }
 
+fn default_timer_progress_border_thickness() -> f32 {
+    1.0
+}
+
+fn default_timer_progress_smoothness_fps() -> u32 {
+    30
+}
+
 fn default_false() -> bool {
     false
 }
@@ -921,6 +929,10 @@ pub struct TimerPreset {
     pub progress_border_enabled: bool,
     #[serde(default = "default_timer_progress_border_color")]
     pub progress_border_color: RgbaColor,
+    #[serde(default = "default_timer_progress_border_thickness")]
+    pub progress_border_thickness: f32,
+    #[serde(default = "default_timer_progress_smoothness_fps")]
+    pub progress_smoothness_fps: u32,
 }
 
 impl TimerPreset {
@@ -970,6 +982,8 @@ impl TimerPreset {
                 b: 255,
                 a: 255,
             },
+            progress_border_thickness: 1.0,
+            progress_smoothness_fps: 30,
         }
     }
 }

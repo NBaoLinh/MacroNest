@@ -6575,7 +6575,7 @@ impl CrosshairApp {
                 ui.painter().rect_stroke(
                     bar_rect,
                     0.0,
-                    egui::Stroke::new(1.0, border_color),
+                    egui::Stroke::new(preset.progress_border_thickness, border_color),
                     egui::StrokeKind::Inside,
                 );
             }
@@ -19929,6 +19929,12 @@ impl CrosshairApp {
                                         },
                                     );
                                 });
+                                let original_weak_color = ui.style().visuals.weak_text_color;
+                                ui.style_mut().visuals.weak_text_color = if dark_theme {
+                                    Color32::from_gray(85)
+                                } else {
+                                    Color32::from_gray(175)
+                                };
                                 let response = ui.add_sized(
                                     [ui.available_width(), 112.0],
                                     TextEdit::multiline(&mut dialog.prompt)
@@ -19939,6 +19945,7 @@ impl CrosshairApp {
                                             "Ví dụ: Nhấn phím A, chờ 500ms, sau đó click chuột trái...",
                                         )),
                                 );
+                                ui.style_mut().visuals.weak_text_color = original_weak_color;
                                 Self::apply_vietnamese_input_if_changed(
                                     &response,
                                     self.state.vietnamese_input_enabled,
@@ -20100,6 +20107,12 @@ impl CrosshairApp {
                                         },
                                     );
                                 });
+                                let original_weak_color = ui.style().visuals.weak_text_color;
+                                ui.style_mut().visuals.weak_text_color = if dark_theme {
+                                    Color32::from_gray(85)
+                                } else {
+                                    Color32::from_gray(175)
+                                };
                                 let response = ui.add_sized(
                                     [ui.available_width(), 92.0],
                                     TextEdit::multiline(&mut dialog.prompt)
@@ -20110,6 +20123,7 @@ impl CrosshairApp {
                                             "Ví dụ: Mở Excel, ghi nội dung vào ô A1, sau đó lưu lại...",
                                         )),
                                 );
+                                ui.style_mut().visuals.weak_text_color = original_weak_color;
                                 Self::apply_vietnamese_input_if_changed(
                                     &response,
                                     self.state.vietnamese_input_enabled,
@@ -20270,6 +20284,12 @@ impl CrosshairApp {
                                         },
                                     );
                                 });
+                                let original_weak_color = ui.style().visuals.weak_text_color;
+                                ui.style_mut().visuals.weak_text_color = if dark_theme {
+                                    Color32::from_gray(85)
+                                } else {
+                                    Color32::from_gray(175)
+                                };
                                 let response = ui.add_sized(
                                     [panel_size.x - 32.0, 72.0],
                                     TextEdit::multiline(&mut dialog.prompt)
@@ -20280,6 +20300,7 @@ impl CrosshairApp {
                                             "Ví dụ: Tạo tâm ngắm hình vòng tròn màu xanh lá với dấu chấm ở giữa...",
                                         )),
                                 );
+                                ui.style_mut().visuals.weak_text_color = original_weak_color;
                                 Self::apply_vietnamese_input_if_changed(
                                     &response,
                                     self.state.vietnamese_input_enabled,
@@ -20679,8 +20700,26 @@ impl CrosshairApp {
                             timer_changed |= ui.checkbox(&mut preset.progress_border_enabled, Self::tr_lang(language, "Enable border", "Bật viền")).changed();
                             ui.end_row();
 
-                            ui.label(Self::tr_lang(language, "Border Color", "Màu viền"));
-                            timer_changed |= Self::edit_rgba_color(ui, &mut preset.progress_border_color).changed();
+                            if preset.progress_border_enabled {
+                                ui.label(Self::tr_lang(language, "Border Thickness", "Độ dày viền"));
+                                timer_changed |= ui.add(
+                                    egui::Slider::new(&mut preset.progress_border_thickness, 1.0..=16.0)
+                                        .text("px")
+                                        .clamping(egui::SliderClamping::Always)
+                                ).changed();
+                                ui.end_row();
+
+                                ui.label(Self::tr_lang(language, "Border Color", "Màu viền"));
+                                timer_changed |= Self::edit_rgba_color(ui, &mut preset.progress_border_color).changed();
+                                ui.end_row();
+                            }
+
+                            ui.label(Self::tr_lang(language, "Smoothness (FPS)", "Độ mượt (FPS)"));
+                            timer_changed |= ui.add(
+                                egui::Slider::new(&mut preset.progress_smoothness_fps, 5..=120)
+                                    .text("fps")
+                                    .clamping(egui::SliderClamping::Always)
+                            ).changed();
                             ui.end_row();
                         }
 

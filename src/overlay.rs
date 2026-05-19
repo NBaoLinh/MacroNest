@@ -3392,13 +3392,31 @@ mod windows_overlay {
             return 16;
         }
 
-        let timer_active = {
+        let timer_interval = {
             let hook_state = HOOK_STATE.lock();
-            runtime.preview_timer_preset.is_some()
-                || hook_state.active_timers.values().any(|state| state.running)
+            let mut min_interval = None;
+            
+            // Check preview timer preset
+            if let Some(ref preview) = runtime.preview_timer_preset {
+                let fps = preview.progress_smoothness_fps.clamp(5, 120);
+                let interval = 1000 / fps;
+                min_interval = Some(min_interval.unwrap_or(interval).min(interval));
+            }
+            
+            // Check running active timers
+            for preset in &hook_state.timer_presets {
+                if let Some(state) = hook_state.active_timers.get(&preset.id) {
+                    if state.running {
+                        let fps = preset.progress_smoothness_fps.clamp(5, 120);
+                        let interval = 1000 / fps;
+                        min_interval = Some(min_interval.unwrap_or(interval).min(interval));
+                    }
+                }
+            }
+            min_interval
         };
-        if timer_active {
-            return 33;
+        if let Some(interval) = timer_interval {
+            return interval;
         }
 
         let recording_active = MOUSE_RECORDING.lock().is_some() || MACRO_RECORDING.lock().is_some();
@@ -9271,11 +9289,13 @@ mod windows_overlay {
                     let is_progress = is_progress_x;
                     if is_progress {
                         let prog_color = &preset.progress_color;
+                        let thickness = preset.progress_border_thickness.max(0.0);
+                        let right_edge = (width as f32 * progress_ratio.unwrap_or(0.0).clamp(0.0, 1.0)) as i32;
                         let is_border = preset.progress_border_enabled && (
-                            py == 0
-                            || py == height - 1
-                            || px == 0
-                            || px == (width as f32 * progress_ratio.unwrap_or(0.0).clamp(0.0, 1.0)) as i32 - 1
+                            (py as f32) < thickness
+                            || py as f32 >= (height as f32 - thickness)
+                            || (px as f32) < thickness
+                            || px as f32 >= (right_edge as f32 - thickness)
                         );
                         
                         if is_border {
