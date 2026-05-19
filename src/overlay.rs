@@ -1595,8 +1595,8 @@ mod windows_overlay {
                 }
             }
             let rate_hz = preset.color_scan_rate_hz.max(1);
-            let sleep_ms = (1000 / rate_hz).max(1);
-            thread::sleep(Duration::from_millis(sleep_ms as u64));
+            let sleep_duration = Duration::from_nanos(1_000_000_000 / rate_hz as u64);
+            thread::sleep(sleep_duration);
         }
 
         set_image_search_following_active(preset.id, false);
