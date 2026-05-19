@@ -13188,6 +13188,24 @@ impl CrosshairApp {
         if self.active_macro_folder_view.is_some() && active_folder_for_controls.is_none() {
             self.active_macro_folder_view = None;
         }
+
+        let active_folder_name = if self.macro_folders_panel_open {
+            self.active_macro_folder_view.and_then(|folder_id| {
+                self.state
+                    .macro_folders
+                    .iter()
+                    .find(|folder| folder.id == folder_id)
+                    .map(|folder| folder.name.clone())
+            })
+        } else {
+            None
+        };
+        let paste_target_folder = if active_folder_name.is_some() {
+            self.active_macro_folder_view
+        } else {
+            None
+        };
+
         ui.add_space(2.0);
         ui.horizontal_wrapped(|ui| {
             ui.label(Self::material_icon_text(0xe8b6, 18.0));
@@ -13256,6 +13274,42 @@ impl CrosshairApp {
                 }
                 self.persist_macro_presets();
             }
+
+            let paste_enabled = !self.macro_group_clipboard.is_empty();
+            if ui
+                .add_enabled(
+                    paste_enabled,
+                    Button::new(Self::tr_lang(language, "Paste", "Paste"))
+                        .min_size(egui::vec2(112.0, 24.0)),
+                )
+                .clicked()
+            {
+                self.paste_macro_groups_into_folder(paste_target_folder);
+            }
+
+            let copy_enabled = !self.selected_macro_groups.is_empty();
+            if ui
+                .add_enabled(
+                    copy_enabled,
+                    Button::new(Self::tr_lang(language, "Copy", "Copy"))
+                        .min_size(egui::vec2(112.0, 24.0)),
+                )
+                .clicked()
+            {
+                self.copy_selected_macro_groups();
+            }
+
+            let cut_enabled = !self.selected_macro_groups.is_empty();
+            if ui
+                .add_enabled(
+                    cut_enabled,
+                    Button::new(Self::tr_lang(language, "Cut", "Cut"))
+                        .min_size(egui::vec2(112.0, 24.0)),
+                )
+                .clicked()
+            {
+                self.cut_selected_macro_groups();
+            }
         });
 
         let mut release_folder_id = None;
@@ -13281,52 +13335,6 @@ impl CrosshairApp {
         } else if self.active_macro_folder_view.is_some() && active_folder_name.is_none() {
             self.active_macro_folder_view = None;
         }
-        ui.vertical(|ui| {
-            let paste_target_folder = if active_folder_name.is_some() {
-                self.active_macro_folder_view
-            } else {
-                None
-            };
-            ui.horizontal_wrapped(|ui| {
-                if ui
-                    .add_enabled(
-                        !self.macro_group_clipboard.is_empty(),
-                        Button::new(Self::tr_lang(language, "Paste", "Paste")),
-                    )
-                    .clicked()
-                {
-                    self.paste_macro_groups_into_folder(paste_target_folder);
-                }
-                if ui
-                    .add_enabled(
-                        !self.selected_macro_groups.is_empty(),
-                        Button::new(Self::tr_lang(language, "Copy", "Copy")),
-                    )
-                    .clicked()
-                {
-                    self.copy_selected_macro_groups();
-                }
-                if ui
-                    .add_enabled(
-                        !self.selected_macro_groups.is_empty(),
-                        Button::new(Self::tr_lang(language, "Cut", "Cut")),
-                    )
-                    .clicked()
-                {
-                    self.cut_selected_macro_groups();
-                }
-                if ui
-                    .add_enabled(
-                        !self.selected_macro_groups.is_empty(),
-                        Button::new(Self::material_icon_text(0xe872, 18.0))
-                            .min_size(egui::vec2(36.0, 24.0)),
-                    )
-                    .clicked()
-                {
-                    self.remove_selected_macro_groups();
-                }
-            });
-        });
         ui.horizontal_wrapped(|ui| {
             let master_label = if self.state.macros_master_enabled {
                 Self::tr_lang(language, "Macro On", "Macro On")
@@ -13479,6 +13487,28 @@ impl CrosshairApp {
                 if !self.macro_folders_panel_open {
                     self.set_active_macro_folder_view(None);
                 }
+            }
+
+            let trash_enabled = !self.selected_macro_groups.is_empty();
+            if ui
+                .add_enabled(
+                    trash_enabled,
+                    Button::new(Self::material_icon_text(0xe872, 18.0))
+                        .min_size(egui::vec2(28.0, 28.0))
+                        .fill(ui.visuals().faint_bg_color)
+                        .stroke(egui::Stroke::new(
+                            1.0,
+                            ui.visuals().widgets.noninteractive.bg_stroke.color,
+                        )),
+                )
+                .on_hover_text(Self::tr_lang(
+                    language,
+                    "Delete selected macro groups",
+                    "Xóa các macro group đã chọn",
+                ))
+                .clicked()
+            {
+                self.remove_selected_macro_groups();
             }
 
 
