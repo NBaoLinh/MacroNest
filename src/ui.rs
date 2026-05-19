@@ -19931,9 +19931,9 @@ impl CrosshairApp {
                                 });
                                 let original_weak_color = ui.style().visuals.weak_text_color;
                                 ui.style_mut().visuals.weak_text_color = if dark_theme {
-                                    Color32::from_gray(85)
+                                    Some(Color32::from_gray(85))
                                 } else {
-                                    Color32::from_gray(175)
+                                    Some(Color32::from_gray(175))
                                 };
                                 let response = ui.add_sized(
                                     [ui.available_width(), 112.0],
@@ -20109,9 +20109,9 @@ impl CrosshairApp {
                                 });
                                 let original_weak_color = ui.style().visuals.weak_text_color;
                                 ui.style_mut().visuals.weak_text_color = if dark_theme {
-                                    Color32::from_gray(85)
+                                    Some(Color32::from_gray(85))
                                 } else {
-                                    Color32::from_gray(175)
+                                    Some(Color32::from_gray(175))
                                 };
                                 let response = ui.add_sized(
                                     [ui.available_width(), 92.0],
@@ -20286,9 +20286,9 @@ impl CrosshairApp {
                                 });
                                 let original_weak_color = ui.style().visuals.weak_text_color;
                                 ui.style_mut().visuals.weak_text_color = if dark_theme {
-                                    Color32::from_gray(85)
+                                    Some(Color32::from_gray(85))
                                 } else {
-                                    Color32::from_gray(175)
+                                    Some(Color32::from_gray(175))
                                 };
                                 let response = ui.add_sized(
                                     [panel_size.x - 32.0, 72.0],
