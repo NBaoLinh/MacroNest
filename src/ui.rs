@@ -16401,7 +16401,7 @@ impl CrosshairApp {
                                                                 .map(|p| p.name.clone())
                                                         })
                                                         .unwrap_or_else(|| Self::tr_lang(language, "Select timer", "Chọn hẹn giờ").to_owned());
-                                                    egui::ComboBox::from_id_salt((group.id, preset.id, "hold-stop-timer-preset"))
+                                                    egui::ComboBox::from_id_salt((group.id, preset.id, step_index, "step-timer-preset-select"))
                                                         .width(160.0)
                                                         .selected_text(selected_label)
                                                         .show_ui(ui, |ui| {
