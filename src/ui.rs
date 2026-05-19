@@ -3232,6 +3232,17 @@ impl CrosshairApp {
         }
     }
 
+    fn truncate_window_title(title: &str, max_chars: usize) -> String {
+        let chars: Vec<char> = title.chars().collect();
+        if chars.len() > max_chars {
+            let mut truncated: String = chars[..max_chars].iter().collect();
+            truncated.push_str("...");
+            truncated
+        } else {
+            title.to_owned()
+        }
+    }
+
     fn render_multi_window_targets(
         ui: &mut egui::Ui,
         language: UiLanguage,
@@ -3244,13 +3255,16 @@ impl CrosshairApp {
         let mut changed = false;
         ui.vertical(|ui| {
             ui.horizontal(|ui| {
+                ui.spacing_mut().interact_size.y = 24.0;
+                let truncated_primary = Self::truncate_window_title(
+                    &primary
+                        .clone()
+                        .unwrap_or_else(|| label_when_none.to_owned()),
+                    40,
+                );
                 egui::ComboBox::from_id_salt((id_source, "primary-target-window"))
                     .width(320.0)
-                    .selected_text(
-                        primary
-                            .clone()
-                            .unwrap_or_else(|| label_when_none.to_owned()),
-                    )
+                    .selected_text(truncated_primary)
                     .show_ui(ui, |ui| {
                         if ui
                             .selectable_label(primary.is_none(), label_when_none)
@@ -3270,9 +3284,8 @@ impl CrosshairApp {
                         }
                     });
 
-                let dropdown_height = ui.spacing().interact_size.y;
-                let add_btn = Button::new(RichText::new("+").strong());
-                if ui.add_sized([dropdown_height, dropdown_height], add_btn)
+                let add_btn = Button::new(Self::material_icon_text(0xe145, 12.0));
+                if ui.add_sized([24.0, 24.0], add_btn)
                     .on_hover_text(Self::tr_lang(language, "+ Window", "+ Cửa sổ"))
                     .clicked()
                 {
@@ -3295,9 +3308,11 @@ impl CrosshairApp {
             let mut remove_index = None;
             for (index, extra) in extras.iter_mut().enumerate() {
                 ui.horizontal(|ui| {
+                    ui.spacing_mut().interact_size.y = 24.0;
+                    let truncated_extra = Self::truncate_window_title(extra, 40);
                     egui::ComboBox::from_id_salt((id_source, "extra-target-window", index))
                         .width(320.0)
-                        .selected_text(extra.clone())
+                        .selected_text(truncated_extra)
                         .show_ui(ui, |ui| {
                             for title in open_windows {
                                 if ui.selectable_label(extra == title, title).clicked() {
@@ -3306,8 +3321,8 @@ impl CrosshairApp {
                                 }
                             }
                         });
-                    let dropdown_height = ui.spacing().interact_size.y;
-                    if ui.add_sized([dropdown_height, dropdown_height], Button::new(RichText::new("X").strong())).clicked() {
+                    let remove_btn = Button::new(Self::material_icon_text(0xe14c, 12.0));
+                    if ui.add_sized([24.0, 24.0], remove_btn).clicked() {
                         remove_index = Some(index);
                     }
                 });
@@ -3374,6 +3389,7 @@ impl CrosshairApp {
                 }
             })
             .unwrap_or(label_when_none.to_owned());
+        let truncated_selected_text = Self::truncate_window_title(&selected_text, 40);
         let popup_state_id = ui.make_persistent_id((id_source, "duplicate-title-hover"));
         let mut expanded_title = ui
             .ctx()
@@ -3381,7 +3397,7 @@ impl CrosshairApp {
 
         egui::ComboBox::from_id_salt((id_source, "target-window-combo"))
             .width(width)
-            .selected_text(selected_text)
+            .selected_text(truncated_selected_text)
             .show_ui(ui, |ui| {
                 if allow_none {
                     if ui
@@ -3478,6 +3494,7 @@ impl CrosshairApp {
         let mut changed = false;
         ui.vertical(|ui| {
             ui.horizontal(|ui| {
+                ui.spacing_mut().interact_size.y = 24.0;
                 changed |= Self::render_window_target_combo_with_duplicate_mode(
                     ui,
                     (id_source, "primary"),
@@ -3489,9 +3506,8 @@ impl CrosshairApp {
                     true,
                 );
 
-                let dropdown_height = ui.spacing().interact_size.y;
-                let add_btn = Button::new(RichText::new("+").strong());
-                if ui.add_sized([dropdown_height, dropdown_height], add_btn)
+                let add_btn = Button::new(Self::material_icon_text(0xe145, 12.0));
+                if ui.add_sized([24.0, 24.0], add_btn)
                     .on_hover_text(Self::tr_lang(language, "+ Window", "+ Cửa sổ"))
                     .clicked()
                 {
@@ -3514,6 +3530,7 @@ impl CrosshairApp {
             let mut remove_index = None;
             for (index, extra) in extras.iter_mut().enumerate() {
                 ui.horizontal(|ui| {
+                    ui.spacing_mut().interact_size.y = 24.0;
                     let mut extra_target = Some(extra.clone());
                     if Self::render_window_target_combo_with_duplicate_mode(
                         ui,
@@ -3530,8 +3547,8 @@ impl CrosshairApp {
                             changed = true;
                         }
                     }
-                    let dropdown_height = ui.spacing().interact_size.y;
-                    if ui.add_sized([dropdown_height, dropdown_height], Button::new(RichText::new("X").strong())).clicked() {
+                    let remove_btn = Button::new(Self::material_icon_text(0xe14c, 12.0));
+                    if ui.add_sized([24.0, 24.0], remove_btn).clicked() {
                         remove_index = Some(index);
                     }
                 });
