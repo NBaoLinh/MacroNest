@@ -112,7 +112,7 @@ fn main() -> Result<()> {
         }
     });
 
-    let app_title = concat!("MacroNest v", env!("CARGO_PKG_VERSION"));
+    let app_title = "MacroNest v1.0";
     let native_options = eframe::NativeOptions {
         viewport: eframe::egui::ViewportBuilder::default()
             .with_title(app_title)
@@ -144,7 +144,7 @@ fn main() -> Result<()> {
 }
 
 fn run_popup_blob(kind: PopupBlobKind) -> Result<()> {
-    let app_title = concat!("MacroNest v", env!("CARGO_PKG_VERSION"));
+    let app_title = "MacroNest v1.0";
     let native_options = eframe::NativeOptions {
         viewport: eframe::egui::ViewportBuilder::default()
             .with_title(app_title)

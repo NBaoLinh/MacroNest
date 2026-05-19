@@ -2802,7 +2802,18 @@ impl CrosshairApp {
         "MacroNest"
     }
 
-    
+    fn versions_are_equal(v1: &str, v2: &str) -> bool {
+        let mut parts1: Vec<u32> = v1.split('.').map(|s| s.parse::<u32>().unwrap_or(0)).collect();
+        let mut parts2: Vec<u32> = v2.split('.').map(|s| s.parse::<u32>().unwrap_or(0)).collect();
+        while parts1.last() == Some(&0) {
+            parts1.pop();
+        }
+        while parts2.last() == Some(&0) {
+            parts2.pop();
+        }
+        parts1 == parts2
+    }
+
     fn check_for_update(&mut self, ctx: &egui::Context) {
         if matches!(self.update_status, UpdateStatus::Checking | UpdateStatus::Downloading) {
             return;
@@ -2837,7 +2848,7 @@ impl CrosshairApp {
                 if latest_version.is_empty() {
                     return Err("Failed to parse version from GitHub".to_owned());
                 }
-                if latest_version == current_version {
+                if Self::versions_are_equal(&latest_version, &current_version) {
                     let _ = ui_tx.send(UiCommand::UpdateUpToDate);
                     return Ok(());
                 }
@@ -3013,7 +3024,7 @@ impl CrosshairApp {
         });
     }
     fn app_version_label(&self) -> &'static str {
-        option_env!("MACRONEST_BUILD_TAG").unwrap_or(env!("CARGO_PKG_VERSION"))
+        option_env!("MACRONEST_BUILD_TAG").unwrap_or("1.0")
     }
 
     fn app_brand_subtitle(&self) -> &'static str {
