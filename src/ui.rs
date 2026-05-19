@@ -14985,7 +14985,7 @@ impl CrosshairApp {
                                                         let steps_label = if selected_steps.is_empty() {
                                                             Self::tr_lang(language, "Select steps", "Chọn steps").to_owned()
                                                         } else {
-                                                            format!("{} steps", selected_steps.len())
+                                                            selected_steps.iter().map(|s| s.to_string()).collect::<Vec<_>>().join(", ")
                                                         };
                                                         
                                                         let target_step_count = group_preset_step_counts.iter()
@@ -16346,7 +16346,7 @@ impl CrosshairApp {
                                                         let steps_label = if selected_steps.is_empty() {
                                                             Self::tr_lang(language, "Select steps", "Chọn steps").to_owned()
                                                         } else {
-                                                            format!("{} steps", selected_steps.len())
+                                                            selected_steps.iter().map(|s| s.to_string()).collect::<Vec<_>>().join(", ")
                                                         };
                                                         
                                                         let target_step_count = group_preset_step_counts.iter()
