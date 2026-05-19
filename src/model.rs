@@ -474,6 +474,8 @@ pub struct MacroStep {
     pub lock_mouse_x2: bool,
     #[serde(default = "default_true")]
     pub lock_mouse_move: bool,
+    #[serde(default = "default_false")]
+    pub toggle_enabled_on_run: bool,
 }
 
 impl Default for MacroStep {
@@ -510,6 +512,7 @@ impl Default for MacroStep {
             lock_mouse_x1: true,
             lock_mouse_x2: true,
             lock_mouse_move: true,
+            toggle_enabled_on_run: false,
         }
     }
 }
