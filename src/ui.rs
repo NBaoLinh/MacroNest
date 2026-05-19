@@ -11874,12 +11874,14 @@ impl CrosshairApp {
         ui.add_space(2.0);
         ui.horizontal_wrapped(|ui| {
             if ui
-                .button(Self::tr_lang(language, "+ Add preset", "+ Add preset"))
+                .button(Self::tr_lang(language, "+ Add crosshair preset", "+ Thêm preset tâm ngắm"))
                 .clicked()
             {
                 self.add_profile();
             }
         });
+
+        ui.add_space(8.0);
 
 
         let mut any_dragging = false;
@@ -12052,7 +12054,7 @@ impl CrosshairApp {
         let language = self.state.ui_language;
         ui.horizontal(|ui| {
             if ui
-                .button(self.tr("+ Resize preset", "+ Thêm preset kích thước"))
+                .button(self.tr("+ Add resize preset", "+ Thêm preset kích thước"))
                 .clicked()
             {
                 self.add_window_preset();
@@ -12066,6 +12068,8 @@ impl CrosshairApp {
                 self.persist();
             }
         });
+
+        ui.add_space(8.0);
 
         let mut remove_id = None;
         let mut live_sync = false;
@@ -12634,17 +12638,21 @@ impl CrosshairApp {
     fn render_pin_panel(&mut self, ui: &mut egui::Ui) {
         let language = self.state.ui_language;
         ui.add_space(2.0);
-        if ui
-            .button(Self::tr_lang(
-                language,
-                "+ Add pin preset",
-                "+ Thêm preset ghim",
-            ))
-            .clicked()
-        {
-            self.add_pin_preset();
-            self.persist_window_presets();
-        }
+        ui.horizontal(|ui| {
+            if ui
+                .button(Self::tr_lang(
+                    language,
+                    "+ Add pin preset",
+                    "+ Thêm preset ghim",
+                ))
+                .clicked()
+            {
+                self.add_pin_preset();
+                self.persist_window_presets();
+            }
+        });
+
+        ui.add_space(8.0);
 
         let screen_size = Self::screen_size();
         let mut remove_id = None;
@@ -13311,6 +13319,8 @@ impl CrosshairApp {
                 self.cut_selected_macro_groups();
             }
         });
+
+        ui.add_space(8.0);
 
         let mut release_folder_id = None;
         let mut delete_folder_id = None;
@@ -18069,6 +18079,8 @@ impl CrosshairApp {
             }
         });
 
+        ui.add_space(8.0);
+
         let mut remove_mouse_sensitivity_id = None;
         let mut next_mouse_sensitivity_capture_target = None;
         let mut cancel_active_capture_sensitivity = false;
@@ -18470,7 +18482,7 @@ impl CrosshairApp {
             }
         });
 
-        ui.add_space(4.0);
+        ui.add_space(8.0);
         let mut remove_id = None;
         let mut live_sync = false;
         let mut next_capture_target = None;
@@ -19117,7 +19129,7 @@ impl CrosshairApp {
         ui.horizontal(|ui| {
 
             if ui
-                .button(self.tr("+ Add Sound Preset", "+ Thêm preset âm thanh"))
+                .button(self.tr("+ Add sound preset", "+ Thêm preset âm thanh"))
                 .clicked()
             {
                 let id = self.state.audio_settings.next_preset_id;
@@ -19127,6 +19139,8 @@ impl CrosshairApp {
                 changed = true;
             }
         });
+
+        ui.add_space(8.0);
 
         let mut remove_sound_preset = None;
         for index in 0..self.state.audio_settings.presets.len() {
@@ -20511,7 +20525,7 @@ impl CrosshairApp {
                 self.persist_hud_presets();
             }
             if ui
-                .button(self.tr("+ Add Timer preset", "+ Thêm preset Timer"))
+                .button(self.tr("+ Add timer preset", "+ Thêm preset Timer"))
                 .clicked()
             {
                 let id = self.state.next_timer_preset_id;
@@ -20529,7 +20543,7 @@ impl CrosshairApp {
             }
         });
 
-        ui.add_space(6.0);
+        ui.add_space(8.0);
         ui.label(RichText::new(self.tr("Text Presets", "Thiết lập Văn bản")).strong());
 
         let mut remove_id = None;
@@ -20961,6 +20975,8 @@ impl CrosshairApp {
                 self.persist_command_presets();
             }
         });
+
+        ui.add_space(8.0);
 
         let mut remove_id = None;
         let mut changed = false;
