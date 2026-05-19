@@ -14996,6 +14996,7 @@ impl CrosshairApp {
                                                         egui::ComboBox::from_id_salt((group.id, preset.id, 0, "step-multi-select"))
                                                             .width(100.0)
                                                             .selected_text(steps_label)
+                                                            .close_behavior(egui::PopupCloseBehavior::CloseOnClickOutside)
                                                             .show_ui(ui, |ui| {
                                                                 for i in 1..=target_step_count {
                                                                     let mut is_selected = selected_steps.contains(&i);
@@ -16356,6 +16357,7 @@ impl CrosshairApp {
                                                         egui::ComboBox::from_id_salt((group.id, preset.id, step_index, "step-multi-select"))
                                                             .width(100.0)
                                                             .selected_text(steps_label)
+                                                            .close_behavior(egui::PopupCloseBehavior::CloseOnClickOutside)
                                                             .show_ui(ui, |ui| {
                                                                 for i in 1..=target_step_count {
                                                                     let mut is_selected = selected_steps.contains(&i);
