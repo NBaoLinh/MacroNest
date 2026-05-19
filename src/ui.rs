@@ -19931,7 +19931,13 @@ impl CrosshairApp {
                                 });
                                 let response = ui.add_sized(
                                     [ui.available_width(), 112.0],
-                                    TextEdit::multiline(&mut dialog.prompt).desired_rows(5),
+                                    TextEdit::multiline(&mut dialog.prompt)
+                                        .desired_rows(5)
+                                        .hint_text(Self::tr_lang(
+                                            self.state.ui_language,
+                                            "Example: Press A, wait 500ms, then click left mouse button...",
+                                            "Ví dụ: Nhấn phím A, chờ 500ms, sau đó click chuột trái...",
+                                        )),
                                 );
                                 Self::apply_vietnamese_input_if_changed(
                                     &response,
@@ -20096,7 +20102,13 @@ impl CrosshairApp {
                                 });
                                 let response = ui.add_sized(
                                     [ui.available_width(), 92.0],
-                                    TextEdit::multiline(&mut dialog.prompt).desired_rows(4),
+                                    TextEdit::multiline(&mut dialog.prompt)
+                                        .desired_rows(4)
+                                        .hint_text(Self::tr_lang(
+                                            self.state.ui_language,
+                                            "Example: Open Excel, write text to cell A1, then save...",
+                                            "Ví dụ: Mở Excel, ghi nội dung vào ô A1, sau đó lưu lại...",
+                                        )),
                                 );
                                 Self::apply_vietnamese_input_if_changed(
                                     &response,
@@ -20260,7 +20272,13 @@ impl CrosshairApp {
                                 });
                                 let response = ui.add_sized(
                                     [panel_size.x - 32.0, 72.0],
-                                    TextEdit::multiline(&mut dialog.prompt).desired_rows(3),
+                                    TextEdit::multiline(&mut dialog.prompt)
+                                        .desired_rows(3)
+                                        .hint_text(Self::tr_lang(
+                                            self.state.ui_language,
+                                            "Example: Create a green circle crosshair with a dot in the middle...",
+                                            "Ví dụ: Tạo tâm ngắm hình vòng tròn màu xanh lá với dấu chấm ở giữa...",
+                                        )),
                                 );
                                 Self::apply_vietnamese_input_if_changed(
                                     &response,
