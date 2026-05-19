@@ -132,6 +132,7 @@ mod windows_overlay {
             MouseSensitivityPreset, PinOverlayStyle, PinPreset, ProfileRecord, RgbaColor,
             SoundLibraryItem, SoundPreset, HudPreset, WindowAnchor, WindowExpandControls,
             WindowExpandDirection, WindowFocusPreset, WindowPreset,
+            TimerPreset,
         },
         render::{RenderedCrosshair, render_crosshair},
         storage::AppPaths,
@@ -232,6 +233,8 @@ mod windows_overlay {
         SetTrayIconVisible(bool),
         Exit,
         ToggleMacroRecording(u32, u32, String),
+        UpdateTimerPresets(Vec<TimerPreset>),
+        PreviewTimerPreset(Option<TimerPreset>),
     }
 
     #[derive(Debug, Clone)]
@@ -320,6 +323,28 @@ mod windows_overlay {
         }
     }
 
+    #[derive(Debug, Clone)]
+    struct ActiveTimerState {
+        running: bool,
+        start_time: Option<Instant>,
+        elapsed_ms: u64,
+        on_complete_macro_preset_id: Option<u32>,
+    }
+
+    impl ActiveTimerState {
+        fn get_elapsed_ms(&self) -> u64 {
+            if self.running {
+                if let Some(start) = self.start_time {
+                    self.elapsed_ms + start.elapsed().as_millis() as u64
+                } else {
+                    self.elapsed_ms
+                }
+            } else {
+                self.elapsed_ms
+            }
+        }
+    }
+
     struct HookState {
         ui_tx: Option<Sender<UiCommand>>,
         window_presets: Vec<WindowPreset>,
@@ -357,6 +382,8 @@ mod windows_overlay {
         sound_presets: Vec<SoundPreset>,
         sound_library: Vec<SoundLibraryItem>,
         active_hold_macros: HashMap<u32, ActiveHoldMacro>,
+        timer_presets: Vec<TimerPreset>,
+        active_timers: HashMap<u32, ActiveTimerState>,
         next_hold_run_token: u64,
         pending_tray_toggle: Option<bool>,
         tray_double_click_suppress_next_up: bool,
@@ -412,6 +439,8 @@ mod windows_overlay {
                 sound_presets: Vec::new(),
                 sound_library: Vec::new(),
                 active_hold_macros: HashMap::new(),
+                timer_presets: Vec::new(),
+                active_timers: HashMap::new(),
                 next_hold_run_token: 1,
                 pending_tray_toggle: None,
                 tray_double_click_suppress_next_up: false,
@@ -457,6 +486,9 @@ mod windows_overlay {
         running: Arc<AtomicBool>,
         active_pin_thumbnail: Option<ActivePinThumbnail>,
         timer_interval_ms: u32,
+        timer_presets: Vec<TimerPreset>,
+        preview_timer_preset: Option<TimerPreset>,
+        timer_hwnds: HashMap<u32, HWND>,
         ui_visible: bool,
         ui_foreground: bool,
     }
@@ -734,6 +766,9 @@ mod windows_overlay {
                 running,
                 active_pin_thumbnail: None,
                 timer_interval_ms: 500,
+                timer_presets: Vec::new(),
+                preview_timer_preset: None,
+                timer_hwnds: HashMap::new(),
                 ui_visible: true,
                 ui_foreground: true,
             });
@@ -876,6 +911,7 @@ mod windows_overlay {
                         }
                     }
                     let _ = refresh_search_area_overlay(runtime);
+                    let _ = refresh_timer_overlays(runtime);
 
                     refresh_overlay_timer(hwnd, runtime);
                 }
@@ -885,6 +921,7 @@ mod windows_overlay {
                 if let Some(runtime) = runtime_mut(hwnd) {
                     process_pending_commands(hwnd, runtime);
                     let _ = refresh_search_area_overlay(runtime);
+                    let _ = refresh_timer_overlays(runtime);
                     refresh_overlay_timer(hwnd, runtime);
                 }
                 LRESULT(0)
@@ -3102,6 +3139,14 @@ mod windows_overlay {
                 OverlayCommand::ToggleMacroRecording(group_id, preset_id, preset_name) => {
                     toggle_macro_recording(group_id, preset_id, preset_name);
                 }
+                OverlayCommand::UpdateTimerPresets(presets) => {
+                    let mut hook_state = HOOK_STATE.lock();
+                    hook_state.timer_presets = presets.clone();
+                    runtime.timer_presets = presets;
+                }
+                OverlayCommand::PreviewTimerPreset(preset) => {
+                    runtime.preview_timer_preset = preset;
+                }
                 OverlayCommand::Exit => {
                     let _ = runtime.ui_tx.send(UiCommand::Exit);
                     let _ = shutdown_application(hwnd, runtime);
@@ -4885,6 +4930,15 @@ mod windows_overlay {
             MacroAction::HideHud => {
                 hide_hud_now();
             }
+            MacroAction::StartTimerPreset
+            | MacroAction::PauseTimerPreset
+            | MacroAction::StopTimerPreset => {
+                execute_timer_preset_action(
+                    step.action,
+                    step.timer_preset_id,
+                    step.on_complete_macro_preset_id,
+                );
+            }
             MacroAction::LockKeys => {
                 apply_lock_keys(&parse_locked_keys(&step.key), Some(preset_id));
             }
@@ -5131,6 +5185,24 @@ mod windows_overlay {
                 }
                 MacroAction::HideHud => {
                     hide_hud_now();
+                }
+                MacroAction::StartTimerPreset
+                | MacroAction::PauseTimerPreset
+                | MacroAction::StopTimerPreset => {
+                    execute_timer_preset_action(
+                        step.action,
+                        step.timer_preset_id,
+                        step.on_complete_macro_preset_id,
+                    );
+                }
+                MacroAction::StartTimerPreset
+                | MacroAction::PauseTimerPreset
+                | MacroAction::StopTimerPreset => {
+                    execute_timer_preset_action(
+                        step.action,
+                        step.timer_preset_id,
+                        step.on_complete_macro_preset_id,
+                    );
                 }
                 MacroAction::LockKeys => {
                     let keys = parse_locked_keys(&step.key);
@@ -6034,7 +6106,10 @@ mod windows_overlay {
                 | MacroAction::LockMouse
                 | MacroAction::UnlockMouse
                 | MacroAction::EnableMacroPreset
-                | MacroAction::DisableMacroPreset => {}
+                | MacroAction::DisableMacroPreset
+                | MacroAction::StartTimerPreset
+                | MacroAction::PauseTimerPreset
+                | MacroAction::StopTimerPreset => {}
                 MacroAction::MouseLeftDown => {
                     held_mouse.insert(MacroAction::MouseLeftUp);
                 }
@@ -6163,7 +6238,10 @@ mod windows_overlay {
             | MacroAction::LockMouse
             | MacroAction::UnlockMouse
             | MacroAction::EnableMacroPreset
-            | MacroAction::DisableMacroPreset => return Ok(()),
+            | MacroAction::DisableMacroPreset
+            | MacroAction::StartTimerPreset
+            | MacroAction::PauseTimerPreset
+            | MacroAction::StopTimerPreset => return Ok(()),
             MacroAction::KeyPress | MacroAction::KeyDown | MacroAction::KeyUp => {}
             _ => return Ok(()),
         }
@@ -9003,6 +9081,525 @@ mod windows_overlay {
         }
     }
 
+    fn format_stopwatch_time(elapsed_ms: u64, show_minutes: bool, show_seconds: bool, show_ms: bool) -> String {
+        let total_secs = elapsed_ms / 1000;
+        let ms = elapsed_ms % 1000;
+        let minutes = total_secs / 60;
+        let seconds = total_secs % 60;
+
+        let mut parts = Vec::new();
+        if show_minutes {
+            parts.push(format!("{:02}", minutes));
+        }
+        if show_seconds {
+            parts.push(format!("{:02}", seconds));
+        }
+        
+        let mut time_str = parts.join(":");
+        if show_ms {
+            if time_str.is_empty() {
+                time_str = format!("{:03}", ms);
+            } else {
+                time_str = format!("{}.{:03}", time_str, ms);
+            }
+        }
+        
+        if time_str.is_empty() {
+            "00".to_string()
+        } else {
+            time_str
+        }
+    }
+
+    unsafe fn paint_timer_hwnd(hwnd: HWND, preset: &TimerPreset, text: &str, progress_ratio: Option<f32>) -> Result<()> {
+        let window_x = preset.x.max(0);
+        let window_y = preset.y.max(0);
+        let width = preset.width.max(1);
+        let height = preset.height.max(1);
+
+        let screen_dc = GetDC(None);
+        let mem_dc = CreateCompatibleDC(Some(screen_dc));
+
+        let bitmap_info = BITMAPINFO {
+            bmiHeader: BITMAPINFOHEADER {
+                biSize: size_of::<BITMAPINFOHEADER>() as u32,
+                biWidth: width,
+                biHeight: -height,
+                biPlanes: 1,
+                biBitCount: 32,
+                biCompression: BI_RGB.0,
+                ..Default::default()
+            },
+            ..Default::default()
+        };
+
+        let mut bits_ptr: *mut c_void = std::ptr::null_mut();
+        let bitmap = CreateDIBSection(
+            Some(mem_dc),
+            &bitmap_info,
+            DIB_RGB_COLORS,
+            &mut bits_ptr,
+            None,
+            0,
+        )?;
+        let old_bitmap = SelectObject(mem_dc, HGDIOBJ(bitmap.0));
+
+        let bg_opacity = preset.background_opacity;
+        let bg_alpha = (bg_opacity.clamp(0.0, 1.0) * 255.0).round() as u8;
+        let bytes_len = (width as usize) * (height as usize) * 4;
+        let pixels = std::slice::from_raw_parts_mut(bits_ptr as *mut u8, bytes_len);
+        let radius = if preset.rounded_background {
+            16.0
+        } else {
+            0.0
+        };
+        let bg_color = &preset.background_color;
+        let bg_b = ((bg_color.b as u32 * bg_alpha as u32) / 255) as u8;
+        let bg_g = ((bg_color.g as u32 * bg_alpha as u32) / 255) as u8;
+        let bg_r = ((bg_color.r as u32 * bg_alpha as u32) / 255) as u8;
+        for py in 0..height {
+            for px in 0..width {
+                let index = ((py as usize) * (width as usize) + (px as usize)) * 4;
+                let inside = if radius <= 0.0 {
+                    true
+                } else {
+                    let px_f = px as f32 + 0.5;
+                    let py_f = py as f32 + 0.5;
+                    let inner_left = radius;
+                    let inner_right = width as f32 - radius;
+                    let inner_top = radius;
+                    let inner_bottom = height as f32 - radius;
+                    if (px_f >= inner_left && px_f <= inner_right)
+                        || (py_f >= inner_top && py_f <= inner_bottom)
+                    {
+                        true
+                    } else {
+                        let corner_x = if px_f < inner_left {
+                            inner_left
+                        } else {
+                            inner_right
+                        };
+                        let corner_y = if py_f < inner_top {
+                            inner_top
+                        } else {
+                            inner_bottom
+                        };
+                        let dx = px_f - corner_x;
+                        let dy = py_f - corner_y;
+                        (dx * dx) + (dy * dy) <= radius * radius
+                    }
+                };
+                if inside {
+                    let is_progress_x = if let Some(ratio) = progress_ratio {
+                        px < (width as f32 * ratio.clamp(0.0, 1.0)) as i32
+                    } else {
+                        false
+                    };
+                    let is_progress = is_progress_x;
+                    if is_progress {
+                        let prog_color = &preset.progress_color;
+                        let is_border = preset.progress_border_enabled && (
+                            py == 0
+                            || py == height - 1
+                            || px == 0
+                            || px == (width as f32 * progress_ratio.unwrap_or(0.0).clamp(0.0, 1.0)) as i32 - 1
+                        );
+                        
+                        if is_border {
+                            let border_color = &preset.progress_border_color;
+                            let br = border_color.r;
+                            let bg = border_color.g;
+                            let bb = border_color.b;
+                            let ba = border_color.a;
+                            
+                            let ba_f = ba as f32 / 255.0;
+                            pixels[index] = (bb as f32 * ba_f) as u8;
+                            pixels[index + 1] = (bg as f32 * ba_f) as u8;
+                            pixels[index + 2] = (br as f32 * ba_f) as u8;
+                            pixels[index + 3] = ba;
+                        } else {
+                            let prog_a_f = prog_color.a as f32 / 255.0;
+                            let prog_pre_r = prog_color.r as f32 * prog_a_f;
+                            let prog_pre_g = prog_color.g as f32 * prog_a_f;
+                            let prog_pre_b = prog_color.b as f32 * prog_a_f;
+                            
+                            pixels[index] = prog_pre_b as u8;
+                            pixels[index + 1] = prog_pre_g as u8;
+                            pixels[index + 2] = prog_pre_r as u8;
+                            pixels[index + 3] = prog_color.a;
+                        }
+                    } else {
+                        pixels[index] = 0;
+                        pixels[index + 1] = 0;
+                        pixels[index + 2] = 0;
+                        pixels[index + 3] = 0;
+                    }
+                } else {
+                    pixels[index] = 0;
+                    pixels[index + 1] = 0;
+                    pixels[index + 2] = 0;
+                    pixels[index + 3] = 0;
+                }
+            }
+        }
+
+        let font_name = "Segoe UI"
+            .encode_utf16()
+            .chain(std::iter::once(0))
+            .collect::<Vec<_>>();
+        let font_size = preset.font_size;
+        let font = CreateFontW(
+            -(font_size.round() as i32).max(1),
+            0,
+            0,
+            0,
+            FW_MEDIUM.0 as i32,
+            0,
+            0,
+            0,
+            DEFAULT_CHARSET,
+            OUT_DEFAULT_PRECIS,
+            CLIP_DEFAULT_PRECIS,
+            ANTIALIASED_QUALITY,
+            FF_DONTCARE.0 as u32,
+            PCWSTR(font_name.as_ptr()),
+        );
+        let old_font = SelectObject(mem_dc, HGDIOBJ(font.0));
+        let _ = SetBkMode(mem_dc, TRANSPARENT);
+        let text_color = &preset.text_color;
+        let _ = SetTextColor(
+            mem_dc,
+            COLORREF(
+                ((text_color.b as u32) << 16)
+                    | ((text_color.g as u32) << 8)
+                    | (text_color.r as u32),
+            ),
+        );
+        if preset.show_text {
+            let mut text_rect = RECT {
+                left: 12,
+                top: 4,
+                right: width - 12,
+                bottom: height - 4,
+            };
+            let mut wide = text
+                .encode_utf16()
+                .chain(std::iter::once(0))
+                .collect::<Vec<_>>();
+            let _ = DrawTextW(
+                mem_dc,
+                &mut wide,
+                &mut text_rect,
+                DT_CENTER | DT_VCENTER | DT_SINGLELINE,
+            );
+        }
+
+        let text_alpha = text_color.a.max(1);
+        for py in 0..height {
+            for px in 0..width {
+                let index = ((py as usize) * (width as usize) + (px as usize)) * 4;
+                let chunk = &mut pixels[index..index+4];
+                
+                let is_progress_x = if let Some(ratio) = progress_ratio {
+                    px < (width as f32 * ratio.clamp(0.0, 1.0)) as i32
+                } else {
+                    false
+                };
+                let is_progress = is_progress_x;
+                if is_progress {
+                    continue;
+                }
+                
+                let looks_like_bg =
+                    chunk[0] == bg_b && chunk[1] == bg_g && chunk[2] == bg_r && chunk[3] == bg_alpha;
+                let alpha = if looks_like_bg {
+                    bg_alpha
+                } else if chunk[0] == 0 && chunk[1] == 0 && chunk[2] == 0 && chunk[3] == 0 {
+                    0
+                } else {
+                    text_alpha
+                };
+                chunk[3] = alpha;
+                chunk[0] = ((chunk[0] as u32 * alpha as u32) / 255) as u8;
+                chunk[1] = ((chunk[1] as u32 * alpha as u32) / 255) as u8;
+                chunk[2] = ((chunk[2] as u32 * alpha as u32) / 255) as u8;
+            }
+        }
+
+        let mut pt_src = POINT::default();
+        let mut pt_dst = POINT { x: window_x, y: window_y };
+        let mut size_wnd = SIZE {
+            cx: width,
+            cy: height,
+        };
+        let mut blend = BLENDFUNCTION {
+            BlendOp: AC_SRC_OVER as u8,
+            BlendFlags: 0,
+            SourceConstantAlpha: 255,
+            AlphaFormat: AC_SRC_ALPHA as u8,
+        };
+
+        let _ = UpdateLayeredWindow(
+            hwnd,
+            Some(screen_dc),
+            Some(&mut pt_dst),
+            Some(&mut size_wnd),
+            Some(mem_dc),
+            Some(&mut pt_src),
+            COLORREF(0),
+            Some(&mut blend),
+            ULW_ALPHA,
+        );
+
+        let _ = SelectObject(mem_dc, old_font);
+        let _ = DeleteObject(HGDIOBJ(font.0));
+
+        let _ = SelectObject(mem_dc, old_bitmap);
+        let _ = DeleteObject(HGDIOBJ(bitmap.0));
+        let _ = DeleteDC(mem_dc);
+        let _ = ReleaseDC(None, screen_dc);
+        
+        let _ = ShowWindow(hwnd, SW_SHOWNA);
+        Ok(())
+    }
+
+    fn refresh_timer_overlays(runtime: &mut Runtime) -> Result<()> {
+        let mut active_timer_ids = HashSet::new();
+        let mut presets_to_render = Vec::new();
+
+        if let Some(preview) = runtime.preview_timer_preset.clone() {
+            presets_to_render.push(preview);
+        }
+
+        let hook_guard = HOOK_STATE.lock();
+        let active_timers = hook_guard.active_timers.clone();
+        let timer_presets = hook_guard.timer_presets.clone();
+        drop(hook_guard);
+
+        for preset in &timer_presets {
+            if let Some(state) = active_timers.get(&preset.id) {
+                if state.running || state.elapsed_ms > 0 {
+                    if !presets_to_render.iter().any(|p| p.id == preset.id) {
+                        presets_to_render.push(preset.clone());
+                    }
+                }
+            }
+        }
+
+        for preset in presets_to_render {
+            active_timer_ids.insert(preset.id);
+
+            let mut just_finished = false;
+
+            let (text, ratio) = if let Some(state) = active_timers.get(&preset.id) {
+                let elapsed = state.get_elapsed_ms();
+                if preset.is_countdown {
+                    let total_ms = (preset.duration_secs as u64) * 1000;
+                    let remaining = if elapsed >= total_ms {
+                        if state.running {
+                            let mut lock = HOOK_STATE.lock();
+                            let removed_state = lock.active_timers.remove(&preset.id);
+                            drop(lock);
+                            just_finished = true;
+                            if let Some(t_state) = removed_state {
+                                if let Some(macro_id) = t_state.on_complete_macro_preset_id {
+                                    spawn_macro_by_preset_id(macro_id);
+                                }
+                            }
+                        }
+                        0
+                    } else {
+                        total_ms - elapsed
+                    };
+                    let r = if total_ms > 0 {
+                        remaining as f32 / total_ms as f32
+                    } else {
+                        0.0
+                    };
+                    let display_ms = if preset.show_ms {
+                        remaining
+                    } else if preset.show_seconds {
+                        ((remaining + 999) / 1000) * 1000
+                    } else if preset.show_minutes {
+                        ((remaining + 59999) / 60000) * 60000
+                    } else {
+                        remaining
+                    };
+                    let t = format_stopwatch_time(
+                        display_ms,
+                        preset.show_minutes,
+                        preset.show_seconds,
+                        preset.show_ms,
+                    );
+                    (t, if preset.show_progress_bar { Some(r) } else { None })
+                } else {
+                    let t = format_stopwatch_time(
+                        elapsed,
+                        preset.show_minutes,
+                        preset.show_seconds,
+                        preset.show_ms,
+                    );
+                    (t, None)
+                }
+            } else {
+                if preset.is_countdown {
+                    let total_ms = (preset.duration_secs as u64) * 1000;
+                    let t = format_stopwatch_time(
+                        total_ms,
+                        preset.show_minutes,
+                        preset.show_seconds,
+                        preset.show_ms,
+                    );
+                    (t, if preset.show_progress_bar { Some(1.0) } else { None })
+                } else {
+                    let t = format_stopwatch_time(
+                        0,
+                        preset.show_minutes,
+                        preset.show_seconds,
+                        preset.show_ms,
+                    );
+                    (t, None)
+                }
+            };
+
+            if just_finished {
+                if let Some(&hwnd) = runtime.timer_hwnds.get(&preset.id) {
+                    unsafe {
+                        let _ = ShowWindow(hwnd, SW_HIDE);
+                        let _ = windows::Win32::UI::WindowsAndMessaging::DestroyWindow(hwnd);
+                    }
+                }
+                runtime.timer_hwnds.remove(&preset.id);
+                continue;
+            }
+
+            let hwnd = match runtime.timer_hwnds.get(&preset.id) {
+                Some(&hwnd) => hwnd,
+                None => {
+                    let instance = HINSTANCE(unsafe { GetModuleHandleW(None) }?.0);
+                    let hwnd = unsafe {
+                        CreateWindowExW(
+                            WS_EX_LAYERED
+                                | WS_EX_TOOLWINDOW
+                                | WS_EX_TOPMOST
+                                | WS_EX_NOACTIVATE
+                                | WS_EX_TRANSPARENT,
+                            w!("CrosshairOverlay"),
+                            w!("CrosshairTimer"),
+                            WS_POPUP,
+                            0,
+                            0,
+                            preset.width.max(1),
+                            preset.height.max(1),
+                            None,
+                            None,
+                            Some(instance),
+                            None,
+                        )?
+                    };
+                    runtime.timer_hwnds.insert(preset.id, hwnd);
+                    hwnd
+                }
+            };
+
+            unsafe {
+                let _ = paint_timer_hwnd(hwnd, &preset, &text, ratio);
+            }
+        }
+
+        let mut keys_to_remove = Vec::new();
+        for (&preset_id, &hwnd) in &runtime.timer_hwnds {
+            if !active_timer_ids.contains(&preset_id) {
+                unsafe {
+                    let _ = ShowWindow(hwnd, SW_HIDE);
+                    let _ = windows::Win32::UI::WindowsAndMessaging::DestroyWindow(hwnd);
+                }
+                keys_to_remove.push(preset_id);
+            }
+        }
+        for key in keys_to_remove {
+            runtime.timer_hwnds.remove(&key);
+        }
+
+        Ok(())
+    }
+
+    fn execute_timer_preset_action(
+        action: MacroAction,
+        timer_preset_id: Option<u32>,
+        on_complete_macro_preset_id: Option<u32>,
+    ) {
+        let Some(preset_id) = timer_preset_id else {
+            return;
+        };
+        let mut hook_state = HOOK_STATE.lock();
+        match action {
+            MacroAction::StartTimerPreset => {
+                let state = hook_state.active_timers.entry(preset_id).or_insert_with(|| ActiveTimerState {
+                    running: false,
+                    start_time: None,
+                    elapsed_ms: 0,
+                    on_complete_macro_preset_id: None,
+                });
+                state.on_complete_macro_preset_id = on_complete_macro_preset_id;
+                if !state.running {
+                    state.running = true;
+                    state.start_time = Some(Instant::now());
+                }
+            }
+            MacroAction::PauseTimerPreset => {
+                if let Some(state) = hook_state.active_timers.get_mut(&preset_id) {
+                    if state.running {
+                        state.running = false;
+                        if let Some(start) = state.start_time {
+                            state.elapsed_ms += start.elapsed().as_millis() as u64;
+                        }
+                        state.start_time = None;
+                    }
+                }
+            }
+            MacroAction::StopTimerPreset => {
+                hook_state.active_timers.remove(&preset_id);
+            }
+            _ => {}
+        }
+        drop(hook_state);
+        wake_command_queue();
+    }
+
+    fn spawn_macro_by_preset_id(preset_id: u32) {
+        let preset = {
+            let hook_state = HOOK_STATE.lock();
+            hook_state
+                .macro_groups
+                .iter()
+                .flat_map(|group| group.presets.iter())
+                .find(|preset| preset.id == preset_id)
+                .cloned()
+        };
+        if let Some(preset) = preset {
+            STOP_REQUESTED_MACRO_PRESETS.lock().remove(&preset.id);
+            thread::spawn(move || {
+                let cleanup_steps = collect_macro_release_steps(&preset.steps);
+                let mut press_locked_keys: Vec<String> = Vec::new();
+                let mut press_locked_mouse_count = 0usize;
+                let _ = execute_macro_sequence(
+                    preset.id,
+                    &preset.steps,
+                    &mut press_locked_keys,
+                    &mut press_locked_mouse_count,
+                    preset.stop_on_retrigger_immediate,
+                    None,
+                    &[],
+                    false,
+                );
+                for step in cleanup_steps {
+                    let _ = send_key_event(&step);
+                }
+            });
+        }
+    }
+
     fn widestring(value: &str) -> Vec<u16> {
         let mut wide: Vec<u16> = value.encode_utf16().collect();
         wide.push(0);
@@ -9059,6 +9656,8 @@ mod fallback {
         SetTrayIconVisible(bool),
         Exit,
         ToggleMacroRecording(u32, u32, String),
+        UpdateTimerPresets(Vec<TimerPreset>),
+        PreviewTimerPreset(Option<TimerPreset>),
     }
 
     #[derive(Debug, Clone)]
