@@ -4849,6 +4849,55 @@ mod windows_overlay {
         bail!("Macro preset was not found")
     }
 
+    fn set_macro_steps_enabled(spec: &str, enabled: bool) -> Result<()> {
+        let parts: Vec<&str> = spec.split('|').collect();
+        if parts.is_empty() {
+            bail!("Invalid step enable/disable spec format");
+        }
+        let preset_id = parts[0]
+            .trim()
+            .parse::<u32>()
+            .context("Macro preset id is invalid")?;
+        
+        let mut steps_to_change = Vec::new();
+        if parts.len() > 1 {
+            for step_str in parts[1].split(',') {
+                if let Ok(idx) = step_str.trim().parse::<usize>() {
+                    if idx > 0 {
+                        steps_to_change.push(idx - 1);
+                    }
+                }
+            }
+        }
+
+        let mut hook_state = HOOK_STATE.lock();
+        for group in &mut hook_state.macro_groups {
+            if let Some(preset) = group
+                .presets
+                .iter_mut()
+                .find(|preset| preset.id == preset_id)
+            {
+                for &idx in &steps_to_change {
+                    if idx < preset.steps.len() {
+                        preset.steps[idx].enabled = enabled;
+                    }
+                }
+                let updated_groups = hook_state.macro_groups.clone();
+                let status = format!(
+                    "{} steps {:?} in macro preset {}.",
+                    if enabled { "Enabled" } else { "Disabled" },
+                    steps_to_change.iter().map(|x| x + 1).collect::<Vec<_>>(),
+                    preset_id
+                );
+                if let Some(tx) = hook_state.ui_tx.clone() {
+                    let _ = tx.send(UiCommand::SyncMacroGroups(updated_groups, status));
+                }
+                return Ok(());
+            }
+        }
+        bail!("Macro preset was not found")
+    }
+
     fn execute_hold_abort_step(preset_id: u32, step: &MacroStep) {
         if !step.enabled {
             return;
@@ -4966,6 +5015,12 @@ mod windows_overlay {
             }
             MacroAction::DisableMacroPreset => {
                 let _ = set_macro_preset_enabled(&step.key, false);
+            }
+            MacroAction::EnableStep => {
+                let _ = set_macro_steps_enabled(&step.key, true);
+            }
+            MacroAction::DisableStep => {
+                let _ = set_macro_steps_enabled(&step.key, false);
             }
             _ => {
                 let _ = send_key_event(step);
@@ -5240,6 +5295,12 @@ mod windows_overlay {
                 MacroAction::DisableMacroPreset => {
                     let _ = set_macro_preset_enabled(&step.key, false);
                 }
+                MacroAction::EnableStep => {
+                    let _ = set_macro_steps_enabled(&step.key, true);
+                }
+                MacroAction::DisableStep => {
+                    let _ = set_macro_steps_enabled(&step.key, false);
+                }
                 MacroAction::KeyDown => {
                     let _ = send_key_event(step);
                     if hold_duration_ms > 0
@@ -5509,6 +5570,12 @@ mod windows_overlay {
                 }
                 MacroAction::DisableMacroPreset => {
                     let _ = set_macro_preset_enabled(&step.key, false);
+                }
+                MacroAction::EnableStep => {
+                    let _ = set_macro_steps_enabled(&step.key, true);
+                }
+                MacroAction::DisableStep => {
+                    let _ = set_macro_steps_enabled(&step.key, false);
                 }
                 MacroAction::KeyDown => {
                     let _ = send_key_event(step);
@@ -6109,6 +6176,8 @@ mod windows_overlay {
                 | MacroAction::UnlockMouse
                 | MacroAction::EnableMacroPreset
                 | MacroAction::DisableMacroPreset
+                | MacroAction::EnableStep
+                | MacroAction::DisableStep
                 | MacroAction::StartTimerPreset
                 | MacroAction::PauseTimerPreset
                 | MacroAction::StopTimerPreset => {}
@@ -6241,6 +6310,8 @@ mod windows_overlay {
             | MacroAction::UnlockMouse
             | MacroAction::EnableMacroPreset
             | MacroAction::DisableMacroPreset
+            | MacroAction::EnableStep
+            | MacroAction::DisableStep
             | MacroAction::StartTimerPreset
             | MacroAction::PauseTimerPreset
             | MacroAction::StopTimerPreset => return Ok(()),
