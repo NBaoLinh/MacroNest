@@ -1616,4 +1616,93 @@ impl Default for AppState {
     }
 }
 
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
+#[serde(default)]
+pub struct TimerPreset {
+    pub id: u32,
+    pub name: String,
+    pub collapsed: bool,
+    pub preview_enabled: bool,
+    pub show_minutes: bool,
+    pub show_seconds: bool,
+    pub show_ms: bool,
+    pub text_color: RgbaColor,
+    pub background_color: RgbaColor,
+    pub background_opacity: f32,
+    pub rounded_background: bool,
+    pub font_size: f32,
+    pub x: i32,
+    pub y: i32,
+    pub width: i32,
+    pub height: i32,
+    pub is_countdown: bool,
+    pub duration_secs: u32,
+    pub show_text: bool,
+    pub show_progress_bar: bool,
+    pub progress_color: RgbaColor,
+    pub progress_height: u32,
+    #[serde(default = "default_true")]
+    pub progress_border_enabled: bool,
+    #[serde(default = "default_timer_progress_border_color")]
+    pub progress_border_color: RgbaColor,
+}
+
+impl TimerPreset {
+    pub fn new(id: u32) -> Self {
+        Self {
+            id,
+            name: format!("Timer {id}"),
+            collapsed: true,
+            preview_enabled: false,
+            show_minutes: true,
+            show_seconds: true,
+            show_ms: true,
+            text_color: RgbaColor {
+                r: 244,
+                g: 244,
+                b: 244,
+                a: 255,
+            },
+            background_color: RgbaColor {
+                r: 34,
+                g: 34,
+                b: 34,
+                a: 255,
+            },
+            background_opacity: 0.72,
+            rounded_background: true,
+            font_size: 28.0,
+            x: 660,
+            y: 136,
+            width: 250,
+            height: 60,
+            is_countdown: false,
+            duration_secs: 10,
+            show_text: true,
+            show_progress_bar: false,
+            progress_color: RgbaColor {
+                r: 0,
+                g: 191,
+                b: 255,
+                a: 255,
+            },
+            progress_height: 10,
+            progress_border_enabled: true,
+            progress_border_color: RgbaColor {
+                r: 255,
+                g: 255,
+                b: 255,
+                a: 255,
+            },
+        }
+    }
+}
+
+impl Default for TimerPreset {
+    fn default() -> Self {
+        Self::new(1)
+    }
+}
+
+
 
