@@ -19121,7 +19121,7 @@ impl CrosshairApp {
         progress.store(0, Ordering::SeqCst);
 
         let job = std::thread::spawn(move || -> Result<()> {
-            let url = "https://github.com/Baolinh0305/MacroNest/releases/download/v0.1.16/opencv_world4100.dll";
+            let url = "https://github.com/Baolinh0305/MacroNest/releases/download/v0.1/opencv_world4100.dll";
             let mut response = reqwest::blocking::get(url)?.error_for_status()?;
             let total_size = response.content_length().unwrap_or(64 * 1024 * 1024);
 

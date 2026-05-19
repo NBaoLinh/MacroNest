@@ -110,8 +110,21 @@ fn default_true() -> bool {
     true
 }
 
+fn default_timer_progress_border_color() -> RgbaColor {
+    RgbaColor {
+        r: 255,
+        g: 255,
+        b: 255,
+        a: 255,
+    }
+}
+
 fn default_false() -> bool {
     false
+}
+
+fn default_if_color_tolerance() -> u8 {
+    10
 }
 
 fn default_image_search_confidence_threshold() -> f32 {
@@ -380,6 +393,22 @@ pub enum MacroAction {
     TriggerVisionTiming,
     StartVisionTiming,
     StopVisionTiming,
+    IfStart,
+    Else,
+    IfEnd,
+    StartTimerPreset,
+    PauseTimerPreset,
+    StopTimerPreset,
+    EnableStep,
+    DisableStep,
+}
+
+#[derive(Debug, Clone, Copy, Serialize, Deserialize, PartialEq, Eq, Hash, Default)]
+pub enum IfConditionType {
+    #[default]
+    PixelColor,
+    VisionMatch,
+    KeyHeld,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
@@ -407,8 +436,36 @@ pub struct MacroStep {
     pub vision_wait_until_found: bool,
     #[serde(default, alias = "image_search_trigger_macro_enabled")]
     pub vision_trigger_macro_enabled: bool,
-    #[serde(alias = "image_search_trigger_macro_preset_id")]
+    #[serde(default, alias = "image_search_trigger_macro_preset_id")]
     pub vision_trigger_macro_preset_id: Option<u32>,
+    #[serde(default)]
+    pub if_condition_type: IfConditionType,
+    #[serde(default)]
+    pub if_target_color: String,
+    #[serde(default = "default_if_color_tolerance")]
+    pub if_color_tolerance: u8,
+    #[serde(default)]
+    pub if_vision_preset_id: Option<u32>,
+    #[serde(default)]
+    pub if_key_held_name: String,
+    #[serde(default)]
+    pub timer_preset_id: Option<u32>,
+    #[serde(default)]
+    pub timer_on_complete_macro_preset_id: Option<u32>,
+    #[serde(default = "default_true")]
+    pub lock_mouse_left: bool,
+    #[serde(default = "default_true")]
+    pub lock_mouse_right: bool,
+    #[serde(default = "default_true")]
+    pub lock_mouse_middle: bool,
+    #[serde(default = "default_true")]
+    pub lock_mouse_scroll: bool,
+    #[serde(default = "default_true")]
+    pub lock_mouse_x1: bool,
+    #[serde(default = "default_true")]
+    pub lock_mouse_x2: bool,
+    #[serde(default = "default_true")]
+    pub lock_mouse_move: bool,
 }
 
 impl Default for MacroStep {
@@ -431,6 +488,20 @@ impl Default for MacroStep {
             vision_wait_until_found: false,
             vision_trigger_macro_enabled: false,
             vision_trigger_macro_preset_id: None,
+            if_condition_type: IfConditionType::default(),
+            if_target_color: String::new(),
+            if_color_tolerance: 10,
+            if_vision_preset_id: None,
+            if_key_held_name: String::new(),
+            timer_preset_id: None,
+            timer_on_complete_macro_preset_id: None,
+            lock_mouse_left: true,
+            lock_mouse_right: true,
+            lock_mouse_middle: true,
+            lock_mouse_scroll: true,
+            lock_mouse_x1: true,
+            lock_mouse_x2: true,
+            lock_mouse_move: true,
         }
     }
 }
@@ -821,6 +892,94 @@ impl Default for HudPreset {
     }
 }
 
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
+#[serde(default)]
+pub struct TimerPreset {
+    pub id: u32,
+    pub name: String,
+    pub collapsed: bool,
+    pub preview_enabled: bool,
+    pub show_minutes: bool,
+    pub show_seconds: bool,
+    pub show_ms: bool,
+    pub text_color: RgbaColor,
+    pub background_color: RgbaColor,
+    pub background_opacity: f32,
+    pub rounded_background: bool,
+    pub font_size: f32,
+    pub x: i32,
+    pub y: i32,
+    pub width: i32,
+    pub height: i32,
+    pub is_countdown: bool,
+    pub duration_secs: u32,
+    pub show_text: bool,
+    pub show_progress_bar: bool,
+    pub progress_color: RgbaColor,
+    pub progress_height: u32,
+    #[serde(default = "default_true")]
+    pub progress_border_enabled: bool,
+    #[serde(default = "default_timer_progress_border_color")]
+    pub progress_border_color: RgbaColor,
+}
+
+impl TimerPreset {
+    pub fn new(id: u32) -> Self {
+        Self {
+            id,
+            name: format!("Timer {id}"),
+            collapsed: true,
+            preview_enabled: false,
+            show_minutes: true,
+            show_seconds: true,
+            show_ms: true,
+            text_color: RgbaColor {
+                r: 244,
+                g: 244,
+                b: 244,
+                a: 255,
+            },
+            background_color: RgbaColor {
+                r: 34,
+                g: 34,
+                b: 34,
+                a: 255,
+            },
+            background_opacity: 0.72,
+            rounded_background: true,
+            font_size: 28.0,
+            x: 660,
+            y: 136,
+            width: 250,
+            height: 60,
+            is_countdown: false,
+            duration_secs: 10,
+            show_text: true,
+            show_progress_bar: false,
+            progress_color: RgbaColor {
+                r: 0,
+                g: 191,
+                b: 255,
+                a: 255,
+            },
+            progress_height: 10,
+            progress_border_enabled: true,
+            progress_border_color: RgbaColor {
+                r: 255,
+                g: 255,
+                b: 255,
+                a: 255,
+            },
+        }
+    }
+}
+
+impl Default for TimerPreset {
+    fn default() -> Self {
+        Self::new(1)
+    }
+}
+
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
 #[serde(default)]
 pub struct CommandPreset {
@@ -1203,7 +1362,7 @@ impl Default for AiSettings {
         Self {
             api_key: String::new(),
             show_api_key: false,
-            system_instruction: "Convert the user's request into a JSON array of MacroNest macro steps. Each step must have at least: key, action, delay_ms. Use only supported MacroAction names. Prefer KeyPress for taps, KeyDown/KeyUp for holds, TypeText for literal text, and MouseMoveAbsolute for exact coordinates. Return JSON only.".to_owned(),
+            system_instruction: "Convert the user's request into a JSON array of MacroNest macro steps. Each step must have at least: key, action, delay_ms. Use only supported MacroAction names. To build a toggle/bật tắt macro (alternating between two states on each trigger press), generate a 6-step pattern: Group 1 (State A): Step 1 (Action A, enabled: true), Step 3 (DisableStep for steps 1,3,4, enabled: true), Step 4 (EnableStep for steps 2,5,6, enabled: true). Group 2 (State B): Step 2 (Action B, enabled: false), Step 5 (EnableStep for steps 1,3,4, enabled: false), Step 6 (DisableStep for steps 2,5,6, enabled: false). Prefer KeyPress for taps, KeyDown/KeyUp for holds, TypeText for literal text, and MouseMoveAbsolute for exact coordinates. Return JSON only.".to_owned(),
             prompt: String::new(),
             model: "gemini-2.5-flash".to_owned(),
             enabled: true,
@@ -1382,6 +1541,10 @@ pub struct AppState {
     pub vision_presets: Vec<VisionPreset>,
     #[serde(alias = "next_image_search_preset_id")]
     pub next_vision_preset_id: u32,
+    #[serde(default)]
+    pub timer_presets: Vec<TimerPreset>,
+    #[serde(default)]
+    pub next_timer_preset_id: u32,
     pub ai_settings: AiSettings,
     pub groq_settings: GroqSettings,
     pub audio_settings: AudioSettings,
@@ -1443,6 +1606,8 @@ impl Default for AppState {
             macro_infinite_loop_warning_enabled: true,
             vision_presets: vec![VisionPreset::default()],
             next_vision_preset_id: 2,
+            timer_presets: Vec::new(),
+            next_timer_preset_id: 1,
             ai_settings: AiSettings::default(),
             groq_settings: GroqSettings::default(),
             audio_settings: AudioSettings::default(),
