@@ -4308,6 +4308,11 @@ impl CrosshairApp {
             MacroAction::UnlockMouse => "UnlockMouse",
             MacroAction::EnableMacroPreset => "EnableMacroPreset",
             MacroAction::DisableMacroPreset => "DisableMacroPreset",
+            MacroAction::StartTimerPreset => "StartTimerPreset",
+            MacroAction::PauseTimerPreset => "PauseTimerPreset",
+            MacroAction::StopTimerPreset => "StopTimerPreset",
+            MacroAction::EnableStep => "EnableStep",
+            MacroAction::DisableStep => "DisableStep",
             MacroAction::MouseLeftClick => "MouseLeftClick",
             MacroAction::MouseLeftDown => "MouseLeftDown",
             MacroAction::MouseLeftUp => "MouseLeftUp",
@@ -4544,6 +4549,11 @@ impl CrosshairApp {
             MacroAction::UnlockMouse => 0xe898,
             MacroAction::EnableMacroPreset => 0xe86c,
             MacroAction::DisableMacroPreset => 0xe14b,
+            MacroAction::StartTimerPreset => 0xe037,
+            MacroAction::PauseTimerPreset => 0xe034,
+            MacroAction::StopTimerPreset => 0xe047,
+            MacroAction::EnableStep => 0xe86c,
+            MacroAction::DisableStep => 0xe14b,
             MacroAction::MouseLeftClick => 0xe323,
             MacroAction::MouseLeftDown => 0xe5c5,
             MacroAction::MouseLeftUp => 0xe5c7,
@@ -4609,6 +4619,11 @@ impl CrosshairApp {
                 MacroAction::UnlockMouse => "Mở chuột",
                 MacroAction::EnableMacroPreset => "Bật preset",
                 MacroAction::DisableMacroPreset => "Tắt preset",
+                MacroAction::StartTimerPreset => "Bắt đầu Hẹn giờ",
+                MacroAction::PauseTimerPreset => "Dừng Hẹn giờ",
+                MacroAction::StopTimerPreset => "Tắt Hẹn giờ",
+                MacroAction::EnableStep => "Bật Step",
+                MacroAction::DisableStep => "Tắt Step",
                 MacroAction::MouseLeftClick => "Trái",
                 MacroAction::MouseLeftDown => "Trái↓",
                 MacroAction::MouseLeftUp => "Trái↑",
@@ -4665,6 +4680,11 @@ impl CrosshairApp {
                 MacroAction::UnlockMouse => "ML Off",
                 MacroAction::EnableMacroPreset => "PresetOn",
                 MacroAction::DisableMacroPreset => "PresetOff",
+                MacroAction::StartTimerPreset => "Start Timer",
+                MacroAction::PauseTimerPreset => "Pause Timer",
+                MacroAction::StopTimerPreset => "Stop Timer",
+                MacroAction::EnableStep => "StepOn",
+                MacroAction::DisableStep => "StepOff",
                 MacroAction::MouseLeftClick => "LClick",
                 MacroAction::MouseLeftDown => "LDown",
                 MacroAction::MouseLeftUp => "LUp",
@@ -4721,6 +4741,11 @@ impl CrosshairApp {
                 MacroAction::UnlockMouse => "ML Off",
                 MacroAction::EnableMacroPreset => "PresetOn",
                 MacroAction::DisableMacroPreset => "PresetOff",
+                MacroAction::StartTimerPreset => "Start Timer",
+                MacroAction::PauseTimerPreset => "Pause Timer",
+                MacroAction::StopTimerPreset => "Stop Timer",
+                MacroAction::EnableStep => "StepOn",
+                MacroAction::DisableStep => "StepOff",
                 MacroAction::MouseLeftClick => "LClick",
                 MacroAction::MouseLeftDown => "LDown",
                 MacroAction::MouseLeftUp => "LUp",
@@ -4859,15 +4884,18 @@ impl CrosshairApp {
                 | MacroAction::PlaySoundPreset
                 | MacroAction::EnableMacroPreset
                 | MacroAction::DisableMacroPreset
-                | MacroAction::StartVisionSearch
-                | MacroAction::TriggerVisionMove
-                | MacroAction::StopVisionWait
-                | MacroAction::StopVision
+                | MacroAction::StartTimerPreset
+                | MacroAction::PauseTimerPreset
+                | MacroAction::StopTimerPreset
+                | MacroAction::EnableStep
+                | MacroAction::DisableStep
                 | MacroAction::LoopStart
                 | MacroAction::StopIfKeyPressed
-                | MacroAction::ShowHud
                 | MacroAction::LockKeys
                 | MacroAction::UnlockKeys
+                | MacroAction::StartVisionSearch
+                | MacroAction::TriggerVisionMove
+                | MacroAction::StopVision
         )
     }
 
@@ -14137,6 +14165,11 @@ impl CrosshairApp {
                             });
 
                         let binding_labels = Self::macro_group_binding_labels(group);
+                        let group_preset_step_counts = group
+                            .presets
+                            .iter()
+                            .map(|preset| (preset.id, preset.steps.len() as u32))
+                            .collect::<Vec<_>>();
                         let group_preset_options = group
                             .presets
                             .iter()
@@ -14660,6 +14693,11 @@ impl CrosshairApp {
                                                             MacroAction::UnlockKeys,
                                                              MacroAction::EnableMacroPreset,
                                                              MacroAction::DisableMacroPreset,
+                                                                 MacroAction::StartTimerPreset,
+                                                                 MacroAction::PauseTimerPreset,
+                                                                 MacroAction::StopTimerPreset,
+                                                                 MacroAction::EnableStep,
+                                                                 MacroAction::DisableStep,
                                                         ]
                                                         .into_iter()
                                                         .enumerate()
@@ -14904,6 +14942,93 @@ impl CrosshairApp {
                                                                     .clicked()
                                                                 {
                                                                     step.key = preset_option_id.to_string();
+                                                                    live_sync = true;
+                                                                }
+                                                            }
+                                                        });
+                                                } else if matches!(step.action, MacroAction::EnableStep | MacroAction::DisableStep) {
+                                                    // Parse `preset_id|1,2,3` or `1,2,3` for legacy fallback
+                                                    let (selected_preset_id, mut selected_steps) = {
+                                                        let parts: Vec<&str> = step.key.split('|').collect();
+                                                        if parts.len() == 2 {
+                                                            let p_id = parts[0].trim().parse::<u32>().ok();
+                                                            let s_list = parts[1].split(',').filter_map(|s| s.trim().parse::<u32>().ok()).collect::<Vec<u32>>();
+                                                            (p_id, s_list)
+                                                        } else {
+                                                            let s_list = step.key.split(',').filter_map(|s| s.trim().parse::<u32>().ok()).collect::<Vec<u32>>();
+                                                            (None, s_list)
+                                                        }
+                                                    };
+                                                    
+                                                    let current_preset_id = selected_preset_id.unwrap_or(preset.id);
+                                                    
+                                                    ui.horizontal(|ui| {
+                                                        let preset_label = group_preset_options.iter()
+                                                            .find(|(id, _)| *id == current_preset_id)
+                                                            .map(|(_, label)| label.clone())
+                                                            .unwrap_or_else(|| Self::tr_lang(language, "Select preset", "Chọn preset").to_owned());
+                                                            
+                                                        egui::ComboBox::from_id_salt((group.id, preset.id, 0, "step-preset-select"))
+                                                            .width(100.0)
+                                                            .selected_text(preset_label)
+                                                            .show_ui(ui, |ui| {
+                                                                for (preset_option_id, preset_option_label) in &group_preset_options {
+                                                                    if ui.selectable_label(current_preset_id == *preset_option_id, preset_option_label).clicked() {
+                                                                        if current_preset_id != *preset_option_id {
+                                                                            step.key = format!("{}|", preset_option_id);
+                                                                            live_sync = true;
+                                                                        }
+                                                                    }
+                                                                }
+                                                            });
+                                                            
+                                                        let steps_label = if selected_steps.is_empty() {
+                                                            Self::tr_lang(language, "Select steps", "Chọn steps").to_owned()
+                                                        } else {
+                                                            format!("{} steps", selected_steps.len())
+                                                        };
+                                                        
+                                                        let target_step_count = group_preset_step_counts.iter()
+                                                            .find(|(id, _)| *id == current_preset_id)
+                                                            .map(|(_, count)| *count)
+                                                            .unwrap_or(0);
+                                                            
+                                                        egui::ComboBox::from_id_salt((group.id, preset.id, 0, "step-multi-select"))
+                                                            .width(100.0)
+                                                            .selected_text(steps_label)
+                                                            .show_ui(ui, |ui| {
+                                                                for i in 1..=target_step_count {
+                                                                    let mut is_selected = selected_steps.contains(&i);
+                                                                    if ui.checkbox(&mut is_selected, format!("Step {}", i)).changed() {
+                                                                        if is_selected {
+                                                                            selected_steps.push(i);
+                                                                        } else {
+                                                                            selected_steps.retain(|x| *x != i);
+                                                                        }
+                                                                        selected_steps.sort_unstable();
+                                                                        let steps_str = selected_steps.iter().map(|s| s.to_string()).collect::<Vec<_>>().join(",");
+                                                                        step.key = format!("{}|{}", current_preset_id, steps_str);
+                                                                        live_sync = true;
+                                                                    }
+                                                                }
+                                                            });
+                                                    });
+                                                } else if matches!(step.action, MacroAction::StartTimerPreset | MacroAction::PauseTimerPreset | MacroAction::StopTimerPreset) {
+                                                    let selected_id = step.key.trim().parse::<u32>().ok();
+                                                    let selected_label = selected_id
+                                                        .and_then(|id| {
+                                                            self.state.timer_presets.iter()
+                                                                .find(|p| p.id == id)
+                                                                .map(|p| p.name.clone())
+                                                        })
+                                                        .unwrap_or_else(|| Self::tr_lang(language, "Select timer", "Chọn hẹn giờ").to_owned());
+                                                    egui::ComboBox::from_id_salt((group.id, preset.id, "hold-stop-timer-preset"))
+                                                        .width(160.0)
+                                                        .selected_text(selected_label)
+                                                        .show_ui(ui, |ui| {
+                                                            for timer in &self.state.timer_presets {
+                                                                if ui.selectable_label(selected_id == Some(timer.id), &timer.name).clicked() {
+                                                                    step.key = timer.id.to_string();
                                                                     live_sync = true;
                                                                 }
                                                             }
@@ -15932,6 +16057,11 @@ impl CrosshairApp {
                                                                 MacroAction::UnlockKeys,
                                                                  MacroAction::EnableMacroPreset,
                                                                  MacroAction::DisableMacroPreset,
+                                                                 MacroAction::StartTimerPreset,
+                                                                 MacroAction::PauseTimerPreset,
+                                                                 MacroAction::StopTimerPreset,
+                                                                 MacroAction::EnableStep,
+                                                                 MacroAction::DisableStep,
                                                             ]
                                                             .into_iter()
                                                             .enumerate()
@@ -16172,6 +16302,93 @@ impl CrosshairApp {
                                                                     .clicked()
                                                                 {
                                                                     step.key = preset_option_id.to_string();
+                                                                    live_sync = true;
+                                                                }
+                                                            }
+                                                        });
+                                                } else if matches!(step.action, MacroAction::EnableStep | MacroAction::DisableStep) {
+                                                    // Parse `preset_id|1,2,3` or `1,2,3` for legacy fallback
+                                                    let (selected_preset_id, mut selected_steps) = {
+                                                        let parts: Vec<&str> = step.key.split('|').collect();
+                                                        if parts.len() == 2 {
+                                                            let p_id = parts[0].trim().parse::<u32>().ok();
+                                                            let s_list = parts[1].split(',').filter_map(|s| s.trim().parse::<u32>().ok()).collect::<Vec<u32>>();
+                                                            (p_id, s_list)
+                                                        } else {
+                                                            let s_list = step.key.split(',').filter_map(|s| s.trim().parse::<u32>().ok()).collect::<Vec<u32>>();
+                                                            (None, s_list)
+                                                        }
+                                                    };
+                                                    
+                                                    let current_preset_id = selected_preset_id.unwrap_or(preset.id);
+                                                    
+                                                    ui.horizontal(|ui| {
+                                                        let preset_label = group_preset_options.iter()
+                                                            .find(|(id, _)| *id == current_preset_id)
+                                                            .map(|(_, label)| label.clone())
+                                                            .unwrap_or_else(|| Self::tr_lang(language, "Select preset", "Chọn preset").to_owned());
+                                                            
+                                                        egui::ComboBox::from_id_salt((group.id, preset.id, step_index, "step-preset-select"))
+                                                            .width(100.0)
+                                                            .selected_text(preset_label)
+                                                            .show_ui(ui, |ui| {
+                                                                for (preset_option_id, preset_option_label) in &group_preset_options {
+                                                                    if ui.selectable_label(current_preset_id == *preset_option_id, preset_option_label).clicked() {
+                                                                        if current_preset_id != *preset_option_id {
+                                                                            step.key = format!("{}|", preset_option_id);
+                                                                            live_sync = true;
+                                                                        }
+                                                                    }
+                                                                }
+                                                            });
+                                                            
+                                                        let steps_label = if selected_steps.is_empty() {
+                                                            Self::tr_lang(language, "Select steps", "Chọn steps").to_owned()
+                                                        } else {
+                                                            format!("{} steps", selected_steps.len())
+                                                        };
+                                                        
+                                                        let target_step_count = group_preset_step_counts.iter()
+                                                            .find(|(id, _)| *id == current_preset_id)
+                                                            .map(|(_, count)| *count)
+                                                            .unwrap_or(0);
+                                                            
+                                                        egui::ComboBox::from_id_salt((group.id, preset.id, step_index, "step-multi-select"))
+                                                            .width(100.0)
+                                                            .selected_text(steps_label)
+                                                            .show_ui(ui, |ui| {
+                                                                for i in 1..=target_step_count {
+                                                                    let mut is_selected = selected_steps.contains(&i);
+                                                                    if ui.checkbox(&mut is_selected, format!("Step {}", i)).changed() {
+                                                                        if is_selected {
+                                                                            selected_steps.push(i);
+                                                                        } else {
+                                                                            selected_steps.retain(|x| *x != i);
+                                                                        }
+                                                                        selected_steps.sort_unstable();
+                                                                        let steps_str = selected_steps.iter().map(|s| s.to_string()).collect::<Vec<_>>().join(",");
+                                                                        step.key = format!("{}|{}", current_preset_id, steps_str);
+                                                                        live_sync = true;
+                                                                    }
+                                                                }
+                                                            });
+                                                    });
+                                                } else if matches!(step.action, MacroAction::StartTimerPreset | MacroAction::PauseTimerPreset | MacroAction::StopTimerPreset) {
+                                                    let selected_id = step.key.trim().parse::<u32>().ok();
+                                                    let selected_label = selected_id
+                                                        .and_then(|id| {
+                                                            self.state.timer_presets.iter()
+                                                                .find(|p| p.id == id)
+                                                                .map(|p| p.name.clone())
+                                                        })
+                                                        .unwrap_or_else(|| Self::tr_lang(language, "Select timer", "Chọn hẹn giờ").to_owned());
+                                                    egui::ComboBox::from_id_salt((group.id, preset.id, "hold-stop-timer-preset"))
+                                                        .width(160.0)
+                                                        .selected_text(selected_label)
+                                                        .show_ui(ui, |ui| {
+                                                            for timer in &self.state.timer_presets {
+                                                                if ui.selectable_label(selected_id == Some(timer.id), &timer.name).clicked() {
+                                                                    step.key = timer.id.to_string();
                                                                     live_sync = true;
                                                                 }
                                                             }
