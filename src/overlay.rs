@@ -1253,7 +1253,7 @@ mod windows_overlay {
             }
 
             // 2. If MacroNest UI is in the foreground, bypass all mouse events.
-            if UI_WINDOW_FOREGROUND.load(Ordering::Relaxed) {
+            if UI_WINDOW_FOREGROUND.load(Ordering::Relaxed) && !is_vision_capture_mouse_blocked() {
                 return CallNextHookEx(None, code, wparam, lparam);
             }
 
@@ -1261,7 +1261,7 @@ mod windows_overlay {
             // is actually the MacroNest window. This ensures that clicks on game windows that cover/obscure
             // MacroNest in the background are NOT bypassed, allowing macro triggering to work perfectly!
             let hwnd_at_point = WindowFromPoint(info.pt);
-            if !hwnd_at_point.0.is_null() {
+            if !hwnd_at_point.0.is_null() && !is_vision_capture_mouse_blocked() {
                 let root = GetAncestor(hwnd_at_point, GA_ROOT);
                 if !root.0.is_null() && window_belongs_to_current_process(root) {
                     return CallNextHookEx(None, code, wparam, lparam);
