@@ -14887,6 +14887,98 @@ impl CrosshairApp {
                                                         next_capture_target = Some(hold_stop_capture_target);
                                                     }
                                                 }
+                                                
+                                                // Dropdown right here for hold stop
+                                                let hs_menu_response = ui.menu_button(Self::material_icon_text(0xe5d2, 14.0), |ui| {
+                                                    ui.set_max_width(200.0);
+                                                     
+                                                     ui.menu_button(Self::tr_lang(language, "Letters (A-Z)", "Chữ cái (A-Z)"), |ui| {
+                                                         ui.set_max_width(120.0);
+                                                         egui::ScrollArea::vertical().max_height(200.0).show(ui, |ui| {
+                                                             for ch in b'A'..=b'Z' {
+                                                                 let key_str = (ch as char).to_string();
+                                                                 if ui.button(&key_str).clicked() {
+                                                                     step.key = key_str;
+                                                                     live_sync = true;
+                                                                     ui.close_menu();
+                                                                 }
+                                                             }
+                                                         });
+                                                     });
+
+                                                     ui.menu_button(Self::tr_lang(language, "Numbers & Symbols", "Số & Kí tự"), |ui| {
+                                                         ui.set_max_width(140.0);
+                                                         egui::ScrollArea::vertical().max_height(200.0).show(ui, |ui| {
+                                                             for num in ["0", "1", "2", "3", "4", "5", "6", "7", "8", "9"] {
+                                                                 if ui.button(num).clicked() {
+                                                                     step.key = num.to_string();
+                                                                     live_sync = true;
+                                                                     ui.close_menu();
+                                                                 }
+                                                             }
+                                                             ui.separator();
+                                                             for sym in [";", "=", ",", "-", ".", "/", "`", "[", "\\", "]", "'"] {
+                                                                 if ui.button(sym).clicked() {
+                                                                     step.key = sym.to_string();
+                                                                     live_sync = true;
+                                                                     ui.close_menu();
+                                                                 }
+                                                             }
+                                                         });
+                                                     });
+
+                                                     ui.menu_button(Self::tr_lang(language, "Navigation", "Điều hướng & Phím tắt"), |ui| {
+                                                         ui.set_max_width(160.0);
+                                                         for key in ["Escape", "Enter", "Space", "Backspace", "Tab", "Insert", "Delete", "Home", "End", "PageUp", "PageDown", "Left", "Up", "Right", "Down", "PrintScreen", "Pause"] {
+                                                             if ui.button(key).clicked() {
+                                                                 step.key = key.to_string();
+                                                                 live_sync = true;
+                                                                 ui.close_menu();
+                                                             }
+                                                         }
+                                                     });
+
+                                                     ui.menu_button(Self::tr_lang(language, "Function (F1-F24)", "Phím chức năng"), |ui| {
+                                                         ui.set_max_width(100.0);
+                                                         egui::ScrollArea::vertical().max_height(200.0).show(ui, |ui| {
+                                                             for num in 1..=24 {
+                                                                 let key_str = format!("F{}", num);
+                                                                 if ui.button(&key_str).clicked() {
+                                                                     step.key = key_str;
+                                                                     live_sync = true;
+                                                                     ui.close_menu();
+                                                                 }
+                                                             }
+                                                         });
+                                                     });
+
+                                                     ui.menu_button(Self::tr_lang(language, "Numpad", "Bàn phím số phụ"), |ui| {
+                                                         ui.set_max_width(160.0);
+                                                         for key in ["Numpad0", "Numpad1", "Numpad2", "Numpad3", "Numpad4", "Numpad5", "Numpad6", "Numpad7", "Numpad8", "Numpad9", "NumpadMultiply", "NumpadAdd", "NumpadSubtract", "NumpadDecimal", "NumpadDivide"] {
+                                                             if ui.button(key).clicked() {
+                                                                 step.key = key.to_string();
+                                                                 live_sync = true;
+                                                                 ui.close_menu();
+                                                             }
+                                                         }
+                                                     });
+
+                                                     ui.menu_button(Self::tr_lang(language, "Modifiers & Locks", "Phím khóa & bổ trợ"), |ui| {
+                                                         ui.set_max_width(150.0);
+                                                         for key in ["Ctrl", "Alt", "Shift", "Win", "CapsLock", "NumLock", "ScrollLock", "Apps"] {
+                                                             if ui.button(key).clicked() {
+                                                                 step.key = key.to_string();
+                                                                 live_sync = true;
+                                                                 ui.close_menu();
+                                                             }
+                                                         }
+                                                     });
+                                                 });
+                                                 hs_menu_response.response.on_hover_text(Self::tr_lang(
+                                                     language,
+                                                     "Manually select key",
+                                                     "Chọn phím thủ công"
+                                                 ));
                                             } else {
                                                 ui.add_sized([28.0, 22.0], egui::Label::new(""));
                                             }
@@ -14919,7 +15011,7 @@ impl CrosshairApp {
                                         }
                                         if ui
                                             .add_sized(
-                                                [28.0, 20.0],
+                                                [22.0, 20.0],
                                                 Button::new(Self::ai_badge_text(false))
                                                     .fill(Self::ai_badge_fill())
                                                     .stroke(Self::ai_badge_stroke())
@@ -14960,7 +15052,7 @@ impl CrosshairApp {
                                                 .color(dot_color)
                                                 .strong()
                                         );
-                                        if ui.add_sized([64.0, 20.0], record_btn)
+                                        if ui.add_sized([82.0, 20.0], record_btn)
                                             .on_hover_text(Self::tr_lang(
                                                 language,
                                                 "Record your keyboard and mouse clicks globally to automatically generate macro steps",
@@ -15021,7 +15113,7 @@ impl CrosshairApp {
                                             ).to_string()
                                         };
 
-                                        if ui.add_sized([20.0, 20.0], kbd_btn)
+                                        if ui.add_sized([22.0, 20.0], kbd_btn)
                                             .on_hover_text(hover_text)
                                             .clicked()
                                         {
@@ -15039,35 +15131,6 @@ impl CrosshairApp {
                                         } else {
                                             preset.record_hotkey.clone()
                                         };
-
-                                        if capture_active {
-                                            let label_text = if let Some(binding) = &preview_binding {
-                                                Self::format_binding_ui(language, Some(binding))
-                                            } else {
-                                                Self::tr_lang(language, "Capturing...", "Đang bắt...").to_string()
-                                            };
-                                            ui.colored_label(
-                                                Color32::from_rgb(255, 232, 96), // pulsing yellow/gold
-                                                format!(" ({label_text})")
-                                            );
-                                        } else if let Some(binding) = &preset.record_hotkey {
-                                            let key_name = Self::format_binding_ui(language, Some(binding));
-                                            ui.colored_label(
-                                                Color32::from_rgb(96, 232, 255), // light blue/cyan for standard label
-                                                format!(" [{key_name}]")
-                                            );
-                                        }
-                                        
-                                        if has_rec_hotkey && !capture_active {
-                                            let clear_btn = Button::new(RichText::new(Self::material_icon_text(0xe14c, 10.0).text()).color(Color32::LIGHT_RED));
-                                            if ui.add_sized([20.0, 20.0], clear_btn)
-                                                .on_hover_text(Self::tr_lang(language, "Clear hotkey", "Xóa phím tắt"))
-                                                .clicked()
-                                            {
-                                                preset.record_hotkey = None;
-                                                live_sync = true;
-                                            }
-                                        }
 
                                         // Overlay status text label: "Recording..." / "Đang ghi..."
                                         if is_recording_this {
@@ -15106,6 +15169,36 @@ impl CrosshairApp {
                                             .clicked()
                                         {
                                             copy_selected_steps = Some((group.id, preset.id));
+                                        }
+                                        
+                                        // Render hotkey label here on the far right to maintain absolute header alignment
+                                        if capture_active {
+                                            let label_text = if let Some(binding) = &preview_binding {
+                                                Self::format_binding_ui(language, Some(binding))
+                                            } else {
+                                                Self::tr_lang(language, "Capturing...", "Đang bắt...").to_string()
+                                            };
+                                            ui.colored_label(
+                                                Color32::from_rgb(255, 232, 96),
+                                                format!(" ({label_text})")
+                                            );
+                                        } else if let Some(binding) = &preset.record_hotkey {
+                                            let key_name = Self::format_binding_ui(language, Some(binding));
+                                            ui.colored_label(
+                                                Color32::from_rgb(96, 232, 255),
+                                                format!(" [{key_name}]")
+                                            );
+                                        }
+                                        
+                                        if has_rec_hotkey && !capture_active {
+                                            let clear_btn = Button::new(RichText::new(Self::material_icon_text(0xe14c, 10.0).text()).color(Color32::LIGHT_RED));
+                                            if ui.add_sized([20.0, 20.0], clear_btn)
+                                                .on_hover_text(Self::tr_lang(language, "Clear hotkey", "Xóa phím tắt"))
+                                                .clicked()
+                                            {
+                                                preset.record_hotkey = None;
+                                                live_sync = true;
+                                            }
                                         }
                                     });
                                 });
@@ -15251,7 +15344,7 @@ impl CrosshairApp {
                                             }
                                             if ui
                                                 .add_sized(
-                                                    [28.0, 20.0],
+                                                    [22.0, 20.0],
                                                     Button::new(Self::ai_badge_text(false))
                                                         .fill(Self::ai_badge_fill())
                                                         .stroke(Self::ai_badge_stroke())
@@ -15269,8 +15362,19 @@ impl CrosshairApp {
                                                     MacroAiMode::AppendSteps,
                                                 ));
                                             }
-                                            let mut select_val = is_selected;
-                                            if ui.checkbox(&mut select_val, "").changed() {
+                                            let select_icon = if is_selected {
+                                                Self::material_icon_text(0xe834, 12.0).color(Color32::from_rgb(96, 232, 255))
+                                            } else {
+                                                Self::material_icon_text(0xe835, 12.0).color(Color32::from_rgb(180, 180, 180))
+                                            };
+                                            if ui
+                                                .add_sized(
+                                                    [22.0, 20.0],
+                                                    Button::new(select_icon),
+                                                )
+                                                .on_hover_text(Self::tr_lang(language, "Select step", "Chọn bước này"))
+                                                .clicked()
+                                            {
                                                 pending_step_selection = Some((
                                                     group.id,
                                                     preset.id,
@@ -15308,7 +15412,7 @@ impl CrosshairApp {
                                             let drag_handle = ui
                                                 .add_sized(
                                                     [22.0, 20.0],
-                                                    Button::new(RichText::new("::").monospace().strong().size(11.0))
+                                                    Button::new(Self::material_icon_text(0xe25d, 12.0))
                                                         .sense(Sense::drag()),
                                                 )
                                                 .on_hover_cursor(egui::CursorIcon::Grab);
@@ -16240,6 +16344,98 @@ impl CrosshairApp {
                                                         next_capture_target = Some(step_capture_target);
                                                     }
                                                 }
+                                                
+                                                // Dropdown right here
+                                                let menu_response = ui.menu_button(Self::material_icon_text(0xe5d2, 14.0), |ui| {
+                                                    ui.set_max_width(200.0);
+                                                    
+                                                    ui.menu_button(Self::tr_lang(language, "Letters (A-Z)", "Chữ cái (A-Z)"), |ui| {
+                                                        ui.set_max_width(120.0);
+                                                        egui::ScrollArea::vertical().max_height(200.0).show(ui, |ui| {
+                                                            for ch in b'A'..=b'Z' {
+                                                                let key_str = (ch as char).to_string();
+                                                                if ui.button(&key_str).clicked() {
+                                                                    step.key = key_str;
+                                                                    live_sync = true;
+                                                                    ui.close_menu();
+                                                                }
+                                                            }
+                                                        });
+                                                    });
+
+                                                    ui.menu_button(Self::tr_lang(language, "Numbers & Symbols", "Số & Kí tự"), |ui| {
+                                                        ui.set_max_width(140.0);
+                                                        egui::ScrollArea::vertical().max_height(200.0).show(ui, |ui| {
+                                                            for num in ["0", "1", "2", "3", "4", "5", "6", "7", "8", "9"] {
+                                                                if ui.button(num).clicked() {
+                                                                    step.key = num.to_string();
+                                                                    live_sync = true;
+                                                                    ui.close_menu();
+                                                                }
+                                                            }
+                                                            ui.separator();
+                                                            for sym in [";", "=", ",", "-", ".", "/", "`", "[", "\\", "]", "'"] {
+                                                                if ui.button(sym).clicked() {
+                                                                    step.key = sym.to_string();
+                                                                    live_sync = true;
+                                                                    ui.close_menu();
+                                                                }
+                                                            }
+                                                        });
+                                                    });
+
+                                                    ui.menu_button(Self::tr_lang(language, "Navigation", "Điều hướng & Phím tắt"), |ui| {
+                                                        ui.set_max_width(160.0);
+                                                        for key in ["Escape", "Enter", "Space", "Backspace", "Tab", "Insert", "Delete", "Home", "End", "PageUp", "PageDown", "Left", "Up", "Right", "Down", "PrintScreen", "Pause"] {
+                                                            if ui.button(key).clicked() {
+                                                                step.key = key.to_string();
+                                                                live_sync = true;
+                                                                ui.close_menu();
+                                                            }
+                                                        }
+                                                    });
+
+                                                    ui.menu_button(Self::tr_lang(language, "Function (F1-F24)", "Phím chức năng"), |ui| {
+                                                        ui.set_max_width(100.0);
+                                                        egui::ScrollArea::vertical().max_height(200.0).show(ui, |ui| {
+                                                            for num in 1..=24 {
+                                                                let key_str = format!("F{}", num);
+                                                                if ui.button(&key_str).clicked() {
+                                                                    step.key = key_str;
+                                                                    live_sync = true;
+                                                                    ui.close_menu();
+                                                                }
+                                                            }
+                                                        });
+                                                    });
+
+                                                    ui.menu_button(Self::tr_lang(language, "Numpad", "Bàn phím số phụ"), |ui| {
+                                                        ui.set_max_width(160.0);
+                                                        for key in ["Numpad0", "Numpad1", "Numpad2", "Numpad3", "Numpad4", "Numpad5", "Numpad6", "Numpad7", "Numpad8", "Numpad9", "NumpadMultiply", "NumpadAdd", "NumpadSubtract", "NumpadDecimal", "NumpadDivide"] {
+                                                            if ui.button(key).clicked() {
+                                                                step.key = key.to_string();
+                                                                live_sync = true;
+                                                                ui.close_menu();
+                                                            }
+                                                        }
+                                                    });
+
+                                                    ui.menu_button(Self::tr_lang(language, "Modifiers & Locks", "Phím khóa & bổ trợ"), |ui| {
+                                                        ui.set_max_width(150.0);
+                                                        for key in ["Ctrl", "Alt", "Shift", "Win", "CapsLock", "NumLock", "ScrollLock", "Apps"] {
+                                                            if ui.button(key).clicked() {
+                                                                step.key = key.to_string();
+                                                                live_sync = true;
+                                                                ui.close_menu();
+                                                            }
+                                                        }
+                                                    });
+                                                });
+                                                menu_response.response.on_hover_text(Self::tr_lang(
+                                                    language,
+                                                    "Manually select key",
+                                                    "Chọn phím thủ công"
+                                                ));
                                             } else {
                                                 ui.add_sized([28.0, 18.0], egui::Label::new(""));
                                             }
@@ -17929,7 +18125,7 @@ impl CrosshairApp {
                                     live_sync |= ui
                                         .add(
                                             DragValue::new(&mut preset.color_scan_rate_hz)
-                                                .range(1..=120)
+                                                .range(1..=2000)
                                                 .suffix(" Hz"),
                                         )
                                         .changed();
