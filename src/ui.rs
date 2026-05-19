@@ -3243,31 +3243,54 @@ impl CrosshairApp {
     ) -> bool {
         let mut changed = false;
         ui.vertical(|ui| {
-            egui::ComboBox::from_id_salt((id_source, "primary-target-window"))
-                .width(360.0)
-                .selected_text(
-                    primary
-                        .clone()
-                        .unwrap_or_else(|| label_when_none.to_owned()),
-                )
-                .show_ui(ui, |ui| {
-                    if ui
-                        .selectable_label(primary.is_none(), label_when_none)
-                        .clicked()
-                    {
-                        *primary = None;
-                        changed = true;
-                    }
-                    for title in open_windows {
+            ui.horizontal(|ui| {
+                egui::ComboBox::from_id_salt((id_source, "primary-target-window"))
+                    .width(320.0)
+                    .selected_text(
+                        primary
+                            .clone()
+                            .unwrap_or_else(|| label_when_none.to_owned()),
+                    )
+                    .show_ui(ui, |ui| {
                         if ui
-                            .selectable_label(primary.as_deref() == Some(title), title)
+                            .selectable_label(primary.is_none(), label_when_none)
                             .clicked()
                         {
-                            *primary = Some(title.clone());
+                            *primary = None;
                             changed = true;
                         }
+                        for title in open_windows {
+                            if ui
+                                .selectable_label(primary.as_deref() == Some(title), title)
+                                .clicked()
+                            {
+                                *primary = Some(title.clone());
+                                changed = true;
+                            }
+                        }
+                    });
+
+                let dropdown_height = ui.spacing().interact_size.y;
+                let add_btn = Button::new(RichText::new("+").strong());
+                if ui.add_sized([dropdown_height, dropdown_height], add_btn)
+                    .on_hover_text(Self::tr_lang(language, "+ Window", "+ Cửa sổ"))
+                    .clicked()
+                {
+                    let next = open_windows
+                        .iter()
+                        .find(|title| {
+                            primary.as_deref() != Some(title.as_str())
+                                && !extras.iter().any(|existing| existing == *title)
+                        })
+                        .cloned()
+                        .or_else(|| open_windows.first().cloned())
+                        .unwrap_or_default();
+                    if !next.is_empty() {
+                        extras.push(next);
+                        changed = true;
                     }
-                });
+                }
+            });
 
             let mut remove_index = None;
             for (index, extra) in extras.iter_mut().enumerate() {
@@ -3283,7 +3306,8 @@ impl CrosshairApp {
                                 }
                             }
                         });
-                    if ui.button("X").clicked() {
+                    let dropdown_height = ui.spacing().interact_size.y;
+                    if ui.add_sized([dropdown_height, dropdown_height], Button::new(RichText::new("X").strong())).clicked() {
                         remove_index = Some(index);
                     }
                 });
@@ -3291,22 +3315,6 @@ impl CrosshairApp {
             if let Some(index) = remove_index {
                 extras.remove(index);
                 changed = true;
-            }
-
-            if ui.button(Self::tr_lang(language, "+ Window", "+ Cửa sổ")).clicked() {
-                let next = open_windows
-                    .iter()
-                    .find(|title| {
-                        primary.as_deref() != Some(title.as_str())
-                            && !extras.iter().any(|existing| existing == *title)
-                    })
-                    .cloned()
-                    .or_else(|| open_windows.first().cloned())
-                    .unwrap_or_default();
-                if !next.is_empty() {
-                    extras.push(next);
-                    changed = true;
-                }
             }
         });
         changed
@@ -3469,16 +3477,39 @@ impl CrosshairApp {
     ) -> bool {
         let mut changed = false;
         ui.vertical(|ui| {
-            changed |= Self::render_window_target_combo_with_duplicate_mode(
-                ui,
-                (id_source, "primary"),
-                label_when_none,
-                primary,
-                match_duplicate_window_titles,
-                open_windows,
-                360.0,
-                true,
-            );
+            ui.horizontal(|ui| {
+                changed |= Self::render_window_target_combo_with_duplicate_mode(
+                    ui,
+                    (id_source, "primary"),
+                    label_when_none,
+                    primary,
+                    match_duplicate_window_titles,
+                    open_windows,
+                    320.0,
+                    true,
+                );
+
+                let dropdown_height = ui.spacing().interact_size.y;
+                let add_btn = Button::new(RichText::new("+").strong());
+                if ui.add_sized([dropdown_height, dropdown_height], add_btn)
+                    .on_hover_text(Self::tr_lang(language, "+ Window", "+ Cửa sổ"))
+                    .clicked()
+                {
+                    let next = open_windows
+                        .iter()
+                        .find(|title| {
+                            primary.as_deref() != Some(title.as_str())
+                                && !extras.iter().any(|existing| existing == *title)
+                        })
+                        .cloned()
+                        .or_else(|| open_windows.first().cloned())
+                        .unwrap_or_default();
+                    if !next.is_empty() {
+                        extras.push(next);
+                        changed = true;
+                    }
+                }
+            });
 
             let mut remove_index = None;
             for (index, extra) in extras.iter_mut().enumerate() {
@@ -3499,7 +3530,8 @@ impl CrosshairApp {
                             changed = true;
                         }
                     }
-                    if ui.button("X").clicked() {
+                    let dropdown_height = ui.spacing().interact_size.y;
+                    if ui.add_sized([dropdown_height, dropdown_height], Button::new(RichText::new("X").strong())).clicked() {
                         remove_index = Some(index);
                     }
                 });
@@ -3507,22 +3539,6 @@ impl CrosshairApp {
             if let Some(index) = remove_index {
                 extras.remove(index);
                 changed = true;
-            }
-
-            if ui.button(Self::tr_lang(language, "+ Window", "+ Cửa sổ")).clicked() {
-                let next = open_windows
-                    .iter()
-                    .find(|title| {
-                        primary.as_deref() != Some(title.as_str())
-                            && !extras.iter().any(|existing| existing == *title)
-                    })
-                    .cloned()
-                    .or_else(|| open_windows.first().cloned())
-                    .unwrap_or_default();
-                if !next.is_empty() {
-                    extras.push(next);
-                    changed = true;
-                }
             }
         });
         changed
@@ -14055,6 +14071,8 @@ impl CrosshairApp {
                             ui.with_layout(
                                 egui::Layout::right_to_left(egui::Align::Center),
                                 |ui| {
+                                    ui.spacing_mut().item_spacing.x = 6.0;
+
                                     let enabled_icon = if group.enabled { 0xe834 } else { 0xe835 };
                                     let enabled_fill = if group.enabled {
                                         Color32::from_rgba_premultiplied(72, 156, 116, 120)
@@ -14102,96 +14120,97 @@ impl CrosshairApp {
                                         group.collapsed = !group.collapsed;
                                         live_sync = true;
                                     }
+
+                                    if !group.collapsed {
+                                        let folder_popup_id =
+                                            ui.make_persistent_id((group.id, "macro-group-folder-popup"));
+                                        let mut folder_popup_open = ui
+                                            .ctx()
+                                            .data(|data| data.get_temp::<bool>(folder_popup_id))
+                                            .unwrap_or(false);
+                                        let folder_button = Self::sound_style_icon_button(
+                                            ui,
+                                            Self::folder_icon_text(group.folder_id.is_some(), 18.0).color(
+                                                if group.folder_id.is_some() {
+                                                    Color32::from_rgb(248, 214, 102)
+                                                } else {
+                                                    ui.visuals().widgets.inactive.fg_stroke.color
+                                                },
+                                            ),
+                                        );
+                                        if folder_button.clicked() {
+                                            folder_popup_open = true;
+                                        }
+                                        let mut selected_folder_after_popup: Option<Option<u32>> = None;
+                                        let popup_response = egui::Popup::from_response(&folder_button)
+                                            .id(folder_popup_id)
+                                            .open_bool(&mut folder_popup_open)
+                                            .align(egui::RectAlign::BOTTOM_END)
+                                            .layout(egui::Layout::top_down_justified(egui::Align::Min))
+                                            .width(220.0)
+                                            .close_behavior(egui::PopupCloseBehavior::IgnoreClicks)
+                                            .show(|ui| {
+                                                ui.set_min_width(220.0);
+                                                ui.label(Self::tr_lang(language, "Folder", "Folder"));
+                                                ui.separator();
+                                                if ui
+                                                    .selectable_label(
+                                                        group.folder_id.is_none(),
+                                                        Self::tr_lang(language, "No folder", "No folder"),
+                                                    )
+                                                    .clicked()
+                                                {
+                                                    selected_folder_after_popup = Some(None);
+                                                }
+                                                for folder in &self.state.macro_folders {
+                                                    if ui
+                                                        .selectable_label(
+                                                            group.folder_id == Some(folder.id),
+                                                            &folder.name,
+                                                        )
+                                                        .clicked()
+                                                    {
+                                                        selected_folder_after_popup = Some(Some(folder.id));
+                                                    }
+                                                }
+                                            });
+                                        if let Some(selected_folder) = selected_folder_after_popup {
+                                            group.folder_id = selected_folder;
+                                            live_sync = true;
+                                            folder_popup_open = false;
+                                        }
+                                        if folder_popup_open
+                                            && let Some(pointer_pos) = ui.ctx().pointer_hover_pos()
+                                        {
+                                            let mut keep_open_rect = folder_button.rect.expand(10.0);
+                                            if let Some(popup) = &popup_response {
+                                                keep_open_rect =
+                                                    keep_open_rect.union(popup.response.rect.expand(10.0));
+                                            }
+                                            if !keep_open_rect.contains(pointer_pos) {
+                                                folder_popup_open = false;
+                                            }
+                                        }
+                                        ui.ctx().data_mut(|data| {
+                                            data.insert_temp(folder_popup_id, folder_popup_open)
+                                        });
+
+                                        if Self::sized_button(
+                                            ui,
+                                            92.0,
+                                            Self::tr_lang(language, "+ Preset", "+ Preset"),
+                                        )
+                                        .clicked()
+                                        {
+                                            add_preset_to_group = Some(group.id);
+                                        }
+                                    }
                                 },
                             );
                         });
                         if group.collapsed {
                             return;
                         }
-                        ui.add_space(4.0);
-                        ui.horizontal_wrapped(|ui| {
-                            if Self::sized_button(
-                                ui,
-                                92.0,
-                                Self::tr_lang(language, "+ Preset", "+ Preset"),
-                            )
-                            .clicked()
-                            {
-                                add_preset_to_group = Some(group.id);
-                            }
-                            let folder_popup_id =
-                                ui.make_persistent_id((group.id, "macro-group-folder-popup"));
-                            let mut folder_popup_open = ui
-                                .ctx()
-                                .data(|data| data.get_temp::<bool>(folder_popup_id))
-                                .unwrap_or(false);
-                            let folder_button = Self::sound_style_icon_button(
-                                ui,
-                                Self::folder_icon_text(group.folder_id.is_some(), 18.0).color(
-                                    if group.folder_id.is_some() {
-                                        Color32::from_rgb(248, 214, 102)
-                                    } else {
-                                        ui.visuals().widgets.inactive.fg_stroke.color
-                                    },
-                                ),
-                            );
-                            if folder_button.clicked() {
-                                folder_popup_open = true;
-                            }
-                            let mut selected_folder_after_popup: Option<Option<u32>> = None;
-                            let popup_response = egui::Popup::from_response(&folder_button)
-                                .id(folder_popup_id)
-                                .open_bool(&mut folder_popup_open)
-                                .align(egui::RectAlign::BOTTOM_END)
-                                .layout(egui::Layout::top_down_justified(egui::Align::Min))
-                                .width(220.0)
-                                .close_behavior(egui::PopupCloseBehavior::IgnoreClicks)
-                                .show(|ui| {
-                                    ui.set_min_width(220.0);
-                                    ui.label(Self::tr_lang(language, "Folder", "Folder"));
-                                    ui.separator();
-                                    if ui
-                                        .selectable_label(
-                                            group.folder_id.is_none(),
-                                            Self::tr_lang(language, "No folder", "No folder"),
-                                        )
-                                        .clicked()
-                                    {
-                                        selected_folder_after_popup = Some(None);
-                                    }
-                                    for folder in &self.state.macro_folders {
-                                        if ui
-                                            .selectable_label(
-                                                group.folder_id == Some(folder.id),
-                                                &folder.name,
-                                            )
-                                            .clicked()
-                                        {
-                                            selected_folder_after_popup = Some(Some(folder.id));
-                                        }
-                                    }
-                                });
-                            if let Some(selected_folder) = selected_folder_after_popup {
-                                group.folder_id = selected_folder;
-                                live_sync = true;
-                                folder_popup_open = false;
-                            }
-                            if folder_popup_open
-                                && let Some(pointer_pos) = ui.ctx().pointer_hover_pos()
-                            {
-                                let mut keep_open_rect = folder_button.rect.expand(10.0);
-                                if let Some(popup) = &popup_response {
-                                    keep_open_rect =
-                                        keep_open_rect.union(popup.response.rect.expand(10.0));
-                                }
-                                if !keep_open_rect.contains(pointer_pos) {
-                                    folder_popup_open = false;
-                                }
-                            }
-                            ui.ctx().data_mut(|data| {
-                                data.insert_temp(folder_popup_id, folder_popup_open)
-                            });
-                        });
                         ui.separator();
                         egui::Grid::new((group.id, "group-target-row"))
                             .num_columns(2)
@@ -15705,70 +15724,82 @@ impl CrosshairApp {
                                             ui.visuals().widgets.inactive.bg_fill
                                         };
                                         
-                                        let kbd_btn_text = if capture_active {
-                                            Self::tr_lang(language, "capturing", "capturing").to_owned()
-                                        } else if let Some(binding) = &preset.record_hotkey {
-                                            Self::format_binding_ui(language, Some(binding))
-                                        } else {
-                                            Self::material_icon_text(0xe312, 10.0).text().to_owned()
-                                        };
+                                         let kbd_btn_text = if capture_active {
+                                             if let Some(pending) = self.capture_hotkey_combo_keys.as_ref() {
+                                                 if !pending.is_empty() {
+                                                     let preview = Self::hotkey_binding_from_combo_keys(pending.clone());
+                                                     Self::format_binding_ui(language, Some(&preview))
+                                                 } else {
+                                                     Self::tr_lang(language, "capturing", "capturing").to_owned()
+                                                 }
+                                             } else {
+                                                 Self::tr_lang(language, "capturing", "capturing").to_owned()
+                                             }
+                                         } else if let Some(binding) = &preset.record_hotkey {
+                                             Self::format_binding_ui(language, Some(binding))
+                                         } else {
+                                             Self::material_icon_text(0xe312, 10.0).text().to_owned()
+                                         };
 
-                                        let text_color = if capture_active {
-                                            Color32::WHITE
-                                        } else if has_rec_hotkey {
-                                            Color32::from_rgb(96, 232, 255)
-                                        } else {
-                                            ui.visuals().widgets.inactive.text_color()
-                                        };
+                                         let text_color = if capture_active {
+                                             Color32::WHITE
+                                         } else if has_rec_hotkey {
+                                             Color32::from_rgb(96, 232, 255)
+                                         } else {
+                                             ui.visuals().widgets.inactive.text_color()
+                                         };
 
-                                        let hover_text = if let Some(binding) = &preset.record_hotkey {
-                                            let key_ui = Self::format_binding_ui(language, Some(binding));
-                                            let fmt = Self::tr_lang(
-                                                language,
-                                                "Bound trigger key: {} (Click to change)",
-                                                "Phím tắt đã gán: {} (Nhấp để thay đổi)",
-                                            );
-                                            fmt.replace("{}", &key_ui)
-                                        } else {
-                                            Self::tr_lang(
-                                                language,
-                                                "Click to bind a keyboard key to start/stop macro recording dynamically",
-                                                "Nhấp để gán phím tắt bắt đầu/dừng ghi macro nhanh",
-                                            ).to_string()
-                                        };
+                                         let hover_text = if let Some(binding) = &preset.record_hotkey {
+                                             let key_ui = Self::format_binding_ui(language, Some(binding));
+                                             let fmt = Self::tr_lang(
+                                                 language,
+                                                 "Bound trigger key: {} (Click to clear)",
+                                                 "Phím tắt đã gán: {} (Nhấp để xóa)",
+                                             );
+                                             fmt.replace("{}", &key_ui)
+                                         } else {
+                                             Self::tr_lang(
+                                                 language,
+                                                 "Click to bind a keyboard key to start/stop macro recording dynamically",
+                                                 "Nhấp để gán phím tắt bắt đầu/dừng ghi macro nhanh",
+                                             ).to_string()
+                                         };
 
-                                        let clicked = ui.scope(|ui| {
-                                            ui.spacing_mut().button_padding = egui::vec2(6.0, 0.0);
-                                            let kbd_btn = Button::new(
-                                                RichText::new(kbd_btn_text)
-                                                    .color(text_color)
-                                                    .strong()
-                                                    .size(10.0)
-                                            )
-                                            .fill(capture_fill)
-                                            .min_size(egui::vec2(20.0, 20.0));
-                                            ui.add(kbd_btn)
-                                        }).inner.on_hover_text(hover_text).clicked();
+                                         let clicked = ui.scope(|ui| {
+                                             ui.spacing_mut().button_padding = egui::vec2(6.0, 0.0);
+                                             let kbd_btn = Button::new(
+                                                 RichText::new(kbd_btn_text)
+                                                     .color(text_color)
+                                                     .strong()
+                                                     .size(10.0)
+                                             )
+                                             .fill(capture_fill)
+                                             .min_size(egui::vec2(20.0, 20.0));
+                                             ui.add(kbd_btn)
+                                         }).inner.on_hover_text(hover_text).clicked();
 
-                                        if clicked {
-                                            if capture_active {
-                                                cancel_active_capture = true;
-                                            } else {
-                                                next_capture_target = Some(capture_target.clone());
-                                            }
-                                        }
-                                        
-                                        // Overlay status text label: "Recording..." / "Đang ghi..."
-                                        if is_recording_this {
-                                            let label_color = Color32::from_rgb(255, 96, 96);
-                                            let is_even = (std::time::SystemTime::now().duration_since(std::time::SystemTime::UNIX_EPOCH).unwrap_or_default().as_millis() / 500) % 2 == 0;
-                                            let text_color = if is_even { label_color } else { label_color.linear_multiply(0.6) };
-                                            ui.label(
-                                                RichText::new(Self::tr_lang(language, "Recording...", "Đang ghi..."))
-                                                    .color(text_color)
-                                                    .strong()
-                                            );
-                                        }
+                                         if clicked {
+                                             if capture_active {
+                                                 cancel_active_capture = true;
+                                             } else if has_rec_hotkey {
+                                                 preset.record_hotkey = None;
+                                                 live_sync = true;
+                                             } else {
+                                                 next_capture_target = Some(capture_target.clone());
+                                             }
+                                         }
+                                         
+                                         // Overlay status text label: "Recording..." / "Đang ghi..."
+                                         if is_recording_this {
+                                             let label_color = Color32::from_rgb(255, 96, 96);
+                                             let is_even = (std::time::SystemTime::now().duration_since(std::time::SystemTime::UNIX_EPOCH).unwrap_or_default().as_millis() / 500) % 2 == 0;
+                                             let text_color = if is_even { label_color } else { label_color.linear_multiply(0.6) };
+                                             ui.label(
+                                                 RichText::new(Self::tr_lang(language, "Recording...", "Đang ghi..."))
+                                                     .color(text_color)
+                                                     .strong()
+                                             );
+                                         }
                                         ui.add_sized([30.0, 18.0], egui::Label::new(RichText::new("#").strong()));
                                         ui.add_sized([54.0, 18.0], egui::Label::new(RichText::new(Self::tr_lang(language, "Delay", "Delay")).strong()));
                                         ui.add_sized([154.0, 18.0], egui::Label::new(RichText::new(Self::tr_lang(language, "Action", "Action")).strong()));
