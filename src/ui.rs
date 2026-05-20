@@ -571,6 +571,7 @@ pub struct CrosshairApp {
     last_window_refresh_at: Instant,
     last_active_panel: AppPanel,
     macro_drag_select_anchor: Option<(u32, u32, usize)>,
+    last_selected_macro_step: Option<(u32, u32, usize)>,
     active_macro_folder_view: Option<u32>,
     macro_folders_panel_open: bool,
     crosshair_panel_collapsed: bool,
@@ -712,6 +713,7 @@ impl CrosshairApp {
             last_window_refresh_at: Instant::now(),
             last_active_panel: initial_active_panel,
             macro_drag_select_anchor: None,
+            last_selected_macro_step: None,
             active_macro_folder_view: None,
             macro_folders_panel_open: false,
             crosshair_panel_collapsed: true,
@@ -16056,6 +16058,7 @@ impl CrosshairApp {
                                                     preset.id,
                                                     step_index,
                                                     ui.input(|input| input.modifiers.ctrl),
+                                                    ui.input(|input| input.modifiers.shift),
                                                 ));
                                             }
                                             let enabled_icon = if step.enabled {
@@ -17478,27 +17481,57 @@ impl CrosshairApp {
                         selection_after_paste = Some((group_id, preset_id, selection));
                         live_sync = true;
                     }
-                    if let Some((group_id, preset_id, step_index, additive)) =
+                    if let Some((group_id, preset_id, step_index, ctrl, shift)) =
                         pending_step_selection
                     {
-                        let currently_selected = self
-                            .selected_macro_steps
-                            .contains(&(group_id, preset_id, step_index));
-                        let selected_count_in_preset = self
-                            .selected_macro_steps
-                            .iter()
-                            .filter(|(selected_group, selected_preset, _)| {
-                                *selected_group == group_id && *selected_preset == preset_id
-                            })
-                            .count();
-                        self.select_macro_step(
-                            group_id,
-                            preset_id,
-                            step_index,
-                            additive,
-                            currently_selected,
-                            selected_count_in_preset,
-                        );
+                        if shift {
+                            let num_steps = self.state.macro_groups
+                                .iter()
+                                .find(|g| g.id == group_id)
+                                .and_then(|g| g.presets.iter().find(|p| p.id == preset_id))
+                                .map(|p| p.steps.len())
+                                .unwrap_or(0);
+
+                            if let Some((anchor_group, anchor_preset, anchor_index)) = self.last_selected_macro_step
+                                && anchor_group == group_id
+                                && anchor_preset == preset_id
+                                && anchor_index < num_steps
+                                && step_index < num_steps
+                            {
+                                let start = std::cmp::min(anchor_index, step_index);
+                                let end = std::cmp::max(anchor_index, step_index);
+                                if !ctrl {
+                                    self.clear_macro_step_selection_for_preset(group_id, preset_id);
+                                }
+                                for i in start..=end {
+                                    self.selected_macro_steps.insert((group_id, preset_id, i));
+                                }
+                            } else {
+                                self.clear_macro_step_selection_for_preset(group_id, preset_id);
+                                self.selected_macro_steps.insert((group_id, preset_id, step_index));
+                                self.last_selected_macro_step = Some((group_id, preset_id, step_index));
+                            }
+                        } else {
+                            let currently_selected = self
+                                .selected_macro_steps
+                                .contains(&(group_id, preset_id, step_index));
+                            let selected_count_in_preset = self
+                                .selected_macro_steps
+                                .iter()
+                                .filter(|(selected_group, selected_preset, _)| {
+                                    *selected_group == group_id && *selected_preset == preset_id
+                                })
+                                .count();
+                            self.select_macro_step(
+                                group_id,
+                                preset_id,
+                                step_index,
+                                ctrl,
+                                currently_selected,
+                                selected_count_in_preset,
+                            );
+                            self.last_selected_macro_step = Some((group_id, preset_id, step_index));
+                        }
                     }
                     if !ui.input(|input| input.pointer.primary_down()) {
                         self.macro_drag_select_anchor = None;
