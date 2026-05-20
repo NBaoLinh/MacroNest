@@ -610,6 +610,7 @@ pub struct CrosshairApp {
     opencv_download_job: Option<JoinHandle<Result<()>>>,
     opencv_download_progress: Arc<AtomicU32>,
     opencv_installed: bool,
+    copy_folder_feedback_until: Option<Instant>,
 }
 
 impl CrosshairApp {
@@ -753,6 +754,7 @@ impl CrosshairApp {
             opencv_download_job: None,
             opencv_download_progress: Arc::new(AtomicU32::new(0)),
             opencv_installed,
+            copy_folder_feedback_until: None,
         };
         app.ensure_master_presets();
         let mut startup_state_changed = false;
@@ -19837,18 +19839,26 @@ impl CrosshairApp {
                                     self.open_app_data_folder();
                                 }
                                 ui.add_space(8.0);
-                                if ui
-                                    .button(Self::tr_lang(
-                                        language,
-                                        "Copy folder",
-                                        "Sao chép thư mục",
-                                    ))
-                                    .clicked()
-                                {
+                                let is_copied = self.copy_folder_feedback_until
+                                    .map(|until| Instant::now() < until)
+                                    .unwrap_or(false);
+
+                                let btn_label = if is_copied {
+                                    Self::tr_lang(language, "Copied!", "Đã sao chép!")
+                                } else {
+                                    Self::tr_lang(language, "Copy folder", "Sao chép thư mục")
+                                };
+
+                                if is_copied {
+                                    ui.ctx().request_repaint_after(Duration::from_millis(200));
+                                }
+
+                                if ui.button(btn_label).clicked() {
                                     if let Err(e) = crate::platform::copy_folder_to_clipboard(&self.paths.root) {
                                         self.status = format!("Failed to copy folder: {e}");
                                     } else {
                                         self.status = Self::tr_lang(language, "Folder copied to clipboard.", "Đã chép thư mục vào clipboard.").to_owned();
+                                        self.copy_folder_feedback_until = Some(Instant::now() + Duration::from_secs(2));
                                     }
                                 }
                                 ui.add_space(8.0);
