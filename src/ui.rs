@@ -6878,7 +6878,7 @@ impl CrosshairApp {
                                     Self::render_macro_action_option(
                                         ui, language, current, action, live_sync,
                                     );
-                                    if (index + 1) % 5 == 0 {
+                                    if (index + 1) % 8 == 0 {
                                         ui.end_row();
                                     }
                                 }
@@ -14774,7 +14774,7 @@ impl CrosshairApp {
                                                 )).changed();
                                                 ui.separator();
                                                 egui::Grid::new((group.id, preset.id, "hold-stop-action-grid"))
-                                                    .num_columns(5)
+                                                    .num_columns(8)
                                                     .spacing([6.0, 6.0])
                                                     .show(ui, |ui| {
                                                         for (index, action) in [
@@ -14817,7 +14817,7 @@ impl CrosshairApp {
                                                                 action,
                                                                 &mut live_sync,
                                                             );
-                                                            if (index + 1) % 5 == 0 {
+                                                            if (index + 1) % 8 == 0 {
                                                                 ui.end_row();
                                                             }
                                                         }
@@ -16199,7 +16199,7 @@ impl CrosshairApp {
                                                     )).changed();
                                                     ui.separator();
                                                     egui::Grid::new((group.id, preset.id, step_index, "action-grid"))
-                                                        .num_columns(5)
+                                                        .num_columns(8)
                                                         .spacing([6.0, 6.0])
                                                         .show(ui, |ui| {
                                                         for (index, action) in [
@@ -16242,7 +16242,7 @@ impl CrosshairApp {
                                                                     action,
                                                                     &mut live_sync,
                                                                 );
-                                                                if (index + 1) % 5 == 0 {
+                                                                if (index + 1) % 8 == 0 {
                                                                     ui.end_row();
                                                                 }
                                                             }
