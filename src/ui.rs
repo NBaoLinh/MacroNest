@@ -16041,9 +16041,9 @@ impl CrosshairApp {
                                                 ));
                                             }
                                             let select_icon = if is_selected {
-                                                Self::material_icon_text(0xe836, 12.0).color(Color32::from_rgb(96, 232, 255))
+                                                Self::material_icon_text(0xe834, 12.0).color(Color32::from_rgb(96, 232, 255))
                                             } else {
-                                                Self::material_icon_text(0xe837, 12.0).color(Color32::from_rgb(180, 180, 180))
+                                                Self::material_icon_text(0xe835, 12.0).color(Color32::from_rgb(180, 180, 180))
                                             };
                                             if ui
                                                 .add_sized(
@@ -16067,7 +16067,7 @@ impl CrosshairApp {
                                                 Self::material_icon_text(0xe835, 12.0).color(Color32::from_rgb(180, 180, 180))
                                             };
                                             if ui
-                                                .add_sized([22.0, 20.0], Button::new(enabled_icon))
+                                                .add_sized([22.0, 20.0], Button::new(enabled_icon).frame(false))
                                                 .on_hover_text(Self::tr_lang(language, "Toggle step enabled", "Bật/Tắt bước này"))
                                                 .clicked()
                                             {
@@ -16077,7 +16077,7 @@ impl CrosshairApp {
                                             if ui
                                                 .add_sized(
                                                     [22.0, 20.0],
-                                                    Button::new(Self::material_icon_text(0xe872, 13.0)),
+                                                    Button::new(Self::material_icon_text(0xe872, 13.0)).frame(false),
                                                 )
                                                 .on_hover_text(Self::tr_lang(
                                                     language,
@@ -16092,7 +16092,8 @@ impl CrosshairApp {
                                                 .add_sized(
                                                     [22.0, 20.0],
                                                     Button::new(Self::material_icon_text(0xe25d, 12.0))
-                                                        .sense(Sense::drag()),
+                                                        .sense(Sense::drag())
+                                                        .frame(false),
                                                 )
                                                 .on_hover_cursor(egui::CursorIcon::Grab);
                                             drag_handle.dnd_set_drag_payload(drag_payload.clone());
