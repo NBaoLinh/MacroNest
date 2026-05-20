@@ -4960,6 +4960,8 @@ impl CrosshairApp {
                 | MacroAction::StartVisionSearch
                 | MacroAction::TriggerVisionMove
                 | MacroAction::StopVision
+                | MacroAction::StopVisionWait
+                | MacroAction::ShowHud
         )
     }
 
