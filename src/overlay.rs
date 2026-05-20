@@ -210,6 +210,10 @@ mod windows_overlay {
             restore_on_exit: bool,
             restore_speed: u32,
         },
+        UpdateMacroDelays {
+            mouse_click_delay_ms: u32,
+            keyboard_key_press_delay_ms: u32,
+        },
 
         UpdateKeyboardArrowMouseSettings {
             enabled: bool,
@@ -365,6 +369,8 @@ mod windows_overlay {
 
         mouse_sensitivity_restore_on_exit: bool,
         mouse_sensitivity_exit_restore_speed: u32,
+        macro_mouse_click_delay_ms: u32,
+        macro_keyboard_key_press_delay_ms: u32,
         active_pin_preset_id: Option<u32>,
         vision_capture_mouse_blocked: bool,
         vision_capture_anchor: Option<(i32, i32)>,
@@ -422,6 +428,8 @@ mod windows_overlay {
 
                 mouse_sensitivity_restore_on_exit: false,
                 mouse_sensitivity_exit_restore_speed: 6,
+                macro_mouse_click_delay_ms: 16,
+                macro_keyboard_key_press_delay_ms: 0,
                 active_pin_preset_id: None,
                 vision_capture_mouse_blocked: false,
                 vision_capture_anchor: None,
@@ -3028,6 +3036,14 @@ mod windows_overlay {
                     let mut hook_state = HOOK_STATE.lock();
                     hook_state.keyboard_arrow_mouse_enabled = enabled;
                     hook_state.keyboard_arrow_mouse_step_px = step_px.clamp(1, 100) as u32;
+                }
+                OverlayCommand::UpdateMacroDelays {
+                    mouse_click_delay_ms,
+                    keyboard_key_press_delay_ms,
+                } => {
+                    let mut hook_state = HOOK_STATE.lock();
+                    hook_state.macro_mouse_click_delay_ms = mouse_click_delay_ms;
+                    hook_state.macro_keyboard_key_press_delay_ms = keyboard_key_press_delay_ms;
                 }
                 OverlayCommand::UpdateVisionPresets(presets) => {
                     {
@@ -6444,16 +6460,29 @@ mod windows_overlay {
                 },
             },
         };
+        let delay_ms = HOOK_STATE.lock().macro_keyboard_key_press_delay_ms;
         unsafe {
-            let inputs: Vec<INPUT> = match step.action {
-                MacroAction::KeyPress => vec![key_down, key_up],
-                MacroAction::KeyDown => vec![key_down],
-                MacroAction::KeyUp => vec![key_up],
-                _ => unreachable!("mouse actions are handled earlier"),
-            };
-            let sent = SendInput(&inputs, size_of::<INPUT>() as i32);
-            if sent == 0 {
-                bail!("SendInput failed");
+            if step.action == MacroAction::KeyPress && delay_ms > 0 {
+                let sent = SendInput(&[key_down], size_of::<INPUT>() as i32);
+                if sent == 0 {
+                    bail!("SendInput key down failed");
+                }
+                thread::sleep(Duration::from_millis(delay_ms as u64));
+                let sent = SendInput(&[key_up], size_of::<INPUT>() as i32);
+                if sent == 0 {
+                    bail!("SendInput key up failed");
+                }
+            } else {
+                let inputs: Vec<INPUT> = match step.action {
+                    MacroAction::KeyPress => vec![key_down, key_up],
+                    MacroAction::KeyDown => vec![key_down],
+                    MacroAction::KeyUp => vec![key_up],
+                    _ => unreachable!("mouse actions are handled earlier"),
+                };
+                let sent = SendInput(&inputs, size_of::<INPUT>() as i32);
+                if sent == 0 {
+                    bail!("SendInput failed");
+                }
             }
         }
         Ok(())
@@ -6528,6 +6557,7 @@ mod windows_overlay {
     }
 
     fn send_mouse_event(step: &MacroStep) -> Result<()> {
+        let delay_ms = HOOK_STATE.lock().macro_mouse_click_delay_ms;
         match step.action {
             MacroAction::MouseMoveAbsolute => {
                 return send_mouse_move_absolute(step.x, step.y);
@@ -6537,27 +6567,37 @@ mod windows_overlay {
             }
             MacroAction::MouseLeftClick => {
                 send_mouse_input(MOUSEEVENTF_LEFTDOWN, 0)?;
-                thread::sleep(Duration::from_millis(16));
+                if delay_ms > 0 {
+                    thread::sleep(Duration::from_millis(delay_ms as u64));
+                }
                 return send_mouse_input(MOUSEEVENTF_LEFTUP, 0);
             }
             MacroAction::MouseRightClick => {
                 send_mouse_input(MOUSEEVENTF_RIGHTDOWN, 0)?;
-                thread::sleep(Duration::from_millis(16));
+                if delay_ms > 0 {
+                    thread::sleep(Duration::from_millis(delay_ms as u64));
+                }
                 return send_mouse_input(MOUSEEVENTF_RIGHTUP, 0);
             }
             MacroAction::MouseMiddleClick => {
                 send_mouse_input(MOUSEEVENTF_MIDDLEDOWN, 0)?;
-                thread::sleep(Duration::from_millis(16));
+                if delay_ms > 0 {
+                    thread::sleep(Duration::from_millis(delay_ms as u64));
+                }
                 return send_mouse_input(MOUSEEVENTF_MIDDLEUP, 0);
             }
             MacroAction::MouseX1Click => {
                 send_mouse_input(MOUSEEVENTF_XDOWN, XBUTTON1_DATA as u32)?;
-                thread::sleep(Duration::from_millis(16));
+                if delay_ms > 0 {
+                    thread::sleep(Duration::from_millis(delay_ms as u64));
+                }
                 return send_mouse_input(MOUSEEVENTF_XUP, XBUTTON1_DATA as u32);
             }
             MacroAction::MouseX2Click => {
                 send_mouse_input(MOUSEEVENTF_XDOWN, XBUTTON2_DATA as u32)?;
-                thread::sleep(Duration::from_millis(16));
+                if delay_ms > 0 {
+                    thread::sleep(Duration::from_millis(delay_ms as u64));
+                }
                 return send_mouse_input(MOUSEEVENTF_XUP, XBUTTON2_DATA as u32);
             }
             _ => {}
@@ -9814,6 +9854,10 @@ mod fallback {
         UpdateKeyboardArrowMouseSettings {
             enabled: bool,
             step_px: u32,
+        },
+        UpdateMacroDelays {
+            mouse_click_delay_ms: u32,
+            keyboard_key_press_delay_ms: u32,
         },
         UpdateVisionPresets(Vec<VisionPreset>),
         SetMacrosMasterEnabled(bool),

@@ -582,6 +582,7 @@ pub struct CrosshairApp {
     hidden_window_inner_size: Option<egui::Vec2>,
     hidden_window_outer_pos: Option<egui::Pos2>,
     settings_popup_open: bool,
+    advanced_settings_open: bool,
     zoom_preview_cache: HashMap<u32, ZoomPreviewCache>,
     vision_preview_cache: HashMap<u32, VisionPreviewCache>,
     vision_color_pick_texture: Option<TextureHandle>,
@@ -727,6 +728,7 @@ impl CrosshairApp {
             hidden_window_inner_size: None,
             hidden_window_outer_pos: None,
             settings_popup_open: false,
+            advanced_settings_open: false,
             zoom_preview_cache: HashMap::new(),
             vision_preview_cache: HashMap::new(),
             vision_color_pick_texture: None,
@@ -784,6 +786,7 @@ impl CrosshairApp {
         app.sync_mouse_sensitivity_presets();
         app.sync_mouse_driver_settings();
         app.sync_keyboard_arrow_mouse_settings();
+        app.sync_macro_delay_settings();
         app.sync_profiles();
         app.sync_macro_presets();
         app.sync_audio_settings();
@@ -845,6 +848,15 @@ impl CrosshairApp {
             .send(OverlayCommand::UpdateKeyboardArrowMouseSettings {
                 enabled: self.state.keyboard_arrow_mouse_enabled,
                 step_px: self.state.keyboard_arrow_mouse_step_px,
+            });
+    }
+
+    fn sync_macro_delay_settings(&self) {
+        let _ = self
+            .overlay_tx
+            .send(OverlayCommand::UpdateMacroDelays {
+                mouse_click_delay_ms: self.state.macro_mouse_click_delay_ms,
+                keyboard_key_press_delay_ms: self.state.macro_keyboard_key_press_delay_ms,
             });
     }
 
@@ -19977,6 +19989,8 @@ impl CrosshairApp {
                         });
                     });
                     ui.add_space(12.0);
+                    self.render_advanced_settings(ui);
+                    ui.add_space(12.0);
                     self.render_opencv_settings(ui);
                     ui.add_space(12.0);
                     let ctx_clone = ui.ctx().clone();
@@ -19984,6 +19998,73 @@ impl CrosshairApp {
                     ui.add_space(8.0);
                 });
             });
+    }
+
+    fn render_advanced_settings(&mut self, ui: &mut egui::Ui) {
+        let language = self.state.ui_language;
+        Self::settings_card_frame(ui).show(ui, |ui| {
+            ui.set_min_width(ui.available_width());
+            ui.vertical(|ui| {
+                ui.horizontal(|ui| {
+                    let header_text = RichText::new(Self::tr_lang(language, "Advanced", "Nâng cao"))
+                        .strong()
+                        .size(14.0);
+                    if ui.selectable_label(self.advanced_settings_open, header_text).clicked() {
+                        self.advanced_settings_open = !self.advanced_settings_open;
+                    }
+                });
+
+                if self.advanced_settings_open {
+                    ui.add_space(8.0);
+                    let explanation_en = "Note: Some games might not register inputs if the delays are set too low (e.g., 0ms). You can adjust these values if your macros do not work correctly in-game.";
+                    let explanation_vi = "Lưu ý: Một số trò chơi có thể không nhận phản hồi từ chuột hoặc phím nếu đặt độ trễ quá thấp (ví dụ: 0ms). Bạn có thể chỉnh lại các thông số này nếu macro không hoạt động chính xác trong game.";
+                    ui.label(
+                        RichText::new(Self::tr_lang(language, explanation_en, explanation_vi))
+                            .small()
+                            .weak(),
+                    );
+                    ui.add_space(8.0);
+
+                    let mut delay_changed = false;
+                    ui.horizontal(|ui| {
+                        ui.label(Self::tr_lang(language, "Mouse Click Delay:", "Độ trễ click chuột:"));
+                        let slider = egui::Slider::new(&mut self.state.macro_mouse_click_delay_ms, 0..=500)
+                            .suffix(" ms");
+                        let res = ui.add(slider);
+                        if res.changed() {
+                            delay_changed = true;
+                        }
+                    });
+
+                    ui.add_space(6.0);
+
+                    ui.horizontal(|ui| {
+                        ui.label(Self::tr_lang(language, "Keyboard Press Delay:", "Độ trễ nhấn phím:"));
+                        let slider = egui::Slider::new(&mut self.state.macro_keyboard_key_press_delay_ms, 0..=500)
+                            .suffix(" ms");
+                        let res = ui.add(slider);
+                        if res.changed() {
+                            delay_changed = true;
+                        }
+                    });
+
+                    if delay_changed {
+                        self.sync_macro_delay_settings();
+                        self.persist();
+                    }
+                } else {
+                    ui.label(
+                        RichText::new(Self::tr_lang(
+                            language,
+                            "Click to expand advanced configuration (input delays).",
+                            "Nhấn vào để mở rộng cấu hình nâng cao (độ trễ đầu vào)."
+                        ))
+                        .small()
+                        .weak(),
+                    );
+                }
+            });
+        });
     }
 
     fn render_opencv_settings(&mut self, ui: &mut egui::Ui) {

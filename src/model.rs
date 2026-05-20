@@ -167,6 +167,14 @@ fn default_image_search_distance_far_speed() -> f32 {
     5.0
 }
 
+fn default_macro_mouse_click_delay_ms() -> u32 {
+    16
+}
+
+fn default_macro_keyboard_key_press_delay_ms() -> u32 {
+    0
+}
+
 
 
 
@@ -1567,6 +1575,10 @@ pub struct AppState {
     pub audio_settings: AudioSettings,
     #[serde(alias = "image_search_settings")]
     pub vision_settings: VisionSettings,
+    #[serde(default = "default_macro_mouse_click_delay_ms")]
+    pub macro_mouse_click_delay_ms: u32,
+    #[serde(default = "default_macro_keyboard_key_press_delay_ms")]
+    pub macro_keyboard_key_press_delay_ms: u32,
 }
 
 impl Default for AppState {
@@ -1629,6 +1641,8 @@ impl Default for AppState {
             groq_settings: GroqSettings::default(),
             audio_settings: AudioSettings::default(),
             vision_settings: VisionSettings::default(),
+            macro_mouse_click_delay_ms: 16,
+            macro_keyboard_key_press_delay_ms: 0,
         }
     }
 }
