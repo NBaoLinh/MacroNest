@@ -240,24 +240,58 @@ mod windows_platform {
         }
 
         let path_str = path.to_string_lossy().to_string();
-        
-        #[cfg(windows)]
-        use std::os::windows::process::CommandExt;
+        let path_wide = widestring(&path_str);
 
-        let mut cmd = std::process::Command::new("powershell");
-        #[cfg(windows)]
-        cmd.creation_flags(0x08000000); // CREATE_NO_WINDOW
+        unsafe {
+            OpenClipboard(None)?;
+            let _ = EmptyClipboard();
 
-        let status = cmd.args([
-                "-NoProfile",
-                "-NonInteractive",
-                "-Command",
-                &format!("Set-Clipboard -LiteralPath '{}'", path_str.replace("'", "''")),
-            ])
-            .status()?;
+            // 1. Set text clipboard format (CF_UNICODETEXT = 13)
+            let text_bytes = path_wide.len() * 2;
+            if let Ok(h_text) = GlobalAlloc(GHND, text_bytes) {
+                let p_text = GlobalLock(h_text);
+                if !p_text.is_null() {
+                    std::ptr::copy_nonoverlapping(path_wide.as_ptr() as *const u8, p_text as *mut u8, text_bytes);
+                    let _ = GlobalUnlock(h_text);
+                    let _ = SetClipboardData(13, Some(HANDLE(h_text.0 as *mut _)));
+                }
+            }
 
-        if !status.success() {
-            bail!("PowerShell Set-Clipboard failed");
+            // 2. Set file drop clipboard format (CF_HDROP = 15)
+            let mut file_list = path_wide.clone();
+            file_list.push(0); // double-null terminator
+
+            let dropfiles_size = std::mem::size_of::<DROPFILES>();
+            let total_size = dropfiles_size + file_list.len() * 2;
+
+            if let Ok(h_drop) = GlobalAlloc(GHND, total_size) {
+                let p_drop = GlobalLock(h_drop);
+                if !p_drop.is_null() {
+                    let dropfiles = DROPFILES {
+                        pFiles: dropfiles_size as u32,
+                        pt: windows::Win32::Foundation::POINT { x: 0, y: 0 },
+                        fNC: windows::core::BOOL::from(false),
+                        fWide: windows::core::BOOL::from(true),
+                    };
+
+                    std::ptr::copy_nonoverlapping(
+                        &dropfiles as *const DROPFILES as *const u8,
+                        p_drop as *mut u8,
+                        dropfiles_size,
+                    );
+
+                    std::ptr::copy_nonoverlapping(
+                        file_list.as_ptr() as *const u8,
+                        (p_drop as usize + dropfiles_size) as *mut u8,
+                        file_list.len() * 2,
+                    );
+
+                    let _ = GlobalUnlock(h_drop);
+                    let _ = SetClipboardData(15, Some(HANDLE(h_drop.0 as *mut _)));
+                }
+            }
+
+            let _ = CloseClipboard();
         }
 
         Ok(())
