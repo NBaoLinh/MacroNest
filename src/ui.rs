@@ -17261,65 +17261,69 @@ impl CrosshairApp {
                                                 ui.add_sized([28.0, 18.0], egui::Label::new(""));
                                             }
                                             let is_dark_theme = self.state.ui_theme == UiThemeMode::Dark;
-                                            let toggle_width = 22.0;
                                             let paste_button_width = 56.0;
-                                            let right_gap = (ui.available_width() - paste_button_width - toggle_width - 6.0).max(0.0);
-                                            if right_gap > 0.0 {
-                                                ui.add_space(right_gap);
-                                            }
 
-                                            ui.scope(|ui| {
-                                                ui.visuals_mut().widgets.inactive.bg_fill = Color32::TRANSPARENT;
-                                                ui.visuals_mut().widgets.inactive.weak_bg_fill = Color32::TRANSPARENT;
-                                                ui.visuals_mut().widgets.inactive.bg_stroke = egui::Stroke::NONE;
-
-                                                let hover_bg = if is_dark_theme {
-                                                    Color32::from_rgba_unmultiplied(255, 255, 255, 20)
-                                                } else {
-                                                    Color32::from_rgba_unmultiplied(0, 0, 0, 15)
-                                                };
-                                                let hover_stroke = if is_dark_theme {
-                                                    egui::Stroke::new(1.0, Color32::from_rgba_unmultiplied(255, 255, 255, 40))
-                                                } else {
-                                                    egui::Stroke::new(1.0, Color32::from_rgba_unmultiplied(0, 0, 0, 30))
-                                                };
-                                                let active_bg = if is_dark_theme {
-                                                    Color32::from_rgba_unmultiplied(255, 255, 255, 35)
-                                                } else {
-                                                    Color32::from_rgba_unmultiplied(0, 0, 0, 25)
-                                                };
-                                                let active_stroke = if is_dark_theme {
-                                                    egui::Stroke::new(1.0, Color32::from_rgba_unmultiplied(255, 255, 255, 60))
-                                                } else {
-                                                    egui::Stroke::new(1.0, Color32::from_rgba_unmultiplied(0, 0, 0, 45))
-                                                };
-
-                                                ui.visuals_mut().widgets.hovered.bg_fill = hover_bg;
-                                                ui.visuals_mut().widgets.hovered.bg_stroke = hover_stroke;
-                                                ui.visuals_mut().widgets.active.bg_fill = active_bg;
-                                                ui.visuals_mut().widgets.active.bg_stroke = active_stroke;
-
-                                                let toggle_icon_color = if step.toggle_enabled_on_run {
-                                                    Color32::from_rgb(0, 220, 255)
-                                                } else {
-                                                    Color32::from_rgb(130, 130, 130)
-                                                };
-                                                let toggle_icon = Self::material_icon_text(0xe040, 16.0).color(toggle_icon_color);
-                                                if ui
-                                                    .add_sized([toggle_width, 20.0], Button::new(toggle_icon))
-                                                    .on_hover_text(Self::tr_lang(
-                                                        language,
-                                                        "Toggle self enabled on run (run-loop/refresh state)",
-                                                        "Tự động bật/tắt bước khi chạy (trạng thái chạy lặp/chạy tiếp)"
-                                                    ))
-                                                    .clicked()
-                                                {
-                                                    step.toggle_enabled_on_run = !step.toggle_enabled_on_run;
-                                                    live_sync = true;
+                                            if step.toggle_enabled_on_run {
+                                                let toggle_width = 22.0;
+                                                let right_gap = (ui.available_width() - paste_button_width - toggle_width - 6.0).max(0.0);
+                                                if right_gap > 0.0 {
+                                                    ui.add_space(right_gap);
                                                 }
-                                            });
 
-                                            ui.add_space(4.0);
+                                                ui.scope(|ui| {
+                                                    ui.visuals_mut().widgets.inactive.bg_fill = Color32::TRANSPARENT;
+                                                    ui.visuals_mut().widgets.inactive.weak_bg_fill = Color32::TRANSPARENT;
+                                                    ui.visuals_mut().widgets.inactive.bg_stroke = egui::Stroke::NONE;
+
+                                                    let hover_bg = if is_dark_theme {
+                                                        Color32::from_rgba_unmultiplied(255, 255, 255, 20)
+                                                    } else {
+                                                        Color32::from_rgba_unmultiplied(0, 0, 0, 15)
+                                                    };
+                                                    let hover_stroke = if is_dark_theme {
+                                                        egui::Stroke::new(1.0, Color32::from_rgba_unmultiplied(255, 255, 255, 40))
+                                                    } else {
+                                                        egui::Stroke::new(1.0, Color32::from_rgba_unmultiplied(0, 0, 0, 30))
+                                                    };
+                                                    let active_bg = if is_dark_theme {
+                                                        Color32::from_rgba_unmultiplied(255, 255, 255, 35)
+                                                    } else {
+                                                        Color32::from_rgba_unmultiplied(0, 0, 0, 25)
+                                                    };
+                                                    let active_stroke = if is_dark_theme {
+                                                        egui::Stroke::new(1.0, Color32::from_rgba_unmultiplied(255, 255, 255, 60))
+                                                    } else {
+                                                        egui::Stroke::new(1.0, Color32::from_rgba_unmultiplied(0, 0, 0, 45))
+                                                    };
+
+                                                    ui.visuals_mut().widgets.hovered.bg_fill = hover_bg;
+                                                    ui.visuals_mut().widgets.hovered.bg_stroke = hover_stroke;
+                                                    ui.visuals_mut().widgets.active.bg_fill = active_bg;
+                                                    ui.visuals_mut().widgets.active.bg_stroke = active_stroke;
+
+                                                    let toggle_icon_color = Color32::from_rgb(0, 220, 255);
+                                                    let toggle_icon = Self::material_icon_text(0xe040, 16.0).color(toggle_icon_color);
+                                                    if ui
+                                                        .add_sized([toggle_width, 20.0], Button::new(toggle_icon))
+                                                        .on_hover_text(Self::tr_lang(
+                                                            language,
+                                                            "Toggle self enabled on run (run-loop/refresh state)",
+                                                            "Tự động bật/tắt bước khi chạy (trạng thái chạy lặp/chạy tiếp)"
+                                                        ))
+                                                        .clicked()
+                                                    {
+                                                        step.toggle_enabled_on_run = !step.toggle_enabled_on_run;
+                                                        live_sync = true;
+                                                    }
+                                                });
+
+                                                ui.add_space(4.0);
+                                            } else {
+                                                let right_gap = (ui.available_width() - paste_button_width).max(0.0);
+                                                if right_gap > 0.0 {
+                                                    ui.add_space(right_gap);
+                                                }
+                                            }
 
                                             if ui
                                                 .add_enabled(
