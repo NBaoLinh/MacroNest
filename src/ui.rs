@@ -4364,8 +4364,8 @@ impl CrosshairApp {
             MacroAction::LoopEnd => "LoopEnd",
             MacroAction::StopIfTriggerPressedAgain => "StopIfTriggerPressedAgain",
             MacroAction::StopIfKeyPressed => "BreakLoopIfKeyPressed",
-            MacroAction::ShowHud => "ShowToolbox",
-            MacroAction::HideHud => "HideToolbox",
+            MacroAction::ShowHud => "ShowHud",
+            MacroAction::HideHud => "HideHud",
             MacroAction::LockKeys => "LockKeys",
             MacroAction::UnlockKeys => "UnlockKeys",
             MacroAction::LockMouse => "LockMouse",
@@ -6252,7 +6252,7 @@ impl CrosshairApp {
             rect.center(),
             egui::Align2::CENTER_CENTER,
             if preset.text.trim().is_empty() {
-                "Toolbox preview"
+                "HUD preview"
             } else {
                 preset.text.as_str()
             },
@@ -7146,7 +7146,7 @@ impl CrosshairApp {
         self.state.next_hud_preset_id = id + 1;
         self.state.hud_presets.push(HudPreset::new(id));
         self.sync_hud_presets();
-        self.status = format!("Added toolbox preset {id}.");
+        self.status = format!("Added HUD preset {id}.");
     }
 
     fn add_custom_preset(&mut self) {
@@ -8221,7 +8221,7 @@ impl CrosshairApp {
                     .collect::<Vec<_>>(),
             ),
             Self::format_id_name_catalog(
-                "Available toolbox presets:",
+                "Available HUD presets:",
                 &self
                     .state
                     .hud_presets
@@ -8343,7 +8343,7 @@ impl CrosshairApp {
              - A custom_ command value must stay on one line; if it needs a URL or argument, keep it on the same line as the launch command. Do not put the URL on a separate line.\n\
              - Enable crosshair should use enable_crosshair_ with the profile name, not a custom command.\n\
              - Crosshair on/off/toggle requests must never become custom commands.\n\
-             - EnableMacroPreset, DisableMacroPreset, TriggerMacroPreset, EnablePinPreset, EnableZoomPreset, PlaySoundPreset, ShowToolbox, and related preset actions should use the matching preset name or id in the command suffix.\n\
+             - EnableMacroPreset, DisableMacroPreset, TriggerMacroPreset, EnablePinPreset, EnableZoomPreset, PlaySoundPreset, ShowHud, and related preset actions should use the matching preset name or id in the command suffix.\n\
              - LockKeys and UnlockKeys use a comma-separated list of keys in the suffix.\n\
              - LoopStart uses the count or an infinite marker, and LoopEnd closes the block.\n\
              - A request like \"repeat 4 times: press Q, wait 100 ms, press E\" should become one loop_start_4 line, one copy of the repeated body, then loop_end. Do not duplicate the body 4 times.\n\
@@ -15437,8 +15437,8 @@ impl CrosshairApp {
                                                             if step.key.trim().is_empty() {
                                                                 Self::tr_lang(
                                                                     language,
-                                                                    "Select toolbox preset",
-                                                                    "Chọn preset hộp công cụ",
+                                                                    "Select HUD preset",
+                                                                    "Chọn HUD preset",
                                                                 )
                                                                 .to_owned()
                                                             } else {
@@ -16940,8 +16940,8 @@ impl CrosshairApp {
                                                             if step.key.trim().is_empty() {
                                                                 Self::tr_lang(
                                                                     language,
-                                                                    "Select toolbox preset",
-                                                                    "Chọn preset hộp công cụ",
+                                                                    "Select HUD preset",
+                                                                    "Chọn HUD preset",
                                                                 )
                                                                 .to_owned()
                                                             } else {

@@ -1335,7 +1335,9 @@ fn parse_macro_ai_script_line(line: &str) -> Result<Option<MacroAiScriptEntry>> 
         return Ok(Some(MacroAiScriptEntry::Step(step)));
     }
 
-    if let Some(rest) = strip_case_insensitive_prefix(trimmed, "show_toolbox_")
+    if let Some(rest) = strip_case_insensitive_prefix(trimmed, "show_hud_")
+        .or_else(|| strip_case_insensitive_prefix(trimmed, "show_hud "))
+        .or_else(|| strip_case_insensitive_prefix(trimmed, "show_toolbox_"))
         .or_else(|| strip_case_insensitive_prefix(trimmed, "show_toolbox "))
     {
         let key = rest.trim();
@@ -1348,7 +1350,9 @@ fn parse_macro_ai_script_line(line: &str) -> Result<Option<MacroAiScriptEntry>> 
         return Ok(Some(MacroAiScriptEntry::Step(step)));
     }
 
-    if trimmed.eq_ignore_ascii_case("hide_toolbox") || trimmed.eq_ignore_ascii_case("hide hud")
+    if trimmed.eq_ignore_ascii_case("hide_hud")
+        || trimmed.eq_ignore_ascii_case("hide hud")
+        || trimmed.eq_ignore_ascii_case("hide_toolbox")
     {
         let mut step = MacroStep::default();
         step.action = MacroAction::HideHud;
