@@ -16061,42 +16061,47 @@ impl CrosshairApp {
                                                     ui.input(|input| input.modifiers.shift),
                                                 ));
                                             }
-                                            let enabled_icon = if step.enabled {
-                                                Self::material_icon_text(0xe834, 16.0).color(Color32::from_rgb(0, 255, 170))
-                                            } else {
-                                                Self::material_icon_text(0xe835, 16.0).color(Color32::from_rgb(180, 180, 180))
-                                            };
-                                            if ui
-                                                .add_sized([22.0, 20.0], Button::new(enabled_icon).frame(false))
-                                                .on_hover_text(Self::tr_lang(language, "Toggle step enabled", "Bật/Tắt bước này"))
-                                                .clicked()
-                                            {
-                                                step.enabled = !step.enabled;
-                                                live_sync = true;
-                                            }
-                                            if ui
-                                                .add_sized(
-                                                    [22.0, 20.0],
-                                                    Button::new(Self::material_icon_text(0xe872, 16.0)).frame(false),
-                                                )
-                                                .on_hover_text(Self::tr_lang(
-                                                    language,
-                                                    "Remove this step",
-                                                    "Xóa bước này",
-                                                ))
-                                                .clicked()
-                                            {
-                                                remove_step = Some((preset.id, step_index));
-                                            }
-                                            let drag_handle = ui
-                                                .add_sized(
-                                                    [22.0, 20.0],
-                                                    Button::new(Self::material_icon_text(0xe25d, 16.0))
-                                                        .sense(Sense::drag())
-                                                        .frame(false),
-                                                )
-                                                .on_hover_cursor(egui::CursorIcon::Grab);
-                                            drag_handle.dnd_set_drag_payload(drag_payload.clone());
+                                            ui.scope(|ui| {
+                                                ui.visuals_mut().widgets.inactive.bg_fill = Color32::TRANSPARENT;
+                                                ui.visuals_mut().widgets.inactive.weak_bg_fill = Color32::TRANSPARENT;
+                                                ui.visuals_mut().widgets.inactive.bg_stroke = egui::Stroke::NONE;
+
+                                                let enabled_icon = if step.enabled {
+                                                    Self::material_icon_text(0xe834, 16.0).color(Color32::from_rgb(0, 255, 170))
+                                                } else {
+                                                    Self::material_icon_text(0xe835, 16.0).color(Color32::from_rgb(180, 180, 180))
+                                                };
+                                                if ui
+                                                    .add_sized([22.0, 20.0], Button::new(enabled_icon))
+                                                    .on_hover_text(Self::tr_lang(language, "Toggle step enabled", "Bật/Tắt bước này"))
+                                                    .clicked()
+                                                {
+                                                    step.enabled = !step.enabled;
+                                                    live_sync = true;
+                                                }
+                                                if ui
+                                                    .add_sized(
+                                                        [22.0, 20.0],
+                                                        Button::new(Self::material_icon_text(0xe872, 16.0)),
+                                                    )
+                                                    .on_hover_text(Self::tr_lang(
+                                                        language,
+                                                        "Remove this step",
+                                                        "Xóa bước này",
+                                                    ))
+                                                    .clicked()
+                                                {
+                                                    remove_step = Some((preset.id, step_index));
+                                                }
+                                                let drag_handle = ui
+                                                    .add_sized(
+                                                        [22.0, 20.0],
+                                                        Button::new(Self::material_icon_text(0xe25d, 16.0))
+                                                            .sense(Sense::drag()),
+                                                    )
+                                                    .on_hover_cursor(egui::CursorIcon::Grab);
+                                                drag_handle.dnd_set_drag_payload(drag_payload.clone());
+                                            });
                                             if has_infinite_loop_warning || has_step_vision_leak || has_step_break_loop_warning {
                                                   let warn_color = if has_infinite_loop_warning || has_step_vision_leak {
                                                       Color32::from_rgb(255, 90, 0)
