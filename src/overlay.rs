@@ -2680,15 +2680,14 @@ mod windows_overlay {
 
     fn set_mouse_speed(speed: u32) -> Result<()> {
         let speed = speed.clamp(1, 20);
-        unsafe {
-            SystemParametersInfoW(
+        std::thread::spawn(move || unsafe {
+            let _ = SystemParametersInfoW(
                 SPI_SETMOUSESPEED,
                 0,
                 Some(speed as usize as *mut c_void),
-                SPIF_UPDATEINIFILE | SPIF_SENDCHANGE,
-            )
-            .context("Failed to set mouse speed")?;
-        }
+                Default::default(),
+            );
+        });
         Ok(())
     }
 
@@ -3068,13 +3067,16 @@ mod windows_overlay {
                     }
                 }
                 OverlayCommand::ApplyMouseSensitivityPreset(preset_id) => {
-                    if let Some(preset) = HOOK_STATE
-                        .lock()
-                        .mouse_sensitivity_presets
-                        .iter()
-                        .find(|preset| preset.id == preset_id)
-                        .cloned()
-                    {
+                    // Tách riêng để drop lock NGAY sau khi lấy dữ liệu, tránh deadlock
+                    let preset_opt = {
+                        HOOK_STATE
+                            .lock()
+                            .mouse_sensitivity_presets
+                            .iter()
+                            .find(|preset| preset.id == preset_id)
+                            .cloned()
+                    };
+                    if let Some(preset) = preset_opt {
                         let _ = apply_mouse_sensitivity_preset(&preset);
                     }
                 }
