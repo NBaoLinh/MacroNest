@@ -2286,7 +2286,7 @@ impl CrosshairApp {
         let screen_h = unsafe { GetSystemMetrics(SM_CYSCREEN) } as f32;
         egui::pos2(
             ((screen_w - size.x) * 0.5).round(),
-            ((screen_h - size.y) * 0.5).round(),
+            ((screen_h - size.y) * 0.5 - 24.0).round(),
         )
     }
 
@@ -21213,6 +21213,8 @@ impl CrosshairApp {
 
     fn render_commands_panel(&mut self, ui: &mut egui::Ui) {
         let language = self.state.ui_language;
+        let previous_item_spacing = ui.spacing().item_spacing;
+        ui.spacing_mut().item_spacing = egui::vec2(6.0, 4.0);
         ui.add_space(2.0);
         ui.horizontal(|ui| {
             if ui
@@ -21384,6 +21386,7 @@ impl CrosshairApp {
         if changed {
             self.persist_command_presets();
         }
+        ui.spacing_mut().item_spacing = previous_item_spacing;
     }
 
     fn animation_min_size() -> egui::Vec2 {
