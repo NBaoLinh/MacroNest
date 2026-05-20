@@ -3410,13 +3410,9 @@ impl CrosshairApp {
             .width(width)
             .selected_text(truncated_selected_text)
             .show_ui(ui, |ui| {
-                ui.with_layout(egui::Layout::top_down_justified(egui::Align::Min), |ui| {
-                    if allow_none {
+                if allow_none {
                     if ui
-                        .add_sized(
-                            [ui.available_width(), 22.0],
-                            Button::selectable(target.is_none(), label_when_none),
-                        )
+                        .selectable_label(target.is_none(), label_when_none)
                         .clicked()
                     {
                         *target = None;
@@ -3437,13 +3433,11 @@ impl CrosshairApp {
                         format!("{title}  >")
                     } else {
                         title.clone()
-                    };
+                        };
                     let truncated_row_label = Self::truncate_window_title(&row_label, 50);
-                    let row_response = ui.add_sized(
-                        [ui.available_width(), 22.0],
-                        Button::selectable(main_selected, truncated_row_label),
-                    )
-                    .on_hover_text(&row_label);
+                    let row_response = ui
+                        .selectable_label(main_selected, truncated_row_label)
+                        .on_hover_text(&row_label);
 
                     if row_response.hovered() && has_duplicates {
                         expanded_title = Some(title.clone());
@@ -3465,11 +3459,9 @@ impl CrosshairApp {
                                         == Some(selector.as_str())
                                         && !*match_duplicate_window_titles;
                                     let truncated_selector = Self::truncate_window_title(selector, 50);
-                                    let child_response = ui.add_sized(
-                                        [ui.available_width(), 22.0],
-                                        Button::selectable(child_selected, truncated_selector),
-                                    )
-                                    .on_hover_text(selector);
+                                    let child_response = ui
+                                        .selectable_label(child_selected, truncated_selector)
+                                        .on_hover_text(selector);
                                     child_hovered |= child_response.hovered();
                                     if child_response.clicked() {
                                         *target = Some(selector.clone());
@@ -3485,7 +3477,6 @@ impl CrosshairApp {
                         );
                     }
                 }
-                });
             });
 
         ui.ctx().data_mut(|data| {
