@@ -17042,8 +17042,25 @@ impl CrosshairApp {
                                                             }
                                                         });
                                                 } else {
+                                                    let step_capture_target = CaptureRequest::MacroStepInput {
+                                                        group_id: group.id,
+                                                        preset_id: preset.id,
+                                                        step_index,
+                                                    };
+                                                    let step_capture_active =
+                                                        capture_target_snapshot.as_ref() == Some(&step_capture_target);
+
+                                                    let mut text_edit = TextEdit::singleline(&mut step.key);
+                                                    if step_capture_active {
+                                                        text_edit = text_edit.hint_text(Self::tr_lang(
+                                                            language,
+                                                            "Capturing...",
+                                                            "Đang lấy phím...",
+                                                        ));
+                                                    }
+
                                                     let response =
-                                                        ui.add_sized([146.0, 18.0], TextEdit::singleline(&mut step.key));
+                                                        ui.add_sized([146.0, 18.0], text_edit);
                                                     Self::apply_vietnamese_input_if_changed(
                                                         &response,
                                                         self.state.vietnamese_input_enabled,
