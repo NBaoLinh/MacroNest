@@ -3410,7 +3410,8 @@ impl CrosshairApp {
             .width(width)
             .selected_text(truncated_selected_text)
             .show_ui(ui, |ui| {
-                if allow_none {
+                ui.with_layout(egui::Layout::top_down_justified(egui::Align::Min), |ui| {
+                    if allow_none {
                     if ui
                         .add_sized(
                             [ui.available_width(), 22.0],
@@ -3484,6 +3485,7 @@ impl CrosshairApp {
                         );
                     }
                 }
+                });
             });
 
         ui.ctx().data_mut(|data| {
