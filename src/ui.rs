@@ -16035,9 +16035,9 @@ impl CrosshairApp {
                                                 ));
                                             }
                                             let select_icon = if is_selected {
-                                                Self::material_icon_text(0xe834, 12.0).color(Color32::from_rgb(96, 232, 255))
+                                                Self::material_icon_text(0xe836, 12.0).color(Color32::from_rgb(96, 232, 255))
                                             } else {
-                                                Self::material_icon_text(0xe835, 12.0).color(Color32::from_rgb(180, 180, 180))
+                                                Self::material_icon_text(0xe837, 12.0).color(Color32::from_rgb(180, 180, 180))
                                             };
                                             if ui
                                                 .add_sized(
