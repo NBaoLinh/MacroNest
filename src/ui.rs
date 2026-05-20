@@ -16061,10 +16061,37 @@ impl CrosshairApp {
                                                     ui.input(|input| input.modifiers.shift),
                                                 ));
                                             }
+                                            let is_dark_theme = self.state.ui_theme == UiThemeMode::Dark;
                                             ui.scope(|ui| {
                                                 ui.visuals_mut().widgets.inactive.bg_fill = Color32::TRANSPARENT;
                                                 ui.visuals_mut().widgets.inactive.weak_bg_fill = Color32::TRANSPARENT;
                                                 ui.visuals_mut().widgets.inactive.bg_stroke = egui::Stroke::NONE;
+
+                                                let hover_bg = if is_dark_theme {
+                                                    Color32::from_rgba_unmultiplied(255, 255, 255, 20)
+                                                } else {
+                                                    Color32::from_rgba_unmultiplied(0, 0, 0, 15)
+                                                };
+                                                let hover_stroke = if is_dark_theme {
+                                                    egui::Stroke::new(1.0, Color32::from_rgba_unmultiplied(255, 255, 255, 40))
+                                                } else {
+                                                    egui::Stroke::new(1.0, Color32::from_rgba_unmultiplied(0, 0, 0, 30))
+                                                };
+                                                let active_bg = if is_dark_theme {
+                                                    Color32::from_rgba_unmultiplied(255, 255, 255, 35)
+                                                } else {
+                                                    Color32::from_rgba_unmultiplied(0, 0, 0, 25)
+                                                };
+                                                let active_stroke = if is_dark_theme {
+                                                    egui::Stroke::new(1.0, Color32::from_rgba_unmultiplied(255, 255, 255, 60))
+                                                } else {
+                                                    egui::Stroke::new(1.0, Color32::from_rgba_unmultiplied(0, 0, 0, 45))
+                                                };
+
+                                                ui.visuals_mut().widgets.hovered.bg_fill = hover_bg;
+                                                ui.visuals_mut().widgets.hovered.bg_stroke = hover_stroke;
+                                                ui.visuals_mut().widgets.active.bg_fill = active_bg;
+                                                ui.visuals_mut().widgets.active.bg_stroke = active_stroke;
 
                                                 let enabled_icon = if step.enabled {
                                                     Self::material_icon_text(0xe834, 16.0).color(Color32::from_rgb(0, 255, 170))
