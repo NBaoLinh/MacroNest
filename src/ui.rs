@@ -16062,9 +16062,9 @@ impl CrosshairApp {
                                                 ));
                                             }
                                             let enabled_icon = if step.enabled {
-                                                Self::material_icon_text(0xe834, 12.0).color(Color32::from_rgb(0, 255, 170))
+                                                Self::material_icon_text(0xe834, 16.0).color(Color32::from_rgb(0, 255, 170))
                                             } else {
-                                                Self::material_icon_text(0xe835, 12.0).color(Color32::from_rgb(180, 180, 180))
+                                                Self::material_icon_text(0xe835, 16.0).color(Color32::from_rgb(180, 180, 180))
                                             };
                                             if ui
                                                 .add_sized([22.0, 20.0], Button::new(enabled_icon).frame(false))
@@ -16077,7 +16077,7 @@ impl CrosshairApp {
                                             if ui
                                                 .add_sized(
                                                     [22.0, 20.0],
-                                                    Button::new(Self::material_icon_text(0xe872, 13.0)).frame(false),
+                                                    Button::new(Self::material_icon_text(0xe872, 16.0)).frame(false),
                                                 )
                                                 .on_hover_text(Self::tr_lang(
                                                     language,
@@ -16091,7 +16091,7 @@ impl CrosshairApp {
                                             let drag_handle = ui
                                                 .add_sized(
                                                     [22.0, 20.0],
-                                                    Button::new(Self::material_icon_text(0xe25d, 12.0))
+                                                    Button::new(Self::material_icon_text(0xe25d, 16.0))
                                                         .sense(Sense::drag())
                                                         .frame(false),
                                                 )
