@@ -15967,7 +15967,11 @@ impl CrosshairApp {
                                     vec![step_index]
                                 };
                                 let mut row_fill = if is_selected {
-                                    Color32::from_rgba_premultiplied(88, 148, 220, 130)
+                                    if step.enabled {
+                                        Color32::from_rgba_premultiplied(88, 148, 220, 130)
+                                    } else {
+                                        Color32::from_rgba_premultiplied(68, 118, 180, 130)
+                                    }
                                 } else if let Some(color) =
                                     loop_colors.get(step_index).and_then(|color| *color)
                                 {
@@ -15975,7 +15979,7 @@ impl CrosshairApp {
                                 } else {
                                     ui.visuals().faint_bg_color
                                 };
-                                if !step.enabled {
+                                if !step.enabled && !is_selected {
                                     row_fill = Color32::from_rgba_unmultiplied(62, 62, 62, 220);
                                 }
                                 let has_infinite_loop_warning = self.state.macro_infinite_loop_warning_enabled
