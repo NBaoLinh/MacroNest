@@ -446,6 +446,7 @@ impl eframe::App for PopupBlobApp {
 enum MacroActionSubmenuKind {
     Mouse,
     ImageSearch,
+    Timer,
 }
 
 pub struct CrosshairApp {
@@ -6723,6 +6724,7 @@ impl CrosshairApp {
         let owner_id = ui.make_persistent_id("macro-action-submenu-owner");
         let popup_id = ui.make_persistent_id((id_source, "mouse-submenu-popup"));
         let image_popup_id = ui.make_persistent_id((id_source, "image-search-submenu-popup"));
+        let timer_popup_id = ui.make_persistent_id((id_source, "timer-submenu-popup"));
         let active_owner = ui
             .ctx()
             .data(|data| data.get_temp::<MacroActionSubmenuKind>(owner_id));
@@ -6747,6 +6749,8 @@ impl CrosshairApp {
                         .data_mut(|data| data.insert_temp(owner_id, MacroActionSubmenuKind::Mouse));
                     ui.ctx()
                         .data_mut(|data| data.insert_temp(image_popup_id, false));
+                    ui.ctx()
+                        .data_mut(|data| data.insert_temp(timer_popup_id, false));
                 }
                 let popup_response = egui::Popup::from_response(&response)
                     .id(popup_id)
@@ -6837,6 +6841,7 @@ impl CrosshairApp {
         let owner_id = ui.make_persistent_id("macro-action-submenu-owner");
         let popup_id = ui.make_persistent_id((id_source, "image-search-submenu-popup"));
         let mouse_popup_id = ui.make_persistent_id((id_source, "mouse-submenu-popup"));
+        let timer_popup_id = ui.make_persistent_id((id_source, "timer-submenu-popup"));
         let active_owner = ui
             .ctx()
             .data(|data| data.get_temp::<MacroActionSubmenuKind>(owner_id));
@@ -6862,6 +6867,8 @@ impl CrosshairApp {
                     });
                     ui.ctx()
                         .data_mut(|data| data.insert_temp(mouse_popup_id, false));
+                    ui.ctx()
+                        .data_mut(|data| data.insert_temp(timer_popup_id, false));
                 }
                 let popup_response = egui::Popup::from_response(&response)
                     .id(popup_id)
@@ -6926,6 +6933,126 @@ impl CrosshairApp {
                     language,
                     "Image\nOpen image search start, trigger, and stop actions.",
                     "Image\nMở các action bắt đầu, trigger và dừng image search.",
+                ),
+            );
+        }
+    }
+
+    fn timer_macro_actions() -> &'static [MacroAction] {
+        &[
+            MacroAction::StartTimerPreset,
+            MacroAction::PauseTimerPreset,
+            MacroAction::StopTimerPreset,
+        ]
+    }
+
+    fn macro_action_is_timer(action: MacroAction) -> bool {
+        Self::timer_macro_actions().contains(&action)
+    }
+
+    fn render_timer_action_group_option(
+        ui: &mut egui::Ui,
+        language: UiLanguage,
+        id_source: impl std::hash::Hash + Copy,
+        current: &mut MacroAction,
+        live_sync: &mut bool,
+    ) {
+        let selected = Self::macro_action_is_timer(*current);
+        let owner_id = ui.make_persistent_id("macro-action-submenu-owner");
+        let popup_id = ui.make_persistent_id((id_source, "timer-submenu-popup"));
+        let mouse_popup_id = ui.make_persistent_id((id_source, "mouse-submenu-popup"));
+        let image_popup_id = ui.make_persistent_id((id_source, "image-search-submenu-popup"));
+        let active_owner = ui
+            .ctx()
+            .data(|data| data.get_temp::<MacroActionSubmenuKind>(owner_id));
+        let mut open = ui
+            .ctx()
+            .data(|data| data.get_temp::<bool>(popup_id))
+            .unwrap_or(false);
+        if active_owner.is_some_and(|kind| kind != MacroActionSubmenuKind::Timer) {
+            open = false;
+        }
+        let inner = ui.allocate_ui_with_layout(
+            vec2(58.0, 42.0),
+            egui::Layout::top_down(egui::Align::Center),
+            |ui| {
+                let response = ui.add_sized(
+                    [34.0, 24.0],
+                    Button::new(Self::material_icon_text(0xe425, 18.0)).selected(selected),
+                );
+                if response.hovered() || response.clicked() {
+                    open = true;
+                    ui.ctx().data_mut(|data| {
+                        data.insert_temp(owner_id, MacroActionSubmenuKind::Timer)
+                    });
+                    ui.ctx()
+                        .data_mut(|data| data.insert_temp(mouse_popup_id, false));
+                    ui.ctx()
+                        .data_mut(|data| data.insert_temp(image_popup_id, false));
+                }
+                let popup_response = egui::Popup::from_response(&response)
+                    .id(popup_id)
+                    .open_bool(&mut open)
+                    .align(egui::RectAlign::BOTTOM_START)
+                    .layout(egui::Layout::top_down_justified(egui::Align::Min))
+                    .width(220.0)
+                    .close_behavior(egui::PopupCloseBehavior::IgnoreClicks)
+                    .show(|ui| {
+                        egui::Grid::new((id_source, "timer-action-grid"))
+                            .num_columns(3)
+                            .spacing([6.0, 6.0])
+                            .show(ui, |ui| {
+                                for (index, action) in Self::timer_macro_actions()
+                                    .iter()
+                                    .copied()
+                                    .enumerate()
+                                {
+                                    Self::render_macro_action_option(
+                                        ui, language, current, action, live_sync,
+                                    );
+                                    if (index + 1) % 3 == 0 {
+                                        ui.end_row();
+                                    }
+                                }
+                            });
+                    });
+                if open && let Some(pointer_pos) = ui.ctx().pointer_hover_pos() {
+                    let mut keep_open_rect = response.rect.expand(10.0);
+                    if let Some(popup) = &popup_response {
+                        keep_open_rect = keep_open_rect.union(popup.response.rect.expand(10.0));
+                        if popup.response.rect.contains(pointer_pos) {
+                            ui.ctx().data_mut(|data| {
+                                data.insert_temp(owner_id, MacroActionSubmenuKind::Timer)
+                            });
+                        }
+                    }
+                    if !keep_open_rect.contains(pointer_pos) {
+                        open = false;
+                    }
+                }
+                ui.ctx().data_mut(|data| data.insert_temp(popup_id, open));
+                let label_color = if selected {
+                    ui.visuals().strong_text_color()
+                } else {
+                    ui.visuals().text_color()
+                };
+                ui.label(
+                    RichText::new(Self::tr_lang(language, "Timer", "Hẹn giờ"))
+                        .size(9.0)
+                        .color(label_color),
+                );
+                response
+            },
+        );
+        let response = inner.inner;
+        if !open {
+            Self::show_instant_hover_tooltip(
+                ui,
+                &response,
+                Self::tr_lang(
+                    language,
+                    "Timer\nOpen start, pause, and stop timer actions.",
+                    "Hẹn giờ\nMở các action bắt đầu, tạm dừng và dừng hẹn giờ.",
                 ),
             );
         }
@@ -13949,9 +14076,6 @@ impl CrosshairApp {
                                                             MacroAction::UnlockKeys,
                                                              MacroAction::EnableMacroPreset,
                                                              MacroAction::DisableMacroPreset,
-                                                                 MacroAction::StartTimerPreset,
-                                                                 MacroAction::PauseTimerPreset,
-                                                                 MacroAction::StopTimerPreset,
                                                                  MacroAction::EnableStep,
                                                                  MacroAction::DisableStep,
                                                         ]
@@ -13983,6 +14107,13 @@ impl CrosshairApp {
                                                             &mut step.action,
                                                             &mut live_sync,
                                 );
+                                                         Self::render_timer_action_group_option(
+                                                             ui,
+                                                             language,
+                                                             (group.id, preset.id, "hold-stop-timer-group"),
+                                                             &mut step.action,
+                                                             &mut live_sync,
+                                                         );
                                 });
                             });
                                             Self::show_instant_hover_tooltip(
@@ -15336,9 +15467,6 @@ impl CrosshairApp {
                                                                 MacroAction::UnlockKeys,
                                                                  MacroAction::EnableMacroPreset,
                                                                  MacroAction::DisableMacroPreset,
-                                                                 MacroAction::StartTimerPreset,
-                                                                 MacroAction::PauseTimerPreset,
-                                                                 MacroAction::StopTimerPreset,
                                                                  MacroAction::EnableStep,
                                                                  MacroAction::DisableStep,
                                                             ]
@@ -15367,6 +15495,13 @@ impl CrosshairApp {
                                                                 ui,
                                                                 language,
                                                                 (group.id, preset.id, step_index, "image-search-group"),
+                                                                &mut step.action,
+                                                                &mut live_sync,
+                                                            );
+                                                            Self::render_timer_action_group_option(
+                                                                ui,
+                                                                language,
+                                                                (group.id, preset.id, step_index, "timer-group"),
                                                                 &mut step.action,
                                                                 &mut live_sync,
                                                             );
