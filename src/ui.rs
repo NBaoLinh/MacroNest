@@ -6503,7 +6503,7 @@ impl CrosshairApp {
             preset.text_color.a,
         );
         let rounding = if preset.rounded_background { 12.0 } else { 0.0 };
-        if bg_alpha > 0 && !preset.show_progress_bar {
+        if bg_alpha > 0 {
             ui.painter().rect_filled(rect, rounding, background);
         }
         ui.painter().rect_stroke(
@@ -6512,38 +6512,6 @@ impl CrosshairApp {
             egui::Stroke::new(2.0, Color32::from_rgb(124, 240, 164)),
             egui::StrokeKind::Outside,
         );
-        if preset.show_progress_bar {
-            let progress_color = Color32::from_rgba_premultiplied(
-                preset.progress_color.r,
-                preset.progress_color.g,
-                preset.progress_color.b,
-                preset.progress_color.a,
-            );
-            
-            // Draw a mock progress bar at 75% progress occupying full box size
-            let bar_width = rect.width() * 0.75;
-            let bar_rect = egui::Rect::from_min_max(
-                egui::pos2(rect.left(), rect.top()),
-                egui::pos2(rect.left() + bar_width, rect.bottom()),
-            ).intersect(rect);
-            
-            ui.painter().rect_filled(bar_rect, 0.0, progress_color);
-            
-            if preset.progress_border_enabled {
-                let border_color = Color32::from_rgba_premultiplied(
-                    preset.progress_border_color.r,
-                    preset.progress_border_color.g,
-                    preset.progress_border_color.b,
-                    preset.progress_border_color.a,
-                );
-                ui.painter().rect_stroke(
-                    bar_rect,
-                    0.0,
-                    egui::Stroke::new(preset.progress_border_thickness, border_color),
-                    egui::StrokeKind::Inside,
-                );
-            }
-        }
         if preset.show_text {
             ui.painter().text(
                 rect.center(),
@@ -19714,6 +19682,11 @@ impl CrosshairApp {
         for index in 0..self.state.timer_presets.len() {
             ui.add_space(6.0);
             let preset = &mut self.state.timer_presets[index];
+            if preset.show_progress_bar || !preset.show_text {
+                preset.show_progress_bar = false;
+                preset.show_text = true;
+                timer_changed = true;
+            }
             Self::show_preset_card(ui, false, |ui| {
                 ui.horizontal(|ui| {
                     let name_width = Self::preset_header_name_width(ui);
@@ -19775,10 +19748,6 @@ impl CrosshairApp {
                                 });
                             if resp.inner.unwrap_or(false) {
                                 preset.is_countdown = selected_type == 1;
-                                if !preset.is_countdown {
-                                    preset.show_text = true;
-                                    preset.show_progress_bar = false;
-                                }
                                 timer_changed = true;
                             }
                         });
@@ -19793,59 +19762,6 @@ impl CrosshairApp {
                                         .clamping(egui::SliderClamping::Always),
                                 )
                                 .changed();
-                            ui.end_row();
-                        }
-
-                        if preset.is_countdown {
-                            ui.label(Self::tr_lang(language, "Display", "Hiển thị"));
-                            ui.horizontal(|ui| {
-                                let mut mode = if preset.show_progress_bar { 1 } else { 0 };
-                                let prev_mode = mode;
-                                ui.radio_value(&mut mode, 0, Self::tr_lang(language, "Time Text", "Hiện chữ số"));
-                                ui.radio_value(&mut mode, 1, Self::tr_lang(language, "Progress Bar", "Hiện thanh tiến trình"));
-                                if mode != prev_mode {
-                                    if mode == 1 {
-                                        preset.show_text = false;
-                                        preset.show_progress_bar = true;
-                                    } else {
-                                        preset.show_text = true;
-                                        preset.show_progress_bar = false;
-                                    }
-                                    timer_changed = true;
-                                }
-                            });
-                            ui.end_row();
-                        }
-
-                        if preset.show_progress_bar {
-                            ui.label(Self::tr_lang(language, "Bar Color", "Màu tiến trình"));
-                            timer_changed |= Self::edit_rgba_color(ui, &mut preset.progress_color).changed();
-                            ui.end_row();
-
-                            ui.label(Self::tr_lang(language, "Border", "Đường viền"));
-                            timer_changed |= ui.checkbox(&mut preset.progress_border_enabled, Self::tr_lang(language, "Enable border", "Bật viền")).changed();
-                            ui.end_row();
-
-                            if preset.progress_border_enabled {
-                                ui.label(Self::tr_lang(language, "Border Thickness", "Độ dày viền"));
-                                timer_changed |= ui.add(
-                                    egui::Slider::new(&mut preset.progress_border_thickness, 1.0..=16.0)
-                                        .text("px")
-                                        .clamping(egui::SliderClamping::Always)
-                                ).changed();
-                                ui.end_row();
-
-                                ui.label(Self::tr_lang(language, "Border Color", "Màu viền"));
-                                timer_changed |= Self::edit_rgba_color(ui, &mut preset.progress_border_color).changed();
-                                ui.end_row();
-                            }
-
-                            ui.label(Self::tr_lang(language, "Smoothness (FPS)", "Độ mượt (FPS)"));
-                            timer_changed |= ui.add(
-                                egui::Slider::new(&mut preset.progress_smoothness_fps, 5..=120)
-                                    .text("fps")
-                                    .clamping(egui::SliderClamping::Always)
-                            ).changed();
                             ui.end_row();
                         }
 

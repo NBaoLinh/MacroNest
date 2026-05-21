@@ -9314,7 +9314,7 @@ mod windows_overlay {
         }
     }
 
-    unsafe fn paint_timer_hwnd(hwnd: HWND, preset: &TimerPreset, text: &str, progress_ratio: Option<f32>) -> Result<()> {
+    unsafe fn paint_timer_hwnd(hwnd: HWND, preset: &TimerPreset, text: &str) -> Result<()> {
         let window_x = preset.x.max(0);
         let window_y = preset.y.max(0);
         let width = preset.width.max(1);
@@ -9392,53 +9392,11 @@ mod windows_overlay {
                         (dx * dx) + (dy * dy) <= radius * radius
                     }
                 };
-                if inside {
-                    let is_progress_x = if let Some(ratio) = progress_ratio {
-                        px < (width as f32 * ratio.clamp(0.0, 1.0)) as i32
-                    } else {
-                        false
-                    };
-                    let is_progress = is_progress_x;
-                    if is_progress {
-                        let prog_color = &preset.progress_color;
-                        let thickness = preset.progress_border_thickness.max(0.0);
-                        let right_edge = (width as f32 * progress_ratio.unwrap_or(0.0).clamp(0.0, 1.0)) as i32;
-                        let is_border = preset.progress_border_enabled && (
-                            (py as f32) < thickness
-                            || py as f32 >= (height as f32 - thickness)
-                            || (px as f32) < thickness
-                            || px as f32 >= (right_edge as f32 - thickness)
-                        );
-                        
-                        if is_border {
-                            let border_color = &preset.progress_border_color;
-                            let br = border_color.r;
-                            let bg = border_color.g;
-                            let bb = border_color.b;
-                            let ba = border_color.a;
-                            
-                            let ba_f = ba as f32 / 255.0;
-                            pixels[index] = (bb as f32 * ba_f) as u8;
-                            pixels[index + 1] = (bg as f32 * ba_f) as u8;
-                            pixels[index + 2] = (br as f32 * ba_f) as u8;
-                            pixels[index + 3] = ba;
-                        } else {
-                            let prog_a_f = prog_color.a as f32 / 255.0;
-                            let prog_pre_r = prog_color.r as f32 * prog_a_f;
-                            let prog_pre_g = prog_color.g as f32 * prog_a_f;
-                            let prog_pre_b = prog_color.b as f32 * prog_a_f;
-                            
-                            pixels[index] = prog_pre_b as u8;
-                            pixels[index + 1] = prog_pre_g as u8;
-                            pixels[index + 2] = prog_pre_r as u8;
-                            pixels[index + 3] = prog_color.a;
-                        }
-                    } else {
-                        pixels[index] = 0;
-                        pixels[index + 1] = 0;
-                        pixels[index + 2] = 0;
-                        pixels[index + 3] = 0;
-                    }
+                if inside && bg_alpha > 0 {
+                    pixels[index] = bg_b;
+                    pixels[index + 1] = bg_g;
+                    pixels[index + 2] = bg_r;
+                    pixels[index + 3] = bg_alpha;
                 } else {
                     pixels[index] = 0;
                     pixels[index + 1] = 0;
@@ -9504,16 +9462,6 @@ mod windows_overlay {
             for px in 0..width {
                 let index = ((py as usize) * (width as usize) + (px as usize)) * 4;
                 let chunk = &mut pixels[index..index+4];
-                
-                let is_progress_x = if let Some(ratio) = progress_ratio {
-                    px < (width as f32 * ratio.clamp(0.0, 1.0)) as i32
-                } else {
-                    false
-                };
-                let is_progress = is_progress_x;
-                if is_progress {
-                    continue;
-                }
                 
                 let looks_like_bg =
                     chunk[0] == bg_b && chunk[1] == bg_g && chunk[2] == bg_r && chunk[3] == bg_alpha;
@@ -9596,7 +9544,7 @@ mod windows_overlay {
 
             let mut just_finished = false;
 
-            let (text, ratio) = if let Some(state) = active_timers.get(&preset.id) {
+            let text = if let Some(state) = active_timers.get(&preset.id) {
                 let elapsed = state.get_elapsed_ms();
                 if preset.is_countdown {
                     let total_ms = (preset.duration_secs as u64) * 1000;
@@ -9616,11 +9564,6 @@ mod windows_overlay {
                     } else {
                         total_ms - elapsed
                     };
-                    let r = if total_ms > 0 {
-                        remaining as f32 / total_ms as f32
-                    } else {
-                        0.0
-                    };
                     let display_ms = if preset.show_ms {
                         remaining
                     } else if preset.show_seconds {
@@ -9630,40 +9573,36 @@ mod windows_overlay {
                     } else {
                         remaining
                     };
-                    let t = format_stopwatch_time(
+                    format_stopwatch_time(
                         display_ms,
                         preset.show_minutes,
                         preset.show_seconds,
                         preset.show_ms,
-                    );
-                    (t, if preset.show_progress_bar { Some(r) } else { None })
+                    )
                 } else {
-                    let t = format_stopwatch_time(
+                    format_stopwatch_time(
                         elapsed,
                         preset.show_minutes,
                         preset.show_seconds,
                         preset.show_ms,
-                    );
-                    (t, None)
+                    )
                 }
             } else {
                 if preset.is_countdown {
                     let total_ms = (preset.duration_secs as u64) * 1000;
-                    let t = format_stopwatch_time(
+                    format_stopwatch_time(
                         total_ms,
                         preset.show_minutes,
                         preset.show_seconds,
                         preset.show_ms,
-                    );
-                    (t, if preset.show_progress_bar { Some(1.0) } else { None })
+                    )
                 } else {
-                    let t = format_stopwatch_time(
+                    format_stopwatch_time(
                         0,
                         preset.show_minutes,
                         preset.show_seconds,
                         preset.show_ms,
-                    );
-                    (t, None)
+                    )
                 }
             };
 
@@ -9708,7 +9647,7 @@ mod windows_overlay {
             };
 
             unsafe {
-                let _ = paint_timer_hwnd(hwnd, &preset, &text, ratio);
+                let _ = paint_timer_hwnd(hwnd, &preset, &text);
             }
         }
 
