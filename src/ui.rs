@@ -12265,16 +12265,16 @@ impl CrosshairApp {
                         if ui
                             .button(Self::tr_lang(
                                 language,
-                                "Center Source Crop",
-                                "Căn giữa vùng cắt nguồn",
+                                "Reset to Full Window",
+                                "Khôi phục toàn bộ cửa sổ",
                             ))
                             .clicked()
                             && let Some(preview_frame) = preview.as_ref()
                         {
-                            let max_w = preview_frame.logical_width.max(1);
-                            let max_h = preview_frame.logical_height.max(1);
-                            preset.source_x = ((max_w - preset.source_width.max(1)) / 2).max(0);
-                            preset.source_y = ((max_h - preset.source_height.max(1)) / 2).max(0);
+                            preset.source_x = 0;
+                            preset.source_y = 0;
+                            preset.source_width = preview_frame.logical_width.max(1);
+                            preset.source_height = preview_frame.logical_height.max(1);
                             preset.source_crop_initialized = true;
                             preset.source_crop_fit_version = 1;
                             live_sync = true;
