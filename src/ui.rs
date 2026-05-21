@@ -12269,15 +12269,30 @@ impl CrosshairApp {
                                 "Khôi phục toàn bộ cửa sổ",
                             ))
                             .clicked()
-                            && let Some(preview_frame) = preview.as_ref()
                         {
-                            preset.source_x = 0;
-                            preset.source_y = 0;
-                            preset.source_width = preview_frame.logical_width.max(1);
-                            preset.source_height = preview_frame.logical_height.max(1);
-                            preset.source_crop_initialized = true;
-                            preset.source_crop_fit_version = 1;
-                            live_sync = true;
+                            let mut target_frame = None;
+                            if let Some(preview_frame) = preview.as_ref() {
+                                target_frame = Some((preview_frame.logical_width, preview_frame.logical_height));
+                            } else {
+                                if let Some(frame) = window_list::capture_window_preview_with_candidates(
+                                    preset.target_window_title.as_ref().map(|s| s.as_str()),
+                                    &preset.extra_target_window_titles,
+                                    preset.match_duplicate_window_titles,
+                                    720,
+                                ) {
+                                    target_frame = Some((frame.logical_width, frame.logical_height));
+                                }
+                            }
+
+                            if let Some((w, h)) = target_frame {
+                                preset.source_x = 0;
+                                preset.source_y = 0;
+                                preset.source_width = w.max(1);
+                                preset.source_height = h.max(1);
+                                preset.source_crop_initialized = true;
+                                preset.source_crop_fit_version = 1;
+                                live_sync = true;
+                            }
                         }
                     });
                     ui.label(
