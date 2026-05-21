@@ -118,40 +118,9 @@ struct MacroStepDragPayload {
 }
 
 #[derive(Clone, Copy, PartialEq, Eq)]
-enum MacroAiMode {
-    ReplacePreset,
-    AppendSteps,
-}
-
-#[derive(Clone, Copy, PartialEq, Eq)]
 enum MacroGroupFavoriteFilter {
     All,
     Star,
-}
-
-#[derive(Clone)]
-struct MacroAiDialog {
-    group_id: u32,
-    preset_id: u32,
-    prompt: String,
-    mode: MacroAiMode,
-}
-
-struct MacroAiJob {
-    token: u64,
-    group_id: u32,
-    preset_id: u32,
-    mode: MacroAiMode,
-    replace_entire_preset: bool,
-    receiver: crossbeam_channel::Receiver<MacroAiJobResult>,
-}
-
-#[derive(Debug)]
-struct MacroAiJobResult {
-    token: u64,
-    group_id: u32,
-    preset_id: u32,
-    outcome: Result<ai::MacroAiPlan, String>,
 }
 
 #[derive(Clone)]
@@ -171,25 +140,6 @@ struct CommandAiJobResult {
     token: u64,
     preset_id: u32,
     outcome: Result<ai::CommandPresetPatch, String>,
-}
-
-#[derive(Clone)]
-struct CrosshairAiDialog {
-    profile_index: usize,
-    prompt: String,
-}
-
-struct CrosshairAiJob {
-    token: u64,
-    profile_index: usize,
-    receiver: crossbeam_channel::Receiver<CrosshairAiJobResult>,
-}
-
-#[derive(Debug)]
-struct CrosshairAiJobResult {
-    token: u64,
-    profile_index: usize,
-    outcome: Result<ai::CrosshairStylePatch, String>,
 }
 
 struct CloseToTrayAnimation {
@@ -593,19 +543,11 @@ pub struct CrosshairApp {
     active_macro_record_preset_id: Option<u32>,
     active_hud_preview_preset_id: Option<u32>,
     active_timer_preview_preset_id: Option<u32>,
-    crosshair_ai_dialog: Option<CrosshairAiDialog>,
-    crosshair_ai_job: Option<CrosshairAiJob>,
-    crosshair_ai_next_token: u64,
-    crosshair_ai_feedback: Option<String>,
     command_ai_dialog: Option<CommandAiDialog>,
     command_ai_job: Option<CommandAiJob>,
     command_ai_next_token: u64,
     command_ai_feedback: Option<String>,
     command_ai_step_target: Option<(u32, u32, Option<usize>)>,
-    macro_ai_dialog: Option<MacroAiDialog>,
-    macro_ai_job: Option<MacroAiJob>,
-    macro_ai_next_token: u64,
-    macro_ai_feedback: Option<String>,
     last_applied_theme: Option<UiThemeMode>,
     native_shadow_applied: bool,
     update_status: UpdateStatus,
@@ -739,19 +681,11 @@ impl CrosshairApp {
             active_macro_record_preset_id: None,
             active_hud_preview_preset_id: None,
             active_timer_preview_preset_id: None,
-            crosshair_ai_dialog: None,
-            crosshair_ai_job: None,
-            crosshair_ai_next_token: 1,
-            crosshair_ai_feedback: None,
             command_ai_dialog: None,
             command_ai_job: None,
             command_ai_next_token: 1,
             command_ai_feedback: None,
             command_ai_step_target: None,
-            macro_ai_dialog: None,
-            macro_ai_job: None,
-            macro_ai_next_token: 1,
-            macro_ai_feedback: None,
             last_applied_theme: None,
             native_shadow_applied: false,
             update_status: UpdateStatus::Idle,
@@ -5131,31 +5065,6 @@ impl CrosshairApp {
             .join("\n")
     }
 
-    fn macro_ai_request_wants_full_replace(user_prompt: &str) -> bool {
-        let prompt = user_prompt.to_ascii_lowercase();
-        prompt.contains("from scratch")
-            || prompt.contains("start over")
-            || prompt.contains("rewrite all")
-            || prompt.contains("replace all")
-            || prompt.contains("clear all")
-            || prompt.contains("reset")
-            || prompt.contains("delete all")
-            || prompt.contains("remove all")
-    }
-
-    fn macro_ai_instruction_is_legacy(value: &str) -> bool {
-        let normalized = value.trim();
-        if normalized.is_empty() {
-            return false;
-        }
-
-        normalized.eq_ignore_ascii_case(
-            "Convert the user's request into a JSON array of macro steps. Each step must have: key, action, delay_ms. Action must be KeyDown or KeyUp. Return JSON only.",
-        ) || normalized
-            .to_ascii_lowercase()
-            .contains("action must be keydown or keyup")
-    }
-
     fn format_id_name_catalog(title: &str, items: &[(u32, String)]) -> String {
         let mut output = String::new();
         output.push_str(title);
@@ -7553,197 +7462,6 @@ impl CrosshairApp {
             self.sync_macro_presets();
             self.status = format!("Added macro preset {id}.");
         }
-    }
-
-    fn open_macro_ai_dialog_for_preset(&mut self, group_id: u32, preset_id: u32) {
-        self.open_macro_ai_dialog_for_preset_with_mode(
-            group_id,
-            preset_id,
-            MacroAiMode::ReplacePreset,
-        );
-    }
-
-    fn open_macro_ai_dialog_for_preset_with_mode(
-        &mut self,
-        group_id: u32,
-        preset_id: u32,
-        mode: MacroAiMode,
-    ) {
-        if self.macro_ai_job.is_some() {
-            self.status = "AI generation is already running.".to_owned();
-            return;
-        }
-        let Some((_group_name, _preset_name)) = self
-            .state
-            .macro_groups
-            .iter()
-            .find(|group| group.id == group_id)
-            .and_then(|group| {
-                group
-                    .presets
-                    .iter()
-                    .find(|preset| preset.id == preset_id)
-                    .map(|_| (group.name.clone(), format!("Preset {preset_id}")))
-            })
-        else {
-            self.status = "Macro preset not found.".to_owned();
-            return;
-        };
-
-        self.macro_ai_dialog = Some(MacroAiDialog {
-            group_id,
-            preset_id,
-            prompt: String::new(),
-            mode,
-        });
-        let preset_label = format!("Preset {preset_id}");
-        self.macro_ai_feedback = None;
-        self.status = format!("Ready to generate a macro for {preset_label}.");
-    }
-
-    fn open_crosshair_ai_dialog_for_profile(&mut self, profile_index: usize) {
-        if self.crosshair_ai_job.is_some() {
-            self.status = "AI generation is already running.".to_owned();
-            return;
-        }
-        let Some(profile) = self.state.profiles.get(profile_index) else {
-            self.status = "Crosshair profile not found.".to_owned();
-            return;
-        };
-
-        self.crosshair_ai_dialog = Some(CrosshairAiDialog {
-            profile_index,
-            prompt: String::new(),
-        });
-        self.crosshair_ai_feedback = None;
-        self.status = format!("Ready to generate a crosshair style for {}.", profile.name);
-    }
-
-    fn build_crosshair_ai_prompt(&self, profile: &ProfileRecord, user_prompt: &str) -> String {
-        let current_style = serde_json::to_string_pretty(&profile.style).unwrap_or_else(|_| {
-            serde_json::to_string(&profile.style).unwrap_or_else(|_| "{}".to_owned())
-        });
-        format!(
-            "Edit the current MacroNest crosshair style for one existing profile.\n\
-             \n\
-             Profile name: {}\n\
-             Current profile enabled: {}\n\
-             Current style JSON:\n{}\n\
-             \n\
-             Rules:\n\
-             - Return only a JSON object.\n\
-             - Use only fields that exist in CrosshairStyle.\n\
-             - Omit any field you do not want to change.\n\
-             - Do not invent new fields or prose.\n\
-             - Colors must be objects with r, g, b, a.\n\
-             - If the user says center, treat it as the center of the screen, not x=0 y=0.\n\
-             - For center, use the current screen midpoint for x_offset and y_offset.\n\
-             - If the user asks for a visual change, keep unrelated values as they are.\n\
-             - If the user asks to disable or enable the crosshair, set enabled accordingly.\n\
-             - The JSON object will be treated as a patch and applied onto the current style.\n\
-             \n\
-             User request: {}\n",
-            profile.name.trim(),
-            profile.enabled,
-            current_style,
-            user_prompt.trim()
-        )
-    }
-
-    fn start_crosshair_ai_generation(&mut self, ctx: &egui::Context) {
-        let Some(dialog_snapshot) = self
-            .crosshair_ai_dialog
-            .as_ref()
-            .map(|dialog| (dialog.profile_index, dialog.prompt.trim().to_owned()))
-        else {
-            return;
-        };
-        if self.crosshair_ai_job.is_some() {
-            self.crosshair_ai_feedback = Some("AI generation is already running.".to_owned());
-            self.status = "AI generation is already running.".to_owned();
-            return;
-        }
-        let (profile_index, prompt) = dialog_snapshot;
-        if prompt.is_empty() {
-            self.crosshair_ai_feedback = Some("Type what crosshair you want first.".to_owned());
-            self.status = "Type what crosshair you want first.".to_owned();
-            return;
-        }
-        if self.state.groq_settings.api_key.trim().is_empty() {
-            self.settings_popup_open = true;
-            self.state.groq_settings.details_open = true;
-            self.crosshair_ai_dialog = None;
-            self.crosshair_ai_feedback =
-                Some("Open Settings > API and paste your Groq API key.".to_owned());
-            self.status = "Open Settings > API and paste your Groq API key.".to_owned();
-            return;
-        }
-        let Some(profile) = self.state.profiles.get(profile_index).cloned() else {
-            self.crosshair_ai_feedback = Some("Crosshair profile not found.".to_owned());
-            self.status = "Crosshair profile not found.".to_owned();
-            self.crosshair_ai_dialog = None;
-            return;
-        };
-
-        let groq_settings = self.state.groq_settings.clone();
-        let prompt_body = self.build_crosshair_ai_prompt(&profile, &prompt);
-        let system_instruction = "You are a deterministic MacroNest crosshair editor. Return only JSON. Use only fields that exist in CrosshairStyle. Treat the JSON as a patch that will be applied onto the current style. Do not invent fields or prose. Colors must be objects with r, g, b, a.";
-        let (tx, rx) = crossbeam_channel::bounded(1);
-        let token = self.crosshair_ai_next_token.max(1);
-        self.crosshair_ai_next_token = token + 1;
-        self.crosshair_ai_job = Some(CrosshairAiJob {
-            token,
-            profile_index,
-            receiver: rx,
-        });
-        self.crosshair_ai_feedback = Some("Generating crosshair style...".to_owned());
-        self.status = format!(
-            "Generating a crosshair style for {} using Groq...",
-            profile.name
-        );
-        let thread_ctx = ctx.clone();
-        std::thread::spawn(move || {
-            let outcome = std::panic::catch_unwind(|| {
-                ai::generate_crosshair_style_patch_groq(
-                    &groq_settings,
-                    &prompt_body,
-                    system_instruction,
-                )
-                .map_err(|error| error.to_string())
-            })
-            .unwrap_or_else(|_| Err("AI generation panicked.".to_owned()));
-            let _ = tx.send(CrosshairAiJobResult {
-                token,
-                profile_index,
-                outcome,
-            });
-            thread_ctx.request_repaint();
-        });
-        ctx.request_repaint();
-    }
-
-    fn apply_crosshair_ai_generated_style(
-        &mut self,
-        profile_index: usize,
-        patch: ai::CrosshairStylePatch,
-    ) {
-        let profile_name = {
-            let Some(profile) = self.state.profiles.get_mut(profile_index) else {
-                self.crosshair_ai_feedback = Some("Crosshair profile not found.".to_owned());
-                self.status = "Crosshair profile not found.".to_owned();
-                return;
-            };
-            patch.apply_to(&mut profile.style);
-            if let Some(enabled) = patch.enabled {
-                profile.enabled = enabled;
-            }
-            profile.style.enabled = profile.enabled;
-            profile.name.clone()
-        };
-        self.state.active_style = self.state.profiles[profile_index].style.clone();
-        self.sync_crosshair_profile(profile_index, &self.state.profiles[profile_index]);
-        self.crosshair_editor_dirty = true;
-        self.status = format!("Updated crosshair style for {}.", profile_name);
     }
 
     fn open_command_ai_dialog_for_preset(&mut self, preset_id: u32) {
