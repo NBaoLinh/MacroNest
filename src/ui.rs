@@ -17813,9 +17813,6 @@ impl CrosshairApp {
             let mut start_color_priority_anchor_capture = None;
             let template_file = self.vision_template_file_for_preset(preset_snapshot.id);
             let open_windows = self.open_windows.clone();
-            let hotkey_capture_target = CaptureRequest::VisionPresetHotkey(preset_snapshot.id);
-            let active_capture_target = self.capture_target.clone();
-            let pending_combo_keys = self.capture_hotkey_combo_keys.clone();
             let preset = &mut self.state.vision_presets[index];
             if preset.click_after_move {
                 preset.click_after_move = false;
@@ -17874,34 +17871,6 @@ impl CrosshairApp {
                     .num_columns(2)
                     .spacing([14.0, 8.0])
                     .show(ui, |ui| {
-                        ui.label(Self::tr_lang(language, "Hotkey", "Phím tắt"));
-                        ui.horizontal_wrapped(|ui| {
-                            let (begin_capture, cancel_capture) =
-                                Self::render_hotkey_capture_control(
-                                    ui,
-                                    language,
-                                    &mut preset.hotkey,
-                                    &hotkey_capture_target,
-                                    active_capture_target.as_ref(),
-                                    pending_combo_keys.as_ref(),
-                                    &mut live_sync,
-                                );
-                            if begin_capture {
-                                next_capture_local = Some((
-                                    hotkey_capture_target.clone(),
-                                    Self::tr_lang(
-                                        language,
-                                        "Press a hotkey for this preset.",
-                                        "Nhấn phím tắt cho preset này.",
-                                    )
-                                    .to_owned(),
-                                ));
-                            }
-                            if cancel_capture {
-                                cancel_active_capture_local = true;
-                            }
-                        });
-                        ui.end_row();
 
                         ui.label(Self::tr_lang(language, "Mode", "Chế độ"));
                         ui.horizontal_wrapped(|ui| {
@@ -17988,24 +17957,12 @@ impl CrosshairApp {
                                 preset.search_region_height = None;
                                 live_sync = true;
                             }
-                            ui.separator();
-                            live_sync |= ui
-                                .checkbox(
-                                    &mut preset.search_region_is_circle,
-                                    Self::tr_lang(language, "Circle", "Hình tròn"),
-                                )
-                                .on_hover_text(Self::tr_lang(
-                                    language,
-                                    "Use a circular search region inside the selected box.",
-                                    "Dùng vùng tìm kiếm hình tròn bên trong hộp đã chọn.",
-                                ))
-                                .changed();
-                            live_sync |= ui
-                                .checkbox(
-                                    &mut preset.show_search_region_overlay,
-                                    Self::tr_lang(language, "Overlay", "Hiển thị overlay"),
-                                )
-                                .changed();
+                             live_sync |= ui
+                                 .checkbox(
+                                     &mut preset.show_search_region_overlay,
+                                     Self::tr_lang(language, "Overlay", "Hiển thị overlay"),
+                                 )
+                                 .changed();
                         });
                         ui.end_row();
 
@@ -18022,20 +17979,7 @@ impl CrosshairApp {
                         });
                         ui.end_row();
 
-                        ui.label(Self::tr_lang(language, "Repeat", "Lặp lại"));
-                        ui.horizontal_wrapped(|ui| {
-                            live_sync |= ui
-                                .checkbox(
-                                    &mut preset.repeat_until_triggered_again,
-                                    Self::tr_lang(
-                                        language,
-                                        "Repeat until triggered again",
-                                        "Lặp lại cho đến khi kích hoạt lần nữa",
-                                    ),
-                                )
-                                .changed();
-                        });
-                        ui.end_row();
+
 
                         if preset.use_color_matching {
                             ui.label(Self::tr_lang(language, "Color", "Màu sắc"));
