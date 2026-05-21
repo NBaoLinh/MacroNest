@@ -12174,14 +12174,6 @@ impl CrosshairApp {
                     });
 
                 if preset.use_custom_bounds {
-                    let pin_aspect_ratio = if preset.use_source_crop {
-                        Some(preset.source_width.max(1) as f32 / preset.source_height.max(1) as f32)
-                    } else {
-                        preview.as_ref().map(|preview_frame| {
-                            preview_frame.logical_width.max(1) as f32
-                                / preview_frame.logical_height.max(1) as f32
-                        })
-                    };
                     live_sync |= Self::render_zoom_rect_editor(
                         ui,
                         (preset.id, "pin-bounds"),
@@ -12202,7 +12194,7 @@ impl CrosshairApp {
                         } else {
                             None
                         },
-                        pin_aspect_ratio,
+                        None,
                     );
                     ui.horizontal_wrapped(|ui| {
     if ui
