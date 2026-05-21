@@ -12120,30 +12120,11 @@ impl CrosshairApp {
                         live_sync |= target_changed;
                         ui.end_row();
 
-                        ui.label(Self::tr_lang(
-                            language,
-                            "Custom Bounds",
-                            "Khung tùy chỉnh",
-                        ));
-                        live_sync |= ui
-                            .checkbox(
-                                &mut preset.use_custom_bounds,
-                                Self::tr_lang(
-                                    language,
-                                    "Use custom position and size",
-                                    "Dùng vị trí và kích thước tùy chỉnh",
-                                ),
-                            )
-                            .changed();
-                        ui.end_row();
-
-                        ui.label(Self::tr_lang(language, "Overlay Shape", "Overlay Shape"));
+                        preset.use_custom_bounds = true;
                         if preset.overlay_style != PinOverlayStyle::Rectangle {
                             preset.overlay_style = PinOverlayStyle::Rectangle;
                             live_sync = true;
                         }
-                        ui.label(Self::tr_lang(language, "Rectangle", "Rectangle"));
-                        ui.end_row();
 
                         ui.label(Self::tr_lang(language, "Preview", "Preview"));
                         live_sync |= ui
