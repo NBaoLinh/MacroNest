@@ -555,6 +555,8 @@ pub struct CrosshairApp {
     opencv_download_progress: Arc<AtomicU32>,
     opencv_installed: bool,
     copy_folder_feedback_until: Option<Instant>,
+    vision_manual_color: RgbaColor,
+    vision_manual_color_hex: String,
 }
 
 impl CrosshairApp {
@@ -693,6 +695,8 @@ impl CrosshairApp {
             opencv_download_progress: Arc::new(AtomicU32::new(0)),
             opencv_installed,
             copy_folder_feedback_until: None,
+            vision_manual_color: RgbaColor { r: 0, g: 255, b: 170, a: 255 },
+            vision_manual_color_hex: "00FFAA".to_owned(),
         };
         app.ensure_master_presets();
         let mut startup_state_changed = false;
@@ -10685,17 +10689,19 @@ impl CrosshairApp {
                             .changed();
                         ui.end_row();
 
-                        ui.label("Outline thickness");
-                        changed |= ui
-                            .add_sized(
-                                [340.0, 20.0],
-                                Slider::new(
-                                    &mut self.state.active_style.outline_thickness,
-                                    0.0..=16.0,
-                                ),
-                            )
-                            .changed();
-                        ui.end_row();
+                        if self.state.active_style.outline_enabled {
+                            ui.label("Outline thickness");
+                            changed |= ui
+                                .add_sized(
+                                    [340.0, 20.0],
+                                    Slider::new(
+                                        &mut self.state.active_style.outline_thickness,
+                                        0.0..=16.0,
+                                    ),
+                                )
+                                .changed();
+                            ui.end_row();
+                        }
 
                         ui.label("Center dot");
                         changed |= ui
@@ -10703,17 +10709,19 @@ impl CrosshairApp {
                             .changed();
                         ui.end_row();
 
-                        ui.label("Center dot size");
-                        changed |= ui
-                            .add_sized(
-                                [340.0, 20.0],
-                                Slider::new(
-                                    &mut self.state.active_style.center_dot_size,
-                                    0.0..=32.0,
-                                ),
-                            )
-                            .changed();
-                        ui.end_row();
+                        if self.state.active_style.center_dot {
+                            ui.label("Center dot size");
+                            changed |= ui
+                                .add_sized(
+                                    [340.0, 20.0],
+                                    Slider::new(
+                                        &mut self.state.active_style.center_dot_size,
+                                        0.0..=32.0,
+                                    ),
+                                )
+                                .changed();
+                            ui.end_row();
+                        }
                     });
 
                 ui.separator();
@@ -10741,24 +10749,26 @@ impl CrosshairApp {
                         }
                         ui.end_row();
 
-                        ui.label("Outline color");
-                        let mut outline_rgba = [
-                            self.state.active_style.outline_color.r,
-                            self.state.active_style.outline_color.g,
-                            self.state.active_style.outline_color.b,
-                            self.state.active_style.outline_color.a,
-                        ];
-                        if ui
-                            .color_edit_button_srgba_unmultiplied(&mut outline_rgba)
-                            .changed()
-                        {
-                            self.state.active_style.outline_color.r = outline_rgba[0];
-                            self.state.active_style.outline_color.g = outline_rgba[1];
-                            self.state.active_style.outline_color.b = outline_rgba[2];
-                            self.state.active_style.outline_color.a = outline_rgba[3];
-                            changed = true;
+                        if self.state.active_style.outline_enabled {
+                            ui.label("Outline color");
+                            let mut outline_rgba = [
+                                self.state.active_style.outline_color.r,
+                                self.state.active_style.outline_color.g,
+                                self.state.active_style.outline_color.b,
+                                self.state.active_style.outline_color.a,
+                            ];
+                            if ui
+                                .color_edit_button_srgba_unmultiplied(&mut outline_rgba)
+                                .changed()
+                            {
+                                self.state.active_style.outline_color.r = outline_rgba[0];
+                                self.state.active_style.outline_color.g = outline_rgba[1];
+                                self.state.active_style.outline_color.b = outline_rgba[2];
+                                self.state.active_style.outline_color.a = outline_rgba[3];
+                                changed = true;
+                            }
+                            ui.end_row();
                         }
-                        ui.end_row();
                     });
             });
 
@@ -11018,20 +11028,22 @@ impl CrosshairApp {
                     .changed();
                 ui.end_row();
 
-                ui.label(Self::tr_lang(
-                    language,
-                    "Outline thickness",
-                    "Outline thickness",
-                ));
-                let response = ui.add_sized(
-                    [340.0, 20.0],
-                    DragValue::new(&mut style.outline_thickness)
-                        .range(0.0..=16.0)
-                        .speed(0.1),
-                );
-                changed |= response.changed();
-                dragging |= response.dragged();
-                ui.end_row();
+                if style.outline_enabled {
+                    ui.label(Self::tr_lang(
+                        language,
+                        "Outline thickness",
+                        "Outline thickness",
+                    ));
+                    let response = ui.add_sized(
+                        [340.0, 20.0],
+                        DragValue::new(&mut style.outline_thickness)
+                            .range(0.0..=16.0)
+                            .speed(0.1),
+                    );
+                    changed |= response.changed();
+                    dragging |= response.dragged();
+                    ui.end_row();
+                }
 
                 ui.label(Self::tr_lang(language, "Center dot", "Center dot"));
                 changed |= ui
@@ -11042,20 +11054,22 @@ impl CrosshairApp {
                     .changed();
                 ui.end_row();
 
-                ui.label(Self::tr_lang(
-                    language,
-                    "Center dot size",
-                    "Kích thước chấm giữa",
-                ));
-                let response = ui.add_sized(
-                    [340.0, 20.0],
-                    DragValue::new(&mut style.center_dot_size)
-                        .range(0.0..=32.0)
-                        .speed(0.1),
-                );
-                changed |= response.changed();
-                dragging |= response.dragged();
-                ui.end_row();
+                if style.center_dot {
+                    ui.label(Self::tr_lang(
+                        language,
+                        "Center dot size",
+                        "Kích thước chấm giữa",
+                    ));
+                    let response = ui.add_sized(
+                        [340.0, 20.0],
+                        DragValue::new(&mut style.center_dot_size)
+                            .range(0.0..=32.0)
+                            .speed(0.1),
+                    );
+                    changed |= response.changed();
+                    dragging |= response.dragged();
+                    ui.end_row();
+                }
 
                 ui.label(Self::tr_lang(
                     language,
@@ -11067,11 +11081,13 @@ impl CrosshairApp {
                 dragging |= response.dragged();
                 ui.end_row();
 
-                ui.label(Self::tr_lang(language, "Outline color", "Màu viền"));
-                let response = Self::edit_rgba_color(ui, &mut style.outline_color);
-                changed |= response.changed();
-                dragging |= response.dragged();
-                ui.end_row();
+                if style.outline_enabled {
+                    ui.label(Self::tr_lang(language, "Outline color", "Màu viền"));
+                    let response = Self::edit_rgba_color(ui, &mut style.outline_color);
+                    changed |= response.changed();
+                    dragging |= response.dragged();
+                    ui.end_row();
+                }
             });
         (changed, dragging)
     }
@@ -18068,9 +18084,119 @@ impl CrosshairApp {
                                     }
                                 }
                                 ui.add_space(4.0);
-                                if Self::image_search_add_color_button(ui, language).clicked() {
-                                    start_color_pick_capture = Some(preset.id);
-                                }
+                                ui.horizontal(|ui| {
+                                    if Self::image_search_add_color_button(ui, language).clicked() {
+                                        start_color_pick_capture = Some(preset.id);
+                                    }
+
+                                    let popup_id = ui.make_persistent_id((preset.id, "vision-manual-color-popup"));
+                                    let mut popup_open = ui
+                                        .ctx()
+                                        .data(|data| data.get_temp::<bool>(popup_id))
+                                        .unwrap_or(false);
+
+                                    let manual_button = ui.add_sized(
+                                        [24.0, 24.0],
+                                        Button::new(Self::material_icon_text(0xe40a, 18.0)),
+                                    )
+                                    .on_hover_text(Self::tr_lang(language, "Manual color input", "Chọn màu thủ công"));
+
+                                    if manual_button.clicked() {
+                                        popup_open = true;
+                                    }
+
+                                    let mut added_color = false;
+
+                                    let popup_response = egui::Popup::from_response(&manual_button)
+                                        .id(popup_id)
+                                        .open_bool(&mut popup_open)
+                                        .align(egui::RectAlign::BOTTOM_START)
+                                        .layout(egui::Layout::top_down_justified(egui::Align::Min))
+                                        .width(220.0)
+                                        .close_behavior(egui::PopupCloseBehavior::IgnoreClicks)
+                                        .show(|ui| {
+                                            ui.set_min_width(220.0);
+                                            ui.label(Self::tr_lang(language, "Manual color", "Chọn màu thủ công"));
+                                            ui.separator();
+
+                                            let mut color32 = egui::Color32::from_rgba_unmultiplied(
+                                                self.vision_manual_color.r,
+                                                self.vision_manual_color.g,
+                                                self.vision_manual_color.b,
+                                                self.vision_manual_color.a,
+                                            );
+                                            if egui::color_picker::color_picker_color32(
+                                                ui,
+                                                &mut color32,
+                                                egui::color_picker::Alpha::Opaque,
+                                            ) {
+                                                self.vision_manual_color.r = color32.r();
+                                                self.vision_manual_color.g = color32.g();
+                                                self.vision_manual_color.b = color32.b();
+                                                self.vision_manual_color.a = color32.a();
+                                                self.vision_manual_color_hex = format!(
+                                                    "{:02X}{:02X}{:02X}",
+                                                    self.vision_manual_color.r,
+                                                    self.vision_manual_color.g,
+                                                    self.vision_manual_color.b
+                                                );
+                                            }
+
+                                            ui.add_space(4.0);
+
+                                            ui.horizontal(|ui| {
+                                                ui.label("#");
+                                                let hex_resp = ui.add(
+                                                    TextEdit::singleline(&mut self.vision_manual_color_hex)
+                                                        .hint_text("RRGGBB")
+                                                );
+                                                if hex_resp.changed() {
+                                                    let hex = self.vision_manual_color_hex.trim().trim_start_matches('#');
+                                                    if hex.len() == 6 {
+                                                        if let Ok(color_val) = u32::from_str_radix(hex, 16) {
+                                                            self.vision_manual_color.r = ((color_val >> 16) & 0xFF) as u8;
+                                                            self.vision_manual_color.g = ((color_val >> 8) & 0xFF) as u8;
+                                                            self.vision_manual_color.b = (color_val & 0xFF) as u8;
+                                                        }
+                                                    }
+                                                }
+                                            });
+
+                                            ui.add_space(8.0);
+
+                                            if ui.button(Self::tr_lang(language, "Add color", "Thêm màu")).clicked() {
+                                                added_color = true;
+                                            }
+                                        });
+
+                                    if added_color {
+                                        if preset.target_colors.is_empty() {
+                                            if let Some(existing) = preset.target_color {
+                                                preset.target_colors.push(existing);
+                                            }
+                                        }
+                                        preset.target_colors.push(self.vision_manual_color);
+                                        preset.target_color = preset.target_colors.first().copied();
+                                        live_sync = true;
+                                        popup_open = false;
+                                    }
+
+                                    if popup_open
+                                        && let Some(pointer_pos) = ui.ctx().pointer_hover_pos()
+                                    {
+                                        let mut keep_open_rect = manual_button.rect.expand(10.0);
+                                        if let Some(popup) = &popup_response {
+                                            keep_open_rect =
+                                                keep_open_rect.union(popup.response.rect.expand(10.0));
+                                        }
+                                        if !keep_open_rect.contains(pointer_pos) {
+                                            popup_open = false;
+                                        }
+                                    }
+                                    ui.ctx().data_mut(|data| {
+                                        data.insert_temp(popup_id, popup_open)
+                                    });
+                                });
                             });
                             ui.end_row();
                         } else {
