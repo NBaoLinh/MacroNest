@@ -1855,10 +1855,7 @@ mod windows_overlay {
                             &preset.extra_target_window_titles,
                             preset.match_duplicate_window_titles,
                         )
-                        && preset
-                            .hotkey
-                            .as_ref()
-                            .is_some_and(|hotkey| hotkey::binding_matches(hotkey, binding))
+                        && preset_trigger_matches(preset.hotkey.as_ref(), &preset.trigger_keys, binding)
                 })
                 .cloned()
         };
@@ -2323,8 +2320,7 @@ mod windows_overlay {
             ) {
                 continue;
             }
-            if let Some(hotkey) = preset.hotkey.as_ref()
-                && hotkey::binding_matches(hotkey, binding)
+            if preset_trigger_matches(preset.hotkey.as_ref(), &preset.trigger_keys, binding)
                 && !is_repeat
             {
                 matched_any_window = true;
@@ -2340,8 +2336,7 @@ mod windows_overlay {
             if !preset.enabled {
                 continue;
             }
-            if let Some(hotkey) = preset.hotkey.as_ref()
-                && hotkey::binding_matches(hotkey, binding)
+            if preset_trigger_matches(preset.hotkey.as_ref(), &preset.trigger_keys, binding)
                 && !is_repeat
             {
                 matched_any_window = true;
@@ -2354,8 +2349,7 @@ mod windows_overlay {
             if !preset.enabled {
                 continue;
             }
-            if let Some(hotkey) = preset.hotkey.as_ref()
-                && hotkey::binding_matches(hotkey, binding)
+            if preset_trigger_matches(preset.hotkey.as_ref(), &preset.trigger_keys, binding)
                 && !is_repeat
             {
                 pin_toggle_id = Some(preset.id);
@@ -8388,6 +8382,20 @@ mod windows_overlay {
             return false;
         }
 
+        hotkey::split_binding_list(trigger_keys)
+            .iter()
+            .filter_map(|entry| hotkey::parse_binding(entry))
+            .any(|expected| trigger_binding_matches(&expected, binding))
+    }
+
+    fn preset_trigger_matches(hotkey: Option<&HotkeyBinding>, trigger_keys: &str, binding: &HotkeyBinding) -> bool {
+        if hotkey.is_some_and(|h| trigger_binding_matches(h, binding)) {
+            return true;
+        }
+        let trigger_keys = trigger_keys.trim();
+        if trigger_keys.is_empty() {
+            return false;
+        }
         hotkey::split_binding_list(trigger_keys)
             .iter()
             .filter_map(|entry| hotkey::parse_binding(entry))

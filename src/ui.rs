@@ -2536,6 +2536,131 @@ impl CrosshairApp {
         (begin_capture, cancel_capture)
     }
 
+    fn preset_trigger_bindings(hotkey: &Option<HotkeyBinding>, trigger_keys: &str) -> Vec<HotkeyBinding> {
+        let mut bindings = Vec::new();
+        if let Some(binding) = hotkey.as_ref() {
+            bindings.push(binding.clone());
+        }
+        for binding in hotkey::parse_binding_list(trigger_keys) {
+            if !bindings
+                .iter()
+                .any(|existing| hotkey::binding_matches(existing, &binding))
+            {
+                bindings.push(binding);
+            }
+        }
+        bindings
+    }
+
+    fn preset_trigger_has_binding(hotkey: &Option<HotkeyBinding>, trigger_keys: &str, binding: &HotkeyBinding) -> bool {
+        Self::preset_trigger_bindings(hotkey, trigger_keys)
+            .iter()
+            .any(|existing| hotkey::binding_matches(existing, binding))
+    }
+
+    fn preset_trigger_add_binding(hotkey: &mut Option<HotkeyBinding>, trigger_keys: &mut String, binding: HotkeyBinding) -> bool {
+        if Self::preset_trigger_has_binding(hotkey, trigger_keys, &binding) {
+            return false;
+        }
+        if hotkey.is_none() && trigger_keys.trim().is_empty() {
+            *hotkey = Some(binding);
+            true
+        } else {
+            hotkey::append_binding_to_list(trigger_keys, &binding)
+        }
+    }
+
+    fn preset_trigger_remove_binding(hotkey: &mut Option<HotkeyBinding>, trigger_keys: &mut String, binding: &HotkeyBinding) -> bool {
+        if hotkey
+            .as_ref()
+            .is_some_and(|existing| hotkey::binding_matches(existing, binding))
+        {
+            *hotkey = None;
+            return true;
+        }
+
+        let mut removed = false;
+        let mut remaining = Vec::new();
+        for entry in hotkey::split_binding_list(trigger_keys) {
+            let matches_binding = hotkey::parse_binding(&entry)
+                .is_some_and(|existing| hotkey::binding_matches(&existing, binding));
+            if !removed && matches_binding {
+                removed = true;
+                continue;
+            }
+            remaining.push(entry);
+        }
+
+        if removed {
+            *trigger_keys = remaining.join(", ");
+        }
+        removed
+    }
+
+    fn render_preset_trigger_chips(
+        ui: &mut egui::Ui,
+        language: UiLanguage,
+        hotkey: &mut Option<HotkeyBinding>,
+        trigger_keys: &mut String,
+        capture_target: Option<&CaptureRequest>,
+        expected_capture_target: &CaptureRequest,
+        capture_hotkey_combo_keys: Option<&Vec<String>>,
+    ) -> bool {
+        let bindings = Self::preset_trigger_bindings(hotkey, trigger_keys);
+        let mut changed = false;
+        if !bindings.is_empty() {
+            let mut remove_binding = None;
+            ui.horizontal(|ui| {
+                for binding in &bindings {
+                    let label = hotkey::format_binding(Some(binding));
+                    if ui
+                        .add(
+                            Button::new(RichText::new(label).monospace()).min_size(vec2(0.0, 22.0)),
+                        )
+                        .on_hover_text(Self::tr_lang(
+                            language,
+                            "Click to remove this trigger",
+                            "Bấm để xóa phím tắt này",
+                        ))
+                        .clicked()
+                    {
+                        remove_binding = Some(binding.clone());
+                    }
+                }
+            });
+
+            if let Some(binding) = remove_binding {
+                changed = Self::preset_trigger_remove_binding(hotkey, trigger_keys, &binding);
+            }
+        }
+
+        if let Some(target) = capture_target
+            && target == expected_capture_target
+            && let Some(pending) = capture_hotkey_combo_keys
+        {
+            let preview = Self::hotkey_binding_from_combo_keys(pending.clone());
+            let label = hotkey::format_binding(Some(&preview));
+            if label != "Not set" {
+                ui.add_space(6.0);
+                ui.horizontal(|ui| {
+                    ui.add(
+                        Button::new(RichText::new(label).monospace())
+                            .min_size(vec2(0.0, 22.0))
+                            .fill(Color32::from_rgba_premultiplied(72, 156, 116, 120))
+                            .stroke(egui::Stroke::new(1.0, Color32::from_rgb(126, 224, 182))),
+                    )
+                    .on_hover_text(Self::tr_lang(
+                        language,
+                        "Captured key preview",
+                        "Xem trước trigger đang bấm",
+                    ));
+                });
+            }
+        }
+
+        changed
+    }
+
     fn macro_trigger_bindings(preset: &MacroPreset) -> Vec<HotkeyBinding> {
         let mut bindings = Vec::new();
         if let Some(binding) = preset.hotkey.as_ref() {
@@ -8514,6 +8639,10 @@ impl CrosshairApp {
             CaptureRequest::MacroPresetRecordHotkey(_, _) => true,
             CaptureRequest::CommandPresetHotkey(_) => true,
             CaptureRequest::MacroPresetReleaseWaitKey(_, _) => true,
+            CaptureRequest::WindowPresetHotkey(_) => true,
+            CaptureRequest::WindowFocusPresetHotkey(_) => true,
+            CaptureRequest::PinPresetHotkey(_) => true,
+            CaptureRequest::MouseSensitivityPresetHotkey(_) => true,
             CaptureRequest::MacroPresetHoldStopInput(group_id, preset_id) => self
                 .state
                 .macro_groups
@@ -9858,8 +9987,13 @@ impl CrosshairApp {
                     .iter_mut()
                     .find(|preset| preset.id == preset_id)
                 {
-                    preset.hotkey = Some(binding);
-                    self.status = format!("Captured hotkey for {}.", preset.name);
+                    let changed = Self::preset_trigger_add_binding(&mut preset.hotkey, &mut preset.trigger_keys, binding);
+                    self.status = if changed {
+                        format!("Captured hotkey for {}.", preset.name)
+                    } else {
+                        format!("Hotkey already exists for {}.", preset.name)
+                    };
+                    preset.enabled = preset.hotkey.is_some() || !preset.trigger_keys.trim().is_empty();
                 }
                 self.sync_window_presets();
             }
@@ -9873,8 +10007,13 @@ impl CrosshairApp {
                     .iter_mut()
                     .find(|preset| preset.id == preset_id)
                 {
-                    preset.hotkey = Some(binding);
-                    self.status = format!("Captured focus hotkey for {}.", preset.name);
+                    let changed = Self::preset_trigger_add_binding(&mut preset.hotkey, &mut preset.trigger_keys, binding);
+                    self.status = if changed {
+                        format!("Captured focus hotkey for {}.", preset.name)
+                    } else {
+                        format!("Focus hotkey already exists for {}.", preset.name)
+                    };
+                    preset.enabled = preset.hotkey.is_some() || !preset.trigger_keys.trim().is_empty();
                 }
                 self.sync_window_presets();
             }
@@ -9963,8 +10102,13 @@ impl CrosshairApp {
                     .iter_mut()
                     .find(|preset| preset.id == preset_id)
                 {
-                    preset.hotkey = Some(binding);
-                    self.status = format!("Captured pin hotkey for {}.", preset.name);
+                    let changed = Self::preset_trigger_add_binding(&mut preset.hotkey, &mut preset.trigger_keys, binding);
+                    self.status = if changed {
+                        format!("Captured pin hotkey for {}.", preset.name)
+                    } else {
+                        format!("Pin hotkey already exists for {}.", preset.name)
+                    };
+                    preset.enabled = preset.hotkey.is_some() || !preset.trigger_keys.trim().is_empty();
                 }
                 self.sync_window_presets();
             }
@@ -9990,8 +10134,13 @@ impl CrosshairApp {
                     .iter_mut()
                     .find(|preset| preset.id == preset_id)
                 {
-                    preset.hotkey = Some(binding);
-                    self.status = format!("Captured mouse sensitivity hotkey for {}.", preset.name);
+                    let changed = Self::preset_trigger_add_binding(&mut preset.hotkey, &mut preset.trigger_keys, binding);
+                    self.status = if changed {
+                        format!("Captured mouse sensitivity hotkey for {}.", preset.name)
+                    } else {
+                        format!("Mouse sensitivity hotkey already exists for {}.", preset.name)
+                    };
+                    preset.enabled = preset.hotkey.is_some() || !preset.trigger_keys.trim().is_empty();
                 }
                 self.persist_mouse_sensitivity_presets();
             }
@@ -10362,6 +10511,10 @@ impl CrosshairApp {
                 CaptureRequest::MacroPresetHotkey(_, _)
                     | CaptureRequest::MacroPresetRecordHotkey(_, _)
                     | CaptureRequest::CommandPresetHotkey(_)
+                    | CaptureRequest::WindowPresetHotkey(_)
+                    | CaptureRequest::WindowFocusPresetHotkey(_)
+                    | CaptureRequest::PinPresetHotkey(_)
+                    | CaptureRequest::MouseSensitivityPresetHotkey(_)
             )
             && let Some(pending) = self.capture_hotkey_combo_keys.as_ref()
         {
@@ -11433,12 +11586,13 @@ impl CrosshairApp {
             };
             {
                 let preset = &mut self.state.window_presets[index];
-                preset.enabled = preset.hotkey.is_some();
+                preset.enabled = preset.hotkey.is_some() || !preset.trigger_keys.trim().is_empty();
                 Self::show_preset_card(ui, preset.enabled, |ui| {
                     egui::Grid::new((preset.id, "window-preset-header"))
                         .num_columns(2)
                         .spacing([14.0, 8.0])
                         .show(ui, |ui| {
+                            let capture_target = CaptureRequest::WindowPresetHotkey(preset.id);
                             ui.horizontal(|ui| {
                                 let name_width = Self::preset_header_name_width(ui);
                                 let response = ui.add_sized(
@@ -11452,11 +11606,21 @@ impl CrosshairApp {
                                     &mut preset.name,
                                 );
                                 live_sync |= response.changed();
+
+                                live_sync |= Self::render_preset_trigger_chips(
+                                    ui,
+                                    language,
+                                    &mut preset.hotkey,
+                                    &mut preset.trigger_keys,
+                                    active_capture_target.as_ref(),
+                                    &capture_target,
+                                    pending_combo_keys.as_ref(),
+                                );
+                                preset.enabled = preset.hotkey.is_some() || !preset.trigger_keys.trim().is_empty();
                             });
                             ui.with_layout(
                                 egui::Layout::right_to_left(egui::Align::Center),
                                 |ui| {
-                                    let capture_target = CaptureRequest::WindowPresetHotkey(preset.id);
                                     let capture_active = active_capture_target.as_ref() == Some(&capture_target);
                                     let capture_time = ui.ctx().input(|input| input.time) as f32;
                                     let pulse = if capture_active {
@@ -11464,6 +11628,7 @@ impl CrosshairApp {
                                     } else {
                                         0.0
                                     };
+                                    let has_keys = preset.hotkey.is_some() || !preset.trigger_keys.trim().is_empty();
                                     let fill = if capture_active {
                                         Color32::from_rgba_premultiplied(
                                             (88.0 + pulse * 28.0) as u8,
@@ -11471,14 +11636,14 @@ impl CrosshairApp {
                                             (44.0 + pulse * 10.0) as u8,
                                             255,
                                         )
-                                    } else if preset.hotkey.is_some() {
+                                    } else if has_keys {
                                         Color32::from_rgba_premultiplied(72, 156, 116, 120)
                                     } else {
                                         ui.visuals().faint_bg_color
                                     };
                                     let stroke = if capture_active {
                                         Color32::from_rgb(255, 232, 96)
-                                    } else if preset.hotkey.is_some() {
+                                    } else if has_keys {
                                         Color32::from_rgb(126, 224, 182)
                                     } else {
                                         ui.visuals().widgets.noninteractive.bg_stroke.color
@@ -11486,11 +11651,15 @@ impl CrosshairApp {
 
                                     let hover_text = if capture_active {
                                         Self::tr_lang(language, "Capturing... Press any key.", "Đang ghi... Nhấn một phím bất kỳ.").to_string()
-                                    } else if preset.hotkey.is_some() {
+                                    } else if has_keys {
+                                        let bindings_labels: Vec<String> = Self::preset_trigger_bindings(&preset.hotkey, &preset.trigger_keys)
+                                            .iter()
+                                            .map(|b| hotkey::format_binding(Some(b)))
+                                            .collect();
                                         format!(
                                             "{} {}\n{}",
                                             Self::tr_lang(language, "Hotkey:", "Phím tắt:"),
-                                            Self::format_binding_ui(language, preset.hotkey.as_ref()),
+                                            bindings_labels.join(", "),
                                             Self::tr_lang(
                                                 language,
                                                 "Left click: rebind | Right click: clear",
@@ -11513,13 +11682,15 @@ impl CrosshairApp {
                                             cancel_active_capture = true;
                                         } else {
                                             next_capture_target = Some((
-                                                capture_target,
+                                                capture_target.clone(),
                                                 format!("Capturing preset hotkey for {}.", preset.name),
                                             ));
                                         }
                                     }
                                     if btn_response.secondary_clicked() {
                                         preset.hotkey = None;
+                                        preset.trigger_keys.clear();
+                                        preset.enabled = false;
                                         live_sync = true;
                                     }
 
@@ -11676,7 +11847,7 @@ impl CrosshairApp {
             let pending_combo_keys = self.capture_hotkey_combo_keys.clone();
             ui.add_space(6.0);
             let preset = &mut self.state.window_focus_presets[index];
-            preset.enabled = preset.hotkey.is_some();
+            preset.enabled = preset.hotkey.is_some() || !preset.trigger_keys.trim().is_empty();
             Self::show_preset_card(ui, preset.enabled, |ui| {
                 ui.horizontal(|ui| {
                     let name_width = Self::preset_header_name_width(ui);
@@ -11689,8 +11860,20 @@ impl CrosshairApp {
                             &mut preset.name,
                         );
                         live_sync |= response.changed();
-                    ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
+
                         let capture_target = CaptureRequest::WindowFocusPresetHotkey(preset.id);
+                        live_sync |= Self::render_preset_trigger_chips(
+                            ui,
+                            language,
+                            &mut preset.hotkey,
+                            &mut preset.trigger_keys,
+                            active_capture_target.as_ref(),
+                            &capture_target,
+                            pending_combo_keys.as_ref(),
+                        );
+                        preset.enabled = preset.hotkey.is_some() || !preset.trigger_keys.trim().is_empty();
+
+                    ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
                         let capture_active = active_capture_target.as_ref() == Some(&capture_target);
                         let capture_time = ui.ctx().input(|input| input.time) as f32;
                         let pulse = if capture_active {
@@ -11698,6 +11881,7 @@ impl CrosshairApp {
                         } else {
                             0.0
                         };
+                        let has_keys = preset.hotkey.is_some() || !preset.trigger_keys.trim().is_empty();
                         let fill = if capture_active {
                             Color32::from_rgba_premultiplied(
                                 (88.0 + pulse * 28.0) as u8,
@@ -11705,14 +11889,14 @@ impl CrosshairApp {
                                 (44.0 + pulse * 10.0) as u8,
                                 255,
                             )
-                        } else if preset.hotkey.is_some() {
+                        } else if has_keys {
                             Color32::from_rgba_premultiplied(72, 156, 116, 120)
                         } else {
                             ui.visuals().faint_bg_color
                         };
                         let stroke = if capture_active {
                             Color32::from_rgb(255, 232, 96)
-                        } else if preset.hotkey.is_some() {
+                        } else if has_keys {
                             Color32::from_rgb(126, 224, 182)
                         } else {
                             ui.visuals().widgets.noninteractive.bg_stroke.color
@@ -11720,11 +11904,15 @@ impl CrosshairApp {
 
                         let hover_text = if capture_active {
                             Self::tr_lang(language, "Capturing... Press any key.", "Đang ghi... Nhấn một phím bất kỳ.").to_string()
-                        } else if preset.hotkey.is_some() {
+                        } else if has_keys {
+                            let bindings_labels: Vec<String> = Self::preset_trigger_bindings(&preset.hotkey, &preset.trigger_keys)
+                                .iter()
+                                .map(|b| hotkey::format_binding(Some(b)))
+                                .collect();
                             format!(
                                 "{} {}\n{}",
                                 Self::tr_lang(language, "Hotkey:", "Phím tắt:"),
-                                Self::format_binding_ui(language, preset.hotkey.as_ref()),
+                                bindings_labels.join(", "),
                                 Self::tr_lang(
                                     language,
                                     "Left click: rebind | Right click: clear",
@@ -11732,7 +11920,7 @@ impl CrosshairApp {
                                 )
                             )
                         } else {
-                            Self::tr_lang(language, "Left click: bind hotkey", "Chuột trái: gán phím tắt").to_string().to_string()
+                            Self::tr_lang(language, "Left click: bind hotkey", "Chuột trái: gán phím tắt").to_string()
                         };
 
                         let btn_response = ui.add_sized(
@@ -11754,6 +11942,8 @@ impl CrosshairApp {
                         }
                         if btn_response.secondary_clicked() {
                             preset.hotkey = None;
+                            preset.trigger_keys.clear();
+                            preset.enabled = false;
                             live_sync = true;
                         }
 
@@ -12086,7 +12276,7 @@ impl CrosshairApp {
                 None
             };
             let preset = &mut self.state.pin_presets[index];
-            preset.enabled = preset.hotkey.is_some();
+            preset.enabled = preset.hotkey.is_some() || !preset.trigger_keys.trim().is_empty();
             Self::show_preset_card(ui, preset.enabled, |ui| {
                 ui.horizontal(|ui| {
                     let name_width = Self::preset_header_name_width(ui);
@@ -12099,8 +12289,20 @@ impl CrosshairApp {
                             &mut preset.name,
                         );
                         live_sync |= response.changed();
-                    ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
+
                         let capture_target = CaptureRequest::PinPresetHotkey(preset.id);
+                        live_sync |= Self::render_preset_trigger_chips(
+                            ui,
+                            language,
+                            &mut preset.hotkey,
+                            &mut preset.trigger_keys,
+                            active_capture_target.as_ref(),
+                            &capture_target,
+                            pending_combo_keys.as_ref(),
+                        );
+                        preset.enabled = preset.hotkey.is_some() || !preset.trigger_keys.trim().is_empty();
+
+                    ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
                         let capture_active = active_capture_target.as_ref() == Some(&capture_target);
                         let capture_time = ui.ctx().input(|input| input.time) as f32;
                         let pulse = if capture_active {
@@ -12108,6 +12310,7 @@ impl CrosshairApp {
                         } else {
                             0.0
                         };
+                        let has_keys = preset.hotkey.is_some() || !preset.trigger_keys.trim().is_empty();
                         let fill = if capture_active {
                             Color32::from_rgba_premultiplied(
                                 (88.0 + pulse * 28.0) as u8,
@@ -12115,14 +12318,14 @@ impl CrosshairApp {
                                 (44.0 + pulse * 10.0) as u8,
                                 255,
                             )
-                        } else if preset.hotkey.is_some() {
+                        } else if has_keys {
                             Color32::from_rgba_premultiplied(72, 156, 116, 120)
                         } else {
                             ui.visuals().faint_bg_color
                         };
                         let stroke = if capture_active {
                             Color32::from_rgb(255, 232, 96)
-                        } else if preset.hotkey.is_some() {
+                        } else if has_keys {
                             Color32::from_rgb(126, 224, 182)
                         } else {
                             ui.visuals().widgets.noninteractive.bg_stroke.color
@@ -12130,11 +12333,15 @@ impl CrosshairApp {
 
                         let hover_text = if capture_active {
                             Self::tr_lang(language, "Capturing... Press any key.", "Đang ghi... Nhấn một phím bất kỳ.").to_string()
-                        } else if preset.hotkey.is_some() {
+                        } else if has_keys {
+                            let bindings_labels: Vec<String> = Self::preset_trigger_bindings(&preset.hotkey, &preset.trigger_keys)
+                                .iter()
+                                .map(|b| hotkey::format_binding(Some(b)))
+                                .collect();
                             format!(
                                 "{} {}\n{}",
                                 Self::tr_lang(language, "Hotkey:", "Phím tắt:"),
-                                Self::format_binding_ui(language, preset.hotkey.as_ref()),
+                                bindings_labels.join(", "),
                                 Self::tr_lang(
                                     language,
                                     "Left click: rebind | Right click: clear",
@@ -12142,7 +12349,7 @@ impl CrosshairApp {
                                 )
                             )
                         } else {
-                            Self::tr_lang(language, "Left click: bind hotkey", "Chuột trái: gán phím tắt").to_string().to_string()
+                            Self::tr_lang(language, "Left click: bind hotkey", "Chuột trái: gán phím tắt").to_string()
                         };
 
                         let btn_response = ui.add_sized(
@@ -12164,6 +12371,8 @@ impl CrosshairApp {
                         }
                         if btn_response.secondary_clicked() {
                             preset.hotkey = None;
+                            preset.trigger_keys.clear();
+                            preset.enabled = false;
                             live_sync = true;
                         }
 
@@ -17590,6 +17799,28 @@ impl CrosshairApp {
                 self.persist_mouse_sensitivity_presets();
             }
 
+            ui.add_space(8.0);
+
+            if ui
+                .button(self.tr("+ Add path preset", "+ Thêm preset đường chuột"))
+                .clicked()
+            {
+                self.add_mouse_path_preset();
+                self.persist_mouse_path_presets();
+            }
+
+            if let Some(active_id) = self.active_mouse_record_preset_id {
+                ui.add_space(8.0);
+                ui.label(
+                    RichText::new(match language {
+                        UiLanguage::Vietnamese => format!("Đang ghi preset #{active_id}"),
+                        _ => format!("Recording preset #{active_id}"),
+                    })
+                    .strong()
+                    .color(Color32::from_rgb(255, 96, 96)),
+                );
+            }
+
             ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
                 if let Some(current) = Self::current_mouse_speed() {
                     ui.label(
@@ -17635,7 +17866,7 @@ impl CrosshairApp {
             let pending_combo_keys = self.capture_hotkey_combo_keys.clone();
             ui.add_space(6.0);
             let preset = &mut self.state.mouse_sensitivity_presets[index];
-            preset.enabled = preset.hotkey.is_some();
+            preset.enabled = preset.hotkey.is_some() || !preset.trigger_keys.trim().is_empty();
             Self::show_preset_card(ui, preset.enabled, |ui| {
                 ui.horizontal(|ui| {
                     let mut disabled_by_button = false;
@@ -17651,6 +17882,19 @@ impl CrosshairApp {
                         &mut preset.name,
                     );
                     mouse_sensitivity_live_sync |= response.changed();
+
+                    let capture_target = CaptureRequest::MouseSensitivityPresetHotkey(preset.id);
+                    mouse_sensitivity_live_sync |= Self::render_preset_trigger_chips(
+                        ui,
+                        language,
+                        &mut preset.hotkey,
+                        &mut preset.trigger_keys,
+                        active_capture_target.as_ref(),
+                        &capture_target,
+                        pending_combo_keys.as_ref(),
+                    );
+                    preset.enabled = preset.hotkey.is_some() || !preset.trigger_keys.trim().is_empty();
+
                     if Self::sound_style_toggle_button(
                         ui,
                         Self::tr_lang(language, "Apply", "Áp dụng"),
@@ -17674,7 +17918,6 @@ impl CrosshairApp {
                     ui.with_layout(
                         egui::Layout::right_to_left(egui::Align::Center),
                         |ui| {
-                            let capture_target = CaptureRequest::MouseSensitivityPresetHotkey(preset.id);
                             let capture_active = active_capture_target.as_ref() == Some(&capture_target);
                             let capture_time = ui.ctx().input(|input| input.time) as f32;
                             let pulse = if capture_active {
@@ -17682,6 +17925,7 @@ impl CrosshairApp {
                             } else {
                                 0.0
                             };
+                            let has_keys = preset.hotkey.is_some() || !preset.trigger_keys.trim().is_empty();
                             let fill = if capture_active {
                                 Color32::from_rgba_premultiplied(
                                     (88.0 + pulse * 28.0) as u8,
@@ -17689,14 +17933,14 @@ impl CrosshairApp {
                                     (44.0 + pulse * 10.0) as u8,
                                     255,
                                 )
-                            } else if preset.hotkey.is_some() {
+                            } else if has_keys {
                                 Color32::from_rgba_premultiplied(72, 156, 116, 120)
                             } else {
                                 ui.visuals().faint_bg_color
                             };
                             let stroke = if capture_active {
                                 Color32::from_rgb(255, 232, 96)
-                            } else if preset.hotkey.is_some() {
+                            } else if has_keys {
                                 Color32::from_rgb(126, 224, 182)
                             } else {
                                 ui.visuals().widgets.noninteractive.bg_stroke.color
@@ -17704,11 +17948,15 @@ impl CrosshairApp {
 
                             let hover_text = if capture_active {
                                 Self::tr_lang(language, "Capturing... Press any key.", "Đang ghi... Nhấn một phím bất kỳ.").to_string()
-                            } else if preset.hotkey.is_some() {
+                            } else if has_keys {
+                                let bindings_labels: Vec<String> = Self::preset_trigger_bindings(&preset.hotkey, &preset.trigger_keys)
+                                    .iter()
+                                    .map(|b| hotkey::format_binding(Some(b)))
+                                    .collect();
                                 format!(
                                     "{} {}\n{}",
                                     Self::tr_lang(language, "Hotkey:", "Phím tắt:"),
-                                    Self::format_binding_ui(language, preset.hotkey.as_ref()),
+                                    bindings_labels.join(", "),
                                     Self::tr_lang(
                                         language,
                                         "Left click: rebind | Right click: clear",
@@ -17716,7 +17964,7 @@ impl CrosshairApp {
                                     )
                                 )
                             } else {
-                                Self::tr_lang(language, "Left click: bind hotkey", "Chuột trái: gán phím tắt").to_string().to_string()
+                                Self::tr_lang(language, "Left click: bind hotkey", "Chuột trái: gán phím tắt").to_string()
                             };
 
                             let btn_response = ui.add_sized(
@@ -17740,12 +17988,11 @@ impl CrosshairApp {
                                 }
                             }
                             if btn_response.secondary_clicked() {
-                                if preset.hotkey.is_some() {
-                                    preset.hotkey = None;
-                                    preset.enabled = false;
-                                    disabled_by_button = true;
-                                    mouse_sensitivity_live_sync = true;
-                                }
+                                preset.hotkey = None;
+                                preset.trigger_keys.clear();
+                                preset.enabled = false;
+                                disabled_by_button = true;
+                                mouse_sensitivity_live_sync = true;
                             }
 
                             if Self::sound_style_remove_button(ui).clicked() {
@@ -17832,25 +18079,6 @@ impl CrosshairApp {
         ui.add_space(8.0);
         ui.horizontal(|ui| {
             ui.label(RichText::new(Self::tr_lang(language, "Mouse Path", "Đường dẫn chuột")).strong());
-            ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
-                if let Some(active_id) = self.active_mouse_record_preset_id {
-                    ui.label(
-                        RichText::new(match language {
-                            UiLanguage::Vietnamese => format!("Đang ghi preset #{active_id}"),
-                            _ => format!("Recording preset #{active_id}"),
-                        })
-                        .strong()
-                        .color(Color32::from_rgb(255, 96, 96)),
-                    );
-                }
-                if ui
-                    .button(self.tr("+ Add path preset", "+ Thêm preset đường chuột"))
-                    .clicked()
-                {
-                    self.add_mouse_path_preset();
-                    self.persist_mouse_path_presets();
-                }
-            });
         });
 
         for index in 0..self.state.mouse_path_presets.len() {

@@ -246,6 +246,8 @@ pub struct WindowPreset {
     pub x: i32,
     pub y: i32,
     pub hotkey: Option<HotkeyBinding>,
+    #[serde(default)]
+    pub trigger_keys: String,
     pub remove_title_bar: bool,
     pub animate_enabled: bool,
     pub animate_duration_ms: u64,
@@ -273,6 +275,7 @@ impl WindowPreset {
             x: 0,
             y: 0,
             hotkey: None,
+            trigger_keys: String::new(),
             remove_title_bar: true,
             animate_enabled: false,
             animate_duration_ms: 260,
@@ -305,6 +308,8 @@ pub struct WindowFocusPreset {
     #[serde(default = "default_true")]
     pub match_duplicate_window_titles: bool,
     pub hotkey: Option<HotkeyBinding>,
+    #[serde(default)]
+    pub trigger_keys: String,
 }
 
 impl WindowFocusPreset {
@@ -318,6 +323,7 @@ impl WindowFocusPreset {
             extra_target_window_titles: Vec::new(),
             match_duplicate_window_titles: true,
             hotkey: None,
+            trigger_keys: String::new(),
         }
     }
 }
@@ -706,6 +712,8 @@ pub struct PinPreset {
     #[serde(default = "default_true")]
     pub match_duplicate_window_titles: bool,
     pub hotkey: Option<HotkeyBinding>,
+    #[serde(default)]
+    pub trigger_keys: String,
     #[serde(default = "default_true")]
     pub use_custom_bounds: bool,
     pub x: i32,
@@ -735,6 +743,7 @@ impl PinPreset {
             extra_target_window_titles: Vec::new(),
             match_duplicate_window_titles: true,
             hotkey: None,
+            trigger_keys: String::new(),
             use_custom_bounds: true,
             x: 100,
             y: 100,
@@ -825,6 +834,8 @@ pub struct MouseSensitivityPreset {
     #[serde(default = "default_mouse_sensitivity_restore_speed")]
     pub restore_speed: u32,
     pub hotkey: Option<HotkeyBinding>,
+    #[serde(default)]
+    pub trigger_keys: String,
 }
 
 fn default_mouse_sensitivity_restore_speed() -> u32 {
@@ -845,6 +856,7 @@ impl MouseSensitivityPreset {
             restore_on_exit: false,
             restore_speed: default_mouse_sensitivity_restore_speed(),
             hotkey: None,
+            trigger_keys: String::new(),
         }
     }
 }
