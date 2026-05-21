@@ -19988,6 +19988,23 @@ impl CrosshairApp {
                         &mut preset.name,
                     );
                     changed |= response.changed();
+                    if Self::sound_style_toggle_button(
+                        ui,
+                        Self::tr_lang(language, "Run", "Chạy"),
+                    )
+                    .on_hover_text(Self::tr_lang(
+                        language,
+                        "Execute this custom preset immediately",
+                        "Chạy câu lệnh này ngay lập tức",
+                    ))
+                    .clicked()
+                    {
+                        let command_text = ai::normalize_command_text(&preset.command);
+                        if !command_text.is_empty() {
+                            crate::overlay::spawn_custom_command(preset.use_powershell, command_text);
+                        }
+                    }
+                    ui.add_space(6.0);
                     ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
                         if Self::enabled_icon_button(ui, preset.enabled)
                             .on_hover_text("Enable / disable preset")

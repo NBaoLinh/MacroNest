@@ -4372,7 +4372,7 @@ mod windows_overlay {
         window_preset::apply_window_preset_by_id(spec)
     }
 
-    fn spawn_custom_command(use_powershell: bool, command_text: String) {
+    pub fn spawn_custom_command(use_powershell: bool, command_text: String) {
         thread::spawn(move || {
             let mut command = if use_powershell {
                 let mut cmd = Command::new("powershell.exe");
@@ -9887,6 +9887,8 @@ mod fallback {
     }
 
     pub fn wake_command_queue() {}
+
+    pub fn spawn_custom_command(_use_powershell: bool, _command_text: String) {}
 
     pub fn start(
         _paths: AppPaths,
