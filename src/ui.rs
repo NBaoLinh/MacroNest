@@ -16169,7 +16169,17 @@ impl CrosshairApp {
                                                     let step_capture_active =
                                                         capture_target_snapshot.as_ref() == Some(&step_capture_target);
 
-                                                    let mut text_edit = TextEdit::singleline(&mut step.key);
+                                                    let mut display_key = if step_capture_active {
+                                                        Self::tr_lang(
+                                                            language,
+                                                            "Capturing...",
+                                                            "Đang lấy phím...",
+                                                        ).to_owned()
+                                                    } else {
+                                                        step.key.clone()
+                                                    };
+
+                                                    let mut text_edit = TextEdit::singleline(&mut display_key);
                                                     if step_capture_active {
                                                         text_edit = text_edit.hint_text(Self::tr_lang(
                                                             language,
@@ -16180,13 +16190,18 @@ impl CrosshairApp {
 
                                                     let response =
                                                         ui.add_sized([146.0, 18.0], text_edit);
-                                                    Self::apply_vietnamese_input_if_changed(
-                                                        &response,
-                                                        self.state.vietnamese_input_enabled,
-                                                        self.state.vietnamese_input_mode,
-                                                        &mut step.key,
-                                                    );
-                                                    live_sync |= response.changed();
+                                                    if !step_capture_active {
+                                                        Self::apply_vietnamese_input_if_changed(
+                                                            &response,
+                                                            self.state.vietnamese_input_enabled,
+                                                            self.state.vietnamese_input_mode,
+                                                            &mut display_key,
+                                                        );
+                                                        if response.changed() || step.key != display_key {
+                                                            step.key = display_key;
+                                                            live_sync = true;
+                                                        }
+                                                    }
                                                 }
                                             } else {
                                                 ui.add_sized([146.0, 18.0], egui::Label::new("-"));
@@ -19970,13 +19985,10 @@ impl CrosshairApp {
         let mut open_ai_dialog: Option<u32> = None;
         let open_windows = self.open_windows.clone();
         for index in 0..self.state.command_presets.len() {
-            let active_capture_target = self.capture_target.clone();
-            let pending_combo_keys = self.capture_hotkey_combo_keys.clone();
-            let mut next_capture_target = None;
-            let mut cancel_active_capture = false;
             ui.add_space(6.0);
             let preset = &mut self.state.command_presets[index];
-            Self::show_preset_card(ui, preset.enabled, |ui| {
+            preset.enabled = true;
+            Self::show_preset_card(ui, true, |ui| {
                 ui.horizontal(|ui| {
                     let name_width = Self::preset_header_name_width(ui);
                     let response =
@@ -20006,13 +20018,6 @@ impl CrosshairApp {
                     }
                     ui.add_space(6.0);
                     ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
-                        if Self::enabled_icon_button(ui, preset.enabled)
-                            .on_hover_text("Enable / disable preset")
-                            .clicked()
-                        {
-                            preset.enabled = !preset.enabled;
-                            changed = true;
-                        }
                         if ui
                             .add_sized(
                                 [40.0, 24.0],
@@ -20056,36 +20061,6 @@ impl CrosshairApp {
                     .num_columns(2)
                     .spacing([14.0, 8.0])
                     .show(ui, |ui| {
-                        ui.label(Self::tr_lang(language, "Hotkey", "Hotkey"));
-                        ui.horizontal_wrapped(|ui| {
-                            let capture_target = CaptureRequest::CommandPresetHotkey(preset.id);
-                            let (begin_capture, cancel_capture) =
-                                Self::render_hotkey_capture_control(
-                                    ui,
-                                    language,
-                                    &mut preset.hotkey,
-                                    &capture_target,
-                                    active_capture_target.as_ref(),
-                                    pending_combo_keys.as_ref(),
-                                    &mut changed,
-                                );
-                            if begin_capture {
-                                next_capture_target = Some((
-                                    capture_target,
-                                    Self::tr_lang(
-                                        language,
-                                        "Press a hotkey for this custom preset.",
-                                        "Nhan phim tat cho custom preset nay.",
-                                    )
-                                    .to_owned(),
-                                ));
-                            }
-                            if cancel_capture {
-                                cancel_active_capture = true;
-                            }
-                        });
-                        ui.end_row();
-
                         ui.label(Self::tr_lang(language, "Target Window", "Target Window"));
                         changed |= Self::render_multi_window_targets_with_duplicate_mode(
                             ui,
@@ -20122,12 +20097,6 @@ impl CrosshairApp {
                         ui.end_row();
                     });
             });
-            if let Some((target, status)) = next_capture_target.take() {
-                self.begin_capture(target, status);
-            }
-            if cancel_active_capture {
-                self.cancel_capture();
-            }
         }
 
         if let Some(id) = remove_id {
