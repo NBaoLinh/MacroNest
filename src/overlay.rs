@@ -8932,19 +8932,8 @@ mod windows_overlay {
         pixels.fill(0);
 
         for region in regions {
-            let fill = [78, 214, 186, 36];
             let outline = [92, 220, 255, 210];
             if region.is_circle {
-                fill_ellipse_rgba(
-                    pixels,
-                    screen_width as usize,
-                    screen_height as usize,
-                    region.left,
-                    region.top,
-                    region.width,
-                    region.height,
-                    fill,
-                );
                 draw_ellipse_outline_rgba(
                     pixels,
                     screen_width as usize,
@@ -8979,16 +8968,6 @@ mod windows_overlay {
                     }
                 }
             } else {
-                fill_rect_rgba(
-                    pixels,
-                    screen_width as usize,
-                    screen_height as usize,
-                    region.left,
-                    region.top,
-                    region.width,
-                    region.height,
-                    fill,
-                );
                 draw_rect_outline_rgba(
                     pixels,
                     screen_width as usize,
@@ -9003,18 +8982,7 @@ mod windows_overlay {
         }
 
         if let Some(region) = preview_region {
-            let fill = [120, 220, 255, 36];
             let outline = [255, 216, 96, 230];
-            fill_rect_rgba(
-                pixels,
-                screen_width as usize,
-                screen_height as usize,
-                region.left,
-                region.top,
-                region.width,
-                region.height,
-                fill,
-            );
             draw_rect_outline_rgba(
                 pixels,
                 screen_width as usize,

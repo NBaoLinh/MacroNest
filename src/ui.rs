@@ -17966,7 +17966,7 @@ impl CrosshairApp {
                         });
                         ui.end_row();
 
-                        ui.label(Self::tr_lang(language, "Offset", "Độ lệch"));
+                        ui.label(Self::tr_lang(language, "Click offset (from center)", "Độ lệch nhấp chuột (so với tâm)"));
                         ui.horizontal_wrapped(|ui| {
                             ui.label("X");
                             live_sync |= ui
@@ -18282,18 +18282,7 @@ impl CrosshairApp {
                             }
                         }
 
-                        ui.label(Self::tr_lang(language, "Target window", "Cửa sổ mục tiêu"));
-                        live_sync |= Self::render_multi_window_targets_with_duplicate_mode(
-                            ui,
-                            language,
-                            (preset.id, "image-search-target"),
-                            Self::tr_lang(language, "Any screen", "Toàn màn hình"),
-                            &mut preset.target_window_title,
-                            &mut preset.extra_target_window_titles,
-                            &mut preset.match_duplicate_window_titles,
-                            &open_windows,
-                        );
-                        ui.end_row();
+
                     });
 
                 if let Some(preview) = preview.as_ref() {
