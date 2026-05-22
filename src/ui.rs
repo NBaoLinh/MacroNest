@@ -15717,6 +15717,21 @@ impl CrosshairApp {
                                         }
                                 };
                                 let step = &mut preset.steps[step_index];
+                                let is_step_executing = crate::overlay::ACTIVE_MACRO_STEPS.lock()
+                                    .get(&preset.id)
+                                    .map(|set| set.contains(&step_index))
+                                    .unwrap_or(false);
+
+                                let is_vision_active = step.action == MacroAction::StartVisionSearch && {
+                                    crate::overlay::is_vision_following_active_by_spec(&step.key)
+                                };
+
+                                let is_timer_active = step.action == MacroAction::StartTimerPreset && {
+                                    let t_id = step.timer_preset_id.or_else(|| step.key.trim().parse::<u32>().ok());
+                                    crate::overlay::is_timer_preset_active(t_id)
+                                };
+
+                                let is_active = is_step_executing || is_vision_active || is_timer_active;
                                 let is_selected = selected_steps_snapshot
                                     .contains(&(group.id, preset.id, step_index));
                                 let drag_indices = if is_selected {
@@ -15776,9 +15791,14 @@ impl CrosshairApp {
                                     preset_id: preset.id,
                                     indices: drag_indices,
                                 };
+                                let border_stroke = if is_active {
+                                    egui::Stroke::new(1.5, Color32::from_rgb(0, 255, 170))
+                                } else {
+                                    egui::Stroke::new(1.0, ui.visuals().widgets.noninteractive.bg_stroke.color)
+                                };
                                 let row_response = Frame::group(ui.style())
                                     .fill(row_fill)
-                                    .stroke(egui::Stroke::new(1.0, ui.visuals().widgets.noninteractive.bg_stroke.color))
+                                    .stroke(border_stroke)
                                     .inner_margin(egui::Margin::symmetric(4, 2))
                                     .show(ui, |ui| {
                                         ui.horizontal(|ui| {
@@ -15924,6 +15944,12 @@ impl CrosshairApp {
                                                       });
                                                   }
                                               }
+                                            if is_active {
+                                                ui.add_sized([16.0, 20.0], egui::Spinner::new().size(12.0))
+                                                    .on_hover_text(Self::tr_lang(language, "Step is running/active", "Bước này đang chạy/hoạt động"));
+                                            } else {
+                                                ui.allocate_space(vec2(16.0, 20.0));
+                                            }
                                             let step_num_text = format!("{}", step_index + 1);
                                             let label_width = if has_infinite_loop_warning || has_step_vision_leak || has_step_break_loop_warning { 18.0 } else { 30.0 };
                                             ui.add_sized(

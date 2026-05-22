@@ -177,6 +177,62 @@ mod windows_overlay {
     static MACRO_RECORDING: Lazy<Mutex<Option<MacroRecordingSession>>> =
         Lazy::new(|| Mutex::new(None));
     static HOOK_STATE: Lazy<Mutex<HookState>> = Lazy::new(|| Mutex::new(HookState::default()));
+
+    pub static ACTIVE_MACRO_STEPS: Lazy<Mutex<HashMap<u32, HashSet<usize>>>> =
+        Lazy::new(|| Mutex::new(HashMap::new()));
+
+    pub fn add_active_step(preset_id: u32, step_index: usize) {
+        let mut active = ACTIVE_MACRO_STEPS.lock();
+        active.entry(preset_id).or_default().insert(step_index);
+        drop(active);
+        request_ui_repaint();
+    }
+
+    pub fn remove_active_step(preset_id: u32, step_index: usize) {
+        let mut active = ACTIVE_MACRO_STEPS.lock();
+        if let Some(set) = active.get_mut(&preset_id) {
+            set.remove(&step_index);
+            if set.is_empty() {
+                active.remove(&preset_id);
+            }
+        }
+        drop(active);
+        request_ui_repaint();
+    }
+
+    pub struct ActiveStepGuard {
+        preset_id: u32,
+        step_index: usize,
+    }
+
+    impl ActiveStepGuard {
+        pub fn new(preset_id: u32, step_index: usize) -> Self {
+            add_active_step(preset_id, step_index);
+            Self { preset_id, step_index }
+        }
+    }
+
+    impl Drop for ActiveStepGuard {
+        fn drop(&mut self) {
+            remove_active_step(self.preset_id, self.step_index);
+        }
+    }
+
+    pub fn is_vision_following_active_by_spec(spec: &str) -> bool {
+        if let Ok(preset) = vision_preset_by_id(spec) {
+            HOOK_STATE.lock().vision_following_presets.contains(&preset.id)
+        } else {
+            false
+        }
+    }
+
+    pub fn is_timer_preset_active(t_id: Option<u32>) -> bool {
+        if let Some(id) = t_id {
+            HOOK_STATE.lock().active_timers.get(&id).map(|s| s.running).unwrap_or(false)
+        } else {
+            false
+        }
+    }
     
     static OVERLAY_COMMAND_TX: Lazy<Mutex<Option<Sender<OverlayCommand>>>> =
         Lazy::new(|| Mutex::new(None));
@@ -1609,6 +1665,8 @@ mod windows_overlay {
         } else {
             hook_state.vision_following_presets.remove(&preset_id);
         }
+        drop(hook_state);
+        request_ui_repaint();
     }
 
 
@@ -5173,6 +5231,7 @@ mod windows_overlay {
                 index += 1;
                 continue;
             }
+            let _guard = ActiveStepGuard::new(preset_id, absolute_index);
             if step.action != MacroAction::KeyDown
                 && sleep_for_macro_delay(
                     preset_id,
@@ -5532,6 +5591,7 @@ mod windows_overlay {
                 index += 1;
                 continue;
             }
+            let _guard = ActiveStepGuard::new(preset_id, absolute_index);
             if step.action != MacroAction::KeyDown
                 && sleep_for_hold_delay(
                     preset_id,
@@ -10023,6 +10083,7 @@ mod windows_overlay {
                             let mut lock = HOOK_STATE.lock();
                             let removed_state = lock.active_timers.remove(&preset.id);
                             drop(lock);
+                            request_ui_repaint();
                             just_finished = true;
                             if let Some(t_state) = removed_state {
                                 if let Some(macro_id) = t_state.on_complete_macro_preset_id {
@@ -10179,6 +10240,7 @@ mod windows_overlay {
         }
         drop(hook_state);
         wake_command_queue();
+        request_ui_repaint();
     }
 
     fn spawn_macro_by_preset_id(preset_id: u32) {
@@ -10305,6 +10367,17 @@ mod fallback {
         _ui_tx: crossbeam_channel::Sender<UiCommand>,
     ) -> Result<OverlayHandle> {
         bail!("This application currently supports Windows only")
+    }
+
+    pub static ACTIVE_MACRO_STEPS: once_cell::sync::Lazy<parking_lot::Mutex<std::collections::HashMap<u32, std::collections::HashSet<usize>>>> =
+        once_cell::sync::Lazy::new(|| parking_lot::Mutex::new(std::collections::HashMap::new()));
+
+    pub fn is_vision_following_active_by_spec(_spec: &str) -> bool {
+        false
+    }
+
+    pub fn is_timer_preset_active(_t_id: Option<u32>) -> bool {
+        false
     }
 }
 
