@@ -17312,7 +17312,7 @@ impl CrosshairApp {
                                         ui.ctx().request_repaint();
                                     }
                                     let rect = row_response.rect;
-                                    let speed = 250.0;
+                                    let speed = 500.0;
                                     let t = ui.ctx().input(|i| i.time);
                                     let w = rect.width();
                                     let h = rect.height();
