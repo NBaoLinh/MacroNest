@@ -16839,10 +16839,10 @@ impl CrosshairApp {
                                                 } else if step.action == MacroAction::IfStart {
                                                     ui.scope(|ui| {
                                                         ui.spacing_mut().item_spacing.x = 4.0;
-                                                        ui.spacing_mut().interact_size.y = 18.0;
+                                                        ui.spacing_mut().interact_size.y = 22.0;
                                                         ui.spacing_mut().button_padding.y = 0.0;
                                                         let response = ui.add_sized(
-                                                            [64.0, 18.0],
+                                                            [64.0, 22.0],
                                                             TextEdit::singleline(&mut step.if_variable_name)
                                                                 .hint_text(RichText::new(Self::tr_lang(language, "variable", "biến")).color(hint_color).weak()),
                                                         );
@@ -16867,7 +16867,7 @@ impl CrosshairApp {
                                                             });
                                                         
                                                         live_sync |= ui.add_sized(
-                                                            [46.0, 18.0],
+                                                            [46.0, 22.0],
                                                             DragValue::new(&mut step.if_compare_value).range(-1_000_000..=1_000_000),
                                                         ).changed();
 
@@ -16886,10 +16886,10 @@ impl CrosshairApp {
                                                 } else if step.action == MacroAction::SetVariable {
                                                     ui.scope(|ui| {
                                                         ui.spacing_mut().item_spacing.x = 4.0;
-                                                        ui.spacing_mut().interact_size.y = 18.0;
+                                                        ui.spacing_mut().interact_size.y = 22.0;
                                                         ui.spacing_mut().button_padding.y = 0.0;
                                                         let response = ui.add_sized(
-                                                            [64.0, 18.0],
+                                                            [64.0, 22.0],
                                                             TextEdit::singleline(&mut step.if_variable_name)
                                                                 .hint_text(RichText::new(Self::tr_lang(language, "variable", "biến")).color(hint_color).weak()),
                                                         );
@@ -16904,7 +16904,7 @@ impl CrosshairApp {
                                                         ui.label(" = ");
 
                                                         let response2 = ui.add_sized(
-                                                            [76.0, 18.0],
+                                                            [76.0, 22.0],
                                                             TextEdit::singleline(&mut step.key)
                                                                 .hint_text(RichText::new(Self::tr_lang(language, "value/expr", "giá trị")).color(hint_color).weak()),
                                                         );
