@@ -2250,9 +2250,9 @@ impl CrosshairApp {
                                         let step = &mut preset.hold_stop_step;
                                         let is_dark_theme = self.state.ui_theme == UiThemeMode::Dark;
                                         let hint_color = if is_dark_theme {
-                                            Color32::from_rgba_unmultiplied(110, 110, 110, 90)
+                                            Color32::from_rgba_unmultiplied(140, 140, 140, 150)
                                         } else {
-                                            Color32::from_rgba_unmultiplied(130, 130, 130, 90)
+                                            Color32::from_rgba_unmultiplied(100, 100, 100, 150)
                                         };
                                         ui.horizontal_wrapped(|ui| {
                                             ui.label(Self::tr_lang(language, "On Stop", "On Stop"));
@@ -2968,9 +2968,7 @@ impl CrosshairApp {
                                                                  if ui.checkbox(&mut step.break_loop_by_variable, cb_text).changed() {
                                                                      live_sync = true;
                                                                  }
-                                                             });
-                                                             if step.break_loop_by_variable {
-                                                                 ui.horizontal(|ui| {
+                                                                 if step.break_loop_by_variable {
                                                                      let response = ui.add_sized(
                                                                          [64.0, 22.0],
                                                                          TextEdit::singleline(&mut step.if_variable_name)
@@ -3020,29 +3018,31 @@ impl CrosshairApp {
                                                                                  .color(Color32::from_rgb(0, 191, 255))
                                                                          ).on_hover_text(Self::tr_lang(language, "Current runtime value", "Giá trị chạy hiện tại"));
                                                                      }
-                                                                 });
+                                                                 } else {
+                                                                     let response = ui.add_sized(
+                                                                         [160.0, 22.0],
+                                                                         TextEdit::singleline(&mut step.key).hint_text(
+                                                                             RichText::new(Self::tr_lang(
+                                                                                 language,
+                                                                                 "Stop key",
+                                                                                 "Phím dừng vòng lặp",
+                                                                             ))
+                                                                             .color(hint_color)
+                                                                             .italics(),
+                                                                         ),
+                                                                     );
+                                                                     Self::apply_vietnamese_input_if_changed(
+                                                                         &response,
+                                                                         self.state.vietnamese_input_enabled,
+                                                                         self.state.vietnamese_input_mode,
+                                                                         &mut step.key,
+                                                                     );
+                                                                     live_sync |= response.changed();
+                                                                 }
+                                                             });
+                                                             if step.break_loop_by_variable {
                                                                  Self::render_variable_suggestions_raw(ui, &mut step.if_variable_name, language);
                                                                  Self::render_variable_suggestions(ui, &mut step.key, language);
-                                                             } else {
-                                                                 let response = ui.add_sized(
-                                                                     [160.0, 22.0],
-                                                                     TextEdit::singleline(&mut step.key).hint_text(
-                                                                         RichText::new(Self::tr_lang(
-                                                                             language,
-                                                                             "Stop key",
-                                                                             "Phím dừng vòng lặp",
-                                                                         ))
-                                                                         .color(hint_color)
-                                                                         .italics(),
-                                                                     ),
-                                                                 );
-                                                                 Self::apply_vietnamese_input_if_changed(
-                                                                     &response,
-                                                                     self.state.vietnamese_input_enabled,
-                                                                     self.state.vietnamese_input_mode,
-                                                                     &mut step.key,
-                                                                 );
-                                                                 live_sync |= response.changed();
                                                              }
                                                          });
                                                      });
@@ -3892,9 +3892,9 @@ impl CrosshairApp {
                                             }
                                             let is_dark_theme = self.state.ui_theme == UiThemeMode::Dark;
                                             let hint_color = if is_dark_theme {
-                                                Color32::from_rgba_unmultiplied(110, 110, 110, 90)
+                                                Color32::from_rgba_unmultiplied(140, 140, 140, 150)
                                             } else {
-                                                Color32::from_rgba_unmultiplied(130, 130, 130, 90)
+                                                Color32::from_rgba_unmultiplied(100, 100, 100, 150)
                                             };
                                             ui.scope(|ui| {
                                                 ui.visuals_mut().widgets.inactive.bg_fill = Color32::TRANSPARENT;
@@ -4817,9 +4817,7 @@ impl CrosshairApp {
                                                                  if ui.checkbox(&mut step.break_loop_by_variable, cb_text).changed() {
                                                                      live_sync = true;
                                                                  }
-                                                             });
-                                                             if step.break_loop_by_variable {
-                                                                 ui.horizontal(|ui| {
+                                                                 if step.break_loop_by_variable {
                                                                      let response = ui.add_sized(
                                                                          [64.0, 18.0],
                                                                          TextEdit::singleline(&mut step.if_variable_name)
@@ -4869,22 +4867,24 @@ impl CrosshairApp {
                                                                                  .color(Color32::from_rgb(0, 191, 255))
                                                                          ).on_hover_text(Self::tr_lang(language, "Current runtime value", "Giá trị chạy hiện tại"));
                                                                      }
-                                                                 });
+                                                                 } else {
+                                                                     let response = ui.add_sized(
+                                                                         [146.0, 18.0],
+                                                                         TextEdit::singleline(&mut step.key)
+                                                                             .hint_text(RichText::new(Self::tr_lang(language, "Stop key", "Stop key")).color(hint_color).italics()),
+                                                                     );
+                                                                     Self::apply_vietnamese_input_if_changed(
+                                                                         &response,
+                                                                         self.state.vietnamese_input_enabled,
+                                                                         self.state.vietnamese_input_mode,
+                                                                         &mut step.key,
+                                                                     );
+                                                                     live_sync |= response.changed();
+                                                                 }
+                                                             });
+                                                             if step.break_loop_by_variable {
                                                                  Self::render_variable_suggestions_raw(ui, &mut step.if_variable_name, language);
                                                                  Self::render_variable_suggestions(ui, &mut step.key, language);
-                                                             } else {
-                                                                 let response = ui.add_sized(
-                                                                     [146.0, 18.0],
-                                                                     TextEdit::singleline(&mut step.key)
-                                                                         .hint_text(RichText::new(Self::tr_lang(language, "Stop key", "Stop key")).color(hint_color).italics()),
-                                                                 );
-                                                                 Self::apply_vietnamese_input_if_changed(
-                                                                     &response,
-                                                                     self.state.vietnamese_input_enabled,
-                                                                     self.state.vietnamese_input_mode,
-                                                                     &mut step.key,
-                                                                 );
-                                                                 live_sync |= response.changed();
                                                              }
                                                          });
                                                      });
@@ -6098,9 +6098,9 @@ impl CrosshairApp {
 
                 let is_dark_theme = self.state.ui_theme == UiThemeMode::Dark;
                 let hint_color = if is_dark_theme {
-                    Color32::from_rgba_unmultiplied(110, 110, 110, 90)
+                    Color32::from_rgba_unmultiplied(140, 140, 140, 150)
                 } else {
-                    Color32::from_rgba_unmultiplied(130, 130, 130, 90)
+                    Color32::from_rgba_unmultiplied(100, 100, 100, 150)
                 };
 
                 ui.add_sized(
