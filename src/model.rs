@@ -1294,6 +1294,8 @@ pub struct VisionPreset {
     #[serde(default = "default_true")]
     pub match_duplicate_window_titles: bool,
     pub hotkey: Option<HotkeyBinding>,
+    #[serde(default)]
+    pub trigger_keys: String,
     pub click_after_move: bool,
     #[serde(default = "default_image_search_offset_px")]
     pub move_offset_x: i32,
@@ -1355,6 +1357,7 @@ impl VisionPreset {
             extra_target_window_titles: Vec::new(),
             match_duplicate_window_titles: true,
             hotkey: None,
+            trigger_keys: String::new(),
             click_after_move: false,
             move_offset_x: default_image_search_offset_px(),
             move_offset_y: default_image_search_offset_px(),

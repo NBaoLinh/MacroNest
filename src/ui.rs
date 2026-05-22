@@ -8643,6 +8643,7 @@ impl CrosshairApp {
             CaptureRequest::WindowFocusPresetHotkey(_) => true,
             CaptureRequest::PinPresetHotkey(_) => true,
             CaptureRequest::MouseSensitivityPresetHotkey(_) => true,
+            CaptureRequest::VisionPresetHotkey(_) => true,
             CaptureRequest::MacroPresetHoldStopInput(group_id, preset_id) => self
                 .state
                 .macro_groups
@@ -10080,8 +10081,13 @@ impl CrosshairApp {
                     .iter_mut()
                     .find(|preset| preset.id == preset_id)
                 {
-                    preset.hotkey = Some(binding);
-                    self.status = format!("Captured image search hotkey for {}.", preset.name);
+                    let changed = Self::preset_trigger_add_binding(&mut preset.hotkey, &mut preset.trigger_keys, binding);
+                    self.status = if changed {
+                        format!("Captured image search hotkey for {}.", preset.name)
+                    } else {
+                        format!("Image search hotkey already exists for {}.", preset.name)
+                    };
+                    preset.enabled = preset.hotkey.is_some() || !preset.trigger_keys.trim().is_empty();
                 }
                 self.sync_vision_presets();
                 self.persist();

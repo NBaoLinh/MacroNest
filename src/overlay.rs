@@ -1670,10 +1670,7 @@ mod windows_overlay {
                             &preset.extra_target_window_titles,
                             preset.match_duplicate_window_titles,
                         )
-                        && preset
-                            .hotkey
-                            .as_ref()
-                            .is_some_and(|hotkey| hotkey::binding_matches(hotkey, binding))
+                        && preset_trigger_matches(preset.hotkey.as_ref(), &preset.trigger_keys, binding)
                 })
                 .cloned()
                 .collect::<Vec<_>>();
