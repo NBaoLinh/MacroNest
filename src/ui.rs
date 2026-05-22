@@ -15209,7 +15209,7 @@ impl CrosshairApp {
                                                                 format!("Cũ: {}", step.key)
                                                             }
                                                         });
-                                                    ui.with_layout(egui::Layout::left_to_right(egui::Align::Center), |ui| {
+                                                    ui.scope(|ui| {
                                                         ui.spacing_mut().item_spacing.x = 4.0;
                                                         ui.spacing_mut().interact_size.y = 22.0;
                                                         ui.spacing_mut().button_padding.y = 0.0;
@@ -15261,7 +15261,7 @@ impl CrosshairApp {
                                                         egui::Label::new(Self::tr_lang(language, "No input", "No input")),
                                                     );
                                                 } else if step.action == MacroAction::IfStart {
-                                                    ui.with_layout(egui::Layout::left_to_right(egui::Align::Center), |ui| {
+                                                    ui.scope(|ui| {
                                                         ui.spacing_mut().item_spacing.x = 4.0;
                                                         ui.spacing_mut().interact_size.y = 22.0;
                                                         ui.spacing_mut().button_padding.y = 0.0;
@@ -15308,7 +15308,7 @@ impl CrosshairApp {
                                                         }
                                                     });
                                                 } else if step.action == MacroAction::SetVariable {
-                                                    ui.with_layout(egui::Layout::left_to_right(egui::Align::Center), |ui| {
+                                                    ui.scope(|ui| {
                                                         ui.spacing_mut().item_spacing.x = 4.0;
                                                         ui.spacing_mut().interact_size.y = 22.0;
                                                         ui.spacing_mut().button_padding.y = 0.0;
@@ -16785,7 +16785,7 @@ impl CrosshairApp {
                                                                 }
                                                             }
                                                         });
-                                                    ui.with_layout(egui::Layout::left_to_right(egui::Align::Center), |ui| {
+                                                    ui.scope(|ui| {
                                                         ui.spacing_mut().item_spacing.x = 4.0;
                                                         ui.spacing_mut().interact_size.y = 18.0;
                                                         ui.spacing_mut().button_padding.y = 0.0;
@@ -16837,7 +16837,7 @@ impl CrosshairApp {
                                                         egui::Label::new(Self::tr_lang(language, "No input", "No input")),
                                                     );
                                                 } else if step.action == MacroAction::IfStart {
-                                                    ui.with_layout(egui::Layout::left_to_right(egui::Align::Center), |ui| {
+                                                    ui.scope(|ui| {
                                                         ui.spacing_mut().item_spacing.x = 4.0;
                                                         ui.spacing_mut().interact_size.y = 18.0;
                                                         ui.spacing_mut().button_padding.y = 0.0;
@@ -16884,7 +16884,7 @@ impl CrosshairApp {
                                                         }
                                                     });
                                                 } else if step.action == MacroAction::SetVariable {
-                                                    ui.with_layout(egui::Layout::left_to_right(egui::Align::Center), |ui| {
+                                                    ui.scope(|ui| {
                                                         ui.spacing_mut().item_spacing.x = 4.0;
                                                         ui.spacing_mut().interact_size.y = 18.0;
                                                         ui.spacing_mut().button_padding.y = 0.0;
