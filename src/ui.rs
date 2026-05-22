@@ -18543,7 +18543,7 @@ impl CrosshairApp {
                                     let mut remove_color_index = None;
                                     egui::Grid::new((preset.id, "image-search-color-grid"))
                                         .num_columns(8)
-                                        .spacing([4.0, 4.0])
+                                        .spacing([ui.spacing().item_spacing.x, 4.0])
                                         .show(ui, |ui| {
                                             for (index, color) in colors.iter().copied().enumerate()
                                             {
@@ -18737,13 +18737,20 @@ impl CrosshairApp {
 
                         if preset.image_search_move_advanced_open {
                             ui.horizontal(|ui| {
-                                ui.label(Self::tr_lang(language, "Click offset (from center)", "Độ lệch nhấp chuột (so với tâm)"));
+                                ui.label(Self::tr_lang(language, "Click offset", "Độ lệch nhấp chuột"));
                                 let help_btn = ui.small_button("❓");
-                                help_btn.on_hover_text(Self::tr_lang(
-                                    language,
-                                    "Click offset from the center of the detected object (image or color).\nThe cursor will move to the center plus this offset (X, Y) before clicking.",
-                                    "Độ lệch nhấp chuột tính từ tâm của đối tượng phát hiện được (hình ảnh hoặc màu sắc).\nChuột sẽ di chuyển đến vị trí tâm cộng thêm độ lệch (X, Y) này rồi mới nhấp chuột."
-                                ));
+                                if help_btn.hovered() {
+                                    egui::show_tooltip_text(
+                                        ui.ctx(),
+                                        ui.layer_id(),
+                                        help_btn.id,
+                                        Self::tr_lang(
+                                            language,
+                                            "Click offset from the center of the detected object (image or color).\nThe cursor will move to the center plus this offset (X, Y) before clicking.",
+                                            "Độ lệch nhấp chuột tính từ tâm của đối tượng phát hiện được (hình ảnh hoặc màu sắc).\nChuột sẽ di chuyển đến vị trí tâm cộng thêm độ lệch (X, Y) này rồi mới nhấp chuột."
+                                        )
+                                    );
+                                }
                             });
                             ui.horizontal_wrapped(|ui| {
                                 ui.label("X");
@@ -18777,37 +18784,6 @@ impl CrosshairApp {
                                     .changed();
                             });
                             ui.end_row();
-                        }
-
-                        ui.label(Self::tr_lang(language, "Advanced", "Nâng cao"));
-                        ui.horizontal_wrapped(|ui| {
-                            if Self::sized_button(
-                                ui,
-                                96.0,
-                                Self::tr_lang(
-                                    language,
-                                    if preset.image_search_advanced_open {
-                                        "Hide"
-                                    } else {
-                                        "Show"
-                                    },
-                                    if preset.image_search_advanced_open {
-                                        "Ẩn"
-                                    } else {
-                                        "Hiện"
-                                    },
-                                ),
-                            )
-                            .clicked()
-                            {
-                                preset.image_search_advanced_open =
-                                    !preset.image_search_advanced_open;
-                                live_sync = true;
-                            }
-                        });
-                        ui.end_row();
-
-                        if preset.image_search_advanced_open {
 
                             if preset.use_color_matching {
                                 ui.label(Self::tr_lang(language, "Color scan", "Quét màu"));
