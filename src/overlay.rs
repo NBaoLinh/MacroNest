@@ -1619,7 +1619,11 @@ mod windows_overlay {
     }
 
 
-    fn run_image_search_follow_loop(preset: VisionPreset, ui_tx: Option<Sender<UiCommand>>) {
+    fn run_image_search_follow_loop(
+        preset: VisionPreset,
+        ui_tx: Option<Sender<UiCommand>>,
+        variable_override: Option<String>,
+    ) {
         if let Some(tx) = ui_tx.as_ref() {
             let _ = tx.send(UiCommand::VisionFinished(format!(
                 "{}: repeat mode started. Press the hotkey again to stop.",
@@ -1628,7 +1632,7 @@ mod windows_overlay {
         }
 
         while image_search_following_is_active(preset.id) {
-            match run_vision_once_with_options(&preset, true, false) {
+            match run_vision_once_with_options(&preset, true, false, variable_override.as_deref()) {
                 Ok(_) => {}
                 Err(error) => {
                     if let Some(tx) = ui_tx.as_ref() {
@@ -1710,7 +1714,7 @@ mod windows_overlay {
 
                 let ui_tx = ui_tx.clone();
                 set_image_search_following_active(preset.id, true);
-                thread::spawn(move || run_image_search_follow_loop(preset, ui_tx));
+                thread::spawn(move || run_image_search_follow_loop(preset, ui_tx, None));
                 continue;
             }
 
@@ -3323,15 +3327,19 @@ mod windows_overlay {
                 guard.clone()
             }
         };
-        if runtime.hud_display == display {
-            return Ok(());
-        }
-        runtime.hud_display = display.clone();
 
-        let Some(display) = display else {
+        let Some(mut display) = display else {
             let _ = unsafe { ShowWindow(runtime.hud_hwnd, SW_HIDE) };
+            runtime.hud_display = None;
             return Ok(());
         };
+
+        display.text = resolve_variables_in_text(&display.text);
+
+        if runtime.hud_display.as_ref() == Some(&display) {
+            return Ok(());
+        }
+        runtime.hud_display = Some(display.clone());
 
         unsafe { paint_hud(runtime.hud_hwnd, &display) }
     }
@@ -4986,7 +4994,24 @@ mod windows_overlay {
                 let _ = play_sound_preset(&step.key);
             }
             MacroAction::StartVisionSearch => {
-                let _ = start_vision_following(&step.key);
+                let _ = start_vision_following(&step.key, Some(&step.if_variable_name));
+            }
+            MacroAction::ScanVisionOnce => {
+                if let Ok(preset) = vision_preset_by_id(&step.key) {
+                    let outcome = match run_vision_once_with_options(&preset, false, false, Some(&step.if_variable_name)) {
+                        Ok(outcome) => outcome,
+                        Err(error) => {
+                            eprintln!("ScanVisionOnce failed: {error}");
+                            return;
+                        }
+                    };
+                    if let Some(tx) = HOOK_STATE.lock().ui_tx.clone() {
+                        let _ = tx.send(UiCommand::VisionFinished(format!(
+                            "{}: {}",
+                            preset.name, outcome.status
+                        )));
+                    }
+                }
             }
             MacroAction::TriggerVisionMove => {
                 if let Ok(preset) = vision_preset_by_id(&step.key) {
@@ -5005,6 +5030,7 @@ mod windows_overlay {
                         None,
                         &[],
                         false,
+                        Some(&step.if_variable_name),
                     );
                 }
             }
@@ -5328,7 +5354,25 @@ mod windows_overlay {
                     let _ = play_sound_preset(&step.key);
                 }
                 MacroAction::StartVisionSearch => {
-                    let _ = start_vision_following(&step.key);
+                    let _ = start_vision_following(&step.key, Some(&step.if_variable_name));
+                }
+                MacroAction::ScanVisionOnce => {
+                    if let Some(preset) = vision_preset_by_id(&step.key).ok() {
+                        let outcome = match run_vision_once_with_options(&preset, false, false, Some(&step.if_variable_name)) {
+                            Ok(outcome) => outcome,
+                            Err(error) => {
+                                eprintln!("ScanVisionOnce failed: {error}");
+                                return MacroRunFlow::Continue;
+                            }
+                        };
+                        let ui_tx = HOOK_STATE.lock().ui_tx.clone();
+                        if let Some(tx) = ui_tx {
+                            let _ = tx.send(UiCommand::VisionFinished(format!(
+                                "{}: {}",
+                                preset.name, outcome.status
+                            )));
+                        }
+                    }
                 }
                 MacroAction::TriggerVisionMove => {
                     if let Some(preset) = vision_preset_by_id(&step.key).ok() {
@@ -5347,6 +5391,7 @@ mod windows_overlay {
                             target_window_title,
                             extra_target_window_titles,
                             match_duplicate_window_titles,
+                            Some(&step.if_variable_name),
                         ) {
                             return MacroRunFlow::StopExecution;
                         }
@@ -5671,7 +5716,25 @@ mod windows_overlay {
                     let _ = play_sound_preset(&step.key);
                 }
                 MacroAction::StartVisionSearch => {
-                    let _ = start_vision_following(&step.key);
+                    let _ = start_vision_following(&step.key, Some(&step.if_variable_name));
+                }
+                MacroAction::ScanVisionOnce => {
+                    if let Some(preset) = vision_preset_by_id(&step.key).ok() {
+                        let outcome = match run_vision_once_with_options(&preset, false, false, Some(&step.if_variable_name)) {
+                            Ok(outcome) => outcome,
+                            Err(error) => {
+                                eprintln!("ScanVisionOnce failed: {error}");
+                                return MacroRunFlow::Continue;
+                            }
+                        };
+                        let ui_tx = HOOK_STATE.lock().ui_tx.clone();
+                        if let Some(tx) = ui_tx {
+                            let _ = tx.send(UiCommand::VisionFinished(format!(
+                                "{}: {}",
+                                preset.name, outcome.status
+                            )));
+                        }
+                    }
                 }
                 MacroAction::TriggerVisionMove => {
                     if let Some(preset) = vision_preset_by_id(&step.key).ok() {
@@ -5690,6 +5753,7 @@ mod windows_overlay {
                             target_window_title,
                             extra_target_window_titles,
                             match_duplicate_window_titles,
+                            Some(&step.if_variable_name),
                         ) {
                             return MacroRunFlow::StopExecution;
                         }
@@ -5942,7 +6006,7 @@ mod windows_overlay {
         }
     }
 
-    fn evaluate_math_expression(expr: &str) -> i32 {
+    pub(crate) fn evaluate_math_expression(expr: &str) -> i32 {
         let expr = expr.trim();
         if expr.is_empty() {
             return 0;
@@ -6546,6 +6610,7 @@ mod windows_overlay {
                 | MacroAction::DisableZoom
                 | MacroAction::PlaySoundPreset
                 | MacroAction::StartVisionSearch
+                | MacroAction::ScanVisionOnce
                 | MacroAction::TriggerVisionMove
                 | MacroAction::StopVisionWait
                 | MacroAction::StopVision => {}
@@ -6680,6 +6745,7 @@ mod windows_overlay {
             | MacroAction::DisableZoom
             | MacroAction::PlaySoundPreset
             | MacroAction::StartVisionSearch
+            | MacroAction::ScanVisionOnce
             | MacroAction::TriggerVisionMove
             | MacroAction::StopVisionWait
             | MacroAction::StopVision => return Ok(()),
@@ -7544,6 +7610,50 @@ mod windows_overlay {
         }
     }
 
+    fn resolve_variables_in_text(text: &str) -> String {
+        let mut result = String::new();
+        let mut chars = text.chars().peekable();
+        while let Some(ch) = chars.next() {
+            if ch == '{' {
+                let mut var_name = String::new();
+                let mut found_close = false;
+                while let Some(&next_ch) = chars.peek() {
+                    if next_ch == '}' {
+                        chars.next(); // consume '}'
+                        found_close = true;
+                        break;
+                    } else {
+                        var_name.push(chars.next().unwrap());
+                    }
+                }
+                if found_close {
+                    let trimmed = var_name.trim();
+                    let val = {
+                        let vars = RUNTIME_VARIABLES.lock();
+                        vars.get(trimmed).cloned()
+                    };
+                    if let Some(v) = val {
+                        result.push_str(&v.to_string());
+                    } else {
+                        if !trimmed.is_empty() {
+                            result.push_str("0");
+                        } else {
+                            result.push('{');
+                            result.push_str(&var_name);
+                            result.push('}');
+                        }
+                    }
+                } else {
+                    result.push('{');
+                    result.push_str(&var_name);
+                }
+            } else {
+                result.push(ch);
+            }
+        }
+        result
+    }
+
     fn image_search_target_colors(preset: &VisionPreset) -> Vec<RgbaColor> {
         if !preset.target_colors.is_empty() {
             return preset.target_colors.clone();
@@ -7705,6 +7815,7 @@ mod windows_overlay {
         preset: &VisionPreset,
         move_cursor: bool,
         fire_click: bool,
+        variable_override: Option<&str>,
     ) -> Result<VisionRunOutcome> {
         if preset.is_pixel_counter {
             let target_colors = image_search_target_colors(preset);
@@ -7742,7 +7853,9 @@ mod windows_overlay {
                 configured_region.as_ref(),
             );
 
-            let var_name = if preset.pixel_counter_variable_name.is_empty() {
+            let var_name = if let Some(over) = variable_override.filter(|s| !s.trim().is_empty()) {
+                over.trim().to_string()
+            } else if preset.pixel_counter_variable_name.is_empty() {
                 format!("pixel_count_{}", preset.id)
             } else {
                 preset.pixel_counter_variable_name.clone()
@@ -8019,7 +8132,7 @@ mod windows_overlay {
     }
 
     fn run_vision_once(preset: &VisionPreset) -> Result<String> {
-        run_vision_once_with_options(preset, true, preset.click_after_move)
+        run_vision_once_with_options(preset, true, preset.click_after_move, None)
             .map(|outcome| outcome.status)
     }
 
@@ -8037,14 +8150,15 @@ mod windows_overlay {
             .context("Vision preset was not found")
     }
 
-    fn start_vision_following(spec: &str) -> Result<()> {
+    fn start_vision_following(spec: &str, variable_override: Option<&str>) -> Result<()> {
         let preset = vision_preset_by_id(spec)?;
         if image_search_following_is_active(preset.id) {
             return Ok(());
         }
         let ui_tx = HOOK_STATE.lock().ui_tx.clone();
         set_image_search_following_active(preset.id, true);
-        thread::spawn(move || run_image_search_follow_loop(preset, ui_tx));
+        let var_override = variable_override.map(|s| s.to_string());
+        thread::spawn(move || run_image_search_follow_loop(preset, ui_tx, var_override));
         Ok(())
     }
 
@@ -8085,6 +8199,7 @@ mod windows_overlay {
         target_window_title: Option<&str>,
         extra_target_window_titles: &[String],
         match_duplicate_window_titles: bool,
+        variable_override: Option<&str>,
     ) -> MacroRunFlow {
         let ui_tx = HOOK_STATE.lock().ui_tx.clone();
         let wait_generation = image_search_wait_generation(preset.id);
@@ -8114,7 +8229,7 @@ mod windows_overlay {
                 return MacroRunFlow::Continue;
             }
 
-            let outcome = match run_vision_once_with_options(preset, move_cursor, false) {
+            let outcome = match run_vision_once_with_options(preset, move_cursor, false, variable_override) {
                 Ok(outcome) => outcome,
                 Err(error) => {
                     eprintln!("Vision macro step failed: {error}");

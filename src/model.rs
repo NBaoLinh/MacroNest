@@ -373,6 +373,8 @@ pub enum MacroAction {
     PlaySoundPreset,
     #[serde(alias = "StartImageSearch")]
     StartVisionSearch,
+    #[serde(alias = "ScanImageOnce", alias = "ScanVisionOnce")]
+    ScanVisionOnce,
     #[serde(alias = "TriggerImageSearchMove", alias = "TriggerImageAction")]
     TriggerVisionMove,
     #[serde(alias = "StopImageSearchWait")]

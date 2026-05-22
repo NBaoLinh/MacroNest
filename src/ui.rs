@@ -15209,7 +15209,10 @@ impl CrosshairApp {
                                                                 format!("Cũ: {}", step.key)
                                                             }
                                                         });
-                                                    ui.horizontal(|ui| {
+                                                    ui.with_layout(egui::Layout::left_to_right(egui::Align::Center), |ui| {
+                                                        ui.spacing_mut().item_spacing.x = 4.0;
+                                                        ui.spacing_mut().interact_size.y = 22.0;
+                                                        ui.spacing_mut().button_padding.y = 0.0;
                                                         egui::ComboBox::from_id_salt((group.id, preset.id, "hold-stop-toolbox-preset"))
                                                             .width(112.0)
                                                             .selected_text(selected_label)
@@ -15258,8 +15261,10 @@ impl CrosshairApp {
                                                         egui::Label::new(Self::tr_lang(language, "No input", "No input")),
                                                     );
                                                 } else if step.action == MacroAction::IfStart {
-                                                    ui.horizontal(|ui| {
+                                                    ui.with_layout(egui::Layout::left_to_right(egui::Align::Center), |ui| {
                                                         ui.spacing_mut().item_spacing.x = 4.0;
+                                                        ui.spacing_mut().interact_size.y = 22.0;
+                                                        ui.spacing_mut().button_padding.y = 0.0;
                                                         let response = ui.add_sized(
                                                             [64.0, 22.0],
                                                             TextEdit::singleline(&mut step.if_variable_name)
@@ -15303,8 +15308,10 @@ impl CrosshairApp {
                                                         }
                                                     });
                                                 } else if step.action == MacroAction::SetVariable {
-                                                    ui.horizontal(|ui| {
+                                                    ui.with_layout(egui::Layout::left_to_right(egui::Align::Center), |ui| {
                                                         ui.spacing_mut().item_spacing.x = 4.0;
+                                                        ui.spacing_mut().interact_size.y = 22.0;
+                                                        ui.spacing_mut().button_padding.y = 0.0;
                                                         let response = ui.add_sized(
                                                             [64.0, 22.0],
                                                             TextEdit::singleline(&mut step.if_variable_name)
@@ -16778,7 +16785,10 @@ impl CrosshairApp {
                                                                 }
                                                             }
                                                         });
-                                                    ui.horizontal(|ui| {
+                                                    ui.with_layout(egui::Layout::left_to_right(egui::Align::Center), |ui| {
+                                                        ui.spacing_mut().item_spacing.x = 4.0;
+                                                        ui.spacing_mut().interact_size.y = 18.0;
+                                                        ui.spacing_mut().button_padding.y = 0.0;
                                                         egui::ComboBox::from_id_salt((group.id, preset.id, step_index, "toolbox-preset-step"))
                                                             .width(104.0)
                                                             .selected_text(selected_label)
@@ -16827,8 +16837,10 @@ impl CrosshairApp {
                                                         egui::Label::new(Self::tr_lang(language, "No input", "No input")),
                                                     );
                                                 } else if step.action == MacroAction::IfStart {
-                                                    ui.horizontal(|ui| {
+                                                    ui.with_layout(egui::Layout::left_to_right(egui::Align::Center), |ui| {
                                                         ui.spacing_mut().item_spacing.x = 4.0;
+                                                        ui.spacing_mut().interact_size.y = 18.0;
+                                                        ui.spacing_mut().button_padding.y = 0.0;
                                                         let response = ui.add_sized(
                                                             [64.0, 18.0],
                                                             TextEdit::singleline(&mut step.if_variable_name)
@@ -16872,8 +16884,10 @@ impl CrosshairApp {
                                                         }
                                                     });
                                                 } else if step.action == MacroAction::SetVariable {
-                                                    ui.horizontal(|ui| {
+                                                    ui.with_layout(egui::Layout::left_to_right(egui::Align::Center), |ui| {
                                                         ui.spacing_mut().item_spacing.x = 4.0;
+                                                        ui.spacing_mut().interact_size.y = 18.0;
+                                                        ui.spacing_mut().button_padding.y = 0.0;
                                                         let response = ui.add_sized(
                                                             [64.0, 18.0],
                                                             TextEdit::singleline(&mut step.if_variable_name)
