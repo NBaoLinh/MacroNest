@@ -500,6 +500,8 @@ pub struct MacroStep {
     #[serde(default)]
     pub manual_mouse_sensitivity: bool,
     #[serde(default)]
+    pub break_loop_by_variable: bool,
+    #[serde(default)]
     pub if_compare_value: i32,
 }
 
@@ -541,6 +543,7 @@ impl Default for MacroStep {
             if_variable_name: String::new(),
             if_operator: "=".to_string(),
             manual_mouse_sensitivity: false,
+            break_loop_by_variable: false,
             if_compare_value: 0,
         }
     }

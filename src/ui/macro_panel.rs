@@ -2958,25 +2958,95 @@ impl CrosshairApp {
                                                           });
                                                       }
                                                  } else if step.action == MacroAction::StopIfKeyPressed {
-                                                     let response = ui.add_sized(
-                                                         [160.0, 22.0],
-                                                         TextEdit::singleline(&mut step.key).hint_text(
-                                                             RichText::new(Self::tr_lang(
-                                                                 language,
-                                                                 "Stop key",
-                                                                 "Phím dừng vòng lặp",
-                                                             ))
-                                                             .color(hint_color)
-                                                             .italics(),
-                                                         ),
-                                                     );
-                                                     Self::apply_vietnamese_input_if_changed(
-                                                         &response,
-                                                         self.state.vietnamese_input_enabled,
-                                                         self.state.vietnamese_input_mode,
-                                                         &mut step.key,
-                                                     );
-                                                     live_sync |= response.changed();
+                                                     ui.scope(|ui| {
+                                                         ui.spacing_mut().item_spacing.x = 4.0;
+                                                         ui.spacing_mut().interact_size.y = 22.0;
+                                                         ui.spacing_mut().button_padding.y = 0.0;
+                                                         ui.vertical(|ui| {
+                                                             ui.horizontal(|ui| {
+                                                                 let cb_text = Self::tr_lang(language, "Var compare", "So sánh biến");
+                                                                 if ui.checkbox(&mut step.break_loop_by_variable, cb_text).changed() {
+                                                                     live_sync = true;
+                                                                 }
+                                                             });
+                                                             if step.break_loop_by_variable {
+                                                                 ui.horizontal(|ui| {
+                                                                     let response = ui.add_sized(
+                                                                         [64.0, 22.0],
+                                                                         TextEdit::singleline(&mut step.if_variable_name)
+                                                                             .hint_text(RichText::new(Self::tr_lang(language, "variable", "biến")).color(hint_color).weak()),
+                                                                     );
+                                                                     Self::apply_vietnamese_input_if_changed(
+                                                                         &response,
+                                                                         self.state.vietnamese_input_enabled,
+                                                                         self.state.vietnamese_input_mode,
+                                                                         &mut step.if_variable_name,
+                                                                     );
+                                                                     live_sync |= response.changed();
+
+                                                                     egui::ComboBox::from_id_salt((group.id, preset.id, "hold-stop-loop-if-op"))
+                                                                         .width(40.0)
+                                                                         .selected_text(&step.if_operator)
+                                                                         .show_ui(ui, |ui| {
+                                                                             for op in &["==", ">", "<", ">=", "<=", "!="] {
+                                                                                 if ui.selectable_label(step.if_operator == *op, *op).clicked() {
+                                                                                     step.if_operator = op.to_string();
+                                                                                     live_sync = true;
+                                                                                 }
+                                                                             }
+                                                                         });
+
+                                                                     let response2 = ui.add_sized(
+                                                                         [76.0, 22.0],
+                                                                         TextEdit::singleline(&mut step.key)
+                                                                             .hint_text(RichText::new(Self::tr_lang(language, "value/expr", "giá trị")).color(hint_color).weak()),
+                                                                     );
+                                                                     Self::apply_vietnamese_input_if_changed(
+                                                                         &response2,
+                                                                         self.state.vietnamese_input_enabled,
+                                                                         self.state.vietnamese_input_mode,
+                                                                         &mut step.key,
+                                                                     );
+                                                                     live_sync |= response2.changed();
+
+                                                                     let var_name = step.if_variable_name.trim();
+                                                                     if !var_name.is_empty() {
+                                                                         let current_val = crate::overlay::RUNTIME_VARIABLES.lock().get(var_name).copied();
+                                                                         let val_str = current_val.map(|v| v.to_string()).unwrap_or_else(|| "?".to_string());
+                                                                         ui.add_space(2.0);
+                                                                         ui.label(
+                                                                             RichText::new(format!("({})", val_str))
+                                                                                 .size(10.0)
+                                                                                 .color(Color32::from_rgb(0, 191, 255))
+                                                                         ).on_hover_text(Self::tr_lang(language, "Current runtime value", "Giá trị chạy hiện tại"));
+                                                                     }
+                                                                 });
+                                                                 Self::render_variable_suggestions_raw(ui, &mut step.if_variable_name, language);
+                                                                 Self::render_variable_suggestions(ui, &mut step.key, language);
+                                                             } else {
+                                                                 let response = ui.add_sized(
+                                                                     [160.0, 22.0],
+                                                                     TextEdit::singleline(&mut step.key).hint_text(
+                                                                         RichText::new(Self::tr_lang(
+                                                                             language,
+                                                                             "Stop key",
+                                                                             "Phím dừng vòng lặp",
+                                                                         ))
+                                                                         .color(hint_color)
+                                                                         .italics(),
+                                                                     ),
+                                                                 );
+                                                                 Self::apply_vietnamese_input_if_changed(
+                                                                     &response,
+                                                                     self.state.vietnamese_input_enabled,
+                                                                     self.state.vietnamese_input_mode,
+                                                                     &mut step.key,
+                                                                 );
+                                                                 live_sync |= response.changed();
+                                                             }
+                                                         });
+                                                     });
+
                                                 } else if step.action == MacroAction::ShowHud {
                                                     let selected_id = step.key.trim().parse::<u32>().ok();
                                                     let selected_label = selected_id
@@ -4737,18 +4807,88 @@ impl CrosshairApp {
                                                           });
                                                       }
                                                  } else if step.action == MacroAction::StopIfKeyPressed {
-                                                     let response = ui.add_sized(
-                                                         [146.0, 18.0],
-                                                         TextEdit::singleline(&mut step.key)
-                                                             .hint_text(RichText::new(Self::tr_lang(language, "Stop key", "Stop key")).color(hint_color).italics()),
-                                                     );
-                                                     Self::apply_vietnamese_input_if_changed(
-                                                         &response,
-                                                         self.state.vietnamese_input_enabled,
-                                                         self.state.vietnamese_input_mode,
-                                                         &mut step.key,
-                                                     );
-                                                     live_sync |= response.changed();
+                                                     ui.scope(|ui| {
+                                                         ui.spacing_mut().item_spacing.x = 4.0;
+                                                         ui.spacing_mut().interact_size.y = 18.0;
+                                                         ui.spacing_mut().button_padding.y = 0.0;
+                                                         ui.vertical(|ui| {
+                                                             ui.horizontal(|ui| {
+                                                                 let cb_text = Self::tr_lang(language, "Var compare", "So sánh biến");
+                                                                 if ui.checkbox(&mut step.break_loop_by_variable, cb_text).changed() {
+                                                                     live_sync = true;
+                                                                 }
+                                                             });
+                                                             if step.break_loop_by_variable {
+                                                                 ui.horizontal(|ui| {
+                                                                     let response = ui.add_sized(
+                                                                         [64.0, 18.0],
+                                                                         TextEdit::singleline(&mut step.if_variable_name)
+                                                                             .hint_text(RichText::new(Self::tr_lang(language, "variable", "biến")).color(hint_color).weak()),
+                                                                     );
+                                                                     Self::apply_vietnamese_input_if_changed(
+                                                                         &response,
+                                                                         self.state.vietnamese_input_enabled,
+                                                                         self.state.vietnamese_input_mode,
+                                                                         &mut step.if_variable_name,
+                                                                     );
+                                                                     live_sync |= response.changed();
+
+                                                                     egui::ComboBox::from_id_salt((group.id, preset.id, step_index, "stop-loop-if-op"))
+                                                                         .width(40.0)
+                                                                         .selected_text(&step.if_operator)
+                                                                         .show_ui(ui, |ui| {
+                                                                             for op in &["==", ">", "<", ">=", "<=", "!="] {
+                                                                                 if ui.selectable_label(step.if_operator == *op, *op).clicked() {
+                                                                                     step.if_operator = op.to_string();
+                                                                                     live_sync = true;
+                                                                                 }
+                                                                             }
+                                                                         });
+
+                                                                     let response2 = ui.add_sized(
+                                                                         [76.0, 18.0],
+                                                                         TextEdit::singleline(&mut step.key)
+                                                                             .hint_text(RichText::new(Self::tr_lang(language, "value/expr", "giá trị")).color(hint_color).weak()),
+                                                                     );
+                                                                     Self::apply_vietnamese_input_if_changed(
+                                                                         &response2,
+                                                                         self.state.vietnamese_input_enabled,
+                                                                         self.state.vietnamese_input_mode,
+                                                                         &mut step.key,
+                                                                     );
+                                                                     live_sync |= response2.changed();
+
+                                                                     let var_name = step.if_variable_name.trim();
+                                                                     if !var_name.is_empty() {
+                                                                         let current_val = crate::overlay::RUNTIME_VARIABLES.lock().get(var_name).copied();
+                                                                         let val_str = current_val.map(|v| v.to_string()).unwrap_or_else(|| "?".to_string());
+                                                                         ui.add_space(2.0);
+                                                                         ui.label(
+                                                                             RichText::new(format!("({})", val_str))
+                                                                                 .size(10.0)
+                                                                                 .color(Color32::from_rgb(0, 191, 255))
+                                                                         ).on_hover_text(Self::tr_lang(language, "Current runtime value", "Giá trị chạy hiện tại"));
+                                                                     }
+                                                                 });
+                                                                 Self::render_variable_suggestions_raw(ui, &mut step.if_variable_name, language);
+                                                                 Self::render_variable_suggestions(ui, &mut step.key, language);
+                                                             } else {
+                                                                 let response = ui.add_sized(
+                                                                     [146.0, 18.0],
+                                                                     TextEdit::singleline(&mut step.key)
+                                                                         .hint_text(RichText::new(Self::tr_lang(language, "Stop key", "Stop key")).color(hint_color).italics()),
+                                                                 );
+                                                                 Self::apply_vietnamese_input_if_changed(
+                                                                     &response,
+                                                                     self.state.vietnamese_input_enabled,
+                                                                     self.state.vietnamese_input_mode,
+                                                                     &mut step.key,
+                                                                 );
+                                                                 live_sync |= response.changed();
+                                                             }
+                                                         });
+                                                     });
+
                                                 } else if step.action == MacroAction::ShowHud {
                                                     let selected_id = step.key.trim().parse::<u32>().ok();
                                                     let selected_label = selected_id
