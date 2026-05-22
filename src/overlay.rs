@@ -23,12 +23,11 @@ mod windows_overlay {
     use super::{MacroRecordingEvent, MacroRecordingSession};
 
     use std::{
-        cell::RefCell,
         collections::{HashMap, HashSet},
         ffi::c_void,
         mem::size_of,
         os::windows::process::CommandExt,
-        path::{Path, PathBuf},
+        path::PathBuf,
         process::Command,
         ptr::null_mut,
         sync::{
@@ -42,7 +41,7 @@ mod windows_overlay {
     use anyhow::{Context, Result, bail};
     use crossbeam_channel::{Receiver, Sender};
     use eframe::egui;
-    use libloading::Library;
+    
     use once_cell::sync::Lazy;
     use opencv::{
         core::{self as cv, Mat, Size},
@@ -74,7 +73,7 @@ mod windows_overlay {
             System::{
                 LibraryLoader::GetModuleHandleW,
                 Threading::{
-                    AttachThreadInput, CREATE_NO_WINDOW, GetCurrentProcessId, GetCurrentThreadId,
+                    CREATE_NO_WINDOW, GetCurrentProcessId,
                 },
             },
             UI::{
@@ -85,26 +84,24 @@ mod windows_overlay {
                     MOUSEEVENTF_LEFTDOWN, MOUSEEVENTF_LEFTUP, MOUSEEVENTF_MIDDLEDOWN,
                     MOUSEEVENTF_MIDDLEUP, MOUSEEVENTF_MOVE, MOUSEEVENTF_RIGHTDOWN,
                     MOUSEEVENTF_RIGHTUP, MOUSEEVENTF_WHEEL, MOUSEEVENTF_XDOWN, MOUSEEVENTF_XUP,
-                    MOUSEINPUT, MapVirtualKeyW, RegisterHotKey, SendInput, SetActiveWindow,
-                    SetFocus, UnregisterHotKey, VIRTUAL_KEY,
+                    MOUSEINPUT, MapVirtualKeyW, RegisterHotKey, SendInput, UnregisterHotKey, VIRTUAL_KEY,
                 },
                 Shell::{
                     NIF_ICON, NIF_MESSAGE, NIF_TIP, NIM_ADD, NIM_DELETE, NIM_MODIFY,
                     NOTIFYICONDATAW, Shell_NotifyIconW,
                 },
                 WindowsAndMessaging::{
-                    AppendMenuW, BringWindowToTop, CREATESTRUCTW, CallNextHookEx, CreatePopupMenu,
+                    AppendMenuW, CREATESTRUCTW, CallNextHookEx, CreatePopupMenu,
                     CreateWindowExW, DefWindowProcW, DestroyIcon, DestroyMenu, DispatchMessageW,
                     GA_ROOT, GW_OWNER, GWLP_USERDATA, GetAncestor, GetClassNameW, GetClientRect,
                     GetCursorPos, GetForegroundWindow, GetMessageW, GetSystemMetrics, GetWindow,
                     GetWindowLongPtrW, GetWindowRect, GetWindowThreadProcessId, HC_ACTION, HHOOK,
                     WindowFromPoint,
-                    HMENU, HTTRANSPARENT, HWND_NOTOPMOST, HWND_TOPMOST, IDC_ARROW, IMAGE_ICON,
-                    IsIconic, IsZoomed, KBDLLHOOKSTRUCT, KillTimer, LR_LOADFROMFILE, LoadCursorW,
+                    HMENU, HTTRANSPARENT, HWND_TOPMOST, IDC_ARROW, IMAGE_ICON, IsZoomed, KBDLLHOOKSTRUCT, KillTimer, LR_LOADFROMFILE, LoadCursorW,
                     LoadImageW, MA_NOACTIVATE, MF_SEPARATOR, MF_STRING, MSG, MSLLHOOKSTRUCT,
                     PostMessageW, PostQuitMessage, RegisterClassW, SM_CXSCREEN, SM_CYSCREEN,
-                    SPI_GETMOUSESPEED, SPI_SETMOUSESPEED, SPIF_SENDCHANGE, SPIF_UPDATEINIFILE,
-                    SW_HIDE, SW_RESTORE, SW_SHOWNA, SWP_ASYNCWINDOWPOS, SWP_NOACTIVATE, SWP_NOMOVE,
+                    SPI_GETMOUSESPEED, SPI_SETMOUSESPEED,
+                    SW_HIDE, SW_RESTORE, SW_SHOWNA, SWP_NOACTIVATE, SWP_NOMOVE,
                     SWP_NOSIZE, SWP_NOZORDER, SWP_SHOWWINDOW, SetCursorPos, SetForegroundWindow,
                     SetTimer, SetWindowLongPtrW, SetWindowPos, SetWindowsHookExW, ShowWindow,
                     SystemParametersInfoW, TPM_BOTTOMALIGN, TPM_LEFTALIGN, TrackPopupMenu,
@@ -248,6 +245,37 @@ mod windows_overlay {
     pub static FOREGROUND_WINDOW_HWND: std::sync::atomic::AtomicIsize = std::sync::atomic::AtomicIsize::new(0);
     pub static FOREGROUND_WINDOW_TITLE: Lazy<Mutex<Option<String>>> = Lazy::new(|| Mutex::new(None));
     pub static RUNTIME_VARIABLES: Lazy<Mutex<std::collections::HashMap<String, i32>>> = Lazy::new(|| Mutex::new(std::collections::HashMap::new()));
+
+    pub fn interpolate_variables(text: &str) -> String {
+        let mut result = String::new();
+        let mut chars = text.chars().peekable();
+        while let Some(c) = chars.next() {
+            if c == '{' {
+                let mut var_name = String::new();
+                let mut found_close = false;
+                while let Some(&next_c) = chars.peek() {
+                    if next_c == '}' {
+                        chars.next();
+                        found_close = true;
+                        break;
+                    } else {
+                        var_name.push(chars.next().unwrap());
+                    }
+                }
+                if found_close {
+                    let var_trimmed = var_name.trim();
+                    let val = evaluate_math_expression(var_trimmed);
+                    result.push_str(&val.to_string());
+                } else {
+                    result.push('{');
+                    result.push_str(&var_name);
+                }
+            } else {
+                result.push(c);
+            }
+        }
+        result
+    }
     #[derive(Debug, Clone)]
     pub enum OverlayCommand {
         Update(CrosshairStyle),
@@ -3439,7 +3467,7 @@ mod windows_overlay {
     fn refresh_search_area_overlay(runtime: &mut Runtime) -> Result<()> {
         let (regions, preview_region) = {
             let hook_state = HOOK_STATE.lock();
-            let mut regions = hook_state
+            let regions = hook_state
                 .vision_presets
                 .iter()
                 .filter(|preset| preset.show_search_region_overlay)
@@ -4431,6 +4459,7 @@ mod windows_overlay {
     }
 
     pub fn spawn_custom_command(use_powershell: bool, command_text: String) {
+        let command_text = interpolate_variables(&command_text);
         thread::spawn(move || {
             let mut command = if use_powershell {
                 let mut cmd = Command::new("powershell.exe");
@@ -5284,7 +5313,8 @@ mod windows_overlay {
                             }
                         }
                     } else {
-                        let loop_count = step.key.trim().parse::<u32>().unwrap_or(1).max(1);
+                        let loop_count_str = interpolate_variables(&step.key);
+                        let loop_count = loop_count_str.trim().parse::<u32>().unwrap_or(1).max(1);
                         for _ in 0..loop_count {
                             match execute_macro_sequence(
                                 preset_id,
@@ -5645,7 +5675,8 @@ mod windows_overlay {
                             }
                         }
                     } else {
-                        let loop_count = step.key.trim().parse::<u32>().unwrap_or(1).max(1);
+                        let loop_count_str = interpolate_variables(&step.key);
+                        let loop_count = loop_count_str.trim().parse::<u32>().unwrap_or(1).max(1);
                         for _ in 0..loop_count {
                             match execute_hold_macro_sequence(
                                 preset_id,
@@ -6228,6 +6259,26 @@ mod windows_overlay {
                 vars.clear();
             }
         }
+
+        #[test]
+        fn test_interpolate_variables() {
+            // Variable resolution in interpolate_variables
+            {
+                let mut vars = RUNTIME_VARIABLES.lock();
+                vars.insert("A".to_string(), 520);
+                vars.insert("B".to_string(), 10);
+            }
+            assert_eq!(interpolate_variables("test {A}"), "test 520");
+            assert_eq!(interpolate_variables("test {A+A}"), "test 1040");
+            assert_eq!(interpolate_variables("test {A + B * 2}"), "test 540");
+            assert_eq!(interpolate_variables("test {C}"), "test 0");
+
+            // Clean up
+            {
+                let mut vars = RUNTIME_VARIABLES.lock();
+                vars.clear();
+            }
+        }
     }
 
 
@@ -6362,6 +6413,7 @@ mod windows_overlay {
         } else {
             step.text_override.trim().to_owned()
         };
+        let text = interpolate_variables(&text);
         if text.is_empty() {
             hide_hud_now();
             return Ok(());
@@ -6425,7 +6477,7 @@ mod windows_overlay {
         } else {
             step.text_override.trim().to_owned()
         };
-        let trimmed = text.trim().to_owned();
+        let trimmed = interpolate_variables(text.trim()).to_owned();
         if trimmed.is_empty() {
             hide_hud_now();
             return;
@@ -6789,7 +6841,7 @@ mod windows_overlay {
             | MacroAction::MouseWheelDown
             | MacroAction::MouseMoveAbsolute
             | MacroAction::MouseMoveRelative => return send_mouse_event(step),
-            MacroAction::TypeText => return send_text_input(&step.key),
+            MacroAction::TypeText => return send_text_input(&interpolate_variables(&step.key)),
             MacroAction::Wait => return Ok(()),
             MacroAction::ApplyWindowPreset
             | MacroAction::FocusWindowPreset

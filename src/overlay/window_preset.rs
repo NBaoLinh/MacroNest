@@ -2,7 +2,6 @@ use std::{thread, time::Duration};
 
 use anyhow::{Context, Result, bail};
 use windows::Win32::{
-    Foundation::HWND,
     System::Threading::{AttachThreadInput, GetCurrentThreadId},
     UI::WindowsAndMessaging::{
         BringWindowToTop, GA_ROOT, GetAncestor, GetForegroundWindow, GetWindowRect,

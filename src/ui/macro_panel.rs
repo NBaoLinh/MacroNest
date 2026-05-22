@@ -2221,9 +2221,9 @@ impl CrosshairApp {
                                         let step = &mut preset.hold_stop_step;
                                         let is_dark_theme = self.state.ui_theme == UiThemeMode::Dark;
                                         let hint_color = if is_dark_theme {
-                                            Color32::from_rgba_unmultiplied(140, 140, 140, 140)
+                                            Color32::from_rgba_unmultiplied(110, 110, 110, 90)
                                         } else {
-                                            Color32::from_rgba_unmultiplied(120, 120, 120, 140)
+                                            Color32::from_rgba_unmultiplied(130, 130, 130, 90)
                                         };
                                         ui.horizontal_wrapped(|ui| {
                                             ui.label(Self::tr_lang(language, "On Stop", "On Stop"));
@@ -2843,7 +2843,8 @@ impl CrosshairApp {
                                                 } else if matches!(step.action, MacroAction::LockKeys | MacroAction::UnlockKeys) {
                                                     let response = ui.add_sized(
                                                         [160.0, 22.0],
-                                                        TextEdit::singleline(&mut step.key).hint_text("A,S,W,D"),
+                                                        TextEdit::singleline(&mut step.key)
+                                                            .hint_text(RichText::new("A,S,W,D").color(hint_color).italics()),
                                                     );
                                                     Self::apply_vietnamese_input_if_changed(
                                                         &response,
@@ -2854,51 +2855,67 @@ impl CrosshairApp {
                                                     live_sync |= response.changed();
                                                 } else if step.action == MacroAction::LoopStart {
                                                     let mut infinite = Self::loop_is_infinite(step);
-                                                    if ui
-                                                        .checkbox(
-                                                            &mut infinite,
-                                                            RichText::new(Self::tr_lang(
-                                                                language,
-                                                                "Infinite",
-                                                                "Infinite",
-                                                            ))
-                                                            .color(Color32::BLACK)
-                                                            .strong(),
-                                                        )
-                                                        .changed()
-                                                    {
-                                                        step.key = if infinite {
-                                                            "infinite".to_owned()
-                                                        } else {
-                                                            "1".to_owned()
-                                                        };
-                                                        live_sync = true;
+                                                     if ui
+                                                         .checkbox(
+                                                             &mut infinite,
+                                                             RichText::new(Self::tr_lang(
+                                                                 language,
+                                                                 "Infinite",
+                                                                 "Infinite",
+                                                             ))
+                                                             .color(Color32::BLACK)
+                                                             .strong(),
+                                                         )
+                                                         .changed()
+                                                     {
+                                                         step.key = if infinite {
+                                                             "infinite".to_owned()
+                                                         } else {
+                                                             "1".to_owned()
+                                                         };
+                                                         live_sync = true;
+                                                      }
+                                                     if !infinite {
+                                                         let response = ui.add_sized(
+                                                             [96.0, 22.0],
+                                                             TextEdit::singleline(&mut step.key).hint_text(
+                                                                 RichText::new(Self::tr_lang(
+                                                                     language,
+                                                                     "Loop count",
+                                                                     "Số lần lặp",
+                                                                 ))
+                                                                 .color(hint_color)
+                                                                 .italics(),
+                                                             ),
+                                                         );
+                                                         Self::apply_vietnamese_input_if_changed(
+                                                             &response,
+                                                             self.state.vietnamese_input_enabled,
+                                                             self.state.vietnamese_input_mode,
+                                                             &mut step.key,
+                                                         );
+                                                         live_sync |= response.changed();
                                                      }
-                                                    if !infinite {
-                                                        let mut loop_count =
-                                                            step.key.trim().parse::<u32>().unwrap_or(1).max(1);
-                                                        if ui
-                                                            .add_sized(
-                                                                [96.0, 22.0],
-                                                                DragValue::new(&mut loop_count).range(1..=1_000_000),
-                                                            )
-                                                            .changed()
-                                                        {
-                                                            step.key = loop_count.to_string();
-                                                            live_sync = true;
-                                                        }
-                                                    }
-                                                } else if step.action == MacroAction::StopIfKeyPressed {
-                                                    live_sync |= ui
-                                                        .add_sized(
-                                                            [160.0, 22.0],
-                                                            TextEdit::singleline(&mut step.key).hint_text(Self::tr_lang(
-                                                                language,
-                                                                "Stop key",
-                                                                "Phím dừng vòng lặp",
-                                                            )),
-                                                        )
-                                                        .changed();
+                                                 } else if step.action == MacroAction::StopIfKeyPressed {
+                                                     let response = ui.add_sized(
+                                                         [160.0, 22.0],
+                                                         TextEdit::singleline(&mut step.key).hint_text(
+                                                             RichText::new(Self::tr_lang(
+                                                                 language,
+                                                                 "Stop key",
+                                                                 "Phím dừng vòng lặp",
+                                                             ))
+                                                             .color(hint_color)
+                                                             .italics(),
+                                                         ),
+                                                     );
+                                                     Self::apply_vietnamese_input_if_changed(
+                                                         &response,
+                                                         self.state.vietnamese_input_enabled,
+                                                         self.state.vietnamese_input_mode,
+                                                         &mut step.key,
+                                                     );
+                                                     live_sync |= response.changed();
                                                 } else if step.action == MacroAction::ShowHud {
                                                     let selected_id = step.key.trim().parse::<u32>().ok();
                                                     let selected_label = selected_id
@@ -2945,7 +2962,7 @@ impl CrosshairApp {
                                                         let response = ui.add_sized(
                                                             [120.0, 22.0],
                                                             TextEdit::singleline(&mut step.text_override)
-                                                                .hint_text(RichText::new(Self::tr_lang(language, "Text override", "Ghi đè văn bản")).color(Color32::from_rgba_unmultiplied(120, 120, 120, 140)).italics()),
+                                                                .hint_text(RichText::new(Self::tr_lang(language, "Text override", "Ghi đè văn bản")).color(hint_color).italics()),
                                                         );
                                                         Self::apply_vietnamese_input_if_changed(
                                                             &response,
@@ -2958,7 +2975,15 @@ impl CrosshairApp {
                                                 } else if step.action == MacroAction::TypeText {
                                                     let response = ui.add_sized(
                                                         [220.0, 22.0],
-                                                        TextEdit::singleline(&mut step.key).hint_text("Text to type"),
+                                                        TextEdit::singleline(&mut step.key).hint_text(
+                                                            RichText::new(Self::tr_lang(
+                                                                language,
+                                                                "Text to type",
+                                                                "Văn bản cần gõ",
+                                                            ))
+                                                            .color(hint_color)
+                                                            .italics(),
+                                                        ),
                                                     );
                                                     Self::apply_vietnamese_input_if_changed(
                                                         &response,
@@ -3653,9 +3678,9 @@ impl CrosshairApp {
                                             }
                                             let is_dark_theme = self.state.ui_theme == UiThemeMode::Dark;
                                             let hint_color = if is_dark_theme {
-                                                Color32::from_rgba_unmultiplied(140, 140, 140, 140)
+                                                Color32::from_rgba_unmultiplied(110, 110, 110, 90)
                                             } else {
-                                                Color32::from_rgba_unmultiplied(120, 120, 120, 140)
+                                                Color32::from_rgba_unmultiplied(130, 130, 130, 90)
                                             };
                                             ui.scope(|ui| {
                                                 ui.visuals_mut().widgets.inactive.bg_fill = Color32::TRANSPARENT;
@@ -4484,63 +4509,70 @@ impl CrosshairApp {
                                                     let response = ui.add_sized(
                                                         [146.0, 18.0],
                                                         TextEdit::singleline(&mut step.key)
-                                                            .hint_text(Self::tr_lang(language, "A,S,W,D", "A,S,W,D")),
+                                                            .hint_text(RichText::new(Self::tr_lang(language, "A,S,W,D", "A,S,W,D")).color(hint_color).italics()),
                                                     );
                                                     Self::apply_vietnamese_input_if_changed(
                                                         &response,
                                                         self.state.vietnamese_input_enabled,
                                                         self.state.vietnamese_input_mode,
                                                         &mut step.key,
-                                                    );
-                                                    live_sync |= response.changed();
-                                                } else if step.action == MacroAction::LoopStart {
-                                                    let mut infinite = Self::loop_is_infinite(step);
-                                                    if ui
-                                                        .checkbox(
-                                                            &mut infinite,
-                                                            RichText::new(Self::tr_lang(
-                                                                language,
-                                                                "Infinite",
-                                                                "Infinite",
-                                                            ))
-                                                            .color(Color32::from_rgb(20, 20, 20)),
-                                                        )
-                                                        .changed()
-                                                    {
-                                                        step.key = if infinite {
-                                                            "infinite".to_owned()
-                                                        } else {
-                                                            "1".to_owned()
-                                                        };
-                                                        live_sync = true;
+                                                     );
+                                                     live_sync |= response.changed();
+                                                 } else if step.action == MacroAction::LoopStart {
+                                                     let mut infinite = Self::loop_is_infinite(step);
+                                                     if ui
+                                                         .checkbox(
+                                                             &mut infinite,
+                                                             RichText::new(Self::tr_lang(
+                                                                 language,
+                                                                 "Infinite",
+                                                                 "Infinite",
+                                                             ))
+                                                             .color(Color32::from_rgb(20, 20, 20)),
+                                                         )
+                                                         .changed()
+                                                     {
+                                                         step.key = if infinite {
+                                                             "infinite".to_owned()
+                                                         } else {
+                                                             "1".to_owned()
+                                                         };
+                                                         live_sync = true;
+                                                      }
+                                                     if !infinite {
+                                                         let response = ui.add_sized(
+                                                             [80.0, 18.0],
+                                                             TextEdit::singleline(&mut step.key).hint_text(
+                                                                 RichText::new(Self::tr_lang(
+                                                                     language,
+                                                                     "Loop count",
+                                                                     "Số lần lặp",
+                                                                 ))
+                                                                 .color(hint_color)
+                                                                 .italics(),
+                                                             ),
+                                                         );
+                                                         Self::apply_vietnamese_input_if_changed(
+                                                             &response,
+                                                             self.state.vietnamese_input_enabled,
+                                                             self.state.vietnamese_input_mode,
+                                                             &mut step.key,
+                                                         );
+                                                         live_sync |= response.changed();
                                                      }
-                                                    if !infinite {
-                                                        let mut loop_count =
-                                                            step.key.trim().parse::<u32>().unwrap_or(1).max(1);
-                                                        if ui
-                                                            .add_sized(
-                                                                [80.0, 18.0],
-                                                                DragValue::new(&mut loop_count).range(1..=1_000_000),
-                                                            )
-                                                            .changed()
-                                                        {
-                                                            step.key = loop_count.to_string();
-                                                            live_sync = true;
-                                                        }
-                                                    }
-                                                } else if step.action == MacroAction::StopIfKeyPressed {
-                                                    let response = ui.add_sized(
-                                                        [146.0, 18.0],
-                                                        TextEdit::singleline(&mut step.key)
-                                                            .hint_text(Self::tr_lang(language, "Stop key", "Stop key")),
-                                                    );
-                                                    Self::apply_vietnamese_input_if_changed(
-                                                        &response,
-                                                        self.state.vietnamese_input_enabled,
-                                                        self.state.vietnamese_input_mode,
-                                                        &mut step.key,
-                                                    );
-                                                    live_sync |= response.changed();
+                                                 } else if step.action == MacroAction::StopIfKeyPressed {
+                                                     let response = ui.add_sized(
+                                                         [146.0, 18.0],
+                                                         TextEdit::singleline(&mut step.key)
+                                                             .hint_text(RichText::new(Self::tr_lang(language, "Stop key", "Stop key")).color(hint_color).italics()),
+                                                     );
+                                                     Self::apply_vietnamese_input_if_changed(
+                                                         &response,
+                                                         self.state.vietnamese_input_enabled,
+                                                         self.state.vietnamese_input_mode,
+                                                         &mut step.key,
+                                                     );
+                                                     live_sync |= response.changed();
                                                 } else if step.action == MacroAction::ShowHud {
                                                     let selected_id = step.key.trim().parse::<u32>().ok();
                                                     let selected_label = selected_id
@@ -4590,7 +4622,7 @@ impl CrosshairApp {
                                                         let response = ui.add_sized(
                                                             [122.0, 18.0],
                                                             TextEdit::singleline(&mut step.text_override)
-                                                                .hint_text(RichText::new(Self::tr_lang(language, "Text override", "Ghi đè văn bản")).color(Color32::from_rgba_unmultiplied(120, 120, 120, 140)).italics()),
+                                                                .hint_text(RichText::new(Self::tr_lang(language, "Text override", "Ghi đè văn bản")).color(hint_color).italics()),
                                                         );
                                                         Self::apply_vietnamese_input_if_changed(
                                                             &response,
@@ -4604,7 +4636,7 @@ impl CrosshairApp {
                                                     let response = ui.add_sized(
                                                         [146.0, 18.0],
                                                         TextEdit::singleline(&mut step.key)
-                                                            .hint_text(Self::tr_lang(language, "Text to type", "Text to type")),
+                                                            .hint_text(RichText::new(Self::tr_lang(language, "Text to type", "Text to type")).color(hint_color).italics()),
                                                     );
                                                     Self::apply_vietnamese_input_if_changed(
                                                         &response,
@@ -4612,6 +4644,7 @@ impl CrosshairApp {
                                                         self.state.vietnamese_input_mode,
                                                         &mut step.key,
                                                     );
+                                                    live_sync |= response.changed();
                                                 } else if matches!(step.action, MacroAction::DisableCrosshair | MacroAction::DisableZoom | MacroAction::Else | MacroAction::IfEnd) {
                                                     ui.add_sized(
                                                         [146.0, 18.0],
