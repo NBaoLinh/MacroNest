@@ -2800,6 +2800,25 @@ impl CrosshairApp {
         false
     }
 
+    fn collect_preset_referenced_variables(preset: &MacroPreset) -> Vec<String> {
+        let mut vars = Vec::new();
+        for step in &preset.steps {
+            if matches!(step.action, MacroAction::IfStart | MacroAction::SetVariable) {
+                let name = step.if_variable_name.trim().to_string();
+                if !name.is_empty() && !vars.contains(&name) {
+                    vars.push(name);
+                }
+            }
+        }
+        if preset.hold_stop_step_enabled && matches!(preset.hold_stop_step.action, MacroAction::IfStart | MacroAction::SetVariable) {
+            let name = preset.hold_stop_step.if_variable_name.trim().to_string();
+            if !name.is_empty() && !vars.contains(&name) {
+                vars.push(name);
+            }
+        }
+        vars
+    }
+
     fn format_macro_trigger_ui(language: UiLanguage, preset: &MacroPreset) -> String {
         let bindings = Self::macro_trigger_bindings(preset);
         let label = hotkey::format_binding_list(&bindings);
@@ -14310,6 +14329,44 @@ impl CrosshairApp {
                                             },
                                     );
                                 });
+                                let referenced_vars = Self::collect_preset_referenced_variables(preset);
+                                if !referenced_vars.is_empty() {
+                                    ui.horizontal(|ui| {
+                                        ui.add_space(4.0);
+                                        ui.label(RichText::new(Self::tr_lang(language, "Active Variables:", "Biến đang dùng:")).size(11.0).weak());
+                                        let vars_map = crate::overlay::RUNTIME_VARIABLES.lock();
+                                        for var_name in &referenced_vars {
+                                            let val = vars_map.get(var_name).copied();
+                                            let val_str = val.map(|v| v.to_string()).unwrap_or_else(|| "?".to_string());
+                                            
+                                            let bg_color = if val.is_some() {
+                                                Color32::from_rgba_premultiplied(0, 191, 255, 20)
+                                            } else {
+                                                Color32::from_rgba_premultiplied(128, 128, 128, 20)
+                                            };
+                                            let stroke_color = if val.is_some() {
+                                                Color32::from_rgb(0, 191, 255)
+                                            } else {
+                                                Color32::from_rgb(128, 128, 128)
+                                            };
+                                            
+                                            egui::Frame::none()
+                                                .fill(bg_color)
+                                                .stroke(egui::Stroke::new(1.0, stroke_color))
+                                                .inner_margin(egui::Margin::symmetric(6, 2))
+                                                .rounding(4.0)
+                                                .show(ui, |ui| {
+                                                    ui.label(
+                                                        RichText::new(format!("{} = {}", var_name, val_str))
+                                                            .size(11.0)
+                                                            .strong()
+                                                            .color(if val.is_some() { Color32::from_rgb(0, 191, 255) } else { Color32::from_rgb(160, 160, 160) })
+                                                    );
+                                                });
+                                        }
+                                    });
+                                }
+
                                 if !preset.collapsed {
                                     ui.horizontal(|ui| {
                             ui.label(Self::tr_lang(language, "Mode", "Mode"));
@@ -15224,6 +15281,18 @@ impl CrosshairApp {
                                                             [46.0, 22.0],
                                                             DragValue::new(&mut step.if_compare_value).range(-1_000_000..=1_000_000),
                                                         ).changed();
+
+                                                        let var_name = step.if_variable_name.trim();
+                                                        if !var_name.is_empty() {
+                                                            let current_val = crate::overlay::RUNTIME_VARIABLES.lock().get(var_name).copied();
+                                                            let val_str = current_val.map(|v| v.to_string()).unwrap_or_else(|| "?".to_string());
+                                                            ui.add_space(2.0);
+                                                            ui.label(
+                                                                RichText::new(format!("({})", val_str))
+                                                                    .size(10.0)
+                                                                    .color(Color32::from_rgb(0, 191, 255))
+                                                            ).on_hover_text(Self::tr_lang(language, "Current runtime value", "Giá trị chạy hiện tại"));
+                                                        }
                                                     });
                                                 } else if step.action == MacroAction::SetVariable {
                                                     ui.horizontal(|ui| {
@@ -15255,6 +15324,18 @@ impl CrosshairApp {
                                                             &mut step.key,
                                                         );
                                                         live_sync |= response2.changed();
+
+                                                        let var_name = step.if_variable_name.trim();
+                                                        if !var_name.is_empty() {
+                                                            let current_val = crate::overlay::RUNTIME_VARIABLES.lock().get(var_name).copied();
+                                                            let val_str = current_val.map(|v| v.to_string()).unwrap_or_else(|| "?".to_string());
+                                                            ui.add_space(2.0);
+                                                            ui.label(
+                                                                RichText::new(format!("({})", val_str))
+                                                                    .size(10.0)
+                                                                    .color(Color32::from_rgb(0, 191, 255))
+                                                            ).on_hover_text(Self::tr_lang(language, "Current runtime value", "Giá trị chạy hiện tại"));
+                                                        }
                                                     });
                                                 } else {
                                                     live_sync |= ui
@@ -16764,6 +16845,18 @@ impl CrosshairApp {
                                                             [46.0, 18.0],
                                                             DragValue::new(&mut step.if_compare_value).range(-1_000_000..=1_000_000),
                                                         ).changed();
+
+                                                        let var_name = step.if_variable_name.trim();
+                                                        if !var_name.is_empty() {
+                                                            let current_val = crate::overlay::RUNTIME_VARIABLES.lock().get(var_name).copied();
+                                                            let val_str = current_val.map(|v| v.to_string()).unwrap_or_else(|| "?".to_string());
+                                                            ui.add_space(2.0);
+                                                            ui.label(
+                                                                RichText::new(format!("({})", val_str))
+                                                                    .size(10.0)
+                                                                    .color(Color32::from_rgb(0, 191, 255))
+                                                            ).on_hover_text(Self::tr_lang(language, "Current runtime value", "Giá trị chạy hiện tại"));
+                                                        }
                                                     });
                                                 } else if step.action == MacroAction::SetVariable {
                                                     ui.horizontal(|ui| {
@@ -16795,6 +16888,18 @@ impl CrosshairApp {
                                                             &mut step.key,
                                                         );
                                                         live_sync |= response2.changed();
+
+                                                        let var_name = step.if_variable_name.trim();
+                                                        if !var_name.is_empty() {
+                                                            let current_val = crate::overlay::RUNTIME_VARIABLES.lock().get(var_name).copied();
+                                                            let val_str = current_val.map(|v| v.to_string()).unwrap_or_else(|| "?".to_string());
+                                                            ui.add_space(2.0);
+                                                            ui.label(
+                                                                RichText::new(format!("({})", val_str))
+                                                                    .size(10.0)
+                                                                    .color(Color32::from_rgb(0, 191, 255))
+                                                            ).on_hover_text(Self::tr_lang(language, "Current runtime value", "Giá trị chạy hiện tại"));
+                                                        }
                                                     });
                                                 } else if matches!(step.action, MacroAction::StartVisionSearch | MacroAction::TriggerVisionMove | MacroAction::StopVision | MacroAction::StopVisionWait) {
                                                     let selected_id = step.key.trim().parse::<u32>().ok();
