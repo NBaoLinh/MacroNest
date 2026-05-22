@@ -4994,6 +4994,21 @@ mod windows_overlay {
         apply_mouse_sensitivity_preset(&preset)
     }
 
+    fn apply_manual_mouse_sensitivity(key: &str) -> Result<()> {
+        let interpolated = interpolate_variables(key);
+        let evaluated = evaluate_math_expression(&interpolated);
+        let speed = evaluated.clamp(1, 20) as u32;
+
+        let mut hook_state = HOOK_STATE.lock();
+        if hook_state.mouse_sensitivity_restore_speed.is_none() {
+            hook_state.mouse_sensitivity_restore_speed = Some(current_mouse_speed()?);
+        }
+        hook_state.active_mouse_sensitivity_preset_id = None;
+        drop(hook_state);
+
+        set_mouse_speed(speed)
+    }
+
     fn enable_zoom_preset(_spec: &str) -> Result<()> {
         bail!("Zoom was removed")
     }
@@ -5499,7 +5514,11 @@ mod windows_overlay {
                     );
                 }
                 MacroAction::ApplyMouseSensitivityPreset => {
-                    let _ = apply_mouse_sensitivity_preset_by_id(&step.key);
+                    if step.manual_mouse_sensitivity {
+                        let _ = apply_manual_mouse_sensitivity(&step.key);
+                    } else {
+                        let _ = apply_mouse_sensitivity_preset_by_id(&step.key);
+                    }
                 }
                 MacroAction::EnableZoomPreset => {
                     let _ = enable_zoom_preset(&step.key);
@@ -5871,7 +5890,11 @@ mod windows_overlay {
                     );
                 }
                 MacroAction::ApplyMouseSensitivityPreset => {
-                    let _ = apply_mouse_sensitivity_preset_by_id(&step.key);
+                    if step.manual_mouse_sensitivity {
+                        let _ = apply_manual_mouse_sensitivity(&step.key);
+                    } else {
+                        let _ = apply_mouse_sensitivity_preset_by_id(&step.key);
+                    }
                 }
                 MacroAction::EnableZoomPreset => {
                     let _ = enable_zoom_preset(&step.key);

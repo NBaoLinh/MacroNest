@@ -2775,42 +2775,71 @@ impl CrosshairApp {
                                                         }
                                                     });
                                                 } else if step.action == MacroAction::ApplyMouseSensitivityPreset {
-                                                    let selected_id = step.key.trim().parse::<u32>().ok();
-                                                    let selected_label = selected_id
-                                                        .and_then(|id| {
-                                                            self.state
-                                                                .mouse_sensitivity_presets
-                                                                .iter()
-                                                                .find(|preset| preset.id == id)
-                                                                .map(|preset| preset.name.clone())
-                                                        })
-                                                        .unwrap_or_else(|| {
-                                                            Self::tr_lang(
-                                                                language,
-                                                                "Select mouse sensitivity preset",
-                                                                "Chọn preset độ nhạy",
-                                                            )
-                                                            .to_owned()
+                                                    live_sync |= ui.checkbox(&mut step.manual_mouse_sensitivity, Self::tr_lang(language, "Manual", "Nhập tay")).changed();
+                                                    if step.manual_mouse_sensitivity {
+                                                        ui.vertical(|ui| {
+                                                            let response = ui.add_sized(
+                                                                [110.0, 22.0],
+                                                                TextEdit::singleline(&mut step.key)
+                                                                    .hint_text(RichText::new(Self::tr_lang(language, "value/expr", "giá trị")).color(hint_color).weak()),
+                                                            );
+                                                            Self::apply_vietnamese_input_if_changed(
+                                                                &response,
+                                                                self.state.vietnamese_input_enabled,
+                                                                self.state.vietnamese_input_mode,
+                                                                &mut step.key,
+                                                            );
+                                                            live_sync |= response.changed();
+
+                                                            let interpolated = crate::overlay::interpolate_variables(&step.key);
+                                                            let evaluated = crate::overlay::evaluate_math_expression(&interpolated);
+                                                            let clamped = evaluated.clamp(1, 20);
+                                                            let tooltip_text = match language {
+                                                                UiLanguage::Vietnamese => format!("Kết quả: {} (giới hạn: {} trong 1..20)", evaluated, clamped),
+                                                                _ => format!("Evaluated: {} (clamped to: {} within 1..20)", evaluated, clamped),
+                                                            };
+                                                            response.on_hover_text(tooltip_text);
+
+                                                            Self::render_variable_suggestions(ui, &mut step.key, language);
                                                         });
-                                                    ui.push_id((group.id, preset.id, "mouse-sensitivity-preset-step"), |ui| {
-                                                        egui::ComboBox::from_id_salt("mouse-sensitivity-preset-step-combo")
-                                                            .width(146.0)
-                                                            .selected_text(selected_label)
-                                                            .show_ui(ui, |ui| {
-                                                                for preset_option in &self.state.mouse_sensitivity_presets {
-                                                                    if ui
-                                                                        .selectable_label(
-                                                                            selected_id == Some(preset_option.id),
-                                                                            &preset_option.name,
-                                                                        )
-                                                                        .clicked()
-                                                                    {
-                                                                        step.key = preset_option.id.to_string();
-                                                                        live_sync = true;
-                                                                    }
-                                                                }
+                                                    } else {
+                                                        let selected_id = step.key.trim().parse::<u32>().ok();
+                                                        let selected_label = selected_id
+                                                            .and_then(|id| {
+                                                                self.state
+                                                                    .mouse_sensitivity_presets
+                                                                    .iter()
+                                                                    .find(|preset| preset.id == id)
+                                                                    .map(|preset| preset.name.clone())
+                                                            })
+                                                            .unwrap_or_else(|| {
+                                                                Self::tr_lang(
+                                                                    language,
+                                                                    "Select mouse sensitivity preset",
+                                                                    "Chọn preset độ nhạy",
+                                                                )
+                                                                .to_owned()
                                                             });
-                                                    });
+                                                        ui.push_id((group.id, preset.id, "mouse-sensitivity-preset-step"), |ui| {
+                                                            egui::ComboBox::from_id_salt("mouse-sensitivity-preset-step-combo")
+                                                                .width(110.0)
+                                                                .selected_text(selected_label)
+                                                                .show_ui(ui, |ui| {
+                                                                    for preset_option in &self.state.mouse_sensitivity_presets {
+                                                                        if ui
+                                                                            .selectable_label(
+                                                                                selected_id == Some(preset_option.id),
+                                                                                &preset_option.name,
+                                                                            )
+                                                                            .clicked()
+                                                                        {
+                                                                            step.key = preset_option.id.to_string();
+                                                                            live_sync = true;
+                                                                        }
+                                                                    }
+                                                                });
+                                                        });
+                                                    }
                                                 } else if step.action == MacroAction::EnableZoomPreset {
                                                     let selected_id = step.key.trim().parse::<u32>().ok();
                                                     let selected_label = selected_id
@@ -4586,40 +4615,69 @@ impl CrosshairApp {
                                                             }
                                                         });
                                                 } else if step.action == MacroAction::ApplyMouseSensitivityPreset {
-                                                    let selected_id = step.key.trim().parse::<u32>().ok();
-                                                    let selected_label = selected_id
-                                                        .and_then(|id| {
-                                                            self.state
-                                                                .mouse_sensitivity_presets
-                                                                .iter()
-                                                                .find(|preset| preset.id == id)
-                                                                .map(|preset| preset.name.clone())
-                                                        })
-                                                        .unwrap_or_else(|| {
-                                                            Self::tr_lang(
-                                                                language,
-                                                                "Select mouse sensitivity preset",
-                                                                "Chọn preset độ nhạy",
-                                                            )
-                                                            .to_owned()
+                                                    live_sync |= ui.checkbox(&mut step.manual_mouse_sensitivity, Self::tr_lang(language, "Manual", "Nhập tay")).changed();
+                                                    if step.manual_mouse_sensitivity {
+                                                        ui.vertical(|ui| {
+                                                            let response = ui.add_sized(
+                                                                [96.0, 18.0],
+                                                                TextEdit::singleline(&mut step.key)
+                                                                    .hint_text(RichText::new(Self::tr_lang(language, "value/expr", "giá trị")).color(hint_color).weak()),
+                                                            );
+                                                            Self::apply_vietnamese_input_if_changed(
+                                                                &response,
+                                                                self.state.vietnamese_input_enabled,
+                                                                self.state.vietnamese_input_mode,
+                                                                &mut step.key,
+                                                            );
+                                                            live_sync |= response.changed();
+
+                                                            let interpolated = crate::overlay::interpolate_variables(&step.key);
+                                                            let evaluated = crate::overlay::evaluate_math_expression(&interpolated);
+                                                            let clamped = evaluated.clamp(1, 20);
+                                                            let tooltip_text = match language {
+                                                                UiLanguage::Vietnamese => format!("Kết quả: {} (giới hạn: {} trong 1..20)", evaluated, clamped),
+                                                                _ => format!("Evaluated: {} (clamped to: {} within 1..20)", evaluated, clamped),
+                                                            };
+                                                            response.on_hover_text(tooltip_text);
+
+                                                            Self::render_variable_suggestions(ui, &mut step.key, language);
                                                         });
-                                                    egui::ComboBox::from_id_salt((group.id, preset.id, step_index, "mouse-sensitivity-preset-step"))
-                                                        .width(146.0)
-                                                        .selected_text(selected_label)
-                                                        .show_ui(ui, |ui| {
-                                                            for preset_option in &self.state.mouse_sensitivity_presets {
-                                                                if ui
-                                                                    .selectable_label(
-                                                                        selected_id == Some(preset_option.id),
-                                                                        &preset_option.name,
-                                                                    )
-                                                                    .clicked()
-                                                                {
-                                                                    step.key = preset_option.id.to_string();
-                                                                    live_sync = true;
+                                                    } else {
+                                                        let selected_id = step.key.trim().parse::<u32>().ok();
+                                                        let selected_label = selected_id
+                                                            .and_then(|id| {
+                                                                self.state
+                                                                    .mouse_sensitivity_presets
+                                                                    .iter()
+                                                                    .find(|preset| preset.id == id)
+                                                                    .map(|preset| preset.name.clone())
+                                                            })
+                                                            .unwrap_or_else(|| {
+                                                                Self::tr_lang(
+                                                                    language,
+                                                                    "Select mouse sensitivity preset",
+                                                                    "Chọn preset độ nhạy",
+                                                                )
+                                                                .to_owned()
+                                                            });
+                                                        egui::ComboBox::from_id_salt((group.id, preset.id, step_index, "mouse-sensitivity-preset-step"))
+                                                            .width(96.0)
+                                                            .selected_text(selected_label)
+                                                            .show_ui(ui, |ui| {
+                                                                for preset_option in &self.state.mouse_sensitivity_presets {
+                                                                    if ui
+                                                                        .selectable_label(
+                                                                            selected_id == Some(preset_option.id),
+                                                                            &preset_option.name,
+                                                                        )
+                                                                        .clicked()
+                                                                    {
+                                                                        step.key = preset_option.id.to_string();
+                                                                        live_sync = true;
+                                                                    }
                                                                 }
-                                                            }
-                                                        });
+                                                            });
+                                                    }
                                                 } else if matches!(step.action, MacroAction::LockKeys | MacroAction::UnlockKeys) {
                                                     let response = ui.add_sized(
                                                         [146.0, 18.0],
