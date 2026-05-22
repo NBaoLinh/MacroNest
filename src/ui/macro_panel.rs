@@ -3628,10 +3628,6 @@ impl CrosshairApp {
                                                      .strong()
                                              );
                                          }
-                                        ui.add_sized([30.0, 18.0], egui::Label::new(RichText::new("#").strong()));
-                                        ui.add_sized([54.0, 18.0], egui::Label::new(RichText::new(Self::tr_lang(language, "Delay", "Delay")).strong()));
-                                        ui.add_sized([154.0, 18.0], egui::Label::new(RichText::new(Self::tr_lang(language, "Action", "Action")).strong()));
-                                        ui.add_sized([146.0, 18.0], egui::Label::new(""));
                                         let has_selected_steps = selected_steps_snapshot.iter().any(|(g_id, p_id, _)| *g_id == group.id && *p_id == preset.id);
                                          if has_selected_steps {
                                              let delete_btn = Button::new(Self::tr_lang(language, "Delete", "Xóa"))
@@ -3672,6 +3668,27 @@ impl CrosshairApp {
                                         }
                                     });
                                 });
+
+                            ui.scope(|ui| {
+                                Frame::new()
+                                    .inner_margin(egui::Margin::symmetric(4, 2))
+                                    .show(ui, |ui| {
+                                        ui.horizontal(|ui| {
+                                            // Placeholders representing the 6 leading widgets of each step row
+                                            ui.allocate_space(egui::vec2(22.0, 20.0)); // '+' button
+                                            ui.allocate_space(egui::vec2(22.0, 20.0)); // 'select' checkbox
+                                            ui.allocate_space(egui::vec2(22.0, 20.0)); // 'enable' checkbox
+                                            ui.allocate_space(egui::vec2(22.0, 20.0)); // 'trash' button
+                                            ui.allocate_space(egui::vec2(22.0, 20.0)); // drag handle (=)
+                                            ui.allocate_space(egui::vec2(16.0, 20.0)); // active indicator spacer
+
+                                            ui.add_sized([30.0, 18.0], egui::Label::new(RichText::new("#").strong()));
+                                            ui.add_sized([54.0, 18.0], egui::Label::new(RichText::new(Self::tr_lang(language, "Delay", "Delay")).strong()));
+                                            ui.add_sized([154.0, 18.0], egui::Label::new(RichText::new(Self::tr_lang(language, "Action", "Action")).strong()));
+                                            ui.add_sized([146.0, 18.0], egui::Label::new(""));
+                                        });
+                                    });
+                            });
 
                             let loop_colors = Self::macro_loop_colors(&preset.steps);
                             let steps_len = preset.steps.len();
