@@ -7723,6 +7723,23 @@ impl eframe::App for CrosshairApp {
 
         self.render_custom_ai_modal(ctx);
 
+        if self.variable_inspector_open {
+            let mut open = self.variable_inspector_open;
+            egui::Window::new(Self::tr_lang(
+                self.state.ui_language,
+                "Variable Inspector / Debugger",
+                "Trình theo dõi biến",
+            ))
+            .open(&mut open)
+            .default_size(egui::vec2(280.0, 360.0))
+            .resizable(true)
+            .collapsible(true)
+            .show(ctx, |ui| {
+                self.render_variable_inspector(ui);
+            });
+            self.variable_inspector_open = open;
+        }
+
         self.poll_capture_input(ctx);
     }
 
