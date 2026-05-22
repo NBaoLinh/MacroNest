@@ -18303,6 +18303,11 @@ impl CrosshairApp {
                 live_sync = true;
             }
 
+            let capture_target = CaptureRequest::VisionPresetHotkey(preset.id);
+            let active_capture_target = self.capture_target.clone();
+            let pending_combo_keys = self.capture_hotkey_combo_keys.clone();
+
+            preset.enabled = preset.hotkey.is_some() || !preset.trigger_keys.trim().is_empty();
             ui.add_space(6.0);
             Self::show_preset_card(ui, preset.enabled, |ui| {
                 ui.horizontal(|ui| {
@@ -18316,18 +18321,92 @@ impl CrosshairApp {
                         &mut preset.name,
                     );
                     live_sync |= response.changed();
+
+                    live_sync |= Self::render_preset_trigger_chips(
+                        ui,
+                        language,
+                        &mut preset.hotkey,
+                        &mut preset.trigger_keys,
+                        active_capture_target.as_ref(),
+                        &capture_target,
+                        pending_combo_keys.as_ref(),
+                    );
+                    preset.enabled = preset.hotkey.is_some() || !preset.trigger_keys.trim().is_empty();
+
                     ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
-                        if Self::enabled_icon_button(ui, preset.enabled)
-                            .on_hover_text(Self::tr_lang(
-                                language,
-                                "Enable / disable preset",
-                                "Bật / tắt preset",
-                            ))
-                            .clicked()
-                        {
-                            preset.enabled = !preset.enabled;
+                        let capture_active = active_capture_target.as_ref() == Some(&capture_target);
+                        let capture_time = ui.ctx().input(|input| input.time) as f32;
+                        let pulse = if capture_active {
+                            0.5 + 0.5 * (capture_time * 6.0).sin().abs()
+                        } else {
+                            0.0
+                        };
+                        let has_keys = preset.hotkey.is_some() || !preset.trigger_keys.trim().is_empty();
+                        let fill = if capture_active {
+                            Color32::from_rgba_premultiplied(
+                                (88.0 + pulse * 28.0) as u8,
+                                (84.0 + pulse * 28.0) as u8,
+                                (44.0 + pulse * 10.0) as u8,
+                                255,
+                            )
+                        } else if has_keys {
+                            Color32::from_rgba_premultiplied(72, 156, 116, 120)
+                        } else {
+                            ui.visuals().faint_bg_color
+                        };
+                        let stroke = if capture_active {
+                            Color32::from_rgb(255, 232, 96)
+                        } else if has_keys {
+                            Color32::from_rgb(126, 224, 182)
+                        } else {
+                            ui.visuals().widgets.noninteractive.bg_stroke.color
+                        };
+
+                        let hover_text = if capture_active {
+                            Self::tr_lang(language, "Capturing... Press any key.", "Đang ghi... Nhấn một phím bất kỳ.").to_string()
+                        } else if has_keys {
+                            let bindings_labels: Vec<String> = Self::preset_trigger_bindings(&preset.hotkey, &preset.trigger_keys)
+                                .iter()
+                                .map(|b| hotkey::format_binding(Some(b)))
+                                .collect();
+                            format!(
+                                "{} {}\n{}",
+                                Self::tr_lang(language, "Hotkey:", "Phím tắt:"),
+                                bindings_labels.join(", "),
+                                Self::tr_lang(
+                                    language,
+                                    "Left click: rebind | Right click: clear",
+                                    "Chuột trái: đổi phím | Chuột phải: xóa phím"
+                                )
+                            )
+                        } else {
+                            Self::tr_lang(language, "Left click: bind hotkey", "Chuột trái: gán phím tắt").to_string()
+                        };
+
+                        let btn_response = ui.add_sized(
+                            [36.0, 24.0],
+                            Button::new(Self::material_icon_text(0xe312, 18.0))
+                                .fill(fill)
+                                .stroke(egui::Stroke::new(1.0, stroke)),
+                        ).on_hover_text(hover_text);
+
+                        if btn_response.clicked() {
+                            if capture_active {
+                                cancel_active_capture_local = true;
+                            } else {
+                                next_capture_local = Some((
+                                    capture_target.clone(),
+                                    format!("Capturing image search hotkey for {}.", preset.name),
+                                ));
+                            }
+                        }
+                        if btn_response.secondary_clicked() {
+                            preset.hotkey = None;
+                            preset.trigger_keys.clear();
+                            preset.enabled = false;
                             live_sync = true;
                         }
+
                         if Self::sound_style_remove_button(ui).clicked() {
                             remove_id = Some(preset.id);
                         }
@@ -18447,19 +18526,6 @@ impl CrosshairApp {
                                      Self::tr_lang(language, "Overlay", "Hiển thị overlay"),
                                  )
                                  .changed();
-                        });
-                        ui.end_row();
-
-                        ui.label(Self::tr_lang(language, "Click offset (from center)", "Độ lệch nhấp chuột (so với tâm)"));
-                        ui.horizontal_wrapped(|ui| {
-                            ui.label("X");
-                            live_sync |= ui
-                                .add(DragValue::new(&mut preset.move_offset_x).range(-5000..=5000))
-                                .changed();
-                            ui.label("Y");
-                            live_sync |= ui
-                                .add(DragValue::new(&mut preset.move_offset_y).range(-5000..=5000))
-                                .changed();
                         });
                         ui.end_row();
 
@@ -18641,6 +18707,78 @@ impl CrosshairApp {
                             ui.end_row();
                         }
 
+                        ui.label(Self::tr_lang(language, "Mouse interaction", "Tương tác chuột"));
+                        ui.horizontal_wrapped(|ui| {
+                            if Self::sized_button(
+                                ui,
+                                96.0,
+                                Self::tr_lang(
+                                    language,
+                                    if preset.image_search_move_advanced_open {
+                                        "Hide"
+                                    } else {
+                                        "Show"
+                                    },
+                                    if preset.image_search_move_advanced_open {
+                                        "Ẩn"
+                                    } else {
+                                        "Hiện"
+                                    },
+                                ),
+                            )
+                            .clicked()
+                            {
+                                preset.image_search_move_advanced_open =
+                                    !preset.image_search_move_advanced_open;
+                                live_sync = true;
+                            }
+                        });
+                        ui.end_row();
+
+                        if preset.image_search_move_advanced_open {
+                            ui.horizontal(|ui| {
+                                ui.label(Self::tr_lang(language, "Click offset (from center)", "Độ lệch nhấp chuột (so với tâm)"));
+                                let help_btn = ui.small_button("❓");
+                                help_btn.on_hover_text(Self::tr_lang(
+                                    language,
+                                    "Click offset from the center of the detected object (image or color).\nThe cursor will move to the center plus this offset (X, Y) before clicking.",
+                                    "Độ lệch nhấp chuột tính từ tâm của đối tượng phát hiện được (hình ảnh hoặc màu sắc).\nChuột sẽ di chuyển đến vị trí tâm cộng thêm độ lệch (X, Y) này rồi mới nhấp chuột."
+                                ));
+                            });
+                            ui.horizontal_wrapped(|ui| {
+                                ui.label("X");
+                                live_sync |= ui
+                                    .add(DragValue::new(&mut preset.move_offset_x).range(-5000..=5000))
+                                    .changed();
+                                ui.label("Y");
+                                live_sync |= ui
+                                    .add(DragValue::new(&mut preset.move_offset_y).range(-5000..=5000))
+                                    .changed();
+                            });
+                            ui.end_row();
+
+                            ui.label(Self::tr_lang(language, "Move passes & delay", "Số lần di chuyển & độ trễ"));
+                            ui.horizontal_wrapped(|ui| {
+                                ui.label(Self::tr_lang(language, "Passes", "Số lần"));
+                                live_sync |= ui
+                                    .add(
+                                        DragValue::new(&mut preset.non_interception_move_passes)
+                                            .range(1..=10),
+                                    )
+                                    .changed();
+                                ui.add_space(8.0);
+                                ui.label(Self::tr_lang(language, "Delay", "Độ trễ"));
+                                live_sync |= ui
+                                    .add(
+                                        DragValue::new(&mut preset.non_interception_move_delay_ms)
+                                            .range(0..=100)
+                                            .suffix(" ms"),
+                                    )
+                                    .changed();
+                            });
+                            ui.end_row();
+                        }
+
                         ui.label(Self::tr_lang(language, "Advanced", "Nâng cao"));
                         ui.horizontal_wrapped(|ui| {
                             if Self::sized_button(
@@ -18664,33 +18802,12 @@ impl CrosshairApp {
                             {
                                 preset.image_search_advanced_open =
                                     !preset.image_search_advanced_open;
-                                preset.image_search_move_advanced_open =
-                                    preset.image_search_advanced_open;
                                 live_sync = true;
                             }
                         });
                         ui.end_row();
 
                         if preset.image_search_advanced_open {
-                            ui.label(Self::tr_lang(language, "Move", "Di chuyển"));
-                            ui.horizontal_wrapped(|ui| {
-                                ui.label(Self::tr_lang(language, "Passes", "Số lần"));
-                                live_sync |= ui
-                                    .add(
-                                        DragValue::new(&mut preset.non_interception_move_passes)
-                                            .range(1..=10),
-                                    )
-                                    .changed();
-                                ui.label(Self::tr_lang(language, "Delay", "Độ trễ"));
-                                live_sync |= ui
-                                    .add(
-                                        DragValue::new(&mut preset.non_interception_move_delay_ms)
-                                            .range(0..=100)
-                                            .suffix(" ms"),
-                                    )
-                                    .changed();
-                            });
-                            ui.end_row();
 
                             if preset.use_color_matching {
                                 ui.label(Self::tr_lang(language, "Color scan", "Quét màu"));
