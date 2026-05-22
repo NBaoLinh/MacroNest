@@ -17277,6 +17277,42 @@ impl CrosshairApp {
                                         });
                                     })
                                     .response;
+                                if is_active {
+                                    let is_focused = ui.ctx().input(|i| i.viewport().focused == Some(true));
+                                    if is_focused {
+                                        ui.ctx().request_repaint();
+                                    }
+                                    let rect = row_response.rect;
+                                    let speed = 250.0;
+                                    let t = ui.ctx().input(|i| i.time);
+                                    let w = rect.width();
+                                    let h = rect.height();
+                                    let perimeter = 2.0 * (w + h);
+                                    let d = (t * speed) % perimeter as f64;
+                                    let get_point_on_rect = |dist: f64| -> egui::Pos2 {
+                                        let mut dist = (dist % perimeter as f64) as f32;
+                                        if dist < 0.0 {
+                                            dist += perimeter;
+                                        }
+                                        if dist < w {
+                                            egui::pos2(rect.min.x + dist, rect.min.y)
+                                        } else if dist < w + h {
+                                            egui::pos2(rect.max.x, rect.min.y + (dist - w))
+                                        } else if dist < 2.0 * w + h {
+                                            egui::pos2(rect.max.x - (dist - (w + h)), rect.max.y)
+                                        } else {
+                                            egui::pos2(rect.min.x, rect.max.y - (dist - (2.0 * w + h)))
+                                        }
+                                    };
+                                    let dot_pos = get_point_on_rect(d);
+                                    ui.painter().circle_filled(dot_pos, 2.5, Color32::from_rgb(0, 255, 170));
+                                    let tail_pos1 = get_point_on_rect(d - 8.0);
+                                    ui.painter().circle_filled(tail_pos1, 2.0, Color32::from_rgba_unmultiplied(0, 255, 170, 180));
+                                    let tail_pos2 = get_point_on_rect(d - 16.0);
+                                    ui.painter().circle_filled(tail_pos2, 1.5, Color32::from_rgba_unmultiplied(0, 255, 170, 110));
+                                    let tail_pos3 = get_point_on_rect(d - 24.0);
+                                    ui.painter().circle_filled(tail_pos3, 1.0, Color32::from_rgba_unmultiplied(0, 255, 170, 50));
+                                }
                                 if row_response.secondary_clicked() {
                                     remove_step = Some((preset.id, step_index));
                                 }
