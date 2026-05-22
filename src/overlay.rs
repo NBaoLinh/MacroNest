@@ -191,6 +191,7 @@ mod windows_overlay {
     pub static UI_WINDOW_FOREGROUND: std::sync::atomic::AtomicBool = std::sync::atomic::AtomicBool::new(false);
     pub static FOREGROUND_WINDOW_HWND: std::sync::atomic::AtomicIsize = std::sync::atomic::AtomicIsize::new(0);
     pub static FOREGROUND_WINDOW_TITLE: Lazy<Mutex<Option<String>>> = Lazy::new(|| Mutex::new(None));
+    pub static RUNTIME_VARIABLES: Lazy<Mutex<std::collections::HashMap<String, i32>>> = Lazy::new(|| Mutex::new(std::collections::HashMap::new()));
     #[derive(Debug, Clone)]
     pub enum OverlayCommand {
         Update(CrosshairStyle),
@@ -5233,6 +5234,27 @@ mod windows_overlay {
                     continue;
                 }
                 MacroAction::LoopEnd => return MacroRunFlow::Continue,
+                MacroAction::IfStart => {
+                    let (else_index, if_end_index) = find_matching_if_structure(steps, index);
+                    let condition_met = evaluate_if_condition(step);
+                    if !condition_met {
+                        if let Some(else_idx) = else_index {
+                            index = else_idx;
+                        } else if let Some(end_idx) = if_end_index {
+                            index = end_idx;
+                        } else {
+                            index = steps.len();
+                        }
+                    }
+                }
+                MacroAction::Else => {
+                    if let Some(end_idx) = find_matching_if_end_from_else(steps, index) {
+                        index = end_idx;
+                    } else {
+                        index = steps.len();
+                    }
+                }
+                MacroAction::IfEnd => {}
                 MacroAction::StopIfTriggerPressedAgain => {
                     if STOP_REQUESTED_MACRO_PRESETS.lock().remove(&preset_id) {
                         return MacroRunFlow::BreakLoop;
@@ -5545,6 +5567,27 @@ mod windows_overlay {
                     continue;
                 }
                 MacroAction::LoopEnd => return MacroRunFlow::Continue,
+                MacroAction::IfStart => {
+                    let (else_index, if_end_index) = find_matching_if_structure(steps, index);
+                    let condition_met = evaluate_if_condition(step);
+                    if !condition_met {
+                        if let Some(else_idx) = else_index {
+                            index = else_idx;
+                        } else if let Some(end_idx) = if_end_index {
+                            index = end_idx;
+                        } else {
+                            index = steps.len();
+                        }
+                    }
+                }
+                MacroAction::Else => {
+                    if let Some(end_idx) = find_matching_if_end_from_else(steps, index) {
+                        index = end_idx;
+                    } else {
+                        index = steps.len();
+                    }
+                }
+                MacroAction::IfEnd => {}
                 MacroAction::StopIfTriggerPressedAgain => {
                     if STOP_REQUESTED_MACRO_PRESETS.lock().remove(&preset_id) {
                         return MacroRunFlow::BreakLoop;
@@ -5817,6 +5860,66 @@ mod windows_overlay {
             }
         }
         None
+    }
+
+    fn find_matching_if_structure(steps: &[MacroStep], start_index: usize) -> (Option<usize>, Option<usize>) {
+        let mut depth = 0usize;
+        let mut else_index = None;
+        for i in start_index + 1..steps.len() {
+            match steps[i].action {
+                MacroAction::IfStart => depth += 1,
+                MacroAction::IfEnd => {
+                    if depth == 0 {
+                        return (else_index, Some(i));
+                    } else {
+                        depth -= 1;
+                    }
+                }
+                MacroAction::Else => {
+                    if depth == 0 {
+                        else_index = Some(i);
+                    }
+                }
+                _ => {}
+            }
+        }
+        (else_index, None)
+    }
+
+    fn find_matching_if_end_from_else(steps: &[MacroStep], else_index: usize) -> Option<usize> {
+        let mut depth = 0usize;
+        for i in else_index + 1..steps.len() {
+            match steps[i].action {
+                MacroAction::IfStart => depth += 1,
+                MacroAction::IfEnd => {
+                    if depth == 0 {
+                        return Some(i);
+                    } else {
+                        depth -= 1;
+                    }
+                }
+                _ => {}
+            }
+        }
+        None
+    }
+
+    fn evaluate_if_condition(step: &MacroStep) -> bool {
+        let var_name = step.if_variable_name.clone();
+        let value = {
+            let vars = RUNTIME_VARIABLES.lock();
+            *vars.get(&var_name).unwrap_or(&0)
+        };
+        let comp = step.if_compare_value;
+        match step.if_operator.as_str() {
+            ">" => value > comp,
+            "<" => value < comp,
+            "=" | "==" => value == comp,
+            ">=" => value >= comp,
+            "<=" => value <= comp,
+            "!=" => value != comp,
+            _ => false,
+        }
     }
 
     fn is_infinite_loop_marker(value: &str) -> bool {
@@ -7263,6 +7366,47 @@ mod windows_overlay {
         preset.target_color.into_iter().collect()
     }
 
+    fn count_matching_pixels(
+        screen: &window_list::ScreenCaptureFrame,
+        targets: &[RgbaColor],
+        tolerance: u8,
+        region: Option<&VisionRegion>,
+    ) -> i32 {
+        let width = screen.width as i32;
+        let height = screen.height as i32;
+        if width <= 0 || height <= 0 || targets.is_empty() {
+            return 0;
+        }
+        let tolerance = tolerance as i16;
+        let mut count = 0;
+
+        for y in 0..height {
+            for x in 0..width {
+                if !image_search_region_contains_point(region, screen.screen_x + x, screen.screen_y + y) {
+                    continue;
+                }
+                let index = ((y as usize) * screen.width + (x as usize)) * 4;
+                if index + 3 >= screen.rgba.len() {
+                    continue;
+                }
+                let r = screen.rgba[index] as i16;
+                let g = screen.rgba[index + 1] as i16;
+                let b = screen.rgba[index + 2] as i16;
+
+                for target in targets {
+                    let dr = (r - target.r as i16).abs();
+                    let dg = (g - target.g as i16).abs();
+                    let db = (b - target.b as i16).abs();
+                    if dr <= tolerance && dg <= tolerance && db <= tolerance {
+                        count += 1;
+                        break;
+                    }
+                }
+            }
+        }
+        count
+    }
+
     fn capture_near_last_image_search_region(
         capture_x: i32,
         capture_y: i32,
@@ -7377,6 +7521,59 @@ mod windows_overlay {
         move_cursor: bool,
         fire_click: bool,
     ) -> Result<VisionRunOutcome> {
+        if preset.is_pixel_counter {
+            let target_colors = image_search_target_colors(preset);
+            if target_colors.is_empty() {
+                bail!("No target colors have been picked yet.");
+            }
+            let configured_region = configured_image_search_region(preset);
+            let screen = if let Some(region) = configured_region {
+                window_list::capture_virtual_screen_region(
+                    region.left,
+                    region.top,
+                    region.width,
+                    region.height,
+                )
+                .context("Failed to capture the selected search area")?
+            } else if preset.target_window_title.is_some()
+                || !preset.extra_target_window_titles.is_empty()
+            {
+                window_list::capture_window_region_with_candidates(
+                    preset.target_window_title.as_deref(),
+                    &preset.extra_target_window_titles,
+                    preset.match_duplicate_window_titles,
+                )
+                .context("Failed to capture the target window")?
+            } else {
+                let (left, top, width, height) = window_list::virtual_screen_bounds();
+                window_list::capture_virtual_screen_region(left, top, width, height)
+                    .context("Failed to capture the screen")?
+            };
+
+            let count = count_matching_pixels(
+                &screen,
+                &target_colors,
+                preset.color_tolerance,
+                configured_region.as_ref(),
+            );
+
+            let var_name = if preset.pixel_counter_variable_name.is_empty() {
+                format!("pixel_count_{}", preset.id)
+            } else {
+                preset.pixel_counter_variable_name.clone()
+            };
+
+            {
+                let mut vars = RUNTIME_VARIABLES.lock();
+                vars.insert(var_name.clone(), count);
+            }
+
+            return Ok(VisionRunOutcome {
+                matched: true,
+                status: format!("Saved pixel count {count} to variable '{var_name}'"),
+            });
+        }
+
         if preset.use_color_matching {
             let target_colors = image_search_target_colors(preset);
             if target_colors.is_empty() {
@@ -8098,7 +8295,7 @@ mod windows_overlay {
                     top,
                     (right - left).max(1),
                     (bottom - top).max(1),
-                    SWP_ASYNCWINDOWPOS | SWP_NOACTIVATE | SWP_NOZORDER,
+                    SWP_NOACTIVATE | SWP_NOZORDER,
                 );
             }
             last_rect = next_rect;

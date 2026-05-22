@@ -4460,6 +4460,9 @@ impl CrosshairApp {
             MacroAction::MouseWheelDown => "MouseWheelDown",
             MacroAction::MouseMoveAbsolute => "MouseMoveAbsolute",
             MacroAction::MouseMoveRelative => "MouseMoveRelative",
+            MacroAction::IfStart => "IfStart",
+            MacroAction::Else => "Else",
+            MacroAction::IfEnd => "IfEnd",
             _ => "Legacy (Deprecated)",
         }
     }
@@ -4550,6 +4553,13 @@ impl CrosshairApp {
                 MacroAction::MouseWheelDown => "Cuộn chuột xuống.",
                 MacroAction::MouseMoveAbsolute => "Di chuyển chuột tới tọa độ tuyệt đối.",
                 MacroAction::MouseMoveRelative => "Di chuyển chuột tương đối (theo lượng pixel).",
+                MacroAction::IfStart => {
+                    "Bắt đầu khối điều kiện Nếu (If). Chỉ chạy các bước bên trong nếu điều kiện biến được thỏa mãn."
+                }
+                MacroAction::Else => {
+                    "Khối Ngược lại (Else). Chạy các bước bên trong nếu điều kiện Nếu (If) bên trên KHÔNG được thỏa mãn."
+                }
+                MacroAction::IfEnd => "Kết thúc khối điều kiện Hiện tại.",
                 _ => "Tính năng cũ (Không dùng)",
             },
             _ => match action {
@@ -4636,6 +4646,13 @@ impl CrosshairApp {
                 MacroAction::MouseWheelDown => "Scroll mouse wheel down.",
                 MacroAction::MouseMoveAbsolute => "Move mouse to absolute coordinates.",
                 MacroAction::MouseMoveRelative => "Move mouse relative to current position.",
+                MacroAction::IfStart => {
+                    "Start a conditional If block. Only runs steps inside if the variable condition is met."
+                }
+                MacroAction::Else => {
+                    "Otherwise (Else) block. Runs steps inside if the above If condition was NOT met."
+                }
+                MacroAction::IfEnd => "End the current conditional If block.",
                 _ => "Legacy (Deprecated)",
             }
         }
@@ -4701,6 +4718,9 @@ impl CrosshairApp {
             MacroAction::MouseWheelDown => 0xe5db,
             MacroAction::MouseMoveAbsolute => 0xe89f,
             MacroAction::MouseMoveRelative => 0xe3ec,
+            MacroAction::IfStart => 0xe8af,
+            MacroAction::Else => 0xe3ec,
+            MacroAction::IfEnd => 0xe040,
             _ => 0xe8b5,
         };
         char::from_u32(codepoint).unwrap_or('?')
@@ -4771,6 +4791,9 @@ impl CrosshairApp {
                 MacroAction::MouseWheelDown => "Xuống",
                 MacroAction::MouseMoveAbsolute => "Tuyệt đối",
                 MacroAction::MouseMoveRelative => "Tương đối",
+                MacroAction::IfStart => "Nếu (If)",
+                MacroAction::Else => "Ngược lại",
+                MacroAction::IfEnd => "Hết Nếu",
                 _ => "Cũ (Bỏ)",
             }),
             UiLanguage::English => match action {
@@ -4832,6 +4855,9 @@ impl CrosshairApp {
                 MacroAction::MouseWheelDown => "WhDn",
                 MacroAction::MouseMoveAbsolute => "MoveTo",
                 MacroAction::MouseMoveRelative => "MoveBy",
+                MacroAction::IfStart => "IfStart",
+                MacroAction::Else => "Else",
+                MacroAction::IfEnd => "IfEnd",
                 _ => "Legacy",
             },
             UiLanguage::Icon => match action {
@@ -4893,6 +4919,9 @@ impl CrosshairApp {
                 MacroAction::MouseWheelDown => "WhDn",
                 MacroAction::MouseMoveAbsolute => "MoveTo",
                 MacroAction::MouseMoveRelative => "MoveBy",
+                MacroAction::IfStart => "IfStart",
+                MacroAction::Else => "Else",
+                MacroAction::IfEnd => "IfEnd",
                 _ => "Legacy",
             },
         }
@@ -12958,6 +12987,83 @@ impl CrosshairApp {
 
         ui.add_space(8.0);
 
+        // --- Runtime Variables Monitor ---
+        ui.add_space(4.0);
+        egui::CollapsingHeader::new(
+            RichText::new(Self::tr_lang(language, "📊 Runtime Variables Monitor", "📊 Giám sát biến chạy"))
+                .strong()
+                .color(Color32::from_rgb(112, 170, 255))
+        )
+        .default_open(false)
+        .show(ui, |ui| {
+            ui.add_space(4.0);
+            let mut vars_to_delete = Vec::new();
+            let mut vars_to_update = Vec::new();
+            
+            // Read lock for drawing the list
+            let variables = {
+                let vars = crate::overlay::RUNTIME_VARIABLES.lock();
+                let mut list: Vec<(String, i32)> = vars.iter().map(|(k, v)| (k.clone(), *v)).collect();
+                list.sort_by(|a, b| a.0.cmp(&b.0));
+                list
+            };
+            
+            if variables.is_empty() {
+                ui.vertical_centered(|ui| {
+                    ui.add_space(6.0);
+                    ui.label(
+                        RichText::new(Self::tr_lang(language, "No active variables. Run a pixel counter to populate.", "Chưa có biến hoạt động. Chạy pixel counter để hiển thị."))
+                            .italics()
+                            .color(Color32::GRAY)
+                    );
+                    ui.add_space(6.0);
+                });
+            } else {
+                egui::Frame::group(ui.style())
+                    .fill(ui.visuals().faint_bg_color)
+                    .stroke(Stroke::new(1.0, ui.visuals().widgets.noninteractive.bg_stroke.color))
+                    .inner_margin(8.0)
+                    .show(ui, |ui| {
+                        egui::Grid::new("runtime_vars_grid")
+                            .num_columns(3)
+                            .spacing([12.0, 8.0])
+                            .show(ui, |ui| {
+                                // Header row
+                                ui.label(RichText::new(Self::tr_lang(language, "Variable Name", "Tên biến")).strong().color(Color32::from_rgb(180, 180, 180)));
+                                ui.label(RichText::new(Self::tr_lang(language, "Current Value", "Giá trị")).strong().color(Color32::from_rgb(180, 180, 180)));
+                                ui.label(RichText::new(Self::tr_lang(language, "Action", "Hành động")).strong().color(Color32::from_rgb(180, 180, 180)));
+                                ui.end_row();
+                                
+                                for (name, val) in variables {
+                                    ui.label(RichText::new(&name).monospace().strong().color(Color32::from_rgb(90, 190, 255)));
+                                    
+                                    let mut temp_val = val;
+                                    if ui.add(egui::DragValue::new(&mut temp_val).range(-1_000_000..=1_000_000)).changed() {
+                                        vars_to_update.push((name.clone(), temp_val));
+                                    }
+                                    
+                                    if ui.button(Self::material_icon_text(0xe872, 14.0).color(Color32::from_rgb(255, 120, 120))).on_hover_text(Self::tr_lang(language, "Delete/Reset variable", "Xóa/Reset biến")).clicked() {
+                                        vars_to_delete.push(name);
+                                    }
+                                    ui.end_row();
+                                }
+                            });
+                    });
+            }
+            
+            // Perform write updates after dropping read queries to avoid lock contention/deadlock
+            if !vars_to_delete.is_empty() || !vars_to_update.is_empty() {
+                let mut vars = crate::overlay::RUNTIME_VARIABLES.lock();
+                for name in vars_to_delete {
+                    vars.remove(&name);
+                }
+                for (name, val) in vars_to_update {
+                    vars.insert(name, val);
+                }
+            }
+        });
+        ui.add_space(8.0);
+
         let mut release_folder_id = None;
         let mut delete_folder_id = None;
         let mut begin_mouse_move_absolute_capture_target = None;
@@ -14365,7 +14471,7 @@ impl CrosshairApp {
                                                             MacroAction::DisablePin,
                                                             MacroAction::PlaySoundPreset,
                                                             MacroAction::ApplyMouseSensitivityPreset,
-                                                                                                                        MacroAction::LoopStart,
+                                                            MacroAction::LoopStart,
                                                             MacroAction::LoopEnd,
                                                             MacroAction::StopIfKeyPressed,
                                                             MacroAction::ShowHud,
@@ -14376,6 +14482,9 @@ impl CrosshairApp {
                                                              MacroAction::DisableMacroPreset,
                                                                  MacroAction::EnableStep,
                                                                  MacroAction::DisableStep,
+                                                              MacroAction::IfStart,
+                                                              MacroAction::Else,
+                                                              MacroAction::IfEnd,
                                                         ]
                                                         .into_iter()
                                                         .enumerate()
@@ -15060,11 +15169,44 @@ impl CrosshairApp {
                                                         &mut step.key,
                                                     );
                                                     live_sync |= response.changed();
-                                                } else if matches!(step.action, MacroAction::DisableCrosshair | MacroAction::DisableZoom) {
+                                                } else if matches!(step.action, MacroAction::DisableCrosshair | MacroAction::DisableZoom | MacroAction::Else | MacroAction::IfEnd) {
                                                     ui.add_sized(
                                                         [110.0, 22.0],
                                                         egui::Label::new(Self::tr_lang(language, "No input", "No input")),
                                                     );
+                                                } else if step.action == MacroAction::IfStart {
+                                                    ui.horizontal(|ui| {
+                                                        ui.spacing_mut().item_spacing.x = 4.0;
+                                                        let response = ui.add_sized(
+                                                            [64.0, 22.0],
+                                                            TextEdit::singleline(&mut step.if_variable_name)
+                                                                .hint_text(Self::tr_lang(language, "variable", "biến")),
+                                                        );
+                                                        Self::apply_vietnamese_input_if_changed(
+                                                            &response,
+                                                            self.state.vietnamese_input_enabled,
+                                                            self.state.vietnamese_input_mode,
+                                                            &mut step.if_variable_name,
+                                                        );
+                                                        live_sync |= response.changed();
+                                                        
+                                                        egui::ComboBox::from_id_salt((group.id, preset.id, "hold-stop-if-op"))
+                                                            .width(40.0)
+                                                            .selected_text(&step.if_operator)
+                                                            .show_ui(ui, |ui| {
+                                                                for op in &["==", ">", "<", ">=", "<=", "!="] {
+                                                                    if ui.selectable_label(step.if_operator == *op, *op).clicked() {
+                                                                        step.if_operator = op.to_string();
+                                                                        live_sync = true;
+                                                                    }
+                                                                }
+                                                            });
+                                                        
+                                                        live_sync |= ui.add_sized(
+                                                            [46.0, 22.0],
+                                                            DragValue::new(&mut step.if_compare_value).range(-1_000_000..=1_000_000),
+                                                        ).changed();
+                                                    });
                                                 } else {
                                                     live_sync |= ui
                                                         .add_sized([160.0, 22.0], TextEdit::singleline(&mut step.key))
@@ -15767,6 +15909,9 @@ impl CrosshairApp {
                                                                  MacroAction::DisableMacroPreset,
                                                                  MacroAction::EnableStep,
                                                                  MacroAction::DisableStep,
+                                                                 MacroAction::IfStart,
+                                                                 MacroAction::Else,
+                                                                 MacroAction::IfEnd,
                                                             ]
                                                             .into_iter()
                                                             .enumerate()
@@ -16532,12 +16677,44 @@ impl CrosshairApp {
                                                         self.state.vietnamese_input_mode,
                                                         &mut step.key,
                                                     );
-                                                    live_sync |= response.changed();
-                                                } else if matches!(step.action, MacroAction::DisableCrosshair | MacroAction::DisableZoom) {
+                                                } else if matches!(step.action, MacroAction::DisableCrosshair | MacroAction::DisableZoom | MacroAction::Else | MacroAction::IfEnd) {
                                                     ui.add_sized(
                                                         [146.0, 18.0],
                                                         egui::Label::new(Self::tr_lang(language, "No input", "No input")),
                                                     );
+                                                } else if step.action == MacroAction::IfStart {
+                                                    ui.horizontal(|ui| {
+                                                        ui.spacing_mut().item_spacing.x = 4.0;
+                                                        let response = ui.add_sized(
+                                                            [64.0, 18.0],
+                                                            TextEdit::singleline(&mut step.if_variable_name)
+                                                                .hint_text(Self::tr_lang(language, "variable", "biến")),
+                                                        );
+                                                        Self::apply_vietnamese_input_if_changed(
+                                                            &response,
+                                                            self.state.vietnamese_input_enabled,
+                                                            self.state.vietnamese_input_mode,
+                                                            &mut step.if_variable_name,
+                                                        );
+                                                        live_sync |= response.changed();
+                                                        
+                                                        egui::ComboBox::from_id_salt((group.id, preset.id, step_index, "if-op"))
+                                                            .width(40.0)
+                                                            .selected_text(&step.if_operator)
+                                                            .show_ui(ui, |ui| {
+                                                                for op in &["==", ">", "<", ">=", "<=", "!="] {
+                                                                    if ui.selectable_label(step.if_operator == *op, *op).clicked() {
+                                                                        step.if_operator = op.to_string();
+                                                                        live_sync = true;
+                                                                    }
+                                                                }
+                                                            });
+                                                        
+                                                        live_sync |= ui.add_sized(
+                                                            [46.0, 18.0],
+                                                            DragValue::new(&mut step.if_compare_value).range(-1_000_000..=1_000_000),
+                                                        ).changed();
+                                                    });
                                                 } else if matches!(step.action, MacroAction::StartVisionSearch | MacroAction::TriggerVisionMove | MacroAction::StopVision | MacroAction::StopVisionWait) {
                                                     let selected_id = step.key.trim().parse::<u32>().ok();
                                                     let selected_label = selected_id
@@ -18270,6 +18447,20 @@ impl CrosshairApp {
                 self.sync_vision_presets();
                 self.persist();
             }
+            if ui
+                .button(Self::tr_lang(language, "📊 + Pixel counter", "📊 + Đếm pixel"))
+                .clicked()
+            {
+                let id = self.state.next_vision_preset_id.max(1);
+                self.state.next_vision_preset_id = id + 1;
+                let mut preset = VisionPreset::new(id);
+                preset.name = format!("Pixel Counter {id}");
+                preset.use_color_matching = true;
+                preset.is_pixel_counter = true;
+                self.state.vision_presets.push(preset);
+                self.sync_vision_presets();
+                self.persist();
+            }
         });
 
         ui.add_space(8.0);
@@ -18807,6 +18998,25 @@ impl CrosshairApp {
                                 });
                                 ui.end_row();
 
+                                ui.label(Self::tr_lang(language, "Pixel count", "Đếm pixel"));
+                                ui.horizontal_wrapped(|ui| {
+                                    live_sync |= ui
+                                        .checkbox(
+                                            &mut preset.is_pixel_counter,
+                                            Self::tr_lang(language, "Enable Pixel Counter", "Kích hoạt Đếm pixel"),
+                                        )
+                                        .changed();
+                                    if preset.is_pixel_counter {
+                                        ui.add_space(8.0);
+                                        ui.label(Self::tr_lang(language, "Variable", "Tên biến"));
+                                        let text_edit = egui::TextEdit::singleline(&mut preset.pixel_counter_variable_name)
+                                            .desired_width(120.0)
+                                            .hint_text(format!("pixel_count_{}", preset.id));
+                                        live_sync |= ui.add(text_edit).changed();
+                                    }
+                                });
+                                ui.end_row();
+
                                 ui.label(Self::tr_lang(
                                     language,
                                     "Color priority",
@@ -19096,9 +19306,9 @@ impl CrosshairApp {
             Self::show_preset_card(ui, false, |ui| {
                 ui.set_min_width(ui.available_width());
                 ui.horizontal(|ui| {
-                    let action_width = 132.0;
+                    let name_width = Self::preset_header_name_width(ui);
                     let response = ui.add_sized(
-                        [(ui.available_width() - action_width).max(120.0), 24.0],
+                        [name_width, 24.0],
                         TextEdit::singleline(&mut preset.name),
                     );
                     Self::apply_vietnamese_input_if_changed(

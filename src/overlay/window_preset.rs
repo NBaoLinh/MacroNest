@@ -76,7 +76,7 @@ pub(super) fn apply_window_preset(preset: &WindowPreset) -> Result<()> {
 }
 
 pub(super) fn apply_window_preset_animated(preset: &WindowPreset) -> Result<()> {
-    if !preset.enabled || !preset.animate_enabled {
+    if !preset.animate_enabled {
         return Ok(());
     }
     unsafe {
@@ -220,6 +220,9 @@ pub(super) fn apply_window_preset_for_macro(preset: &WindowPreset) -> Result<()>
 fn apply_window_preset_impl(preset: &WindowPreset, require_enabled: bool) -> Result<()> {
     if require_enabled && !preset.enabled {
         return Ok(());
+    }
+    if preset.animate_enabled {
+        return apply_window_preset_animated(preset);
     }
     unsafe {
         let target = resolve_window_target(

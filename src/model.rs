@@ -490,6 +490,12 @@ pub struct MacroStep {
     pub lock_mouse_move: bool,
     #[serde(default = "default_false")]
     pub toggle_enabled_on_run: bool,
+    #[serde(default)]
+    pub if_variable_name: String,
+    #[serde(default)]
+    pub if_operator: String,
+    #[serde(default)]
+    pub if_compare_value: i32,
 }
 
 impl Default for MacroStep {
@@ -527,6 +533,9 @@ impl Default for MacroStep {
             lock_mouse_x2: true,
             lock_mouse_move: true,
             toggle_enabled_on_run: false,
+            if_variable_name: String::new(),
+            if_operator: "=".to_string(),
+            if_compare_value: 0,
         }
     }
 }
@@ -1338,6 +1347,10 @@ pub struct VisionPreset {
     pub color_scan_rate_hz: u32,
     #[serde(default)]
     pub dual_color_scan_midpoint: bool,
+    #[serde(default)]
+    pub is_pixel_counter: bool,
+    #[serde(default)]
+    pub pixel_counter_variable_name: String,
     pub last_capture_screen_x: Option<i32>,
     pub last_capture_screen_y: Option<i32>,
     pub search_region_screen_x: Option<i32>,
@@ -1381,6 +1394,8 @@ impl VisionPreset {
             color_tolerance: default_image_search_color_tolerance(),
             color_scan_rate_hz: default_image_search_color_scan_rate_hz(),
             dual_color_scan_midpoint: false,
+            is_pixel_counter: false,
+            pixel_counter_variable_name: String::new(),
             last_capture_screen_x: None,
             last_capture_screen_y: None,
             search_region_screen_x: None,
