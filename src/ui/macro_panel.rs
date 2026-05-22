@@ -982,11 +982,35 @@ impl CrosshairApp {
                     "Hien / an macro folder",
                 ))
                 .clicked()
+            }
+
+            let variable_inspector_active = self.variable_inspector_open;
+            if ui
+                .add_sized(
+                    [28.0, 28.0],
+                    Button::new(Self::material_icon_text(0xe868, 18.0)) // bug icon
+                        .fill(if variable_inspector_active {
+                            Color32::from_rgba_premultiplied(72, 156, 116, 120)
+                        } else {
+                            ui.visuals().faint_bg_color
+                        })
+                        .stroke(egui::Stroke::new(
+                            1.0,
+                            if variable_inspector_active {
+                                Color32::from_rgb(126, 224, 182)
+                            } else {
+                                ui.visuals().widgets.noninteractive.bg_stroke.color
+                            },
+                        )),
+                )
+                .on_hover_text(Self::tr_lang(
+                    language,
+                    "Variable Inspector / Debugger (Real-time)",
+                    "Trình theo dõi biến thời gian thực (Real-time)",
+                ))
+                .clicked()
             {
-                self.macro_folders_panel_open = !self.macro_folders_panel_open;
-                if !self.macro_folders_panel_open {
-                    self.set_active_macro_folder_view(None);
-                }
+                self.variable_inspector_open = !self.variable_inspector_open;
             }
 
             let trash_enabled = !self.selected_macro_groups.is_empty();
@@ -5586,5 +5610,203 @@ impl CrosshairApp {
         ui.add_space((ui.ctx().screen_rect().height() - 250.0).max(0.0));
     }
 
+    fn render_variable_inspector(&mut self, ui: &mut egui::Ui) {
+        let language = self.state.ui_language;
+        ui.vertical(|ui| {
+            ui.add_space(4.0);
+            
+            // Header with some actions
+            ui.horizontal(|ui| {
+                ui.label(RichText::new(Self::tr_lang(
+                    language,
+                    "Active Runtime Variables",
+                    "Các biến đang hoạt động",
+                )).strong());
+                
+                ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
+                    if ui.button(Self::tr_lang(language, "Clear All", "Xóa hết")).clicked() {
+                        let mut vars = crate::overlay::RUNTIME_VARIABLES.lock();
+                        vars.clear();
+                    }
+                });
+            });
+            ui.separator();
 
+            // Render variables table
+            let vars_snapshot = {
+                let vars = crate::overlay::RUNTIME_VARIABLES.lock();
+                let mut list: Vec<(String, i32)> = vars.iter().map(|(k, v)| (k.clone(), *v)).collect();
+                list.sort_by(|a, b| a.0.cmp(&b.0));
+                list
+            };
+
+            if vars_snapshot.is_empty() {
+                ui.centered_and_justified(|ui| {
+                    ui.label(RichText::new(Self::tr_lang(
+                        language,
+                        "No variables active yet.\n(Run a macro or set a variable)",
+                        "Chưa có biến nào hoạt động.\n(Chạy macro hoặc thiết lập biến)",
+                    )).italics().color(ui.visuals().weak_text_color()));
+                });
+            } else {
+                egui::ScrollArea::vertical().max_height(280.0).show(ui, |ui| {
+                    egui::Grid::new("variable_inspector_grid")
+                        .num_columns(3)
+                        .spacing([8.0, 6.0])
+                        .striped(true)
+                        .show(ui, |ui| {
+                            // Headers
+                            ui.label(RichText::new(Self::tr_lang(language, "Name", "Tên biến")).strong());
+                            ui.label(RichText::new(Self::tr_lang(language, "Value", "Giá trị")).strong());
+                            ui.label(""); // Actions column
+                            ui.end_row();
+
+                            let mut to_remove = None;
+                            let mut to_update = None;
+
+                            for (name, val) in &vars_snapshot {
+                                ui.label(RichText::new(name).monospace());
+                                
+                                // Direct value editing
+                                let mut val_str = val.to_string();
+                                let response = ui.add(
+                                    egui::TextEdit::singleline(&mut val_str)
+                                        .desired_width(70.0)
+                                        .font(egui::FontId::monospace(14.0))
+                                );
+                                if response.lost_focus() || response.clicked_elsewhere() {
+                                    if let Ok(new_val) = val_str.trim().parse::<i32>() {
+                                        to_update = Some((name.clone(), new_val));
+                                    }
+                                }
+
+                                // Delete variable button
+                                if ui.button(Self::material_icon_text(0xe872, 14.0)) // trash
+                                    .on_hover_text(Self::tr_lang(language, "Delete variable", "Xóa biến"))
+                                    .clicked() 
+                                {
+                                    to_remove = Some(name.clone());
+                                }
+                                ui.end_row();
+                            }
+
+                            if let Some(name) = to_remove {
+                                let mut vars = crate::overlay::RUNTIME_VARIABLES.lock();
+                                vars.remove(&name);
+                            }
+
+                            if let Some((name, new_val)) = to_update {
+                                let mut vars = crate::overlay::RUNTIME_VARIABLES.lock();
+                                vars.insert(name, new_val);
+                            }
+                        });
+                });
+            }
+
+            // Quick set variable utility at the bottom
+            ui.separator();
+            ui.horizontal(|ui| {
+                ui.set_row_height(24.0);
+                
+                let id_name = ui.id().with("new_var_name");
+                let id_val = ui.id().with("new_var_val");
+                
+                let mut name_buf = ui.memory(|mem| mem.data.get_temp::<String>(id_name).unwrap_or_default());
+                let mut val_buf = ui.memory(|mem| mem.data.get_temp::<String>(id_val).unwrap_or_default());
+
+                ui.add_sized([100.0, 20.0], egui::TextEdit::singleline(&mut name_buf).hint_text("Name"));
+                ui.label("=");
+                ui.add_sized([70.0, 20.0], egui::TextEdit::singleline(&mut val_buf).hint_text("Value"));
+
+                if ui.button(Self::tr_lang(language, "Set", "Set")).clicked() {
+                    let name_trimmed = name_buf.trim().to_string();
+                    if !name_trimmed.is_empty() {
+                        let parsed_val = val_buf.trim().parse::<i32>().unwrap_or(0);
+                        let mut vars = crate::overlay::RUNTIME_VARIABLES.lock();
+                        vars.insert(name_trimmed, parsed_val);
+                        name_buf.clear();
+                        val_buf.clear();
+                    }
+                }
+
+                ui.memory_mut(|mem| {
+                    mem.data.insert_temp(id_name, name_buf);
+                    mem.data.insert_temp(id_val, val_buf);
+                });
+            });
+        });
+    }
+
+    fn render_variable_suggestions(ui: &mut egui::Ui, text: &mut String, language: LanguageMode) {
+        let vars_snapshot = {
+            let vars = crate::overlay::RUNTIME_VARIABLES.lock();
+            let mut list: Vec<String> = vars.keys().cloned().collect();
+            list.sort();
+            list
+        };
+
+        if !vars_snapshot.is_empty() {
+            ui.horizontal_wrapped(|ui| {
+                ui.spacing_mut().item_spacing.x = 4.0;
+                ui.spacing_mut().item_spacing.y = 2.0;
+                ui.label(RichText::new(Self::tr_lang(
+                    language,
+                    "Insert variable:",
+                    "Chèn nhanh biến:",
+                )).size(11.0).color(ui.visuals().weak_text_color()));
+                
+                for var_name in vars_snapshot {
+                    let btn_text = format!("{{{}}}", var_name);
+                    let button = egui::Button::new(RichText::new(&btn_text).size(11.0).monospace())
+                        .small()
+                        .fill(ui.visuals().widgets.noninteractive.bg_fill);
+                    if ui.add(button).on_hover_text(Self::tr_lang(
+                        language,
+                        &format!("Click to insert {{{}}}", var_name),
+                        &format!("Bấm để chèn {{{}}} vào vị trí", var_name),
+                    )).clicked() {
+                        if text.is_empty() {
+                            *text = btn_text;
+                        } else {
+                            text.push_str(&btn_text);
+                        }
+                    }
+                }
+            });
+        }
+    }
+
+    fn render_variable_suggestions_raw(ui: &mut egui::Ui, text: &mut String, language: LanguageMode) {
+        let vars_snapshot = {
+            let vars = crate::overlay::RUNTIME_VARIABLES.lock();
+            let mut list: Vec<String> = vars.keys().cloned().collect();
+            list.sort();
+            list
+        };
+
+        if !vars_snapshot.is_empty() {
+            ui.horizontal_wrapped(|ui| {
+                ui.spacing_mut().item_spacing.x = 4.0;
+                ui.spacing_mut().item_spacing.y = 2.0;
+                ui.label(RichText::new(Self::tr_lang(
+                    language,
+                    "Choose variable:",
+                    "Chọn nhanh biến:",
+                )).size(11.0).color(ui.visuals().weak_text_color()));
+                
+                for var_name in vars_snapshot {
+                    let button = egui::Button::new(RichText::new(&var_name).size(11.0).monospace())
+                        .small()
+                        .fill(ui.visuals().widgets.noninteractive.bg_fill);
+                    if ui.add(button).on_hover_text(Self::tr_lang(
+                        language,
+                        &format!("Click to select {}", var_name),
+                        &format!("Bấm để chọn {}", var_name),
+                    )).clicked() {
+                        *text = var_name;
+                    }
+                }
+            });
+        }
+    }
 }

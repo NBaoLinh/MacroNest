@@ -567,6 +567,7 @@ pub struct CrosshairApp {
     copy_folder_feedback_until: Option<Instant>,
     vision_manual_color: RgbaColor,
     vision_manual_color_hex: String,
+    variable_inspector_open: bool,
 }
 
 impl CrosshairApp {
@@ -707,6 +708,7 @@ impl CrosshairApp {
             copy_folder_feedback_until: None,
             vision_manual_color: RgbaColor { r: 0, g: 255, b: 170, a: 255 },
             vision_manual_color_hex: "00FFAA".to_owned(),
+            variable_inspector_open: false,
         };
         app.ensure_master_presets();
         let mut startup_state_changed = false;
