@@ -18543,6 +18543,7 @@ impl CrosshairApp {
                                     let mut remove_color_index = None;
                                     egui::Grid::new((preset.id, "image-search-color-grid"))
                                         .num_columns(8)
+                                        .min_col_width(0.0)
                                         .spacing([ui.spacing().item_spacing.x, 4.0])
                                         .show(ui, |ui| {
                                             for (index, color) in colors.iter().copied().enumerate()
