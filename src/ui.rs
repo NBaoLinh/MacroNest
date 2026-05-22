@@ -15786,6 +15786,9 @@ impl CrosshairApp {
                                 } else if has_step_break_loop_warning {
                                     row_fill = Color32::from_rgba_unmultiplied(255, 200, 0, 15);
                                 }
+                                if is_active {
+                                    row_fill = Color32::from_rgba_unmultiplied(0, 255, 170, 35);
+                                }
                                 let drag_payload = MacroStepDragPayload {
                                     group_id: group.id,
                                     preset_id: preset.id,
@@ -15945,8 +15948,12 @@ impl CrosshairApp {
                                                   }
                                               }
                                             if is_active {
-                                                ui.add_sized([16.0, 20.0], egui::Spinner::new().size(12.0))
-                                                    .on_hover_text(Self::tr_lang(language, "Step is running/active", "Bước này đang chạy/hoạt động"));
+                                                ui.add_sized([16.0, 20.0], egui::Label::new(
+                                                    RichText::new("●")
+                                                        .color(Color32::from_rgb(0, 255, 170))
+                                                        .size(14.0)
+                                                ))
+                                                .on_hover_text(Self::tr_lang(language, "Step is running/active", "Bước này đang chạy/hoạt động"));
                                             } else {
                                                 ui.allocate_space(vec2(16.0, 20.0));
                                             }
@@ -15955,7 +15962,14 @@ impl CrosshairApp {
                                             ui.add_sized(
                                                 [label_width, 18.0],
                                                 egui::Label::new(
-                                                    RichText::new(step_num_text).monospace(),
+                                                    if is_active {
+                                                        RichText::new(step_num_text)
+                                                            .monospace()
+                                                            .color(Color32::from_rgb(0, 255, 170))
+                                                            .strong()
+                                                    } else {
+                                                        RichText::new(step_num_text).monospace()
+                                                    },
                                                 ),
                                             );
                                             live_sync |= ui
