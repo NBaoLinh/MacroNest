@@ -15716,22 +15716,51 @@ impl CrosshairApp {
                                             inside
                                         }
                                 };
-                                let step = &mut preset.steps[step_index];
                                 let is_step_executing = crate::overlay::ACTIVE_MACRO_STEPS.lock()
                                     .get(&preset.id)
                                     .map(|set| set.contains(&step_index))
                                     .unwrap_or(false);
 
-                                let is_vision_active = step.action == MacroAction::StartVisionSearch && {
-                                    crate::overlay::is_vision_following_active_by_spec(&step.key)
+                                let step_ref = &preset.steps[step_index];
+
+                                let is_vision_active = step_ref.action == MacroAction::StartVisionSearch && {
+                                    crate::overlay::is_vision_following_active_by_spec(&step_ref.key)
                                 };
 
-                                let is_timer_active = step.action == MacroAction::StartTimerPreset && {
-                                    let t_id = step.timer_preset_id.or_else(|| step.key.trim().parse::<u32>().ok());
+                                let is_timer_active = step_ref.action == MacroAction::StartTimerPreset && {
+                                    let t_id = step_ref.timer_preset_id.or_else(|| step_ref.key.trim().parse::<u32>().ok());
                                     crate::overlay::is_timer_preset_active(t_id)
                                 };
 
-                                let is_active = is_step_executing || is_vision_active || is_timer_active;
+                                let is_loop_end_active = step_ref.action == MacroAction::LoopEnd && {
+                                    let mut matching_start_idx = None;
+                                    let mut depth = 0usize;
+                                    for idx in (0..=step_index).rev() {
+                                        let s = &preset.steps[idx];
+                                        match s.action {
+                                            MacroAction::LoopEnd => depth += 1,
+                                            MacroAction::LoopStart => {
+                                                depth = depth.saturating_sub(1);
+                                                if depth == 0 {
+                                                    matching_start_idx = Some(idx);
+                                                    break;
+                                                }
+                                            }
+                                            _ => {}
+                                        }
+                                    }
+                                    if let Some(start_idx) = matching_start_idx {
+                                        crate::overlay::ACTIVE_MACRO_STEPS.lock()
+                                            .get(&preset.id)
+                                            .map(|set| set.contains(&start_idx))
+                                            .unwrap_or(false)
+                                    } else {
+                                        false
+                                    }
+                                };
+
+                                let is_active = is_step_executing || is_vision_active || is_timer_active || is_loop_end_active;
+                                let step = &mut preset.steps[step_index];
                                 let is_selected = selected_steps_snapshot
                                     .contains(&(group.id, preset.id, step_index));
                                 let drag_indices = if is_selected {
