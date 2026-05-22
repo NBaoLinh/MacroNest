@@ -5258,13 +5258,7 @@ mod windows_overlay {
                 MacroAction::SetVariable => {
                     let target_var = step.if_variable_name.trim().to_string();
                     if !target_var.is_empty() {
-                        let val_str = step.key.trim();
-                        let value = if let Ok(num) = val_str.parse::<i32>() {
-                            num
-                        } else {
-                            let vars = RUNTIME_VARIABLES.lock();
-                            *vars.get(val_str).unwrap_or(&0)
-                        };
+                        let value = evaluate_math_expression(&step.key);
                         let mut vars = RUNTIME_VARIABLES.lock();
                         vars.insert(target_var, value);
                     }
@@ -5605,13 +5599,7 @@ mod windows_overlay {
                 MacroAction::SetVariable => {
                     let target_var = step.if_variable_name.trim().to_string();
                     if !target_var.is_empty() {
-                        let val_str = step.key.trim();
-                        let value = if let Ok(num) = val_str.parse::<i32>() {
-                            num
-                        } else {
-                            let vars = RUNTIME_VARIABLES.lock();
-                            *vars.get(val_str).unwrap_or(&0)
-                        };
+                        let value = evaluate_math_expression(&step.key);
                         let mut vars = RUNTIME_VARIABLES.lock();
                         vars.insert(target_var, value);
                     }
@@ -5938,7 +5926,11 @@ mod windows_overlay {
             let vars = RUNTIME_VARIABLES.lock();
             *vars.get(&var_name).unwrap_or(&0)
         };
-        let comp = step.if_compare_value;
+        let comp = if !step.key.trim().is_empty() {
+            evaluate_math_expression(&step.key)
+        } else {
+            step.if_compare_value
+        };
         match step.if_operator.as_str() {
             ">" => value > comp,
             "<" => value < comp,
@@ -5949,6 +5941,171 @@ mod windows_overlay {
             _ => false,
         }
     }
+
+    fn evaluate_math_expression(expr: &str) -> i32 {
+        let expr = expr.trim();
+        if expr.is_empty() {
+            return 0;
+        }
+
+        // Try parsing as a direct integer
+        if let Ok(val) = expr.parse::<i32>() {
+            return val;
+        }
+
+        // Tokenize standard arithmetic operators (+, -, *, /)
+        let mut tokens = Vec::new();
+        let mut current_token = String::new();
+        let chars: Vec<char> = expr.chars().collect();
+        let mut idx = 0;
+
+        while idx < chars.len() {
+            let c = chars[idx];
+            if c.is_whitespace() {
+                if !current_token.is_empty() {
+                    tokens.push(current_token.clone());
+                    current_token.clear();
+                }
+            } else if c == '+' || c == '-' || c == '*' || c == '/' {
+                if !current_token.is_empty() {
+                    tokens.push(current_token.clone());
+                    current_token.clear();
+                }
+                tokens.push(c.to_string());
+            } else {
+                current_token.push(c);
+            }
+            idx += 1;
+        }
+        if !current_token.is_empty() {
+            tokens.push(current_token);
+        }
+
+        if tokens.is_empty() {
+            return 0;
+        }
+
+        let vars = RUNTIME_VARIABLES.lock();
+        let get_value = |token: &str| -> i32 {
+            if let Ok(num) = token.parse::<i32>() {
+                num
+            } else {
+                *vars.get(token).unwrap_or(&0)
+            }
+        };
+
+        let mut values = Vec::new();
+        let mut operators = Vec::new();
+
+        let mut i = 0;
+        while i < tokens.len() {
+            let token = &tokens[i];
+            if token == "+" || token == "-" || token == "*" || token == "/" {
+                operators.push(token.as_str());
+                i += 1;
+            } else {
+                values.push(get_value(token));
+                i += 1;
+            }
+        }
+
+        if values.is_empty() {
+            return 0;
+        }
+
+        // Pass 1: Evaluate * and / (highest precedence)
+        let mut val_stack = Vec::new();
+        let mut op_stack = Vec::new();
+
+        val_stack.push(values[0]);
+
+        let mut val_idx = 1;
+        for op in operators {
+            let next_val = if val_idx < values.len() {
+                values[val_idx]
+            } else {
+                0
+            };
+            val_idx += 1;
+
+            if op == "*" {
+                if let Some(prev) = val_stack.pop() {
+                    val_stack.push(prev.saturating_mul(next_val));
+                } else {
+                    val_stack.push(0);
+                }
+            } else if op == "/" {
+                if let Some(prev) = val_stack.pop() {
+                    let divisor = if next_val == 0 { 1 } else { next_val };
+                    val_stack.push(prev / divisor);
+                } else {
+                    val_stack.push(0);
+                }
+            } else {
+                op_stack.push(op);
+                val_stack.push(next_val);
+            }
+        }
+
+        // Pass 2: Evaluate + and -
+        let mut result = val_stack[0];
+        for (idx, op) in op_stack.into_iter().enumerate() {
+            let next_val = if idx + 1 < val_stack.len() {
+                val_stack[idx + 1]
+            } else {
+                0
+            };
+            if op == "+" {
+                result = result.saturating_add(next_val);
+            } else if op == "-" {
+                result = result.saturating_sub(next_val);
+            }
+        }
+
+        result
+    }
+
+    #[cfg(test)]
+    mod tests {
+        use super::*;
+
+        #[test]
+        fn test_evaluate_math_expression() {
+            assert_eq!(evaluate_math_expression(""), 0);
+            assert_eq!(evaluate_math_expression("   "), 0);
+            assert_eq!(evaluate_math_expression("42"), 42);
+            assert_eq!(evaluate_math_expression("1 + 2"), 3);
+            assert_eq!(evaluate_math_expression("10 - 4"), 6);
+            assert_eq!(evaluate_math_expression("3 * 4"), 12);
+            assert_eq!(evaluate_math_expression("12 / 3"), 4);
+            assert_eq!(evaluate_math_expression("2 * 3 + 4"), 10);
+            assert_eq!(evaluate_math_expression("2 + 3 * 4"), 14);
+            assert_eq!(evaluate_math_expression("10 / 2 - 1"), 4);
+            assert_eq!(evaluate_math_expression("10 - 4 / 2"), 8);
+            // Division by zero protection
+            assert_eq!(evaluate_math_expression("5 / 0"), 5);
+            
+            // Saturating bounds
+            assert_eq!(evaluate_math_expression("2147483647 + 1"), 2147483647);
+
+            // Variable resolution
+            {
+                let mut vars = RUNTIME_VARIABLES.lock();
+                vars.insert("x".to_string(), 10);
+                vars.insert("player_mana".to_string(), 100);
+            }
+            assert_eq!(evaluate_math_expression("x + 1"), 11);
+            assert_eq!(evaluate_math_expression("player_mana - 10"), 90);
+            assert_eq!(evaluate_math_expression("player_mana * x / 5"), 200);
+
+            // Clean up
+            {
+                let mut vars = RUNTIME_VARIABLES.lock();
+                vars.clear();
+            }
+        }
+    }
+
 
     fn is_infinite_loop_marker(value: &str) -> bool {
         matches!(

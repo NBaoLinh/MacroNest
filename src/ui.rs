@@ -13692,6 +13692,7 @@ impl CrosshairApp {
                     let mut copy_selected_steps = None;
                     let mut delete_selected_steps = None;
                     let mut paste_step_after = None;
+                    let mut copy_single_step = None;
                     let selected_steps_snapshot = self.selected_macro_steps.clone();
                 let render_preset_indices = {
                     let group = &self.state.macro_groups[group_index];
@@ -14368,7 +14369,8 @@ impl CrosshairApp {
                                 }
 
                                 if !preset.collapsed {
-                                    ui.horizontal(|ui| {
+                                    ui.push_id((group.id, preset.id, "preset-steps-container"), |ui| {
+                                        ui.horizontal(|ui| {
                             ui.label(Self::tr_lang(language, "Mode", "Mode"));
                             egui::ComboBox::from_id_salt((group.id, preset.id, "trigger-mode"))
                                 .width(108.0)
@@ -14505,6 +14507,12 @@ impl CrosshairApp {
                                 .show(ui, |ui| {
                                         let mut clear_hold_stop_step = false;
                                         let step = &mut preset.hold_stop_step;
+                                        let is_dark_theme = self.state.ui_theme == UiThemeMode::Dark;
+                                        let hint_color = if is_dark_theme {
+                                            Color32::from_rgba_unmultiplied(140, 140, 140, 140)
+                                        } else {
+                                            Color32::from_rgba_unmultiplied(120, 120, 120, 140)
+                                        };
                                         ui.horizontal_wrapped(|ui| {
                                             ui.label(Self::tr_lang(language, "On Stop", "On Stop"));
                                             let hold_stop_combo = egui::ComboBox::from_id_salt((
@@ -15255,7 +15263,7 @@ impl CrosshairApp {
                                                         let response = ui.add_sized(
                                                             [64.0, 22.0],
                                                             TextEdit::singleline(&mut step.if_variable_name)
-                                                                .hint_text(Self::tr_lang(language, "variable", "biến")),
+                                                                .hint_text(RichText::new(Self::tr_lang(language, "variable", "biến")).color(hint_color).weak()),
                                                         );
                                                         Self::apply_vietnamese_input_if_changed(
                                                             &response,
@@ -15300,7 +15308,7 @@ impl CrosshairApp {
                                                         let response = ui.add_sized(
                                                             [64.0, 22.0],
                                                             TextEdit::singleline(&mut step.if_variable_name)
-                                                                .hint_text(Self::tr_lang(language, "variable", "biến")),
+                                                                .hint_text(RichText::new(Self::tr_lang(language, "variable", "biến")).color(hint_color).weak()),
                                                         );
                                                         Self::apply_vietnamese_input_if_changed(
                                                             &response,
@@ -15315,7 +15323,7 @@ impl CrosshairApp {
                                                         let response2 = ui.add_sized(
                                                             [76.0, 22.0],
                                                             TextEdit::singleline(&mut step.key)
-                                                                .hint_text(Self::tr_lang(language, "value/expr", "giá trị")),
+                                                                .hint_text(RichText::new(Self::tr_lang(language, "value/expr", "giá trị")).color(hint_color).weak()),
                                                         );
                                                         Self::apply_vietnamese_input_if_changed(
                                                             &response2,
@@ -15873,6 +15881,11 @@ impl CrosshairApp {
                                                 ));
                                             }
                                             let is_dark_theme = self.state.ui_theme == UiThemeMode::Dark;
+                                            let hint_color = if is_dark_theme {
+                                                Color32::from_rgba_unmultiplied(140, 140, 140, 140)
+                                            } else {
+                                                Color32::from_rgba_unmultiplied(120, 120, 120, 140)
+                                            };
                                             ui.scope(|ui| {
                                                 ui.visuals_mut().widgets.inactive.bg_fill = Color32::TRANSPARENT;
                                                 ui.visuals_mut().widgets.inactive.weak_bg_fill = Color32::TRANSPARENT;
@@ -16819,7 +16832,7 @@ impl CrosshairApp {
                                                         let response = ui.add_sized(
                                                             [64.0, 18.0],
                                                             TextEdit::singleline(&mut step.if_variable_name)
-                                                                .hint_text(Self::tr_lang(language, "variable", "biến")),
+                                                                .hint_text(RichText::new(Self::tr_lang(language, "variable", "biến")).color(hint_color).weak()),
                                                         );
                                                         Self::apply_vietnamese_input_if_changed(
                                                             &response,
@@ -16864,7 +16877,7 @@ impl CrosshairApp {
                                                         let response = ui.add_sized(
                                                             [64.0, 18.0],
                                                             TextEdit::singleline(&mut step.if_variable_name)
-                                                                .hint_text(Self::tr_lang(language, "variable", "biến")),
+                                                                .hint_text(RichText::new(Self::tr_lang(language, "variable", "biến")).color(hint_color).weak()),
                                                         );
                                                         Self::apply_vietnamese_input_if_changed(
                                                             &response,
@@ -16879,7 +16892,7 @@ impl CrosshairApp {
                                                         let response2 = ui.add_sized(
                                                             [76.0, 18.0],
                                                             TextEdit::singleline(&mut step.key)
-                                                                .hint_text(Self::tr_lang(language, "value/expr", "giá trị")),
+                                                                .hint_text(RichText::new(Self::tr_lang(language, "value/expr", "giá trị")).color(hint_color).weak()),
                                                         );
                                                         Self::apply_vietnamese_input_if_changed(
                                                             &response2,
@@ -17203,6 +17216,21 @@ impl CrosshairApp {
 
                                             ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
                                                 if ui
+                                                    .add(
+                                                        Button::new(Self::tr_lang(language, "Copy", "Copy"))
+                                                            .min_size(vec2(paste_button_width, 18.0)),
+                                                     )
+                                                     .on_hover_text(Self::tr_lang(
+                                                         language,
+                                                         "Copy this step.",
+                                                         "Copy step này.",
+                                                     ))
+                                                     .clicked()
+                                                 {
+                                                     copy_single_step = Some((group.id, preset.id, step_index));
+                                                 }
+
+                                                if ui
                                                     .add_enabled(
                                                         !self.macro_step_clipboard.is_empty(),
                                                         Button::new(Self::tr_lang(language, "Paste", "Paste"))
@@ -17289,6 +17317,7 @@ impl CrosshairApp {
                                 ));
                             }
                         });
+                                    });
                                     ui.add_space(4.0);
                                 }
                             });
@@ -17481,6 +17510,16 @@ impl CrosshairApp {
                     }
                     if let Some((group_id, preset_id)) = copy_selected_steps {
                         self.copy_selected_macro_steps_for_preset(group_id, preset_id);
+                    }
+                    if let Some((group_id, preset_id, step_index)) = copy_single_step {
+                        if let Some(group) = self.state.macro_groups.iter().find(|g| g.id == group_id) {
+                            if let Some(preset) = group.presets.iter().find(|p| p.id == preset_id) {
+                                if let Some(step) = preset.steps.get(step_index) {
+                                    self.macro_step_clipboard = vec![step.clone()];
+                                    self.status = format!("Copied 1 step.");
+                                }
+                            }
+                        }
                     }
                     if let Some((group_id, preset_id)) = delete_selected_steps {
                         self.remove_selected_macro_steps_for_preset(group_id, preset_id);
