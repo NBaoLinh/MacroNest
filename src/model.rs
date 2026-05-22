@@ -418,6 +418,7 @@ pub enum MacroAction {
     IfStart,
     Else,
     IfEnd,
+    SetVariable,
     StartTimerPreset,
     PauseTimerPreset,
     StopTimerPreset,

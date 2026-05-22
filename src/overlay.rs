@@ -5255,6 +5255,20 @@ mod windows_overlay {
                     }
                 }
                 MacroAction::IfEnd => {}
+                MacroAction::SetVariable => {
+                    let target_var = step.if_variable_name.trim().to_string();
+                    if !target_var.is_empty() {
+                        let val_str = step.key.trim();
+                        let value = if let Ok(num) = val_str.parse::<i32>() {
+                            num
+                        } else {
+                            let vars = RUNTIME_VARIABLES.lock();
+                            *vars.get(val_str).unwrap_or(&0)
+                        };
+                        let mut vars = RUNTIME_VARIABLES.lock();
+                        vars.insert(target_var, value);
+                    }
+                }
                 MacroAction::StopIfTriggerPressedAgain => {
                     if STOP_REQUESTED_MACRO_PRESETS.lock().remove(&preset_id) {
                         return MacroRunFlow::BreakLoop;
@@ -5588,6 +5602,20 @@ mod windows_overlay {
                     }
                 }
                 MacroAction::IfEnd => {}
+                MacroAction::SetVariable => {
+                    let target_var = step.if_variable_name.trim().to_string();
+                    if !target_var.is_empty() {
+                        let val_str = step.key.trim();
+                        let value = if let Ok(num) = val_str.parse::<i32>() {
+                            num
+                        } else {
+                            let vars = RUNTIME_VARIABLES.lock();
+                            *vars.get(val_str).unwrap_or(&0)
+                        };
+                        let mut vars = RUNTIME_VARIABLES.lock();
+                        vars.insert(target_var, value);
+                    }
+                }
                 MacroAction::StopIfTriggerPressedAgain => {
                     if STOP_REQUESTED_MACRO_PRESETS.lock().remove(&preset_id) {
                         return MacroRunFlow::BreakLoop;

@@ -4463,6 +4463,7 @@ impl CrosshairApp {
             MacroAction::IfStart => "IfStart",
             MacroAction::Else => "Else",
             MacroAction::IfEnd => "IfEnd",
+            MacroAction::SetVariable => "SetVariable",
             _ => "Legacy (Deprecated)",
         }
     }
@@ -4560,6 +4561,7 @@ impl CrosshairApp {
                     "Khối Ngược lại (Else). Chạy các bước bên trong nếu điều kiện Nếu (If) bên trên KHÔNG được thỏa mãn."
                 }
                 MacroAction::IfEnd => "Kết thúc khối điều kiện Hiện tại.",
+                MacroAction::SetVariable => "Đặt giá trị cho một biến (số nguyên hoặc sao chép từ biến khác).",
                 _ => "Tính năng cũ (Không dùng)",
             },
             _ => match action {
@@ -4653,6 +4655,7 @@ impl CrosshairApp {
                     "Otherwise (Else) block. Runs steps inside if the above If condition was NOT met."
                 }
                 MacroAction::IfEnd => "End the current conditional If block.",
+                MacroAction::SetVariable => "Set a variable to a numeric value or copy from another variable.",
                 _ => "Legacy (Deprecated)",
             }
         }
@@ -4721,6 +4724,7 @@ impl CrosshairApp {
             MacroAction::IfStart => 0xe8af,
             MacroAction::Else => 0xe3ec,
             MacroAction::IfEnd => 0xe040,
+            MacroAction::SetVariable => 0xe150,
             _ => 0xe8b5,
         };
         char::from_u32(codepoint).unwrap_or('?')
@@ -4794,6 +4798,7 @@ impl CrosshairApp {
                 MacroAction::IfStart => "Nếu (If)",
                 MacroAction::Else => "Ngược lại",
                 MacroAction::IfEnd => "Hết Nếu",
+                MacroAction::SetVariable => "Gán biến",
                 _ => "Cũ (Bỏ)",
             }),
             UiLanguage::English => match action {
@@ -4858,6 +4863,7 @@ impl CrosshairApp {
                 MacroAction::IfStart => "IfStart",
                 MacroAction::Else => "Else",
                 MacroAction::IfEnd => "IfEnd",
+                MacroAction::SetVariable => "SetVar",
                 _ => "Legacy",
             },
             UiLanguage::Icon => match action {
@@ -4922,6 +4928,7 @@ impl CrosshairApp {
                 MacroAction::IfStart => "IfStart",
                 MacroAction::Else => "Else",
                 MacroAction::IfEnd => "IfEnd",
+                MacroAction::SetVariable => "SetVar",
                 _ => "Legacy",
             },
         }
@@ -5055,6 +5062,16 @@ impl CrosshairApp {
                 | MacroAction::StopVision
                 | MacroAction::StopVisionWait
                 | MacroAction::ShowHud
+                | MacroAction::IfStart
+                | MacroAction::Else
+                | MacroAction::IfEnd
+                | MacroAction::SetVariable
+                | MacroAction::DisableCrosshair
+                | MacroAction::DisableZoom
+                | MacroAction::DisablePin
+                | MacroAction::HideHud
+                | MacroAction::LockMouse
+                | MacroAction::UnlockMouse
         )
     }
 
@@ -5110,13 +5127,13 @@ impl CrosshairApp {
 
         for (index, step) in steps.iter().enumerate() {
             match step.action {
-                MacroAction::LoopStart => {
+                MacroAction::LoopStart | MacroAction::IfStart => {
                     let color = palette[next_loop_color % palette.len()];
                     next_loop_color += 1;
                     stack.push(color);
                     colors[index] = Some(color);
                 }
-                MacroAction::LoopEnd => {
+                MacroAction::LoopEnd | MacroAction::IfEnd => {
                     if let Some(color) = stack.last().copied() {
                         colors[index] = Some(color);
                     }
@@ -14485,6 +14502,7 @@ impl CrosshairApp {
                                                               MacroAction::IfStart,
                                                               MacroAction::Else,
                                                               MacroAction::IfEnd,
+                                                              MacroAction::SetVariable,
                                                         ]
                                                         .into_iter()
                                                         .enumerate()
@@ -15207,6 +15225,37 @@ impl CrosshairApp {
                                                             DragValue::new(&mut step.if_compare_value).range(-1_000_000..=1_000_000),
                                                         ).changed();
                                                     });
+                                                } else if step.action == MacroAction::SetVariable {
+                                                    ui.horizontal(|ui| {
+                                                        ui.spacing_mut().item_spacing.x = 4.0;
+                                                        let response = ui.add_sized(
+                                                            [64.0, 22.0],
+                                                            TextEdit::singleline(&mut step.if_variable_name)
+                                                                .hint_text(Self::tr_lang(language, "variable", "biến")),
+                                                        );
+                                                        Self::apply_vietnamese_input_if_changed(
+                                                            &response,
+                                                            self.state.vietnamese_input_enabled,
+                                                            self.state.vietnamese_input_mode,
+                                                            &mut step.if_variable_name,
+                                                        );
+                                                        live_sync |= response.changed();
+
+                                                        ui.label(" = ");
+
+                                                        let response2 = ui.add_sized(
+                                                            [76.0, 22.0],
+                                                            TextEdit::singleline(&mut step.key)
+                                                                .hint_text(Self::tr_lang(language, "value/expr", "giá trị")),
+                                                        );
+                                                        Self::apply_vietnamese_input_if_changed(
+                                                            &response2,
+                                                            self.state.vietnamese_input_enabled,
+                                                            self.state.vietnamese_input_mode,
+                                                            &mut step.key,
+                                                        );
+                                                        live_sync |= response2.changed();
+                                                    });
                                                 } else {
                                                     live_sync |= ui
                                                         .add_sized([160.0, 22.0], TextEdit::singleline(&mut step.key))
@@ -15912,6 +15961,7 @@ impl CrosshairApp {
                                                                  MacroAction::IfStart,
                                                                  MacroAction::Else,
                                                                  MacroAction::IfEnd,
+                                                                 MacroAction::SetVariable,
                                                             ]
                                                             .into_iter()
                                                             .enumerate()
@@ -16714,6 +16764,37 @@ impl CrosshairApp {
                                                             [46.0, 18.0],
                                                             DragValue::new(&mut step.if_compare_value).range(-1_000_000..=1_000_000),
                                                         ).changed();
+                                                    });
+                                                } else if step.action == MacroAction::SetVariable {
+                                                    ui.horizontal(|ui| {
+                                                        ui.spacing_mut().item_spacing.x = 4.0;
+                                                        let response = ui.add_sized(
+                                                            [64.0, 18.0],
+                                                            TextEdit::singleline(&mut step.if_variable_name)
+                                                                .hint_text(Self::tr_lang(language, "variable", "biến")),
+                                                        );
+                                                        Self::apply_vietnamese_input_if_changed(
+                                                            &response,
+                                                            self.state.vietnamese_input_enabled,
+                                                            self.state.vietnamese_input_mode,
+                                                            &mut step.if_variable_name,
+                                                        );
+                                                        live_sync |= response.changed();
+
+                                                        ui.label(" = ");
+
+                                                        let response2 = ui.add_sized(
+                                                            [76.0, 18.0],
+                                                            TextEdit::singleline(&mut step.key)
+                                                                .hint_text(Self::tr_lang(language, "value/expr", "giá trị")),
+                                                        );
+                                                        Self::apply_vietnamese_input_if_changed(
+                                                            &response2,
+                                                            self.state.vietnamese_input_enabled,
+                                                            self.state.vietnamese_input_mode,
+                                                            &mut step.key,
+                                                        );
+                                                        live_sync |= response2.changed();
                                                     });
                                                 } else if matches!(step.action, MacroAction::StartVisionSearch | MacroAction::TriggerVisionMove | MacroAction::StopVision | MacroAction::StopVisionWait) {
                                                     let selected_id = step.key.trim().parse::<u32>().ok();
