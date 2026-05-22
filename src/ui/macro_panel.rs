@@ -5680,12 +5680,14 @@ impl CrosshairApp {
             };
 
             if vars_snapshot.is_empty() {
-                ui.centered_and_justified(|ui| {
+                ui.vertical_centered(|ui| {
+                    ui.add_space(20.0);
                     ui.label(RichText::new(Self::tr_lang(
                         language,
                         "No variables active yet.\n(Run a macro or set a variable)",
                         "Chưa có biến nào hoạt động.\n(Chạy macro hoặc thiết lập biến)",
                     )).italics().color(ui.visuals().weak_text_color()));
+                    ui.add_space(20.0);
                 });
             } else {
                 egui::ScrollArea::vertical().max_height(280.0).show(ui, |ui| {
@@ -5732,6 +5734,11 @@ impl CrosshairApp {
                             if let Some(name) = to_remove {
                                 let mut vars = crate::overlay::RUNTIME_VARIABLES.lock();
                                 vars.remove(&name);
+                                if let Some((ref up_name, _)) = to_update {
+                                    if up_name == &name {
+                                        to_update = None;
+                                    }
+                                }
                             }
 
                             if let Some((name, new_val)) = to_update {
@@ -5753,9 +5760,24 @@ impl CrosshairApp {
                 let mut name_buf = ui.memory(|mem| mem.data.get_temp::<String>(id_name).unwrap_or_default());
                 let mut val_buf = ui.memory(|mem| mem.data.get_temp::<String>(id_val).unwrap_or_default());
 
-                ui.add_sized([100.0, 20.0], egui::TextEdit::singleline(&mut name_buf).hint_text("Name"));
+                let is_dark_theme = self.state.ui_theme == UiThemeMode::Dark;
+                let hint_color = if is_dark_theme {
+                    Color32::from_rgba_unmultiplied(110, 110, 110, 90)
+                } else {
+                    Color32::from_rgba_unmultiplied(130, 130, 130, 90)
+                };
+
+                ui.add_sized(
+                    [100.0, 20.0],
+                    egui::TextEdit::singleline(&mut name_buf)
+                        .hint_text(RichText::new(Self::tr_lang(language, "Name", "Tên")).color(hint_color).weak())
+                );
                 ui.label("=");
-                ui.add_sized([70.0, 20.0], egui::TextEdit::singleline(&mut val_buf).hint_text("Value"));
+                ui.add_sized(
+                    [70.0, 20.0],
+                    egui::TextEdit::singleline(&mut val_buf)
+                        .hint_text(RichText::new(Self::tr_lang(language, "Value", "Giá trị")).color(hint_color).weak())
+                );
 
                 if ui.button(Self::tr_lang(language, "Set", "Set")).clicked() {
                     let name_trimmed = name_buf.trim().to_string();

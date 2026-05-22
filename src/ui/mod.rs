@@ -7725,13 +7725,16 @@ impl eframe::App for CrosshairApp {
 
         if self.variable_inspector_open {
             let mut open = self.variable_inspector_open;
+            let screen_center = ctx.screen_rect().center();
             egui::Window::new(Self::tr_lang(
                 self.state.ui_language,
                 "Variable Inspector / Debugger",
                 "Trình theo dõi biến",
             ))
             .open(&mut open)
-            .default_size(egui::vec2(280.0, 360.0))
+            .default_pos(screen_center)
+            .pivot(egui::Align2::CENTER_CENTER)
+            .default_size(egui::vec2(280.0, 180.0))
             .resizable(true)
             .collapsible(true)
             .show(ctx, |ui| {
