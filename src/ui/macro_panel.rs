@@ -6139,76 +6139,7 @@ impl CrosshairApp {
         });
     }
 
-    fn render_variable_suggestions(ui: &mut egui::Ui, text: &mut String, language: UiLanguage) {
-        let vars_snapshot = {
-            let vars = crate::overlay::RUNTIME_VARIABLES.lock();
-            let mut list: Vec<String> = vars.keys().cloned().collect();
-            list.sort();
-            list
-        };
+    fn render_variable_suggestions(_ui: &mut egui::Ui, _text: &mut String, _language: UiLanguage) {}
 
-        if !vars_snapshot.is_empty() {
-            ui.horizontal_wrapped(|ui| {
-                ui.spacing_mut().item_spacing.x = 4.0;
-                ui.spacing_mut().item_spacing.y = 2.0;
-                ui.label(RichText::new(Self::tr_lang(
-                    language,
-                    "Insert variable:",
-                    "Chèn nhanh biến:",
-                )).size(11.0).color(ui.visuals().weak_text_color()));
-                
-                for var_name in vars_snapshot {
-                    let btn_text = format!("{{{}}}", var_name);
-                    let button = egui::Button::new(RichText::new(&btn_text).size(11.0).monospace())
-                        .small()
-                        .fill(ui.visuals().widgets.noninteractive.bg_fill);
-                    let hover_text = match language {
-                        UiLanguage::Vietnamese => format!("Bấm để chèn {{{}}} vào vị trí", var_name),
-                        _ => format!("Click to insert {{{}}}", var_name),
-                    };
-                    if ui.add(button).on_hover_text(hover_text).clicked() {
-                        if text.is_empty() {
-                            *text = btn_text;
-                        } else {
-                            text.push_str(&btn_text);
-                        }
-                    }
-                }
-            });
-        }
-    }
-
-    fn render_variable_suggestions_raw(ui: &mut egui::Ui, text: &mut String, language: UiLanguage) {
-        let vars_snapshot = {
-            let vars = crate::overlay::RUNTIME_VARIABLES.lock();
-            let mut list: Vec<String> = vars.keys().cloned().collect();
-            list.sort();
-            list
-        };
-
-        if !vars_snapshot.is_empty() {
-            ui.horizontal_wrapped(|ui| {
-                ui.spacing_mut().item_spacing.x = 4.0;
-                ui.spacing_mut().item_spacing.y = 2.0;
-                ui.label(RichText::new(Self::tr_lang(
-                    language,
-                    "Choose variable:",
-                    "Chọn nhanh biến:",
-                )).size(11.0).color(ui.visuals().weak_text_color()));
-                
-                for var_name in vars_snapshot {
-                    let button = egui::Button::new(RichText::new(&var_name).size(11.0).monospace())
-                        .small()
-                        .fill(ui.visuals().widgets.noninteractive.bg_fill);
-                    let hover_text = match language {
-                        UiLanguage::Vietnamese => format!("Bấm để chọn {}", var_name),
-                        _ => format!("Click to select {}", var_name),
-                    };
-                    if ui.add(button).on_hover_text(hover_text).clicked() {
-                        *text = var_name;
-                    }
-                }
-            });
-        }
-    }
+    fn render_variable_suggestions_raw(_ui: &mut egui::Ui, _text: &mut String, _language: UiLanguage) {}
 }
