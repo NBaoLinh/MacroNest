@@ -4739,6 +4739,58 @@ mod windows_overlay {
         send_overlay_command(OverlayCommand::RefreshPinOverlay);
     }
 
+    fn disable_crosshair_profile(spec: &str) {
+        let profile_name = spec.trim();
+        if profile_name.is_empty() {
+            disable_crosshair_overlay();
+            return;
+        }
+        let mut hook_state = HOOK_STATE.lock();
+        let profile_index = hook_state
+            .profiles
+            .iter()
+            .position(|profile| profile.name == profile_name);
+        if let Some(idx) = profile_index {
+            hook_state.profiles[idx].enabled = false;
+            if hook_state.active_crosshair_profile_name.as_deref() == Some(profile_name) {
+                let mut style = hook_state.current_style.clone();
+                style.enabled = false;
+                hook_state.current_style = style.clone();
+                hook_state.active_crosshair_profile_name = None;
+                let profiles = hook_state.profiles.clone();
+                drop(hook_state);
+                send_ui_command(UiCommand::SyncCrosshairProfiles(
+                    profiles,
+                    format!("Disabled crosshair profile {}.", profile_name),
+                ));
+                send_overlay_command(OverlayCommand::Update(style));
+            } else {
+                let profiles = hook_state.profiles.clone();
+                drop(hook_state);
+                send_ui_command(UiCommand::SyncCrosshairProfiles(
+                    profiles,
+                    format!("Disabled crosshair profile {}.", profile_name),
+                ));
+            }
+        }
+    }
+
+    fn disable_pin_preset(spec: &str) {
+        let preset_id = match spec.trim().parse::<u32>() {
+            Ok(id) => id,
+            Err(_) => {
+                disable_pin_overlay();
+                return;
+            }
+        };
+        let mut hook_state = HOOK_STATE.lock();
+        if hook_state.active_pin_preset_id == Some(preset_id) {
+            hook_state.active_pin_preset_id = None;
+            drop(hook_state);
+            send_overlay_command(OverlayCommand::RefreshPinOverlay);
+        }
+    }
+
     fn play_sound_preset(spec: &str) -> Result<()> {
         let preset_id = spec
             .trim()
@@ -5060,13 +5112,21 @@ mod windows_overlay {
                 let _ = enable_crosshair_profile(&step.key);
             }
             MacroAction::DisableCrosshair => {
-                disable_crosshair_overlay();
+                if step.lock_mouse_left {
+                    disable_crosshair_overlay();
+                } else {
+                    disable_crosshair_profile(&step.key);
+                }
             }
             MacroAction::EnablePinPreset => {
                 let _ = enable_pin_preset(&step.key);
             }
             MacroAction::DisablePin => {
-                disable_pin_overlay();
+                if step.lock_mouse_left {
+                    disable_pin_overlay();
+                } else {
+                    disable_pin_preset(&step.key);
+                }
             }
             MacroAction::PlayMousePathPreset => {
                 let _ = play_mouse_path_preset(&step.key, step, Some(preset_id), false);
@@ -5414,13 +5474,21 @@ mod windows_overlay {
                     let _ = enable_crosshair_profile(&step.key);
                 }
                 MacroAction::DisableCrosshair => {
-                    disable_crosshair_overlay();
+                    if step.lock_mouse_left {
+                        disable_crosshair_overlay();
+                    } else {
+                        disable_crosshair_profile(&step.key);
+                    }
                 }
                 MacroAction::EnablePinPreset => {
                     let _ = enable_pin_preset(&step.key);
                 }
                 MacroAction::DisablePin => {
-                    disable_pin_overlay();
+                    if step.lock_mouse_left {
+                        disable_pin_overlay();
+                    } else {
+                        disable_pin_preset(&step.key);
+                    }
                 }
                 MacroAction::PlayMousePathPreset => {
                     let _ = play_mouse_path_preset(
@@ -5778,13 +5846,21 @@ mod windows_overlay {
                     let _ = enable_crosshair_profile(&step.key);
                 }
                 MacroAction::DisableCrosshair => {
-                    disable_crosshair_overlay();
+                    if step.lock_mouse_left {
+                        disable_crosshair_overlay();
+                    } else {
+                        disable_crosshair_profile(&step.key);
+                    }
                 }
                 MacroAction::EnablePinPreset => {
                     let _ = enable_pin_preset(&step.key);
                 }
                 MacroAction::DisablePin => {
-                    disable_pin_overlay();
+                    if step.lock_mouse_left {
+                        disable_pin_overlay();
+                    } else {
+                        disable_pin_preset(&step.key);
+                    }
                 }
                 MacroAction::PlayMousePathPreset => {
                     let _ = play_mouse_path_preset(

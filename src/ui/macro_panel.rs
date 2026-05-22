@@ -3027,7 +3027,76 @@ impl CrosshairApp {
                                                         live_sync |= response.changed();
                                                         Self::render_variable_suggestions(ui, &mut step.key, language);
                                                     });
-                                                } else if matches!(step.action, MacroAction::DisableCrosshair | MacroAction::DisableZoom | MacroAction::Else | MacroAction::IfEnd) {
+                                                } else if step.action == MacroAction::DisableCrosshair {
+                                                    ui.scope(|ui| {
+                                                        ui.spacing_mut().item_spacing.x = 4.0;
+                                                        ui.spacing_mut().interact_size.y = 22.0;
+                                                        ui.spacing_mut().button_padding.y = 0.0;
+                                                        ui.horizontal(|ui| {
+                                                            let response = ui.checkbox(&mut step.lock_mouse_left, Self::tr_lang(language, "All", "Tắt hết"));
+                                                            live_sync |= response.changed();
+                                                            if !step.lock_mouse_left {
+                                                                let selected_label = if step.key.trim().is_empty() {
+                                                                    Self::tr_lang(language, "Select profile", "Chọn profile").to_owned()
+                                                                } else {
+                                                                    step.key.clone()
+                                                                };
+                                                                egui::ComboBox::from_id_salt((group.id, preset.id, "hold-stop-disable-crosshair"))
+                                                                    .width(110.0)
+                                                                    .selected_text(selected_label)
+                                                                    .show_ui(ui, |ui| {
+                                                                        for profile in &self.state.profiles {
+                                                                            if ui
+                                                                                .selectable_label(step.key == profile.name, &profile.name)
+                                                                                .clicked()
+                                                                            {
+                                                                                step.key = profile.name.clone();
+                                                                                live_sync = true;
+                                                                            }
+                                                                        }
+                                                                    });
+                                                            }
+                                                        });
+                                                    });
+                                                } else if step.action == MacroAction::DisablePin {
+                                                    ui.scope(|ui| {
+                                                        ui.spacing_mut().item_spacing.x = 4.0;
+                                                        ui.spacing_mut().interact_size.y = 22.0;
+                                                        ui.spacing_mut().button_padding.y = 0.0;
+                                                        ui.horizontal(|ui| {
+                                                            let response = ui.checkbox(&mut step.lock_mouse_left, Self::tr_lang(language, "All", "Tắt hết"));
+                                                            live_sync |= response.changed();
+                                                            if !step.lock_mouse_left {
+                                                                let selected_id = step.key.trim().parse::<u32>().ok();
+                                                                let selected_label = selected_id
+                                                                    .and_then(|id| {
+                                                                        self.state
+                                                                            .pin_presets
+                                                                            .iter()
+                                                                            .find(|p| p.id == id)
+                                                                            .map(|p| p.name.clone())
+                                                                    })
+                                                                    .unwrap_or_else(|| {
+                                                                        Self::tr_lang(language, "Select pin", "Chọn preset ghim").to_owned()
+                                                                    });
+                                                                egui::ComboBox::from_id_salt((group.id, preset.id, "hold-stop-disable-pin"))
+                                                                    .width(110.0)
+                                                                    .selected_text(selected_label)
+                                                                    .show_ui(ui, |ui| {
+                                                                        for preset_option in &self.state.pin_presets {
+                                                                            if ui
+                                                                                .selectable_label(selected_id == Some(preset_option.id), &preset_option.name)
+                                                                                .clicked()
+                                                                            {
+                                                                                step.key = preset_option.id.to_string();
+                                                                                live_sync = true;
+                                                                            }
+                                                                        }
+                                                                    });
+                                                            }
+                                                        });
+                                                    });
+                                                } else if matches!(step.action, MacroAction::DisableZoom | MacroAction::Else | MacroAction::IfEnd) {
                                                     ui.add_sized(
                                                         [110.0, 22.0],
                                                         egui::Label::new(Self::tr_lang(language, "No input", "No input")),
@@ -4680,8 +4749,8 @@ impl CrosshairApp {
                                                             &mut step.text_override,
                                                         );
                                                         live_sync |= response.changed();
-                                                    });
-                                                 } else if step.action == MacroAction::TypeText {
+                                                     });
+                                                } else if step.action == MacroAction::TypeText {
                                                      ui.vertical(|ui| {
                                                          let response = ui.add_sized(
                                                              [146.0, 18.0],
@@ -4697,7 +4766,76 @@ impl CrosshairApp {
                                                          live_sync |= response.changed();
                                                          Self::render_variable_suggestions(ui, &mut step.key, language);
                                                      });
-                                                } else if matches!(step.action, MacroAction::DisableCrosshair | MacroAction::DisableZoom | MacroAction::Else | MacroAction::IfEnd) {
+                                                } else if step.action == MacroAction::DisableCrosshair {
+                                                    ui.scope(|ui| {
+                                                        ui.spacing_mut().item_spacing.x = 4.0;
+                                                        ui.spacing_mut().interact_size.y = 18.0;
+                                                        ui.spacing_mut().button_padding.y = 0.0;
+                                                        ui.horizontal(|ui| {
+                                                            let response = ui.checkbox(&mut step.lock_mouse_left, Self::tr_lang(language, "All", "Tắt hết"));
+                                                            live_sync |= response.changed();
+                                                            if !step.lock_mouse_left {
+                                                                let selected_label = if step.key.trim().is_empty() {
+                                                                    Self::tr_lang(language, "Select profile", "Chọn profile").to_owned()
+                                                                } else {
+                                                                    step.key.clone()
+                                                                };
+                                                                egui::ComboBox::from_id_salt((group.id, preset.id, step_index, "main-disable-crosshair"))
+                                                                    .width(96.0)
+                                                                    .selected_text(selected_label)
+                                                                    .show_ui(ui, |ui| {
+                                                                        for profile in &self.state.profiles {
+                                                                            if ui
+                                                                                .selectable_label(step.key == profile.name, &profile.name)
+                                                                                .clicked()
+                                                                            {
+                                                                                step.key = profile.name.clone();
+                                                                                live_sync = true;
+                                                                            }
+                                                                        }
+                                                                    });
+                                                            }
+                                                        });
+                                                    });
+                                                } else if step.action == MacroAction::DisablePin {
+                                                    ui.scope(|ui| {
+                                                        ui.spacing_mut().item_spacing.x = 4.0;
+                                                        ui.spacing_mut().interact_size.y = 18.0;
+                                                        ui.spacing_mut().button_padding.y = 0.0;
+                                                        ui.horizontal(|ui| {
+                                                            let response = ui.checkbox(&mut step.lock_mouse_left, Self::tr_lang(language, "All", "Tắt hết"));
+                                                            live_sync |= response.changed();
+                                                            if !step.lock_mouse_left {
+                                                                let selected_id = step.key.trim().parse::<u32>().ok();
+                                                                let selected_label = selected_id
+                                                                    .and_then(|id| {
+                                                                        self.state
+                                                                            .pin_presets
+                                                                            .iter()
+                                                                            .find(|p| p.id == id)
+                                                                            .map(|p| p.name.clone())
+                                                                    })
+                                                                    .unwrap_or_else(|| {
+                                                                        Self::tr_lang(language, "Select pin", "Chọn preset ghim").to_owned()
+                                                                    });
+                                                                egui::ComboBox::from_id_salt((group.id, preset.id, step_index, "main-disable-pin"))
+                                                                    .width(96.0)
+                                                                    .selected_text(selected_label)
+                                                                    .show_ui(ui, |ui| {
+                                                                        for preset_option in &self.state.pin_presets {
+                                                                            if ui
+                                                                                .selectable_label(selected_id == Some(preset_option.id), &preset_option.name)
+                                                                                .clicked()
+                                                                            {
+                                                                                step.key = preset_option.id.to_string();
+                                                                                live_sync = true;
+                                                                            }
+                                                                        }
+                                                                    });
+                                                            }
+                                                        });
+                                                    });
+                                                } else if matches!(step.action, MacroAction::DisableZoom | MacroAction::Else | MacroAction::IfEnd) {
                                                     ui.add_sized(
                                                         [146.0, 18.0],
                                                         egui::Label::new(Self::tr_lang(language, "No input", "No input")),
