@@ -17,41 +17,7 @@ impl CrosshairApp {
 
 
 
-    fn macro_loop_colors(steps: &[MacroStep]) -> Vec<Option<Color32>> {
-        let palette = [
-            Color32::from_rgba_unmultiplied(35, 75, 145, 55),   // Xanh lam sẫm
-            Color32::from_rgba_unmultiplied(160, 95, 30, 50),   // Nâu cam sẫm
-            Color32::from_rgba_unmultiplied(30, 125, 75, 50),   // Xanh lục sẫm
-            Color32::from_rgba_unmultiplied(140, 50, 140, 50),  // Tím sẫm
-        ];
-        let mut colors = vec![None; steps.len()];
-        let mut stack: Vec<Color32> = Vec::new();
-        let mut next_loop_color = 0usize;
 
-        for (index, step) in steps.iter().enumerate() {
-            match step.action {
-                MacroAction::LoopStart | MacroAction::IfStart => {
-                    let color = palette[next_loop_color % palette.len()];
-                    next_loop_color += 1;
-                    stack.push(color);
-                    colors[index] = Some(color);
-                }
-                MacroAction::LoopEnd | MacroAction::IfEnd => {
-                    if let Some(color) = stack.last().copied() {
-                        colors[index] = Some(color);
-                    }
-                    stack.pop();
-                }
-                _ => {
-                    if let Some(color) = stack.last().copied() {
-                        colors[index] = Some(color);
-                    }
-                }
-            }
-        }
-
-        colors
-    }
 
 
     fn render_macro_action_option(
@@ -3880,7 +3846,7 @@ impl CrosshairApp {
 
 
 
-                            let loop_colors = Self::macro_loop_colors(&preset.steps);
+                            
                             let steps_len = preset.steps.len();
                             let has_stop_vision = preset.steps.iter().any(|s| s.action == MacroAction::StopVision && s.enabled);
                             let drag_payload = egui::DragAndDrop::payload::<MacroStepDragPayload>(ui.ctx())
@@ -3912,6 +3878,8 @@ impl CrosshairApp {
                                     Color32::from_rgb(22, 66, 34),
                                 );
                             };
+                            let mut step_rects = vec![Rect::ZERO; steps_len];
+                            let mut hovered_step_idx: Option<usize> = None;
                             for step_index in 0..steps_len {
                                 if drag_payload.is_some()
                                     && !preview_drawn
@@ -4021,10 +3989,6 @@ impl CrosshairApp {
                                     } else {
                                         Color32::from_rgba_premultiplied(68, 118, 180, 130)
                                     }
-                                } else if let Some(color) =
-                                    loop_colors.get(step_index).and_then(|color| *color)
-                                {
-                                    color
                                 } else {
                                     ui.visuals().faint_bg_color
                                 };
@@ -6137,10 +6101,81 @@ impl CrosshairApp {
                                 if row_response.secondary_clicked() {
                                     remove_step = Some((preset.id, step_index));
                                 }
+                                if row_response.hovered() || row_response.contains_pointer() {
+                                    hovered_step_idx = Some(step_index);
+                                }
+                                step_rects[step_index] = row_response.rect;
                             }
                             if drag_payload.is_some() && !preview_drawn {
                                 preview_drop_index = steps_len;
                                 paint_drop_preview(ui);
+                            }
+
+                            // Dynamic hover highlight for Loop and If blocks (Gợi ý 2)
+                            if let Some(hovered_idx) = hovered_step_idx {
+                                ui.ctx().request_repaint(); // ensure immediate feedback when hover changes
+                                
+                                struct BlockRange {
+                                    start_idx: usize,
+                                    end_idx: usize,
+                                }
+                                let mut blocks = Vec::new();
+                                let mut loop_stack = Vec::new();
+                                let mut if_stack = Vec::new();
+                                
+                                for (idx, s) in preset.steps.iter().enumerate() {
+                                    if s.enabled {
+                                        if s.action == MacroAction::LoopStart {
+                                            loop_stack.push(idx);
+                                        } else if s.action == MacroAction::LoopEnd {
+                                            if let Some(start_idx) = loop_stack.pop() {
+                                                blocks.push(BlockRange {
+                                                    start_idx,
+                                                    end_idx: idx,
+                                                });
+                                            }
+                                        } else if s.action == MacroAction::IfStart {
+                                            if_stack.push(idx);
+                                        } else if s.action == MacroAction::IfEnd {
+                                            if let Some(start_idx) = if_stack.pop() {
+                                                blocks.push(BlockRange {
+                                                    start_idx,
+                                                    end_idx: idx,
+                                                });
+                                            }
+                                        }
+                                    }
+                                }
+                                
+                                let mut active_block: Option<&BlockRange> = None;
+                                for block in &blocks {
+                                    if hovered_idx >= block.start_idx && hovered_idx <= block.end_idx {
+                                        match active_block {
+                                            None => active_block = Some(block),
+                                            Some(current) => {
+                                                if (block.end_idx - block.start_idx) < (current.end_idx - current.start_idx) {
+                                                    active_block = Some(block);
+                                                }
+                                            }
+                                        }
+                                    }
+                                }
+                                
+                                if let Some(block) = active_block {
+                                    if block.start_idx < step_rects.len() && block.end_idx < step_rects.len() {
+                                        let start_rect = step_rects[block.start_idx];
+                                        let end_rect = step_rects[block.end_idx];
+                                        if start_rect != Rect::ZERO && end_rect != Rect::ZERO {
+                                            let union_rect = start_rect.union(end_rect).expand(3.0);
+                                            ui.painter().rect_stroke(
+                                                union_rect,
+                                                6.0,
+                                                egui::Stroke::new(2.0, Color32::from_rgba_unmultiplied(255, 255, 255, 220)),
+                                                egui::StrokeKind::Outside,
+                                            );
+                                        }
+                                    }
+                                }
                             }
                             if let Some(payload) = drag_payload
                                 && ui.input(|input| input.pointer.any_released())
