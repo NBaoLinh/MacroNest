@@ -2957,7 +2957,7 @@ impl CrosshairApp {
                                                               Self::render_variable_suggestions(ui, &mut step.key, language);
                                                           });
                                                       }
-                                                 } else if step.action == MacroAction::StopIfKeyPressed {
+                                                } else if step.action == MacroAction::StopIfKeyPressed {
                                                      ui.scope(|ui| {
                                                          ui.spacing_mut().item_spacing.x = 4.0;
                                                          ui.spacing_mut().interact_size.y = 22.0;
@@ -3018,6 +3018,11 @@ impl CrosshairApp {
                                                                                  .color(Color32::from_rgb(0, 191, 255))
                                                                          ).on_hover_text(Self::tr_lang(language, "Current runtime value", "Giá trị chạy hiện tại"));
                                                                      }
+
+                                                                     if ui.button("+").on_hover_text(Self::tr_lang(language, "Add condition", "Thêm điều kiện")).clicked() {
+                                                                         step.extra_conditions.push(ExtraCondition::default());
+                                                                         live_sync = true;
+                                                                     }
                                                                  } else {
                                                                      let response = ui.add_sized(
                                                                          [160.0, 22.0],
@@ -3040,7 +3045,72 @@ impl CrosshairApp {
                                                                      live_sync |= response.changed();
                                                                  }
                                                              });
+
                                                              if step.break_loop_by_variable {
+                                                                 let mut remove_extra_idx = None;
+                                                                 for (extra_idx, cond) in step.extra_conditions.iter_mut().enumerate() {
+                                                                     ui.horizontal(|ui| {
+                                                                         ui.label(Self::tr_lang(language, "AND", "VÀ"));
+                                                                         
+                                                                         let response = ui.add_sized(
+                                                                             [64.0, 22.0],
+                                                                             TextEdit::singleline(&mut cond.variable_name)
+                                                                                 .hint_text("biến"),
+                                                                         );
+                                                                         Self::apply_vietnamese_input_if_changed(
+                                                                             &response,
+                                                                             self.state.vietnamese_input_enabled,
+                                                                             self.state.vietnamese_input_mode,
+                                                                             &mut cond.variable_name,
+                                                                         );
+                                                                         live_sync |= response.changed();
+                                                                         
+                                                                         egui::ComboBox::from_id_salt((group.id, preset.id, extra_idx, "hold-stop-loop-extra-op"))
+                                                                             .width(40.0)
+                                                                             .selected_text(&cond.operator)
+                                                                             .show_ui(ui, |ui| {
+                                                                                 for op in &["==", ">", "<", ">=", "<=", "!="] {
+                                                                                     if ui.selectable_label(cond.operator == *op, *op).clicked() {
+                                                                                         cond.operator = op.to_string();
+                                                                                         live_sync = true;
+                                                                                     }
+                                                                                 }
+                                                                             });
+                                                                             
+                                                                         let response2 = ui.add_sized(
+                                                                             [76.0, 22.0],
+                                                                             TextEdit::singleline(&mut cond.expression)
+                                                                                 .hint_text("giá trị/expr"),
+                                                                         );
+                                                                         Self::apply_vietnamese_input_if_changed(
+                                                                             &response2,
+                                                                             self.state.vietnamese_input_enabled,
+                                                                             self.state.vietnamese_input_mode,
+                                                                             &mut cond.expression,
+                                                                         );
+                                                                         live_sync |= response2.changed();
+                                                                         
+                                                                         let var_name = cond.variable_name.trim();
+                                                                         if !var_name.is_empty() {
+                                                                             let current_val = crate::overlay::RUNTIME_VARIABLES.lock().get(var_name).copied();
+                                                                             let val_str = current_val.map(|v| v.to_string()).unwrap_or_else(|| "?".to_string());
+                                                                             ui.label(
+                                                                                 RichText::new(format!("({})", val_str))
+                                                                                     .size(10.0)
+                                                                                     .color(Color32::from_rgb(0, 191, 255))
+                                                                             );
+                                                                         }
+                                                                         
+                                                                         if ui.button("-").on_hover_text(Self::tr_lang(language, "Remove condition", "Xóa điều kiện")).clicked() {
+                                                                             remove_extra_idx = Some(extra_idx);
+                                                                         }
+                                                                     });
+                                                                 }
+                                                                 if let Some(remove_idx) = remove_extra_idx {
+                                                                     step.extra_conditions.remove(remove_idx);
+                                                                     live_sync = true;
+                                                                 }
+
                                                                  Self::render_variable_suggestions_raw(ui, &mut step.if_variable_name, language);
                                                                  Self::render_variable_suggestions(ui, &mut step.key, language);
                                                              }
@@ -3201,57 +3271,147 @@ impl CrosshairApp {
                                                         egui::Label::new(Self::tr_lang(language, "No input", "No input")),
                                                     );
                                                 } else if step.action == MacroAction::IfStart {
-                                                    ui.scope(|ui| {
-                                                        ui.spacing_mut().item_spacing.x = 4.0;
-                                                        ui.spacing_mut().interact_size.y = 22.0;
-                                                        ui.spacing_mut().button_padding.y = 0.0;
-                                                        ui.vertical(|ui| {
-                                                            ui.horizontal(|ui| {
-                                                                let response = ui.add_sized(
-                                                                    [64.0, 22.0],
-                                                                    TextEdit::singleline(&mut step.if_variable_name)
-                                                                        .hint_text(RichText::new(Self::tr_lang(language, "variable", "biến")).color(hint_color).weak()),
-                                                                );
-                                                                Self::apply_vietnamese_input_if_changed(
-                                                                    &response,
-                                                                    self.state.vietnamese_input_enabled,
-                                                                    self.state.vietnamese_input_mode,
-                                                                    &mut step.if_variable_name,
-                                                                );
-                                                                live_sync |= response.changed();
-                                                                
-                                                                egui::ComboBox::from_id_salt((group.id, preset.id, "hold-stop-if-op"))
-                                                                    .width(40.0)
-                                                                    .selected_text(&step.if_operator)
-                                                                    .show_ui(ui, |ui| {
-                                                                        for op in &["==", ">", "<", ">=", "<=", "!="] {
-                                                                            if ui.selectable_label(step.if_operator == *op, *op).clicked() {
-                                                                                step.if_operator = op.to_string();
-                                                                                live_sync = true;
-                                                                            }
-                                                                        }
-                                                                    });
-                                                                
-                                                                live_sync |= ui.add_sized(
-                                                                    [46.0, 22.0],
-                                                                    DragValue::new(&mut step.if_compare_value).range(-1_000_000..=1_000_000),
-                                                                ).changed();
+                                                     ui.scope(|ui| {
+                                                         ui.spacing_mut().item_spacing.x = 4.0;
+                                                         ui.spacing_mut().interact_size.y = 22.0;
+                                                         ui.spacing_mut().button_padding.y = 0.0;
+                                                         ui.vertical(|ui| {
+                                                             ui.horizontal(|ui| {
+                                                                 let cb_text = Self::tr_lang(language, "Expr", "Biểu thức");
+                                                                 if ui.checkbox(&mut step.if_compare_by_expression, cb_text).changed() {
+                                                                     live_sync = true;
+                                                                 }
 
-                                                                let var_name = step.if_variable_name.trim();
-                                                                if !var_name.is_empty() {
-                                                                    let current_val = crate::overlay::RUNTIME_VARIABLES.lock().get(var_name).copied();
-                                                                    let val_str = current_val.map(|v| v.to_string()).unwrap_or_else(|| "?".to_string());
-                                                                    ui.add_space(2.0);
-                                                                    ui.label(
-                                                                        RichText::new(format!("({})", val_str))
-                                                                            .size(10.0)
-                                                                            .color(Color32::from_rgb(0, 191, 255))
-                                                                    ).on_hover_text(Self::tr_lang(language, "Current runtime value", "Giá trị chạy hiện tại"));
-                                                                }
-                                                            });
-                                                            Self::render_variable_suggestions_raw(ui, &mut step.if_variable_name, language);
-                                                        });
-                                                    });
+                                                                 let response = ui.add_sized(
+                                                                     [64.0, 22.0],
+                                                                     TextEdit::singleline(&mut step.if_variable_name)
+                                                                         .hint_text(RichText::new(Self::tr_lang(language, "variable", "biến")).color(hint_color).weak()),
+                                                                 );
+                                                                 Self::apply_vietnamese_input_if_changed(
+                                                                     &response,
+                                                                     self.state.vietnamese_input_enabled,
+                                                                     self.state.vietnamese_input_mode,
+                                                                     &mut step.if_variable_name,
+                                                                 );
+                                                                 live_sync |= response.changed();
+                                                                 
+                                                                 egui::ComboBox::from_id_salt((group.id, preset.id, "hold-stop-if-op"))
+                                                                     .width(40.0)
+                                                                     .selected_text(&step.if_operator)
+                                                                     .show_ui(ui, |ui| {
+                                                                         for op in &["==", ">", "<", ">=", "<=", "!="] {
+                                                                             if ui.selectable_label(step.if_operator == *op, *op).clicked() {
+                                                                                 step.if_operator = op.to_string();
+                                                                                 live_sync = true;
+                                                                             }
+                                                                         }
+                                                                     });
+                                                                 
+                                                                 if step.if_compare_by_expression {
+                                                                     let response2 = ui.add_sized(
+                                                                         [76.0, 22.0],
+                                                                         TextEdit::singleline(&mut step.key)
+                                                                             .hint_text(RichText::new(Self::tr_lang(language, "value/expr", "giá trị")).color(hint_color).weak()),
+                                                                     );
+                                                                     Self::apply_vietnamese_input_if_changed(
+                                                                         &response2,
+                                                                         self.state.vietnamese_input_enabled,
+                                                                         self.state.vietnamese_input_mode,
+                                                                         &mut step.key,
+                                                                     );
+                                                                     live_sync |= response2.changed();
+                                                                 } else {
+                                                                     live_sync |= ui.add_sized(
+                                                                         [46.0, 22.0],
+                                                                         DragValue::new(&mut step.if_compare_value).range(-1_000_000..=1_000_000),
+                                                                     ).changed();
+                                                                 }
+ 
+                                                                 let var_name = step.if_variable_name.trim();
+                                                                 if !var_name.is_empty() {
+                                                                     let current_val = crate::overlay::RUNTIME_VARIABLES.lock().get(var_name).copied();
+                                                                     let val_str = current_val.map(|v| v.to_string()).unwrap_or_else(|| "?".to_string());
+                                                                     ui.add_space(2.0);
+                                                                     ui.label(
+                                                                         RichText::new(format!("({})", val_str))
+                                                                             .size(10.0)
+                                                                             .color(Color32::from_rgb(0, 191, 255))
+                                                                     ).on_hover_text(Self::tr_lang(language, "Current runtime value", "Giá trị chạy hiện tại"));
+                                                                 }
+
+                                                                 if ui.button("+").on_hover_text(Self::tr_lang(language, "Add condition", "Thêm điều kiện")).clicked() {
+                                                                     step.extra_conditions.push(ExtraCondition::default());
+                                                                     live_sync = true;
+                                                                 }
+                                                             });
+
+                                                             let mut remove_extra_idx = None;
+                                                             for (extra_idx, cond) in step.extra_conditions.iter_mut().enumerate() {
+                                                                 ui.horizontal(|ui| {
+                                                                     ui.label(Self::tr_lang(language, "AND", "VÀ"));
+                                                                     
+                                                                     let response = ui.add_sized(
+                                                                         [64.0, 22.0],
+                                                                         TextEdit::singleline(&mut cond.variable_name)
+                                                                             .hint_text("biến"),
+                                                                     );
+                                                                     Self::apply_vietnamese_input_if_changed(
+                                                                         &response,
+                                                                         self.state.vietnamese_input_enabled,
+                                                                         self.state.vietnamese_input_mode,
+                                                                         &mut cond.variable_name,
+                                                                     );
+                                                                     live_sync |= response.changed();
+                                                                     
+                                                                     egui::ComboBox::from_id_salt((group.id, preset.id, extra_idx, "hold-stop-extra-if-op"))
+                                                                         .width(40.0)
+                                                                         .selected_text(&cond.operator)
+                                                                         .show_ui(ui, |ui| {
+                                                                             for op in &["==", ">", "<", ">=", "<=", "!="] {
+                                                                                 if ui.selectable_label(cond.operator == *op, *op).clicked() {
+                                                                                     cond.operator = op.to_string();
+                                                                                     live_sync = true;
+                                                                                 }
+                                                                             }
+                                                                         });
+                                                                         
+                                                                     let response2 = ui.add_sized(
+                                                                         [76.0, 22.0],
+                                                                         TextEdit::singleline(&mut cond.expression)
+                                                                             .hint_text("giá trị/expr"),
+                                                                     );
+                                                                     Self::apply_vietnamese_input_if_changed(
+                                                                         &response2,
+                                                                         self.state.vietnamese_input_enabled,
+                                                                         self.state.vietnamese_input_mode,
+                                                                         &mut cond.expression,
+                                                                     );
+                                                                     live_sync |= response2.changed();
+                                                                     
+                                                                     let var_name = cond.variable_name.trim();
+                                                                     if !var_name.is_empty() {
+                                                                         let current_val = crate::overlay::RUNTIME_VARIABLES.lock().get(var_name).copied();
+                                                                         let val_str = current_val.map(|v| v.to_string()).unwrap_or_else(|| "?".to_string());
+                                                                         ui.label(
+                                                                             RichText::new(format!("({})", val_str))
+                                                                                 .size(10.0)
+                                                                                 .color(Color32::from_rgb(0, 191, 255))
+                                                                         );
+                                                                     }
+                                                                     
+                                                                     if ui.button("-").on_hover_text(Self::tr_lang(language, "Remove condition", "Xóa điều kiện")).clicked() {
+                                                                         remove_extra_idx = Some(extra_idx);
+                                                                     }
+                                                                 });
+                                                             }
+                                                             if let Some(remove_idx) = remove_extra_idx {
+                                                                 step.extra_conditions.remove(remove_idx);
+                                                                 live_sync = true;
+                                                             }
+
+                                                             Self::render_variable_suggestions_raw(ui, &mut step.if_variable_name, language);
+                                                         });
+                                                     });
                                                 } else if step.action == MacroAction::SetVariable {
                                                     ui.scope(|ui| {
                                                         ui.spacing_mut().item_spacing.x = 4.0;
@@ -4136,7 +4296,53 @@ impl CrosshairApp {
                                             let action_supports_capture =
                                                 Self::macro_action_supports_capture(step.action);
                                             if action_uses_key {
-                                                if step.action == MacroAction::ApplyWindowPreset {
+                                                 if step.action == MacroAction::Wait {
+                                                     ui.scope(|ui| {
+                                                         ui.spacing_mut().item_spacing.x = 2.0;
+                                                         ui.horizontal(|ui| {
+                                                             let response = ui.add_sized(
+                                                                 [68.0, 18.0],
+                                                                 TextEdit::singleline(&mut step.key)
+                                                                     .hint_text("ms/expr"),
+                                                             );
+                                                             Self::apply_vietnamese_input_if_changed(
+                                                                 &response,
+                                                                 self.state.vietnamese_input_enabled,
+                                                                 self.state.vietnamese_input_mode,
+                                                                 &mut step.key,
+                                                             );
+                                                             live_sync |= response.changed();
+
+                                                             let interpolated = crate::overlay::interpolate_variables(&step.key);
+                                                             let old_eval = crate::overlay::evaluate_math_expression(&interpolated);
+                                                             let mut temp_eval = old_eval;
+                                                             let drag_response = ui.add_sized(
+                                                                 [36.0, 18.0],
+                                                                 DragValue::new(&mut temp_eval).range(0..=1_000_000),
+                                                             );
+                                                             if drag_response.changed() {
+                                                                 let delta = temp_eval - old_eval;
+                                                                 step.key = Self::adjust_expression_by_delta(&step.key, delta);
+                                                                 live_sync = true;
+                                                             }
+
+                                                             let unit_text = if step.wait_time_unit.is_empty() { "ms" } else { &step.wait_time_unit };
+                                                             egui::ComboBox::from_id_salt((group.id, preset.id, step_index, "wait-unit"))
+                                                                 .width(36.0)
+                                                                 .selected_text(unit_text)
+                                                                 .show_ui(ui, |ui| {
+                                                                     for unit in &["ms", "s", "m", "h"] {
+                                                                         let label = *unit;
+                                                                         let val = if label == "ms" { "" } else { label };
+                                                                         if ui.selectable_label(step.wait_time_unit == val, label).clicked() {
+                                                                             step.wait_time_unit = val.to_string();
+                                                                             live_sync = true;
+                                                                         }
+                                                                     }
+                                                                 });
+                                                         });
+                                                     });
+                                                 } else if step.action == MacroAction::ApplyWindowPreset {
                                                     let selected_id = step.key.trim().parse::<u32>().ok();
                                                     let selected_label = selected_id
                                                         .and_then(|id| {
@@ -4811,7 +5017,7 @@ impl CrosshairApp {
                                                               Self::render_variable_suggestions(ui, &mut step.key, language);
                                                           });
                                                       }
-                                                 } else if step.action == MacroAction::StopIfKeyPressed {
+                                                } else if step.action == MacroAction::StopIfKeyPressed {
                                                      ui.scope(|ui| {
                                                          ui.spacing_mut().item_spacing.x = 4.0;
                                                          ui.spacing_mut().interact_size.y = 18.0;
@@ -4872,6 +5078,11 @@ impl CrosshairApp {
                                                                                  .color(Color32::from_rgb(0, 191, 255))
                                                                          ).on_hover_text(Self::tr_lang(language, "Current runtime value", "Giá trị chạy hiện tại"));
                                                                      }
+
+                                                                     if ui.button("+").on_hover_text(Self::tr_lang(language, "Add condition", "Thêm điều kiện")).clicked() {
+                                                                         step.extra_conditions.push(ExtraCondition::default());
+                                                                         live_sync = true;
+                                                                     }
                                                                  } else {
                                                                      let response = ui.add_sized(
                                                                          [146.0, 18.0],
@@ -4887,7 +5098,72 @@ impl CrosshairApp {
                                                                      live_sync |= response.changed();
                                                                  }
                                                              });
+
                                                              if step.break_loop_by_variable {
+                                                                 let mut remove_extra_idx = None;
+                                                                 for (extra_idx, cond) in step.extra_conditions.iter_mut().enumerate() {
+                                                                     ui.horizontal(|ui| {
+                                                                         ui.label(Self::tr_lang(language, "AND", "VÀ"));
+                                                                         
+                                                                         let response = ui.add_sized(
+                                                                             [64.0, 18.0],
+                                                                             TextEdit::singleline(&mut cond.variable_name)
+                                                                                 .hint_text("biến"),
+                                                                         );
+                                                                         Self::apply_vietnamese_input_if_changed(
+                                                                             &response,
+                                                                             self.state.vietnamese_input_enabled,
+                                                                             self.state.vietnamese_input_mode,
+                                                                             &mut cond.variable_name,
+                                                                         );
+                                                                         live_sync |= response.changed();
+                                                                         
+                                                                         egui::ComboBox::from_id_salt((group.id, preset.id, step_index, extra_idx, "extra-stop-op"))
+                                                                             .width(40.0)
+                                                                             .selected_text(&cond.operator)
+                                                                             .show_ui(ui, |ui| {
+                                                                                 for op in &["==", ">", "<", ">=", "<=", "!="] {
+                                                                                     if ui.selectable_label(cond.operator == *op, *op).clicked() {
+                                                                                         cond.operator = op.to_string();
+                                                                                         live_sync = true;
+                                                                                     }
+                                                                                 }
+                                                                             });
+                                                                             
+                                                                         let response2 = ui.add_sized(
+                                                                             [64.0, 18.0],
+                                                                             TextEdit::singleline(&mut cond.expression)
+                                                                                 .hint_text("giá trị/expr"),
+                                                                         );
+                                                                         Self::apply_vietnamese_input_if_changed(
+                                                                             &response2,
+                                                                             self.state.vietnamese_input_enabled,
+                                                                             self.state.vietnamese_input_mode,
+                                                                             &mut cond.expression,
+                                                                         );
+                                                                         live_sync |= response2.changed();
+                                                                         
+                                                                         let var_name = cond.variable_name.trim();
+                                                                         if !var_name.is_empty() {
+                                                                             let current_val = crate::overlay::RUNTIME_VARIABLES.lock().get(var_name).copied();
+                                                                             let val_str = current_val.map(|v| v.to_string()).unwrap_or_else(|| "?".to_string());
+                                                                             ui.label(
+                                                                                 RichText::new(format!("({})", val_str))
+                                                                                     .size(10.0)
+                                                                                     .color(Color32::from_rgb(0, 191, 255))
+                                                                             );
+                                                                         }
+                                                                         
+                                                                         if ui.button("-").on_hover_text(Self::tr_lang(language, "Remove condition", "Xóa điều kiện")).clicked() {
+                                                                             remove_extra_idx = Some(extra_idx);
+                                                                         }
+                                                                     });
+                                                                 }
+                                                                 if let Some(remove_idx) = remove_extra_idx {
+                                                                     step.extra_conditions.remove(remove_idx);
+                                                                     live_sync = true;
+                                                                 }
+
                                                                  Self::render_variable_suggestions_raw(ui, &mut step.if_variable_name, language);
                                                                  Self::render_variable_suggestions(ui, &mut step.key, language);
                                                              }
@@ -5043,13 +5319,18 @@ impl CrosshairApp {
                                                         [146.0, 18.0],
                                                         egui::Label::new(Self::tr_lang(language, "No input", "No input")),
                                                     );
-                                                 } else if step.action == MacroAction::IfStart {
+                                                } else if step.action == MacroAction::IfStart {
                                                      ui.scope(|ui| {
                                                          ui.spacing_mut().item_spacing.x = 4.0;
                                                          ui.spacing_mut().interact_size.y = 22.0;
                                                          ui.spacing_mut().button_padding.y = 0.0;
                                                          ui.vertical(|ui| {
                                                              ui.horizontal(|ui| {
+                                                                 let cb_text = Self::tr_lang(language, "Expr", "Biểu thức");
+                                                                 if ui.checkbox(&mut step.if_compare_by_expression, cb_text).changed() {
+                                                                     live_sync = true;
+                                                                 }
+
                                                                  let response = ui.add_sized(
                                                                      [64.0, 22.0],
                                                                      TextEdit::singleline(&mut step.if_variable_name)
@@ -5075,11 +5356,26 @@ impl CrosshairApp {
                                                                          }
                                                                      });
                                                                  
-                                                                 live_sync |= ui.add_sized(
-                                                                     [46.0, 22.0],
-                                                                     DragValue::new(&mut step.if_compare_value).range(-1_000_000..=1_000_000),
-                                                                 ).changed();
-
+                                                                 if step.if_compare_by_expression {
+                                                                     let response2 = ui.add_sized(
+                                                                         [76.0, 22.0],
+                                                                         TextEdit::singleline(&mut step.key)
+                                                                             .hint_text(RichText::new(Self::tr_lang(language, "value/expr", "giá trị")).color(hint_color).weak()),
+                                                                     );
+                                                                     Self::apply_vietnamese_input_if_changed(
+                                                                         &response2,
+                                                                         self.state.vietnamese_input_enabled,
+                                                                         self.state.vietnamese_input_mode,
+                                                                         &mut step.key,
+                                                                     );
+                                                                     live_sync |= response2.changed();
+                                                                 } else {
+                                                                     live_sync |= ui.add_sized(
+                                                                         [46.0, 22.0],
+                                                                         DragValue::new(&mut step.if_compare_value).range(-1_000_000..=1_000_000),
+                                                                     ).changed();
+                                                                 }
+ 
                                                                  let var_name = step.if_variable_name.trim();
                                                                  if !var_name.is_empty() {
                                                                      let current_val = crate::overlay::RUNTIME_VARIABLES.lock().get(var_name).copied();
@@ -5091,8 +5387,79 @@ impl CrosshairApp {
                                                                              .color(Color32::from_rgb(0, 191, 255))
                                                                      ).on_hover_text(Self::tr_lang(language, "Current runtime value", "Giá trị chạy hiện tại"));
                                                                  }
+
+                                                                 if ui.button("+").on_hover_text(Self::tr_lang(language, "Add condition", "Thêm điều kiện")).clicked() {
+                                                                     step.extra_conditions.push(ExtraCondition::default());
+                                                                     live_sync = true;
+                                                                 }
                                                              });
+
+                                                             let mut remove_extra_idx = None;
+                                                             for (extra_idx, cond) in step.extra_conditions.iter_mut().enumerate() {
+                                                                 ui.horizontal(|ui| {
+                                                                     ui.label(Self::tr_lang(language, "AND", "VÀ"));
+                                                                     
+                                                                     let response = ui.add_sized(
+                                                                         [64.0, 22.0],
+                                                                         TextEdit::singleline(&mut cond.variable_name)
+                                                                             .hint_text("biến"),
+                                                                     );
+                                                                     Self::apply_vietnamese_input_if_changed(
+                                                                         &response,
+                                                                         self.state.vietnamese_input_enabled,
+                                                                         self.state.vietnamese_input_mode,
+                                                                         &mut cond.variable_name,
+                                                                     );
+                                                                     live_sync |= response.changed();
+                                                                     
+                                                                     egui::ComboBox::from_id_salt((group.id, preset.id, step_index, extra_idx, "extra-if-op"))
+                                                                         .width(40.0)
+                                                                         .selected_text(&cond.operator)
+                                                                         .show_ui(ui, |ui| {
+                                                                             for op in &["==", ">", "<", ">=", "<=", "!="] {
+                                                                                 if ui.selectable_label(cond.operator == *op, *op).clicked() {
+                                                                                     cond.operator = op.to_string();
+                                                                                     live_sync = true;
+                                                                                 }
+                                                                             }
+                                                                         });
+                                                                         
+                                                                     let response2 = ui.add_sized(
+                                                                         [76.0, 22.0],
+                                                                         TextEdit::singleline(&mut cond.expression)
+                                                                             .hint_text("giá trị/expr"),
+                                                                     );
+                                                                     Self::apply_vietnamese_input_if_changed(
+                                                                         &response2,
+                                                                         self.state.vietnamese_input_enabled,
+                                                                         self.state.vietnamese_input_mode,
+                                                                         &mut cond.expression,
+                                                                     );
+                                                                     live_sync |= response2.changed();
+                                                                     
+                                                                     let var_name = cond.variable_name.trim();
+                                                                     if !var_name.is_empty() {
+                                                                         let current_val = crate::overlay::RUNTIME_VARIABLES.lock().get(var_name).copied();
+                                                                         let val_str = current_val.map(|v| v.to_string()).unwrap_or_else(|| "?".to_string());
+                                                                         ui.label(
+                                                                             RichText::new(format!("({})", val_str))
+                                                                                 .size(10.0)
+                                                                                 .color(Color32::from_rgb(0, 191, 255))
+                                                                         );
+                                                                     }
+                                                                     
+                                                                     if ui.button("-").on_hover_text(Self::tr_lang(language, "Remove condition", "Xóa điều kiện")).clicked() {
+                                                                         remove_extra_idx = Some(extra_idx);
+                                                                     }
+                                                                 });
+                                                             }
+                                                             if let Some(remove_idx) = remove_extra_idx {
+                                                                 step.extra_conditions.remove(remove_idx);
+                                                                 live_sync = true;
+                                                             }
+
                                                              Self::render_variable_suggestions_raw(ui, &mut step.if_variable_name, language);
+                                                             Self::render_variable_suggestions(ui, &mut step.key, language);
                                                          });
                                                      });
                                                  } else if step.action == MacroAction::SetVariable {
@@ -6137,6 +6504,41 @@ impl CrosshairApp {
                 });
             });
         });
+    }
+
+    fn adjust_expression_by_delta(expr: &str, delta: i32) -> String {
+        if delta == 0 {
+            return expr.to_string();
+        }
+        let trimmed = expr.trim();
+        if trimmed.is_empty() {
+            return delta.to_string();
+        }
+        if let Ok(val) = trimmed.parse::<i32>() {
+            return (val + delta).to_string();
+        }
+        if let Some(pos) = trimmed.rfind(|c| c == '+' || c == '-') {
+            let (left, right) = trimmed.split_at(pos);
+            let op = &right[0..1];
+            let num_part = right[1..].trim();
+            if let Ok(num) = num_part.parse::<i32>() {
+                let signed_num = if op == "-" { -num } else { num };
+                let new_num = signed_num + delta;
+                let left_trimmed = left.trim_end();
+                if new_num == 0 {
+                    return left_trimmed.to_string();
+                } else if new_num > 0 {
+                    return format!("{} + {}", left_trimmed, new_num);
+                } else {
+                    return format!("{} - {}", left_trimmed, -new_num);
+                }
+            }
+        }
+        if delta > 0 {
+            format!("{} + {}", trimmed, delta)
+        } else {
+            format!("{} - {}", trimmed, -delta)
+        }
     }
 
     fn render_variable_suggestions(_ui: &mut egui::Ui, _text: &mut String, _language: UiLanguage) {}

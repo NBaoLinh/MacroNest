@@ -3615,6 +3615,7 @@ impl CrosshairApp {
                 | MacroAction::HideHud
                 | MacroAction::LockMouse
                 | MacroAction::UnlockMouse
+                | MacroAction::Wait
         )
     }
 

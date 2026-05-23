@@ -5480,7 +5480,7 @@ mod windows_overlay {
                             "h" => 3600000,
                             _ => 1, // ms or empty
                         };
-                        let delay_ms = base_val.max(0) as u32 * multiplier;
+                        let delay_ms = base_val.max(0) as u64 * multiplier;
                         if delay_ms > 0 {
                             if sleep_for_macro_delay(
                                 preset_id,
@@ -5884,7 +5884,7 @@ mod windows_overlay {
                             "h" => 3600000,
                             _ => 1, // ms or empty
                         };
-                        let delay_ms = base_val.max(0) as u32 * multiplier;
+                        let delay_ms = base_val.max(0) as u64 * multiplier;
                         if delay_ms > 0 {
                             if sleep_for_macro_delay(
                                 preset_id,
