@@ -2964,6 +2964,7 @@ impl CrosshairApp {
             MacroAction::DisableZoom => "DisableZoom",
             MacroAction::PlaySoundPreset => "PlaySoundPreset",
             MacroAction::StartVisionSearch => "StartImageSearch",
+            MacroAction::ScanVisionOnce => "ScanImageOnce",
             MacroAction::TriggerVisionMove => "TriggerImageAction",
             MacroAction::StopVisionWait => "StopImageSearchWait",
             MacroAction::StopVision => "StopImageSearch",
@@ -3044,6 +3045,9 @@ impl CrosshairApp {
                 MacroAction::PlaySoundPreset => "Phát một preset âm thanh đã chọn từ tab Âm thanh.",
                 MacroAction::StartVisionSearch => {
                     "Bắt đầu quét tìm hình ảnh trong nền bằng preset tìm ảnh đã chọn."
+                }
+                MacroAction::ScanVisionOnce => {
+                    "Quét tìm hình ảnh hoặc màu hoặc đếm pixel một lần duy nhất bằng preset đã chọn."
                 }
                 MacroAction::TriggerVisionMove => {
                     "Tìm ảnh ngay lập tức và thực hiện các tương tác đã cấu hình (di chuột, click, chạy macro)."
@@ -3139,6 +3143,9 @@ impl CrosshairApp {
                 MacroAction::StartVisionSearch => {
                     "Start scanning one image-search preset in the background."
                 }
+                MacroAction::ScanVisionOnce => {
+                    "Scan for the selected image, color, or pixel counter preset exactly once."
+                }
                 MacroAction::TriggerVisionMove => {
                     "Run one image search scan now and perform configured interactions (move mouse, click, trigger macro)."
                 }
@@ -3225,6 +3232,7 @@ impl CrosshairApp {
             MacroAction::DisableZoom => 0xe8f4,
             MacroAction::PlaySoundPreset => 0xe050,
             MacroAction::StartVisionSearch => 0xe8b6,
+            MacroAction::ScanVisionOnce => 0xe8b6,
             MacroAction::TriggerVisionMove => 0xe8f9,
             MacroAction::StopVisionWait => 0xe047,
             MacroAction::StopVision => 0xe047,
@@ -3299,6 +3307,7 @@ impl CrosshairApp {
                 MacroAction::DisableZoom => "Tắt phóng",
                 MacroAction::PlaySoundPreset => "Âm thanh",
                 MacroAction::StartVisionSearch => "Tìm ảnh",
+                MacroAction::ScanVisionOnce => "Quét 1 lần",
                 MacroAction::TriggerVisionMove => "Tương tác",
                 MacroAction::StopVisionWait => "Chờ",
                 MacroAction::StopVision => "Dừng",
@@ -3364,6 +3373,7 @@ impl CrosshairApp {
                 MacroAction::DisableZoom => "NoZoom",
                 MacroAction::PlaySoundPreset => "Sound",
                 MacroAction::StartVisionSearch => "Start",
+                MacroAction::ScanVisionOnce => "Scan Once",
                 MacroAction::TriggerVisionMove => "Interact",
                 MacroAction::StopVisionWait => "Wait",
                 MacroAction::StopVision => "Stop",
@@ -3429,6 +3439,7 @@ impl CrosshairApp {
                 MacroAction::DisableZoom => "NoZoom",
                 MacroAction::PlaySoundPreset => "Sound",
                 MacroAction::StartVisionSearch => "Start",
+                MacroAction::ScanVisionOnce => "Scan Once",
                 MacroAction::TriggerVisionMove => "Interact",
                 MacroAction::StopVisionWait => "Wait",
                 MacroAction::StopVision => "Stop",
@@ -3601,6 +3612,7 @@ impl CrosshairApp {
                 | MacroAction::LockKeys
                 | MacroAction::UnlockKeys
                 | MacroAction::StartVisionSearch
+                | MacroAction::ScanVisionOnce
                 | MacroAction::TriggerVisionMove
                 | MacroAction::StopVision
                 | MacroAction::StopVisionWait

@@ -241,6 +241,7 @@ impl CrosshairApp {
     fn image_search_macro_actions() -> &'static [MacroAction] {
         &[
             MacroAction::StartVisionSearch,
+            MacroAction::ScanVisionOnce,
             MacroAction::TriggerVisionMove,
             MacroAction::StopVision,
         ]
@@ -2738,8 +2739,9 @@ impl CrosshairApp {
                                                 } else if matches!(
                                                     step.action,
                                                     MacroAction::StartVisionSearch
-                                                        | MacroAction::TriggerVisionMove
-                                                        | MacroAction::StopVision
+                                                         | MacroAction::ScanVisionOnce
+                                                         | MacroAction::TriggerVisionMove
+                                                         | MacroAction::StopVision
                                                 ) {
                                                     let selected_id = step.key.trim().parse::<u32>().ok();
                                                     let selected_label = selected_id
@@ -2774,6 +2776,30 @@ impl CrosshairApp {
                                                                 }
                                                         }
                                                     });
+
+                                                     let is_pixel = selected_id.and_then(|id| {
+                                                         self.state.vision_presets.iter().find(|p| p.id == id)
+                                                     }).map(|p| p.is_pixel_counter).unwrap_or(false);
+
+                                                     if step.action == MacroAction::ScanVisionOnce && is_pixel {
+                                                         ui.add_space(4.0);
+                                                         ui.horizontal(|ui| {
+                                                             ui.label(Self::tr_lang(language, "Save count to:", "Lưu số lượng vào:"));
+                                                             let response = ui.add_sized(
+                                                                 [100.0, 22.0],
+                                                                 TextEdit::singleline(&mut step.if_variable_name)
+                                                                     .hint_text(RichText::new(Self::tr_lang(language, "variable name", "tên biến")).color(hint_color).weak()),
+                                                             );
+                                                             Self::apply_vietnamese_input_if_changed(
+                                                                 &response,
+                                                                 self.state.vietnamese_input_enabled,
+                                                                 self.state.vietnamese_input_mode,
+                                                                 &mut step.if_variable_name,
+                                                             );
+                                                             live_sync |= response.changed();
+                                                             Self::render_variable_suggestions_raw(ui, &mut step.if_variable_name, language);
+                                                         });
+                                                     }
                                                 } else if step.action == MacroAction::ApplyMouseSensitivityPreset {
                                                     live_sync |= ui.checkbox(&mut step.manual_mouse_sensitivity, Self::tr_lang(language, "Manual", "Nhập tay")).changed();
                                                     if step.manual_mouse_sensitivity {
@@ -4802,8 +4828,9 @@ impl CrosshairApp {
                                                 } else if matches!(
                                                     step.action,
                                                     MacroAction::StartVisionSearch
-                                                        | MacroAction::TriggerVisionMove
-                                                        | MacroAction::StopVision
+                                                         | MacroAction::ScanVisionOnce
+                                                         | MacroAction::TriggerVisionMove
+                                                         | MacroAction::StopVision
                                                 ) {
                                                     let selected_id = step.key.trim().parse::<u32>().ok();
                                                     let selected_label = selected_id
@@ -4831,6 +4858,30 @@ impl CrosshairApp {
                                                                 }
                                                             }
                                                         });
+
+                                                     let is_pixel = selected_id.and_then(|id| {
+                                                         self.state.vision_presets.iter().find(|p| p.id == id)
+                                                     }).map(|p| p.is_pixel_counter).unwrap_or(false);
+
+                                                     if step.action == MacroAction::ScanVisionOnce && is_pixel {
+                                                         ui.add_space(4.0);
+                                                         ui.horizontal(|ui| {
+                                                             ui.label(Self::tr_lang(language, "Save count to:", "Lưu số lượng vào:"));
+                                                             let response = ui.add_sized(
+                                                                 [100.0, 22.0],
+                                                                 TextEdit::singleline(&mut step.if_variable_name)
+                                                                     .hint_text(RichText::new(Self::tr_lang(language, "variable name", "tên biến")).color(hint_color).weak()),
+                                                             );
+                                                             Self::apply_vietnamese_input_if_changed(
+                                                                 &response,
+                                                                 self.state.vietnamese_input_enabled,
+                                                                 self.state.vietnamese_input_mode,
+                                                                 &mut step.if_variable_name,
+                                                             );
+                                                             live_sync |= response.changed();
+                                                             Self::render_variable_suggestions_raw(ui, &mut step.if_variable_name, language);
+                                                         });
+                                                     }
                                                     if step.action == MacroAction::TriggerVisionMove {
                                                         ui.add_space(4.0);
                                                         ui.horizontal(|ui| {
@@ -5594,7 +5645,10 @@ impl CrosshairApp {
                                                              Self::render_variable_suggestions(ui, &mut step.key, language);
                                                          });
                                                      });
-                                                } else if matches!(step.action, MacroAction::StartVisionSearch | MacroAction::TriggerVisionMove | MacroAction::StopVision | MacroAction::StopVisionWait) {
+                                                } else if matches!(step.action, MacroAction::StartVisionSearch
+                                                         | MacroAction::ScanVisionOnce
+                                                         | MacroAction::TriggerVisionMove
+                                                         | MacroAction::StopVision | MacroAction::StopVisionWait) {
                                                     let selected_id = step.key.trim().parse::<u32>().ok();
                                                     let selected_label = selected_id
                                                         .and_then(|id| {
@@ -5633,6 +5687,30 @@ impl CrosshairApp {
                                                                 }
                                                             }
                                                         });
+
+                                                     let selected_preset = selected_id.and_then(|id| {
+                                                         self.state.vision_presets.iter().find(|p| p.id == id)
+                                                     });
+
+                                                     if step.action == MacroAction::ScanVisionOnce && selected_preset.map(|p| p.is_pixel_counter).unwrap_or(false) {
+                                                         ui.add_space(4.0);
+                                                         ui.horizontal(|ui| {
+                                                             ui.label(Self::tr_lang(language, "Save count to:", "Lưu số lượng vào:"));
+                                                             let response = ui.add_sized(
+                                                                 [100.0, 22.0],
+                                                                 TextEdit::singleline(&mut step.if_variable_name)
+                                                                     .hint_text(RichText::new(Self::tr_lang(language, "variable name", "tên biến")).color(hint_color).weak()),
+                                                             );
+                                                             Self::apply_vietnamese_input_if_changed(
+                                                                 &response,
+                                                                 self.state.vietnamese_input_enabled,
+                                                                 self.state.vietnamese_input_mode,
+                                                                 &mut step.if_variable_name,
+                                                             );
+                                                             live_sync |= response.changed();
+                                                             Self::render_variable_suggestions_raw(ui, &mut step.if_variable_name, language);
+                                                         });
+                                                     }
                                                 } else {
                                                     let step_capture_target = CaptureRequest::MacroStepInput {
                                                         group_id: group.id,

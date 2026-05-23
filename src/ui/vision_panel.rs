@@ -74,654 +74,669 @@ impl CrosshairApp {
 
 
 
-        for index in 0..self.state.vision_presets.len() {
-            let preset_snapshot = self.state.vision_presets[index].clone();
-            let preview = if preset_snapshot.collapsed {
-                self.vision_preview_cache.remove(&preset_snapshot.id);
-                None
-            } else {
-                self.image_search_preview_for_preset(ctx, &preset_snapshot)
-            };
-            let mut next_capture_local = None;
-            let mut cancel_active_capture_local = false;
-            let mut start_image_search_capture = None;
-            let mut start_search_region_capture = None;
-            let mut start_color_pick_capture = None;
-            let mut start_color_priority_anchor_capture = None;
-            let template_file = self.vision_template_file_for_preset(preset_snapshot.id);
-            let open_windows = self.open_windows.clone();
-            let preset = &mut self.state.vision_presets[index];
-            if preset.click_after_move {
-                preset.click_after_move = false;
-                live_sync = true;
-            }
+        let categories = [
+            (Self::tr_lang(language, "Detect Image 🖼", "Phát hiện ảnh 🖼"), false, false),
+            (Self::tr_lang(language, "Detect Color 🎨", "Phát hiện màu 🎨"), true, false),
+            (Self::tr_lang(language, "Pixel Counter 📊", "Đếm pixel 📊"), true, true),
+        ];
 
-            let capture_target = CaptureRequest::VisionPresetHotkey(preset.id);
-            let active_capture_target = self.capture_target.clone();
-            let pending_combo_keys = self.capture_hotkey_combo_keys.clone();
+        for (title, filter_color, filter_counter) in categories {
+            ui.add_space(8.0);
+            ui.label(egui::RichText::new(title).strong().size(14.0));
+            ui.add_space(4.0);
 
-            preset.enabled = preset.hotkey.is_some() || !preset.trigger_keys.trim().is_empty();
-            ui.add_space(6.0);
-            Self::show_preset_card(ui, preset.enabled, |ui| {
-                ui.horizontal(|ui| {
-                    let name_width = Self::preset_header_name_width(ui);
-                    let response =
-                        ui.add_sized([name_width, 24.0], TextEdit::singleline(&mut preset.name));
-                    Self::apply_vietnamese_input_if_changed(
-                        &response,
-                        self.state.vietnamese_input_enabled,
-                        self.state.vietnamese_input_mode,
-                        &mut preset.name,
-                    );
-                    live_sync |= response.changed();
-
-                    live_sync |= Self::render_preset_trigger_chips(
-                        ui,
-                        language,
-                        &mut preset.hotkey,
-                        &mut preset.trigger_keys,
-                        active_capture_target.as_ref(),
-                        &capture_target,
-                        pending_combo_keys.as_ref(),
-                    );
-                    preset.enabled = preset.hotkey.is_some() || !preset.trigger_keys.trim().is_empty();
-
-                    ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
-                        let capture_active = active_capture_target.as_ref() == Some(&capture_target);
-                        let capture_time = ui.ctx().input(|input| input.time) as f32;
-                        let pulse = if capture_active {
-                            0.5 + 0.5 * (capture_time * 6.0).sin().abs()
-                        } else {
-                            0.0
-                        };
-                        let has_keys = preset.hotkey.is_some() || !preset.trigger_keys.trim().is_empty();
-                        let fill = if capture_active {
-                            Color32::from_rgba_premultiplied(
-                                (88.0 + pulse * 28.0) as u8,
-                                (84.0 + pulse * 28.0) as u8,
-                                (44.0 + pulse * 10.0) as u8,
-                                255,
-                            )
-                        } else if has_keys {
-                            Color32::from_rgba_premultiplied(72, 156, 116, 120)
-                        } else {
-                            ui.visuals().faint_bg_color
-                        };
-                        let stroke = if capture_active {
-                            Color32::from_rgb(255, 232, 96)
-                        } else if has_keys {
-                            Color32::from_rgb(126, 224, 182)
-                        } else {
-                            ui.visuals().widgets.noninteractive.bg_stroke.color
-                        };
-
-                        let hover_text = if capture_active {
-                            Self::tr_lang(language, "Capturing... Press any key.", "Đang ghi... Nhấn một phím bất kỳ.").to_string()
-                        } else if has_keys {
-                            let bindings_labels: Vec<String> = Self::preset_trigger_bindings(&preset.hotkey, &preset.trigger_keys)
-                                .iter()
-                                .map(|b| hotkey::format_binding(Some(b)))
-                                .collect();
-                            format!(
-                                "{} {}\n{}",
-                                Self::tr_lang(language, "Hotkey:", "Phím tắt:"),
-                                bindings_labels.join(", "),
-                                Self::tr_lang(
-                                    language,
-                                    "Left click: rebind | Right click: clear",
-                                    "Chuột trái: đổi phím | Chuột phải: xóa phím"
-                                )
-                            )
-                        } else {
-                            Self::tr_lang(language, "Left click: bind hotkey", "Chuột trái: gán phím tắt").to_string()
-                        };
-
-                        let btn_response = ui.add_sized(
-                            [36.0, 24.0],
-                            Button::new(Self::material_icon_text(0xe312, 18.0))
-                                .fill(fill)
-                                .stroke(egui::Stroke::new(1.0, stroke)),
-                        ).on_hover_text(hover_text);
-
-                        if btn_response.clicked() {
-                            if capture_active {
-                                cancel_active_capture_local = true;
-                            } else {
-                                next_capture_local = Some((
-                                    capture_target.clone(),
-                                    format!("Capturing image search hotkey for {}.", preset.name),
-                                ));
-                            }
-                        }
-                        if btn_response.secondary_clicked() {
-                            preset.hotkey = None;
-                            preset.trigger_keys.clear();
-                            preset.enabled = false;
-                            live_sync = true;
-                        }
-
-                        if Self::sound_style_remove_button(ui).clicked() {
-                            remove_id = Some(preset.id);
-                        }
-                        if Self::sound_style_toggle_button(
-                            ui,
-                            if preset.collapsed {
-                                Self::tr_lang(language, "Show", "Hiện")
-                            } else {
-                                Self::tr_lang(language, "Hide", "Ẩn")
-                            },
-                        )
-                        .clicked()
-                        {
-                            preset.collapsed = !preset.collapsed;
-                            live_sync = true;
-                        }
-                    });
-                });
-
-                if preset.collapsed {
-                    return;
+            for index in 0..self.state.vision_presets.len() {
+                let preset_snapshot = self.state.vision_presets[index].clone();
+                if preset_snapshot.use_color_matching != filter_color || preset_snapshot.is_pixel_counter != filter_counter {
+                    continue;
                 }
-
-                egui::Grid::new((preset.id, "image-search-grid"))
-                    .num_columns(2)
-                    .spacing([14.0, 8.0])
-                    .show(ui, |ui| {
-
-                        ui.label(Self::tr_lang(language, "Mode", "Chế độ"));
-                        ui.horizontal_wrapped(|ui| {
-                            if ui
-                                .selectable_label(
-                                    !preset.use_color_matching,
-                                    Self::tr_lang(language, "Detect image", "Phát hiện ảnh"),
+                let preview = if preset_snapshot.collapsed {
+                    self.vision_preview_cache.remove(&preset_snapshot.id);
+                    None
+                } else {
+                    self.image_search_preview_for_preset(ctx, &preset_snapshot)
+                };
+                let mut next_capture_local = None;
+                let mut cancel_active_capture_local = false;
+                let mut start_image_search_capture = None;
+                let mut start_search_region_capture = None;
+                let mut start_color_pick_capture = None;
+                let mut start_color_priority_anchor_capture = None;
+                let template_file = self.vision_template_file_for_preset(preset_snapshot.id);
+                let open_windows = self.open_windows.clone();
+                let preset = &mut self.state.vision_presets[index];
+                if preset.click_after_move {
+                    preset.click_after_move = false;
+                    live_sync = true;
+                }
+    
+                let capture_target = CaptureRequest::VisionPresetHotkey(preset.id);
+                let active_capture_target = self.capture_target.clone();
+                let pending_combo_keys = self.capture_hotkey_combo_keys.clone();
+    
+                preset.enabled = preset.hotkey.is_some() || !preset.trigger_keys.trim().is_empty();
+                ui.add_space(6.0);
+                Self::show_preset_card(ui, preset.enabled, |ui| {
+                    ui.horizontal(|ui| {
+                        let name_width = Self::preset_header_name_width(ui);
+                        let response =
+                            ui.add_sized([name_width, 24.0], TextEdit::singleline(&mut preset.name));
+                        Self::apply_vietnamese_input_if_changed(
+                            &response,
+                            self.state.vietnamese_input_enabled,
+                            self.state.vietnamese_input_mode,
+                            &mut preset.name,
+                        );
+                        live_sync |= response.changed();
+    
+                        live_sync |= Self::render_preset_trigger_chips(
+                            ui,
+                            language,
+                            &mut preset.hotkey,
+                            &mut preset.trigger_keys,
+                            active_capture_target.as_ref(),
+                            &capture_target,
+                            pending_combo_keys.as_ref(),
+                        );
+                        preset.enabled = preset.hotkey.is_some() || !preset.trigger_keys.trim().is_empty();
+    
+                        ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
+                            let capture_active = active_capture_target.as_ref() == Some(&capture_target);
+                            let capture_time = ui.ctx().input(|input| input.time) as f32;
+                            let pulse = if capture_active {
+                                0.5 + 0.5 * (capture_time * 6.0).sin().abs()
+                            } else {
+                                0.0
+                            };
+                            let has_keys = preset.hotkey.is_some() || !preset.trigger_keys.trim().is_empty();
+                            let fill = if capture_active {
+                                Color32::from_rgba_premultiplied(
+                                    (88.0 + pulse * 28.0) as u8,
+                                    (84.0 + pulse * 28.0) as u8,
+                                    (44.0 + pulse * 10.0) as u8,
+                                    255,
                                 )
-                                .clicked()
-                            {
-                                preset.use_color_matching = false;
+                            } else if has_keys {
+                                Color32::from_rgba_premultiplied(72, 156, 116, 120)
+                            } else {
+                                ui.visuals().faint_bg_color
+                            };
+                            let stroke = if capture_active {
+                                Color32::from_rgb(255, 232, 96)
+                            } else if has_keys {
+                                Color32::from_rgb(126, 224, 182)
+                            } else {
+                                ui.visuals().widgets.noninteractive.bg_stroke.color
+                            };
+    
+                            let hover_text = if capture_active {
+                                Self::tr_lang(language, "Capturing... Press any key.", "Đang ghi... Nhấn một phím bất kỳ.").to_string()
+                            } else if has_keys {
+                                let bindings_labels: Vec<String> = Self::preset_trigger_bindings(&preset.hotkey, &preset.trigger_keys)
+                                    .iter()
+                                    .map(|b| hotkey::format_binding(Some(b)))
+                                    .collect();
+                                format!(
+                                    "{} {}\n{}",
+                                    Self::tr_lang(language, "Hotkey:", "Phím tắt:"),
+                                    bindings_labels.join(", "),
+                                    Self::tr_lang(
+                                        language,
+                                        "Left click: rebind | Right click: clear",
+                                        "Chuột trái: đổi phím | Chuột phải: xóa phím"
+                                    )
+                                )
+                            } else {
+                                Self::tr_lang(language, "Left click: bind hotkey", "Chuột trái: gán phím tắt").to_string()
+                            };
+    
+                            let btn_response = ui.add_sized(
+                                [36.0, 24.0],
+                                Button::new(Self::material_icon_text(0xe312, 18.0))
+                                    .fill(fill)
+                                    .stroke(egui::Stroke::new(1.0, stroke)),
+                            ).on_hover_text(hover_text);
+    
+                            if btn_response.clicked() {
+                                if capture_active {
+                                    cancel_active_capture_local = true;
+                                } else {
+                                    next_capture_local = Some((
+                                        capture_target.clone(),
+                                        format!("Capturing image search hotkey for {}.", preset.name),
+                                    ));
+                                }
+                            }
+                            if btn_response.secondary_clicked() {
+                                preset.hotkey = None;
+                                preset.trigger_keys.clear();
+                                preset.enabled = false;
                                 live_sync = true;
                             }
-                            if ui
-                                .selectable_label(
-                                    preset.use_color_matching,
-                                    Self::tr_lang(language, "Detect color", "Phát hiện màu"),
-                                )
-                                .clicked()
+    
+                            if Self::sound_style_remove_button(ui).clicked() {
+                                remove_id = Some(preset.id);
+                            }
+                            if Self::sound_style_toggle_button(
+                                ui,
+                                if preset.collapsed {
+                                    Self::tr_lang(language, "Show", "Hiện")
+                                } else {
+                                    Self::tr_lang(language, "Hide", "Ẩn")
+                                },
+                            )
+                            .clicked()
                             {
-                                preset.use_color_matching = true;
+                                preset.collapsed = !preset.collapsed;
                                 live_sync = true;
                             }
                         });
-                        ui.end_row();
-
-                        if !preset.use_color_matching && !self.opencv_installed {
-                            ui.label("");
-                            ui.label(egui::RichText::new(Self::tr_lang(
-                                language,
-                                "⚠ OpenCV library not installed! Check Settings.",
-                                "⚠ Chưa cài đặt thư viện OpenCV! Hãy kiểm tra Cài đặt.",
-                            )).color(egui::Color32::from_rgb(255, 110, 110)));
-                            ui.end_row();
-                        }
-
-                        if !preset.use_color_matching {
-                            ui.label(Self::tr_lang(language, "Template", "Mẫu"));
+                    });
+    
+                    if preset.collapsed {
+                        return;
+                    }
+    
+                    egui::Grid::new((preset.id, "image-search-grid"))
+                        .num_columns(2)
+                        .spacing([14.0, 8.0])
+                        .show(ui, |ui| {
+    
+                            ui.label(Self::tr_lang(language, "Mode", "Chế độ"));
                             ui.horizontal_wrapped(|ui| {
                                 if ui
-                                    .button(Self::tr_lang(
-                                        language,
-                                        "Pick from screen",
-                                        "Chọn trên màn hình",
-                                    ))
+                                    .selectable_label(
+                                        !preset.use_color_matching,
+                                        Self::tr_lang(language, "Detect image", "Phát hiện ảnh"),
+                                    )
                                     .clicked()
                                 {
-                                    start_image_search_capture = Some(preset.id);
+                                    preset.use_color_matching = false;
+                                    live_sync = true;
                                 }
                                 if ui
-                                    .button(Self::tr_lang(
-                                        language,
-                                        "Clear template",
-                                        "Xóa mẫu",
-                                    ))
+                                    .selectable_label(
+                                        preset.use_color_matching,
+                                        Self::tr_lang(language, "Detect color", "Phát hiện màu"),
+                                    )
                                     .clicked()
                                 {
-                                    let _ = fs::remove_file(&template_file);
-                                    let _ = fs::remove_file(&self.paths.vision_template_file);
-                                    self.vision_preview_cache.remove(&preset.id);
-                                    preset.enabled = false;
+                                    preset.use_color_matching = true;
                                     live_sync = true;
                                 }
                             });
                             ui.end_row();
-                        }
-
-                        ui.label(Self::tr_lang(language, "Area", "Khu vực"));
-                        ui.horizontal_wrapped(|ui| {
-                            ui.monospace(Self::image_search_search_area_text(preset));
-                            if ui
-                                .button(Self::tr_lang(language, "Pick area", "Chọn khu vực"))
-                                .clicked()
-                            {
-                                start_search_region_capture = Some(preset.id);
+    
+                            if !preset.use_color_matching && !self.opencv_installed {
+                                ui.label("");
+                                ui.label(egui::RichText::new(Self::tr_lang(
+                                    language,
+                                    "⚠ OpenCV library not installed! Check Settings.",
+                                    "⚠ Chưa cài đặt thư viện OpenCV! Hãy kiểm tra Cài đặt.",
+                                )).color(egui::Color32::from_rgb(255, 110, 110)));
+                                ui.end_row();
                             }
-                            if ui
-                                .button(Self::tr_lang(language, "Clear area", "Xóa khu vực"))
-                                .clicked()
-                            {
-                                preset.search_region_screen_x = None;
-                                preset.search_region_screen_y = None;
-                                preset.search_region_width = None;
-                                preset.search_region_height = None;
-                                live_sync = true;
-                            }
-                             live_sync |= ui
-                                 .checkbox(
-                                     &mut preset.show_search_region_overlay,
-                                     Self::tr_lang(language, "Overlay", "Hiển thị overlay"),
-                                 )
-                                 .changed();
-                        });
-                        ui.end_row();
-
-
-
-                        if preset.use_color_matching {
-                            ui.label(Self::tr_lang(language, "Color", "Màu sắc"));
-                            ui.vertical(|ui| {
-                                let colors = Self::image_search_target_colors(&preset);
-                                let uses_legacy_single_color = preset.target_colors.is_empty()
-                                    && preset.target_color.is_some();
-                                if colors.is_empty() {
-                                    ui.monospace("None");
-                                } else {
-                                    let mut remove_color_index = None;
-                                    egui::Grid::new((preset.id, "image-search-color-grid"))
-                                        .num_columns(8)
-                                        .min_col_width(0.0)
-                                        .spacing([ui.spacing().item_spacing.x, 4.0])
-                                        .show(ui, |ui| {
-                                            for (index, color) in colors.iter().copied().enumerate()
-                                            {
-                                                if Self::image_search_color_tile(ui, color)
-                                                    .clicked()
-                                                {
-                                                    remove_color_index = Some(index);
-                                                }
-                                                if (index + 1) % 8 == 0 {
-                                                    ui.end_row();
-                                                }
-                                            }
-                                        });
-                                    if let Some(index) = remove_color_index {
-                                        if uses_legacy_single_color && index == 0 {
-                                            preset.target_color = None;
-                                            live_sync = true;
-                                        } else if !preset.target_colors.is_empty() {
-                                            preset.target_colors = preset
-                                                .target_colors
-                                                .iter()
-                                                .copied()
-                                                .enumerate()
-                                                .filter_map(|(i, item)| {
-                                                    (i != index).then_some(item)
-                                                })
-                                                .collect();
-                                            preset.target_color =
-                                                preset.target_colors.first().copied();
-                                            live_sync = true;
-                                        }
+    
+                            if !preset.use_color_matching {
+                                ui.label(Self::tr_lang(language, "Template", "Mẫu"));
+                                ui.horizontal_wrapped(|ui| {
+                                    if ui
+                                        .button(Self::tr_lang(
+                                            language,
+                                            "Pick from screen",
+                                            "Chọn trên màn hình",
+                                        ))
+                                        .clicked()
+                                    {
+                                        start_image_search_capture = Some(preset.id);
                                     }
+                                    if ui
+                                        .button(Self::tr_lang(
+                                            language,
+                                            "Clear template",
+                                            "Xóa mẫu",
+                                        ))
+                                        .clicked()
+                                    {
+                                        let _ = fs::remove_file(&template_file);
+                                        let _ = fs::remove_file(&self.paths.vision_template_file);
+                                        self.vision_preview_cache.remove(&preset.id);
+                                        preset.enabled = false;
+                                        live_sync = true;
+                                    }
+                                });
+                                ui.end_row();
+                            }
+    
+                            ui.label(Self::tr_lang(language, "Area", "Khu vực"));
+                            ui.horizontal_wrapped(|ui| {
+                                ui.monospace(Self::image_search_search_area_text(preset));
+                                if ui
+                                    .button(Self::tr_lang(language, "Pick area", "Chọn khu vực"))
+                                    .clicked()
+                                {
+                                    start_search_region_capture = Some(preset.id);
                                 }
-                                ui.add_space(4.0);
-                                ui.horizontal(|ui| {
-                                    if Self::image_search_add_color_button(ui, language).clicked() {
-                                        start_color_pick_capture = Some(preset.id);
-                                    }
-
-                                    let popup_id = ui.make_persistent_id((preset.id, "vision-manual-color-popup"));
-                                    let mut popup_open = ui
-                                        .ctx()
-                                        .data(|data| data.get_temp::<bool>(popup_id))
-                                        .unwrap_or(false);
-
-                                    let manual_button = ui.add_sized(
-                                        [24.0, 24.0],
-                                        Button::new(Self::material_icon_text(0xe40a, 18.0)),
-                                    )
-                                    .on_hover_text(Self::tr_lang(language, "Manual color input", "Chọn màu thủ công"));
-
-                                    if manual_button.clicked() {
-                                        popup_open = true;
-                                    }
-
-                                    let mut added_color = false;
-
-                                    let popup_response = egui::Popup::from_response(&manual_button)
-                                        .id(popup_id)
-                                        .open_bool(&mut popup_open)
-                                        .align(egui::RectAlign::BOTTOM_START)
-                                        .layout(egui::Layout::top_down_justified(egui::Align::Min))
-                                        .width(220.0)
-                                        .close_behavior(egui::PopupCloseBehavior::IgnoreClicks)
-                                        .show(|ui| {
-                                            ui.set_min_width(220.0);
-                                            ui.label(Self::tr_lang(language, "Manual color", "Chọn màu thủ công"));
-                                            ui.separator();
-
-                                            let mut color32 = egui::Color32::from_rgba_unmultiplied(
-                                                self.vision_manual_color.r,
-                                                self.vision_manual_color.g,
-                                                self.vision_manual_color.b,
-                                                self.vision_manual_color.a,
-                                            );
-                                            if egui::color_picker::color_picker_color32(
-                                                ui,
-                                                &mut color32,
-                                                egui::color_picker::Alpha::Opaque,
-                                            ) {
-                                                self.vision_manual_color.r = color32.r();
-                                                self.vision_manual_color.g = color32.g();
-                                                self.vision_manual_color.b = color32.b();
-                                                self.vision_manual_color.a = color32.a();
-                                                self.vision_manual_color_hex = format!(
-                                                    "{:02X}{:02X}{:02X}",
-                                                    self.vision_manual_color.r,
-                                                    self.vision_manual_color.g,
-                                                    self.vision_manual_color.b
-                                                );
-                                            }
-
-                                            ui.add_space(4.0);
-
-                                            ui.horizontal(|ui| {
-                                                ui.label("#");
-                                                let hex_resp = ui.add(
-                                                    TextEdit::singleline(&mut self.vision_manual_color_hex)
-                                                        .hint_text("RRGGBB")
-                                                );
-                                                if hex_resp.changed() {
-                                                    let hex = self.vision_manual_color_hex.trim().trim_start_matches('#');
-                                                    if hex.len() == 6 {
-                                                        if let Ok(color_val) = u32::from_str_radix(hex, 16) {
-                                                            self.vision_manual_color.r = ((color_val >> 16) & 0xFF) as u8;
-                                                            self.vision_manual_color.g = ((color_val >> 8) & 0xFF) as u8;
-                                                            self.vision_manual_color.b = (color_val & 0xFF) as u8;
-                                                        }
+                                if ui
+                                    .button(Self::tr_lang(language, "Clear area", "Xóa khu vực"))
+                                    .clicked()
+                                {
+                                    preset.search_region_screen_x = None;
+                                    preset.search_region_screen_y = None;
+                                    preset.search_region_width = None;
+                                    preset.search_region_height = None;
+                                    live_sync = true;
+                                }
+                                 live_sync |= ui
+                                     .checkbox(
+                                         &mut preset.show_search_region_overlay,
+                                         Self::tr_lang(language, "Overlay", "Hiển thị overlay"),
+                                     )
+                                     .changed();
+                            });
+                            ui.end_row();
+    
+    
+    
+                            if preset.use_color_matching {
+                                ui.label(Self::tr_lang(language, "Color", "Màu sắc"));
+                                ui.vertical(|ui| {
+                                    let colors = Self::image_search_target_colors(&preset);
+                                    let uses_legacy_single_color = preset.target_colors.is_empty()
+                                        && preset.target_color.is_some();
+                                    if colors.is_empty() {
+                                        ui.monospace("None");
+                                    } else {
+                                        let mut remove_color_index = None;
+                                        egui::Grid::new((preset.id, "image-search-color-grid"))
+                                            .num_columns(8)
+                                            .min_col_width(0.0)
+                                            .spacing([ui.spacing().item_spacing.x, 4.0])
+                                            .show(ui, |ui| {
+                                                for (index, color) in colors.iter().copied().enumerate()
+                                                {
+                                                    if Self::image_search_color_tile(ui, color)
+                                                        .clicked()
+                                                    {
+                                                        remove_color_index = Some(index);
+                                                    }
+                                                    if (index + 1) % 8 == 0 {
+                                                        ui.end_row();
                                                     }
                                                 }
                                             });
-
-                                            ui.add_space(8.0);
-
-                                            if ui.button(Self::tr_lang(language, "Add color", "Thêm màu")).clicked() {
-                                                added_color = true;
-                                            }
-                                        });
-
-                                    if added_color {
-                                        if preset.target_colors.is_empty() {
-                                            if let Some(existing) = preset.target_color {
-                                                preset.target_colors.push(existing);
+                                        if let Some(index) = remove_color_index {
+                                            if uses_legacy_single_color && index == 0 {
+                                                preset.target_color = None;
+                                                live_sync = true;
+                                            } else if !preset.target_colors.is_empty() {
+                                                preset.target_colors = preset
+                                                    .target_colors
+                                                    .iter()
+                                                    .copied()
+                                                    .enumerate()
+                                                    .filter_map(|(i, item)| {
+                                                        (i != index).then_some(item)
+                                                    })
+                                                    .collect();
+                                                preset.target_color =
+                                                    preset.target_colors.first().copied();
+                                                live_sync = true;
                                             }
                                         }
-                                        preset.target_colors.push(self.vision_manual_color);
-                                        preset.target_color = preset.target_colors.first().copied();
-                                        live_sync = true;
-                                        popup_open = false;
                                     }
-
-                                    if popup_open
-                                        && let Some(pointer_pos) = ui.ctx().pointer_hover_pos()
-                                    {
-                                        let mut keep_open_rect = manual_button.rect.expand(10.0);
-                                        if let Some(popup) = &popup_response {
-                                            keep_open_rect =
-                                                keep_open_rect.union(popup.response.rect.expand(10.0));
+                                    ui.add_space(4.0);
+                                    ui.horizontal(|ui| {
+                                        if Self::image_search_add_color_button(ui, language).clicked() {
+                                            start_color_pick_capture = Some(preset.id);
                                         }
-                                        if !keep_open_rect.contains(pointer_pos) {
+    
+                                        let popup_id = ui.make_persistent_id((preset.id, "vision-manual-color-popup"));
+                                        let mut popup_open = ui
+                                            .ctx()
+                                            .data(|data| data.get_temp::<bool>(popup_id))
+                                            .unwrap_or(false);
+    
+                                        let manual_button = ui.add_sized(
+                                            [24.0, 24.0],
+                                            Button::new(Self::material_icon_text(0xe40a, 18.0)),
+                                        )
+                                        .on_hover_text(Self::tr_lang(language, "Manual color input", "Chọn màu thủ công"));
+    
+                                        if manual_button.clicked() {
+                                            popup_open = true;
+                                        }
+    
+                                        let mut added_color = false;
+    
+                                        let popup_response = egui::Popup::from_response(&manual_button)
+                                            .id(popup_id)
+                                            .open_bool(&mut popup_open)
+                                            .align(egui::RectAlign::BOTTOM_START)
+                                            .layout(egui::Layout::top_down_justified(egui::Align::Min))
+                                            .width(220.0)
+                                            .close_behavior(egui::PopupCloseBehavior::IgnoreClicks)
+                                            .show(|ui| {
+                                                ui.set_min_width(220.0);
+                                                ui.label(Self::tr_lang(language, "Manual color", "Chọn màu thủ công"));
+                                                ui.separator();
+    
+                                                let mut color32 = egui::Color32::from_rgba_unmultiplied(
+                                                    self.vision_manual_color.r,
+                                                    self.vision_manual_color.g,
+                                                    self.vision_manual_color.b,
+                                                    self.vision_manual_color.a,
+                                                );
+                                                if egui::color_picker::color_picker_color32(
+                                                    ui,
+                                                    &mut color32,
+                                                    egui::color_picker::Alpha::Opaque,
+                                                ) {
+                                                    self.vision_manual_color.r = color32.r();
+                                                    self.vision_manual_color.g = color32.g();
+                                                    self.vision_manual_color.b = color32.b();
+                                                    self.vision_manual_color.a = color32.a();
+                                                    self.vision_manual_color_hex = format!(
+                                                        "{:02X}{:02X}{:02X}",
+                                                        self.vision_manual_color.r,
+                                                        self.vision_manual_color.g,
+                                                        self.vision_manual_color.b
+                                                    );
+                                                }
+    
+                                                ui.add_space(4.0);
+    
+                                                ui.horizontal(|ui| {
+                                                    ui.label("#");
+                                                    let hex_resp = ui.add(
+                                                        TextEdit::singleline(&mut self.vision_manual_color_hex)
+                                                            .hint_text("RRGGBB")
+                                                    );
+                                                    if hex_resp.changed() {
+                                                        let hex = self.vision_manual_color_hex.trim().trim_start_matches('#');
+                                                        if hex.len() == 6 {
+                                                            if let Ok(color_val) = u32::from_str_radix(hex, 16) {
+                                                                self.vision_manual_color.r = ((color_val >> 16) & 0xFF) as u8;
+                                                                self.vision_manual_color.g = ((color_val >> 8) & 0xFF) as u8;
+                                                                self.vision_manual_color.b = (color_val & 0xFF) as u8;
+                                                            }
+                                                        }
+                                                    }
+                                                });
+    
+                                                ui.add_space(8.0);
+    
+                                                if ui.button(Self::tr_lang(language, "Add color", "Thêm màu")).clicked() {
+                                                    added_color = true;
+                                                }
+                                            });
+    
+                                        if added_color {
+                                            if preset.target_colors.is_empty() {
+                                                if let Some(existing) = preset.target_color {
+                                                    preset.target_colors.push(existing);
+                                                }
+                                            }
+                                            preset.target_colors.push(self.vision_manual_color);
+                                            preset.target_color = preset.target_colors.first().copied();
+                                            live_sync = true;
                                             popup_open = false;
                                         }
-                                    }
-                                    ui.ctx().data_mut(|data| {
-                                        data.insert_temp(popup_id, popup_open)
+    
+                                        if popup_open
+                                            && let Some(pointer_pos) = ui.ctx().pointer_hover_pos()
+                                        {
+                                            let mut keep_open_rect = manual_button.rect.expand(10.0);
+                                            if let Some(popup) = &popup_response {
+                                                keep_open_rect =
+                                                    keep_open_rect.union(popup.response.rect.expand(10.0));
+                                            }
+                                            if !keep_open_rect.contains(pointer_pos) {
+                                                popup_open = false;
+                                            }
+                                        }
+                                        ui.ctx().data_mut(|data| {
+                                            data.insert_temp(popup_id, popup_open)
+                                        });
                                     });
                                 });
-                            });
-                            ui.end_row();
-                        } else {
-                            ui.label(Self::tr_lang(language, "Accuracy", "Độ chính xác"));
-                            ui.horizontal_wrapped(|ui| {
-                                live_sync |= ui
-                                    .add(
-                                        Slider::new(&mut preset.confidence_threshold, 0.35..=0.99)
-                                            .fixed_decimals(2)
-                                            .show_value(true),
-                                    )
-                                    .changed();
-                            });
-                            ui.end_row();
-                        }
-
-                        ui.label(Self::tr_lang(language, "Mouse interaction", "Tương tác chuột"));
-                        ui.horizontal_wrapped(|ui| {
-                            if Self::sized_button(
-                                ui,
-                                96.0,
-                                Self::tr_lang(
-                                    language,
-                                    if preset.image_search_move_advanced_open {
-                                        "Hide"
-                                    } else {
-                                        "Show"
-                                    },
-                                    if preset.image_search_move_advanced_open {
-                                        "Ẩn"
-                                    } else {
-                                        "Hiện"
-                                    },
-                                ),
-                            )
-                            .clicked()
-                            {
-                                preset.image_search_move_advanced_open =
-                                    !preset.image_search_move_advanced_open;
-                                live_sync = true;
-                            }
-                        });
-                        ui.end_row();
-
-                        if preset.image_search_move_advanced_open {
-                            ui.horizontal(|ui| {
-                                ui.label(Self::tr_lang(language, "Click offset", "Độ lệch nhấp chuột"));
-                                let help_btn = ui.small_button("❓");
-                                if help_btn.hovered() {
-                                    egui::show_tooltip_text(
-                                        ui.ctx(),
-                                        ui.layer_id(),
-                                        help_btn.id,
-                                        Self::tr_lang(
-                                            language,
-                                            "Click offset from the center of the detected object (image or color).\nThe cursor will move to the center plus this offset (X, Y) before clicking.",
-                                            "Độ lệch nhấp chuột tính từ tâm của đối tượng phát hiện được (hình ảnh hoặc màu sắc).\nChuột sẽ di chuyển đến vị trí tâm cộng thêm độ lệch (X, Y) này rồi mới nhấp chuột."
+                                ui.end_row();
+                            } else {
+                                ui.label(Self::tr_lang(language, "Accuracy", "Độ chính xác"));
+                                ui.horizontal_wrapped(|ui| {
+                                    live_sync |= ui
+                                        .add(
+                                            Slider::new(&mut preset.confidence_threshold, 0.35..=0.99)
+                                                .fixed_decimals(2)
+                                                .show_value(true),
                                         )
-                                    );
+                                        .changed();
+                                });
+                                ui.end_row();
+                            }
+    
+                            ui.label(Self::tr_lang(language, "Mouse interaction", "Tương tác chuột"));
+                            ui.horizontal_wrapped(|ui| {
+                                if Self::sized_button(
+                                    ui,
+                                    96.0,
+                                    Self::tr_lang(
+                                        language,
+                                        if preset.image_search_move_advanced_open {
+                                            "Hide"
+                                        } else {
+                                            "Show"
+                                        },
+                                        if preset.image_search_move_advanced_open {
+                                            "Ẩn"
+                                        } else {
+                                            "Hiện"
+                                        },
+                                    ),
+                                )
+                                .clicked()
+                                {
+                                    preset.image_search_move_advanced_open =
+                                        !preset.image_search_move_advanced_open;
+                                    live_sync = true;
                                 }
                             });
-                            ui.horizontal_wrapped(|ui| {
-                                ui.label("X");
-                                live_sync |= ui
-                                    .add(DragValue::new(&mut preset.move_offset_x).range(-5000..=5000))
-                                    .changed();
-                                ui.label("Y");
-                                live_sync |= ui
-                                    .add(DragValue::new(&mut preset.move_offset_y).range(-5000..=5000))
-                                    .changed();
-                            });
                             ui.end_row();
-
-                            ui.label(Self::tr_lang(language, "Move passes & delay", "Số lần di chuyển & độ trễ"));
-                            ui.horizontal_wrapped(|ui| {
-                                ui.label(Self::tr_lang(language, "Passes", "Số lần"));
-                                live_sync |= ui
-                                    .add(
-                                        DragValue::new(&mut preset.non_interception_move_passes)
-                                            .range(1..=10),
-                                    )
-                                    .changed();
-                                ui.add_space(8.0);
-                                ui.label(Self::tr_lang(language, "Delay", "Độ trễ"));
-                                live_sync |= ui
-                                    .add(
-                                        DragValue::new(&mut preset.non_interception_move_delay_ms)
-                                            .range(0..=100)
-                                            .suffix(" ms"),
-                                    )
-                                    .changed();
-                            });
-                            ui.end_row();
-
-                            if preset.use_color_matching {
-                                ui.label(Self::tr_lang(language, "Color scan", "Quét màu"));
-                                ui.horizontal_wrapped(|ui| {
-                                    ui.label(Self::tr_lang(language, "Tolerance", "Sai số"));
-                                    live_sync |= ui
-                                        .add(
-                                            DragValue::new(&mut preset.color_tolerance)
-                                                .range(0..=96),
-                                        )
-                                        .changed();
-                                    ui.label(Self::tr_lang(language, "Rate", "Tần suất"));
-                                    live_sync |= ui
-                                        .add(
-                                            DragValue::new(&mut preset.color_scan_rate_hz)
-                                                .range(1..=2000)
-                                                .suffix(" Hz"),
-                                        )
-                                        .changed();
-                                });
-                                ui.end_row();
-
-                                ui.label(Self::tr_lang(language, "Pixel count", "Đếm pixel"));
-                                ui.horizontal_wrapped(|ui| {
-                                    live_sync |= ui
-                                        .checkbox(
-                                            &mut preset.is_pixel_counter,
-                                            Self::tr_lang(language, "Enable Pixel Counter", "Kích hoạt Đếm pixel"),
-                                        )
-                                        .changed();
-                                    if preset.is_pixel_counter {
-                                        ui.add_space(8.0);
-                                        ui.label(Self::tr_lang(language, "Variable", "Tên biến"));
-                                        let text_edit = egui::TextEdit::singleline(&mut preset.pixel_counter_variable_name)
-                                            .desired_width(120.0)
-                                            .hint_text(format!("pixel_count_{}", preset.id));
-                                        live_sync |= ui.add(text_edit).changed();
+    
+                            if preset.image_search_move_advanced_open {
+                                ui.horizontal(|ui| {
+                                    ui.label(Self::tr_lang(language, "Click offset", "Độ lệch nhấp chuột"));
+                                    let help_btn = ui.small_button("❓");
+                                    if help_btn.hovered() {
+                                        egui::show_tooltip_text(
+                                            ui.ctx(),
+                                            ui.layer_id(),
+                                            help_btn.id,
+                                            Self::tr_lang(
+                                                language,
+                                                "Click offset from the center of the detected object (image or color).\nThe cursor will move to the center plus this offset (X, Y) before clicking.",
+                                                "Độ lệch nhấp chuột tính từ tâm của đối tượng phát hiện được (hình ảnh hoặc màu sắc).\nChuột sẽ di chuyển đến vị trí tâm cộng thêm độ lệch (X, Y) này rồi mới nhấp chuột."
+                                            )
+                                        );
                                     }
                                 });
-                                ui.end_row();
-
-                                ui.label(Self::tr_lang(
-                                    language,
-                                    "Color priority",
-                                    "Ưu tiên màu",
-                                ));
                                 ui.horizontal_wrapped(|ui| {
+                                    ui.label("X");
                                     live_sync |= ui
-                                        .checkbox(
-                                            &mut preset.dual_color_scan_midpoint,
-                                            Self::tr_lang(language, "Midpoint", "Điểm giữa"),
+                                        .add(DragValue::new(&mut preset.move_offset_x).range(-5000..=5000))
+                                        .changed();
+                                    ui.label("Y");
+                                    live_sync |= ui
+                                        .add(DragValue::new(&mut preset.move_offset_y).range(-5000..=5000))
+                                        .changed();
+                                });
+                                ui.end_row();
+    
+                                ui.label(Self::tr_lang(language, "Move passes & delay", "Số lần di chuyển & độ trễ"));
+                                ui.horizontal_wrapped(|ui| {
+                                    ui.label(Self::tr_lang(language, "Passes", "Số lần"));
+                                    live_sync |= ui
+                                        .add(
+                                            DragValue::new(&mut preset.non_interception_move_passes)
+                                                .range(1..=10),
                                         )
                                         .changed();
+                                    ui.add_space(8.0);
+                                    ui.label(Self::tr_lang(language, "Delay", "Độ trễ"));
                                     live_sync |= ui
-                                        .checkbox(
-                                            &mut preset.color_priority_from_anchor,
-                                            Self::tr_lang(language, "From point", "Từ điểm cố định"),
+                                        .add(
+                                            DragValue::new(&mut preset.non_interception_move_delay_ms)
+                                                .range(0..=100)
+                                                .suffix(" ms"),
                                         )
                                         .changed();
-                                    let anchor = preset
-                                        .color_priority_anchor_screen_x
-                                        .zip(preset.color_priority_anchor_screen_y);
-                                    if let Some((x, y)) = anchor {
-                                        ui.monospace(format!("{x}, {y}"));
-                                        if ui
-                                            .small_button(Self::tr_lang(language, "x", "x"))
-                                            .on_hover_text(Self::tr_lang(
-                                                language,
-                                                "Clear priority point",
-                                                "Xóa điểm ưu tiên",
-                                            ))
-                                            .clicked()
-                                        {
-                                            preset.color_priority_anchor_screen_x = None;
-                                            preset.color_priority_anchor_screen_y = None;
-                                            live_sync = true;
+                                });
+                                ui.end_row();
+    
+                                if preset.use_color_matching {
+                                    ui.label(Self::tr_lang(language, "Color scan", "Quét màu"));
+                                    ui.horizontal_wrapped(|ui| {
+                                        ui.label(Self::tr_lang(language, "Tolerance", "Sai số"));
+                                        live_sync |= ui
+                                            .add(
+                                                DragValue::new(&mut preset.color_tolerance)
+                                                    .range(0..=96),
+                                            )
+                                            .changed();
+                                        ui.label(Self::tr_lang(language, "Rate", "Tần suất"));
+                                        live_sync |= ui
+                                            .add(
+                                                DragValue::new(&mut preset.color_scan_rate_hz)
+                                                    .range(1..=2000)
+                                                    .suffix(" Hz"),
+                                            )
+                                            .changed();
+                                    });
+                                    ui.end_row();
+    
+                                    ui.label(Self::tr_lang(language, "Pixel count", "Đếm pixel"));
+                                    ui.horizontal_wrapped(|ui| {
+                                        live_sync |= ui
+                                            .checkbox(
+                                                &mut preset.is_pixel_counter,
+                                                Self::tr_lang(language, "Enable Pixel Counter", "Kích hoạt Đếm pixel"),
+                                            )
+                                            .changed();
+                                        if preset.is_pixel_counter {
+                                            ui.add_space(8.0);
+                                            ui.label(Self::tr_lang(language, "Variable", "Tên biến"));
+                                            let text_edit = egui::TextEdit::singleline(&mut preset.pixel_counter_variable_name)
+                                                .desired_width(120.0)
+                                                .hint_text(format!("pixel_count_{}", preset.id));
+                                            live_sync |= ui.add(text_edit).changed();
                                         }
-                                    }
-                                    if preset.color_priority_from_anchor
-                                        && ui
-                                            .button(Self::tr_lang(
-                                                language,
-                                                "Pick point",
-                                                "Chọn điểm",
-                                            ))
-                                            .clicked()
-                                    {
-                                        start_color_priority_anchor_capture = Some(preset.id);
-                                    }
-                                });
-                                ui.end_row();
+                                    });
+                                    ui.end_row();
+    
+                                    ui.label(Self::tr_lang(
+                                        language,
+                                        "Color priority",
+                                        "Ưu tiên màu",
+                                    ));
+                                    ui.horizontal_wrapped(|ui| {
+                                        live_sync |= ui
+                                            .checkbox(
+                                                &mut preset.dual_color_scan_midpoint,
+                                                Self::tr_lang(language, "Midpoint", "Điểm giữa"),
+                                            )
+                                            .changed();
+                                        live_sync |= ui
+                                            .checkbox(
+                                                &mut preset.color_priority_from_anchor,
+                                                Self::tr_lang(language, "From point", "Từ điểm cố định"),
+                                            )
+                                            .changed();
+                                        let anchor = preset
+                                            .color_priority_anchor_screen_x
+                                            .zip(preset.color_priority_anchor_screen_y);
+                                        if let Some((x, y)) = anchor {
+                                            ui.monospace(format!("{x}, {y}"));
+                                            if ui
+                                                .small_button(Self::tr_lang(language, "x", "x"))
+                                                .on_hover_text(Self::tr_lang(
+                                                    language,
+                                                    "Clear priority point",
+                                                    "Xóa điểm ưu tiên",
+                                                ))
+                                                .clicked()
+                                            {
+                                                preset.color_priority_anchor_screen_x = None;
+                                                preset.color_priority_anchor_screen_y = None;
+                                                live_sync = true;
+                                            }
+                                        }
+                                        if preset.color_priority_from_anchor
+                                            && ui
+                                                .button(Self::tr_lang(
+                                                    language,
+                                                    "Pick point",
+                                                    "Chọn điểm",
+                                                ))
+                                                .clicked()
+                                        {
+                                            start_color_priority_anchor_capture = Some(preset.id);
+                                        }
+                                    });
+                                    ui.end_row();
+                                }
                             }
-                        }
-
-
-                    });
-
-                if let Some(preview) = preview.as_ref() {
-                    ui.add_space(8.0);
-                    ui.vertical(|ui| {
-                        let base_scale = (320.0 / preview.width.max(1) as f32)
-                            .min(180.0 / preview.height.max(1) as f32)
-                            .min(1.0);
-                        let scale = base_scale / ctx.pixels_per_point().max(1.0);
-                        let size =
-                            vec2(preview.width as f32 * scale, preview.height as f32 * scale);
-                        ui.image((preview.texture.id(), size));
-                    });
+    
+    
+                        });
+    
+                    if let Some(preview) = preview.as_ref() {
+                        ui.add_space(8.0);
+                        ui.vertical(|ui| {
+                            let base_scale = (320.0 / preview.width.max(1) as f32)
+                                .min(180.0 / preview.height.max(1) as f32)
+                                .min(1.0);
+                            let scale = base_scale / ctx.pixels_per_point().max(1.0);
+                            let size =
+                                vec2(preview.width as f32 * scale, preview.height as f32 * scale);
+                            ui.image((preview.texture.id(), size));
+                        });
+                    }
+                });
+    
+                if let Some((target, status)) = next_capture_local {
+                    self.begin_capture(target, status);
                 }
-            });
-
-            if let Some((target, status)) = next_capture_local {
-                self.begin_capture(target, status);
-            }
-            if let Some(preset_id) = start_image_search_capture {
-                self.begin_image_search_capture(
-                    ctx,
-                    VisionCaptureTarget::Preset(preset_id),
-                    VisionCaptureMode::Template,
-                );
-            }
-            if let Some(preset_id) = start_search_region_capture {
-                self.begin_image_search_capture(
-                    ctx,
-                    VisionCaptureTarget::Preset(preset_id),
-                    VisionCaptureMode::SearchRegion,
-                );
-            }
-            if let Some(preset_id) = start_color_pick_capture {
-                self.begin_image_search_capture(
-                    ctx,
-                    VisionCaptureTarget::Preset(preset_id),
-                    VisionCaptureMode::ColorSample,
-                );
-            }
-            if let Some(preset_id) = start_color_priority_anchor_capture {
-                self.begin_image_search_capture(
-                    ctx,
-                    VisionCaptureTarget::Preset(preset_id),
-                    VisionCaptureMode::ColorPriorityAnchor,
-                );
-            }
-            if cancel_active_capture_local {
-                self.cancel_capture();
+                if let Some(preset_id) = start_image_search_capture {
+                    self.begin_image_search_capture(
+                        ctx,
+                        VisionCaptureTarget::Preset(preset_id),
+                        VisionCaptureMode::Template,
+                    );
+                }
+                if let Some(preset_id) = start_search_region_capture {
+                    self.begin_image_search_capture(
+                        ctx,
+                        VisionCaptureTarget::Preset(preset_id),
+                        VisionCaptureMode::SearchRegion,
+                    );
+                }
+                if let Some(preset_id) = start_color_pick_capture {
+                    self.begin_image_search_capture(
+                        ctx,
+                        VisionCaptureTarget::Preset(preset_id),
+                        VisionCaptureMode::ColorSample,
+                    );
+                }
+                if let Some(preset_id) = start_color_priority_anchor_capture {
+                    self.begin_image_search_capture(
+                        ctx,
+                        VisionCaptureTarget::Preset(preset_id),
+                        VisionCaptureMode::ColorPriorityAnchor,
+                    );
+                }
+                if cancel_active_capture_local {
+                    self.cancel_capture();
+                }
             }
         }
 
