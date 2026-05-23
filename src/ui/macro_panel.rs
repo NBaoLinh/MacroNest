@@ -4722,7 +4722,7 @@ impl CrosshairApp {
                                                             .unwrap_or_else(|| Self::tr_lang(language, "Select preset", "Chọn preset").to_owned());
                                                             
                                                         egui::ComboBox::from_id_salt((group.id, preset.id, step_index, "step-preset-select"))
-                                                            .width(100.0)
+                                                            .width(146.0)
                                                             .selected_text(preset_label)
                                                             .show_ui(ui, |ui| {
                                                                 for (preset_option_id, preset_option_label) in &group_preset_options {

@@ -2971,7 +2971,7 @@ impl CrosshairApp {
             MacroAction::LoopStart => "LoopStart",
             MacroAction::LoopEnd => "LoopEnd",
             MacroAction::StopIfTriggerPressedAgain => "StopIfTriggerPressedAgain",
-            MacroAction::StopIfKeyPressed => "BreakLoopIfKeyPressed",
+            MacroAction::StopIfKeyPressed => "Break Loop",
             MacroAction::ShowHud => "ShowHud",
             MacroAction::HideHud => "HideHud",
             MacroAction::LockKeys => "LockKeys",
