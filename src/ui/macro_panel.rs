@@ -4540,7 +4540,7 @@ impl CrosshairApp {
                                                         })
                                                         .unwrap_or_else(|| Self::tr_lang(language, "Select focus", "Chọn focus").to_owned());
                                                     egui::ComboBox::from_id_salt((group.id, preset.id, step_index, "focus-window-preset-step"))
-                                                        .width(160.0)
+                                                        .width(146.0)
                                                         .selected_text(selected_label)
                                                         .show_ui(ui, |ui| {
                                                             for preset_option in &self.state.window_focus_presets {
@@ -4566,7 +4566,7 @@ impl CrosshairApp {
                                                             Self::tr_lang(language, "Select macro", "Chọn macro").to_owned()
                                                         });
                                                     egui::ComboBox::from_id_salt((group.id, preset.id, step_index, "trigger-macro-preset-step"))
-                                                        .width(160.0)
+                                                        .width(146.0)
                                                         .selected_text(selected_label)
                                                         .show_ui(ui, |ui| {
                                                             for (preset_option_id, preset_option_label) in &group_preset_options {
@@ -4615,7 +4615,7 @@ impl CrosshairApp {
                                                             }
                                                         });
                                                     let custom_preset_combo = egui::ComboBox::from_id_salt((group.id, preset.id, step_index, "trigger-custom-preset-step"))
-                                                        .width(160.0)
+                                                        .width(146.0)
                                                         .selected_text(selected_label)
                                                         .show_ui(ui, |ui| {
                                                             for preset_option in &self.state.command_presets {
@@ -4683,7 +4683,7 @@ impl CrosshairApp {
                                                             Self::tr_lang(language, "Select macro", "Chọn macro").to_owned()
                                                         });
                                                     egui::ComboBox::from_id_salt((group.id, preset.id, step_index, "macro-enable-preset-step"))
-                                                        .width(160.0)
+                                                        .width(146.0)
                                                         .selected_text(selected_label)
                                                         .show_ui(ui, |ui| {
                                                             for (preset_option_id, preset_option_label) in &group_preset_options {
@@ -4785,7 +4785,7 @@ impl CrosshairApp {
                                                         })
                                                         .unwrap_or_else(|| Self::tr_lang(language, "Select timer", "Chọn hẹn giờ").to_owned());
                                                     egui::ComboBox::from_id_salt((group.id, preset.id, step_index, "step-timer-preset-select"))
-                                                        .width(160.0)
+                                                        .width(146.0)
                                                         .selected_text(selected_label)
                                                         .show_ui(ui, |ui| {
                                                             for timer in &self.state.timer_presets {
@@ -4993,7 +4993,7 @@ impl CrosshairApp {
                                                                     step_index,
                                                                     "image-search-trigger-macro-preset",
                                                                     ))
-                                                                .width(160.0)
+                                                                .width(146.0)
                                                                 .selected_text(selected_label)
                                                                 .show_ui(ui, |ui| {
                                                                     for (preset_option_id, preset_option_label) in &group_preset_options {
@@ -5374,7 +5374,7 @@ impl CrosshairApp {
                                                         ui.spacing_mut().interact_size.y = 18.0;
                                                         ui.spacing_mut().button_padding.y = 0.0;
                                                         egui::ComboBox::from_id_salt((group.id, preset.id, step_index, "toolbox-preset-step"))
-                                                            .width(104.0)
+                                                            .width(146.0)
                                                             .selected_text(selected_label)
                                                             .show_ui(ui, |ui| {
                                                                 for toolbox_preset in &self.state.hud_presets {
