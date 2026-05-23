@@ -147,8 +147,11 @@ impl CrosshairApp {
     }
 
     pub(crate) fn add_custom_preset(&mut self) {
-        let id = self.state.next_command_preset_id.max(1);
-        self.state.next_command_preset_id = id + 1;
+        let mut id = 1;
+        while self.state.command_presets.iter().any(|p| p.id == id) {
+            id += 1;
+        }
+        self.state.next_command_preset_id = (self.state.command_presets.iter().map(|p| p.id).max().unwrap_or(0) + 1).max(id + 1);
         self.state.command_presets.push(CommandPreset::new(id));
         self.sync_command_presets();
         self.status = format!("Added custom preset {id}.");

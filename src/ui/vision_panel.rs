@@ -28,8 +28,11 @@ impl CrosshairApp {
                 .button(Self::tr_lang(language, "+ Detect image", "+ Phát hiện ảnh"))
                 .clicked()
             {
-                let id = self.state.next_vision_preset_id.max(1);
-                self.state.next_vision_preset_id = id + 1;
+                let mut id = 1;
+                while self.state.vision_presets.iter().any(|p| p.id == id) {
+                    id += 1;
+                }
+                self.state.next_vision_preset_id = (self.state.vision_presets.iter().map(|p| p.id).max().unwrap_or(0) + 1).max(id + 1);
                 let mut preset = VisionPreset::new(id);
                 preset.use_color_matching = false;
                 self.state.vision_presets.push(preset);
@@ -40,8 +43,11 @@ impl CrosshairApp {
                 .button(Self::tr_lang(language, "+ Detect color", "+ Phát hiện màu"))
                 .clicked()
             {
-                let id = self.state.next_vision_preset_id.max(1);
-                self.state.next_vision_preset_id = id + 1;
+                let mut id = 1;
+                while self.state.vision_presets.iter().any(|p| p.id == id) {
+                    id += 1;
+                }
+                self.state.next_vision_preset_id = (self.state.vision_presets.iter().map(|p| p.id).max().unwrap_or(0) + 1).max(id + 1);
                 let mut preset = VisionPreset::new(id);
                 preset.name = format!("Color Search {id}");
                 preset.use_color_matching = true;
@@ -53,8 +59,11 @@ impl CrosshairApp {
                 .button(Self::tr_lang(language, "+ Pixel counter", "+ Đếm pixel"))
                 .clicked()
             {
-                let id = self.state.next_vision_preset_id.max(1);
-                self.state.next_vision_preset_id = id + 1;
+                let mut id = 1;
+                while self.state.vision_presets.iter().any(|p| p.id == id) {
+                    id += 1;
+                }
+                self.state.next_vision_preset_id = (self.state.vision_presets.iter().map(|p| p.id).max().unwrap_or(0) + 1).max(id + 1);
                 let mut preset = VisionPreset::new(id);
                 preset.name = format!("Pixel Counter {id}");
                 preset.use_color_matching = true;

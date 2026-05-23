@@ -776,8 +776,11 @@ impl CrosshairApp {
                 .button(self.tr("+ Add sound preset", "+ Thêm preset âm thanh"))
                 .clicked()
             {
-                let id = self.state.audio_settings.next_preset_id;
-                self.state.audio_settings.next_preset_id += 1;
+                let mut id = 1;
+                while self.state.audio_settings.presets.iter().any(|p| p.id == id) {
+                    id += 1;
+                }
+                self.state.audio_settings.next_preset_id = (self.state.audio_settings.presets.iter().map(|p| p.id).max().unwrap_or(0) + 1).max(id + 1);
                 self.state.audio_settings.presets.push(SoundPreset::new(id));
                 self.show_sound_preset_audio_editor.insert(id);
                 changed = true;

@@ -569,16 +569,22 @@ impl CrosshairApp {
     }
 
     pub(crate) fn add_mouse_path_preset(&mut self) {
-        let id = self.state.next_mouse_path_preset_id.max(1);
-        self.state.next_mouse_path_preset_id = id + 1;
+        let mut id = 1;
+        while self.state.mouse_path_presets.iter().any(|p| p.id == id) {
+            id += 1;
+        }
+        self.state.next_mouse_path_preset_id = (self.state.mouse_path_presets.iter().map(|p| p.id).max().unwrap_or(0) + 1).max(id + 1);
         self.state.mouse_path_presets.push(MousePathPreset::new(id));
         self.sync_window_presets();
         self.status = format!("Added mouse path preset {id}.");
     }
 
     pub(crate) fn add_mouse_sensitivity_preset(&mut self) {
-        let id = self.state.next_mouse_sensitivity_preset_id.max(1);
-        self.state.next_mouse_sensitivity_preset_id = id + 1;
+        let mut id = 1;
+        while self.state.mouse_sensitivity_presets.iter().any(|p| p.id == id) {
+            id += 1;
+        }
+        self.state.next_mouse_sensitivity_preset_id = (self.state.mouse_sensitivity_presets.iter().map(|p| p.id).max().unwrap_or(0) + 1).max(id + 1);
         self.state
             .mouse_sensitivity_presets
             .push(MouseSensitivityPreset::new(id));
