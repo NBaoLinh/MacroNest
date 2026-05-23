@@ -438,6 +438,26 @@ pub enum IfConditionType {
 
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
 #[serde(default)]
+pub struct ExtraCondition {
+    pub variable_name: String,
+    pub operator: String,
+    pub compare_value: i32,
+    pub expression: String,
+}
+
+impl Default for ExtraCondition {
+    fn default() -> Self {
+        Self {
+            variable_name: String::new(),
+            operator: "==".to_string(),
+            compare_value: 0,
+            expression: String::new(),
+        }
+    }
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
+#[serde(default)]
 pub struct MacroStep {
     pub key: String,
     pub action: MacroAction,
@@ -503,6 +523,12 @@ pub struct MacroStep {
     pub break_loop_by_variable: bool,
     #[serde(default)]
     pub if_compare_value: i32,
+    #[serde(default)]
+    pub if_compare_by_expression: bool,
+    #[serde(default)]
+    pub extra_conditions: Vec<ExtraCondition>,
+    #[serde(default)]
+    pub wait_time_unit: String,
 }
 
 impl Default for MacroStep {
@@ -545,6 +571,9 @@ impl Default for MacroStep {
             manual_mouse_sensitivity: false,
             break_loop_by_variable: false,
             if_compare_value: 0,
+            if_compare_by_expression: false,
+            extra_conditions: Vec::new(),
+            wait_time_unit: String::new(),
         }
     }
 }

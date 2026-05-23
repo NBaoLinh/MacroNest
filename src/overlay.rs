@@ -5470,7 +5470,31 @@ mod windows_overlay {
                         }
                     }
                 }
-                MacroAction::Wait => {}
+                MacroAction::Wait => {
+                    if !step.key.trim().is_empty() {
+                        let interpolated = interpolate_variables(&step.key);
+                        let base_val = evaluate_math_expression(&interpolated);
+                        let multiplier = match step.wait_time_unit.as_str() {
+                            "s" => 1000,
+                            "m" => 60000,
+                            "h" => 3600000,
+                            _ => 1, // ms or empty
+                        };
+                        let delay_ms = base_val.max(0) as u32 * multiplier;
+                        if delay_ms > 0 {
+                            if sleep_for_macro_delay(
+                                preset_id,
+                                delay_ms,
+                                stop_immediately_on_retrigger,
+                                target_window_title,
+                                extra_target_window_titles,
+                                match_duplicate_window_titles,
+                            ) {
+                                return MacroRunFlow::StopExecution;
+                            }
+                        }
+                    }
+                }
                 MacroAction::ApplyWindowPreset => {
                     let _ = apply_window_preset_by_id(&step.key);
                 }
@@ -5850,7 +5874,31 @@ mod windows_overlay {
                         }
                     }
                 }
-                MacroAction::Wait => {}
+                MacroAction::Wait => {
+                    if !step.key.trim().is_empty() {
+                        let interpolated = interpolate_variables(&step.key);
+                        let base_val = evaluate_math_expression(&interpolated);
+                        let multiplier = match step.wait_time_unit.as_str() {
+                            "s" => 1000,
+                            "m" => 60000,
+                            "h" => 3600000,
+                            _ => 1, // ms or empty
+                        };
+                        let delay_ms = base_val.max(0) as u32 * multiplier;
+                        if delay_ms > 0 {
+                            if sleep_for_macro_delay(
+                                preset_id,
+                                delay_ms,
+                                stop_immediately_on_retrigger,
+                                target_window_title,
+                                extra_target_window_titles,
+                                match_duplicate_window_titles,
+                            ) {
+                                return MacroRunFlow::StopExecution;
+                            }
+                        }
+                    }
+                }
                 MacroAction::ApplyWindowPreset => {
                     let _ = apply_window_preset_by_id(&step.key);
                 }
@@ -6192,12 +6240,12 @@ mod windows_overlay {
             let vars = RUNTIME_VARIABLES.lock();
             *vars.get(&var_name).unwrap_or(&0)
         };
-        let comp = if !step.key.trim().is_empty() {
+        let comp = if (step.if_compare_by_expression || step.break_loop_by_variable) && !step.key.trim().is_empty() {
             evaluate_math_expression(&step.key)
         } else {
             step.if_compare_value
         };
-        match step.if_operator.as_str() {
+        let primary_ok = match step.if_operator.as_str() {
             ">" => value > comp,
             "<" => value < comp,
             "=" | "==" => value == comp,
@@ -6205,7 +6253,38 @@ mod windows_overlay {
             "<=" => value <= comp,
             "!=" => value != comp,
             _ => false,
+        };
+
+        if !primary_ok {
+            return false;
         }
+
+        // Evaluate all extra conditions
+        for cond in &step.extra_conditions {
+            let var_val = {
+                let vars = RUNTIME_VARIABLES.lock();
+                *vars.get(&cond.variable_name).unwrap_or(&0)
+            };
+            let comp_val = if !cond.expression.trim().is_empty() {
+                evaluate_math_expression(&cond.expression)
+            } else {
+                cond.compare_value
+            };
+            let cond_ok = match cond.operator.as_str() {
+                ">" => var_val > comp_val,
+                "<" => var_val < comp_val,
+                "=" | "==" => var_val == comp_val,
+                ">=" => var_val >= comp_val,
+                "<=" => var_val <= comp_val,
+                "!=" => var_val != comp_val,
+                _ => false,
+            };
+            if !cond_ok {
+                return false;
+            }
+        }
+
+        true
     }
 
     pub(crate) fn evaluate_math_expression(expr: &str) -> i32 {
