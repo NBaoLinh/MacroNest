@@ -2784,11 +2784,10 @@ impl CrosshairApp {
                                                      if step.action == MacroAction::ScanVisionOnce && is_pixel {
                                                          ui.add_space(4.0);
                                                          ui.horizontal(|ui| {
-                                                             ui.label(Self::tr_lang(language, "Save count to:", "Lưu số lượng vào:"));
                                                              let response = ui.add_sized(
                                                                  [100.0, 22.0],
                                                                  TextEdit::singleline(&mut step.if_variable_name)
-                                                                     .hint_text(RichText::new(Self::tr_lang(language, "variable name", "tên biến")).color(hint_color).weak()),
+                                                                     .hint_text(RichText::new(Self::tr_lang(language, "set variable", "gán biến")).color(hint_color).weak()),
                                                              );
                                                              Self::apply_vietnamese_input_if_changed(
                                                                  &response,
@@ -4868,11 +4867,10 @@ impl CrosshairApp {
                                                      if step.action == MacroAction::ScanVisionOnce && is_pixel {
                                                          ui.add_space(4.0);
                                                          ui.horizontal(|ui| {
-                                                             ui.label(Self::tr_lang(language, "Save count to:", "Lưu số lượng vào:"));
                                                              let response = ui.add_sized(
                                                                  [100.0, 22.0],
                                                                  TextEdit::singleline(&mut step.if_variable_name)
-                                                                     .hint_text(RichText::new(Self::tr_lang(language, "variable name", "tên biến")).color(hint_color).weak()),
+                                                                     .hint_text(RichText::new(Self::tr_lang(language, "set variable", "gán biến")).color(hint_color).weak()),
                                                              );
                                                              Self::apply_vietnamese_input_if_changed(
                                                                  &response,
@@ -5697,11 +5695,10 @@ impl CrosshairApp {
                                                      if step.action == MacroAction::ScanVisionOnce && selected_preset.map(|p| p.is_pixel_counter).unwrap_or(false) {
                                                          ui.add_space(4.0);
                                                          ui.horizontal(|ui| {
-                                                             ui.label(Self::tr_lang(language, "Save count to:", "Lưu số lượng vào:"));
                                                              let response = ui.add_sized(
                                                                  [100.0, 22.0],
                                                                  TextEdit::singleline(&mut step.if_variable_name)
-                                                                     .hint_text(RichText::new(Self::tr_lang(language, "variable name", "tên biến")).color(hint_color).weak()),
+                                                                     .hint_text(RichText::new(Self::tr_lang(language, "set variable", "gán biến")).color(hint_color).weak()),
                                                              );
                                                              Self::apply_vietnamese_input_if_changed(
                                                                  &response,

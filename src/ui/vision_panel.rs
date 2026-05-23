@@ -1,7 +1,7 @@
 use std::path::PathBuf;
 use std::time::{Duration, Instant};
 use std::fs;
-use eframe::egui::{self, Button, Margin, Slider, DragValue, Sense, TextEdit, Color32, pos2, vec2, Frame, TextBuffer, ColorImage, TextureOptions};
+use eframe::egui::{self, Button, Margin, Slider, DragValue, Sense, TextEdit, Color32, pos2, vec2, Frame, TextBuffer, ColorImage, TextureOptions, RichText};
 use crate::model::*;
 use crate::overlay::{OverlayCommand, UiCommand};
 use crate::window_list;
@@ -50,7 +50,7 @@ impl CrosshairApp {
                 self.persist();
             }
             if ui
-                .button(Self::tr_lang(language, "📊 + Pixel counter", "📊 + Đếm pixel"))
+                .button(Self::tr_lang(language, "+ Pixel counter", "+ Đếm pixel"))
                 .clicked()
             {
                 let id = self.state.next_vision_preset_id.max(1);
@@ -75,9 +75,9 @@ impl CrosshairApp {
 
 
         let categories = [
-            (Self::tr_lang(language, "Detect Image 🖼", "Phát hiện ảnh 🖼"), false, false),
-            (Self::tr_lang(language, "Detect Color 🎨", "Phát hiện màu 🎨"), true, false),
-            (Self::tr_lang(language, "Pixel Counter 📊", "Đếm pixel 📊"), true, true),
+            (Self::tr_lang(language, "Detect Image", "Phát hiện ảnh"), false, false),
+            (Self::tr_lang(language, "Detect Color", "Phát hiện màu"), true, false),
+            (Self::tr_lang(language, "Pixel Counter", "Đếm pixel"), true, true),
         ];
 
         for (title, filter_color, filter_counter) in categories {
@@ -625,9 +625,15 @@ impl CrosshairApp {
                                         if preset.is_pixel_counter {
                                             ui.add_space(8.0);
                                             ui.label(Self::tr_lang(language, "Variable", "Tên biến"));
+                                            let is_dark_theme = self.state.ui_theme == UiThemeMode::Dark;
+                                            let hint_color = if is_dark_theme {
+                                                Color32::from_rgba_unmultiplied(140, 140, 140, 150)
+                                            } else {
+                                                Color32::from_rgba_unmultiplied(100, 100, 100, 150)
+                                            };
                                             let text_edit = egui::TextEdit::singleline(&mut preset.pixel_counter_variable_name)
                                                 .desired_width(120.0)
-                                                .hint_text(format!("pixel_count_{}", preset.id));
+                                                .hint_text(RichText::new(format!("pixel_count_{}", preset.id)).color(hint_color).weak());
                                             live_sync |= ui.add(text_edit).changed();
                                         }
                                     });
