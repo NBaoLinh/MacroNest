@@ -3665,6 +3665,7 @@ impl CrosshairApp {
                                 .inner_margin(egui::Margin::symmetric(4, 2))
                                 .show(ui, |ui| {
                                     ui.horizontal(|ui| {
+                                        ui.spacing_mut().item_spacing.x = 2.0;
                                         if ui
                                             .add_sized([22.0, 20.0], Button::new(Self::material_icon_text(0xe145, 12.0)))
                                             .on_hover_text(Self::tr_lang(
@@ -3814,9 +3815,9 @@ impl CrosshairApp {
                                                      .strong()
                                              );
                                          }
-                                         // Shift column headers exactly to the right by 28.0 pixels to align perfectly with step row columns
-                                         ui.add_space(28.0);
-                                         ui.add_sized([30.0, 18.0], egui::Label::new(RichText::new("#").strong()));
+                                         // Shift column headers exactly to the right by 0.0 pixels to align perfectly with step row columns
+                                         ui.add_space(0.0);
+                                         ui.add_sized([20.0, 18.0], egui::Label::new(RichText::new("#").strong()));
                                           ui.allocate_ui_with_layout(
                                               egui::vec2(120.0, 18.0),
                                               egui::Layout::top_down(egui::Align::Center),
@@ -4058,6 +4059,7 @@ impl CrosshairApp {
                                     .inner_margin(egui::Margin::symmetric(4, 2))
                                     .show(ui, |ui| {
                                         ui.horizontal(|ui| {
+                                            ui.spacing_mut().item_spacing.x = 2.0;
                                             if ui
                                                 .add_sized([22.0, 20.0], Button::new(Self::material_icon_text(0xe145, 12.0)))
                                                 .on_hover_text(Self::tr_lang(language, "Add a new step below this one", "Thêm một bước mới phía dưới"))
@@ -4201,17 +4203,17 @@ impl CrosshairApp {
                                                   }
                                               }
                                             if is_active {
-                                                ui.add_sized([16.0, 20.0], egui::Label::new(
+                                                ui.add_sized([8.0, 20.0], egui::Label::new(
                                                     RichText::new("●")
                                                         .color(Color32::from_rgb(0, 255, 170))
-                                                        .size(14.0)
+                                                        .size(12.0)
                                                 ))
                                                 .on_hover_text(Self::tr_lang(language, "Step is running/active", "Bước này đang chạy/hoạt động"));
                                             } else {
-                                                ui.allocate_space(vec2(16.0, 20.0));
+                                                ui.allocate_space(vec2(8.0, 20.0));
                                             }
                                             let step_num_text = format!("{}", step_index + 1);
-                                            let label_width = if has_infinite_loop_warning || has_step_vision_leak || has_step_break_loop_warning { 18.0 } else { 30.0 };
+                                            let label_width = if has_infinite_loop_warning || has_step_vision_leak || has_step_break_loop_warning { 18.0 } else { 20.0 };
                                             ui.add_sized(
                                                 [label_width, 18.0],
                                                 egui::Label::new(
