@@ -412,12 +412,12 @@ mod windows_impl {
         let rgba = if copied {
             let len = (capture_width as usize) * (capture_height as usize) * 4;
             let pixels = std::slice::from_raw_parts(scaled_bits as *const u8, len);
-            let mut rgba = Vec::with_capacity(len);
-            for px in pixels.chunks_exact(4) {
-                rgba.push(px[2]);
-                rgba.push(px[1]);
-                rgba.push(px[0]);
-                rgba.push(255);
+            let mut rgba = vec![0u8; len];
+            for (dst, src) in rgba.chunks_exact_mut(4).zip(pixels.chunks_exact(4)) {
+                dst[0] = src[2];
+                dst[1] = src[1];
+                dst[2] = src[0];
+                dst[3] = 255;
             }
             rgba
         } else {
@@ -518,12 +518,12 @@ mod windows_impl {
         let rgba = if copied {
             let len = (width as usize) * (height as usize) * 4;
             let pixels = std::slice::from_raw_parts(bits as *const u8, len);
-            let mut rgba = Vec::with_capacity(len);
-            for px in pixels.chunks_exact(4) {
-                rgba.push(px[2]);
-                rgba.push(px[1]);
-                rgba.push(px[0]);
-                rgba.push(255);
+            let mut rgba = vec![0u8; len];
+            for (dst, src) in rgba.chunks_exact_mut(4).zip(pixels.chunks_exact(4)) {
+                dst[0] = src[2];
+                dst[1] = src[1];
+                dst[2] = src[0];
+                dst[3] = 255;
             }
             rgba
         } else {
