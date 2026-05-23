@@ -3665,8 +3665,18 @@ impl CrosshairApp {
                                 .show(ui, |ui| {
                                     ui.horizontal(|ui| {
                                         ui.spacing_mut().item_spacing.x = 2.0;
-                                        if ui
-                                            .add_sized([22.0, 20.0], Button::new(Self::material_icon_text(0xe145, 12.0)))
+                                        
+                                        let capture_target = CaptureRequest::MacroPresetRecordHotkey(group.id, preset.id);
+                                        let has_rec_hotkey = preset.record_hotkey.is_some();
+                                        let capture_active = self.capture_target.as_ref() == Some(&capture_target);
+                                        
+                                        ui.allocate_ui_with_layout(
+                                            egui::vec2(166.0, 20.0),
+                                            egui::Layout::left_to_right(egui::Align::Center),
+                                            |ui| {
+                                                ui.spacing_mut().item_spacing.x = 2.0;
+                                                if ui
+                                                    .add_sized([22.0, 20.0], Button::new(Self::material_icon_text(0xe145, 12.0)))
                                             .on_hover_text(Self::tr_lang(
                                                 language,
                                                 "Add step",
@@ -3717,10 +3727,6 @@ impl CrosshairApp {
                                         }
 
                                         // Keyboard Trigger Hotkey Capture UI
-                                        let capture_target = CaptureRequest::MacroPresetRecordHotkey(group.id, preset.id);
-                                        let has_rec_hotkey = preset.record_hotkey.is_some();
-                                        
-                                        let capture_active = self.capture_target.as_ref() == Some(&capture_target);
                                         let pulse = if capture_active {
                                             let capture_time = ui.ctx().input(|input| input.time) as f32;
                                             0.5 + 0.5 * (capture_time * 6.0).sin().abs()
@@ -3869,6 +3875,7 @@ impl CrosshairApp {
                                                 live_sync = true;
                                             }
                                         }
+                                        });
                                     });
                                 });
 
@@ -4063,8 +4070,21 @@ impl CrosshairApp {
                                     .show(ui, |ui| {
                                         ui.horizontal(|ui| {
                                             ui.spacing_mut().item_spacing.x = 2.0;
-                                            if ui
-                                                .add_sized([22.0, 20.0], Button::new(Self::material_icon_text(0xe145, 12.0)))
+                                            
+                                            let is_dark_theme = self.state.ui_theme == UiThemeMode::Dark;
+                                            let hint_color = if is_dark_theme {
+                                                Color32::from_rgba_unmultiplied(140, 140, 140, 150)
+                                            } else {
+                                                Color32::from_rgba_unmultiplied(100, 100, 100, 150)
+                                            };
+                                            
+                                            ui.allocate_ui_with_layout(
+                                                egui::vec2(166.0, 20.0),
+                                                egui::Layout::left_to_right(egui::Align::Center),
+                                                |ui| {
+                                                    ui.spacing_mut().item_spacing.x = 2.0;
+                                                    if ui
+                                                        .add_sized([22.0, 20.0], Button::new(Self::material_icon_text(0xe145, 12.0)))
                                                 .on_hover_text(Self::tr_lang(language, "Add a new step below this one", "Thêm một bước mới phía dưới"))
                                                 .clicked()
                                             {
@@ -4092,12 +4112,7 @@ impl CrosshairApp {
                                                     ui.input(|input| input.modifiers.shift),
                                                 ));
                                             }
-                                            let is_dark_theme = self.state.ui_theme == UiThemeMode::Dark;
-                                            let hint_color = if is_dark_theme {
-                                                Color32::from_rgba_unmultiplied(140, 140, 140, 150)
-                                            } else {
-                                                Color32::from_rgba_unmultiplied(100, 100, 100, 150)
-                                            };
+
                                             ui.scope(|ui| {
                                                 ui.visuals_mut().widgets.inactive.bg_fill = Color32::TRANSPARENT;
                                                 ui.visuals_mut().widgets.inactive.weak_bg_fill = Color32::TRANSPARENT;
@@ -4164,6 +4179,7 @@ impl CrosshairApp {
                                                     )
                                                     .on_hover_cursor(egui::CursorIcon::Grab);
                                                 drag_handle.dnd_set_drag_payload(drag_payload.clone());
+                                            });
                                             });
                                             if has_infinite_loop_warning || has_step_vision_leak || has_step_break_loop_warning {
                                                   let warn_color = if has_infinite_loop_warning || has_step_vision_leak {
