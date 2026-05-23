@@ -837,7 +837,6 @@ impl CrosshairApp {
         if let Some(cache) = self.vision_preview_cache.get(&preset.id)
             && cache.source_path == file_path
             && cache.source_modified == modified
-            && cache.updated_at.elapsed() < Duration::from_millis(250)
         {
             return Some(cache.view.clone());
         }

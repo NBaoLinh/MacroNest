@@ -178,6 +178,17 @@ mod windows_overlay {
     pub static ACTIVE_MACRO_STEPS: Lazy<Mutex<HashMap<u32, HashSet<usize>>>> =
         Lazy::new(|| Mutex::new(HashMap::new()));
 
+    #[derive(Clone)]
+    struct CachedTemplate {
+        rgba: Vec<u8>,
+        width: usize,
+        height: usize,
+        modified: Option<std::time::SystemTime>,
+    }
+
+    static TEMPLATE_CACHE: Lazy<Mutex<HashMap<u32, CachedTemplate>>> =
+        Lazy::new(|| Mutex::new(HashMap::new()));
+
     pub fn add_active_step(preset_id: u32, step_index: usize) {
         let mut active = ACTIVE_MACRO_STEPS.lock();
         active.entry(preset_id).or_default().insert(step_index);
@@ -8271,12 +8282,44 @@ mod windows_overlay {
         if !template_file.exists() {
             bail!("No image template has been captured yet.");
         }
-        let template = image::open(&template_file)
-            .with_context(|| format!("Failed to open template {}", template_file.display()))?
-            .to_rgba8();
-        let template_width = template.width() as usize;
-        let template_height = template.height() as usize;
-        let template_rgba = template.into_raw();
+
+        let current_modified = std::fs::metadata(&template_file)
+            .and_then(|meta| meta.modified())
+            .ok();
+
+        let cached_data = {
+            let cache = TEMPLATE_CACHE.lock();
+            cache.get(&preset.id).cloned()
+        };
+
+        let use_cache = if let Some(ref cached) = cached_data {
+            cached.modified == current_modified
+        } else {
+            false
+        };
+
+        let (template_rgba, template_width, template_height) = if use_cache {
+            let cached = cached_data.unwrap();
+            (cached.rgba, cached.width, cached.height)
+        } else {
+            let template = image::open(&template_file)
+                .with_context(|| format!("Failed to open template {}", template_file.display()))?
+                .to_rgba8();
+            let w = template.width() as usize;
+            let h = template.height() as usize;
+            let rgba = template.into_raw();
+
+            let new_cached = CachedTemplate {
+                rgba: rgba.clone(),
+                width: w,
+                height: h,
+                modified: current_modified,
+            };
+            let mut cache = TEMPLATE_CACHE.lock();
+            cache.insert(preset.id, new_cached);
+
+            (rgba, w, h)
+        };
         let anchor_hint = match (preset.last_capture_screen_x, preset.last_capture_screen_y) {
             (Some(x), Some(y)) => Some((x, y)),
             _ => None,
