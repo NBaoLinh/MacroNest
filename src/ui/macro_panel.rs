@@ -2904,7 +2904,7 @@ impl CrosshairApp {
                                                                  "Infinite",
                                                                  "Infinite",
                                                              ))
-                                                             .color(Color32::BLACK)
+                                                             .color(Color32::WHITE)
                                                              .strong(),
                                                          )
                                                          .changed()
@@ -5119,7 +5119,7 @@ impl CrosshairApp {
                                                                  "Infinite",
                                                                  "Infinite",
                                                              ))
-                                                             .color(Color32::from_rgb(20, 20, 20)),
+                                                             .color(Color32::WHITE),
                                                          )
                                                          .changed()
                                                      {
