@@ -462,6 +462,8 @@ pub struct MacroStep {
     pub key: String,
     pub action: MacroAction,
     pub delay_ms: u64,
+    #[serde(default)]
+    pub delay_expr: String,
     #[serde(default = "default_true")]
     pub enabled: bool,
     pub x: i32,
@@ -537,6 +539,7 @@ impl Default for MacroStep {
             key: String::new(),
             action: MacroAction::KeyPress,
             delay_ms: 0,
+            delay_expr: String::new(),
             enabled: true,
             x: 0,
             y: 0,
@@ -579,6 +582,22 @@ impl Default for MacroStep {
 }
 
 impl MacroStep {
+    pub fn get_delay_ms(&self) -> u64 {
+        if !self.delay_expr.trim().is_empty() {
+            let interpolated = crate::overlay::interpolate_variables(&self.delay_expr);
+            let base_val = crate::overlay::evaluate_math_expression(&interpolated);
+            let multiplier = match self.wait_time_unit.as_str() {
+                "s" => 1000,
+                "m" => 60000,
+                "h" => 3600000,
+                _ => 1, // ms or empty
+            };
+            (base_val.max(0) as u64) * multiplier
+        } else {
+            self.delay_ms
+        }
+    }
+
     pub fn is_infinite_loop(&self) -> bool {
         self.action == MacroAction::LoopStart && matches!(
             self.key.trim().to_ascii_lowercase().as_str(),

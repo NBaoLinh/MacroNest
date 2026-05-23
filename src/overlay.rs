@@ -5327,7 +5327,7 @@ mod windows_overlay {
                 continue;
             }
             let hold_duration_ms = if step.action == MacroAction::KeyDown {
-                step.delay_ms
+                step.get_delay_ms()
             } else {
                 0
             };
@@ -5339,7 +5339,7 @@ mod windows_overlay {
             if step.action != MacroAction::KeyDown
                 && sleep_for_macro_delay(
                     preset_id,
-                    step.delay_ms,
+                    step.get_delay_ms(),
                     stop_immediately_on_retrigger,
                     target_window_title,
                     extra_target_window_titles,
@@ -5356,7 +5356,7 @@ mod windows_overlay {
                     };
                     let loop_body = &steps[index + 1..loop_end];
                     let loop_body_indices = &step_indices[index + 1..loop_end];
-                    let loop_end_delay_ms = steps[loop_end].delay_ms;
+                    let loop_end_delay_ms = steps[loop_end].get_delay_ms();
                     if is_infinite_loop_marker(&step.key) {
                         loop {
                             match execute_macro_sequence(
@@ -5470,31 +5470,7 @@ mod windows_overlay {
                         }
                     }
                 }
-                MacroAction::Wait => {
-                    if !step.key.trim().is_empty() {
-                        let interpolated = interpolate_variables(&step.key);
-                        let base_val = evaluate_math_expression(&interpolated);
-                        let multiplier = match step.wait_time_unit.as_str() {
-                            "s" => 1000,
-                            "m" => 60000,
-                            "h" => 3600000,
-                            _ => 1, // ms or empty
-                        };
-                        let delay_ms = base_val.max(0) as u64 * multiplier;
-                        if delay_ms > 0 {
-                            if sleep_for_macro_delay(
-                                preset_id,
-                                delay_ms,
-                                stop_immediately_on_retrigger,
-                                target_window_title,
-                                extra_target_window_titles,
-                                match_duplicate_window_titles,
-                            ) {
-                                return MacroRunFlow::StopExecution;
-                            }
-                        }
-                    }
-                }
+
                 MacroAction::ApplyWindowPreset => {
                     let _ = apply_window_preset_by_id(&step.key);
                 }
@@ -5730,7 +5706,7 @@ mod windows_overlay {
                 continue;
             }
             let hold_duration_ms = if step.action == MacroAction::KeyDown {
-                step.delay_ms
+                step.get_delay_ms()
             } else {
                 0
             };
@@ -5742,7 +5718,7 @@ mod windows_overlay {
             if step.action != MacroAction::KeyDown
                 && sleep_for_hold_delay(
                     preset_id,
-                    step.delay_ms,
+                    step.get_delay_ms(),
                     stop_immediately_on_retrigger,
                     run_token,
                     target_window_title,
@@ -5760,7 +5736,7 @@ mod windows_overlay {
                     };
                     let loop_body = &steps[index + 1..loop_end];
                     let loop_body_indices = &step_indices[index + 1..loop_end];
-                    let loop_end_delay_ms = steps[loop_end].delay_ms;
+                    let loop_end_delay_ms = steps[loop_end].get_delay_ms();
                     if is_infinite_loop_marker(&step.key) {
                         loop {
                             match execute_hold_macro_sequence(
@@ -5874,31 +5850,7 @@ mod windows_overlay {
                         }
                     }
                 }
-                MacroAction::Wait => {
-                    if !step.key.trim().is_empty() {
-                        let interpolated = interpolate_variables(&step.key);
-                        let base_val = evaluate_math_expression(&interpolated);
-                        let multiplier = match step.wait_time_unit.as_str() {
-                            "s" => 1000,
-                            "m" => 60000,
-                            "h" => 3600000,
-                            _ => 1, // ms or empty
-                        };
-                        let delay_ms = base_val.max(0) as u64 * multiplier;
-                        if delay_ms > 0 {
-                            if sleep_for_macro_delay(
-                                preset_id,
-                                delay_ms,
-                                stop_immediately_on_retrigger,
-                                target_window_title,
-                                extra_target_window_titles,
-                                match_duplicate_window_titles,
-                            ) {
-                                return MacroRunFlow::StopExecution;
-                            }
-                        }
-                    }
-                }
+
                 MacroAction::ApplyWindowPreset => {
                     let _ = apply_window_preset_by_id(&step.key);
                 }

@@ -3791,8 +3791,8 @@ impl CrosshairApp {
                                          // Shift column headers exactly to the right by 28.0 pixels to align perfectly with step row columns
                                          ui.add_space(28.0);
                                          ui.add_sized([30.0, 18.0], egui::Label::new(RichText::new("#").strong()));
-                                         ui.add_sized([54.0, 18.0], egui::Label::new(RichText::new(Self::tr_lang(language, "Delay", "Delay")).strong()));
-                                         ui.add_sized([154.0, 18.0], egui::Label::new(RichText::new(Self::tr_lang(language, "Action", "Action")).strong()));
+                                         ui.add_sized([120.0, 18.0], egui::Label::new(RichText::new(Self::tr_lang(language, "Delay", "Delay")).strong()));
+                                         ui.add_sized([148.0, 18.0], egui::Label::new(RichText::new(Self::tr_lang(language, "Action", "Action")).strong()));
                                          ui.add_sized([146.0, 18.0], egui::Label::new(""));
 
                                         let has_selected_steps = selected_steps_snapshot.iter().any(|(g_id, p_id, _)| *g_id == group.id && *p_id == preset.id);
@@ -4193,27 +4193,73 @@ impl CrosshairApp {
                                                     },
                                                 ),
                                             );
-                                            if step.action == MacroAction::Wait {
-                                                let response = ui.add_sized(
-                                                    [54.0, 18.0],
-                                                    TextEdit::singleline(&mut step.key)
-                                                        .hint_text("ms/expr"),
-                                                );
-                                                Self::apply_vietnamese_input_if_changed(
-                                                    &response,
-                                                    self.state.vietnamese_input_enabled,
-                                                    self.state.vietnamese_input_mode,
-                                                    &mut step.key,
-                                                );
-                                                live_sync |= response.changed();
-                                            } else {
-                                                live_sync |= ui
-                                                    .add_sized(
-                                                        [54.0, 18.0],
-                                                        DragValue::new(&mut step.delay_ms).range(0..=600000),
-                                                    )
-                                                    .changed();
+                                            if step.delay_expr.is_empty() && step.delay_ms > 0 {
+                                                step.delay_expr = step.delay_ms.to_string();
                                             }
+                                            ui.allocate_ui_with_layout(
+                                                egui::vec2(120.0, 18.0),
+                                                egui::Layout::left_to_right(egui::Align::Center),
+                                                |ui| {
+                                                    ui.spacing_mut().item_spacing.x = 2.0;
+                                                    
+                                                    // 1. TextEdit for editing the formula
+                                                    let response = ui.add_sized(
+                                                        [50.0, 18.0],
+                                                        TextEdit::singleline(&mut step.delay_expr)
+                                                            .hint_text("ms/expr"),
+                                                    );
+                                                    Self::apply_vietnamese_input_if_changed(
+                                                        &response,
+                                                        self.state.vietnamese_input_enabled,
+                                                        self.state.vietnamese_input_mode,
+                                                        &mut step.delay_expr,
+                                                    );
+                                                    if response.changed() {
+                                                        if let Ok(val) = step.delay_expr.trim().parse::<u64>() {
+                                                            step.delay_ms = val;
+                                                        } else {
+                                                            step.delay_ms = 0;
+                                                        }
+                                                        live_sync = true;
+                                                    }
+
+                                                    // 2. DragValue for dragging and adjusting the expression
+                                                    let interpolated = crate::overlay::interpolate_variables(&step.delay_expr);
+                                                    let old_eval = crate::overlay::evaluate_math_expression(&interpolated);
+                                                    let mut temp_eval = old_eval;
+                                                    
+                                                    let drag_response = ui.add_sized(
+                                                        [32.0, 18.0],
+                                                        DragValue::new(&mut temp_eval).range(0..=600000),
+                                                    );
+                                                    if drag_response.changed() {
+                                                        let delta = temp_eval - old_eval;
+                                                        step.delay_expr = Self::adjust_expression_by_delta(&step.delay_expr, delta);
+                                                        if let Ok(val) = step.delay_expr.trim().parse::<u64>() {
+                                                            step.delay_ms = val;
+                                                        } else {
+                                                            step.delay_ms = 0;
+                                                        }
+                                                        live_sync = true;
+                                                    }
+
+                                                    // 3. ComboBox for the unit
+                                                    let unit_text = if step.wait_time_unit.is_empty() { "ms" } else { &step.wait_time_unit };
+                                                    egui::ComboBox::from_id_salt((group.id, preset.id, step_index, "delay-unit"))
+                                                        .width(28.0)
+                                                        .selected_text(unit_text)
+                                                        .show_ui(ui, |ui| {
+                                                            for unit in &["ms", "s", "m", "h"] {
+                                                                let label = *unit;
+                                                                let val = if label == "ms" { "" } else { label };
+                                                                if ui.selectable_label(step.wait_time_unit == val, label).clicked() {
+                                                                    step.wait_time_unit = val.to_string();
+                                                                    live_sync = true;
+                                                                }
+                                                            }
+                                                        });
+                                                }
+                                            );
                                             let action_combo = egui::ComboBox::from_id_salt((group.id, preset.id, step_index, "action"))
                                                 .close_behavior(egui::PopupCloseBehavior::CloseOnClickOutside)
                                                 .width(148.0)
@@ -4311,40 +4357,7 @@ impl CrosshairApp {
                                             let action_supports_capture =
                                                 Self::macro_action_supports_capture(step.action);
                                             if action_uses_key {
-                                                  if step.action == MacroAction::Wait {
-                                                      ui.scope(|ui| {
-                                                          ui.spacing_mut().item_spacing.x = 4.0;
-                                                          ui.horizontal(|ui| {
-                                                              let interpolated = crate::overlay::interpolate_variables(&step.key);
-                                                              let old_eval = crate::overlay::evaluate_math_expression(&interpolated);
-                                                              let mut temp_eval = old_eval;
-                                                              let drag_response = ui.add_sized(
-                                                                  [48.0, 18.0],
-                                                                  DragValue::new(&mut temp_eval).range(0..=1_000_000),
-                                                              );
-                                                              if drag_response.changed() {
-                                                                  let delta = temp_eval - old_eval;
-                                                                  step.key = Self::adjust_expression_by_delta(&step.key, delta);
-                                                                  live_sync = true;
-                                                              }
-
-                                                              let unit_text = if step.wait_time_unit.is_empty() { "ms" } else { &step.wait_time_unit };
-                                                              egui::ComboBox::from_id_salt((group.id, preset.id, step_index, "wait-unit"))
-                                                                  .width(36.0)
-                                                                  .selected_text(unit_text)
-                                                                  .show_ui(ui, |ui| {
-                                                                      for unit in &["ms", "s", "m", "h"] {
-                                                                          let label = *unit;
-                                                                          let val = if label == "ms" { "" } else { label };
-                                                                          if ui.selectable_label(step.wait_time_unit == val, label).clicked() {
-                                                                              step.wait_time_unit = val.to_string();
-                                                                              live_sync = true;
-                                                                          }
-                                                                      }
-                                                                  });
-                                                          });
-                                                      });
-                                                 } else if step.action == MacroAction::ApplyWindowPreset {
+                                                 if step.action == MacroAction::ApplyWindowPreset {
                                                     let selected_id = step.key.trim().parse::<u32>().ok();
                                                     let selected_label = selected_id
                                                         .and_then(|id| {
