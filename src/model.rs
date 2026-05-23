@@ -1394,9 +1394,9 @@ pub struct VisionPreset {
     pub color_priority_from_anchor: bool,
     pub color_priority_anchor_screen_x: Option<i32>,
     pub color_priority_anchor_screen_y: Option<i32>,
-    #[serde(default)]
+    #[serde(skip)]
     pub image_search_move_advanced_open: bool,
-    #[serde(default)]
+    #[serde(skip)]
     pub image_search_advanced_open: bool,
     #[serde(default = "default_image_search_color_tolerance")]
     pub color_tolerance: u8,
