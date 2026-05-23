@@ -3791,7 +3791,13 @@ impl CrosshairApp {
                                          // Shift column headers exactly to the right by 28.0 pixels to align perfectly with step row columns
                                          ui.add_space(28.0);
                                          ui.add_sized([30.0, 18.0], egui::Label::new(RichText::new("#").strong()));
-                                         ui.add_sized([120.0, 18.0], egui::Label::new(RichText::new(Self::tr_lang(language, "Delay", "Delay")).strong()));
+                                          ui.allocate_ui_with_layout(
+                                              egui::vec2(120.0, 18.0),
+                                              egui::Layout::top_down(egui::Align::Center),
+                                              |ui| {
+                                                  ui.label(RichText::new(Self::tr_lang(language, "Delay", "Delay")).strong());
+                                              }
+                                          );
                                          ui.add_sized([148.0, 18.0], egui::Label::new(RichText::new(Self::tr_lang(language, "Action", "Action")).strong()));
                                          ui.add_sized([146.0, 18.0], egui::Label::new(""));
 
@@ -6587,10 +6593,10 @@ impl CrosshairApp {
         }
         let trimmed = expr.trim();
         if trimmed.is_empty() {
-            return delta.to_string();
+            return delta.max(0).to_string();
         }
         if let Ok(val) = trimmed.parse::<i32>() {
-            return (val + delta).to_string();
+            return (val + delta).max(0).to_string();
         }
         if let Some(pos) = trimmed.rfind(|c| c == '+' || c == '-') {
             let (left, right) = trimmed.split_at(pos);

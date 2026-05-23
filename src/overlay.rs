@@ -3281,12 +3281,20 @@ mod windows_overlay {
             return Ok(());
         }
 
-        let screen_width = GetSystemMetrics(SM_CXSCREEN).max(1) as u32;
-        let screen_height = GetSystemMetrics(SM_CYSCREEN).max(1) as u32;
-        let mut canvas =
-            RgbaImage::from_pixel(screen_width, screen_height, image::Rgba([0, 0, 0, 0]));
+        let mut min_x = i32::MAX;
+        let mut min_y = i32::MAX;
+        let mut max_x = i32::MIN;
+        let mut max_y = i32::MIN;
 
-        for profile in visible_profiles {
+        struct ActiveCrosshair {
+            layer: RgbaImage,
+            left: i32,
+            top: i32,
+        }
+
+        let mut actives = Vec::new();
+
+        for profile in &visible_profiles {
             let custom_path = profile
                 .style
                 .custom_asset
@@ -3295,25 +3303,42 @@ mod windows_overlay {
             let rendered = render_crosshair(&profile.style, custom_path.as_deref())?;
             let layer = RgbaImage::from_raw(rendered.width, rendered.height, rendered.rgba)
                 .context("Failed to build crosshair layer")?;
-            let left = (profile.style.x_offset - rendered.center_x) as i64;
-            let top = (profile.style.y_offset - rendered.center_y) as i64;
-            image::imageops::overlay(&mut canvas, &layer, left, top);
+            let left = profile.style.x_offset - rendered.center_x;
+            let top = profile.style.y_offset - rendered.center_y;
+            
+            min_x = min_x.min(left);
+            min_y = min_y.min(top);
+            max_x = max_x.max(left + rendered.width as i32);
+            max_y = max_y.max(top + rendered.height as i32);
+
+            actives.push(ActiveCrosshair { layer, left, top });
         }
 
-        paint_crosshair_canvas(runtime.overlay_hwnd, canvas)?;
+        let width = (max_x - min_x).max(1) as u32;
+        let height = (max_y - min_y).max(1) as u32;
+
+        let mut canvas = RgbaImage::from_pixel(width, height, image::Rgba([0, 0, 0, 0]));
+
+        for active in actives {
+            let rel_left = (active.left - min_x) as i64;
+            let rel_top = (active.top - min_y) as i64;
+            image::imageops::overlay(&mut canvas, &active.layer, rel_left, rel_top);
+        }
+
+        paint_crosshair_canvas(runtime.overlay_hwnd, canvas, min_x, min_y)?;
         let _ = ShowWindow(runtime.overlay_hwnd, SW_SHOWNA);
         Ok(())
     }
 
-    unsafe fn paint_crosshair_canvas(hwnd: HWND, canvas: RgbaImage) -> Result<()> {
+    unsafe fn paint_crosshair_canvas(hwnd: HWND, canvas: RgbaImage, x: i32, y: i32) -> Result<()> {
         let width = canvas.width().max(1);
         let height = canvas.height().max(1);
 
         let _ = SetWindowPos(
             hwnd,
             Some(HWND_TOPMOST),
-            0,
-            0,
+            x,
+            y,
             width as i32,
             height as i32,
             SWP_NOACTIVATE | SWP_SHOWWINDOW,
