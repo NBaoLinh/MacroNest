@@ -4202,48 +4202,93 @@ impl CrosshairApp {
                                                 |ui| {
                                                     ui.spacing_mut().item_spacing.x = 2.0;
                                                     
-                                                    // 1. TextEdit for editing the formula
-                                                    let response = ui.add_sized(
-                                                        [50.0, 18.0],
-                                                        TextEdit::singleline(&mut step.delay_expr)
-                                                            .hint_text("ms/expr"),
-                                                    );
-                                                    Self::apply_vietnamese_input_if_changed(
-                                                        &response,
-                                                        self.state.vietnamese_input_enabled,
-                                                        self.state.vietnamese_input_mode,
-                                                        &mut step.delay_expr,
-                                                    );
-                                                    if response.changed() {
-                                                        if let Ok(val) = step.delay_expr.trim().parse::<u64>() {
-                                                            step.delay_ms = val;
-                                                        } else {
-                                                            step.delay_ms = 0;
-                                                        }
-                                                        live_sync = true;
-                                                    }
-
-                                                    // 2. DragValue for dragging and adjusting the expression
-                                                    let interpolated = crate::overlay::interpolate_variables(&step.delay_expr);
-                                                    let old_eval = crate::overlay::evaluate_math_expression(&interpolated);
-                                                    let mut temp_eval = old_eval;
+                                                    let edit_id = ui.make_persistent_id((group.id, preset.id, step_index, "delay-edit-state"));
+                                                    let is_editing = ui.memory(|mem| mem.data.get_temp::<bool>(edit_id).unwrap_or(false));
                                                     
-                                                    let drag_response = ui.add_sized(
-                                                        [32.0, 18.0],
-                                                        DragValue::new(&mut temp_eval).range(0..=600000),
-                                                    );
-                                                    if drag_response.changed() {
-                                                        let delta = temp_eval - old_eval;
-                                                        step.delay_expr = Self::adjust_expression_by_delta(&step.delay_expr, delta);
-                                                        if let Ok(val) = step.delay_expr.trim().parse::<u64>() {
-                                                            step.delay_ms = val;
-                                                        } else {
-                                                            step.delay_ms = 0;
+                                                    if is_editing {
+                                                        let response = ui.add_sized(
+                                                            [78.0, 18.0],
+                                                            TextEdit::singleline(&mut step.delay_expr)
+                                                                .hint_text("0"),
+                                                        );
+                                                        Self::apply_vietnamese_input_if_changed(
+                                                            &response,
+                                                            self.state.vietnamese_input_enabled,
+                                                            self.state.vietnamese_input_mode,
+                                                            &mut step.delay_expr,
+                                                        );
+                                                        
+                                                        let just_started_id = edit_id.with("just_started");
+                                                        let just_started = ui.memory(|mem| mem.data.get_temp::<bool>(just_started_id).unwrap_or(false));
+                                                        if just_started {
+                                                            response.request_focus();
+                                                            ui.memory_mut(|mem| mem.data.insert_temp(just_started_id, false));
                                                         }
-                                                        live_sync = true;
+                                                        
+                                                        if response.changed() {
+                                                            if let Ok(val) = step.delay_expr.trim().parse::<u64>() {
+                                                                step.delay_ms = val;
+                                                            } else {
+                                                                step.delay_ms = 0;
+                                                            }
+                                                            live_sync = true;
+                                                        }
+                                                        
+                                                        if response.lost_focus() || ui.input(|i| i.key_pressed(egui::Key::Enter)) {
+                                                            ui.memory_mut(|mem| mem.data.insert_temp(edit_id, false));
+                                                        }
+                                                    } else {
+                                                        let display_text = if step.delay_expr.is_empty() {
+                                                            "0".to_string()
+                                                        } else {
+                                                            step.delay_expr.clone()
+                                                        };
+                                                        
+                                                        let response = ui.add_sized(
+                                                            [78.0, 18.0],
+                                                            egui::Button::new(display_text)
+                                                                .wrap_mode(egui::TextWrapMode::Truncate)
+                                                                .sense(egui::Sense::click_and_drag()),
+                                                        );
+                                                        
+                                                        if response.clicked() {
+                                                            ui.memory_mut(|mem| {
+                                                                mem.data.insert_temp(edit_id, true);
+                                                                mem.data.insert_temp(edit_id.with("just_started"), true);
+                                                            });
+                                                        } else if response.dragged() {
+                                                            let accum_id = edit_id.with("drag-accum");
+                                                            let mut accum = ui.memory(|mem| mem.data.get_temp::<f32>(accum_id).unwrap_or(0.0));
+                                                            accum += response.drag_delta().x;
+                                                            
+                                                            let step_size = if ui.input(|i| i.modifiers.shift) {
+                                                                10.0
+                                                            } else {
+                                                                1.0
+                                                            };
+                                                            
+                                                            let pixels_per_unit = 2.0;
+                                                            let delta_units = (accum / pixels_per_unit).trunc();
+                                                            if delta_units != 0.0 {
+                                                                accum -= delta_units * pixels_per_unit;
+                                                                let delta_int = (delta_units * step_size).round() as i32;
+                                                                if delta_int != 0 {
+                                                                    step.delay_expr = Self::adjust_expression_by_delta(&step.delay_expr, delta_int);
+                                                                    if let Ok(val) = step.delay_expr.trim().parse::<u64>() {
+                                                                        step.delay_ms = val;
+                                                                    } else {
+                                                                        step.delay_ms = 0;
+                                                                    }
+                                                                    live_sync = true;
+                                                                }
+                                                            }
+                                                            ui.memory_mut(|mem| mem.data.insert_temp(accum_id, accum));
+                                                        } else {
+                                                            let accum_id = edit_id.with("drag-accum");
+                                                            ui.memory_mut(|mem| mem.data.insert_temp(accum_id, 0.0));
+                                                        }
                                                     }
-
-                                                    // 3. ComboBox for the unit
+                                                    
                                                     let unit_text = if step.wait_time_unit.is_empty() { "ms" } else { &step.wait_time_unit };
                                                     egui::ComboBox::from_id_salt((group.id, preset.id, step_index, "delay-unit"))
                                                         .width(28.0)
