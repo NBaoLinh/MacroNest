@@ -747,6 +747,7 @@ impl CrosshairApp {
                 None
             };
             let preset = &mut self.state.pin_presets[index];
+            preset.use_source_crop = true;
             preset.enabled = preset.hotkey.is_some() || !preset.trigger_keys.trim().is_empty();
             Self::show_preset_card(ui, preset.enabled, |ui| {
                 ui.horizontal(|ui| {
@@ -914,38 +915,6 @@ impl CrosshairApp {
                             .changed();
                         ui.end_row();
 
-                        ui.label(Self::tr_lang(
-                            language,
-                            "Source Crop",
-                            "Cắt vùng nguồn",
-                        ));
-                        let source_crop_changed = ui
-                            .checkbox(
-                                &mut preset.use_source_crop,
-                                Self::tr_lang(
-                                    language,
-                                    "Crop one part of the source window",
-                                    "Cắt một phần của cửa sổ nguồn",
-                                ),
-                            )
-                            .changed();
-                        if source_crop_changed
-                            && preset.use_source_crop
-                            && let Some(preview_frame) = preview.as_ref()
-                        {
-                            preset.source_x = 0;
-                            preset.source_y = 0;
-                            preset.source_width = preview_frame.logical_width.max(1);
-                            preset.source_height = preview_frame.logical_height.max(1);
-                            preset.source_crop_initialized = true;
-                            preset.source_crop_fit_version = 1;
-                            live_sync = true;
-                        } else if source_crop_changed && !preset.use_source_crop {
-                            preset.source_crop_initialized = false;
-                            preset.source_crop_fit_version = 0;
-                        }
-                        live_sync |= source_crop_changed;
-                        ui.end_row();
                     });
 
                 if preset.use_custom_bounds {
@@ -2064,8 +2033,8 @@ impl CrosshairApp {
 
         let size_text = format!("{}x{}", *width, *height);
         ui.painter().text(
-            rect.left_top() + egui::vec2(4.0, 4.0),
-            egui::Align2::LEFT_TOP,
+            rect.left_top() + egui::vec2(0.0, -4.0),
+            egui::Align2::LEFT_BOTTOM,
             size_text,
             egui::FontId::proportional(10.0),
             Color32::from_rgb(124, 240, 164),

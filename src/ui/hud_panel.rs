@@ -697,8 +697,8 @@ impl CrosshairApp {
 
         let size_text = format!("{}x{}", preset.width, preset.height);
         ui.painter().text(
-            rect.left_top() + egui::vec2(4.0, 4.0),
-            egui::Align2::LEFT_TOP,
+            rect.left_top() + egui::vec2(0.0, -4.0),
+            egui::Align2::LEFT_BOTTOM,
             size_text,
             egui::FontId::proportional(10.0),
             Color32::from_rgb(124, 240, 164),
