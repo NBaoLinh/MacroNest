@@ -3816,7 +3816,11 @@ impl CrosshairApp {
                                          }
                                          // Shift column headers exactly to the right by 0.0 pixels to align perfectly with step row columns
                                          ui.add_space(0.0);
-                                         ui.add_sized([20.0, 18.0], egui::Label::new(RichText::new("#").strong()));
+                                         ui.add_sized(
+                                             [20.0, 18.0],
+                                             egui::Label::new(RichText::new("#").strong())
+                                                 .halign(egui::Align::Center),
+                                         );
                                           ui.allocate_ui_with_layout(
                                               egui::vec2(120.0, 18.0),
                                               egui::Layout::top_down(egui::Align::Center),
@@ -4209,7 +4213,7 @@ impl CrosshairApp {
                                                 ))
                                                 .on_hover_text(Self::tr_lang(language, "Step is running/active", "Bước này đang chạy/hoạt động"));
                                             } else {
-                                                ui.allocate_space(vec2(8.0, 20.0));
+                                                ui.add_sized([8.0, 20.0], egui::Label::new(""));
                                             }
                                             let step_num_text = format!("{}", step_index + 1);
                                             let label_width = if has_infinite_loop_warning || has_step_vision_leak || has_step_break_loop_warning { 18.0 } else { 20.0 };
@@ -4224,7 +4228,8 @@ impl CrosshairApp {
                                                     } else {
                                                         RichText::new(step_num_text).monospace()
                                                     },
-                                                ),
+                                                )
+                                                .halign(egui::Align::Center),
                                             );
                                             if step.delay_expr.is_empty() && step.delay_ms > 0 {
                                                 step.delay_expr = step.delay_ms.to_string();
@@ -4234,6 +4239,8 @@ impl CrosshairApp {
                                                 egui::Layout::left_to_right(egui::Align::Center),
                                                 |ui| {
                                                     ui.spacing_mut().item_spacing.x = 2.0;
+                                                    ui.spacing_mut().interact_size.y = 18.0;
+                                                    ui.spacing_mut().interact_size.x = 40.0;
                                                     
                                                     let edit_id = ui.make_persistent_id((group.id, preset.id, step_index, "delay-edit-state"));
                                                     let is_editing = ui.memory(|mem| mem.data.get_temp::<bool>(edit_id).unwrap_or(false));
