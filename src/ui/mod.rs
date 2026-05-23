@@ -3002,8 +3002,8 @@ impl CrosshairApp {
             MacroAction::MouseX2Up => "MouseX2Up",
             MacroAction::MouseWheelUp => "MouseWheelUp",
             MacroAction::MouseWheelDown => "MouseWheelDown",
-            MacroAction::MouseMoveAbsolute => "MouseMoveAbsolute",
-            MacroAction::MouseMoveRelative => "MouseMoveRelative",
+            MacroAction::MouseMoveAbsolute => "MoveAbs",
+            MacroAction::MouseMoveRelative => "MoveRel",
             MacroAction::IfStart => "IfStart",
             MacroAction::Else => "Else",
             MacroAction::IfEnd => "IfEnd",
@@ -3498,29 +3498,12 @@ impl CrosshairApp {
     }
 
     fn macro_action_selected_label(action: MacroAction, language: UiLanguage) -> String {
-        if let Some(tag) = Self::macro_action_pair_tag(action) {
-            match language {
-                UiLanguage::Vietnamese => {
-                    format!(
-                        "[{tag}] {}",
-                        Self::macro_action_short_label(action, language)
-                    )
-                }
-                UiLanguage::English => {
-                    format!("[{tag}] {}", Self::macro_action_label(action))
-                }
-                UiLanguage::Icon => {
-                    format!("[{tag}] {}", Self::macro_action_label(action))
-                }
+        match language {
+            UiLanguage::Vietnamese => {
+                Self::macro_action_short_label(action, language).to_owned()
             }
-        } else {
-            match language {
-                UiLanguage::Vietnamese => {
-                    Self::macro_action_short_label(action, language).to_owned()
-                }
-                UiLanguage::English => Self::macro_action_label(action).to_owned(),
-                UiLanguage::Icon => Self::macro_action_label(action).to_owned(),
-            }
+            UiLanguage::English => Self::macro_action_label(action).to_owned(),
+            UiLanguage::Icon => Self::macro_action_label(action).to_owned(),
         }
     }
 
