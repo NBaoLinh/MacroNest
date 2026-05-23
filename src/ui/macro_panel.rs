@@ -4072,9 +4072,9 @@ impl CrosshairApp {
                                             }
 
                                             let select_icon = if is_selected {
-                                                Self::material_icon_text(0xe834, 12.0).color(Color32::from_rgb(96, 232, 255))
+                                                Self::material_icon_text(0xe5ca, 12.0).color(Color32::from_rgb(96, 232, 255))
                                             } else {
-                                                Self::material_icon_text(0xe835, 12.0).color(Color32::from_rgb(180, 180, 180))
+                                                RichText::new("")
                                             };
                                             if ui
                                                 .add_sized(
@@ -4347,7 +4347,7 @@ impl CrosshairApp {
                                                     
                                                     let unit_text = if step.wait_time_unit.is_empty() { "ms" } else { &step.wait_time_unit };
                                                     egui::ComboBox::from_id_salt((group.id, preset.id, step_index, "delay-unit"))
-                                                        .width(36.0)
+                                                        .width(42.0)
                                                         .selected_text(unit_text)
                                                         .show_ui(ui, |ui| {
                                                             for unit in &["ms", "s", "m", "h"] {

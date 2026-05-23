@@ -30,8 +30,6 @@ impl CrosshairApp {
                 self.persist_mouse_sensitivity_presets();
             }
 
-            ui.add_space(8.0);
-
             if ui
                 .button(self.tr("+ Add path preset", "+ Thêm preset đường chuột"))
                 .clicked()
