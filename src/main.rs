@@ -62,6 +62,16 @@ fn main() -> Result<()> {
     app_icon::ensure_ico_file(&paths.icon_file, 64)?;
     app_icon::ensure_disabled_ico_file(&paths.icon_file_disabled, 64)?;
     let (mut state, _) = paths.load_state()?;
+    let mut vision_changed = false;
+    for preset in &mut state.vision_presets {
+        if preset.is_pixel_counter && !preset.use_color_matching {
+            preset.use_color_matching = true;
+            vision_changed = true;
+        }
+    }
+    if vision_changed {
+        let _ = paths.save_state(&state);
+    }
     state.show_window = true;
     let (ui_tx, ui_rx) = unbounded();
     let overlay = overlay::start(paths.clone(), state.active_style.clone(), ui_tx.clone())?;
