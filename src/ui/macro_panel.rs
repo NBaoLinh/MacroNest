@@ -19,10 +19,10 @@ impl CrosshairApp {
 
     fn macro_loop_colors(steps: &[MacroStep]) -> Vec<Option<Color32>> {
         let palette = [
-            Color32::from_rgba_premultiplied(120, 180, 255, 120),
-            Color32::from_rgba_premultiplied(255, 180, 120, 120),
-            Color32::from_rgba_premultiplied(160, 220, 140, 120),
-            Color32::from_rgba_premultiplied(220, 140, 220, 120),
+            Color32::from_rgba_unmultiplied(35, 75, 145, 55),   // Xanh lam sẫm
+            Color32::from_rgba_unmultiplied(160, 95, 30, 50),   // Nâu cam sẫm
+            Color32::from_rgba_unmultiplied(30, 125, 75, 50),   // Xanh lục sẫm
+            Color32::from_rgba_unmultiplied(140, 50, 140, 50),  // Tím sẫm
         ];
         let mut colors = vec![None; steps.len()];
         let mut stack: Vec<Color32> = Vec::new();
