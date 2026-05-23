@@ -3814,8 +3814,8 @@ impl CrosshairApp {
                                                      .strong()
                                              );
                                          }
-                                         // Shift column headers exactly to the right by 0.0 pixels to align perfectly with step row columns
-                                         ui.add_space(0.0);
+                                         // Shift column headers exactly to the right by 8.0 pixels to align perfectly with step row columns
+                                         ui.add_space(8.0);
                                          ui.add_sized(
                                              [20.0, 18.0],
                                              egui::Label::new(RichText::new("#").strong())
