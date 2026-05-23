@@ -3662,183 +3662,179 @@ impl CrosshairApp {
                                         let has_rec_hotkey = preset.record_hotkey.is_some();
                                         let capture_active = self.capture_target.as_ref() == Some(&capture_target);
                                         
-                                        ui.allocate_ui_with_layout(
-                                            egui::vec2(166.0, 20.0),
-                                            egui::Layout::left_to_right(egui::Align::Center),
-                                            |ui| {
-                                                ui.set_min_width(166.0);
-                                                ui.spacing_mut().item_spacing.x = 2.0;
-                                                if ui
-                                                    .add_sized([22.0, 20.0], Button::new(Self::material_icon_text(0xe145, 12.0)))
-                                            .on_hover_text(Self::tr_lang(
-                                                language,
-                                                "Add step",
-                                                "Thêm một bước vào đầu preset này",
-                                            ))
-                                            .clicked()
-                                        {
-                                            preset.steps.insert(0, MacroStep::default());
-                                            live_sync = true;
-                                        }
-
-                                        let is_recording_this = self.active_macro_record_preset_id == Some(preset.id);
-                                        let record_icon = if is_recording_this { 0xe047 } else { 0xe061 }; // stop square or solid circle
-                                        let mut dot_color = Color32::from_rgb(255, 60, 60);
-                                        if is_recording_this {
-                                            let ms = std::time::SystemTime::now()
-                                                .duration_since(std::time::SystemTime::UNIX_EPOCH)
-                                                .unwrap_or_default()
-                                                .as_millis();
-                                            if (ms / 500) % 2 == 0 {
-                                                dot_color = Color32::from_rgba_unmultiplied(255, 60, 60, 80);
-                                            }
-                                            ui.ctx().request_repaint_after(std::time::Duration::from_millis(250));
-                                        }
-                                        let record_text = if is_recording_this {
-                                            Self::tr_lang(language, "Stop", "Dừng")
-                                        } else {
-                                            Self::tr_lang(language, "Record", "Ghi")
-                                        };
-                                        let record_btn = Button::new(
-                                            RichText::new(format!("{} {}", Self::material_icon_text(record_icon, 10.0).text(), record_text))
-                                                .color(dot_color)
-                                                .strong()
-                                        );
-                                        if ui.add_sized([82.0, 20.0], record_btn)
-                                            .on_hover_text(Self::tr_lang(
-                                                language,
-                                                "Record your keyboard and mouse clicks globally to automatically generate macro steps",
-                                                "Ghi lại thao tác phím và click chuột toàn màn hình để tự động tạo bước macro",
-                                            ))
-                                            .clicked()
-                                        {
-                                            let _ = self.overlay_tx.send(crate::overlay::OverlayCommand::ToggleMacroRecording(
-                                                group.id,
-                                                preset.id,
-                                                group.name.clone(),
-                                            ));
-                                        }
-
-                                        // Keyboard Trigger Hotkey Capture UI
-                                        let pulse = if capture_active {
-                                            let capture_time = ui.ctx().input(|input| input.time) as f32;
-                                            0.5 + 0.5 * (capture_time * 6.0).sin().abs()
-                                        } else {
-                                            0.0
-                                        };
-                                        let capture_fill = if capture_active {
-                                            Color32::from_rgba_premultiplied(
-                                                (88.0 + pulse * 28.0) as u8,
-                                                (84.0 + pulse * 28.0) as u8,
-                                                (44.0 + pulse * 10.0) as u8,
-                                                255,
-                                            )
-                                        } else {
-                                            ui.visuals().widgets.inactive.bg_fill
-                                        };
-                                        
-                                         let kbd_btn_text = if capture_active {
-                                             if let Some(pending) = self.capture_hotkey_combo_keys.as_ref() {
-                                                 if !pending.is_empty() {
-                                                     let preview = Self::hotkey_binding_from_combo_keys(pending.clone());
-                                                     Self::format_binding_ui(language, Some(&preview))
-                                                 } else {
-                                                     Self::tr_lang(language, "capturing", "capturing").to_owned()
-                                                 }
-                                             } else {
-                                                 Self::tr_lang(language, "capturing", "capturing").to_owned()
-                                             }
-                                         } else if let Some(binding) = &preset.record_hotkey {
-                                             Self::format_binding_ui(language, Some(binding))
-                                         } else {
-                                             Self::material_icon_text(0xe312, 10.0).text().to_owned()
-                                         };
-
-                                         let text_color = if capture_active {
-                                             Color32::WHITE
-                                         } else if has_rec_hotkey {
-                                             Color32::from_rgb(96, 232, 255)
-                                         } else {
-                                             ui.visuals().widgets.inactive.text_color()
-                                         };
-
-                                         let hover_text = if let Some(binding) = &preset.record_hotkey {
-                                             let key_ui = Self::format_binding_ui(language, Some(binding));
-                                             let fmt = Self::tr_lang(
+                                        let (rect, _) = ui.allocate_exact_size(egui::vec2(118.0, 20.0), egui::Sense::hover());
+                                         let mut child_ui = ui.new_child(
+                                             egui::UiBuilder::new()
+                                                 .max_rect(rect)
+                                                 .layout(egui::Layout::left_to_right(egui::Align::Center))
+                                         );
+                                         child_ui.spacing_mut().item_spacing.x = 2.0;
+                                         if child_ui
+                                             .add_sized([22.0, 20.0], Button::new(Self::material_icon_text(0xe145, 12.0)))
+                                             .on_hover_text(Self::tr_lang(
                                                  language,
-                                                 "Bound trigger key: {} (Click to clear)",
-                                                 "Phím tắt đã gán: {} (Nhấp để xóa)",
-                                             );
-                                             fmt.replace("{}", &key_ui)
-                                         } else {
-                                             Self::tr_lang(
-                                                 language,
-                                                 "Click to bind a keyboard key to start/stop macro recording dynamically",
-                                                 "Nhấp để gán phím tắt bắt đầu/dừng ghi macro nhanh",
-                                             ).to_string()
-                                         };
-
-                                         let clicked = ui.scope(|ui| {
-                                             ui.spacing_mut().button_padding = egui::vec2(6.0, 0.0);
-                                             let kbd_btn = Button::new(
-                                                 RichText::new(kbd_btn_text)
-                                                     .color(text_color)
-                                                     .strong()
-                                                     .size(10.0)
-                                             )
-                                             .fill(capture_fill)
-                                             .min_size(egui::vec2(20.0, 20.0));
-                                             ui.add(kbd_btn)
-                                         }).inner.on_hover_text(hover_text).clicked();
-
-                                         if clicked {
-                                             if capture_active {
-                                                 cancel_active_capture = true;
-                                             } else if has_rec_hotkey {
-                                                 preset.record_hotkey = None;
-                                                 live_sync = true;
-                                             } else {
-                                                 next_capture_target = Some(capture_target.clone());
-                                             }
+                                                 "Add step",
+                                                 "Thêm một bước vào đầu preset này",
+                                             ))
+                                             .clicked()
+                                         {
+                                             preset.steps.insert(0, MacroStep::default());
+                                             live_sync = true;
                                          }
-                                         });
 
                                          let is_recording_this = self.active_macro_record_preset_id == Some(preset.id);
-                                         ui.allocate_ui_with_layout(
-                                             egui::vec2(32.0, 20.0),
-                                             egui::Layout::left_to_right(egui::Align::Center),
-                                             |ui| {
-                                                 ui.set_min_width(32.0);
-                                                 ui.spacing_mut().item_spacing.x = 2.0;
-                                                 if is_recording_this {
-                                                     let label_color = Color32::from_rgb(255, 96, 96);
-                                                     let is_even = (std::time::SystemTime::now().duration_since(std::time::SystemTime::UNIX_EPOCH).unwrap_or_default().as_millis() / 500) % 2 == 0;
-                                                     let dot_color = if is_even { label_color } else { label_color.linear_multiply(0.3) };
-                                                     ui.add_sized([30.0, 20.0], egui::Label::new(
-                                                         RichText::new("● REC")
-                                                             .color(dot_color)
-                                                             .size(9.0)
-                                                             .strong()
-                                                     )).on_hover_text(Self::tr_lang(language, "Macro recording is active", "Đang ghi macro"));
-                                                 } else {
-                                                     ui.add_space(32.0);
-                                                 }
+                                         let record_icon = if is_recording_this { 0xe047 } else { 0xe061 }; // stop square or solid circle
+                                         let mut dot_color = Color32::from_rgb(255, 60, 60);
+                                         if is_recording_this {
+                                             let ms = std::time::SystemTime::now()
+                                                 .duration_since(std::time::SystemTime::UNIX_EPOCH)
+                                                 .unwrap_or_default()
+                                                 .as_millis();
+                                             if (ms / 500) % 2 == 0 {
+                                                 dot_color = Color32::from_rgba_unmultiplied(255, 60, 60, 80);
                                              }
+                                             child_ui.ctx().request_repaint_after(std::time::Duration::from_millis(250));
+                                         }
+                                         let record_text = if is_recording_this {
+                                             Self::tr_lang(language, "Stop", "Dừng")
+                                         } else {
+                                             Self::tr_lang(language, "Record", "Ghi")
+                                         };
+                                         let record_btn = Button::new(
+                                             RichText::new(format!("{} {}", Self::material_icon_text(record_icon, 10.0).text(), record_text))
+                                                 .color(dot_color)
+                                                 .strong()
                                          );
+                                         if child_ui.add_sized([70.0, 20.0], record_btn)
+                                             .on_hover_text(Self::tr_lang(
+                                                 language,
+                                                 "Record your keyboard and mouse clicks globally to automatically generate macro steps",
+                                                 "Ghi lại thao tác phím và click chuột toàn màn hình để tự động tạo bước macro",
+                                             ))
+                                             .clicked()
+                                         {
+                                             let _ = self.overlay_tx.send(crate::overlay::OverlayCommand::ToggleMacroRecording(
+                                                 group.id,
+                                                 preset.id,
+                                                 group.name.clone(),
+                                             ));
+                                         }
+
+                                         // Keyboard Trigger Hotkey Capture UI
+                                         let pulse = if capture_active {
+                                             let capture_time = child_ui.ctx().input(|input| input.time) as f32;
+                                             0.5 + 0.5 * (capture_time * 6.0).sin().abs()
+                                         } else {
+                                             0.0
+                                         };
+                                         let capture_fill = if capture_active {
+                                             Color32::from_rgba_premultiplied(
+                                                 (88.0 + pulse * 28.0) as u8,
+                                                 (84.0 + pulse * 28.0) as u8,
+                                                 (44.0 + pulse * 10.0) as u8,
+                                                 255,
+                                             )
+                                         } else {
+                                             child_ui.visuals().widgets.inactive.bg_fill
+                                         };
+                                         
+                                          let kbd_btn_text = if capture_active {
+                                              if let Some(pending) = self.capture_hotkey_combo_keys.as_ref() {
+                                                  if !pending.is_empty() {
+                                                      let preview = Self::hotkey_binding_from_combo_keys(pending.clone());
+                                                      Self::format_binding_ui(language, Some(&preview))
+                                                  } else {
+                                                      Self::tr_lang(language, "capturing", "capturing").to_owned()
+                                                  }
+                                              } else {
+                                                  Self::tr_lang(language, "capturing", "capturing").to_owned()
+                                              }
+                                          } else if let Some(binding) = &preset.record_hotkey {
+                                              Self::format_binding_ui(language, Some(binding))
+                                          } else {
+                                              Self::material_icon_text(0xe312, 10.0).text().to_owned()
+                                          };
+
+                                          let text_color = if capture_active {
+                                              Color32::WHITE
+                                          } else if has_rec_hotkey {
+                                              Color32::from_rgb(96, 232, 255)
+                                          } else {
+                                              child_ui.visuals().widgets.inactive.text_color()
+                                          };
+
+                                          let hover_text = if let Some(binding) = &preset.record_hotkey {
+                                              let key_ui = Self::format_binding_ui(language, Some(binding));
+                                              let fmt = Self::tr_lang(
+                                                  language,
+                                                  "Bound trigger key: {} (Click to clear)",
+                                                  "Phím tắt đã gán: {} (Nhấp để xóa)",
+                                              );
+                                              fmt.replace("{}", &key_ui)
+                                          } else {
+                                              Self::tr_lang(
+                                                  language,
+                                                  "Click to bind a keyboard key to start/stop macro recording dynamically",
+                                                  "Nhấp để gán phím tắt bắt đầu/dừng ghi macro nhanh",
+                                              ).to_string()
+                                          };
+
+                                          let clicked = child_ui.scope(|ui| {
+                                              ui.spacing_mut().button_padding = egui::vec2(6.0, 0.0);
+                                              let kbd_btn = Button::new(
+                                                  RichText::new(kbd_btn_text)
+                                                      .color(text_color)
+                                                      .strong()
+                                                      .size(10.0)
+                                              )
+                                              .fill(capture_fill)
+                                              .min_size(egui::vec2(22.0, 20.0));
+                                              ui.add_sized([22.0, 20.0], kbd_btn)
+                                          }).inner.on_hover_text(hover_text).clicked();
+
+                                          if clicked {
+                                              if capture_active {
+                                                  cancel_active_capture = true;
+                                              } else if has_rec_hotkey {
+                                                  preset.record_hotkey = None;
+                                                  live_sync = true;
+                                              } else {
+                                                  next_capture_target = Some(capture_target.clone());
+                                              }
+                                          }
+
+                                         let is_recording_this = self.active_macro_record_preset_id == Some(preset.id);
+                                         let (rect, _) = ui.allocate_exact_size(egui::vec2(32.0, 20.0), egui::Sense::hover());
+                                         let mut child_ui = ui.new_child(
+                                             egui::UiBuilder::new()
+                                                 .max_rect(rect)
+                                                 .layout(egui::Layout::left_to_right(egui::Align::Center))
+                                         );
+                                         child_ui.spacing_mut().item_spacing.x = 2.0;
+                                         if is_recording_this {
+                                             let label_color = Color32::from_rgb(255, 96, 96);
+                                             let is_even = (std::time::SystemTime::now().duration_since(std::time::SystemTime::UNIX_EPOCH).unwrap_or_default().as_millis() / 500) % 2 == 0;
+                                             let dot_color = if is_even { label_color } else { label_color.linear_multiply(0.3) };
+                                             child_ui.add_sized([30.0, 20.0], egui::Label::new(
+                                                 RichText::new("● REC")
+                                                     .color(dot_color)
+                                                     .size(9.0)
+                                                     .strong()
+                                             )).on_hover_text(Self::tr_lang(language, "Macro recording is active", "Đang ghi macro"));
+                                         }
 
                                          ui.add_sized(
                                              [20.0, 18.0],
                                              egui::Label::new(RichText::new("#").strong())
                                                  .halign(egui::Align::Center),
                                          );
-                                          ui.allocate_ui_with_layout(
-                                              egui::vec2(120.0, 18.0),
-                                              egui::Layout::top_down(egui::Align::Center),
-                                              |ui| {
-                                                  ui.set_min_width(120.0);
-                                                  ui.label(RichText::new(Self::tr_lang(language, "Delay", "Delay")).strong());
-                                              }
+                                          let (rect, _) = ui.allocate_exact_size(egui::vec2(120.0, 18.0), egui::Sense::hover());
+                                          let mut child_ui = ui.new_child(
+                                              egui::UiBuilder::new()
+                                                  .max_rect(rect)
+                                                  .layout(egui::Layout::top_down(egui::Align::Center))
                                           );
+                                          child_ui.label(RichText::new(Self::tr_lang(language, "Delay", "Delay")).strong());
                                          ui.add_sized([148.0, 18.0], egui::Label::new(RichText::new(Self::tr_lang(language, "Action", "Action")).strong()));
                                          ui.add_sized([146.0, 18.0], egui::Label::new(""));
                                         let has_selected_steps = selected_steps_snapshot.iter().any(|(g_id, p_id, _)| *g_id == group.id && *p_id == preset.id);
@@ -4081,14 +4077,15 @@ impl CrosshairApp {
                                                 Color32::from_rgba_unmultiplied(100, 100, 100, 150)
                                             };
                                             
-                                            ui.allocate_ui_with_layout(
-                                                egui::vec2(166.0, 20.0),
-                                                egui::Layout::left_to_right(egui::Align::Center),
-                                                |ui| {
-                                                    ui.set_min_width(166.0);
-                                                    ui.spacing_mut().item_spacing.x = 2.0;
-                                                    if ui
-                                                        .add_sized([22.0, 20.0], Button::new(Self::material_icon_text(0xe145, 12.0)))
+                                            let (rect, _) = ui.allocate_exact_size(egui::vec2(118.0, 20.0), egui::Sense::hover());
+                                            let mut child_ui = ui.new_child(
+                                                egui::UiBuilder::new()
+                                                    .max_rect(rect)
+                                                    .layout(egui::Layout::left_to_right(egui::Align::Center))
+                                            );
+                                            child_ui.spacing_mut().item_spacing.x = 2.0;
+                                            if child_ui
+                                                .add_sized([22.0, 20.0], Button::new(Self::material_icon_text(0xe145, 12.0)))
                                                 .on_hover_text(Self::tr_lang(language, "Add a new step below this one", "Thêm một bước mới phía dưới"))
                                                 .clicked()
                                             {
@@ -4100,7 +4097,7 @@ impl CrosshairApp {
                                             } else {
                                                 RichText::new("")
                                             };
-                                            if ui
+                                            if child_ui
                                                 .add_sized(
                                                     [22.0, 20.0],
                                                     Button::new(select_icon),
@@ -4112,12 +4109,12 @@ impl CrosshairApp {
                                                     group.id,
                                                     preset.id,
                                                     step_index,
-                                                    ui.input(|input| input.modifiers.ctrl),
-                                                    ui.input(|input| input.modifiers.shift),
+                                                    child_ui.input(|input| input.modifiers.ctrl),
+                                                    child_ui.input(|input| input.modifiers.shift),
                                                 ));
                                             }
 
-                                            ui.scope(|ui| {
+                                            child_ui.scope(|ui| {
                                                 ui.visuals_mut().widgets.inactive.bg_fill = Color32::TRANSPARENT;
                                                 ui.visuals_mut().widgets.inactive.weak_bg_fill = Color32::TRANSPARENT;
                                                 ui.visuals_mut().widgets.inactive.bg_stroke = egui::Stroke::NONE;
@@ -4184,65 +4181,63 @@ impl CrosshairApp {
                                                     .on_hover_cursor(egui::CursorIcon::Grab);
                                                 drag_handle.dnd_set_drag_payload(drag_payload.clone());
                                             });
-                                            });
-                                            ui.allocate_ui_with_layout(
-                                                egui::vec2(32.0, 20.0),
-                                                egui::Layout::left_to_right(egui::Align::Center),
-                                                |ui| {
-                                                    ui.set_min_width(32.0);
-                                                    ui.spacing_mut().item_spacing.x = 2.0;
-                                                if has_infinite_loop_warning || has_step_vision_leak || has_step_break_loop_warning {
-                                                      let warn_color = if has_infinite_loop_warning || has_step_vision_leak {
-                                                          Color32::from_rgb(255, 90, 0)
-                                                      } else {
-                                                          Color32::from_rgb(255, 200, 0)
-                                                      };
-                                                      let response = ui.add_sized([20.0, 20.0], egui::Button::new(
-                                                          Self::material_icon_text(0xe002, 16.0).color(warn_color)
-                                                      ).frame(false));
-                                                      
-                                                      if response.contains_pointer() {
-                                                          egui::show_tooltip_at_pointer(ui.ctx(), ui.layer_id(), response.id.with("step-tip"), |ui| {
-                                                              ui.horizontal(|ui| {
-                                                                  ui.label(Self::material_icon_text(0xe002, 14.0).color(warn_color));
-                                                                  ui.label(RichText::new(Self::tr_lang(language, "STEP WARNING", "CẢNH BÁO BƯỚC")).strong().color(warn_color));
-                                                              });
-                                                              if has_infinite_loop_warning {
-                                                                  ui.label(Self::tr_lang(
-                                                                      language,
-                                                                      "This step starts an infinite loop without an end point. The macro will run forever until you manually stop it.",
-                                                                      "Bước này khởi đầu một vòng lặp vô tận mà không có điểm dừng, macro sẽ chạy mãi mãi cho đến khi bạn chủ động bấm dừng."
-                                                                  ));
-                                                              }
-                                                              if has_step_vision_leak {
-                                                                  ui.label(Self::tr_lang(
-                                                                      language,
-                                                                      "This step starts image search under Press/Release trigger, but there is no 'StopImageSearch' action in this macro! This could lead to a persistent background CPU thread. Add a 'StopImageSearch' step or change trigger to 'Hold'.",
-                                                                      "Bước này bắt đầu tìm ảnh (chế độ Nhấn/Thả) nhưng macro không có bước dừng tìm ảnh! Điều này có thể gây chạy ngầm hao CPU. Hãy thêm bước dừng tìm ảnh hoặc đổi trigger sang Giữ (Hold)."
-                                                                  ));
-                                                              }
-                                                              if has_step_break_loop_warning {
-                                                                  ui.label(Self::tr_lang(
-                                                                      language,
-                                                                      "This step breaks a loop, but it is not placed inside any Loop Start / Loop End block! It will have no effect.",
-                                                                      "Bước này thoát vòng lặp, nhưng nó hiện không nằm trong cặp khối Lặp (Loop Start) / Hết lặp (Loop End) nào! Nó sẽ không có tác dụng."
-                                                                  ));
-                                                              }
-                                                          });
-                                                      }
-                                                  }
-                                                if is_active {
-                                                    ui.add_sized([8.0, 20.0], egui::Label::new(
-                                                        RichText::new("●")
-                                                            .color(Color32::from_rgb(0, 255, 170))
-                                                            .size(12.0)
-                                                    ))
-                                                    .on_hover_text(Self::tr_lang(language, "Step is running/active", "Bước này đang chạy/hoạt động"));
-                                                } else {
-                                                    ui.add_sized([8.0, 20.0], egui::Label::new(""));
-                                                }
-                                                }
+                                            let (rect, _) = ui.allocate_exact_size(egui::vec2(32.0, 20.0), egui::Sense::hover());
+                                            let mut child_ui = ui.new_child(
+                                                egui::UiBuilder::new()
+                                                    .max_rect(rect)
+                                                    .layout(egui::Layout::left_to_right(egui::Align::Center))
                                             );
+                                            child_ui.spacing_mut().item_spacing.x = 2.0;
+                                            if has_infinite_loop_warning || has_step_vision_leak || has_step_break_loop_warning {
+                                                let warn_color = if has_infinite_loop_warning || has_step_vision_leak {
+                                                    Color32::from_rgb(255, 90, 0)
+                                                } else {
+                                                    Color32::from_rgb(255, 200, 0)
+                                                };
+                                                let response = child_ui.add_sized([20.0, 20.0], egui::Button::new(
+                                                    Self::material_icon_text(0xe002, 16.0).color(warn_color)
+                                                ).frame(false));
+                                                
+                                                if response.contains_pointer() {
+                                                    egui::show_tooltip_at_pointer(child_ui.ctx(), child_ui.layer_id(), response.id.with("step-tip"), |ui| {
+                                                        ui.horizontal(|ui| {
+                                                            ui.label(Self::material_icon_text(0xe002, 14.0).color(warn_color));
+                                                            ui.label(RichText::new(Self::tr_lang(language, "STEP WARNING", "CẢNH BÁO BƯỚC")).strong().color(warn_color));
+                                                        });
+                                                        if has_infinite_loop_warning {
+                                                            ui.label(Self::tr_lang(
+                                                                language,
+                                                                "This step starts an infinite loop without an end point. The macro will run forever until you manually stop it.",
+                                                                "Bước này khởi đầu một vòng lặp vô tận mà không có điểm dừng, macro sẽ chạy mãi mãi cho đến khi bạn chủ động bấm dừng."
+                                                            ));
+                                                        }
+                                                        if has_step_vision_leak {
+                                                            ui.label(Self::tr_lang(
+                                                                language,
+                                                                "This step starts image search under Press/Release trigger, but there is no 'StopImageSearch' action in this macro! This could lead to a persistent background CPU thread. Add a 'StopImageSearch' step or change trigger to 'Hold'.",
+                                                                "Bước này bắt đầu tìm ảnh (chế độ Nhấn/Thả) nhưng macro không có bước dừng tìm ảnh! Điều này có thể gây chạy ngầm hao CPU. Hãy thêm bước dừng tìm ảnh hoặc đổi trigger sang Giữ (Hold)."
+                                                            ));
+                                                        }
+                                                        if has_step_break_loop_warning {
+                                                            ui.label(Self::tr_lang(
+                                                                language,
+                                                                "This step breaks a loop, but it is not placed inside any Loop Start / Loop End block! It will have no effect.",
+                                                                "Bước này thoát vòng lặp, nhưng nó hiện không nằm trong cặp khối Lặp (Loop Start) / Hết lặp (Loop End) nào! Nó sẽ không có tác dụng."
+                                                            ));
+                                                        }
+                                                    });
+                                                }
+                                            }
+                                            if is_active {
+                                                child_ui.add_sized([8.0, 20.0], egui::Label::new(
+                                                    RichText::new("●")
+                                                        .color(Color32::from_rgb(0, 255, 170))
+                                                        .size(12.0)
+                                                ))
+                                                .on_hover_text(Self::tr_lang(language, "Step is running/active", "Bước này đang chạy/hoạt động"));
+                                            } else {
+                                                child_ui.add_sized([8.0, 20.0], egui::Label::new(""));
+                                            }
                                             let step_num_text = format!("{}", step_index + 1);
                                             let label_width = if has_infinite_loop_warning || has_step_vision_leak || has_step_break_loop_warning { 20.0 } else { 20.0 };
                                             ui.add_sized(
@@ -4262,48 +4257,97 @@ impl CrosshairApp {
                                             if step.delay_expr.is_empty() && step.delay_ms > 0 {
                                                 step.delay_expr = step.delay_ms.to_string();
                                             }
-                                            ui.allocate_ui_with_layout(
-                                                egui::vec2(120.0, 18.0),
-                                                egui::Layout::left_to_right(egui::Align::Center),
-                                                |ui| {
-                                                    ui.set_min_width(120.0);
-                                                    ui.spacing_mut().item_spacing.x = 0.0;
-                                                    ui.spacing_mut().button_padding = egui::vec2(2.0, 0.0);
-                                                    ui.spacing_mut().interact_size.y = 18.0;
-                                                    ui.spacing_mut().interact_size.x = 36.0;
-                                                    
-                                                    let left_rounding = egui::CornerRadius { nw: 4, ne: 0, se: 0, sw: 4 };
-                                                    let right_rounding = egui::CornerRadius { nw: 0, ne: 4, se: 4, sw: 0 };
+                                            let (rect, _) = ui.allocate_exact_size(egui::vec2(120.0, 18.0), egui::Sense::hover());
+                                            let mut child_ui = ui.new_child(
+                                                egui::UiBuilder::new()
+                                                    .max_rect(rect)
+                                                    .layout(egui::Layout::left_to_right(egui::Align::Center))
+                                            );
+                                            child_ui.spacing_mut().item_spacing.x = 0.0;
+                                            child_ui.spacing_mut().button_padding = egui::vec2(2.0, 0.0);
+                                            child_ui.spacing_mut().interact_size.y = 18.0;
+                                            child_ui.spacing_mut().interact_size.x = 36.0;
+                                            
+                                            let left_rounding = egui::CornerRadius { nw: 4, ne: 0, se: 0, sw: 4 };
+                                            let right_rounding = egui::CornerRadius { nw: 0, ne: 4, se: 4, sw: 0 };
 
-                                                    ui.visuals_mut().widgets.inactive.corner_radius = left_rounding;
-                                                    ui.visuals_mut().widgets.hovered.corner_radius = left_rounding;
-                                                    ui.visuals_mut().widgets.active.corner_radius = left_rounding;
-                                                    ui.visuals_mut().widgets.open.corner_radius = left_rounding;
-                                                    ui.visuals_mut().widgets.noninteractive.corner_radius = left_rounding;
-                                                    let edit_id = ui.make_persistent_id((group.id, preset.id, step_index, "delay-edit-state"));
-                                                    let is_editing = ui.memory(|mem| mem.data.get_temp::<bool>(edit_id).unwrap_or(false));
+                                            child_ui.visuals_mut().widgets.inactive.corner_radius = left_rounding;
+                                            child_ui.visuals_mut().widgets.hovered.corner_radius = left_rounding;
+                                            child_ui.visuals_mut().widgets.active.corner_radius = left_rounding;
+                                            child_ui.visuals_mut().widgets.open.corner_radius = left_rounding;
+                                            child_ui.visuals_mut().widgets.noninteractive.corner_radius = left_rounding;
+                                            let edit_id = child_ui.make_persistent_id((group.id, preset.id, step_index, "delay-edit-state"));
+                                            let is_editing = child_ui.memory(|mem| mem.data.get_temp::<bool>(edit_id).unwrap_or(false));
+                                            
+                                            if is_editing {
+                                                let response = child_ui.add_sized(
+                                                    [78.0, 18.0],
+                                                    TextEdit::singleline(&mut step.delay_expr)
+                                                        .hint_text("0"),
+                                                );
+                                                Self::apply_vietnamese_input_if_changed(
+                                                    &response,
+                                                    self.state.vietnamese_input_enabled,
+                                                    self.state.vietnamese_input_mode,
+                                                    &mut step.delay_expr,
+                                                );
+                                                
+                                                let just_started_id = edit_id.with("just_started");
+                                                let just_started = child_ui.memory(|mem| mem.data.get_temp::<bool>(just_started_id).unwrap_or(false));
+                                                if just_started {
+                                                    response.request_focus();
+                                                    child_ui.memory_mut(|mem| mem.data.insert_temp(just_started_id, false));
+                                                }
+                                                
+                                                if response.changed() {
+                                                    if let Ok(val) = step.delay_expr.trim().parse::<u64>() {
+                                                        step.delay_ms = val;
+                                                    } else {
+                                                        step.delay_ms = 0;
+                                                    }
+                                                    live_sync = true;
+                                                }
+                                                
+                                                if response.lost_focus() || child_ui.input(|i| i.key_pressed(egui::Key::Enter)) {
+                                                    child_ui.memory_mut(|mem| mem.data.insert_temp(edit_id, false));
+                                                }
+                                            } else {
+                                                let display_text = if step.delay_expr.is_empty() {
+                                                    "0".to_string()
+                                                } else {
+                                                    step.delay_expr.clone()
+                                                };
+                                                
+                                                let response = child_ui.add_sized(
+                                                    [78.0, 18.0],
+                                                    egui::Button::new(display_text)
+                                                        .wrap_mode(egui::TextWrapMode::Truncate)
+                                                        .sense(egui::Sense::click_and_drag()),
+                                                )
+                                                .on_hover_cursor(egui::CursorIcon::ResizeHorizontal);
+                                                
+                                                let has_dragged_id = edit_id.with("has-dragged");
+                                                
+                                                if response.dragged() {
+                                                    child_ui.memory_mut(|mem| mem.data.insert_temp(has_dragged_id, true));
                                                     
-                                                    if is_editing {
-                                                        let response = ui.add_sized(
-                                                            [78.0, 18.0],
-                                                            TextEdit::singleline(&mut step.delay_expr)
-                                                                .hint_text("0"),
-                                                        );
-                                                        Self::apply_vietnamese_input_if_changed(
-                                                            &response,
-                                                            self.state.vietnamese_input_enabled,
-                                                            self.state.vietnamese_input_mode,
-                                                            &mut step.delay_expr,
-                                                        );
-                                                        
-                                                        let just_started_id = edit_id.with("just_started");
-                                                        let just_started = ui.memory(|mem| mem.data.get_temp::<bool>(just_started_id).unwrap_or(false));
-                                                        if just_started {
-                                                            response.request_focus();
-                                                            ui.memory_mut(|mem| mem.data.insert_temp(just_started_id, false));
-                                                        }
-                                                        
-                                                        if response.changed() {
+                                                    let accum_id = edit_id.with("drag-accum");
+                                                    let mut accum = child_ui.memory(|mem| mem.data.get_temp::<f32>(accum_id).unwrap_or(0.0));
+                                                    accum += response.drag_delta().x;
+                                                    
+                                                    let step_size = if child_ui.input(|i| i.modifiers.shift) {
+                                                        10.0
+                                                    } else {
+                                                        1.0
+                                                    };
+                                                    
+                                                    let pixels_per_unit = 2.0;
+                                                    let delta_units = (accum / pixels_per_unit).trunc();
+                                                    if delta_units != 0.0 {
+                                                        accum -= delta_units * pixels_per_unit;
+                                                        let delta_int = (delta_units * step_size).round() as i32;
+                                                        if delta_int != 0 {
+                                                            step.delay_expr = Self::adjust_expression_by_delta(&step.delay_expr, delta_int);
                                                             if let Ok(val) = step.delay_expr.trim().parse::<u64>() {
                                                                 step.delay_ms = val;
                                                             } else {
@@ -4311,99 +4355,54 @@ impl CrosshairApp {
                                                             }
                                                             live_sync = true;
                                                         }
-                                                        
-                                                        if response.lost_focus() || ui.input(|i| i.key_pressed(egui::Key::Enter)) {
-                                                            ui.memory_mut(|mem| mem.data.insert_temp(edit_id, false));
-                                                        }
-                                                    } else {
-                                                        let display_text = if step.delay_expr.is_empty() {
-                                                            "0".to_string()
-                                                        } else {
-                                                            step.delay_expr.clone()
-                                                        };
-                                                        
-                                                        let response = ui.add_sized(
-                                                            [78.0, 18.0],
-                                                            egui::Button::new(display_text)
-                                                                .wrap_mode(egui::TextWrapMode::Truncate)
-                                                                .sense(egui::Sense::click_and_drag()),
-                                                        )
-                                                        .on_hover_cursor(egui::CursorIcon::ResizeHorizontal);
-                                                        
-                                                        let has_dragged_id = edit_id.with("has-dragged");
-                                                        
-                                                        if response.dragged() {
-                                                            ui.memory_mut(|mem| mem.data.insert_temp(has_dragged_id, true));
-                                                            
-                                                            let accum_id = edit_id.with("drag-accum");
-                                                            let mut accum = ui.memory(|mem| mem.data.get_temp::<f32>(accum_id).unwrap_or(0.0));
-                                                            accum += response.drag_delta().x;
-                                                            
-                                                            let step_size = if ui.input(|i| i.modifiers.shift) {
-                                                                10.0
-                                                            } else {
-                                                                1.0
-                                                            };
-                                                            
-                                                            let pixels_per_unit = 2.0;
-                                                            let delta_units = (accum / pixels_per_unit).trunc();
-                                                            if delta_units != 0.0 {
-                                                                accum -= delta_units * pixels_per_unit;
-                                                                let delta_int = (delta_units * step_size).round() as i32;
-                                                                if delta_int != 0 {
-                                                                    step.delay_expr = Self::adjust_expression_by_delta(&step.delay_expr, delta_int);
-                                                                    if let Ok(val) = step.delay_expr.trim().parse::<u64>() {
-                                                                        step.delay_ms = val;
-                                                                    } else {
-                                                                        step.delay_ms = 0;
-                                                                    }
-                                                                    live_sync = true;
-                                                                }
-                                                            }
-                                                            ui.memory_mut(|mem| mem.data.insert_temp(accum_id, accum));
-                                                        } else {
-                                                            if !ui.input(|i| i.pointer.any_down()) {
-                                                                let accum_id = edit_id.with("drag-accum");
-                                                                ui.memory_mut(|mem| {
-                                                                    mem.data.insert_temp(has_dragged_id, false);
-                                                                    mem.data.insert_temp(accum_id, 0.0);
-                                                                });
-                                                            }
-                                                        }
-                                                        
-                                                        if response.clicked() {
-                                                            let has_dragged = ui.memory(|mem| mem.data.get_temp::<bool>(has_dragged_id).unwrap_or(false));
-                                                            if !has_dragged {
-                                                                ui.memory_mut(|mem| {
-                                                                    mem.data.insert_temp(edit_id, true);
-                                                                    mem.data.insert_temp(edit_id.with("just_started"), true);
-                                                                });
-                                                            }
+                                                    }
+                                                    child_ui.memory_mut(|mem| mem.data.insert_temp(accum_id, accum));
+                                                } else {
+                                                    if !child_ui.input(|i| i.pointer.any_down()) {
+                                                        let accum_id = edit_id.with("drag-accum");
+                                                        child_ui.memory_mut(|mem| {
+                                                            mem.data.insert_temp(has_dragged_id, false);
+                                                            mem.data.insert_temp(accum_id, 0.0);
+                                                        });
+                                                    }
+                                                }
+                                                
+                                                if response.clicked() {
+                                                    let has_dragged = child_ui.memory(|mem| mem.data.get_temp::<bool>(has_dragged_id).unwrap_or(false));
+                                                    if !has_dragged {
+                                                        child_ui.memory_mut(|mem| {
+                                                            mem.data.insert_temp(edit_id, true);
+                                                            mem.data.insert_temp(edit_id.with("just_started"), true);
+                                                        });
+                                                    }
+                                                }
+                                            }
+                                            
+                                            child_ui.visuals_mut().widgets.inactive.corner_radius = right_rounding;
+                                            child_ui.visuals_mut().widgets.hovered.corner_radius = right_rounding;
+                                            child_ui.visuals_mut().widgets.active.corner_radius = right_rounding;
+                                            child_ui.visuals_mut().widgets.open.corner_radius = right_rounding;
+                                            child_ui.visuals_mut().widgets.noninteractive.corner_radius = right_rounding;
+
+                                            let unit_text = if step.wait_time_unit.is_empty() { "ms" } else { &step.wait_time_unit };
+                                            let popup_rounding = right_rounding;
+                                            let popup_style_modifier = egui::style::StyleModifier::new(move |style| {
+                                                style.visuals.widgets.noninteractive.corner_radius = popup_rounding;
+                                            });
+                                            egui::ComboBox::from_id_salt((group.id, preset.id, step_index, "delay-unit"))
+                                                .width(42.0)
+                                                .selected_text(unit_text)
+                                                .popup_style(popup_style_modifier)
+                                                .show_ui(&mut child_ui, |ui| {
+                                                    for unit in &["ms", "s", "m", "h"] {
+                                                        let label = *unit;
+                                                        let val = if label == "ms" { "" } else { label };
+                                                        if ui.selectable_label(step.wait_time_unit == val, label).clicked() {
+                                                            step.wait_time_unit = val.to_string();
+                                                            live_sync = true;
                                                         }
                                                     }
-                                                    
-                                                    ui.visuals_mut().widgets.inactive.corner_radius = right_rounding;
-                                                    ui.visuals_mut().widgets.hovered.corner_radius = right_rounding;
-                                                    ui.visuals_mut().widgets.active.corner_radius = right_rounding;
-                                                    ui.visuals_mut().widgets.open.corner_radius = right_rounding;
-                                                    ui.visuals_mut().widgets.noninteractive.corner_radius = right_rounding;
-
-                                                    let unit_text = if step.wait_time_unit.is_empty() { "ms" } else { &step.wait_time_unit };
-                                                    egui::ComboBox::from_id_salt((group.id, preset.id, step_index, "delay-unit"))
-                                                        .width(42.0)
-                                                        .selected_text(unit_text)
-                                                        .show_ui(ui, |ui| {
-                                                            for unit in &["ms", "s", "m", "h"] {
-                                                                let label = *unit;
-                                                                let val = if label == "ms" { "" } else { label };
-                                                                if ui.selectable_label(step.wait_time_unit == val, label).clicked() {
-                                                                    step.wait_time_unit = val.to_string();
-                                                                    live_sync = true;
-                                                                }
-                                                            }
-                                                        });
-                                                }
-                                            );
+                                                });
                                             let action_combo = egui::ComboBox::from_id_salt((group.id, preset.id, step_index, "action"))
                                                 .close_behavior(egui::PopupCloseBehavior::CloseOnClickOutside)
                                                 .width(148.0)
