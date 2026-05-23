@@ -4249,14 +4249,14 @@ impl CrosshairApp {
                                                             egui::Button::new(display_text)
                                                                 .wrap_mode(egui::TextWrapMode::Truncate)
                                                                 .sense(egui::Sense::click_and_drag()),
-                                                        );
+                                                        )
+                                                        .on_hover_cursor(egui::CursorIcon::ResizeHorizontal);
                                                         
-                                                        if response.clicked() {
-                                                            ui.memory_mut(|mem| {
-                                                                mem.data.insert_temp(edit_id, true);
-                                                                mem.data.insert_temp(edit_id.with("just_started"), true);
-                                                            });
-                                                        } else if response.dragged() {
+                                                        let has_dragged_id = edit_id.with("has-dragged");
+                                                        
+                                                        if response.dragged() {
+                                                            ui.memory_mut(|mem| mem.data.insert_temp(has_dragged_id, true));
+                                                            
                                                             let accum_id = edit_id.with("drag-accum");
                                                             let mut accum = ui.memory(|mem| mem.data.get_temp::<f32>(accum_id).unwrap_or(0.0));
                                                             accum += response.drag_delta().x;
@@ -4284,8 +4284,23 @@ impl CrosshairApp {
                                                             }
                                                             ui.memory_mut(|mem| mem.data.insert_temp(accum_id, accum));
                                                         } else {
-                                                            let accum_id = edit_id.with("drag-accum");
-                                                            ui.memory_mut(|mem| mem.data.insert_temp(accum_id, 0.0));
+                                                            if !ui.input(|i| i.pointer.any_down()) {
+                                                                let accum_id = edit_id.with("drag-accum");
+                                                                ui.memory_mut(|mem| {
+                                                                    mem.data.insert_temp(has_dragged_id, false);
+                                                                    mem.data.insert_temp(accum_id, 0.0);
+                                                                });
+                                                            }
+                                                        }
+                                                        
+                                                        if response.clicked() {
+                                                            let has_dragged = ui.memory(|mem| mem.data.get_temp::<bool>(has_dragged_id).unwrap_or(false));
+                                                            if !has_dragged {
+                                                                ui.memory_mut(|mem| {
+                                                                    mem.data.insert_temp(edit_id, true);
+                                                                    mem.data.insert_temp(edit_id.with("just_started"), true);
+                                                                });
+                                                            }
                                                         }
                                                     }
                                                     
