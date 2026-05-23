@@ -249,32 +249,8 @@ impl CrosshairApp {
                     egui::Grid::new((preset.id, "image-search-grid"))
                         .num_columns(2)
                         .spacing([14.0, 8.0])
+                        .min_col_width(110.0)
                         .show(ui, |ui| {
-    
-                            ui.label(Self::tr_lang(language, "Mode", "Chế độ"));
-                            ui.horizontal_wrapped(|ui| {
-                                if ui
-                                    .selectable_label(
-                                        !preset.use_color_matching,
-                                        Self::tr_lang(language, "Detect image", "Phát hiện ảnh"),
-                                    )
-                                    .clicked()
-                                {
-                                    preset.use_color_matching = false;
-                                    live_sync = true;
-                                }
-                                if ui
-                                    .selectable_label(
-                                        preset.use_color_matching,
-                                        Self::tr_lang(language, "Detect color", "Phát hiện màu"),
-                                    )
-                                    .clicked()
-                                {
-                                    preset.use_color_matching = true;
-                                    live_sync = true;
-                                }
-                            });
-                            ui.end_row();
     
                             if !preset.use_color_matching && !self.opencv_installed {
                                 ui.label("");
@@ -525,7 +501,7 @@ impl CrosshairApp {
                             }
     
                             if !preset.is_pixel_counter {
-                                ui.label(Self::tr_lang(language, "Mouse interaction", "Tương tác chuột"));
+                                ui.label(Self::tr_lang(language, "Mouse", "Chuột"));
                                 ui.horizontal_wrapped(|ui| {
                                     if Self::sized_button(
                                         ui,
@@ -556,7 +532,7 @@ impl CrosshairApp {
     
                             if !preset.is_pixel_counter && preset.image_search_move_advanced_open {
                                 ui.horizontal(|ui| {
-                                    ui.label(Self::tr_lang(language, "Click offset", "Độ lệch nhấp chuột"));
+                                    ui.label(Self::tr_lang(language, "Offset", "Độ lệch"));
                                     let help_btn = ui.small_button("❓");
                                     if help_btn.hovered() {
                                         egui::show_tooltip_text(
@@ -583,7 +559,7 @@ impl CrosshairApp {
                                 });
                                 ui.end_row();
     
-                                ui.label(Self::tr_lang(language, "Move passes & delay", "Số lần di chuyển & độ trễ"));
+                                ui.label(Self::tr_lang(language, "Move timing", "Trễ & Số lần"));
                                 ui.horizontal_wrapped(|ui| {
                                     ui.label(Self::tr_lang(language, "Passes", "Số lần"));
                                     live_sync |= ui
@@ -625,17 +601,9 @@ impl CrosshairApp {
                                     });
                                     ui.end_row();
     
-                                    ui.label(Self::tr_lang(language, "Pixel count", "Đếm pixel"));
-                                    ui.horizontal_wrapped(|ui| {
-                                        live_sync |= ui
-                                            .checkbox(
-                                                &mut preset.is_pixel_counter,
-                                                Self::tr_lang(language, "Enable Pixel Counter", "Kích hoạt Đếm pixel"),
-                                            )
-                                            .changed();
-                                        if preset.is_pixel_counter {
-                                            ui.add_space(8.0);
-                                            ui.label(Self::tr_lang(language, "Variable", "Tên biến"));
+                                    if preset.is_pixel_counter {
+                                        ui.label(Self::tr_lang(language, "Variable", "Tên biến"));
+                                        ui.horizontal_wrapped(|ui| {
                                             let is_dark_theme = self.state.ui_theme == UiThemeMode::Dark;
                                             let hint_color = if is_dark_theme {
                                                 Color32::from_rgba_unmultiplied(140, 140, 140, 150)
@@ -646,9 +614,9 @@ impl CrosshairApp {
                                                 .desired_width(120.0)
                                                 .hint_text(RichText::new(format!("pixel_count_{}", preset.id)).color(hint_color).weak());
                                             live_sync |= ui.add(text_edit).changed();
-                                        }
-                                    });
-                                    ui.end_row();
+                                        });
+                                        ui.end_row();
+                                    }
     
                                     if !preset.is_pixel_counter {
                                         ui.label(Self::tr_lang(
