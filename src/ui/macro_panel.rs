@@ -3879,7 +3879,6 @@ impl CrosshairApp {
                                 );
                             };
                             let mut step_rects = vec![Rect::ZERO; steps_len];
-                            let mut hovered_step_idx: Option<usize> = None;
                             for step_index in 0..steps_len {
                                 if drag_payload.is_some()
                                     && !preview_drawn
@@ -6101,9 +6100,6 @@ impl CrosshairApp {
                                 if row_response.secondary_clicked() {
                                     remove_step = Some((preset.id, step_index));
                                 }
-                                if row_response.hovered() || row_response.contains_pointer() {
-                                    hovered_step_idx = Some(step_index);
-                                }
                                 step_rects[step_index] = row_response.rect;
                             }
                             if drag_payload.is_some() && !preview_drawn {
@@ -6112,9 +6108,8 @@ impl CrosshairApp {
                             }
 
                             // Dynamic hover highlight for Loop and If blocks (Gợi ý 2)
-                            if let Some(hovered_idx) = hovered_step_idx {
-                                ui.ctx().request_repaint(); // ensure immediate feedback when hover changes
-                                
+                            let hover_pos = ui.ctx().pointer_interact_pos();
+                            if let Some(pos) = hover_pos {
                                 struct BlockRange {
                                     start_idx: usize,
                                     end_idx: usize,
@@ -6149,12 +6144,20 @@ impl CrosshairApp {
                                 
                                 let mut active_block: Option<&BlockRange> = None;
                                 for block in &blocks {
-                                    if hovered_idx >= block.start_idx && hovered_idx <= block.end_idx {
-                                        match active_block {
-                                            None => active_block = Some(block),
-                                            Some(current) => {
-                                                if (block.end_idx - block.start_idx) < (current.end_idx - current.start_idx) {
-                                                    active_block = Some(block);
+                                    if block.start_idx < step_rects.len() && block.end_idx < step_rects.len() {
+                                        let start_rect = step_rects[block.start_idx];
+                                        let end_rect = step_rects[block.end_idx];
+                                        if start_rect != Rect::ZERO && end_rect != Rect::ZERO {
+                                            let union_rect = start_rect.union(end_rect);
+                                            // Kiểm tra xem chuột có nằm trong union_rect bao gồm cả khoảng hở dọc không
+                                            if union_rect.contains(pos) {
+                                                match active_block {
+                                                    None => active_block = Some(block),
+                                                    Some(current) => {
+                                                        if (block.end_idx - block.start_idx) < (current.end_idx - current.start_idx) {
+                                                            active_block = Some(block);
+                                                        }
+                                                    }
                                                 }
                                             }
                                         }
@@ -6162,19 +6165,16 @@ impl CrosshairApp {
                                 }
                                 
                                 if let Some(block) = active_block {
-                                    if block.start_idx < step_rects.len() && block.end_idx < step_rects.len() {
-                                        let start_rect = step_rects[block.start_idx];
-                                        let end_rect = step_rects[block.end_idx];
-                                        if start_rect != Rect::ZERO && end_rect != Rect::ZERO {
-                                            let union_rect = start_rect.union(end_rect).expand(3.0);
-                                            ui.painter().rect_stroke(
-                                                union_rect,
-                                                6.0,
-                                                egui::Stroke::new(2.0, Color32::from_rgba_unmultiplied(255, 255, 255, 220)),
-                                                egui::StrokeKind::Outside,
-                                            );
-                                        }
-                                    }
+                                    let start_rect = step_rects[block.start_idx];
+                                    let end_rect = step_rects[block.end_idx];
+                                    let union_rect = start_rect.union(end_rect).expand(3.0);
+                                    ui.painter().rect_stroke(
+                                        union_rect,
+                                        6.0,
+                                        egui::Stroke::new(2.0, Color32::from_rgba_unmultiplied(255, 255, 255, 220)),
+                                        egui::StrokeKind::Outside,
+                                    );
+                                    ui.ctx().request_repaint(); // ensure active repaint during hover
                                 }
                             }
                             if let Some(payload) = drag_payload
