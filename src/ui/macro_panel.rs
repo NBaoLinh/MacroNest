@@ -3814,8 +3814,8 @@ impl CrosshairApp {
                                                      .strong()
                                              );
                                          }
-                                         // Shift column headers exactly to the right by 8.0 pixels to align perfectly with step row columns
-                                         ui.add_space(8.0);
+                                         // Shift column headers exactly to the right by 0.0 pixels to align perfectly with step row columns
+                                         ui.add_space(0.0);
                                          ui.add_sized(
                                              [20.0, 18.0],
                                              egui::Label::new(RichText::new("#").strong())
@@ -4216,7 +4216,7 @@ impl CrosshairApp {
                                                 ui.add_sized([8.0, 20.0], egui::Label::new(""));
                                             }
                                             let step_num_text = format!("{}", step_index + 1);
-                                            let label_width = if has_infinite_loop_warning || has_step_vision_leak || has_step_break_loop_warning { 18.0 } else { 20.0 };
+                                            let label_width = if has_infinite_loop_warning || has_step_vision_leak || has_step_break_loop_warning { 20.0 } else { 20.0 };
                                             ui.add_sized(
                                                 [label_width, 18.0],
                                                 egui::Label::new(
@@ -4238,9 +4238,10 @@ impl CrosshairApp {
                                                 egui::vec2(120.0, 18.0),
                                                 egui::Layout::left_to_right(egui::Align::Center),
                                                 |ui| {
-                                                    ui.spacing_mut().item_spacing.x = 2.0;
+                                                    ui.spacing_mut().item_spacing.x = 0.0;
+                                                    ui.spacing_mut().button_padding = egui::vec2(2.0, 0.0);
                                                     ui.spacing_mut().interact_size.y = 18.0;
-                                                    ui.spacing_mut().interact_size.x = 40.0;
+                                                    ui.spacing_mut().interact_size.x = 36.0;
                                                     
                                                     let edit_id = ui.make_persistent_id((group.id, preset.id, step_index, "delay-edit-state"));
                                                     let is_editing = ui.memory(|mem| mem.data.get_temp::<bool>(edit_id).unwrap_or(false));
@@ -4346,7 +4347,7 @@ impl CrosshairApp {
                                                     
                                                     let unit_text = if step.wait_time_unit.is_empty() { "ms" } else { &step.wait_time_unit };
                                                     egui::ComboBox::from_id_salt((group.id, preset.id, step_index, "delay-unit"))
-                                                        .width(28.0)
+                                                        .width(36.0)
                                                         .selected_text(unit_text)
                                                         .show_ui(ui, |ui| {
                                                             for unit in &["ms", "s", "m", "h"] {
