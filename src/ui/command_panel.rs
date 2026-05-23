@@ -30,6 +30,8 @@ impl CrosshairApp {
         for index in 0..self.state.command_presets.len() {
             ui.add_space(6.0);
             let preset = &mut self.state.command_presets[index];
+            preset.target_window_title = None;
+            preset.extra_target_window_titles.clear();
             preset.enabled = true;
             Self::show_preset_card(ui, true, |ui| {
                 ui.horizontal(|ui| {
@@ -104,18 +106,7 @@ impl CrosshairApp {
                     .num_columns(2)
                     .spacing([14.0, 8.0])
                     .show(ui, |ui| {
-                        ui.label(Self::tr_lang(language, "Target Window", "Target Window"));
-                        changed |= Self::render_multi_window_targets_with_duplicate_mode(
-                            ui,
-                            language,
-                            (preset.id, "custom-target-window"),
-                            Self::tr_lang(language, "Any focused window", "Cửa sổ đang focus"),
-                            &mut preset.target_window_title,
-                            &mut preset.extra_target_window_titles,
-                            &mut preset.match_duplicate_window_titles,
-                            &open_windows,
-                        );
-                        ui.end_row();
+
 
                         ui.label(Self::tr_lang(language, "Shell", "Shell (Dòng lệnh)"));
                         ui.label(Self::material_icon_text(0xeb8e, 15.0));

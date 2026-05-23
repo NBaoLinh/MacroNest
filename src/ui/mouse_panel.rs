@@ -97,6 +97,8 @@ impl CrosshairApp {
             let pending_combo_keys = self.capture_hotkey_combo_keys.clone();
             ui.add_space(6.0);
             let preset = &mut self.state.mouse_sensitivity_presets[index];
+            preset.target_window_title = None;
+            preset.extra_target_window_titles.clear();
             preset.enabled = preset.hotkey.is_some() || !preset.trigger_keys.trim().is_empty();
             Self::show_preset_card(ui, preset.enabled, |ui| {
                 ui.horizontal(|ui| {
@@ -257,24 +259,6 @@ impl CrosshairApp {
                     .num_columns(2)
                     .spacing([14.0, 8.0])
                     .show(ui, |ui| {
-                        ui.label(Self::tr_lang(
-                            language,
-                            "Target Window",
-                            "Cửa sổ mục tiêu",
-                        ));
-                        mouse_sensitivity_live_sync |=
-                            Self::render_multi_window_targets_with_duplicate_mode(
-                                ui,
-                                language,
-                                (preset.id, "mouse-sensitivity-target"),
-                                Self::tr_lang(language, "Any window", "Cửa sổ đang focus"),
-                                &mut preset.target_window_title,
-                                &mut preset.extra_target_window_titles,
-                                &mut preset.match_duplicate_window_titles,
-                                &self.open_windows,
-                            );
-                        ui.end_row();
-
                         ui.label(Self::tr_lang(language, "Speed", "Tốc độ chuột"));
                         mouse_sensitivity_live_sync |= ui
                             .add(Slider::new(&mut preset.speed, 1..=20).show_value(true))
