@@ -3463,20 +3463,22 @@ impl CrosshairApp {
                                                     .add_sized([58.0, 22.0], DragValue::new(&mut step.y).range(-30000..=30000))
                                                     .changed();
                                             } else if step.action == MacroAction::ShowHud {
-                                                live_sync |= ui
-                                                    .checkbox(&mut step.timed_override, "T")
-                                                    .on_hover_text("Timed display")
-                                                    .changed();
-                                                ui.add_enabled_ui(step.timed_override, |ui| {
-                                                    live_sync |= ui
-                                                        .add_sized(
-                                                            [72.0, 22.0],
-                                                            DragValue::new(&mut step.duration_override_ms)
-                                                                .range(50..=60_000)
-                                                                .suffix(" ms"),
-                                                        )
-                                                        .changed();
-                                                });
+                                                let mut temp_ms = if step.timed_override { step.duration_override_ms } else { 0 };
+                                                let changed = ui.add_sized(
+                                                    [98.0, 22.0],
+                                                    DragValue::new(&mut temp_ms)
+                                                        .range(0..=60_000)
+                                                        .suffix(" ms"),
+                                                ).on_hover_text(Self::tr_lang(
+                                                    language,
+                                                    "Display duration (0 ms = show until macro ends)",
+                                                    "Thời gian hiển thị (0 ms = hiện đến khi dừng macro)",
+                                                )).changed();
+                                                if changed {
+                                                    step.duration_override_ms = temp_ms;
+                                                    step.timed_override = temp_ms > 0;
+                                                    live_sync = true;
+                                                }
                                             } else {
                                                 ui.add_sized([24.0, 22.0], egui::Label::new(""));
                                                 ui.add_sized([24.0, 22.0], egui::Label::new(""));
@@ -5827,24 +5829,22 @@ impl CrosshairApp {
                                                     )
                                                     .changed();
                                             } else if step.action == MacroAction::ShowHud {
-                                                live_sync |= ui
-                                                    .checkbox(&mut step.timed_override, "T")
-                                                    .on_hover_text(Self::tr_lang(
-                                                        language,
-                                                        "Timed display",
-                                                        "Dùng thời gian hiển thị riêng cho step này",
-                                                        ))
-                                                    .changed();
-                                                ui.add_enabled_ui(step.timed_override, |ui| {
-                                                    live_sync |= ui
-                                                        .add_sized(
-                                                            [72.0, 18.0],
-                                                            DragValue::new(&mut step.duration_override_ms)
-                                                                .range(50..=60_000)
-                                                                .suffix(" ms"),
-                                                        )
-                                                        .changed();
-                                                });
+                                                let mut temp_ms = if step.timed_override { step.duration_override_ms } else { 0 };
+                                                let changed = ui.add_sized(
+                                                    [96.0, 18.0],
+                                                    DragValue::new(&mut temp_ms)
+                                                        .range(0..=60_000)
+                                                        .suffix(" ms"),
+                                                ).on_hover_text(Self::tr_lang(
+                                                    language,
+                                                    "Display duration (0 ms = show until macro ends)",
+                                                    "Thời gian hiển thị (0 ms = hiện đến khi dừng macro)",
+                                                )).changed();
+                                                if changed {
+                                                    step.duration_override_ms = temp_ms;
+                                                    step.timed_override = temp_ms > 0;
+                                                    live_sync = true;
+                                                }
                                             } else if action_supports_capture {
                                                 let step_capture_target = CaptureRequest::MacroStepInput {
                                                     group_id: group.id,
