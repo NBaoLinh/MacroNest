@@ -3033,7 +3033,10 @@ impl CrosshairApp {
                                                                  let mut remove_extra_idx = None;
                                                                  for (extra_idx, cond) in step.extra_conditions.iter_mut().enumerate() {
                                                                      ui.horizontal(|ui| {
-                                                                         ui.label(Self::tr_lang(language, "AND", "VÀ"));
+                                                                         ui.add_sized(
+                                                                             [30.0, 22.0],
+                                                                             egui::Label::new(Self::tr_lang(language, "AND", "VÀ")),
+                                                                         );
                                                                          
                                                                          let response = ui.add_sized(
                                                                              [64.0, 22.0],
@@ -3262,6 +3265,10 @@ impl CrosshairApp {
                                                              ui.horizontal(|ui| {
                                                                  
 
+                                                                 ui.add_sized(
+                                                                     [30.0, 22.0],
+                                                                     egui::Label::new(Self::tr_lang(language, "IF", "NẾU")),
+                                                                 );
                                                                  let response = ui.add_sized(
                                                                      [64.0, 22.0],
                                                                      TextEdit::singleline(&mut step.if_variable_name)
@@ -3321,7 +3328,10 @@ impl CrosshairApp {
                                                              let mut remove_extra_idx = None;
                                                              for (extra_idx, cond) in step.extra_conditions.iter_mut().enumerate() {
                                                                  ui.horizontal(|ui| {
-                                                                     ui.label(Self::tr_lang(language, "AND", "VÀ"));
+                                                                     ui.add_sized(
+                                                                         [30.0, 22.0],
+                                                                         egui::Label::new(Self::tr_lang(language, "AND", "VÀ")),
+                                                                     );
                                                                      
                                                                      let response = ui.add_sized(
                                                                          [64.0, 22.0],
@@ -5233,7 +5243,10 @@ impl CrosshairApp {
                                                                  let mut remove_extra_idx = None;
                                                                  for (extra_idx, cond) in step.extra_conditions.iter_mut().enumerate() {
                                                                      ui.horizontal(|ui| {
-                                                                         ui.label(Self::tr_lang(language, "AND", "VÀ"));
+                                                                         ui.add_sized(
+                                                                             [30.0, 22.0],
+                                                                             egui::Label::new(Self::tr_lang(language, "AND", "VÀ")),
+                                                                         );
                                                                          
                                                                          let response = ui.add_sized(
                                                                              [64.0, 18.0],
@@ -5458,6 +5471,10 @@ impl CrosshairApp {
                                                              ui.horizontal(|ui| {
                                                                  
 
+                                                                 ui.add_sized(
+                                                                     [30.0, 22.0],
+                                                                     egui::Label::new(Self::tr_lang(language, "IF", "NẾU")),
+                                                                 );
                                                                  let response = ui.add_sized(
                                                                      [64.0, 22.0],
                                                                      TextEdit::singleline(&mut step.if_variable_name)
@@ -5517,7 +5534,10 @@ impl CrosshairApp {
                                                              let mut remove_extra_idx = None;
                                                              for (extra_idx, cond) in step.extra_conditions.iter_mut().enumerate() {
                                                                  ui.horizontal(|ui| {
-                                                                     ui.label(Self::tr_lang(language, "AND", "VÀ"));
+                                                                     ui.add_sized(
+                                                                         [30.0, 22.0],
+                                                                         egui::Label::new(Self::tr_lang(language, "AND", "VÀ")),
+                                                                     );
                                                                      
                                                                      let response = ui.add_sized(
                                                                          [64.0, 22.0],
