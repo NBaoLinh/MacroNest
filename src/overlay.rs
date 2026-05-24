@@ -1389,7 +1389,7 @@ mod windows_overlay {
             record_macro_mouse_event(message, &info);
 
             // 1. Immediately bypass WM_MOUSEMOVE to keep mouse movement extremely smooth and lock-free!
-            if message == WM_MOUSEMOVE {
+            if message == WM_MOUSEMOVE && !is_vision_capture_mouse_blocked() {
                 return CallNextHookEx(None, code, wparam, lparam);
             }
 
@@ -1427,13 +1427,12 @@ mod windows_overlay {
                 }
             }
             if is_vision_capture_mouse_blocked() {
-                    match message {
-                        WM_MOUSEMOVE => {
+                match message {
+                    WM_MOUSEMOVE => {
                         let mut hook_state = HOOK_STATE.lock();
                         let left_held = hook_state.held_mouse_buttons.contains("MouseLeft");
                         if left_held {
-                            if let Some((start_x, start_y)) = hook_state.vision_capture_anchor
-                            {
+                            if let Some((start_x, start_y)) = hook_state.vision_capture_anchor {
                                 let left = start_x.min(info.pt.x);
                                 let top = start_y.min(info.pt.y);
                                 let width = (start_x - info.pt.x).abs().max(1);
@@ -1444,32 +1443,23 @@ mod windows_overlay {
                                     width,
                                     height,
                                     is_circle: false,
-                                    angle_offset_deg: None, angle_span_deg: None,
+                                    angle_offset_deg: None,
+                                    angle_span_deg: None,
                                 };
                                 if hook_state.vision_capture_preview_region != Some(region) {
                                     hook_state.vision_capture_preview_region = Some(region);
-                                    let ui_tx = hook_state.ui_tx.clone();
-                                    drop(hook_state);
-                                    if let Some(ui_tx) = ui_tx {
-                                        let _ =
-                                            ui_tx.send(UiCommand::VisionCaptureMouseMove {
-                                                screen_x: info.pt.x,
-                                                screen_y: info.pt.y,
-                                            });
-                                    }
-                                    wake_command_queue();
-                                    return CallNextHookEx(None, code, wparam, lparam);
                                 }
                             }
-                            let ui_tx = hook_state.ui_tx.clone();
-                            drop(hook_state);
-                            if let Some(ui_tx) = ui_tx {
-                                let _ = ui_tx.send(UiCommand::VisionCaptureMouseMove {
-                                    screen_x: info.pt.x,
-                                    screen_y: info.pt.y,
-                                });
-                            }
                         }
+                        let ui_tx = hook_state.ui_tx.clone();
+                        drop(hook_state);
+                        if let Some(ui_tx) = ui_tx {
+                            let _ = ui_tx.send(UiCommand::VisionCaptureMouseMove {
+                                screen_x: info.pt.x,
+                                screen_y: info.pt.y,
+                            });
+                        }
+                        wake_command_queue();
                         return CallNextHookEx(None, code, wparam, lparam);
                     }
                     WM_LBUTTONDOWN => {

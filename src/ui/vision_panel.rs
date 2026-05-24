@@ -770,6 +770,11 @@ impl CrosshairApp {
             return false;
         }
 
+        if ctx.input(|input| input.key_pressed(egui::Key::Escape)) || Self::is_vk_down(0x1B) {
+            self.cancel_image_search_capture(ctx);
+            return true;
+        }
+
         ctx.request_repaint_after(Duration::from_millis(120));
         egui::CentralPanel::default()
             .frame(
