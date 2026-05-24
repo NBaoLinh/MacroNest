@@ -2945,7 +2945,10 @@ impl CrosshairApp {
                                                          ui.spacing_mut().item_spacing.x = 4.0;
                                                          ui.spacing_mut().interact_size.y = 22.0;
                                                          ui.spacing_mut().button_padding.y = 0.0;
-                                                         ui.vertical(|ui| {
+                                                         ui.allocate_ui_with_layout(
+                                                             vec2(ui.available_width(), 22.0),
+                                                             egui::Layout::top_down(egui::Align::Min),
+                                                             |ui| {
                                                              ui.horizontal(|ui| {
                                                                  let cb_text = Self::tr_lang(language, "Var compare", "So sánh biến");
                                                                  if ui.checkbox(&mut step.break_loop_by_variable, cb_text).changed() {
@@ -3261,7 +3264,10 @@ impl CrosshairApp {
                                                          ui.spacing_mut().item_spacing.x = 4.0;
                                                          ui.spacing_mut().interact_size.y = 22.0;
                                                          ui.spacing_mut().button_padding.y = 0.0;
-                                                         ui.vertical(|ui| {
+                                                         ui.allocate_ui_with_layout(
+                                                             vec2(ui.available_width(), 22.0),
+                                                             egui::Layout::top_down(egui::Align::Min),
+                                                             |ui| {
                                                              ui.horizontal(|ui| {
                                                                  
 
@@ -5162,7 +5168,10 @@ impl CrosshairApp {
                                                          ui.spacing_mut().item_spacing.x = 4.0;
                                                          ui.spacing_mut().interact_size.y = 18.0;
                                                          ui.spacing_mut().button_padding.y = 0.0;
-                                                         ui.vertical(|ui| {
+                                                         ui.allocate_ui_with_layout(
+                                                             vec2(ui.available_width(), 18.0),
+                                                             egui::Layout::top_down(egui::Align::Min),
+                                                             |ui| {
                                                              ui.horizontal(|ui| {
                                                                  let cb_text = Self::tr_lang(language, "Var compare", "So sánh biến");
                                                                  if ui.checkbox(&mut step.break_loop_by_variable, cb_text).changed() {
@@ -5467,7 +5476,10 @@ impl CrosshairApp {
                                                          ui.spacing_mut().item_spacing.x = 4.0;
                                                          ui.spacing_mut().interact_size.y = 22.0;
                                                          ui.spacing_mut().button_padding.y = 0.0;
-                                                         ui.vertical(|ui| {
+                                                         ui.allocate_ui_with_layout(
+                                                             vec2(ui.available_width(), 22.0),
+                                                             egui::Layout::top_down(egui::Align::Min),
+                                                             |ui| {
                                                              ui.horizontal(|ui| {
                                                                  
 
