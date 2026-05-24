@@ -570,7 +570,7 @@ impl Default for MacroStep {
             lock_mouse_move: true,
             toggle_enabled_on_run: false,
             if_variable_name: String::new(),
-            if_operator: "=".to_string(),
+            if_operator: "==".to_string(),
             manual_mouse_sensitivity: false,
             break_loop_by_variable: false,
             if_compare_value: 0,

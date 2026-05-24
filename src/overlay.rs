@@ -6224,7 +6224,7 @@ mod windows_overlay {
             let vars = RUNTIME_VARIABLES.lock();
             *vars.get(&var_name).unwrap_or(&0)
         };
-        let comp = if (step.if_compare_by_expression || step.break_loop_by_variable) && !step.key.trim().is_empty() {
+        let comp = if !step.key.trim().is_empty() {
             evaluate_math_expression(&step.key)
         } else {
             step.if_compare_value

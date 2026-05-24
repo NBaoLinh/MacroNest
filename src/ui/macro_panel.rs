@@ -3038,7 +3038,7 @@ impl CrosshairApp {
                                                                          let response = ui.add_sized(
                                                                              [64.0, 22.0],
                                                                              TextEdit::singleline(&mut cond.variable_name)
-                                                                                 .hint_text("biến"),
+                                                                                 .hint_text(RichText::new(Self::tr_lang(language, "variable", "biến")).color(hint_color).weak()),
                                                                          );
                                                                          Self::apply_vietnamese_input_if_changed(
                                                                              &response,
@@ -3063,7 +3063,7 @@ impl CrosshairApp {
                                                                          let response2 = ui.add_sized(
                                                                              [76.0, 22.0],
                                                                              TextEdit::singleline(&mut cond.expression)
-                                                                                 .hint_text("giá trị/expr"),
+                                                                                 .hint_text(RichText::new(Self::tr_lang(language, "value/expr", "giá trị/expr")).color(hint_color).weak()),
                                                                          );
                                                                          Self::apply_vietnamese_input_if_changed(
                                                                              &response2,
@@ -3260,10 +3260,7 @@ impl CrosshairApp {
                                                          ui.spacing_mut().button_padding.y = 0.0;
                                                          ui.vertical(|ui| {
                                                              ui.horizontal(|ui| {
-                                                                 let cb_text = Self::tr_lang(language, "Expr", "Biểu thức");
-                                                                 if ui.checkbox(&mut step.if_compare_by_expression, cb_text).changed() {
-                                                                     live_sync = true;
-                                                                 }
+                                                                 
 
                                                                  let response = ui.add_sized(
                                                                      [64.0, 22.0],
@@ -3290,25 +3287,18 @@ impl CrosshairApp {
                                                                          }
                                                                      });
                                                                  
-                                                                 if step.if_compare_by_expression {
-                                                                     let response2 = ui.add_sized(
-                                                                         [76.0, 22.0],
-                                                                         TextEdit::singleline(&mut step.key)
-                                                                             .hint_text(RichText::new(Self::tr_lang(language, "value/expr", "giá trị")).color(hint_color).weak()),
-                                                                     );
-                                                                     Self::apply_vietnamese_input_if_changed(
-                                                                         &response2,
-                                                                         self.state.vietnamese_input_enabled,
-                                                                         self.state.vietnamese_input_mode,
-                                                                         &mut step.key,
-                                                                     );
-                                                                     live_sync |= response2.changed();
-                                                                 } else {
-                                                                     live_sync |= ui.add_sized(
-                                                                         [46.0, 22.0],
-                                                                         DragValue::new(&mut step.if_compare_value).range(-1_000_000..=1_000_000),
-                                                                     ).changed();
-                                                                 }
+                                                                 let response2 = ui.add_sized(
+                                                                      [76.0, 22.0],
+                                                                      TextEdit::singleline(&mut step.key)
+                                                                          .hint_text(RichText::new(Self::tr_lang(language, "value/expr", "giá trị/expr")).color(hint_color).weak()),
+                                                                  );
+                                                                  Self::apply_vietnamese_input_if_changed(
+                                                                      &response2,
+                                                                      self.state.vietnamese_input_enabled,
+                                                                      self.state.vietnamese_input_mode,
+                                                                      &mut step.key,
+                                                                  );
+                                                                  live_sync |= response2.changed();
  
                                                                  let var_name = step.if_variable_name.trim();
                                                                  if !var_name.is_empty() {
@@ -3336,7 +3326,7 @@ impl CrosshairApp {
                                                                      let response = ui.add_sized(
                                                                          [64.0, 22.0],
                                                                          TextEdit::singleline(&mut cond.variable_name)
-                                                                             .hint_text("biến"),
+                                                                             .hint_text(RichText::new(Self::tr_lang(language, "variable", "biến")).color(hint_color).weak()),
                                                                      );
                                                                      Self::apply_vietnamese_input_if_changed(
                                                                          &response,
@@ -3361,7 +3351,7 @@ impl CrosshairApp {
                                                                      let response2 = ui.add_sized(
                                                                          [76.0, 22.0],
                                                                          TextEdit::singleline(&mut cond.expression)
-                                                                             .hint_text("giá trị/expr"),
+                                                                             .hint_text(RichText::new(Self::tr_lang(language, "value/expr", "giá trị/expr")).color(hint_color).weak()),
                                                                      );
                                                                      Self::apply_vietnamese_input_if_changed(
                                                                          &response2,
@@ -3393,6 +3383,7 @@ impl CrosshairApp {
                                                              }
 
                                                              Self::render_variable_suggestions_raw(ui, &mut step.if_variable_name, language);
+                                                             Self::render_variable_suggestions(ui, &mut step.key, language);
                                                          });
                                                      });
                                                 } else if step.action == MacroAction::SetVariable {
@@ -5247,7 +5238,7 @@ impl CrosshairApp {
                                                                          let response = ui.add_sized(
                                                                              [64.0, 18.0],
                                                                              TextEdit::singleline(&mut cond.variable_name)
-                                                                                 .hint_text("biến"),
+                                                                                 .hint_text(RichText::new(Self::tr_lang(language, "variable", "biến")).color(hint_color).weak()),
                                                                          );
                                                                          Self::apply_vietnamese_input_if_changed(
                                                                              &response,
@@ -5272,7 +5263,7 @@ impl CrosshairApp {
                                                                          let response2 = ui.add_sized(
                                                                              [64.0, 18.0],
                                                                              TextEdit::singleline(&mut cond.expression)
-                                                                                 .hint_text("giá trị/expr"),
+                                                                                 .hint_text(RichText::new(Self::tr_lang(language, "value/expr", "giá trị/expr")).color(hint_color).weak()),
                                                                          );
                                                                          Self::apply_vietnamese_input_if_changed(
                                                                              &response2,
@@ -5465,10 +5456,7 @@ impl CrosshairApp {
                                                          ui.spacing_mut().button_padding.y = 0.0;
                                                          ui.vertical(|ui| {
                                                              ui.horizontal(|ui| {
-                                                                 let cb_text = Self::tr_lang(language, "Expr", "Biểu thức");
-                                                                 if ui.checkbox(&mut step.if_compare_by_expression, cb_text).changed() {
-                                                                     live_sync = true;
-                                                                 }
+                                                                 
 
                                                                  let response = ui.add_sized(
                                                                      [64.0, 22.0],
@@ -5495,25 +5483,18 @@ impl CrosshairApp {
                                                                          }
                                                                      });
                                                                  
-                                                                 if step.if_compare_by_expression {
-                                                                     let response2 = ui.add_sized(
-                                                                         [76.0, 22.0],
-                                                                         TextEdit::singleline(&mut step.key)
-                                                                             .hint_text(RichText::new(Self::tr_lang(language, "value/expr", "giá trị")).color(hint_color).weak()),
-                                                                     );
-                                                                     Self::apply_vietnamese_input_if_changed(
-                                                                         &response2,
-                                                                         self.state.vietnamese_input_enabled,
-                                                                         self.state.vietnamese_input_mode,
-                                                                         &mut step.key,
-                                                                     );
-                                                                     live_sync |= response2.changed();
-                                                                 } else {
-                                                                     live_sync |= ui.add_sized(
-                                                                         [46.0, 22.0],
-                                                                         DragValue::new(&mut step.if_compare_value).range(-1_000_000..=1_000_000),
-                                                                     ).changed();
-                                                                 }
+                                                                 let response2 = ui.add_sized(
+                                                                      [76.0, 22.0],
+                                                                      TextEdit::singleline(&mut step.key)
+                                                                          .hint_text(RichText::new(Self::tr_lang(language, "value/expr", "giá trị/expr")).color(hint_color).weak()),
+                                                                  );
+                                                                  Self::apply_vietnamese_input_if_changed(
+                                                                      &response2,
+                                                                      self.state.vietnamese_input_enabled,
+                                                                      self.state.vietnamese_input_mode,
+                                                                      &mut step.key,
+                                                                  );
+                                                                  live_sync |= response2.changed();
  
                                                                  let var_name = step.if_variable_name.trim();
                                                                  if !var_name.is_empty() {
@@ -5541,7 +5522,7 @@ impl CrosshairApp {
                                                                      let response = ui.add_sized(
                                                                          [64.0, 22.0],
                                                                          TextEdit::singleline(&mut cond.variable_name)
-                                                                             .hint_text("biến"),
+                                                                             .hint_text(RichText::new(Self::tr_lang(language, "variable", "biến")).color(hint_color).weak()),
                                                                      );
                                                                      Self::apply_vietnamese_input_if_changed(
                                                                          &response,
@@ -5566,7 +5547,7 @@ impl CrosshairApp {
                                                                      let response2 = ui.add_sized(
                                                                          [76.0, 22.0],
                                                                          TextEdit::singleline(&mut cond.expression)
-                                                                             .hint_text("giá trị/expr"),
+                                                                             .hint_text(RichText::new(Self::tr_lang(language, "value/expr", "giá trị/expr")).color(hint_color).weak()),
                                                                      );
                                                                      Self::apply_vietnamese_input_if_changed(
                                                                          &response2,
