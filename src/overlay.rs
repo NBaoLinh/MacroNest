@@ -328,7 +328,7 @@ mod windows_overlay {
         SetVietnameseInputEnabled(bool),
         UpdateMacrosMasterHotkey(Option<HotkeyBinding>),
         RefreshPinOverlay,
-        SetVisionCaptureMouseBlocked(bool),
+        SetVisionCaptureMouseBlocked { blocked: bool, is_region_mode: bool },
         SetUiVisible(bool),
         SetTrayIconVisible(bool),
         Exit,
@@ -469,6 +469,7 @@ mod windows_overlay {
         macro_keyboard_key_press_delay_ms: u32,
         active_pin_preset_id: Option<u32>,
         vision_capture_mouse_blocked: bool,
+        vision_capture_is_region_mode: bool,
         vision_capture_anchor: Option<(i32, i32)>,
         vision_capture_preview_region: Option<VisionRegion>,
         hud_presets: Vec<HudPreset>,
@@ -528,6 +529,7 @@ mod windows_overlay {
                 macro_keyboard_key_press_delay_ms: 0,
                 active_pin_preset_id: None,
                 vision_capture_mouse_blocked: false,
+                vision_capture_is_region_mode: false,
                 vision_capture_anchor: None,
                 vision_capture_preview_region: None,
                 hud_presets: Vec::new(),
@@ -1465,15 +1467,18 @@ mod windows_overlay {
                     WM_LBUTTONDOWN => {
                         update_held_mouse_button(message, ((info.mouseData >> 16) & 0xFFFF) as u16);
                         let mut hook_state = HOOK_STATE.lock();
-                        hook_state.vision_capture_anchor = Some((info.pt.x, info.pt.y));
-                        hook_state.vision_capture_preview_region = Some(VisionRegion {
-                            left: info.pt.x,
-                            top: info.pt.y,
-                            width: 1,
-                            height: 1,
-                            is_circle: false,
-                            angle_offset_deg: None, angle_span_deg: None,
-                        });
+                        if hook_state.vision_capture_is_region_mode {
+                            hook_state.vision_capture_anchor = Some((info.pt.x, info.pt.y));
+                            hook_state.vision_capture_preview_region = Some(VisionRegion {
+                                left: info.pt.x,
+                                top: info.pt.y,
+                                width: 1,
+                                height: 1,
+                                is_circle: false,
+                                angle_offset_deg: None,
+                                angle_span_deg: None,
+                            });
+                        }
                         let ui_tx = hook_state.ui_tx.clone();
                         drop(hook_state);
                         if let Some(ui_tx) = ui_tx {
@@ -3213,9 +3218,10 @@ mod windows_overlay {
                 OverlayCommand::RefreshPinOverlay => {
                     let _ = refresh_pin_overlay(runtime);
                 }
-                OverlayCommand::SetVisionCaptureMouseBlocked(blocked) => {
+                OverlayCommand::SetVisionCaptureMouseBlocked { blocked, is_region_mode } => {
                     let mut hook_state = HOOK_STATE.lock();
                     hook_state.vision_capture_mouse_blocked = blocked;
+                    hook_state.vision_capture_is_region_mode = is_region_mode;
                     if !blocked {
                         hook_state.vision_capture_anchor = None;
                         hook_state.vision_capture_preview_region = None;

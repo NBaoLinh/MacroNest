@@ -1205,7 +1205,8 @@ impl CrosshairApp {
                     .to_owned()
             }
         };
-        self.set_image_search_capture_mouse_blocked(true);
+        let is_region_mode = matches!(mode, VisionCaptureMode::Template | VisionCaptureMode::SearchRegion);
+        self.set_image_search_capture_mouse_blocked(true, is_region_mode);
         let _ = self.overlay_tx.send(OverlayCommand::SetUiVisible(false));
         crate::overlay::wake_command_queue();
         self.show_capture_info_window(ctx);
@@ -1752,13 +1753,13 @@ impl CrosshairApp {
         self.vision_capture_current = None;
         self.vision_capture_screen_region_preview = None;
         self.vision_color_pick_preview_color = None;
-        self.set_image_search_capture_mouse_blocked(false);
+        self.set_image_search_capture_mouse_blocked(false, false);
     }
 
-    pub(crate) fn set_image_search_capture_mouse_blocked(&self, blocked: bool) {
+    pub(crate) fn set_image_search_capture_mouse_blocked(&self, blocked: bool, is_region_mode: bool) {
         let _ = self
             .overlay_tx
-            .send(OverlayCommand::SetVisionCaptureMouseBlocked(blocked));
+            .send(OverlayCommand::SetVisionCaptureMouseBlocked { blocked, is_region_mode });
         crate::overlay::wake_command_queue();
     }
 
