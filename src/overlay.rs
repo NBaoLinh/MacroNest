@@ -9702,15 +9702,48 @@ mod windows_overlay {
         regions: &[VisionRegion],
         preview_region: Option<VisionRegion>,
     ) -> Result<()> {
-        let screen_width = GetSystemMetrics(SM_CXSCREEN).max(1);
-        let screen_height = GetSystemMetrics(SM_CYSCREEN).max(1);
+        let mut min_x = i32::MAX;
+        let mut min_y = i32::MAX;
+        let mut max_x = i32::MIN;
+        let mut max_y = i32::MIN;
+
+        for region in regions {
+            let r_left = region.left - 2;
+            let r_top = region.top - 2;
+            let r_right = region.left + region.width + 2;
+            let r_bottom = region.top + region.height + 2;
+            min_x = min_x.min(r_left);
+            min_y = min_y.min(r_top);
+            max_x = max_x.max(r_right);
+            max_y = max_y.max(r_bottom);
+        }
+
+        if let Some(region) = preview_region {
+            let r_left = region.left - 2;
+            let r_top = region.top - 2;
+            let r_right = region.left + region.width + 2;
+            let r_bottom = region.top + region.height + 2;
+            min_x = min_x.min(r_left);
+            min_y = min_y.min(r_top);
+            max_x = max_x.max(r_right);
+            max_y = max_y.max(r_bottom);
+        }
+
+        if min_x == i32::MAX {
+            let _ = ShowWindow(hwnd, SW_HIDE);
+            return Ok(());
+        }
+
+        let width = (max_x - min_x).max(1);
+        let height = (max_y - min_y).max(1);
+
         let _ = SetWindowPos(
             hwnd,
             Some(HWND_TOPMOST),
-            0,
-            0,
-            screen_width,
-            screen_height,
+            min_x,
+            min_y,
+            width,
+            height,
             SWP_NOACTIVATE | SWP_SHOWWINDOW,
         );
 
@@ -9727,8 +9760,8 @@ mod windows_overlay {
         let mut bitmap_info = BITMAPINFO::default();
         bitmap_info.bmiHeader = BITMAPINFOHEADER {
             biSize: size_of::<BITMAPINFOHEADER>() as u32,
-            biWidth: screen_width,
-            biHeight: -screen_height,
+            biWidth: width,
+            biHeight: -height,
             biPlanes: 1,
             biBitCount: 32,
             biCompression: BI_RGB.0,
@@ -9751,25 +9784,27 @@ mod windows_overlay {
         }
 
         let old_bitmap = SelectObject(mem_dc, HGDIOBJ(bitmap.0));
-        let pixel_len = (screen_width as usize) * (screen_height as usize) * 4;
+        let pixel_len = (width as usize) * (height as usize) * 4;
         let pixels = std::slice::from_raw_parts_mut(bits as *mut u8, pixel_len);
         pixels.fill(0);
 
         for region in regions {
+            let rel_left = region.left - min_x;
+            let rel_top = region.top - min_y;
             let outline = [92, 220, 255, 210];
             if region.is_circle {
                 draw_ellipse_outline_rgba(
                     pixels,
-                    screen_width as usize,
-                    screen_height as usize,
-                    region.left,
-                    region.top,
+                    width as usize,
+                    height as usize,
+                    rel_left,
+                    rel_top,
                     region.width,
                     region.height,
                     outline,
                 );
-                let center_x = region.left + region.width / 2;
-                let center_y = region.top + region.height / 2;
+                let center_x = rel_left + region.width / 2;
+                let center_y = rel_top + region.height / 2;
                 let rx = region.width as f32 / 2.0;
                 let ry = region.height as f32 / 2.0;
 
@@ -9778,8 +9813,17 @@ mod windows_overlay {
                     let rad0 = angle_deg.to_radians();
                     let x0 = center_x as f32 + rx * rad0.sin();
                     let y0 = center_y as f32 - ry * rad0.cos();
-                    draw_line_rgba(pixels, screen_width as usize, screen_height as usize, center_x, center_y, x0 as i32, y0 as i32, [255, 120, 0, 255]);
-                    
+                    draw_line_rgba(
+                        pixels,
+                        width as usize,
+                        height as usize,
+                        center_x,
+                        center_y,
+                        x0 as i32,
+                        y0 as i32,
+                        [255, 120, 0, 255],
+                    );
+
                     // 2. Draw END ANGLE (100% - Bright Green Line) based on SPAN!
                     if let Some(span) = region.angle_span_deg {
                         if span < 360.0 {
@@ -9787,17 +9831,26 @@ mod windows_overlay {
                             let rad1 = end_deg.to_radians();
                             let x1 = center_x as f32 + rx * rad1.sin();
                             let y1 = center_y as f32 - ry * rad1.cos();
-                            draw_line_rgba(pixels, screen_width as usize, screen_height as usize, center_x, center_y, x1 as i32, y1 as i32, [50, 255, 50, 255]);
+                            draw_line_rgba(
+                                pixels,
+                                width as usize,
+                                height as usize,
+                                center_x,
+                                center_y,
+                                x1 as i32,
+                                y1 as i32,
+                                [50, 255, 50, 255],
+                            );
                         }
                     }
                 }
             } else {
                 draw_rect_outline_rgba(
                     pixels,
-                    screen_width as usize,
-                    screen_height as usize,
-                    region.left,
-                    region.top,
+                    width as usize,
+                    height as usize,
+                    rel_left,
+                    rel_top,
                     region.width,
                     region.height,
                     outline,
@@ -9806,24 +9859,25 @@ mod windows_overlay {
         }
 
         if let Some(region) = preview_region {
+            let rel_left = region.left - min_x;
+            let rel_top = region.top - min_y;
             let outline = [255, 216, 96, 230];
             draw_rect_outline_rgba(
                 pixels,
-                screen_width as usize,
-                screen_height as usize,
-                region.left,
-                region.top,
+                width as usize,
+                height as usize,
+                rel_left,
+                rel_top,
                 region.width,
                 region.height,
                 outline,
             );
         }
 
-        let destination = POINT { x: 0, y: 0 };
         let source = POINT { x: 0, y: 0 };
         let size = SIZE {
-            cx: screen_width,
-            cy: screen_height,
+            cx: width,
+            cy: height,
         };
         let blend = BLENDFUNCTION {
             BlendOp: AC_SRC_OVER as u8,
@@ -9835,7 +9889,7 @@ mod windows_overlay {
         let _ = UpdateLayeredWindow(
             hwnd,
             Some(screen_dc),
-            Some(&destination),
+            None,
             Some(&size),
             Some(mem_dc),
             Some(&source),
