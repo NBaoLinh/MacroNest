@@ -126,8 +126,8 @@ fn main() -> Result<()> {
     let native_options = eframe::NativeOptions {
         viewport: eframe::egui::ViewportBuilder::default()
             .with_title(app_title)
-            .with_inner_size([1180.0, 980.0])
-            .with_min_inner_size([1100.0, 900.0])
+            .with_inner_size([1060.0, 980.0])
+            .with_min_inner_size([980.0, 900.0])
             .with_decorations(false)
             .with_transparent(true)
             .with_icon(std::sync::Arc::new(app_icon::icon_data(128)?)),
