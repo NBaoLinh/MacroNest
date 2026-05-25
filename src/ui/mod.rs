@@ -1084,6 +1084,142 @@ impl CrosshairApp {
         }
     }
 
+    fn export_macro_step(&mut self, step: &MacroStep) {
+        match crate::macro_code::encode_step(step) {
+            Ok(code) => {
+                self.status = Self::tr_lang(&self.state.language, "Step code copied to clipboard.", "Đã sao chép mã bước vào clipboard.").to_owned();
+                if let Ok(mut clipboard) = Clipboard::new() {
+                    let _ = clipboard.set_text(code);
+                }
+            }
+            Err(error) => self.status = format!("Failed to export step: {error}"),
+        }
+    }
+
+    fn import_macro_step_from_clipboard(&mut self, group_id: u32, preset_id: u32) {
+        let mut clipboard = match Clipboard::new() {
+            Ok(cb) => cb,
+            Err(e) => {
+                self.status = format!("Clipboard error: {e}");
+                return;
+            }
+        };
+        let code = match clipboard.get_text() {
+            Ok(text) => text,
+            Err(e) => {
+                self.status = format!("Failed to read clipboard: {e}");
+                return;
+            }
+        };
+        match crate::macro_code::decode_step(&code) {
+            Ok(step) => {
+                if let Some(group) = self.state.macro_groups.iter_mut().find(|g| g.id == group_id) {
+                    if let Some(preset) = group.presets.iter_mut().find(|p| p.id == preset_id) {
+                        preset.steps.push(step);
+                        self.sync_macro_presets();
+                        self.persist();
+                        self.status = Self::tr_lang(&self.state.language, "Step imported successfully.", "Đã nhập bước thành công.").to_owned();
+                    }
+                }
+            }
+            Err(error) => self.status = format!("Import failed: {error}"),
+        }
+    }
+
+    fn export_macro_preset(&mut self, preset: &MacroPreset) {
+        match crate::macro_code::encode_preset(preset) {
+            Ok(code) => {
+                self.status = Self::tr_lang(&self.state.language, "Preset code copied to clipboard.", "Đã sao chép mã preset vào clipboard.").to_owned();
+                if let Ok(mut clipboard) = Clipboard::new() {
+                    let _ = clipboard.set_text(code);
+                }
+            }
+            Err(error) => self.status = format!("Failed to export preset: {error}"),
+        }
+    }
+
+    fn import_macro_preset_from_clipboard(&mut self, group_id: u32) {
+        let mut clipboard = match Clipboard::new() {
+            Ok(cb) => cb,
+            Err(e) => {
+                self.status = format!("Clipboard error: {e}");
+                return;
+            }
+        };
+        let code = match clipboard.get_text() {
+            Ok(text) => text,
+            Err(e) => {
+                self.status = format!("Failed to read clipboard: {e}");
+                return;
+            }
+        };
+        match crate::macro_code::decode_preset(&code) {
+            Ok(mut preset) => {
+                let id = self.state.next_macro_preset_id.max(1);
+                self.state.next_macro_preset_id = id + 1;
+                preset.id = id;
+                if let Some(group) = self.state.macro_groups.iter_mut().find(|g| g.id == group_id) {
+                    group.presets.push(preset);
+                    self.reconcile_master_presets();
+                    self.sync_macro_presets();
+                    self.persist();
+                    self.status = Self::tr_lang(&self.state.language, "Preset imported successfully.", "Đã nhập preset thành công.").to_owned();
+                }
+            }
+            Err(error) => self.status = format!("Import failed: {error}"),
+        }
+    }
+
+    fn export_macro_group(&mut self, group: &MacroGroup) {
+        match crate::macro_code::encode_group(group) {
+            Ok(code) => {
+                self.status = Self::tr_lang(&self.state.language, "Group code copied to clipboard.", "Đã sao chép mã nhóm vào clipboard.").to_owned();
+                if let Ok(mut clipboard) = Clipboard::new() {
+                    let _ = clipboard.set_text(code);
+                }
+            }
+            Err(error) => self.status = format!("Failed to export group: {error}"),
+        }
+    }
+
+    fn import_macro_group_from_clipboard(&mut self) {
+        let mut clipboard = match Clipboard::new() {
+            Ok(cb) => cb,
+            Err(e) => {
+                self.status = format!("Clipboard error: {e}");
+                return;
+            }
+        };
+        let code = match clipboard.get_text() {
+            Ok(text) => text,
+            Err(e) => {
+                self.status = format!("Failed to read clipboard: {e}");
+                return;
+            }
+        };
+        match crate::macro_code::decode_group(&code) {
+            Ok(mut group) => {
+                let id = self.state.next_macro_group_id.max(1);
+                self.state.next_macro_group_id = id + 1;
+                group.id = id;
+                group.name = self.unique_macro_group_name(&group.name);
+                
+                for preset in &mut group.presets {
+                    let preset_id = self.state.next_macro_preset_id.max(1);
+                    self.state.next_macro_preset_id = preset_id + 1;
+                    preset.id = preset_id;
+                }
+                
+                self.state.macro_groups.push(group);
+                self.reconcile_master_presets();
+                self.sync_macro_presets();
+                self.persist();
+                self.status = Self::tr_lang(&self.state.language, "Group imported successfully.", "Đã nhập nhóm thành công.").to_owned();
+            }
+            Err(error) => self.status = format!("Import failed: {error}"),
+        }
+    }
+
     fn reload_custom_assets(&mut self) {
         match self.paths.list_crosshair_assets() {
             Ok(assets) => {

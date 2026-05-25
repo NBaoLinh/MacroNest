@@ -9,6 +9,7 @@ mod model;
 mod overlay;
 mod platform;
 mod profile_code;
+mod macro_code;
 mod render;
 mod storage;
 mod ui;
