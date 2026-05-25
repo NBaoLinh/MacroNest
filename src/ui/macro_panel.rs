@@ -1,4 +1,4 @@
-﻿use crate::model::*;
+use crate::model::*;
 
 use crate::ui::{
 
@@ -2512,10 +2512,6 @@ impl CrosshairApp {
 
         let mut toggle_folder_enabled_id = None;
 
-        let mut enable_all_folder_id = None;
-
-        let mut disable_all_folder_id = None;
-
         let mut pending_custom_preset_save: Option<(
 
             u32,
@@ -2706,41 +2702,7 @@ impl CrosshairApp {
 
                                 }
 
-                                if ui
 
-                                    .add_sized(
-
-                                        [75.0, 24.0],
-
-                                        Button::new(Self::tr_lang(language, "Disable All", "Táº¯t háº¿t")),
-
-                                    )
-
-                                    .clicked()
-
-                                {
-
-                                    disable_all_folder_id = Some(folder_id);
-
-                                }
-
-                                if ui
-
-                                    .add_sized(
-
-                                        [70.0, 24.0],
-
-                                        Button::new(Self::tr_lang(language, "Enable All", "Báº­t háº¿t")),
-
-                                    )
-
-                                    .clicked()
-
-                                {
-
-                                    enable_all_folder_id = Some(folder_id);
-
-                                }
 
                                 if ui
 
@@ -2855,7 +2817,18 @@ impl CrosshairApp {
 
                     let group = &mut self.state.macro_groups[group_index];
 
-                    Self::show_preset_card(ui, group.enabled, |ui| {
+                    let folder_enabled = if let Some(folder_id) = group.folder_id {
+                        self.state
+                            .macro_folders
+                            .iter()
+                            .find(|f| f.id == folder_id)
+                            .map(|f| f.enabled)
+                            .unwrap_or(true)
+                    } else {
+                        true
+                    };
+
+                    Self::show_preset_card(ui, group.enabled && folder_enabled, |ui| {
 
                         ui.horizontal(|ui| {
 
@@ -3087,9 +3060,11 @@ impl CrosshairApp {
 
 
 
-                                    let enabled_icon = if group.enabled { 0xe834 } else { 0xe835 };
+                                    let is_active = group.enabled && folder_enabled;
 
-                                    let enabled_fill = if group.enabled {
+                                    let enabled_icon = if is_active { 0xe834 } else { 0xe835 };
+
+                                    let enabled_fill = if is_active {
 
                                         Color32::from_rgba_premultiplied(72, 156, 116, 120)
 
@@ -3099,7 +3074,7 @@ impl CrosshairApp {
 
                                     };
 
-                                    let enabled_stroke = if group.enabled {
+                                    let enabled_stroke = if is_active {
 
                                         Color32::from_rgb(126, 224, 182)
 
@@ -13980,59 +13955,7 @@ impl CrosshairApp {
             }
         }
 
-        if let Some(folder_id) = disable_all_folder_id {
-            if let Some(folder) = self
-                .state
-                .macro_folders
-                .iter_mut()
-                .find(|folder| folder.id == folder_id)
-            {
-                folder.enabled = false;
-            }
 
-            for group in self
-                .state
-                .macro_groups
-                .iter_mut()
-                .filter(|group| group.folder_id == Some(folder_id))
-            {
-                group.enabled = false;
-                for preset in &mut group.presets {
-                    preset.enabled = false;
-                }
-            }
-
-            self.persist_macro_presets();
-            self.persist();
-            self.sync_macro_presets();
-        }
-
-        if let Some(folder_id) = enable_all_folder_id {
-            if let Some(folder) = self
-                .state
-                .macro_folders
-                .iter_mut()
-                .find(|folder| folder.id == folder_id)
-            {
-                folder.enabled = true;
-            }
-
-            for group in self
-                .state
-                .macro_groups
-                .iter_mut()
-                .filter(|group| group.folder_id == Some(folder_id))
-            {
-                group.enabled = true;
-                for preset in &mut group.presets {
-                    preset.enabled = true;
-                }
-            }
-
-            self.persist_macro_presets();
-            self.persist();
-            self.sync_macro_presets();
-        }
 
         ui.add_space((ui.ctx().screen_rect().height() - 250.0).max(0.0));
 

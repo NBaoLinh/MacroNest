@@ -856,7 +856,6 @@ impl CrosshairApp {
                             .clicked()
                         {
                             preset.collapsed = !preset.collapsed;
-                            changed = true;
                         }
                     });
                 });
