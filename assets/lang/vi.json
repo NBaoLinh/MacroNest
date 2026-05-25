@@ -327,5 +327,8 @@
   "This group contains one or more macros that start image search (Press/Release trigger) but never stop it! This could cause background CPU thread leaks.": "Nhóm macro này chứa một hoặc nhiều macro bắt đầu tìm ảnh (kích hoạt bằng Nhấn/Thả) nhưng không dừng lại! Điều này có thể gây chạy luồng ngầm liên tục hao CPU.",
   "MACRO WARNING": "CẢNH BÁO MACRO",
   "This macro contains an infinite loop and is active. Ensure you know how to stop it to avoid system hang!": "Macro này chứa vòng lặp vô hạn và đang ở chế độ tự kích hoạt. Hãy đảm bảo bạn đã biết cách dừng nó để tránh treo máy!",
-  "This macro starts image search (Press/Release trigger) but does not contain a 'StopImageSearch' action! This could lead to a persistent background CPU thread. Add a 'StopImageSearch' step or change trigger to 'Hold'.": "Macro này bắt đầu tìm kiếm hình ảnh (chế độ Nhấn/Thả) nhưng không có bước dừng tìm ảnh! Điều này có thể dẫn tới luồng chạy ngầm liên tục gây hao CPU. Hãy thêm bước dừng tìm ảnh hoặc đổi trigger sang Giữ (Hold)."
+  "This macro starts image search (Press/Release trigger) but does not contain a 'StopImageSearch' action! This could lead to a persistent background CPU thread. Add a 'StopImageSearch' step or change trigger to 'Hold'.": "Macro này bắt đầu tìm kiếm hình ảnh (chế độ Nhấn/Thả) nhưng không có bước dừng tìm ảnh! Điều này có thể dẫn tới luồng chạy ngầm liên tục gây hao CPU. Hãy thêm bước dừng tìm ảnh hoặc đổi trigger sang Giữ (Hold).",
+  "variable": "biến",
+  "AND": "VÀ",
+  "OR": "HOẶC"
 }
