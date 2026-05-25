@@ -6070,7 +6070,7 @@ impl CrosshairApp {
 
 
 
-                                                                     if ui.button("+").on_hover_text(Self::tr_lang(language, "Add condition", "ThÃªm Ã„â€˜iÃ¡Â»Âu kiÃ¡Â»â€¡n")).clicked() {
+                                                                     if ui.add_sized([24.0, 24.0], Button::new("+")).on_hover_text(Self::tr_lang(language, "Add condition", "Thêm điều kiện")).clicked() {
 
                                                                          step.extra_conditions.push(ExtraCondition::default());
 
@@ -6130,12 +6130,14 @@ impl CrosshairApp {
 
                                                                  for (extra_idx, cond) in step.extra_conditions.iter_mut().enumerate() {
 
-                                                                     ui.horizontal(|ui| {
+                                                                      ui.horizontal(|ui| {
+
+                                                                          ui.add_space(100.0);
 
                                                                                                                                                   egui::ComboBox::from_id_salt((group.id, preset.id, extra_idx, "hold-stop-loop-extra-join"))
-                                                                             .width(48.0)
-                                                                             .selected_text(if cond.join_operator.eq_ignore_ascii_case("OR") { Self::tr_lang(language, "OR", "HO?C") } else { Self::tr_lang(language, "AND", "VÀ") })
-                                                                             .show_ui(ui, |ui| {
+                                                                              .width(56.0)
+                                                                              .selected_text(if cond.join_operator.eq_ignore_ascii_case("OR") { Self::tr_lang(language, "OR", "HO?C") } else { Self::tr_lang(language, "AND", "VÀ") })
+                                                                              .show_ui(ui, |ui| {
                                                                                  for op in &["AND", "OR"] {
                                                                                      let label = if *op == "AND" {
                                                                                          Self::tr_lang(language, "AND", "VÀ")
@@ -6247,7 +6249,7 @@ impl CrosshairApp {
 
                                                                          
 
-                                                                         if ui.button("-").on_hover_text(Self::tr_lang(language, "Remove condition", "XÃƒÂ³a Ã„â€˜iÃ¡Â»Âu kiÃ¡Â»â€¡n")).clicked() {
+                                                                         if ui.add_sized([24.0, 24.0], Button::new("-")).on_hover_text(Self::tr_lang(language, "Remove condition", "Xóa điều kiện")).clicked() {
 
                                                                              remove_extra_idx = Some(extra_idx);
 
@@ -6694,6 +6696,7 @@ impl CrosshairApp {
 
 
 
+                                                                   ui.add_space(56.0);
                                                                    if step.if_condition_type == IfConditionType::Variable {
 
                                                                        let response = ui.add_sized(
@@ -6702,7 +6705,7 @@ impl CrosshairApp {
 
                                                                            TextEdit::singleline(&mut step.if_variable_name)
 
-                                                                               .hint_text(RichText::new(Self::tr_lang(language, "variable", "biáº¿n")).color(hint_color).weak()),
+                                                                               .hint_text(RichText::new(Self::tr_lang(language, "expr", "biá»ƒu thá»©c")).color(hint_color).weak()),
 
                                                                        );
 
@@ -6772,25 +6775,23 @@ impl CrosshairApp {
 
        
 
-                                                                       let var_name = step.if_variable_name.trim();
+                                                                       let left_expr = step.if_variable_name.trim();
 
-                                                                       if !var_name.is_empty() {
+                                                                       if !left_expr.is_empty() {
 
-                                                                           let current_val = crate::overlay::RUNTIME_VARIABLES.lock().get(var_name).copied();
-
-                                                                           let val_str = current_val.map(|v| v.to_string()).unwrap_or_else(|| "?".to_string());
+                                                                           let left_val = crate::overlay::evaluate_math_expression(left_expr);
 
                                                                            ui.add_space(2.0);
 
                                                                            ui.label(
 
-                                                                               RichText::new(format!("({})", val_str))
+                                                                               RichText::new(format!("({})", left_val))
 
                                                                                    .size(10.0)
 
                                                                                    .color(Color32::from_rgb(0, 191, 255))
 
-                                                                           ).on_hover_text(Self::tr_lang(language, "Current runtime value", "GiÃƒÂ¡ trÃ¡Â»â€¹ chÃ¡ÂºÂ¡y hiÃ¡Â»â€¡n táº¡i"));
+                                                                           ).on_hover_text(Self::tr_lang(language, "Evaluated left expression", "Gia tri bieu thuc ben trai"));
 
                                                                        }
 
@@ -7094,7 +7095,7 @@ impl CrosshairApp {
 
 
 
-                                                                   if ui.button("+").on_hover_text(Self::tr_lang(language, "Add condition", "ThÃªm Ã„â€˜iÃ¡Â»Âu kiÃ¡Â»â€¡n")).clicked() {
+                                                                     if ui.add_sized([24.0, 24.0], Button::new("+")).on_hover_text(Self::tr_lang(language, "Add condition", "Thêm điều kiện")).clicked() {
 
                                                                        step.extra_conditions.push(ExtraCondition::default());
 
@@ -7110,12 +7111,14 @@ impl CrosshairApp {
 
                                                              for (extra_idx, cond) in step.extra_conditions.iter_mut().enumerate() {
 
-                                                                 ui.horizontal(|ui| {
+                                                                  ui.horizontal(|ui| {
 
-                                                                                                                                                  egui::ComboBox::from_id_salt((group.id, preset.id, extra_idx, "hold-stop-if-extra-join"))
-                                                                             .width(48.0)
-                                                                             .selected_text(if cond.join_operator.eq_ignore_ascii_case("OR") { Self::tr_lang(language, "OR", "HO?C") } else { Self::tr_lang(language, "AND", "VÀ") })
-                                                                             .show_ui(ui, |ui| {
+                                                                          ui.add_space(100.0);
+
+                                                                          egui::ComboBox::from_id_salt((group.id, preset.id, extra_idx, "hold-stop-if-extra-join"))
+                                                                              .width(56.0)
+                                                                              .selected_text(if cond.join_operator.eq_ignore_ascii_case("OR") { Self::tr_lang(language, "OR", "HO?C") } else { Self::tr_lang(language, "AND", "VÀ") })
+                                                                              .show_ui(ui, |ui| {
                                                                                  for op in &["AND", "OR"] {
                                                                                      let label = if *op == "AND" {
                                                                                          Self::tr_lang(language, "AND", "VÀ")
@@ -7135,7 +7138,7 @@ impl CrosshairApp {
 
                                                                          TextEdit::singleline(&mut cond.variable_name)
 
-                                                                             .hint_text(RichText::new(Self::tr_lang(language, "variable", "biáº¿n")).color(hint_color).weak()),
+                                                                             .hint_text(RichText::new(Self::tr_lang(language, "expr", "biá»ƒu thá»©c")).color(hint_color).weak()),
 
                                                                      );
 
@@ -7205,17 +7208,15 @@ impl CrosshairApp {
 
                                                                      
 
-                                                                     let var_name = cond.variable_name.trim();
+                                                                     let left_expr = cond.variable_name.trim();
 
-                                                                     if !var_name.is_empty() {
+                                                                     if !left_expr.is_empty() {
 
-                                                                         let current_val = crate::overlay::RUNTIME_VARIABLES.lock().get(var_name).copied();
-
-                                                                         let val_str = current_val.map(|v| v.to_string()).unwrap_or_else(|| "?".to_string());
+                                                                         let left_val = crate::overlay::evaluate_math_expression(left_expr);
 
                                                                          ui.label(
 
-                                                                             RichText::new(format!("({})", val_str))
+                                                                             RichText::new(format!("({})", left_val))
 
                                                                                  .size(10.0)
 
@@ -7227,7 +7228,7 @@ impl CrosshairApp {
 
                                                                      
 
-                                                                     if ui.button("-").on_hover_text(Self::tr_lang(language, "Remove condition", "XÃƒÂ³a Ã„â€˜iÃ¡Â»Âu kiÃ¡Â»â€¡n")).clicked() {
+                                                                         if ui.add_sized([24.0, 24.0], Button::new("-")).on_hover_text(Self::tr_lang(language, "Remove condition", "Xóa điều kiện")).clicked() {
 
                                                                          remove_extra_idx = Some(extra_idx);
 
@@ -10919,7 +10920,7 @@ impl CrosshairApp {
 
 
 
-                                                                     if ui.button("+").on_hover_text(Self::tr_lang(language, "Add condition", "ThÃªm Ã„â€˜iÃ¡Â»Âu kiÃ¡Â»â€¡n")).clicked() {
+                                                                     if ui.add_sized([24.0, 24.0], Button::new("+")).on_hover_text(Self::tr_lang(language, "Add condition", "Thêm điều kiện")).clicked() {
 
                                                                          step.extra_conditions.push(ExtraCondition::default());
 
@@ -10965,12 +10966,14 @@ impl CrosshairApp {
 
                                                                  for (extra_idx, cond) in step.extra_conditions.iter_mut().enumerate() {
 
-                                                                     ui.horizontal(|ui| {
+                                                                      ui.horizontal(|ui| {
+
+                                                                          ui.add_space(100.0);
 
                                                                                                                                                   egui::ComboBox::from_id_salt((group.id, preset.id, extra_idx, "stop-loop-extra-join"))
-                                                                             .width(48.0)
-                                                                             .selected_text(if cond.join_operator.eq_ignore_ascii_case("OR") { Self::tr_lang(language, "OR", "HO?C") } else { Self::tr_lang(language, "AND", "VÀ") })
-                                                                             .show_ui(ui, |ui| {
+                                                                              .width(56.0)
+                                                                              .selected_text(if cond.join_operator.eq_ignore_ascii_case("OR") { Self::tr_lang(language, "OR", "HO?C") } else { Self::tr_lang(language, "AND", "VÀ") })
+                                                                              .show_ui(ui, |ui| {
                                                                                  for op in &["AND", "OR"] {
                                                                                      let label = if *op == "AND" {
                                                                                          Self::tr_lang(language, "AND", "VÀ")
@@ -11082,7 +11085,7 @@ impl CrosshairApp {
 
                                                                          
 
-                                                                         if ui.button("-").on_hover_text(Self::tr_lang(language, "Remove condition", "XÃƒÂ³a Ã„â€˜iÃ¡Â»Âu kiÃ¡Â»â€¡n")).clicked() {
+                                                                         if ui.add_sized([24.0, 24.0], Button::new("-")).on_hover_text(Self::tr_lang(language, "Remove condition", "Xóa điều kiện")).clicked() {
 
                                                                              remove_extra_idx = Some(extra_idx);
 
@@ -11521,6 +11524,7 @@ impl CrosshairApp {
 
 
 
+                                                                   ui.add_space(56.0);
                                                                    if step.if_condition_type == IfConditionType::Variable {
 
                                                                        let response = ui.add_sized(
@@ -11529,7 +11533,7 @@ impl CrosshairApp {
 
                                                                            TextEdit::singleline(&mut step.if_variable_name)
 
-                                                                               .hint_text(RichText::new(Self::tr_lang(language, "variable", "biáº¿n")).color(hint_color).weak()),
+                                                                               .hint_text(RichText::new(Self::tr_lang(language, "expr", "biá»ƒu thá»©c")).color(hint_color).weak()),
 
                                                                        );
 
@@ -11599,25 +11603,23 @@ impl CrosshairApp {
 
        
 
-                                                                       let var_name = step.if_variable_name.trim();
+                                                                       let left_expr = step.if_variable_name.trim();
 
-                                                                       if !var_name.is_empty() {
+                                                                       if !left_expr.is_empty() {
 
-                                                                           let current_val = crate::overlay::RUNTIME_VARIABLES.lock().get(var_name).copied();
-
-                                                                           let val_str = current_val.map(|v| v.to_string()).unwrap_or_else(|| "?".to_string());
+                                                                           let left_val = crate::overlay::evaluate_math_expression(left_expr);
 
                                                                            ui.add_space(2.0);
 
                                                                            ui.label(
 
-                                                                               RichText::new(format!("({})", val_str))
+                                                                               RichText::new(format!("({})", left_val))
 
                                                                                    .size(10.0)
 
                                                                                    .color(Color32::from_rgb(0, 191, 255))
 
-                                                                           ).on_hover_text(Self::tr_lang(language, "Current runtime value", "GiÃƒÂ¡ trÃ¡Â»â€¹ chÃ¡ÂºÂ¡y hiÃ¡Â»â€¡n táº¡i"));
+                                                                           ).on_hover_text(Self::tr_lang(language, "Evaluated left expression", "Gia tri bieu thuc ben trai"));
 
                                                                        }
 
@@ -11921,7 +11923,7 @@ impl CrosshairApp {
 
 
 
-                                                                   if ui.button("+").on_hover_text(Self::tr_lang(language, "Add condition", "ThÃªm Ã„â€˜iÃ¡Â»Âu kiÃ¡Â»â€¡n")).clicked() {
+                                                                     if ui.add_sized([24.0, 24.0], Button::new("+")).on_hover_text(Self::tr_lang(language, "Add condition", "Thêm điều kiện")).clicked() {
 
                                                                        step.extra_conditions.push(ExtraCondition::default());
 
@@ -11937,12 +11939,14 @@ impl CrosshairApp {
 
                                                              for (extra_idx, cond) in step.extra_conditions.iter_mut().enumerate() {
 
-                                                                 ui.horizontal(|ui| {
+                                                                  ui.horizontal(|ui| {
 
-                                                                                                                                                  egui::ComboBox::from_id_salt((group.id, preset.id, extra_idx, "if-extra-join"))
-                                                                             .width(48.0)
-                                                                             .selected_text(if cond.join_operator.eq_ignore_ascii_case("OR") { Self::tr_lang(language, "OR", "HO?C") } else { Self::tr_lang(language, "AND", "VÀ") })
-                                                                             .show_ui(ui, |ui| {
+                                                                          ui.add_space(100.0);
+
+                                                                         egui::ComboBox::from_id_salt((group.id, preset.id, extra_idx, "if-extra-join"))
+                                                                              .width(56.0)
+                                                                              .selected_text(if cond.join_operator.eq_ignore_ascii_case("OR") { Self::tr_lang(language, "OR", "HO?C") } else { Self::tr_lang(language, "AND", "VÀ") })
+                                                                              .show_ui(ui, |ui| {
                                                                                  for op in &["AND", "OR"] {
                                                                                      let label = if *op == "AND" {
                                                                                          Self::tr_lang(language, "AND", "VÀ")
@@ -11962,7 +11966,7 @@ impl CrosshairApp {
 
                                                                          TextEdit::singleline(&mut cond.variable_name)
 
-                                                                             .hint_text(RichText::new(Self::tr_lang(language, "variable", "biáº¿n")).color(hint_color).weak()),
+                                                                             .hint_text(RichText::new(Self::tr_lang(language, "expr", "biá»ƒu thá»©c")).color(hint_color).weak()),
 
                                                                      );
 
@@ -12032,17 +12036,15 @@ impl CrosshairApp {
 
                                                                      
 
-                                                                     let var_name = cond.variable_name.trim();
+                                                                     let left_expr = cond.variable_name.trim();
 
-                                                                     if !var_name.is_empty() {
+                                                                     if !left_expr.is_empty() {
 
-                                                                         let current_val = crate::overlay::RUNTIME_VARIABLES.lock().get(var_name).copied();
-
-                                                                         let val_str = current_val.map(|v| v.to_string()).unwrap_or_else(|| "?".to_string());
+                                                                         let left_val = crate::overlay::evaluate_math_expression(left_expr);
 
                                                                          ui.label(
 
-                                                                             RichText::new(format!("({})", val_str))
+                                                                             RichText::new(format!("({})", left_val))
 
                                                                                  .size(10.0)
 
@@ -12054,7 +12056,7 @@ impl CrosshairApp {
 
                                                                      
 
-                                                                     if ui.button("-").on_hover_text(Self::tr_lang(language, "Remove condition", "XÃƒÂ³a Ã„â€˜iÃ¡Â»Âu kiÃ¡Â»â€¡n")).clicked() {
+                                                                         if ui.add_sized([24.0, 24.0], Button::new("-")).on_hover_text(Self::tr_lang(language, "Remove condition", "Xóa điều kiện")).clicked() {
 
                                                                          remove_extra_idx = Some(extra_idx);
 

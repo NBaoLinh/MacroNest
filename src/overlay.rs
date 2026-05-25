@@ -6260,7 +6260,7 @@ mod windows_overlay {
     fn evaluate_if_condition(step: &MacroStep) -> bool {
         if step.if_condition_type != IfConditionType::Variable {
             return false;
-        };
+        }
 
         let compare_values = |value: i32, operator: &str, comp: i32| match operator {
             ">" => value > comp,
@@ -6272,37 +6272,22 @@ mod windows_overlay {
             _ => false,
         };
 
-        let var_name = step.if_variable_name.clone();
-        let value = {
-            let vars = RUNTIME_VARIABLES.lock();
-            *vars.get(&var_name).unwrap_or(&0)
+        let evaluate_operand = |expr: &str, fallback: i32| -> i32 {
+            if expr.trim().is_empty() {
+                fallback
+            } else {
+                evaluate_math_expression(expr)
+            }
         };
-        let comp = if !step.key.trim().is_empty() {
-            evaluate_math_expression(&step.key)
-        } else {
-            step.if_compare_value
-        };
-        let mut result = compare_values(value, step.if_operator.as_str(), comp);
+
+        let left_value = evaluate_operand(&step.if_variable_name, step.if_compare_value);
+        let right_value = evaluate_operand(&step.key, step.if_compare_value);
+        let mut result = compare_values(left_value, step.if_operator.as_str(), right_value);
 
         for cond in &step.extra_conditions {
-            let var_val = {
-                let vars = RUNTIME_VARIABLES.lock();
-                *vars.get(&cond.variable_name).unwrap_or(&0)
-            };
-            let comp_val = if !cond.expression.trim().is_empty() {
-                evaluate_math_expression(&cond.expression)
-            } else {
-                cond.compare_value
-            };
-            let cond_ok = match cond.operator.as_str() {
-                ">" => var_val > comp_val,
-                "<" => var_val < comp_val,
-                "=" | "==" => var_val == comp_val,
-                ">=" => var_val >= comp_val,
-                "<=" => var_val <= comp_val,
-                "!=" => var_val != comp_val,
-                _ => false,
-            };
+            let cond_left = evaluate_operand(&cond.variable_name, cond.compare_value);
+            let cond_right = evaluate_operand(&cond.expression, cond.compare_value);
+            let cond_ok = compare_values(cond_left, cond.operator.as_str(), cond_right);
             let join_operator = cond.join_operator.trim().to_ascii_uppercase();
             result = match join_operator.as_str() {
                 "OR" => result || cond_ok,
