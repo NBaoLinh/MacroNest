@@ -126,8 +126,8 @@ fn main() -> Result<()> {
     let app_title = "MacroNest v1.0";
     let mut viewport_builder = eframe::egui::ViewportBuilder::default()
         .with_title(app_title)
-        .with_inner_size([1060.0, 530.0])
-        .with_min_inner_size([980.0, 530.0])
+        .with_inner_size([1060.0, 480.0])
+        .with_min_inner_size([980.0, 480.0])
         .with_decorations(false)
         .with_transparent(true)
         .with_icon(std::sync::Arc::new(app_icon::icon_data(128)?));
@@ -135,14 +135,16 @@ fn main() -> Result<()> {
     #[cfg(windows)]
     {
         unsafe {
-            use windows::Win32::UI::WindowsAndMessaging::{GetSystemMetrics, SM_CXSCREEN};
+            use windows::Win32::UI::WindowsAndMessaging::{GetSystemMetrics, SM_CXSCREEN, SM_CYSCREEN};
             use windows::Win32::UI::HiDpi::GetDpiForSystem;
             let scr_w = GetSystemMetrics(SM_CXSCREEN) as f32;
+            let scr_h = GetSystemMetrics(SM_CYSCREEN) as f32;
             let dpi = GetDpiForSystem() as f32;
             let scale = if dpi > 0.0 { dpi / 96.0 } else { 1.0 };
             let win_w = 1060.0;
+            let win_h = 480.0;
             let x = ((scr_w / scale) - win_w) / 2.0;
-            let y = 30.0;
+            let y = (((scr_h / scale) - win_h) / 2.0).max(10.0);
             viewport_builder = viewport_builder.with_position([x.max(0.0), y]);
         }
     }

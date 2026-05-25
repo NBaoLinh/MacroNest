@@ -1876,7 +1876,7 @@ impl CrosshairApp {
     }
 
     fn desired_window_size() -> egui::Vec2 {
-        vec2(980.0, 530.0)
+        vec2(980.0, 480.0)
     }
 
     #[cfg(windows)]
@@ -1906,9 +1906,10 @@ impl CrosshairApp {
     #[cfg(windows)]
     fn centered_outer_position_for_size(size: egui::Vec2) -> egui::Pos2 {
         let screen_w = unsafe { GetSystemMetrics(SM_CXSCREEN) } as f32;
+        let screen_h = unsafe { GetSystemMetrics(SM_CYSCREEN) } as f32;
         egui::pos2(
             ((screen_w - size.x) * 0.5).round(),
-            30.0,
+            ((screen_h - size.y) * 0.5).round().max(10.0),
         )
     }
 
