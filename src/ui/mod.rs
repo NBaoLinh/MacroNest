@@ -7415,11 +7415,11 @@ impl eframe::App for CrosshairApp {
         }
 
         if self.center_window_next_frame && self.state.show_window {
-            ctx.send_viewport_cmd(egui::ViewportCommand::InnerSize(Self::desired_window_size()));
-            if let Some(center_cmd) = egui::ViewportCommand::center_on_screen(ctx) {
-                ctx.send_viewport_cmd(center_cmd);
-                self.center_window_next_frame = false;
-            }
+            let target_size = Self::desired_window_size();
+            ctx.send_viewport_cmd(egui::ViewportCommand::InnerSize(target_size));
+            let target_pos = Self::centered_outer_position_for_size(target_size);
+            ctx.send_viewport_cmd(egui::ViewportCommand::Position(target_pos));
+            self.center_window_next_frame = false;
         }
 
         if self.enforce_square_window_frames > 0 && self.state.show_window {
