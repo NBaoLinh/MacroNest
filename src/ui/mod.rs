@@ -575,6 +575,9 @@ pub struct CrosshairApp {
     interception_uninstall_job: Option<JoinHandle<Result<()>>>,
     interception_installed: bool,
     copy_folder_feedback_until: Option<Instant>,
+    macro_group_export_feedback_until: Option<Instant>,
+    macro_preset_export_feedback_until: Option<Instant>,
+    macro_step_export_feedback_until: Option<Instant>,
     vision_manual_color: RgbaColor,
     vision_manual_color_hex: String,
     variable_inspector_open: bool,
@@ -728,6 +731,9 @@ impl CrosshairApp {
             interception_uninstall_job: None,
             interception_installed: false, // will update below
             copy_folder_feedback_until: None,
+            macro_group_export_feedback_until: None,
+            macro_preset_export_feedback_until: None,
+            macro_step_export_feedback_until: None,
             vision_manual_color: RgbaColor { r: 0, g: 255, b: 170, a: 255 },
             vision_manual_color_hex: "00FFAA".to_owned(),
             variable_inspector_open: false,
@@ -1118,6 +1124,7 @@ impl CrosshairApp {
         match crate::macro_code::encode_step(step) {
             Ok(code) => {
                 self.status = Self::tr_lang(self.state.ui_language, "Step code copied to clipboard.", "Đã sao chép mã bước vào clipboard.").to_owned();
+                self.macro_step_export_feedback_until = Some(Instant::now() + Duration::from_millis(1200));
                 if let Ok(mut clipboard) = Clipboard::new() {
                     let _ = clipboard.set_text(code);
                 }
@@ -1168,6 +1175,7 @@ impl CrosshairApp {
         match crate::macro_code::encode_preset(preset) {
             Ok(code) => {
                 self.status = Self::tr_lang(self.state.ui_language, "Preset code copied to clipboard.", "Đã sao chép mã preset vào clipboard.").to_owned();
+                self.macro_preset_export_feedback_until = Some(Instant::now() + Duration::from_millis(1200));
                 if let Ok(mut clipboard) = Clipboard::new() {
                     let _ = clipboard.set_text(code);
                 }
@@ -1220,6 +1228,7 @@ impl CrosshairApp {
         match crate::macro_code::encode_group(group) {
             Ok(code) => {
                 self.status = Self::tr_lang(self.state.ui_language, "Group code copied to clipboard.", "Đã sao chép mã nhóm vào clipboard.").to_owned();
+                self.macro_group_export_feedback_until = Some(Instant::now() + Duration::from_millis(1200));
                 if let Ok(mut clipboard) = Clipboard::new() {
                     let _ = clipboard.set_text(code);
                 }
@@ -4020,6 +4029,10 @@ impl CrosshairApp {
 
     fn sound_style_icon_button(ui: &mut egui::Ui, icon: RichText) -> egui::Response {
         ui.add_sized([36.0, 24.0], Button::new(icon))
+    }
+
+    fn is_copy_feedback_active(until: Option<Instant>) -> bool {
+        until.is_some_and(|deadline| Instant::now() < deadline)
     }
 
     fn enabled_icon_button(ui: &mut egui::Ui, enabled: bool) -> egui::Response {

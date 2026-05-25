@@ -1539,7 +1539,22 @@ impl CrosshairApp {
 
         ui.add_space(8.0);
 
+        if Self::is_copy_feedback_active(self.macro_group_export_feedback_until)
+            || Self::is_copy_feedback_active(self.macro_preset_export_feedback_until)
+            || Self::is_copy_feedback_active(self.macro_step_export_feedback_until)
+        {
+            ui.ctx()
+                .request_repaint_after(std::time::Duration::from_millis(16));
+        }
 
+
+
+        let macro_panel_scroll_height = (ui.ctx().content_rect().height() - 190.0).max(260.0);
+
+        egui::ScrollArea::vertical()
+            .auto_shrink([false, false])
+            .max_height(macro_panel_scroll_height)
+            .show(ui, |ui| {
 
 
 
@@ -2846,12 +2861,6 @@ impl CrosshairApp {
 
                         ui.horizontal(|ui| {
 
-                            if self.macro_folders_panel_open {
-
-                                ui.add_space(16.0);
-
-                            }
-
                             ui.vertical(|ui| {
 
                                 ui.horizontal(|ui| {
@@ -3341,13 +3350,37 @@ impl CrosshairApp {
                                             add_preset_to_group = Some(group.id);
 
                                         }
-                                         if Self::sized_button(
-                                             ui,
-                                             84.0,
-                                             Self::tr_lang(language, "Export", "Xuất"),
-                                         )
-                                         .on_hover_text(Self::tr_lang(language, "Copy Group Code", "Sao chép mã nhóm"))
-                                         .clicked()
+                                         let group_export_feedback = Self::is_copy_feedback_active(
+                                             self.macro_group_export_feedback_until,
+                                         );
+                                         let group_export_label = if group_export_feedback {
+                                             Self::tr_lang(language, "Copied", "Copied")
+                                         } else {
+                                             Self::tr_lang(language, "Export", "Xuất")
+                                         };
+                                         let group_export_button = ui.add_sized(
+                                             [84.0, 24.0],
+                                             Button::new(group_export_label).fill(if group_export_feedback {
+                                                 Color32::from_rgba_premultiplied(72, 156, 116, 140)
+                                             } else {
+                                                 ui.visuals().widgets.inactive.bg_fill
+                                             })
+                                             .stroke(egui::Stroke::new(
+                                                 1.0,
+                                                 if group_export_feedback {
+                                                     Color32::from_rgb(126, 224, 182)
+                                                 } else {
+                                                     ui.visuals().widgets.inactive.bg_stroke.color
+                                                 },
+                                             )),
+                                         );
+                                         if group_export_button
+                                             .on_hover_text(Self::tr_lang(
+                                                 language,
+                                                 "Copy Group Code",
+                                                 "Sao chép mã nhóm",
+                                             ))
+                                             .clicked()
                                          {
                                              export_group = Some(group.id);
                                          }
@@ -3635,16 +3668,40 @@ impl CrosshairApp {
                                                  self.status = "Copied macro preset.".to_owned();
                                              }
 
-                                             if Self::sized_button(
-                                                 ui,
-                                                 46.0,
-                                                 Self::tr_lang(language, "Exp", "Exp"),
-                                             )
-                                             .on_hover_text(Self::tr_lang(language, "Export Preset Code", "Sao chÃ©p mÃ£ preset"))
-                                             .clicked()
-                                             {
-                                                 export_preset = Some(preset.id);
-                                             }
+                                              let preset_export_feedback = Self::is_copy_feedback_active(
+                                                  self.macro_preset_export_feedback_until,
+                                              );
+                                              let preset_export_label = if preset_export_feedback {
+                                                  Self::tr_lang(language, "Copied", "Copied")
+                                              } else {
+                                                  Self::tr_lang(language, "Exp", "Exp")
+                                              };
+                                              let preset_export_button = ui.add_sized(
+                                                  [60.0, 24.0],
+                                                  Button::new(preset_export_label).fill(if preset_export_feedback {
+                                                      Color32::from_rgba_premultiplied(72, 156, 116, 140)
+                                                  } else {
+                                                      ui.visuals().widgets.inactive.bg_fill
+                                                  })
+                                                  .stroke(egui::Stroke::new(
+                                                      1.0,
+                                                      if preset_export_feedback {
+                                                          Color32::from_rgb(126, 224, 182)
+                                                      } else {
+                                                          ui.visuals().widgets.inactive.bg_stroke.color
+                                                      },
+                                                  )),
+                                              );
+                                              if preset_export_button
+                                                  .on_hover_text(Self::tr_lang(
+                                                      language,
+                                                      "Export Preset Code",
+                                                      "Sao chép mã preset",
+                                                  ))
+                                                  .clicked()
+                                              {
+                                                  export_preset = Some(preset.id);
+                                              }
 
                                              if Self::sized_button(
                                                  ui,
@@ -12879,6 +12936,23 @@ impl CrosshairApp {
                                                       export_step = Some((preset.id, step_index));
                                                   }
 
+                                                  if Self::is_copy_feedback_active(
+                                                      self.macro_step_export_feedback_until,
+                                                  ) {
+                                                      ui.add_sized(
+                                                          [62.0, 18.0],
+                                                          egui::Label::new(
+                                                              RichText::new(Self::tr_lang(
+                                                                  language,
+                                                                  "Copied",
+                                                                  "Copied",
+                                                              ))
+                                                              .color(Color32::from_rgb(126, 224, 182))
+                                                              .strong(),
+                                                          ),
+                                                      );
+                                                  }
+
                                                   if ui
                                                       .add(
                                                           Button::new(Self::tr_lang(language, "Imp", "Imp"))
@@ -14153,6 +14227,8 @@ impl CrosshairApp {
         }
 
         ui.add_space((ui.ctx().screen_rect().height() - 250.0).max(0.0));
+
+        });
 
     }
 
