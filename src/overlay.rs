@@ -123,7 +123,7 @@ mod windows_overlay {
     use crate::{
         ai, audio, hotkey,
         model::{
-            AudioSettings, CrosshairStyle, CommandPreset, HotkeyBinding, VisionPreset,
+            AudioSettings, CrosshairStyle, CommandPreset, HotkeyBinding, VisionPreset, VisionSettings,
             MacroAction, MacroGroup, MacroPreset, MacroStep,
             MacroTriggerMode, MousePathEvent, MousePathEventKind, MousePathPreset,
             MouseSensitivityPreset, PinOverlayStyle, PinPreset, ProfileRecord, RgbaColor,
