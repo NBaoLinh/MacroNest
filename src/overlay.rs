@@ -3681,7 +3681,7 @@ mod windows_overlay {
             return Ok(());
         };
 
-        if runtime.active_pin_thumbnail.is_some()
+        if (runtime.active_pin_thumbnail.is_some() || preset.true_stretch_enabled)
             && runtime.last_pin_update.elapsed() < Duration::from_millis(33)
         {
             return Ok(());
@@ -3727,9 +3727,9 @@ mod windows_overlay {
 
             let target_bounds = base_bounds;
 
-            let source_width = (source_rect.right - source_rect.left).max(1);
-            let source_height = (source_rect.bottom - source_rect.top).max(1);
-            let source_crop_key = if preset.use_source_crop {
+        let source_width = (source_rect.right - source_rect.left).max(1);
+        let source_height = (source_rect.bottom - source_rect.top).max(1);
+        let source_crop_key = if preset.use_source_crop {
                 let crop_x = preset.source_x.clamp(0, source_width.saturating_sub(1));
                 let crop_y = preset.source_y.clamp(0, source_height.saturating_sub(1));
                 let crop_w = preset
@@ -3744,6 +3744,56 @@ mod windows_overlay {
             } else {
                 None
             };
+
+            if preset.true_stretch_enabled {
+                if let Some(capture) = window_list::capture_window_region_with_candidates(
+                    preset.target_window_title.as_deref(),
+                    &preset.extra_target_window_titles,
+                    preset.match_duplicate_window_titles,
+                ) {
+                    if let Some(active) = runtime.active_pin_thumbnail.take()
+                        && let Some(thumbnail_id) = active.thumbnail_id
+                    {
+                        let _ = DwmUnregisterThumbnail(thumbnail_id);
+                    }
+                    let _ = SetWindowPos(
+                        runtime.pin_hwnd,
+                        Some(HWND_TOPMOST),
+                        target_bounds.0,
+                        target_bounds.1,
+                        target_bounds.2,
+                        target_bounds.3,
+                        SWP_NOACTIVATE | SWP_SHOWWINDOW,
+                    );
+                    let rgba = render_pin_overlay_bitmap(
+                        &capture,
+                        target_bounds.2,
+                        target_bounds.3,
+                        preset.overlay_style,
+                        source_crop_key,
+                        true,
+                    )?;
+                    let _ = paint_pin_overlay(
+                        runtime.pin_hwnd,
+                        target_bounds.0,
+                        target_bounds.1,
+                        target_bounds.2,
+                        target_bounds.3,
+                        &rgba,
+                    );
+                    let region = CreateRectRgn(0, 0, target_bounds.2, target_bounds.3);
+                    if region.0.is_null() {
+                        return Err(anyhow::anyhow!("Failed to create pin window region"));
+                    }
+                    if SetWindowRgn(runtime.pin_hwnd, Some(region), true) == 0 {
+                        let _ = DeleteObject(HGDIOBJ(region.0));
+                        return Err(anyhow::anyhow!("Failed to apply pin window region"));
+                    }
+                    let _ = ShowWindow(runtime.pin_hwnd, SW_SHOWNA);
+                    runtime.last_pin_update = Instant::now();
+                    return Ok(());
+                }
+            }
 
             let needs_register = runtime.active_pin_thumbnail.as_ref().is_none_or(|active| {
                 active.preset_id != preset.id
@@ -3916,6 +3966,7 @@ mod windows_overlay {
         target_h: i32,
         style: PinOverlayStyle,
         source_crop: Option<(i32, i32, i32, i32)>,
+        true_stretch: bool,
     ) -> Result<Vec<u8>> {
         let target_w = target_w.max(1);
         let target_h = target_h.max(1);
@@ -3944,20 +3995,42 @@ mod windows_overlay {
 
         let source_w = source.width().max(1);
         let source_h = source.height().max(1);
-        let scale = (shape_w.max(1) as f32 / source_w as f32)
-            .min(shape_h.max(1) as f32 / source_h as f32)
-            .max(0.01);
-        let fit_w = (source_w as f32 * scale).round().max(1.0) as u32;
-        let fit_h = (source_h as f32 * scale).round().max(1.0) as u32;
-        let fit_x = shape_left + ((shape_w - fit_w as i32) / 2).max(0);
-        let fit_y = shape_top + ((shape_h - fit_h as i32) / 2).max(0);
-        let resized = image::imageops::resize(&source, fit_w, fit_h, FilterType::CatmullRom);
+        let (draw_w, draw_h, draw_x, draw_y, resized) = if true_stretch {
+            let resized = image::imageops::resize(
+                &source,
+                shape_w.max(1) as u32,
+                shape_h.max(1) as u32,
+                FilterType::CatmullRom,
+            );
+            (
+                shape_w.max(1) as u32,
+                shape_h.max(1) as u32,
+                shape_left,
+                shape_top,
+                resized,
+            )
+        } else {
+            let scale = (shape_w.max(1) as f32 / source_w as f32)
+                .min(shape_h.max(1) as f32 / source_h as f32)
+                .max(0.01);
+            let fit_w = (source_w as f32 * scale).round().max(1.0) as u32;
+            let fit_h = (source_h as f32 * scale).round().max(1.0) as u32;
+            let fit_x = shape_left + ((shape_w - fit_w as i32) / 2).max(0);
+            let fit_y = shape_top + ((shape_h - fit_h as i32) / 2).max(0);
+            (
+                fit_w,
+                fit_h,
+                fit_x,
+                fit_y,
+                image::imageops::resize(&source, fit_w, fit_h, FilterType::CatmullRom),
+            )
+        };
         let resized_pixels = resized.as_raw();
 
-        for y in 0..fit_h as i32 {
-            for x in 0..fit_w as i32 {
-                let dst_x = fit_x + x;
-                let dst_y = fit_y + y;
+        for y in 0..draw_h as i32 {
+            for x in 0..draw_w as i32 {
+                let dst_x = draw_x + x;
+                let dst_y = draw_y + y;
                 if dst_x < 0 || dst_y < 0 || dst_x >= target_w || dst_y >= target_h {
                     continue;
                 }
@@ -3979,7 +4052,7 @@ mod windows_overlay {
                 if !inside {
                     continue;
                 }
-                let src_index = ((y as usize) * (fit_w as usize) + x as usize) * 4;
+                let src_index = ((y as usize) * (draw_w as usize) + x as usize) * 4;
                 let dst_index = ((dst_y as usize) * (target_w as usize) + dst_x as usize) * 4;
                 output[dst_index..dst_index + 4]
                     .copy_from_slice(&resized_pixels[src_index..src_index + 4]);
@@ -9092,7 +9165,7 @@ mod windows_overlay {
             }
 
             let _ = ShowWindow(target, SW_RESTORE);
-            if preset.stretch_enabled {
+            if preset.remove_title_bar {
                 let _ = remove_window_title_bar(target);
             } else {
                 let _ = restore_window_title_bar(target);

@@ -239,14 +239,14 @@ impl CrosshairApp {
                             });
                             ui.end_row();
 
-                            ui.label(Self::tr_lang(language, "True Stretch", "True Stretch"));
+                            ui.label(Self::tr_lang(language, "Title", "Title"));
                             live_sync |= ui
-                                .checkbox(&mut preset.stretch_enabled, Self::tr_lang(language, "Enable true stretch", "Bật true stretch"))
+                                .checkbox(&mut preset.remove_title_bar, Self::tr_lang(language, "Remove bar", "Remove bar"))
                                 .on_hover_text(
                                     Self::tr_lang(
                                         language,
-                                        "Best-effort borderless stretch: removes the title bar and thick frame, then resizes the client area to the preset. This only truly stretches content if the target app redraws/scales on resize.",
-                                        "Kéo giãn kiểu borderless ở mức tốt nhất: bỏ thanh tiêu đề và khung dày, rồi resize client area theo preset. Chỉ thật sự kéo dãn nội dung nếu app đích tự redraw/scale khi resize.",
+                                        "Remove title bar before apply. Off restores it.",
+                                        "Nếu bật, preset sẽ xóa thanh tiêu đề trước khi áp dụng kích thước và vị trí. Nếu tắt, thanh tiêu đề sẽ được giữ hoặc khôi phục.",
                                     ),
                                 )
                                 .changed();
@@ -910,6 +910,22 @@ impl CrosshairApp {
                                     language,
                                     "Stream preview in editor",
                                     "Phát xem trước trong trình chỉnh",
+                                ),
+                            )
+                            .changed();
+                        ui.end_row();
+
+                        ui.label(Self::tr_lang(language, "True Stretch", "True Stretch"));
+                        live_sync |= ui
+                            .checkbox(
+                                &mut preset.true_stretch_enabled,
+                                Self::tr_lang(language, "Stretch source to bounds", "Kéo dãn nguồn theo khung"),
+                            )
+                            .on_hover_text(
+                                Self::tr_lang(
+                                    language,
+                                    "Stretch the cropped source to fill the pinned area without keeping aspect ratio. Off keeps the existing fit-to-box behavior.",
+                                    "Kéo dãn vùng nguồn đã cắt để lấp đầy khung ghim mà không giữ tỉ lệ gốc. Tắt thì vẫn giữ kiểu fit theo khung như hiện tại.",
                                 ),
                             )
                             .changed();

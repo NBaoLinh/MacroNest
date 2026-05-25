@@ -252,8 +252,8 @@ pub struct WindowPreset {
     pub hotkey: Option<HotkeyBinding>,
     #[serde(default)]
     pub trigger_keys: String,
-    #[serde(default, alias = "remove_title_bar")]
-    pub stretch_enabled: bool,
+    #[serde(default = "default_true", alias = "stretch_enabled")]
+    pub remove_title_bar: bool,
     pub animate_enabled: bool,
     pub animate_duration_ms: u64,
     pub animate_hotkey: Option<HotkeyBinding>,
@@ -281,7 +281,7 @@ impl WindowPreset {
             y: 0,
             hotkey: None,
             trigger_keys: String::new(),
-            stretch_enabled: false,
+            remove_title_bar: true,
             animate_enabled: false,
             animate_duration_ms: 260,
             animate_hotkey: None,
@@ -814,6 +814,8 @@ pub struct PinPreset {
     pub overlay_style: PinOverlayStyle,
     #[serde(default = "default_true")]
     pub use_source_crop: bool,
+    #[serde(default)]
+    pub true_stretch_enabled: bool,
     pub source_crop_initialized: bool,
     pub source_crop_fit_version: u8,
     pub source_x: i32,
@@ -842,6 +844,7 @@ impl PinPreset {
             height: 360,
             overlay_style: PinOverlayStyle::Rectangle,
             use_source_crop: true,
+            true_stretch_enabled: false,
             source_crop_initialized: false,
             source_crop_fit_version: 0,
             source_x: 0,
@@ -1151,8 +1154,6 @@ impl Default for CommandPreset {
 pub struct MasterWindowPresetState {
     pub id: u32,
     pub enabled: bool,
-    #[serde(default, alias = "remove_title_bar")]
-    pub stretch_enabled: bool,
     pub animate_enabled: bool,
     pub restore_titlebar_enabled: bool,
 }

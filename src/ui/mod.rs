@@ -4690,7 +4690,6 @@ impl CrosshairApp {
                 .map(|preset| MasterWindowPresetState {
                     id: preset.id,
                     enabled: preset.enabled,
-                    stretch_enabled: preset.stretch_enabled,
                     animate_enabled: preset.animate_enabled,
                     restore_titlebar_enabled: preset.restore_titlebar_enabled,
                 })
@@ -4762,7 +4761,6 @@ impl CrosshairApp {
                     MasterWindowPresetState {
                         id: preset.id,
                         enabled: preset.enabled,
-                        stretch_enabled: preset.stretch_enabled,
                         animate_enabled: preset.animate_enabled,
                         restore_titlebar_enabled: preset.restore_titlebar_enabled,
                     },
@@ -4994,7 +4992,6 @@ impl CrosshairApp {
                 .find(|preset| preset.id == item.id)
             {
                 window_preset.enabled = item.enabled;
-                window_preset.stretch_enabled = item.stretch_enabled;
                 window_preset.animate_enabled = item.animate_enabled;
                 window_preset.restore_titlebar_enabled = item.restore_titlebar_enabled;
             }
