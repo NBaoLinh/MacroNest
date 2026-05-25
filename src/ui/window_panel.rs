@@ -1,4 +1,4 @@
-﻿use std::time::{Duration, Instant};
+use std::time::{Duration, Instant};
 use eframe::egui::{self, Button, RichText, DragValue, Sense, TextEdit, Color32, vec2, Frame, TextBuffer, ColorImage, TextureOptions};
 use crate::model::*;
 use crate::overlay::OverlayCommand;
@@ -448,15 +448,15 @@ impl CrosshairApp {
                             "Target Window",
                             "Cửa sổ mục tiêu",
                         ));
-                        live_sync |= Self::render_multi_window_targets_with_duplicate_mode(
+                        live_sync |= Self::render_window_target_combo_with_duplicate_mode(
                             ui,
-                            language,
                             (preset.id, "window-focus-target"),
                             Self::tr_lang(language, "Focus", "Cửa sổ đang focus"),
                             &mut preset.target_window_title,
-                            &mut preset.extra_target_window_titles,
                             &mut preset.match_duplicate_window_titles,
                             &self.open_windows,
+                            320.0,
+                            true,
                         );
                         ui.end_row();
                     });
