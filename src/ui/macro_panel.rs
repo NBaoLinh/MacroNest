@@ -1550,7 +1550,7 @@ impl CrosshairApp {
 
 
 
-        let macro_panel_scroll_height = ui.available_height();
+        let macro_panel_scroll_height = (ui.ctx().screen_rect().height() - 150.0).max(200.0);
 
         egui::ScrollArea::vertical()
             .auto_shrink([false, false])
