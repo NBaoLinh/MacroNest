@@ -562,11 +562,17 @@ pub struct CrosshairApp {
     last_applied_theme: Option<UiThemeMode>,
     native_shadow_applied: bool,
     update_status: UpdateStatus,
+    interception_status: String,
     opencv_download_job: Option<JoinHandle<Result<()>>>,
     opencv_download_progress: Arc<AtomicU32>,
     opencv_installed: bool,
     interception_download_job: Option<JoinHandle<Result<()>>>,
     interception_download_progress: Arc<AtomicU32>,
+    interception_package_downloaded: bool,
+    interception_driver_installed: bool,
+    interception_driver_needs_restart: bool,
+    interception_install_job: Option<JoinHandle<Result<()>>>,
+    interception_uninstall_job: Option<JoinHandle<Result<()>>>,
     interception_installed: bool,
     copy_folder_feedback_until: Option<Instant>,
     vision_manual_color: RgbaColor,
@@ -707,11 +713,19 @@ impl CrosshairApp {
             last_applied_theme: None,
             native_shadow_applied: false,
             update_status: UpdateStatus::Idle,
+            interception_status: "Interception: Unavailable".to_owned(),
             opencv_download_job: None,
             opencv_download_progress: Arc::new(AtomicU32::new(0)),
             opencv_installed,
             interception_download_job: None,
             interception_download_progress: Arc::new(AtomicU32::new(0)),
+            interception_package_downloaded: paths.interception_zip.exists()
+                || paths.interception_package_dir.exists()
+                || paths.interception_installer_exe.exists(),
+            interception_driver_installed: crate::platform::is_interception_driver_installed(),
+            interception_driver_needs_restart: false,
+            interception_install_job: None,
+            interception_uninstall_job: None,
             interception_installed: false, // will update below
             copy_folder_feedback_until: None,
             vision_manual_color: RgbaColor { r: 0, g: 255, b: 170, a: 255 },
@@ -7342,6 +7356,9 @@ impl eframe::App for CrosshairApp {
                 UiCommand::UpdateUpToDate => {
                     self.update_status = UpdateStatus::UpToDate;
                 }
+                UiCommand::SetInterceptionStatus(status) => {
+                    self.interception_status = status;
+                }
             }
         }
 
@@ -7373,19 +7390,66 @@ impl eframe::App for CrosshairApp {
                 let job = self.interception_download_job.take().unwrap();
                 match job.join() {
                     Ok(Ok(())) => {
-                        self.interception_installed = true;
+                        self.interception_package_downloaded = true;
                         self.status = Self::tr_lang(
                             self.state.ui_language,
-                            "Interception driver wrapper installed successfully.",
+                            "Interception package downloaded successfully.",
                             "Cài đặt Interception driver thành công."
                         ).to_owned();
                     }
                     Ok(Err(error)) => {
                         self.status = format!("Download failed: {error}");
-                        let _ = fs::remove_file(&self.paths.interception_dll);
+                        let _ = fs::remove_file(&self.paths.interception_zip);
+                        let _ = fs::remove_dir_all(&self.paths.interception_package_dir);
                     }
                     Err(_) => {
                         self.status = "Download thread panicked.".to_owned();
+                    }
+                }
+            }
+        }
+
+        if let Some(job) = &self.interception_install_job {
+            if job.is_finished() {
+                let job = self.interception_install_job.take().unwrap();
+                match job.join() {
+                    Ok(Ok(())) => {
+                        self.interception_driver_installed = crate::platform::is_interception_driver_installed();
+                        self.interception_driver_needs_restart = self.interception_driver_installed;
+                        self.status = Self::tr_lang(
+                            self.state.ui_language,
+                            "Interception driver installed. Restart your PC for it to take effect.",
+                            "Đã cài driver Interception. Hãy khởi động lại máy để driver có hiệu lực."
+                        ).to_owned();
+                    }
+                    Ok(Err(error)) => {
+                        self.status = format!("Driver install failed: {error}");
+                    }
+                    Err(_) => {
+                        self.status = "Driver install thread panicked.".to_owned();
+                    }
+                }
+            }
+        }
+
+        if let Some(job) = &self.interception_uninstall_job {
+            if job.is_finished() {
+                let job = self.interception_uninstall_job.take().unwrap();
+                match job.join() {
+                    Ok(Ok(())) => {
+                        self.interception_driver_installed = crate::platform::is_interception_driver_installed();
+                        self.interception_driver_needs_restart = true;
+                        self.status = Self::tr_lang(
+                            self.state.ui_language,
+                            "Interception driver removed. Restart your PC to finish cleanup.",
+                            "Đã gỡ driver Interception. Hãy khởi động lại máy để hoàn tất dọn dẹp."
+                        ).to_owned();
+                    }
+                    Ok(Err(error)) => {
+                        self.status = format!("Driver uninstall failed: {error}");
+                    }
+                    Err(_) => {
+                        self.status = "Driver uninstall thread panicked.".to_owned();
                     }
                 }
             }

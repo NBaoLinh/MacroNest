@@ -120,6 +120,23 @@ mod windows_overlay {
         core::{PCWSTR, w},
     };
 
+    #[derive(Debug, Clone, Copy, PartialEq, Eq)]
+    enum InterceptionRuntimeStatus {
+        Active,
+        FallbackToSendInput,
+        Unavailable,
+    }
+
+    impl InterceptionRuntimeStatus {
+        fn label(self) -> &'static str {
+            match self {
+                Self::Active => "Interception: Active",
+                Self::FallbackToSendInput => "Interception: Fallback to SendInput",
+                Self::Unavailable => "Interception: Unavailable",
+            }
+        }
+    }
+
     use crate::{
         ai, audio, hotkey,
         model::{
@@ -393,6 +410,7 @@ mod windows_overlay {
         UpdateDownloadFinished(String), // new_exe_path
         UpdateError(String),
         UpdateUpToDate,
+        SetInterceptionStatus(String),
     }
 
     pub struct OverlayHandle {
@@ -465,6 +483,7 @@ mod windows_overlay {
         opencv_dll_path: PathBuf,
         interception_dll_path: PathBuf,
         use_interception: bool,
+        interception_runtime_status: InterceptionRuntimeStatus,
 
         mouse_sensitivity_restore_on_exit: bool,
         mouse_sensitivity_exit_restore_speed: u32,
@@ -529,6 +548,7 @@ mod windows_overlay {
                 opencv_dll_path: PathBuf::new(),
                 interception_dll_path: PathBuf::new(),
                 use_interception: false,
+                interception_runtime_status: InterceptionRuntimeStatus::Unavailable,
 
                 mouse_sensitivity_restore_on_exit: false,
                 mouse_sensitivity_exit_restore_speed: 6,
@@ -571,6 +591,18 @@ mod windows_overlay {
                 last_scroll_up_at: None,
                 last_scroll_down_at: None,
             }
+        }
+    }
+
+    fn set_interception_runtime_status(status: InterceptionRuntimeStatus) {
+        let mut hook_state = HOOK_STATE.lock();
+        if hook_state.interception_runtime_status == status {
+            return;
+        }
+
+        hook_state.interception_runtime_status = status;
+        if let Some(tx) = hook_state.ui_tx.clone() {
+            let _ = tx.send(UiCommand::SetInterceptionStatus(status.label().to_owned()));
         }
     }
 
@@ -3681,7 +3713,7 @@ mod windows_overlay {
             return Ok(());
         };
 
-        if (runtime.active_pin_thumbnail.is_some() || preset.true_stretch_enabled)
+        if runtime.active_pin_thumbnail.is_some()
             && runtime.last_pin_update.elapsed() < Duration::from_millis(33)
         {
             return Ok(());
@@ -3744,56 +3776,6 @@ mod windows_overlay {
             } else {
                 None
             };
-
-            if preset.true_stretch_enabled {
-                if let Some(capture) = window_list::capture_window_region_with_candidates(
-                    preset.target_window_title.as_deref(),
-                    &preset.extra_target_window_titles,
-                    preset.match_duplicate_window_titles,
-                ) {
-                    if let Some(active) = runtime.active_pin_thumbnail.take()
-                        && let Some(thumbnail_id) = active.thumbnail_id
-                    {
-                        let _ = DwmUnregisterThumbnail(thumbnail_id);
-                    }
-                    let _ = SetWindowPos(
-                        runtime.pin_hwnd,
-                        Some(HWND_TOPMOST),
-                        target_bounds.0,
-                        target_bounds.1,
-                        target_bounds.2,
-                        target_bounds.3,
-                        SWP_NOACTIVATE | SWP_SHOWWINDOW,
-                    );
-                    let rgba = render_pin_overlay_bitmap(
-                        &capture,
-                        target_bounds.2,
-                        target_bounds.3,
-                        preset.overlay_style,
-                        source_crop_key,
-                        true,
-                    )?;
-                    let _ = paint_pin_overlay(
-                        runtime.pin_hwnd,
-                        target_bounds.0,
-                        target_bounds.1,
-                        target_bounds.2,
-                        target_bounds.3,
-                        &rgba,
-                    );
-                    let region = CreateRectRgn(0, 0, target_bounds.2, target_bounds.3);
-                    if region.0.is_null() {
-                        return Err(anyhow::anyhow!("Failed to create pin window region"));
-                    }
-                    if SetWindowRgn(runtime.pin_hwnd, Some(region), true) == 0 {
-                        let _ = DeleteObject(HGDIOBJ(region.0));
-                        return Err(anyhow::anyhow!("Failed to apply pin window region"));
-                    }
-                    let _ = ShowWindow(runtime.pin_hwnd, SW_SHOWNA);
-                    runtime.last_pin_update = Instant::now();
-                    return Ok(());
-                }
-            }
 
             let needs_register = runtime.active_pin_thumbnail.as_ref().is_none_or(|active| {
                 active.preset_id != preset.id
@@ -7366,7 +7348,9 @@ mod windows_overlay {
     fn send_mouse_input(dw_flags: MOUSE_EVENT_FLAGS, mouse_data: u32) -> Result<()> {
         let use_interception = {
             let state = HOOK_STATE.lock();
-            state.use_interception && state.interception_dll_path.exists()
+            state.use_interception
+                && state.interception_dll_path.exists()
+                && crate::platform::is_interception_driver_installed()
         };
 
         if use_interception {
@@ -7427,13 +7411,19 @@ mod windows_overlay {
 
                             // Send to mouse device 12 (standard first mouse handle INTERCEPTION_MOUSE(0))
                             let stroke_ptr = &stroke as *const InterceptionMouseStroke as *const u8;
-                            let _ = send_fn(context, 12, stroke_ptr, 1);
+                            let sent = send_fn(context, 12, stroke_ptr, 1);
                             destroy_fn(context);
-                            return Ok(());
+                            if sent > 0 {
+                                set_interception_runtime_status(InterceptionRuntimeStatus::Active);
+                                return Ok(());
+                            }
                         }
                     }
                 }
             }
+            set_interception_runtime_status(InterceptionRuntimeStatus::FallbackToSendInput);
+        } else {
+            set_interception_runtime_status(InterceptionRuntimeStatus::Unavailable);
         }
 
         let input = INPUT {
@@ -7527,7 +7517,9 @@ mod windows_overlay {
     fn send_mouse_move_absolute(x: i32, y: i32) -> Result<()> {
         let use_interception = {
             let state = HOOK_STATE.lock();
-            state.use_interception && state.interception_dll_path.exists()
+            state.use_interception
+                && state.interception_dll_path.exists()
+                && crate::platform::is_interception_driver_installed()
         };
 
         if use_interception {
@@ -7566,13 +7558,19 @@ mod windows_overlay {
                             };
 
                             let stroke_ptr = &stroke as *const InterceptionMouseStroke as *const u8;
-                            let _ = send_fn(context, 12, stroke_ptr, 1);
+                            let sent = send_fn(context, 12, stroke_ptr, 1);
                             destroy_fn(context);
-                            return Ok(());
+                            if sent > 0 {
+                                set_interception_runtime_status(InterceptionRuntimeStatus::Active);
+                                return Ok(());
+                            }
                         }
                     }
                 }
             }
+            set_interception_runtime_status(InterceptionRuntimeStatus::FallbackToSendInput);
+        } else {
+            set_interception_runtime_status(InterceptionRuntimeStatus::Unavailable);
         }
 
         let screen_w = unsafe { GetSystemMetrics(SM_CXSCREEN) }.max(1);
@@ -7658,7 +7656,9 @@ mod windows_overlay {
     fn send_mouse_move_relative(dx: i32, dy: i32) -> Result<()> {
         let use_interception = {
             let state = HOOK_STATE.lock();
-            state.use_interception && state.interception_dll_path.exists()
+            state.use_interception
+                && state.interception_dll_path.exists()
+                && crate::platform::is_interception_driver_installed()
         };
 
         if use_interception {
@@ -7692,13 +7692,19 @@ mod windows_overlay {
                             };
 
                             let stroke_ptr = &stroke as *const InterceptionMouseStroke as *const u8;
-                            let _ = send_fn(context, 12, stroke_ptr, 1);
+                            let sent = send_fn(context, 12, stroke_ptr, 1);
                             destroy_fn(context);
-                            return Ok(());
+                            if sent > 0 {
+                                set_interception_runtime_status(InterceptionRuntimeStatus::Active);
+                                return Ok(());
+                            }
                         }
                     }
                 }
             }
+            set_interception_runtime_status(InterceptionRuntimeStatus::FallbackToSendInput);
+        } else {
+            set_interception_runtime_status(InterceptionRuntimeStatus::Unavailable);
         }
 
         let input = INPUT {

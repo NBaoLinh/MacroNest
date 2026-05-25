@@ -23,10 +23,10 @@ mod windows_platform {
                 Shell::{
                     IsUserAnAdmin, SetCurrentProcessExplicitAppUserModelID, ShellExecuteW, DROPFILES,
                 },
-                WindowsAndMessaging::{
+        WindowsAndMessaging::{
                     BringWindowToTop, HWND_NOTOPMOST, HWND_TOPMOST, SW_RESTORE, SW_SHOWNORMAL,
-                    SWP_NOMOVE, SWP_NOSIZE, SWP_SHOWWINDOW, SetForegroundWindow, SetWindowPos,
-                    ShowWindow,
+                    SW_HIDE, SWP_NOMOVE, SWP_NOSIZE, SWP_SHOWWINDOW, SetForegroundWindow,
+                    SetWindowPos, ShowWindow,
                 },
             },
             System::{
@@ -122,6 +122,68 @@ mod windows_platform {
             }
         }
         Ok(true)
+    }
+
+    pub fn launch_process_as_admin(executable: &Path, arguments: Option<&str>) -> Result<()> {
+        launch_process_as_admin_with_show(executable, arguments, SW_SHOWNORMAL)
+    }
+
+    pub fn launch_hidden_process_as_admin(
+        executable: &Path,
+        arguments: Option<&str>,
+    ) -> Result<()> {
+        launch_process_as_admin_with_show(executable, arguments, SW_HIDE)
+    }
+
+    fn launch_process_as_admin_with_show(
+        executable: &Path,
+        arguments: Option<&str>,
+        show_command: windows::Win32::UI::WindowsAndMessaging::SHOW_WINDOW_CMD,
+    ) -> Result<()> {
+        let exe_wide = widestring(executable.as_os_str().to_string_lossy().as_ref());
+        let args_wide = arguments.map(widestring);
+        let dir_wide = executable
+            .parent()
+            .map(|dir| widestring(dir.as_os_str().to_string_lossy().as_ref()));
+        unsafe {
+            let result = ShellExecuteW(
+                Some(HWND(std::ptr::null_mut())),
+                w!("runas"),
+                PCWSTR(exe_wide.as_ptr()),
+                args_wide
+                    .as_ref()
+                    .map(|s| PCWSTR(s.as_ptr()))
+                    .unwrap_or(PCWSTR::null()),
+                dir_wide
+                    .as_ref()
+                    .map(|s| PCWSTR(s.as_ptr()))
+                    .unwrap_or(PCWSTR::null()),
+                show_command,
+            );
+            if (result.0 as usize) <= 32 {
+                bail!("Administrator elevation was cancelled or failed");
+            }
+        }
+        Ok(())
+    }
+
+    pub fn is_interception_driver_installed() -> bool {
+        let system_root = env::var("SystemRoot").unwrap_or_else(|_| "C:\\Windows".to_owned());
+        let drivers_dir = Path::new(&system_root).join("System32").join("drivers");
+
+        // Interception installs the keyboard/mouse driver pair in System32\drivers.
+        // Some older packaging may expose a different driver name, so accept either shape.
+        let legacy_driver = drivers_dir.join("interception.sys");
+        let keyboard_driver = drivers_dir.join("keyboard.sys");
+        let mouse_driver = drivers_dir.join("mouse.sys");
+
+        legacy_driver.exists() || (keyboard_driver.exists() && mouse_driver.exists())
+    }
+
+    pub fn restart_windows() -> Result<()> {
+        let system_root = env::var("SystemRoot").unwrap_or_else(|_| "C:\\Windows".to_owned());
+        let shutdown = Path::new(&system_root).join("System32").join("shutdown.exe");
+        launch_process_as_admin(&shutdown, Some("/r /t 0"))
     }
 
     pub fn set_native_window_shadow(frame: &Frame, enabled: bool) {

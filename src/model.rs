@@ -814,8 +814,6 @@ pub struct PinPreset {
     pub overlay_style: PinOverlayStyle,
     #[serde(default = "default_true")]
     pub use_source_crop: bool,
-    #[serde(default)]
-    pub true_stretch_enabled: bool,
     pub source_crop_initialized: bool,
     pub source_crop_fit_version: u8,
     pub source_x: i32,
@@ -844,7 +842,6 @@ impl PinPreset {
             height: 360,
             overlay_style: PinOverlayStyle::Rectangle,
             use_source_crop: true,
-            true_stretch_enabled: false,
             source_crop_initialized: false,
             source_crop_fit_version: 0,
             source_x: 0,

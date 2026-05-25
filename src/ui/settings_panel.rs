@@ -3,8 +3,8 @@ use std::fs;
 use std::process::Command;
 use std::path::Path;
 use std::sync::atomic::Ordering;
-use eframe::egui::{self, Button, RichText, Stroke, Margin, TextEdit, Color32, vec2, Frame, Order, Shadow};
-use anyhow::Result;
+use eframe::egui::{self, Button, RichText, Stroke, Margin, TextEdit, Color32, vec2, Frame, Order, Shadow, WidgetText};
+use anyhow::{Result, bail};
 use crate::model::*;
 use crate::overlay::UiCommand;
 use crate::ui::{
@@ -25,18 +25,15 @@ impl CrosshairApp {
                     Self::settings_card_frame(ui).show(ui, |ui| {
                         ui.set_min_width(ui.available_width());
                         ui.vertical(|ui| {
-                            ui.horizontal(|ui| {
-                                ui.selectable_value(
-                                    &mut self.state.groq_settings.details_open,
-                                    true,
-                                    RichText::new("API (Groq / OpenAI)").strong().size(14.0),
-                                );
-                                if self.state.groq_settings.details_open {
-                                    if ui.small_button("Close").clicked() {
-                                        self.state.groq_settings.details_open = false;
-                                    }
-                                }
-                            });
+                            let api_header = Self::settings_section_button(
+                                ui,
+                                RichText::new("API (Groq / OpenAI)").strong().size(14.0),
+                                self.state.groq_settings.details_open,
+                            );
+                            if api_header.clicked() {
+                                self.state.groq_settings.details_open =
+                                    !self.state.groq_settings.details_open;
+                            }
                             if self.state.groq_settings.details_open {
                                 ui.add_space(8.0);
                                 ui.horizontal(|ui| {
@@ -122,18 +119,12 @@ impl CrosshairApp {
                                         &mut self.state.groq_settings.model,
                                     );
                                     groq_changed |= response.changed();
-                                    if ui.button("Get API key").clicked() {
+                                    if Self::settings_action_button(ui, "Get API key").clicked() {
                                         let _ = crate::platform::open_url_in_browser(
                                             "https://console.groq.com/keys",
                                         );
                                     }
                                 });
-                            } else {
-                                ui.label(
-                                    RichText::new("Click to expand API configurations.")
-                                        .small()
-                                        .weak(),
-                                );
                             }
                         });
                     });
@@ -189,17 +180,19 @@ impl CrosshairApp {
                             );
                             ui.add_space(8.0);
                             ui.horizontal(|ui| {
-                                if ui
-                                    .button(Self::tr_lang(
+                                if Self::settings_action_button(
+                                    ui,
+                                    Self::tr_lang(
                                         language,
                                         "Open data folder",
                                         "Má»Ÿ thÆ° má»¥c dá»¯ liá»‡u",
-                                    ))
-                                    .clicked()
+                                    ),
+                                )
+                                .clicked()
                                 {
                                     self.open_app_data_folder();
                                 }
-                                ui.add_space(8.0);
+                                ui.add_space(6.0);
                                 let is_copied = self.copy_folder_feedback_until
                                     .map(|until| Instant::now() < until)
                                     .unwrap_or(false);
@@ -214,7 +207,7 @@ impl CrosshairApp {
                                     ui.ctx().request_repaint_after(Duration::from_millis(200));
                                 }
 
-                                if ui.button(btn_label).clicked() {
+                                if Self::settings_action_button(ui, btn_label).clicked() {
                                     if let Err(e) = crate::platform::copy_folder_to_clipboard(&self.paths.root) {
                                         self.status = format!("Failed to copy folder: {e}");
                                     } else {
@@ -222,13 +215,6 @@ impl CrosshairApp {
                                         self.copy_folder_feedback_until = Some(Instant::now() + Duration::from_secs(2));
                                     }
                                 }
-                                ui.add_space(8.0);
-                                ui.label(
-                                    RichText::new(self.paths.root.display().to_string())
-                                        .monospace()
-                                        .small()
-                                        .weak(),
-                                );
                             });
                         });
                     });
@@ -249,14 +235,12 @@ impl CrosshairApp {
         Self::settings_card_frame(ui).show(ui, |ui| {
             ui.set_min_width(ui.available_width());
             ui.vertical(|ui| {
-                ui.horizontal(|ui| {
-                    let header_text = RichText::new(Self::tr_lang(language, "Advanced", "NÃ¢ng cao"))
-                        .strong()
-                        .size(14.0);
-                    if ui.selectable_label(self.advanced_settings_open, header_text).clicked() {
-                        self.advanced_settings_open = !self.advanced_settings_open;
-                    }
-                });
+                let header_text = RichText::new(Self::tr_lang(language, "Advanced", "NÃ¢ng cao"))
+                    .strong()
+                    .size(14.0);
+                if Self::settings_section_button(ui, header_text, self.advanced_settings_open).clicked() {
+                    self.advanced_settings_open = !self.advanced_settings_open;
+                }
 
                 if self.advanced_settings_open {
                     ui.add_space(8.0);
@@ -308,16 +292,35 @@ impl CrosshairApp {
                             if !self.interception_installed {
                                 // Block and revert
                                 self.state.vision_settings.use_interception = false;
+                                self.interception_status = "Interception: Unavailable".to_owned();
                                 self.status = Self::tr_lang(
                                     language,
                                     "Please download and install the Interception Driver wrapper first!",
                                     "Vui lÃ²ng táº£i xuá»‘ng vÃ  cÃ i Ä‘áº·t wrapper Interception Driver trÆ°á»›c!"
                                 ).to_owned();
                             } else {
+                                self.interception_status = if self.state.vision_settings.use_interception {
+                                    "Interception: Active".to_owned()
+                                } else {
+                                    "Interception: Unavailable".to_owned()
+                                };
                                 interception_changed = true;
                             }
                         }
                     });
+
+                    let interception_status_color = if self.interception_status.contains("Active") {
+                        Color32::from_rgb(126, 224, 182)
+                    } else if self.interception_status.contains("Fallback") {
+                        Color32::from_rgb(248, 214, 102)
+                    } else {
+                        ui.visuals().weak_text_color()
+                    };
+                    ui.label(
+                        RichText::new(&self.interception_status)
+                            .small()
+                            .color(interception_status_color),
+                    );
 
                     if delay_changed {
                         self.sync_macro_delay_settings();
@@ -327,16 +330,6 @@ impl CrosshairApp {
                         self.sync_vision_settings();
                         self.persist();
                     }
-                } else {
-                    ui.label(
-                        RichText::new(Self::tr_lang(
-                            language,
-                            "Click to expand advanced configuration (input delays).",
-                            "Nháº¥n vÃ o Ä‘á»ƒ má»Ÿ rá»™ng cáº¥u hÃ¬nh nÃ¢ng cao (Ä‘á»™ trá»… Ä‘áº§u vÃ o)."
-                        ))
-                        .small()
-                        .weak(),
-                    );
                 }
             });
         });
@@ -345,7 +338,6 @@ impl CrosshairApp {
     pub(crate) fn render_downloaded_tools_settings(&mut self, ui: &mut egui::Ui) {
         let language = self.state.ui_language;
         let opencv_path = self.paths.opencv_dll.clone();
-        let interception_path = self.paths.interception_dll.clone();
         let opencv_progress = self
             .opencv_download_job
             .as_ref()
@@ -358,18 +350,18 @@ impl CrosshairApp {
         Self::settings_card_frame(ui).show(ui, |ui| {
             ui.set_min_width(ui.available_width());
             ui.vertical(|ui| {
-                if ui
-                    .selectable_label(
-                        self.downloaded_tools_open,
-                        RichText::new(Self::tr_lang(
-                            language,
-                            "Downloaded Tools",
-                            "Công cụ đã tải",
-                        ))
-                        .strong()
-                        .size(14.0),
-                    )
-                    .clicked()
+                if Self::settings_section_button(
+                    ui,
+                    RichText::new(Self::tr_lang(
+                        language,
+                        "Downloaded Tools",
+                        "Công cụ đã tải",
+                    ))
+                    .strong()
+                    .size(14.0),
+                    self.downloaded_tools_open,
+                )
+                .clicked()
                 {
                     self.downloaded_tools_open = !self.downloaded_tools_open;
                 }
@@ -403,34 +395,193 @@ impl CrosshairApp {
                     ui.separator();
                     ui.add_space(4.0);
 
-                    self.render_downloaded_tool_entry(
-                        ui,
-                        language,
-                        "Interception Driver",
-                        &interception_path,
-                        self.interception_installed,
-                        interception_progress,
-                        11_264,
-                        Self::tr_lang(
-                            language,
-                            "Download Interception Wrapper",
-                            "Tải Interception Wrapper",
-                        ),
-                        Self::tr_lang(
-                            language,
-                            "Low-level driver input requires interception.dll.",
-                            "Điều khiển cấp thấp cần interception.dll.",
-                        ),
-                        Self::tr_lang(
-                            language,
-                            "Interception wrapper deleted.",
-                            "Đã xóa wrapper Interception.",
-                        ),
-                        Self::start_interception_download,
-                        Self::delete_interception_tool,
-                    );
+                    self.render_interception_driver_entry(ui, language, interception_progress);
                 }
             });
+        });
+    }
+
+
+    fn render_interception_driver_entry(
+        &mut self,
+        ui: &mut egui::Ui,
+        language: UiLanguage,
+        downloading_progress: Option<f32>,
+    ) {
+        let package_ready = self.interception_package_downloaded;
+        let driver_installed = self.interception_driver_installed;
+        let restart_required = self.interception_driver_needs_restart;
+
+        ui.vertical(|ui| {
+            ui.label(RichText::new("Interception Driver").strong().size(13.0));
+            ui.add_space(6.0);
+
+            if downloading_progress.is_some() {
+                if let Some(progress) = downloading_progress {
+                    ui.horizontal(|ui| {
+                        ui.label(Self::tr_lang(language, "Downloading package...", "Đang tải gói..."));
+                        ui.add(egui::ProgressBar::new(progress).show_percentage());
+                    });
+                }
+                ui.label(
+                    RichText::new(Self::tool_size_label(&self.paths.interception_zip, 389_119))
+                        .small()
+                        .weak(),
+                );
+                ui.ctx().request_repaint();
+                return;
+            }
+
+            if self.interception_install_job.is_some() {
+                ui.horizontal(|ui| {
+                    ui.spinner();
+                    ui.label(Self::tr_lang(
+                        language,
+                        "Installing driver...",
+                        "Đang cài driver...",
+                    ));
+                });
+                ui.ctx().request_repaint();
+                return;
+            }
+
+            if self.interception_uninstall_job.is_some() {
+                ui.horizontal(|ui| {
+                    ui.spinner();
+                    ui.label(Self::tr_lang(
+                        language,
+                        "Uninstalling driver...",
+                        "Đang gỡ driver...",
+                    ));
+                });
+                ui.ctx().request_repaint();
+                return;
+            }
+
+            if !package_ready {
+                ui.horizontal(|ui| {
+                    ui.label(RichText::new(Self::tr_lang(
+                        language,
+                        "Download the Interception package to enable driver setup.",
+                        "Tải gói Interception để bắt đầu cài driver.",
+                    )).weak());
+                    ui.add_space(8.0);
+                    ui.label(
+                        RichText::new(Self::tool_size_label(&self.paths.interception_zip, 389_119))
+                            .small()
+                            .weak(),
+                    );
+                    if Self::settings_action_button(
+                        ui,
+                        Self::tr_lang(language, "Download", "Tải xuống"),
+                    )
+                    .clicked()
+                    {
+                        self.start_interception_download();
+                    }
+                });
+                return;
+            }
+
+            ui.horizontal(|ui| {
+                ui.label(RichText::new(Self::tr_lang(
+                    language,
+                    "Package downloaded.",
+                    "Đã tải gói.",
+                )).weak());
+                ui.add_space(8.0);
+                ui.label(
+                    RichText::new(Self::tool_size_label(&self.paths.interception_zip, 389_119))
+                        .small()
+                        .weak(),
+                );
+            });
+
+            ui.add_space(4.0);
+
+            if driver_installed {
+                ui.horizontal(|ui| {
+                    ui.label(RichText::new(Self::tr_lang(
+                        language,
+                        "Driver installed. Restart your PC to take effect.",
+                        "Driver đã cài. Hãy khởi động lại máy để có hiệu lực.",
+                    )).color(Color32::from_rgb(126, 224, 182)));
+                });
+                ui.add_space(4.0);
+                ui.horizontal(|ui| {
+                    if Self::settings_action_button(
+                        ui,
+                        Self::tr_lang(language, "Delete Driver", "Xóa driver"),
+                    )
+                    .clicked()
+                    {
+                        self.start_interception_driver_uninstall();
+                    }
+                    if Self::settings_action_button(
+                        ui,
+                        Self::tr_lang(language, "Restart PC", "Khởi động lại"),
+                    )
+                    .clicked()
+                    {
+                        match crate::platform::restart_windows() {
+                            Ok(()) => {
+                                self.status = Self::tr_lang(
+                                    language,
+                                    "Restarting Windows...",
+                                    "Đang khởi động lại Windows...",
+                                )
+                                .to_owned();
+                            }
+                            Err(error) => {
+                                self.status = format!("Failed to restart Windows: {error}");
+                            }
+                        }
+                    }
+                });
+                return;
+            }
+
+            ui.horizontal(|ui| {
+                if restart_required {
+                    ui.label(RichText::new(Self::tr_lang(
+                        language,
+                        "Driver installed. Restart your PC to finish setup.",
+                        "Driver đã cài. Hãy khởi động lại máy để hoàn tất cài đặt.",
+                    )).color(Color32::from_rgb(248, 214, 102)));
+                } else {
+                    ui.label(RichText::new(Self::tr_lang(
+                        language,
+                        "Ready to install the driver.",
+                        "Sẵn sàng cài driver.",
+                    )).weak());
+                }
+            });
+            ui.add_space(4.0);
+            ui.horizontal(|ui| {
+                if Self::settings_action_button(
+                    ui,
+                    Self::tr_lang(language, "Install Driver", "Cài driver"),
+                )
+                .clicked()
+                {
+                    self.start_interception_driver_install();
+                }
+                if Self::settings_action_button(ui, Self::tr_lang(language, "Delete", "Xóa")).clicked() {
+                    self.delete_interception_package();
+                }
+            });
+
+            if restart_required {
+                ui.label(
+                    RichText::new(Self::tr_lang(
+                        language,
+                        "You must restart Windows before Interception will work in games.",
+                        "Bạn phải khởi động lại Windows thì Interception mới có tác dụng trong game.",
+                    ))
+                    .small()
+                    .color(Color32::from_rgb(248, 214, 102)),
+                );
+            }
         });
     }
 
@@ -462,7 +613,7 @@ impl CrosshairApp {
                             .small()
                             .weak(),
                     );
-                    if ui.button(Self::tr_lang(language, "Delete", "XÃ³a")).clicked() {
+                    if Self::settings_action_button(ui, Self::tr_lang(language, "Delete", "XÃ³a")).clicked() {
                         delete_action(self);
                         self.status = delete_status_text.to_owned();
                     }
@@ -487,7 +638,7 @@ impl CrosshairApp {
                             .small()
                             .weak(),
                     );
-                    if ui.button(RichText::new(download_button_text).strong()).clicked() {
+                    if Self::settings_action_button(ui, RichText::new(download_button_text).strong()).clicked() {
                         download_action(self);
                     }
                 });
@@ -508,13 +659,15 @@ impl CrosshairApp {
                 ui.add_space(8.0);
                 match &self.update_status {
                     UpdateStatus::Idle => {
-                        if ui
-                            .button(Self::tr_lang(
+                        if Self::settings_action_button(
+                            ui,
+                            Self::tr_lang(
                                 language,
                                 "Check for update",
                                 "Kiá»ƒm tra cáº­p nháº­t",
-                            ))
-                            .clicked()
+                            ),
+                        )
+                        .clicked()
                         {
                             self.check_for_update(ctx);
                         }
@@ -537,13 +690,15 @@ impl CrosshairApp {
                         if !body.is_empty() {
                             ui.label(RichText::new(body).small().weak());
                         }
-                        if ui
-                            .button(Self::tr_lang(
+                        if Self::settings_action_button(
+                            ui,
+                            Self::tr_lang(
                                 language,
                                 "Download and Update",
                                 "Táº£i xuá»‘ng vÃ  Cáº­p nháº­t",
-                            ))
-                            .clicked()
+                            ),
+                        )
+                        .clicked()
                         {
                             self.start_download_update(ctx, url.clone());
                         }
@@ -561,16 +716,16 @@ impl CrosshairApp {
                     UpdateStatus::ReadyToRestart(path) => {
                         ui.label(RichText::new("Update downloaded!").color(Color32::GREEN));
                         let path = path.clone();
-                        if ui
-                            .button(
-                                RichText::new(Self::tr_lang(
-                                    language,
-                                    "Restart App",
-                                    "Khá»Ÿi Ä‘á»™ng láº¡i",
-                                ))
-                                .strong(),
-                            )
-                            .clicked()
+                        if Self::settings_action_button(
+                            ui,
+                            RichText::new(Self::tr_lang(
+                                language,
+                                "Restart App",
+                                "Khá»Ÿi Ä‘á»™ng láº¡i",
+                            ))
+                            .strong(),
+                        )
+                        .clicked()
                         {
                             self.restart_and_apply_update(path);
                         }
@@ -582,9 +737,11 @@ impl CrosshairApp {
                             "á»¨ng dá»¥ng Ä‘Ã£ á»Ÿ báº£n má»›i nháº¥t.",
                         ));
                         ui.add_space(4.0);
-                        if ui
-                            .button(Self::tr_lang(language, "Check again", "Kiá»ƒm tra láº¡i"))
-                            .clicked()
+                        if Self::settings_action_button(
+                            ui,
+                            Self::tr_lang(language, "Check again", "Kiá»ƒm tra láº¡i"),
+                        )
+                        .clicked()
                         {
                             self.check_for_update(ctx);
                         }
@@ -592,13 +749,56 @@ impl CrosshairApp {
                     UpdateStatus::Error(e) => {
                         ui.label(RichText::new(format!("Error: {}", e)).color(Color32::RED));
                         ui.add_space(4.0);
-                        if ui.button(Self::tr_lang(language, "Retry", "Thá»­ láº¡i")).clicked() {
+                        if Self::settings_action_button(
+                            ui,
+                            Self::tr_lang(language, "Retry", "Thá»­ láº¡i"),
+                        )
+                        .clicked()
+                        {
                             self.check_for_update(ctx);
                         }
                     }
                 }
             });
         });
+    }
+
+    fn settings_section_button(
+        ui: &mut egui::Ui,
+        label: impl Into<WidgetText>,
+        active: bool,
+    ) -> egui::Response {
+        let visuals = ui.visuals();
+        let fill = if active {
+            visuals.widgets.active.bg_fill
+        } else {
+            visuals.widgets.inactive.bg_fill
+        };
+        let stroke_color = if active {
+            visuals.widgets.active.bg_stroke.color
+        } else {
+            visuals.widgets.inactive.bg_stroke.color
+        };
+        ui.add_sized(
+            [ui.available_width(), 30.0],
+            Button::new(label)
+                .fill(fill)
+                .stroke(Stroke::new(1.0, stroke_color))
+                .min_size(vec2(0.0, 30.0)),
+        )
+    }
+
+    fn settings_action_button(
+        ui: &mut egui::Ui,
+        label: impl Into<WidgetText>,
+    ) -> egui::Response {
+        let visuals = ui.visuals();
+        ui.add(
+            Button::new(label)
+                .fill(visuals.widgets.inactive.bg_fill)
+                .stroke(Stroke::new(1.0, visuals.widgets.inactive.bg_stroke.color))
+                .min_size(vec2(104.0, 28.0)),
+        )
     }
 
     pub(crate) fn render_custom_ai_modal(&mut self, ctx: &egui::Context) {
@@ -845,11 +1045,11 @@ impl CrosshairApp {
         progress.store(0, Ordering::SeqCst);
 
         let job = std::thread::spawn(move || -> Result<()> {
-            let url = "https://github.com/Baolinh0305/MacroNest/releases/download/v1.0/interception.dll";
+            let url = "https://github.com/oblitum/Interception/releases/download/v1.0.1/Interception.zip";
             let mut response = reqwest::blocking::get(url)?.error_for_status()?;
-            let total_size = response.content_length().unwrap_or(200 * 1024);
+            let total_size = response.content_length().unwrap_or(389_119);
 
-            let mut file = fs::File::create(&paths.interception_dll)?;
+            let mut file = fs::File::create(&paths.interception_zip)?;
             let mut downloaded: u64 = 0;
             let mut buffer = [0u8; 16384];
 
@@ -863,6 +1063,32 @@ impl CrosshairApp {
                 progress.store(p, Ordering::SeqCst);
             }
 
+            drop(file);
+
+            let _ = fs::remove_dir_all(&paths.interception_package_dir);
+            let extract_script = format!(
+                "Expand-Archive -LiteralPath {} -DestinationPath {} -Force",
+                Self::powershell_quote(&paths.interception_zip.to_string_lossy()),
+                Self::powershell_quote(&paths.bin_dir.to_string_lossy()),
+            );
+            let extract_status = Command::new("powershell")
+                .args(["-NoProfile", "-NonInteractive", "-Command", &extract_script])
+                .status()?;
+            if !extract_status.success() {
+                bail!("Failed to extract Interception.zip");
+            }
+
+            let extracted_dll = paths
+                .interception_package_dir
+                .join("library")
+                .join("x64")
+                .join("interception.dll");
+            if !extracted_dll.exists() {
+                bail!("Interception package did not contain the x64 interception.dll");
+            }
+
+            fs::copy(&extracted_dll, &paths.interception_dll)?;
+
             Ok(())
         });
 
@@ -874,9 +1100,83 @@ impl CrosshairApp {
         self.opencv_installed = false;
     }
 
-    fn delete_interception_tool(&mut self) {
-        let _ = fs::remove_file(&self.paths.interception_dll);
-        self.interception_installed = false;
+    fn delete_interception_package(&mut self) {
+        let _ = fs::remove_file(&self.paths.interception_zip);
+        let _ = fs::remove_dir_all(&self.paths.interception_package_dir);
+        self.interception_package_downloaded = false;
+        self.interception_driver_needs_restart = false;
+    }
+
+    fn start_interception_driver_install(&mut self) {
+        if self.interception_install_job.is_some() || self.interception_uninstall_job.is_some() {
+            return;
+        }
+        if !self.paths.interception_installer_exe.exists() {
+            self.status = "Interception installer was not found. Download the package first.".to_owned();
+            return;
+        }
+
+        let installer_dir = self
+            .paths
+            .interception_installer_exe
+            .parent()
+            .map(|path| path.to_path_buf())
+            .unwrap_or_else(|| self.paths.bin_dir.clone());
+        let job = std::thread::spawn(move || -> Result<()> {
+            let cmd = std::env::var("ComSpec").unwrap_or_else(|_| "C:\\Windows\\System32\\cmd.exe".to_owned());
+            let cmd_args = format!(
+                "/K cd /d \"{}\" && install-interception.exe /install",
+                installer_dir.display()
+            );
+            crate::platform::launch_process_as_admin(Path::new(&cmd), Some(&cmd_args))?;
+            let deadline = Instant::now() + Duration::from_secs(60);
+            while Instant::now() < deadline {
+                if crate::platform::is_interception_driver_installed() {
+                    return Ok(());
+                }
+                std::thread::sleep(Duration::from_secs(2));
+            }
+            bail!("Timed out waiting for the Interception driver to install");
+        });
+
+        self.interception_install_job = Some(job);
+        self.status = "Launching Interception driver installer...".to_owned();
+    }
+
+    fn start_interception_driver_uninstall(&mut self) {
+        if self.interception_install_job.is_some() || self.interception_uninstall_job.is_some() {
+            return;
+        }
+        if !self.paths.interception_installer_exe.exists() {
+            self.status = "Interception installer was not found. Download the package first.".to_owned();
+            return;
+        }
+
+        let installer_dir = self
+            .paths
+            .interception_installer_exe
+            .parent()
+            .map(|path| path.to_path_buf())
+            .unwrap_or_else(|| self.paths.bin_dir.clone());
+        let job = std::thread::spawn(move || -> Result<()> {
+            let cmd = std::env::var("ComSpec").unwrap_or_else(|_| "C:\\Windows\\System32\\cmd.exe".to_owned());
+            let cmd_args = format!(
+                "/K cd /d \"{}\" && install-interception.exe /uninstall",
+                installer_dir.display()
+            );
+            crate::platform::launch_process_as_admin(Path::new(&cmd), Some(&cmd_args))?;
+            let deadline = Instant::now() + Duration::from_secs(60);
+            while Instant::now() < deadline {
+                if !crate::platform::is_interception_driver_installed() {
+                    return Ok(());
+                }
+                std::thread::sleep(Duration::from_secs(2));
+            }
+            bail!("Timed out waiting for the Interception driver to uninstall");
+        });
+
+        self.interception_uninstall_job = Some(job);
+        self.status = "Launching Interception driver uninstaller...".to_owned();
     }
 
     fn tool_size_label(path: &Path, expected_size_bytes: u64) -> String {
