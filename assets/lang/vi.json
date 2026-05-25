@@ -285,7 +285,7 @@
   "Toggle self enabled on run": "Tự bật/tắt khi chạy",
   "Toggle self enabled on run (run-loop/refresh state)": "Tự bật/tắt khi chạy (lặp chạy/làm mới trạng thái)",
   "IF": "Nếu",
-  "value/expr": "giá trị/biểu thức",
+  "value/expr": "giá trị",
   "All": "Tất cả",
   "Var compare": "So sánh biến",
   "Select window": "Chọn cửa sổ",
