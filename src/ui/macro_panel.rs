@@ -14224,6 +14224,8 @@ impl CrosshairApp {
             self.sync_macro_presets();
         }
 
+        ui.add_space((ui.ctx().screen_rect().height() - 250.0).max(0.0));
+
         });
 
     }
