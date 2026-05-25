@@ -4536,9 +4536,9 @@ impl CrosshairApp {
 
                                                     language,
 
-                                                    "ðŸ”„ Toggle self enabled on run",
+                                                    "🔄 Toggle self enabled on run",
 
-                                                    "ðŸ”„ Tá»± động báº­t/tắt bước khi cháº¡y"
+                                                    "🔄 Tá»± động báº­t/tắt bước khi cháº¡y"
 
                                                 )).changed();
 
@@ -7777,18 +7777,6 @@ impl CrosshairApp {
                                              import_step_to = Some((group.id, preset.id, None));
                                              live_sync = true;
                                          }
-                                         if child_ui
-                                             .add_sized([30.0, 20.0], Button::new(Self::tr_lang(language, "Imp", "Imp")))
-                                             .on_hover_text(Self::tr_lang(
-                                                 language,
-                                                 "Import step from clipboard at the beginning.",
-                                                 "Nhập step tá»« clipboard vÃ o Ä‘áº§u preset.",
-                                             ))
-                                             .clicked()
-                                         {
-                                             import_step_to = Some((group.id, preset.id, None));
-                                             live_sync = true;
-                                         }
 
 
 
@@ -9250,9 +9238,9 @@ impl CrosshairApp {
 
                                                         language,
 
-                                                        "ðŸ”„ Toggle self enabled on run",
+                                                        "🔄 Toggle self enabled on run",
 
-                                                        "ðŸ”„ Tá»± động báº­t/tắt bước khi cháº¡y"
+                                                        "🔄 Tá»± động báº­t/tắt bước khi cháº¡y"
 
                                                     )).changed();
 

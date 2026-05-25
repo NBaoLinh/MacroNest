@@ -280,5 +280,8 @@
   "Wheel Down": "Cuộn Xuống",
   "Imp": "Nhập",
   "Exp": "Xuất",
-  "Copied": "Đã copy"
+  "Copied": "Đã copy",
+  "🔄 Toggle self enabled on run": "🔄 Tự bật/tắt khi chạy",
+  "Toggle self enabled on run": "Tự bật/tắt khi chạy",
+  "Toggle self enabled on run (run-loop/refresh state)": "Tự bật/tắt khi chạy (lặp chạy/làm mới trạng thái)"
 }
