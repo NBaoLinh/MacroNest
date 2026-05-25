@@ -185,7 +185,7 @@ impl CrosshairApp {
                                     Self::tr_lang(
                                         language,
                                         "Open data folder",
-                                        "Má»Ÿ thÆ° má»¥c dá»¯ liá»‡u",
+                                        "Mở thư mục dá»¯ liá»‡u",
                                     ),
                                 )
                                 .clicked()
@@ -200,7 +200,7 @@ impl CrosshairApp {
                                 let btn_label = if is_copied {
                                     Self::tr_lang(language, "Copied!", "ÄÃ£ sao chÃ©p!")
                                 } else {
-                                    Self::tr_lang(language, "Copy folder", "Sao chÃ©p thÆ° má»¥c")
+                                    Self::tr_lang(language, "Copy folder", "Sao chÃ©p thư mục")
                                 };
 
                                 if is_copied {
@@ -211,7 +211,7 @@ impl CrosshairApp {
                                     if let Err(e) = crate::platform::copy_folder_to_clipboard(&self.paths.root) {
                                         self.status = format!("Failed to copy folder: {e}");
                                     } else {
-                                        self.status = Self::tr_lang(language, "Folder copied to clipboard.", "ÄÃ£ chÃ©p thÆ° má»¥c vÃ o clipboard.").to_owned();
+                                        self.status = Self::tr_lang(language, "Folder copied to clipboard.", "ÄÃ£ chÃ©p thư mục vÃ o clipboard.").to_owned();
                                         self.copy_folder_feedback_until = Some(Instant::now() + Duration::from_secs(2));
                                     }
                                 }
@@ -245,7 +245,7 @@ impl CrosshairApp {
                 if self.advanced_settings_open {
                     ui.add_space(8.0);
                     let explanation_en = "Note: Some games might not register inputs if the delays are set too low (e.g., 0ms). You can adjust these values if your macros do not work correctly in-game.";
-                    let explanation_vi = "LÆ°u Ã½: Má»™t sá»‘ trÃ² chÆ¡i cÃ³ thá»ƒ khÃ´ng nháº­n pháº£n há»“i tá»« chuá»™t hoáº·c phÃ­m náº¿u Ä‘áº·t Ä‘á»™ trá»… quÃ¡ tháº¥p (vÃ­ dá»¥: 0ms). Báº¡n cÃ³ thá»ƒ chá»‰nh láº¡i cÃ¡c thÃ´ng sá»‘ nÃ y náº¿u macro khÃ´ng hoáº¡t Ä‘á»™ng chÃ­nh xÃ¡c trong game.";
+                    let explanation_vi = "LÆ°u Ã½: Má»™t sá»‘ trÃ² chÆ¡i cÃ³ thể khÃ´ng nháº­n phảnh há»“i tá»« chuột hoặc phím nếu Ä‘áº·t độ trá»… quÃ¡ tháº¥p (vÃ­ dá»¥: 0ms). Báº¡n cÃ³ thể chỉnh láº¡i cÃ¡c thÃ´ng sá»‘ nÃ y nếu macro khÃ´ng hoạt động chÃ­nh xÃ¡c trong game.";
                     ui.label(
                         RichText::new(Self::tr_lang(language, explanation_en, explanation_vi))
                             .small()
@@ -255,7 +255,7 @@ impl CrosshairApp {
 
                     let mut delay_changed = false;
                     ui.horizontal(|ui| {
-                        ui.label(Self::tr_lang(language, "Mouse Click Delay:", "Äá»™ trá»… click chuá»™t:"));
+                        ui.label(Self::tr_lang(language, "Mouse Click Delay:", "Äá»™ trá»… click chuột:"));
                         let slider = egui::Slider::new(&mut self.state.macro_mouse_click_delay_ms, 0..=500)
                             .suffix(" ms");
                         let res = ui.add(slider);
@@ -267,7 +267,7 @@ impl CrosshairApp {
                     ui.add_space(6.0);
 
                     ui.horizontal(|ui| {
-                        ui.label(Self::tr_lang(language, "Keyboard Press Delay:", "Äá»™ trá»… nháº¥n phÃ­m:"));
+                        ui.label(Self::tr_lang(language, "Keyboard Press Delay:", "Äá»™ trá»… nhấn phím:"));
                         let slider = egui::Slider::new(&mut self.state.macro_keyboard_key_press_delay_ms, 0..=500)
                             .suffix(" ms");
                         let res = ui.add(slider);
@@ -285,7 +285,7 @@ impl CrosshairApp {
                             Self::tr_lang(
                                 language,
                                 "Use Interception Driver (Mouse clicks/movement in games)",
-                                "Sá»­ dá»¥ng Driver Interception (Di chuyá»ƒn/click chuá»™t trong game)"
+                                "Sá»­ dụng Driver Interception (Di chuyá»ƒn/click chuột trong game)"
                             )
                         );
                         if res.changed() {
@@ -296,7 +296,7 @@ impl CrosshairApp {
                                 self.status = Self::tr_lang(
                                     language,
                                     "Please download and install the Interception Driver wrapper first!",
-                                    "Vui lÃ²ng táº£i xuá»‘ng vÃ  cÃ i Ä‘áº·t wrapper Interception Driver trÆ°á»›c!"
+                                    "Vui lÃ²ng tải xuá»‘ng vÃ  cÃ i Ä‘áº·t wrapper Interception Driver trước!"
                                 ).to_owned();
                             } else {
                                 self.interception_status = if self.state.vision_settings.use_interception {
@@ -613,14 +613,14 @@ impl CrosshairApp {
                             .small()
                             .weak(),
                     );
-                    if Self::settings_action_button(ui, Self::tr_lang(language, "Delete", "XÃ³a")).clicked() {
+                    if Self::settings_action_button(ui, Self::tr_lang(language, "Delete", "Xóa")).clicked() {
                         delete_action(self);
                         self.status = delete_status_text.to_owned();
                     }
                 });
             } else if let Some(progress) = downloading_progress {
                 ui.horizontal(|ui| {
-                    ui.label(Self::tr_lang(language, "Downloading...", "Äang táº£i..."));
+                    ui.label(Self::tr_lang(language, "Downloading...", "Äang tải..."));
                     ui.add(egui::ProgressBar::new(progress).show_percentage());
                 });
                 ui.label(
@@ -652,7 +652,7 @@ impl CrosshairApp {
             ui.set_min_width(ui.available_width());
             ui.vertical(|ui| {
                 ui.label(
-                    RichText::new(Self::tr_lang(language, "Update", "Cáº­p nháº­t"))
+                    RichText::new(Self::tr_lang(language, "Update", "Cập nhật"))
                         .strong()
                         .size(14.0),
                 );
@@ -695,7 +695,7 @@ impl CrosshairApp {
                             Self::tr_lang(
                                 language,
                                 "Download and Update",
-                                "Táº£i xuá»‘ng vÃ  Cáº­p nháº­t",
+                                "Tải xuá»‘ng vÃ  Cáº­p nháº­t",
                             ),
                         )
                         .clicked()
@@ -709,7 +709,7 @@ impl CrosshairApp {
                             ui.label(Self::tr_lang(
                                 language,
                                 "Downloading update...",
-                                "Äang táº£i cáº­p nháº­t...",
+                                "Äang tải cáº­p nháº­t...",
                             ));
                         });
                     }
@@ -721,7 +721,7 @@ impl CrosshairApp {
                             RichText::new(Self::tr_lang(
                                 language,
                                 "Restart App",
-                                "Khá»Ÿi Ä‘á»™ng láº¡i",
+                                "Khởi động láº¡i",
                             ))
                             .strong(),
                         )
@@ -734,7 +734,7 @@ impl CrosshairApp {
                         ui.label(Self::tr_lang(
                             language,
                             "App is up to date.",
-                            "á»¨ng dá»¥ng Ä‘Ã£ á»Ÿ báº£n má»›i nháº¥t.",
+                            "á»¨ng dụng Ä‘Ã£ ở bảnh má»›i nháº¥t.",
                         ));
                         ui.add_space(4.0);
                         if Self::settings_action_button(
@@ -751,7 +751,7 @@ impl CrosshairApp {
                         ui.add_space(4.0);
                         if Self::settings_action_button(
                             ui,
-                            Self::tr_lang(language, "Retry", "Thá»­ láº¡i"),
+                            Self::tr_lang(language, "Retry", "Thử lại"),
                         )
                         .clicked()
                         {
@@ -920,7 +920,7 @@ impl CrosshairApp {
                                             egui::RichText::new(Self::tr_lang(
                                                 self.state.ui_language,
                                                 "Example: Open Excel, write text to cell A1, then save...",
-                                                "VÃ­ dá»¥: Má»Ÿ Excel, ghi ná»™i dung vÃ o Ã´ A1, sau Ä‘Ã³ lÆ°u láº¡i...",
+                                                "VÃ­ dá»¥: Mở Excel, ghi ná»™i dung vÃ o Ã´ A1, sau Ä‘Ã³ lÆ°u láº¡i...",
                                             ))
                                             .color(if dark_theme {
                                                 Color32::from_rgba_unmultiplied(120, 120, 120, 140)
