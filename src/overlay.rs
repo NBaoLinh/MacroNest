@@ -411,6 +411,11 @@ mod windows_overlay {
         UpdateError(String),
         UpdateUpToDate,
         SetInterceptionStatus(String),
+        AudioWaveformLoaded {
+            path: String,
+            waveform: Vec<f32>,
+            duration_ms: Option<u64>,
+        },
     }
 
     pub struct OverlayHandle {

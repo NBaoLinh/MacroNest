@@ -1671,14 +1671,24 @@ impl CrosshairApp {
     }
 
     fn refresh_audio_waveform_for_path(&mut self, path: &str) {
-        let trimmed = path.trim();
-        if trimmed.is_empty() || self.audio_waveforms.contains_key(trimmed) {
+        let trimmed = path.trim().to_owned();
+        if trimmed.is_empty() || self.audio_waveforms.contains_key(&trimmed) {
             return;
         }
-        let _ = audio::preload_preview_audio(trimmed);
-        if let Ok(waveform) = audio::load_waveform(trimmed, 320) {
-            self.audio_waveforms.insert(trimmed.to_owned(), waveform);
-        }
+        // Insert a placeholder to prevent spawning duplicate loading threads
+        self.audio_waveforms.insert(trimmed.clone(), Vec::new());
+
+        let ui_tx = self.ui_tx.clone();
+        std::thread::spawn(move || {
+            let _ = audio::preload_preview_audio(&trimmed);
+            let waveform = audio::load_waveform(&trimmed, 320).unwrap_or_default();
+            let duration_ms = audio::load_duration_ms(&trimmed).ok();
+            let _ = ui_tx.send(UiCommand::AudioWaveformLoaded {
+                path: trimmed,
+                waveform,
+                duration_ms,
+            });
+        });
     }
 
     fn preview_cursor_ms_for(
@@ -7375,6 +7385,26 @@ impl eframe::App for CrosshairApp {
                 }
                 UiCommand::SetInterceptionStatus(status) => {
                     self.interception_status = status;
+                }
+                UiCommand::AudioWaveformLoaded { path, waveform, duration_ms } => {
+                    self.audio_waveforms.insert(path.clone(), waveform);
+                    for preset in &mut self.state.audio_settings.presets {
+                        if preset.clip.file_path.trim() == path {
+                            self.sound_preset_clip_duration_ms.insert(preset.id, duration_ms);
+                        }
+                    }
+                    for item in &mut self.state.audio_settings.library {
+                        if item.clip.file_path.trim() == path {
+                            self.library_clip_duration_ms.insert(item.id, duration_ms);
+                        }
+                    }
+                    if self.state.audio_settings.startup.file_path.trim() == path {
+                        self.startup_clip_duration_ms = duration_ms;
+                    }
+                    if self.state.audio_settings.exit.file_path.trim() == path {
+                        self.exit_clip_duration_ms = duration_ms;
+                    }
+                    ctx.request_repaint();
                 }
             }
         }

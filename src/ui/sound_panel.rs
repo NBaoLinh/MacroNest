@@ -806,8 +806,7 @@ impl CrosshairApp {
                 .sound_preset_clip_duration_ms
                 .get(&preset_id)
                 .copied()
-                .flatten()
-                .or_else(|| audio_duration(&preset.clip));
+                .flatten();
             let mut show_editor = self.show_sound_preset_audio_editor.contains(&preset.id);
             if !preset.clip.enabled {
                 preset.clip.enabled = true;
@@ -1193,8 +1192,7 @@ impl CrosshairApp {
                         .sound_preset_clip_duration_ms
                         .get(&preset.id)
                         .copied()
-                        .flatten()
-                        .or_else(|| audio_duration(&preset.clip));
+                        .flatten();
                     let outcome = Self::render_audio_media_editor(
                         ui,
                         language,

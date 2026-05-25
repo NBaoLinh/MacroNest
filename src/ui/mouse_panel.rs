@@ -299,7 +299,7 @@ impl CrosshairApp {
             let pending_combo_keys = self.capture_hotkey_combo_keys.clone();
             ui.add_space(6.0);
             let preset = &mut self.state.mouse_path_presets[index];
-            Self::show_preset_card(ui, preset.enabled, |ui| {
+            Self::show_preset_card(ui, true, |ui| {
                 ui.horizontal(|ui| {
                     let name_width = Self::preset_header_name_width(ui);
                     let response = ui.add_sized(
@@ -316,17 +316,6 @@ impl CrosshairApp {
                     ui.with_layout(
                         egui::Layout::right_to_left(egui::Align::Center),
                         |ui| {
-                            if Self::enabled_icon_button(ui, preset.enabled)
-                                .on_hover_text(Self::tr_lang(
-                                    language,
-                                    "Enable / disable preset",
-                                    "Enable / disable preset",
-                                ))
-                                .clicked()
-                            {
-                                preset.enabled = !preset.enabled;
-                                live_sync = true;
-                            }
                             if Self::sound_style_remove_button(ui).clicked() {
                                 remove_id = Some(preset.id);
                             }
