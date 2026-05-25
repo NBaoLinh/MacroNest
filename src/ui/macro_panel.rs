@@ -1550,7 +1550,12 @@ impl CrosshairApp {
 
 
 
+        let macro_panel_scroll_height = ui.available_height();
 
+        egui::ScrollArea::vertical()
+            .auto_shrink([false, false])
+            .max_height(macro_panel_scroll_height)
+            .show(ui, |ui| {
         let mut release_folder_id = None;
 
         let mut delete_folder_id = None;
@@ -14218,6 +14223,8 @@ impl CrosshairApp {
             self.persist();
             self.sync_macro_presets();
         }
+
+        });
 
     }
 
