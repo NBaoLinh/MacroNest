@@ -5972,7 +5972,7 @@ impl CrosshairApp {
 
                                                                      let response = ui.add_sized(
 
-                                                                         [64.0, 22.0],
+                                                                         [76.0, 22.0],
 
                                                                          TextEdit::singleline(&mut step.if_variable_name)
 
@@ -6153,7 +6153,7 @@ impl CrosshairApp {
 
                                                                          let response = ui.add_sized(
 
-                                                                             [64.0, 22.0],
+                                                                             [76.0, 22.0],
 
                                                                              TextEdit::singleline(&mut cond.variable_name)
 
@@ -6625,7 +6625,7 @@ impl CrosshairApp {
 
                                                                        let response = ui.add_sized(
 
-                                                                           [64.0, 22.0],
+                                                                           [76.0, 22.0],
 
                                                                            TextEdit::singleline(&mut step.if_variable_name)
 
@@ -7056,7 +7056,7 @@ impl CrosshairApp {
 
                                                                          let response = ui.add_sized(
 
-                                                                         [64.0, 22.0],
+                                                                         [76.0, 22.0],
 
                                                                          TextEdit::singleline(&mut cond.variable_name)
 
@@ -7194,7 +7194,7 @@ impl CrosshairApp {
 
                                                                 let response = ui.add_sized(
 
-                                                                    [64.0, 22.0],
+                                                                    [76.0, 22.0],
 
                                                                     TextEdit::singleline(&mut step.if_variable_name)
 
@@ -11375,7 +11375,7 @@ impl CrosshairApp {
 
                                                                        let response = ui.add_sized(
 
-                                                                           [64.0, 22.0],
+                                                                           [76.0, 22.0],
 
                                                                            TextEdit::singleline(&mut step.if_variable_name)
 
@@ -11806,7 +11806,7 @@ impl CrosshairApp {
 
                                                                          let response = ui.add_sized(
 
-                                                                         [64.0, 22.0],
+                                                                         [76.0, 22.0],
 
                                                                          TextEdit::singleline(&mut cond.variable_name)
 
@@ -11944,7 +11944,7 @@ impl CrosshairApp {
 
                                                                  let response = ui.add_sized(
 
-                                                                     [64.0, 22.0],
+                                                                     [76.0, 22.0],
 
                                                                      TextEdit::singleline(&mut step.if_variable_name)
 
