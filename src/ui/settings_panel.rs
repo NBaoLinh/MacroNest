@@ -1,4 +1,4 @@
-﻿use std::time::{Duration, Instant};
+use std::time::{Duration, Instant};
 use std::fs;
 use std::process::Command;
 use std::path::Path;
@@ -42,7 +42,7 @@ impl CrosshairApp {
                                         TextEdit::singleline(&mut self.state.groq_settings.api_key)
                                             .hint_text("gsk_...");
                                     let response = ui.add_sized(
-                                        [(ui.available_width() - 96.0).max(180.0), 24.0],
+                                        [280.0, 24.0],
                                         if self.state.groq_settings.show_api_key {
                                             key_editor
                                         } else {
@@ -58,9 +58,9 @@ impl CrosshairApp {
                                     groq_changed |= response.changed();
                                     if ui
                                         .button(if self.state.groq_settings.show_api_key {
-                                            Self::tr_lang(language, "Hide", "Ẩn")
+                                            Self::tr_lang(language, "Hide", "")
                                         } else {
-                                            Self::tr_lang(language, "Show", "Hiện")
+                                            Self::tr_lang(language, "Show", "")
                                         })
                                         .clicked()
                                     {
@@ -85,7 +85,7 @@ impl CrosshairApp {
                                     };
                                     egui::ComboBox::from_id_salt("groq-model-picker")
                                         .selected_text(selected_text)
-                                        .width((ui.available_width() - 96.0).max(200.0))
+                                        .width(280.0)
                                         .show_ui(ui, |ui| {
                                             for (label, model_id) in Self::groq_model_catalog() {
                                                 let selected =
@@ -108,7 +108,7 @@ impl CrosshairApp {
                                 ui.add_space(4.0);
                                 ui.horizontal(|ui| {
                                     let response = ui.add_sized(
-                                        [ui.available_width() - 110.0, 24.0],
+                                        [280.0, 24.0],
                                         TextEdit::singleline(&mut self.state.groq_settings.model)
                                             .hint_text("openai/gpt-oss-120b"),
                                     );
@@ -140,7 +140,7 @@ impl CrosshairApp {
                                 RichText::new(Self::tr_lang(
                                     language,
                                     "Vietnamese input",
-                                    "GÃµ tiáº¿ng Viá»‡t",
+                                    "",
                                 ))
                                 .strong()
                                 .size(14.0),
@@ -174,7 +174,7 @@ impl CrosshairApp {
                         ui.set_min_width(ui.available_width());
                         ui.vertical(|ui| {
                             ui.label(
-                                RichText::new(Self::tr_lang(language, "App data", "ThÆ° má»¥c dá»¯ liá»‡u"))
+                                RichText::new(Self::tr_lang(language, "App data", ""))
                                     .strong()
                                     .size(14.0),
                             );
@@ -185,7 +185,7 @@ impl CrosshairApp {
                                     Self::tr_lang(
                                         language,
                                         "Open data folder",
-                                        "Mở thư mục dá»¯ liá»‡u",
+                                        "",
                                     ),
                                 )
                                 .clicked()
@@ -198,9 +198,9 @@ impl CrosshairApp {
                                     .unwrap_or(false);
 
                                 let btn_label = if is_copied {
-                                    Self::tr_lang(language, "Copied!", "ÄÃ£ sao chÃ©p!")
+                                    Self::tr_lang(language, "Copied!", "")
                                 } else {
-                                    Self::tr_lang(language, "Copy folder", "Sao chÃ©p thư mục")
+                                    Self::tr_lang(language, "Copy folder", "")
                                 };
 
                                 if is_copied {
@@ -211,7 +211,7 @@ impl CrosshairApp {
                                     if let Err(e) = crate::platform::copy_folder_to_clipboard(&self.paths.root) {
                                         self.status = format!("Failed to copy folder: {e}");
                                     } else {
-                                        self.status = Self::tr_lang(language, "Folder copied to clipboard.", "ÄÃ£ chÃ©p thư mục vÃ o clipboard.").to_owned();
+                                        self.status = Self::tr_lang(language, "Folder copied to clipboard.", "").to_owned();
                                         self.copy_folder_feedback_until = Some(Instant::now() + Duration::from_secs(2));
                                     }
                                 }
@@ -235,7 +235,7 @@ impl CrosshairApp {
         Self::settings_card_frame(ui).show(ui, |ui| {
             ui.set_min_width(ui.available_width());
             ui.vertical(|ui| {
-                let header_text = RichText::new(Self::tr_lang(language, "Advanced", "NÃ¢ng cao"))
+                let header_text = RichText::new(Self::tr_lang(language, "Advanced", ""))
                     .strong()
                     .size(14.0);
                 if Self::settings_section_button(ui, header_text, self.advanced_settings_open).clicked() {
@@ -245,7 +245,7 @@ impl CrosshairApp {
                 if self.advanced_settings_open {
                     ui.add_space(8.0);
                     let explanation_en = "Note: Some games might not register inputs if the delays are set too low (e.g., 0ms). You can adjust these values if your macros do not work correctly in-game.";
-                    let explanation_vi = "LÆ°u Ã½: Má»™t sá»‘ trÃ² chÆ¡i cÃ³ thể khÃ´ng nháº­n phảnh há»“i tá»« chuột hoặc phím nếu Ä‘áº·t độ trá»… quÃ¡ tháº¥p (vÃ­ dá»¥: 0ms). Báº¡n cÃ³ thể chỉnh láº¡i cÃ¡c thÃ´ng sá»‘ nÃ y nếu macro khÃ´ng hoạt động chÃ­nh xÃ¡c trong game.";
+                    let explanation_vi = "";
                     ui.label(
                         RichText::new(Self::tr_lang(language, explanation_en, explanation_vi))
                             .small()
@@ -255,7 +255,7 @@ impl CrosshairApp {
 
                     let mut delay_changed = false;
                     ui.horizontal(|ui| {
-                        ui.label(Self::tr_lang(language, "Mouse Click Delay:", "Äá»™ trá»… click chuột:"));
+                        ui.label(Self::tr_lang(language, "Mouse Click Delay:", ""));
                         let slider = egui::Slider::new(&mut self.state.macro_mouse_click_delay_ms, 0..=500)
                             .suffix(" ms");
                         let res = ui.add(slider);
@@ -267,7 +267,7 @@ impl CrosshairApp {
                     ui.add_space(6.0);
 
                     ui.horizontal(|ui| {
-                        ui.label(Self::tr_lang(language, "Keyboard Press Delay:", "Äá»™ trá»… nhấn phím:"));
+                        ui.label(Self::tr_lang(language, "Keyboard Press Delay:", ""));
                         let slider = egui::Slider::new(&mut self.state.macro_keyboard_key_press_delay_ms, 0..=500)
                             .suffix(" ms");
                         let res = ui.add(slider);
@@ -285,7 +285,7 @@ impl CrosshairApp {
                             Self::tr_lang(
                                 language,
                                 "Use Interception Driver (Mouse clicks/movement in games)",
-                                "Sá»­ dụng Driver Interception (Di chuyá»ƒn/click chuột trong game)"
+                                ""
                             )
                         );
                         if res.changed() {
@@ -296,7 +296,7 @@ impl CrosshairApp {
                                 self.status = Self::tr_lang(
                                     language,
                                     "Please download and install the Interception Driver wrapper first!",
-                                    "Vui lÃ²ng tải xuá»‘ng vÃ  cÃ i Ä‘áº·t wrapper Interception Driver trước!"
+                                    ""
                                 ).to_owned();
                             } else {
                                 self.interception_status = if self.state.vision_settings.use_interception {
@@ -355,7 +355,7 @@ impl CrosshairApp {
                     RichText::new(Self::tr_lang(
                         language,
                         "Downloaded Tools",
-                        "Công cụ đã tải",
+                        "",
                     ))
                     .strong()
                     .size(14.0),
@@ -376,16 +376,16 @@ impl CrosshairApp {
                         self.opencv_installed,
                         opencv_progress,
                         60 * 1024 * 1024,
-                        Self::tr_lang(language, "Download OpenCV", "Tải OpenCV"),
+                        Self::tr_lang(language, "Download OpenCV", ""),
                         Self::tr_lang(
                             language,
                             "Vision features require OpenCV.",
-                            "Tính năng Vision cần OpenCV.",
+                            "",
                         ),
                         Self::tr_lang(
                             language,
                             "OpenCV DLL deleted.",
-                            "Đã xóa file OpenCV DLL.",
+                            "",
                         ),
                         Self::start_opencv_download,
                         Self::delete_opencv_tool,
@@ -419,7 +419,7 @@ impl CrosshairApp {
             if downloading_progress.is_some() {
                 if let Some(progress) = downloading_progress {
                     ui.horizontal(|ui| {
-                        ui.label(Self::tr_lang(language, "Downloading package...", "Đang tải gói..."));
+                        ui.label(Self::tr_lang(language, "Downloading package...", ""));
                         ui.add(egui::ProgressBar::new(progress).show_percentage());
                     });
                 }
@@ -438,7 +438,7 @@ impl CrosshairApp {
                     ui.label(Self::tr_lang(
                         language,
                         "Installing driver...",
-                        "Đang cài driver...",
+                        "",
                     ));
                 });
                 ui.ctx().request_repaint();
@@ -451,7 +451,7 @@ impl CrosshairApp {
                     ui.label(Self::tr_lang(
                         language,
                         "Uninstalling driver...",
-                        "Đang gỡ driver...",
+                        "",
                     ));
                 });
                 ui.ctx().request_repaint();
@@ -463,7 +463,7 @@ impl CrosshairApp {
                     ui.label(RichText::new(Self::tr_lang(
                         language,
                         "Download the Interception package to enable driver setup.",
-                        "Tải gói Interception để bắt đầu cài driver.",
+                        "",
                     )).weak());
                     ui.add_space(8.0);
                     ui.label(
@@ -473,7 +473,7 @@ impl CrosshairApp {
                     );
                     if Self::settings_action_button(
                         ui,
-                        Self::tr_lang(language, "Download", "Tải xuống"),
+                        Self::tr_lang(language, "Download", ""),
                     )
                     .clicked()
                     {
@@ -487,7 +487,7 @@ impl CrosshairApp {
                 ui.label(RichText::new(Self::tr_lang(
                     language,
                     "Package downloaded.",
-                    "Đã tải gói.",
+                    "",
                 )).weak());
                 ui.add_space(8.0);
                 ui.label(
@@ -504,14 +504,14 @@ impl CrosshairApp {
                     ui.label(RichText::new(Self::tr_lang(
                         language,
                         "Driver installed. Restart your PC to take effect.",
-                        "Driver đã cài. Hãy khởi động lại máy để có hiệu lực.",
+                        "",
                     )).color(Color32::from_rgb(126, 224, 182)));
                 });
                 ui.add_space(4.0);
                 ui.horizontal(|ui| {
                     if Self::settings_action_button(
                         ui,
-                        Self::tr_lang(language, "Delete Driver", "Xóa driver"),
+                        Self::tr_lang(language, "Delete Driver", ""),
                     )
                     .clicked()
                     {
@@ -519,7 +519,7 @@ impl CrosshairApp {
                     }
                     if Self::settings_action_button(
                         ui,
-                        Self::tr_lang(language, "Restart PC", "Khởi động lại"),
+                        Self::tr_lang(language, "Restart PC", ""),
                     )
                     .clicked()
                     {
@@ -528,7 +528,7 @@ impl CrosshairApp {
                                 self.status = Self::tr_lang(
                                     language,
                                     "Restarting Windows...",
-                                    "Đang khởi động lại Windows...",
+                                    "",
                                 )
                                 .to_owned();
                             }
@@ -546,13 +546,13 @@ impl CrosshairApp {
                     ui.label(RichText::new(Self::tr_lang(
                         language,
                         "Driver installed. Restart your PC to finish setup.",
-                        "Driver đã cài. Hãy khởi động lại máy để hoàn tất cài đặt.",
+                        "",
                     )).color(Color32::from_rgb(248, 214, 102)));
                 } else {
                     ui.label(RichText::new(Self::tr_lang(
                         language,
                         "Ready to install the driver.",
-                        "Sẵn sàng cài driver.",
+                        "",
                     )).weak());
                 }
             });
@@ -560,13 +560,13 @@ impl CrosshairApp {
             ui.horizontal(|ui| {
                 if Self::settings_action_button(
                     ui,
-                    Self::tr_lang(language, "Install Driver", "Cài driver"),
+                    Self::tr_lang(language, "Install Driver", ""),
                 )
                 .clicked()
                 {
                     self.start_interception_driver_install();
                 }
-                if Self::settings_action_button(ui, Self::tr_lang(language, "Delete", "Xóa")).clicked() {
+                if Self::settings_action_button(ui, Self::tr_lang(language, "Delete", "")).clicked() {
                     self.delete_interception_package();
                 }
             });
@@ -576,7 +576,7 @@ impl CrosshairApp {
                     RichText::new(Self::tr_lang(
                         language,
                         "You must restart Windows before Interception will work in games.",
-                        "Bạn phải khởi động lại Windows thì Interception mới có tác dụng trong game.",
+                        "",
                     ))
                     .small()
                     .color(Color32::from_rgb(248, 214, 102)),
@@ -607,20 +607,20 @@ impl CrosshairApp {
 
             if installed {
                 ui.horizontal(|ui| {
-                    ui.label(Self::tr_lang(language, "Status: Installed", "Tráº¡ng thÃ¡i: ÄÃ£ cÃ i Ä‘áº·t"));
+                    ui.label(Self::tr_lang(language, "Status: Installed", ""));
                     ui.label(
                         RichText::new(Self::tool_size_label(path, expected_size_bytes))
                             .small()
                             .weak(),
                     );
-                    if Self::settings_action_button(ui, Self::tr_lang(language, "Delete", "Xóa")).clicked() {
+                    if Self::settings_action_button(ui, Self::tr_lang(language, "Delete", "")).clicked() {
                         delete_action(self);
                         self.status = delete_status_text.to_owned();
                     }
                 });
             } else if let Some(progress) = downloading_progress {
                 ui.horizontal(|ui| {
-                    ui.label(Self::tr_lang(language, "Downloading...", "Äang tải..."));
+                    ui.label(Self::tr_lang(language, "Downloading...", ""));
                     ui.add(egui::ProgressBar::new(progress).show_percentage());
                 });
                 ui.label(
@@ -652,7 +652,7 @@ impl CrosshairApp {
             ui.set_min_width(ui.available_width());
             ui.vertical(|ui| {
                 ui.label(
-                    RichText::new(Self::tr_lang(language, "Update", "Cập nhật"))
+                    RichText::new(Self::tr_lang(language, "Update", ""))
                         .strong()
                         .size(14.0),
                 );
@@ -664,7 +664,7 @@ impl CrosshairApp {
                             Self::tr_lang(
                                 language,
                                 "Check for update",
-                                "Kiá»ƒm tra cáº­p nháº­t",
+                                "",
                             ),
                         )
                         .clicked()
@@ -678,7 +678,7 @@ impl CrosshairApp {
                             ui.label(Self::tr_lang(
                                 language,
                                 "Checking for updates...",
-                                "Äang kiá»ƒm tra cáº­p nháº­t...",
+                                "",
                             ));
                         });
                     }
@@ -695,7 +695,7 @@ impl CrosshairApp {
                             Self::tr_lang(
                                 language,
                                 "Download and Update",
-                                "Tải xuá»‘ng vÃ  Cáº­p nháº­t",
+                                "",
                             ),
                         )
                         .clicked()
@@ -709,7 +709,7 @@ impl CrosshairApp {
                             ui.label(Self::tr_lang(
                                 language,
                                 "Downloading update...",
-                                "Äang tải cáº­p nháº­t...",
+                                "",
                             ));
                         });
                     }
@@ -721,7 +721,7 @@ impl CrosshairApp {
                             RichText::new(Self::tr_lang(
                                 language,
                                 "Restart App",
-                                "Khởi động láº¡i",
+                                "",
                             ))
                             .strong(),
                         )
@@ -734,12 +734,12 @@ impl CrosshairApp {
                         ui.label(Self::tr_lang(
                             language,
                             "App is up to date.",
-                            "á»¨ng dụng Ä‘Ã£ ở bảnh má»›i nháº¥t.",
+                            "",
                         ));
                         ui.add_space(4.0);
                         if Self::settings_action_button(
                             ui,
-                            Self::tr_lang(language, "Check again", "Kiá»ƒm tra láº¡i"),
+                            Self::tr_lang(language, "Check again", ""),
                         )
                         .clicked()
                         {

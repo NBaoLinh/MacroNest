@@ -13985,7 +13985,7 @@ impl CrosshairApp {
 
                     "Active Runtime Variables",
 
-                    "CÃƒÂ¡c biÃ¡ÂºÂ¿n Ä‘ang hoáº¡t Ä‘á»™ng",
+                    "",
 
                 )).strong());
 
@@ -13993,7 +13993,7 @@ impl CrosshairApp {
 
                 ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
 
-                    if ui.button(Self::tr_lang(language, "Clear All", "XÃƒÂ³a háº¿t")).clicked() {
+                    if ui.button(Self::tr_lang(language, "Clear All", "")).clicked() {
 
                         let mut vars = crate::overlay::RUNTIME_VARIABLES.lock();
 
@@ -14037,7 +14037,7 @@ impl CrosshairApp {
 
                         "No variables active yet.\n(Run a macro or set a variable)",
 
-                        "ChÃ†Â°a cÃƒÂ³ biÃ¡ÂºÂ¿n nÃƒÂ o hoáº¡t Ä‘á»™ng.\n(ChÃ¡ÂºÂ¡y macro hoáº·c thiáº¿t lÃ¡ÂºÂ­p biÃ¡ÂºÂ¿n)",
+                        "",
 
                     )).italics().color(ui.visuals().weak_text_color()));
 
@@ -14061,9 +14061,9 @@ impl CrosshairApp {
 
                             // Headers
 
-                            ui.label(RichText::new(Self::tr_lang(language, "Name", "TÃªn biáº¿n")).strong());
+                            ui.label(RichText::new(Self::tr_lang(language, "Name", "")).strong());
 
-                            ui.label(RichText::new(Self::tr_lang(language, "Value", "GiÃƒÂ¡ trÃ¡Â»â€¹")).strong());
+                            ui.label(RichText::new(Self::tr_lang(language, "Value", "")).strong());
 
                             ui.label(""); // Actions column
 
@@ -14113,7 +14113,7 @@ impl CrosshairApp {
 
                                 if ui.button(Self::material_icon_text(0xe872, 14.0)) // trash
 
-                                    .on_hover_text(Self::tr_lang(language, "Delete variable", "XÃ³a biáº¿n"))
+                                    .on_hover_text(Self::tr_lang(language, "Delete variable", ""))
 
                                     .clicked() 
 

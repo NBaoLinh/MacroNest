@@ -8043,7 +8043,7 @@ impl eframe::App for CrosshairApp {
             egui::Window::new(Self::tr_lang(
                 self.state.ui_language,
                 "Variable Inspector / Debugger",
-                "Trình theo dõi biến",
+                "",
             ))
             .open(&mut open)
             .default_pos(screen_center)
