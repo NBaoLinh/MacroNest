@@ -1448,7 +1448,7 @@ impl CrosshairApp {
             )
             .clicked()
             {
-                self.import_macro_group_from_clipboard(active_folder_for_controls);
+                self.import_macro_group_from_clipboard(active_folder_for_controls, None);
             }
 
             if let Some(folder_id) = active_folder_for_controls
@@ -3405,7 +3405,7 @@ impl CrosshairApp {
                                          .on_hover_text(Self::tr_lang(language, "Import Preset", "Nhập preset"))
                                          .clicked()
                                          {
-                                             import_preset_to_group = Some(group.id);
+                                             import_preset_to_group = Some((group.id, None));
                                          }
 
                                     }
