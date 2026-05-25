@@ -12592,9 +12592,11 @@ impl CrosshairApp {
 
                                                     capture_target_snapshot.as_ref() == Some(&step_capture_target);
 
+                                                let step_capture_width = if step_capture_active { 84.0 } else { 22.0 };
+
                                                 let step_capture_button = if step_capture_active {
 
-                                                    Button::new(Self::material_icon_text(0xe312, 12.0))
+                                                    Button::new(Self::capture_button_text(language, true))
 
                                                         .fill(Color32::from_rgb(88, 84, 44))
 
@@ -12606,7 +12608,7 @@ impl CrosshairApp {
 
                                                 if ui
 
-                                                    .add_sized([22.0, 18.0], step_capture_button)
+                                                    .add_sized([step_capture_width, 18.0], step_capture_button)
 
                                                     .on_hover_text(Self::tr_lang(
 

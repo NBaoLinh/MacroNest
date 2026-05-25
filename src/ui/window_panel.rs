@@ -141,9 +141,17 @@ impl CrosshairApp {
                                         Self::tr_lang(language, "Left click: bind hotkey", "Chuột trái: gÃ¡n phím tắt").to_string()
                                     };
 
+                                    let btn_text = if capture_active {
+                                        RichText::new(Self::tr_lang(language, "Capturing...", "Đang bắt..."))
+                                            .strong()
+                                            .color(Color32::from_rgb(255, 232, 96))
+                                    } else {
+                                        Self::material_icon_text(0xe312, 18.0)
+                                    };
+                                    let btn_width = if capture_active { 84.0 } else { 36.0 };
                                     let btn_response = ui.add_sized(
-                                        [36.0, 24.0],
-                                        Button::new(Self::material_icon_text(0xe312, 18.0))
+                                        [btn_width, 24.0],
+                                        Button::new(btn_text)
                                             .fill(fill)
                                             .stroke(egui::Stroke::new(1.0, stroke)),
                                     ).on_hover_text(hover_text);
@@ -394,9 +402,17 @@ impl CrosshairApp {
                             Self::tr_lang(language, "Left click: bind hotkey", "Chuột trái: gÃ¡n phím tắt").to_string()
                         };
 
+                        let btn_text = if capture_active {
+                            RichText::new(Self::tr_lang(language, "Capturing...", "Đang bắt..."))
+                                .strong()
+                                .color(Color32::from_rgb(255, 232, 96))
+                        } else {
+                            Self::material_icon_text(0xe312, 18.0)
+                        };
+                        let btn_width = if capture_active { 84.0 } else { 36.0 };
                         let btn_response = ui.add_sized(
-                            [36.0, 24.0],
-                            Button::new(Self::material_icon_text(0xe312, 18.0))
+                            [btn_width, 24.0],
+                            Button::new(btn_text)
                                 .fill(fill)
                                 .stroke(egui::Stroke::new(1.0, stroke)),
                         ).on_hover_text(hover_text);
@@ -824,9 +840,17 @@ impl CrosshairApp {
                             Self::tr_lang(language, "Left click: bind hotkey", "Chuột trái: gÃ¡n phím tắt").to_string()
                         };
 
+                        let btn_text = if capture_active {
+                            RichText::new(Self::tr_lang(language, "Capturing...", "Đang bắt..."))
+                                .strong()
+                                .color(Color32::from_rgb(255, 232, 96))
+                        } else {
+                            Self::material_icon_text(0xe312, 18.0)
+                        };
+                        let btn_width = if capture_active { 84.0 } else { 36.0 };
                         let btn_response = ui.add_sized(
-                            [36.0, 24.0],
-                            Button::new(Self::material_icon_text(0xe312, 18.0))
+                            [btn_width, 24.0],
+                            Button::new(btn_text)
                                 .fill(fill)
                                 .stroke(egui::Stroke::new(1.0, stroke)),
                         ).on_hover_text(hover_text);
