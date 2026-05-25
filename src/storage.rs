@@ -407,6 +407,24 @@ impl AppPaths {
             group.collapsed = true;
             for preset in &mut group.presets {
                 preset.collapsed = true;
+                if preset.hold_stop_step.if_operator.is_empty() || preset.hold_stop_step.if_operator == "=" {
+                    preset.hold_stop_step.if_operator = "==".to_string();
+                }
+                for cond in &mut preset.hold_stop_step.extra_conditions {
+                    if cond.operator.is_empty() || cond.operator == "=" {
+                        cond.operator = "==".to_string();
+                    }
+                }
+                for step in &mut preset.steps {
+                    if step.if_operator.is_empty() || step.if_operator == "=" {
+                        step.if_operator = "==".to_string();
+                    }
+                    for cond in &mut step.extra_conditions {
+                        if cond.operator.is_empty() || cond.operator == "=" {
+                            cond.operator = "==".to_string();
+                        }
+                    }
+                }
             }
         }
         for preset in &mut state.audio_settings.presets {

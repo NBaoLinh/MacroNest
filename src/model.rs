@@ -131,6 +131,10 @@ fn default_false() -> bool {
     false
 }
 
+fn default_if_operator() -> String {
+    "==".to_string()
+}
+
 fn default_if_color_tolerance() -> u8 {
     10
 }
@@ -440,6 +444,7 @@ pub enum IfConditionType {
 #[serde(default)]
 pub struct ExtraCondition {
     pub variable_name: String,
+    #[serde(default = "default_if_operator")]
     pub operator: String,
     pub compare_value: i32,
     pub expression: String,
@@ -517,7 +522,7 @@ pub struct MacroStep {
     pub toggle_enabled_on_run: bool,
     #[serde(default)]
     pub if_variable_name: String,
-    #[serde(default)]
+    #[serde(default = "default_if_operator")]
     pub if_operator: String,
     #[serde(default)]
     pub manual_mouse_sensitivity: bool,
