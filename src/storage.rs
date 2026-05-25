@@ -80,6 +80,14 @@ impl AppPaths {
     }
 
     pub fn load_state(&self) -> Result<(AppState, StateLoadStatus)> {
+        // Fallback: Copy interception.dll from local assets folder if not present in bin directory
+        if !self.interception_dll.exists() {
+            let local_asset = std::env::current_dir().unwrap_or_default().join("assets").join("interception.dll");
+            if local_asset.exists() {
+                let _ = fs::copy(&local_asset, &self.interception_dll);
+            }
+        }
+
         let (mut state, status) = if !self.state_file.exists() {
             (AppState::default(), StateLoadStatus::Loaded)
         } else {

@@ -307,7 +307,17 @@ impl CrosshairApp {
                             )
                         );
                         if res.changed() {
-                            interception_changed = true;
+                            if !self.interception_installed {
+                                // Block and revert
+                                self.state.vision_settings.use_interception = false;
+                                self.status = Self::tr_lang(
+                                    language,
+                                    "Please download and install the Interception Driver wrapper first!",
+                                    "Vui lòng tải xuống và cài đặt wrapper Interception Driver trước!"
+                                ).to_owned();
+                            } else {
+                                interception_changed = true;
+                            }
                         }
                     });
 
