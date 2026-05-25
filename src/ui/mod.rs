@@ -1876,7 +1876,7 @@ impl CrosshairApp {
     }
 
     fn desired_window_size() -> egui::Vec2 {
-        vec2(980.0, 600.0)
+        vec2(980.0, 530.0)
     }
 
     #[cfg(windows)]

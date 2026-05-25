@@ -1,4 +1,4 @@
-﻿use crate::model::*;
+use crate::model::*;
 
 use crate::ui::{
 
@@ -14225,8 +14225,6 @@ impl CrosshairApp {
             self.persist();
             self.sync_macro_presets();
         }
-
-        ui.add_space((ui.ctx().screen_rect().height() - 250.0).max(0.0));
 
         });
 
