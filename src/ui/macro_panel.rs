@@ -3377,17 +3377,6 @@ impl CrosshairApp {
                                          {
                                              import_preset_to_group = Some((group.id, None));
                                          }
-                                         if Self::sized_button(
-                                             ui,
-                                             92.0,
-                                             Self::tr_lang(language, "Imp Preset", "Imp Preset"),
-                                         )
-                                         .on_hover_text(Self::tr_lang(language, "Import Preset from Clipboard", "Nhập Preset từ clipboard"))
-                                         .clicked()
-                                         {
-                                             import_preset_to_group = Some((group.id, None));
-                                         }
-
                                          if Self::sound_style_icon_button(
                                              ui,
                                              Self::material_icon_text(0xe14d, 15.0).color(ui.visuals().widgets.inactive.fg_stroke.color),
