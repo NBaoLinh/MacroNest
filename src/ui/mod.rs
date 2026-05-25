@@ -1096,7 +1096,7 @@ impl CrosshairApp {
         }
     }
 
-    fn import_macro_step_from_clipboard(&mut self, group_id: u32, preset_id: u32) {
+    fn import_macro_step_from_clipboard(&mut self, group_id: u32, preset_id: u32, insert_after_index: Option<usize>) {
         let mut clipboard = match Clipboard::new() {
             Ok(cb) => cb,
             Err(e) => {
@@ -1115,7 +1115,15 @@ impl CrosshairApp {
             Ok(step) => {
                 if let Some(group) = self.state.macro_groups.iter_mut().find(|g| g.id == group_id) {
                     if let Some(preset) = group.presets.iter_mut().find(|p| p.id == preset_id) {
-                        preset.steps.push(step);
+                        if let Some(idx) = insert_after_index {
+                            if idx < preset.steps.len() {
+                                preset.steps.insert(idx + 1, step);
+                            } else {
+                                preset.steps.push(step);
+                            }
+                        } else {
+                            preset.steps.push(step);
+                        }
                         self.sync_macro_presets();
                         self.persist();
                         self.status = Self::tr_lang(self.state.ui_language, "Step imported successfully.", "Đã nhập bước thành công.").to_owned();
@@ -1138,7 +1146,7 @@ impl CrosshairApp {
         }
     }
 
-    fn import_macro_preset_from_clipboard(&mut self, group_id: u32) {
+    fn import_macro_preset_from_clipboard(&mut self, group_id: u32, insert_after_preset_id: Option<u32>) {
         let mut clipboard = match Clipboard::new() {
             Ok(cb) => cb,
             Err(e) => {
@@ -1159,7 +1167,15 @@ impl CrosshairApp {
                 self.state.next_macro_preset_id = id + 1;
                 preset.id = id;
                 if let Some(group) = self.state.macro_groups.iter_mut().find(|g| g.id == group_id) {
-                    group.presets.push(preset);
+                    if let Some(target_id) = insert_after_preset_id {
+                        if let Some(idx) = group.presets.iter().position(|p| p.id == target_id) {
+                            group.presets.insert(idx + 1, preset);
+                        } else {
+                            group.presets.push(preset);
+                        }
+                    } else {
+                        group.presets.push(preset);
+                    }
                     self.reconcile_master_presets();
                     self.sync_macro_presets();
                     self.persist();
@@ -1182,7 +1198,7 @@ impl CrosshairApp {
         }
     }
 
-    fn import_macro_group_from_clipboard(&mut self, folder_id: Option<u32>) {
+    fn import_macro_group_from_clipboard(&mut self, folder_id: Option<u32>, insert_after_group_id: Option<u32>) {
         let mut clipboard = match Clipboard::new() {
             Ok(cb) => cb,
             Err(e) => {
@@ -1211,7 +1227,15 @@ impl CrosshairApp {
                     preset.id = preset_id;
                 }
                 
-                self.state.macro_groups.push(group);
+                if let Some(target_id) = insert_after_group_id {
+                    if let Some(idx) = self.state.macro_groups.iter().position(|g| g.id == target_id) {
+                        self.state.macro_groups.insert(idx + 1, group);
+                    } else {
+                        self.state.macro_groups.push(group);
+                    }
+                } else {
+                    self.state.macro_groups.push(group);
+                }
                 self.reconcile_master_presets();
                 self.sync_macro_presets();
                 self.persist();

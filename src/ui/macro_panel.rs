@@ -2812,12 +2812,12 @@ impl CrosshairApp {
                     let mut paste_step_after = None;
 
                     let mut copy_single_step = None;
-                    let mut export_step = None;
-                    let mut import_step_to = None;
-                    let mut export_preset = None;
-                    let mut import_preset_to_group = None;
-                    let mut export_group = None;
-
+                    let mut export_step: Option<(u32, usize)> = None;
+                    let mut import_step_to: Option<(u32, u32, Option<usize>)> = None; // (group_id, preset_id, Option<step_index>)
+                    let mut export_preset: Option<u32> = None;
+                    let mut import_preset_to_group: Option<(u32, Option<u32>)> = None; // (group_id, Option<insert_after_preset_id>)
+                    let mut export_group: Option<u32> = None;
+                    let mut import_group_after: Option<u32> = None; // insert_after_group_id
                     let selected_steps_snapshot = self.selected_macro_steps.clone();
 
                 let render_preset_indices = {
@@ -3367,6 +3367,26 @@ impl CrosshairApp {
                                             add_preset_to_group = Some(group.id);
 
                                         }
+                                         if Self::sized_button(
+                                             ui,
+                                             92.0,
+                                             Self::tr_lang(language, "Imp Preset", "Imp Preset"),
+                                         )
+                                         .on_hover_text(Self::tr_lang(language, "Import Preset from Clipboard", "Nhập Preset từ clipboard"))
+                                         .clicked()
+                                         {
+                                             import_preset_to_group = Some((group.id, None));
+                                         }
+                                         if Self::sized_button(
+                                             ui,
+                                             92.0,
+                                             Self::tr_lang(language, "Imp Preset", "Imp Preset"),
+                                         )
+                                         .on_hover_text(Self::tr_lang(language, "Import Preset from Clipboard", "Nhập Preset từ clipboard"))
+                                         .clicked()
+                                         {
+                                             import_preset_to_group = Some((group.id, None));
+                                         }
 
                                          if Self::sound_style_icon_button(
                                              ui,
@@ -3651,43 +3671,36 @@ impl CrosshairApp {
                                             }
 
                                             if Self::sized_button(
-
-                                                ui,
-
-                                                60.0,
-
-                                                Self::tr_lang(language, "Copy", "Copy"),
-
-                                            )
-
-                                            .clicked()
-
-                                            {
-
-                                                self.macro_preset_clipboard = Some(preset.clone());
-
-                                                self.status = "Copied macro preset.".to_owned();
-
-                                            }
-
-                                             if Self::sound_style_icon_button(
                                                  ui,
-                                                 Self::material_icon_text(0xe14d, 15.0).color(ui.visuals().widgets.inactive.fg_stroke.color),
+                                                 60.0,
+                                                 Self::tr_lang(language, "Copy", "Copy"),
                                              )
-                                             .on_hover_text(Self::tr_lang(language, "Copy Preset Code", "Sao chép mã preset"))
+                                             .clicked()
+                                             {
+                                                 self.macro_preset_clipboard = Some(preset.clone());
+                                                 self.status = "Copied macro preset.".to_owned();
+                                             }
+
+                                             if Self::sized_button(
+                                                 ui,
+                                                 46.0,
+                                                 Self::tr_lang(language, "Exp", "Exp"),
+                                             )
+                                             .on_hover_text(Self::tr_lang(language, "Export Preset Code", "Sao chép mã preset"))
                                              .clicked()
                                              {
                                                  export_preset = Some(preset.id);
                                              }
 
-                                             if Self::sound_style_icon_button(
+                                             if Self::sized_button(
                                                  ui,
-                                                 Self::material_icon_text(0xe2c6, 15.0).color(ui.visuals().widgets.inactive.fg_stroke.color),
+                                                 46.0,
+                                                 Self::tr_lang(language, "Imp", "Imp"),
                                              )
-                                             .on_hover_text(Self::tr_lang(language, "Import Step from Clipboard", "Nhập Step từ clipboard"))
+                                             .on_hover_text(Self::tr_lang(language, "Import Preset from Clipboard", "Nhập Preset từ clipboard"))
                                              .clicked()
                                              {
-                                                 import_step_to = Some((group.id, preset.id));
+                                                 import_preset_to_group = Some((group.id, Some(preset.id)));
                                              }
 
 
@@ -7762,6 +7775,30 @@ impl CrosshairApp {
 
                                              live_sync = true;
 
+                                         }
+                                         if child_ui
+                                             .add_sized([30.0, 20.0], Button::new(Self::tr_lang(language, "Imp", "Imp")))
+                                             .on_hover_text(Self::tr_lang(
+                                                 language,
+                                                 "Import step from clipboard at the beginning.",
+                                                 "Nhập step từ clipboard vào đầu preset.",
+                                             ))
+                                             .clicked()
+                                         {
+                                             import_step_to = Some((group.id, preset.id, None));
+                                             live_sync = true;
+                                         }
+                                         if child_ui
+                                             .add_sized([30.0, 20.0], Button::new(Self::tr_lang(language, "Imp", "Imp")))
+                                             .on_hover_text(Self::tr_lang(
+                                                 language,
+                                                 "Import step from clipboard at the beginning.",
+                                                 "Nhập step từ clipboard vào đầu preset.",
+                                             ))
+                                             .clicked()
+                                         {
+                                             import_step_to = Some((group.id, preset.id, None));
+                                             live_sync = true;
                                          }
 
 
@@ -12859,47 +12896,49 @@ impl CrosshairApp {
 
 
                                                 if ui
-
-                                                    .add(
-
-                                                        Button::new(Self::tr_lang(language, "Copy", "Copy"))
-
-                                                            .min_size(vec2(paste_button_width, 18.0)),
-
-                                                     )
-
-                                                     .on_hover_text(Self::tr_lang(
-
-                                                         language,
-
-                                                         "Copy this step.",
-
-                                                         "Copy step này.",
-
-                                                     ))
-
-                                                     .clicked()
-
-                                                 {
-
-                                                     copy_single_step = Some((group.id, preset.id, step_index));
-
-                                                 }
-
-                                                 if ui
                                                      .add(
-                                                         Button::new(Self::material_icon_text(0xe14d, 12.0))
-                                                             .min_size(vec2(24.0, 18.0)),
-                                                     )
-                                                     .on_hover_text(Self::tr_lang(
-                                                         language,
-                                                         "Copy step code to clipboard.",
-                                                         "Sao chép mã step vào clipboard.",
-                                                     ))
-                                                     .clicked()
-                                                 {
-                                                     export_step = Some((preset.id, step_index));
-                                                 }
+                                                         Button::new(Self::tr_lang(language, "Copy", "Copy"))
+                                                             .min_size(vec2(paste_button_width, 18.0)),
+                                                      )
+                                                      .on_hover_text(Self::tr_lang(
+                                                          language,
+                                                          "Copy this step.",
+                                                          "Copy step này.",
+                                                      ))
+                                                      .clicked()
+                                                  {
+                                                      copy_single_step = Some((group.id, preset.id, step_index));
+                                                  }
+
+                                                  if ui
+                                                      .add(
+                                                          Button::new(Self::tr_lang(language, "Exp", "Exp"))
+                                                              .min_size(vec2(32.0, 18.0)),
+                                                      )
+                                                      .on_hover_text(Self::tr_lang(
+                                                          language,
+                                                          "Copy step code to clipboard.",
+                                                          "Sao chép mã step vào clipboard.",
+                                                      ))
+                                                      .clicked()
+                                                  {
+                                                      export_step = Some((preset.id, step_index));
+                                                  }
+
+                                                  if ui
+                                                      .add(
+                                                          Button::new(Self::tr_lang(language, "Imp", "Imp"))
+                                                              .min_size(vec2(32.0, 18.0)),
+                                                      )
+                                                      .on_hover_text(Self::tr_lang(
+                                                          language,
+                                                          "Import step from clipboard below this step.",
+                                                          "Nhập step từ clipboard nằm dưới step này.",
+                                                      ))
+                                                      .clicked()
+                                                  {
+                                                      import_step_to = Some((group.id, preset.id, Some(step_index)));
+                                                  }
 
 
 
@@ -13842,8 +13881,8 @@ impl CrosshairApp {
                             self.export_macro_step(&step);
                         }
                     }
-                    if let Some((group_id, preset_id)) = import_step_to {
-                        self.import_macro_step_from_clipboard(group_id, preset_id);
+                    if let Some((group_id, preset_id, insert_after_index)) = import_step_to {
+                        self.import_macro_step_from_clipboard(group_id, preset_id, insert_after_index);
                     }
                     if let Some(preset_id) = export_preset {
                         let preset_opt = self.state.macro_groups.iter().flat_map(|g| &g.presets).find(|p| p.id == preset_id).cloned();
@@ -13851,14 +13890,17 @@ impl CrosshairApp {
                             self.export_macro_preset(&preset);
                         }
                     }
-                    if let Some(group_id) = import_preset_to_group {
-                        self.import_macro_preset_from_clipboard(group_id);
+                    if let Some((group_id, insert_after_preset_id)) = import_preset_to_group {
+                        self.import_macro_preset_from_clipboard(group_id, insert_after_preset_id);
                     }
                     if let Some(group_id) = export_group {
                         let group_opt = self.state.macro_groups.iter().find(|g| g.id == group_id).cloned();
                         if let Some(group) = group_opt {
                             self.export_macro_group(&group);
                         }
+                    }
+                    if let Some(group_id) = import_group_after {
+                        self.import_macro_group_from_clipboard(None, Some(group_id));
                     }
 
                 }
