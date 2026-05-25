@@ -677,7 +677,7 @@ impl CrosshairApp {
             confirm_release_folder_id: None,
             confirm_delete_macro_group_id: None,
             pending_macro_infinite_loop_enable: None,
-            center_window_next_frame: false,
+            center_window_next_frame: true,
             enforce_square_window_frames: 8,
             last_window_refresh_at: Instant::now(),
             last_active_panel: initial_active_panel,
@@ -1904,7 +1904,10 @@ impl CrosshairApp {
     }
 
     #[cfg(windows)]
-    fn centered_outer_position_for_size(size: egui::Vec2, scale: f32) -> egui::Pos2 {
+    fn centered_outer_position_for_size(size: egui::Vec2, _scale: f32) -> egui::Pos2 {
+        use windows::Win32::UI::HiDpi::GetDpiForSystem;
+        let dpi = unsafe { GetDpiForSystem() } as f32;
+        let scale = if dpi > 0.0 { dpi / 96.0 } else { 1.0 };
         let screen_w = (unsafe { GetSystemMetrics(SM_CXSCREEN) } as f32) / scale;
         let screen_h = (unsafe { GetSystemMetrics(SM_CYSCREEN) } as f32) / scale;
         egui::pos2(
