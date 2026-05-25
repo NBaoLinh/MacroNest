@@ -600,7 +600,7 @@ impl CrosshairApp {
 
         let opencv_installed = paths.opencv_dll.exists();
         let mut app = Self {
-            paths,
+            paths: paths.clone(),
             state,
             overlay_tx,
             ui_tx,
@@ -710,12 +710,13 @@ impl CrosshairApp {
             opencv_installed,
             interception_download_job: None,
             interception_download_progress: Arc::new(AtomicU32::new(0)),
-            interception_installed: paths.interception_dll.exists(),
+            interception_installed: false, // will update below
             copy_folder_feedback_until: None,
             vision_manual_color: RgbaColor { r: 0, g: 255, b: 170, a: 255 },
             vision_manual_color_hex: "00FFAA".to_owned(),
             variable_inspector_open: false,
         };
+        app.interception_installed = app.paths.interception_dll.exists();
         app.ensure_master_presets();
         let mut startup_state_changed = false;
         if app.state.groq_settings.details_open {
