@@ -1904,9 +1904,9 @@ impl CrosshairApp {
     }
 
     #[cfg(windows)]
-    fn centered_outer_position_for_size(size: egui::Vec2) -> egui::Pos2 {
-        let screen_w = unsafe { GetSystemMetrics(SM_CXSCREEN) } as f32;
-        let screen_h = unsafe { GetSystemMetrics(SM_CYSCREEN) } as f32;
+    fn centered_outer_position_for_size(size: egui::Vec2, scale: f32) -> egui::Pos2 {
+        let screen_w = (unsafe { GetSystemMetrics(SM_CXSCREEN) } as f32) / scale;
+        let screen_h = (unsafe { GetSystemMetrics(SM_CYSCREEN) } as f32) / scale;
         egui::pos2(
             ((screen_w - size.x) * 0.5).round(),
             ((screen_h - size.y) * 0.5).round().max(10.0),
@@ -1914,7 +1914,7 @@ impl CrosshairApp {
     }
 
     #[cfg(not(windows))]
-    fn centered_outer_position_for_size(_size: egui::Vec2) -> egui::Pos2 {
+    fn centered_outer_position_for_size(_size: egui::Vec2, _scale: f32) -> egui::Pos2 {
         egui::pos2(120.0, 120.0)
     }
 
@@ -7151,7 +7151,7 @@ impl eframe::App for CrosshairApp {
                         continue;
                     }
                     let target_size = Self::desired_window_size();
-                    let target_pos = Self::centered_outer_position_for_size(target_size);
+                    let target_pos = Self::centered_outer_position_for_size(target_size, ctx.pixels_per_point());
                     crate::platform::set_native_window_shadow(frame, false);
                     self.native_shadow_applied = false;
                     self.center_window_next_frame = false;
@@ -7534,7 +7534,7 @@ impl eframe::App for CrosshairApp {
         if self.center_window_next_frame && self.state.show_window {
             let target_size = Self::desired_window_size();
             ctx.send_viewport_cmd(egui::ViewportCommand::InnerSize(target_size));
-            let target_pos = Self::centered_outer_position_for_size(target_size);
+            let target_pos = Self::centered_outer_position_for_size(target_size, ctx.pixels_per_point());
             ctx.send_viewport_cmd(egui::ViewportCommand::OuterPosition(target_pos));
             self.center_window_next_frame = false;
         }
