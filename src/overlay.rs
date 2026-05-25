@@ -9092,7 +9092,7 @@ mod windows_overlay {
             }
 
             let _ = ShowWindow(target, SW_RESTORE);
-            if preset.remove_title_bar {
+            if preset.stretch_enabled {
                 let _ = remove_window_title_bar(target);
             } else {
                 let _ = restore_window_title_bar(target);

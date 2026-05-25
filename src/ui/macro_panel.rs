@@ -1443,8 +1443,8 @@ impl CrosshairApp {
             }
             if Self::sized_button(
                 ui,
-                112.0,
-                Self::tr_lang(language, "Import group", "Nhập nhóm"),
+                184.0,
+                Self::tr_lang(language, "Import/Export macro group", "Nhập/Xuất macro group"),
             )
             .clicked()
             {

@@ -239,13 +239,13 @@ impl CrosshairApp {
                             });
                             ui.end_row();
 
-                            ui.label(Self::tr_lang(language, "Title", "Title"));
+                            ui.label(Self::tr_lang(language, "Stretch", "Kéo giãn"));
                             live_sync |= ui
-                                .checkbox(&mut preset.remove_title_bar, Self::tr_lang(language, "Remove bar", "Remove bar"))
+                                .checkbox(&mut preset.stretch_enabled, Self::tr_lang(language, "Stretch window", "Kéo giãn cửa sổ"))
                                 .on_hover_text(
                                     Self::tr_lang(
                                         language,
-                                        "Remove title bar before apply. Off restores it.",
+                                        "Stretch the window to the preset size before apply. Turn it off for a normal resize that keeps the window chrome.",
                                         "Nếu bật, preset sẽ xóa thanh tiêu đề trước khi áp dụng kích thước và vị trí. Nếu tắt, thanh tiêu đề sẽ được giữ hoặc khôi phục.",
                                     ),
                                 )
