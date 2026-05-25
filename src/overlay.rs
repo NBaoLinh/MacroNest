@@ -5372,25 +5372,15 @@ mod windows_overlay {
                 index += 1;
                 continue;
             }
-            let hold_duration_ms = if step.action == MacroAction::KeyDown {
-                step.get_delay_ms()
-            } else {
-                0
-            };
-            if !run_step {
-                index += 1;
-                continue;
-            }
             let _guard = ActiveStepGuard::new(preset_id, absolute_index);
-            if step.action != MacroAction::KeyDown
-                && sleep_for_macro_delay(
-                    preset_id,
-                    step.get_delay_ms(),
-                    stop_immediately_on_retrigger,
-                    target_window_title,
-                    extra_target_window_titles,
-                    match_duplicate_window_titles,
-                )
+            if sleep_for_macro_delay(
+                preset_id,
+                step.get_delay_ms(),
+                stop_immediately_on_retrigger,
+                target_window_title,
+                extra_target_window_titles,
+                match_duplicate_window_titles,
+            )
             {
                 return MacroRunFlow::StopExecution;
             }
@@ -5689,18 +5679,6 @@ mod windows_overlay {
                 }
                 MacroAction::KeyDown => {
                     let _ = send_key_event(step);
-                    if hold_duration_ms > 0
-                        && sleep_for_macro_delay(
-                            preset_id,
-                            hold_duration_ms,
-                            stop_immediately_on_retrigger,
-                            target_window_title,
-                            extra_target_window_titles,
-                            match_duplicate_window_titles,
-                        )
-                    {
-                        return MacroRunFlow::StopExecution;
-                    }
                 }
                 _ => {
                     let _ = send_key_event(step);
@@ -5751,26 +5729,16 @@ mod windows_overlay {
                 index += 1;
                 continue;
             }
-            let hold_duration_ms = if step.action == MacroAction::KeyDown {
-                step.get_delay_ms()
-            } else {
-                0
-            };
-            if !run_step {
-                index += 1;
-                continue;
-            }
             let _guard = ActiveStepGuard::new(preset_id, absolute_index);
-            if step.action != MacroAction::KeyDown
-                && sleep_for_hold_delay(
-                    preset_id,
-                    step.get_delay_ms(),
-                    stop_immediately_on_retrigger,
-                    run_token,
-                    target_window_title,
-                    extra_target_window_titles,
-                    match_duplicate_window_titles,
-                )
+            if sleep_for_hold_delay(
+                preset_id,
+                step.get_delay_ms(),
+                stop_immediately_on_retrigger,
+                run_token,
+                target_window_title,
+                extra_target_window_titles,
+                match_duplicate_window_titles,
+            )
             {
                 return MacroRunFlow::StopExecution;
             }
@@ -6045,19 +6013,6 @@ mod windows_overlay {
                 }
                 MacroAction::KeyDown => {
                     let _ = send_key_event(step);
-                    if hold_duration_ms > 0
-                        && sleep_for_hold_delay(
-                            preset_id,
-                            hold_duration_ms,
-                            stop_immediately_on_retrigger,
-                            run_token,
-                            target_window_title,
-                            extra_target_window_titles,
-                            match_duplicate_window_titles,
-                        )
-                    {
-                        return MacroRunFlow::StopExecution;
-                    }
                 }
                 _ => {
                     let _ = send_key_event(step);
