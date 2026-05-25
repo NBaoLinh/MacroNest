@@ -6307,7 +6307,7 @@ mod windows_overlay {
                     false
                 } else {
                     let mut held = if let Some(vk) = hotkey::key_name_to_vk(key) {
-                        unsafe { GetAsyncKeyState(vk as i32) } < 0
+                        unsafe { GetAsyncKeyState(vk as i32) < 0 }
                     } else {
                         false
                     };
