@@ -239,14 +239,14 @@ impl CrosshairApp {
                             });
                             ui.end_row();
 
-                            ui.label(Self::tr_lang(language, "Stretch", "Kéo giãn"));
+                            ui.label(Self::tr_lang(language, "True Stretch", "True Stretch"));
                             live_sync |= ui
-                                .checkbox(&mut preset.stretch_enabled, Self::tr_lang(language, "Stretch window", "Kéo giãn cửa sổ"))
+                                .checkbox(&mut preset.stretch_enabled, Self::tr_lang(language, "Enable true stretch", "Bật true stretch"))
                                 .on_hover_text(
                                     Self::tr_lang(
                                         language,
-                                        "Stretch the window to the preset size before apply. Turn it off for a normal resize that keeps the window chrome.",
-                                        "Nếu bật, preset sẽ xóa thanh tiêu đề trước khi áp dụng kích thước và vị trí. Nếu tắt, thanh tiêu đề sẽ được giữ hoặc khôi phục.",
+                                        "Best-effort borderless stretch: removes the title bar and thick frame, then resizes the client area to the preset. This only truly stretches content if the target app redraws/scales on resize.",
+                                        "Kéo giãn kiểu borderless ở mức tốt nhất: bỏ thanh tiêu đề và khung dày, rồi resize client area theo preset. Chỉ thật sự kéo dãn nội dung nếu app đích tự redraw/scale khi resize.",
                                     ),
                                 )
                                 .changed();

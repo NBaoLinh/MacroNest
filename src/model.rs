@@ -252,7 +252,7 @@ pub struct WindowPreset {
     pub hotkey: Option<HotkeyBinding>,
     #[serde(default)]
     pub trigger_keys: String,
-    #[serde(default = "default_true", alias = "remove_title_bar")]
+    #[serde(default, alias = "remove_title_bar")]
     pub stretch_enabled: bool,
     pub animate_enabled: bool,
     pub animate_duration_ms: u64,
@@ -281,7 +281,7 @@ impl WindowPreset {
             y: 0,
             hotkey: None,
             trigger_keys: String::new(),
-            stretch_enabled: true,
+            stretch_enabled: false,
             animate_enabled: false,
             animate_duration_ms: 260,
             animate_hotkey: None,
@@ -1151,7 +1151,7 @@ impl Default for CommandPreset {
 pub struct MasterWindowPresetState {
     pub id: u32,
     pub enabled: bool,
-    #[serde(default = "default_true", alias = "remove_title_bar")]
+    #[serde(default, alias = "remove_title_bar")]
     pub stretch_enabled: bool,
     pub animate_enabled: bool,
     pub restore_titlebar_enabled: bool,
