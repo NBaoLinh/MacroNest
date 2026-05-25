@@ -6609,7 +6609,7 @@ impl CrosshairApp {
 
                                                                    ui.add_sized(
 
-                                                                       [30.0, 22.0],
+                                                                       [56.0, 22.0],
 
                                                                        egui::Label::new(Self::tr_lang(language, "IF", "Náº¾U")),
 
@@ -6621,82 +6621,6 @@ impl CrosshairApp {
                                                                        step.if_condition_type = IfConditionType::Variable;
                                                                        live_sync = true;
                                                                    }
-
-                                                                   let cond_label = match step.if_condition_type {
-
-                                                                       IfConditionType::Variable => Self::tr_lang(language, "Variable", "Biáº¿n"),
-
-                                                                       IfConditionType::PixelColor => Self::tr_lang(language, "Pixel Color", "MÃƒÂ u pixel"),
-
-                                                                       IfConditionType::VisionMatch => Self::tr_lang(language, "Vision Match", "So khÃ¡Â»â€ºp Vision"),
-
-                                                                       IfConditionType::KeyHeld => Self::tr_lang(language, "Key Held", "PhÃ­m giá»¯"),
-
-                                                                       IfConditionType::KeyPressed => Self::tr_lang(language, "Key Pressed", "PhÃ­m nháº¥n"),
-
-                                                                       IfConditionType::MouseHeld => Self::tr_lang(language, "Mouse Held", "NÃƒÂºt chuá»™t giá»¯"),
-
-                                                                       IfConditionType::MouseScroll => Self::tr_lang(language, "Mouse Scroll", "Cuá»™n chuá»™t"),
-
-                                                                       IfConditionType::MousePosition => Self::tr_lang(language, "Mouse Position", "TÃ¡Â»Âa Ä‘á»™ chuá»™t"),
-
-                                                                       IfConditionType::PresetRunning => Self::tr_lang(language, "Preset Running", "Preset Ä‘ang chÃ¡ÂºÂ¡y"),
-
-                                                                       IfConditionType::TimerRunning => Self::tr_lang(language, "Timer Running", "Timer Ä‘ang chÃ¡ÂºÂ¡y"),
-
-                                                                   };
-
-
-
-                                                                   egui::ComboBox::from_id_salt((group.id, preset.id, "hold-stop-if-cond-type"))
-
-                                                                       .width(100.0)
-
-                                                                       .selected_text(cond_label)
-
-                                                                       .show_ui(ui, |ui| {
-
-                                                                           for t in &[IfConditionType::Variable] {
-
-                                                                               let label = match t {
-
-                                                                                   IfConditionType::Variable => Self::tr_lang(language, "Variable", "Biáº¿n"),
-
-                                                                                   IfConditionType::PixelColor => Self::tr_lang(language, "Pixel Color", "MÃƒÂ u pixel"),
-
-                                                                                   IfConditionType::VisionMatch => Self::tr_lang(language, "Vision Match", "So khÃ¡Â»â€ºp Vision"),
-
-                                                                                   IfConditionType::KeyHeld => Self::tr_lang(language, "Key Held", "PhÃ­m giá»¯"),
-
-                                                                                   IfConditionType::KeyPressed => Self::tr_lang(language, "Key Pressed", "PhÃ­m nháº¥n"),
-
-                                                                                   IfConditionType::MouseHeld => Self::tr_lang(language, "Mouse Held", "NÃƒÂºt chuá»™t giá»¯"),
-
-                                                                                   IfConditionType::MouseScroll => Self::tr_lang(language, "Mouse Scroll", "Cuá»™n chuá»™t"),
-
-                                                                                   IfConditionType::MousePosition => Self::tr_lang(language, "Mouse Position", "TÃ¡Â»Âa Ä‘á»™ chuá»™t"),
-
-                                                                                   IfConditionType::PresetRunning => Self::tr_lang(language, "Preset Running", "Preset Ä‘ang chÃ¡ÂºÂ¡y"),
-
-                                                                                   IfConditionType::TimerRunning => Self::tr_lang(language, "Timer Running", "Timer Ä‘ang chÃ¡ÂºÂ¡y"),
-
-                                                                               };
-
-                                                                               if ui.selectable_label(step.if_condition_type == *t, label).clicked() {
-
-                                                                                   step.if_condition_type = *t;
-
-                                                                                   live_sync = true;
-
-                                                                               }
-
-                                                                           }
-
-                                                                       });
-
-
-
-                                                                   ui.add_space(56.0);
                                                                    if step.if_condition_type == IfConditionType::Variable {
 
                                                                        let response = ui.add_sized(
@@ -6705,7 +6629,7 @@ impl CrosshairApp {
 
                                                                            TextEdit::singleline(&mut step.if_variable_name)
 
-                                                                               .hint_text(RichText::new(Self::tr_lang(language, "expr", "biá»ƒu thá»©c")).color(hint_color).weak()),
+                                                                               .hint_text(RichText::new(Self::tr_lang(language, "value/expr", "giÃƒÂ¡ trÃ¡Â»â€¹/expr")).color(hint_color).weak()),
 
                                                                        );
 
@@ -7113,8 +7037,6 @@ impl CrosshairApp {
 
                                                                   ui.horizontal(|ui| {
 
-                                                                          ui.add_space(100.0);
-
                                                                           egui::ComboBox::from_id_salt((group.id, preset.id, extra_idx, "hold-stop-if-extra-join"))
                                                                               .width(56.0)
                                                                               .selected_text(if cond.join_operator.eq_ignore_ascii_case("OR") { Self::tr_lang(language, "OR", "HO?C") } else { Self::tr_lang(language, "AND", "VÀ") })
@@ -7138,7 +7060,7 @@ impl CrosshairApp {
 
                                                                          TextEdit::singleline(&mut cond.variable_name)
 
-                                                                             .hint_text(RichText::new(Self::tr_lang(language, "expr", "biá»ƒu thá»©c")).color(hint_color).weak()),
+                                                                             .hint_text(RichText::new(Self::tr_lang(language, "value/expr", "giÃƒÂ¡ trÃ¡Â»â€¹/expr")).color(hint_color).weak()),
 
                                                                      );
 
@@ -11437,7 +11359,7 @@ impl CrosshairApp {
 
                                                                    ui.add_sized(
 
-                                                                       [30.0, 22.0],
+                                                                       [56.0, 22.0],
 
                                                                        egui::Label::new(Self::tr_lang(language, "IF", "Náº¾U")),
 
@@ -11449,82 +11371,6 @@ impl CrosshairApp {
                                                                        step.if_condition_type = IfConditionType::Variable;
                                                                        live_sync = true;
                                                                    }
-
-                                                                   let cond_label = match step.if_condition_type {
-
-                                                                       IfConditionType::Variable => Self::tr_lang(language, "Variable", "Biáº¿n"),
-
-                                                                       IfConditionType::PixelColor => Self::tr_lang(language, "Pixel Color", "MÃƒÂ u pixel"),
-
-                                                                       IfConditionType::VisionMatch => Self::tr_lang(language, "Vision Match", "So khÃ¡Â»â€ºp Vision"),
-
-                                                                       IfConditionType::KeyHeld => Self::tr_lang(language, "Key Held", "PhÃ­m giá»¯"),
-
-                                                                       IfConditionType::KeyPressed => Self::tr_lang(language, "Key Pressed", "PhÃ­m nháº¥n"),
-
-                                                                       IfConditionType::MouseHeld => Self::tr_lang(language, "Mouse Held", "NÃƒÂºt chuá»™t giá»¯"),
-
-                                                                       IfConditionType::MouseScroll => Self::tr_lang(language, "Mouse Scroll", "Cuá»™n chuá»™t"),
-
-                                                                       IfConditionType::MousePosition => Self::tr_lang(language, "Mouse Position", "TÃ¡Â»Âa Ä‘á»™ chuá»™t"),
-
-                                                                       IfConditionType::PresetRunning => Self::tr_lang(language, "Preset Running", "Preset Ä‘ang chÃ¡ÂºÂ¡y"),
-
-                                                                       IfConditionType::TimerRunning => Self::tr_lang(language, "Timer Running", "Timer Ä‘ang chÃ¡ÂºÂ¡y"),
-
-                                                                   };
-
-
-
-                                                                   egui::ComboBox::from_id_salt((group.id, preset.id, step_index, "if-cond-type"))
-
-                                                                       .width(100.0)
-
-                                                                       .selected_text(cond_label)
-
-                                                                       .show_ui(ui, |ui| {
-
-                                                                           for t in &[IfConditionType::Variable] {
-
-                                                                               let label = match t {
-
-                                                                                   IfConditionType::Variable => Self::tr_lang(language, "Variable", "Biáº¿n"),
-
-                                                                                   IfConditionType::PixelColor => Self::tr_lang(language, "Pixel Color", "MÃƒÂ u pixel"),
-
-                                                                                   IfConditionType::VisionMatch => Self::tr_lang(language, "Vision Match", "So khÃ¡Â»â€ºp Vision"),
-
-                                                                                   IfConditionType::KeyHeld => Self::tr_lang(language, "Key Held", "PhÃ­m giá»¯"),
-
-                                                                                   IfConditionType::KeyPressed => Self::tr_lang(language, "Key Pressed", "PhÃ­m nháº¥n"),
-
-                                                                                   IfConditionType::MouseHeld => Self::tr_lang(language, "Mouse Held", "NÃƒÂºt chuá»™t giá»¯"),
-
-                                                                                   IfConditionType::MouseScroll => Self::tr_lang(language, "Mouse Scroll", "Cuá»™n chuá»™t"),
-
-                                                                                   IfConditionType::MousePosition => Self::tr_lang(language, "Mouse Position", "TÃ¡Â»Âa Ä‘á»™ chuá»™t"),
-
-                                                                                   IfConditionType::PresetRunning => Self::tr_lang(language, "Preset Running", "Preset Ä‘ang chÃ¡ÂºÂ¡y"),
-
-                                                                                   IfConditionType::TimerRunning => Self::tr_lang(language, "Timer Running", "Timer Ä‘ang chÃ¡ÂºÂ¡y"),
-
-                                                                               };
-
-                                                                               if ui.selectable_label(step.if_condition_type == *t, label).clicked() {
-
-                                                                                   step.if_condition_type = *t;
-
-                                                                                   live_sync = true;
-
-                                                                               }
-
-                                                                           }
-
-                                                                       });
-
-
-
-                                                                   ui.add_space(56.0);
                                                                    if step.if_condition_type == IfConditionType::Variable {
 
                                                                        let response = ui.add_sized(
@@ -11533,7 +11379,7 @@ impl CrosshairApp {
 
                                                                            TextEdit::singleline(&mut step.if_variable_name)
 
-                                                                               .hint_text(RichText::new(Self::tr_lang(language, "expr", "biá»ƒu thá»©c")).color(hint_color).weak()),
+                                                                               .hint_text(RichText::new(Self::tr_lang(language, "value/expr", "giÃƒÂ¡ trÃ¡Â»â€¹/expr")).color(hint_color).weak()),
 
                                                                        );
 
@@ -11941,9 +11787,7 @@ impl CrosshairApp {
 
                                                                   ui.horizontal(|ui| {
 
-                                                                          ui.add_space(100.0);
-
-                                                                         egui::ComboBox::from_id_salt((group.id, preset.id, extra_idx, "if-extra-join"))
+                                                                          egui::ComboBox::from_id_salt((group.id, preset.id, extra_idx, "if-extra-join"))
                                                                               .width(56.0)
                                                                               .selected_text(if cond.join_operator.eq_ignore_ascii_case("OR") { Self::tr_lang(language, "OR", "HO?C") } else { Self::tr_lang(language, "AND", "VÀ") })
                                                                               .show_ui(ui, |ui| {
@@ -11966,7 +11810,7 @@ impl CrosshairApp {
 
                                                                          TextEdit::singleline(&mut cond.variable_name)
 
-                                                                             .hint_text(RichText::new(Self::tr_lang(language, "expr", "biá»ƒu thá»©c")).color(hint_color).weak()),
+                                                                             .hint_text(RichText::new(Self::tr_lang(language, "value/expr", "giÃƒÂ¡ trÃ¡Â»â€¹/expr")).color(hint_color).weak()),
 
                                                                      );
 
