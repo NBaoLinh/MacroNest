@@ -6552,7 +6552,7 @@ impl CrosshairApp {
 
                                                     });
 
-                                                } else if matches!(step.action, MacroAction::DisableZoom | MacroAction::Else | MacroAction::IfEnd) {
+                                                } else if matches!(step.action, MacroAction::DisableZoom | MacroAction::Else | MacroAction::IfEnd | MacroAction::HideHud | MacroAction::LockMouse | MacroAction::UnlockMouse) {
 
                                                     ui.add_sized(
 
@@ -11302,7 +11302,7 @@ impl CrosshairApp {
 
                                                     });
 
-                                                } else if matches!(step.action, MacroAction::DisableZoom | MacroAction::Else | MacroAction::IfEnd) {
+                                                } else if matches!(step.action, MacroAction::DisableZoom | MacroAction::Else | MacroAction::IfEnd | MacroAction::HideHud | MacroAction::LockMouse | MacroAction::UnlockMouse) {
 
                                                     ui.add_sized(
 
