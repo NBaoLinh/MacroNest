@@ -64,7 +64,7 @@ mod windows_overlay {
                     BITMAPINFOHEADER, BLENDFUNCTION, BeginPaint, CLIP_DEFAULT_PRECIS,
                     CreateCompatibleDC, CreateDIBSection, CreateFontW, CreateRectRgn,
                     DEFAULT_CHARSET, DIB_RGB_COLORS, DT_CENTER, DT_SINGLELINE, DT_VCENTER,
-                    DeleteDC, DeleteObject, DrawTextW, EndPaint, FF_DONTCARE, FW_MEDIUM, GetDC,
+                    DeleteDC, DeleteObject, DrawTextW, EndPaint, FF_DONTCARE, FW_MEDIUM, GetDC, GetPixel,
                     GetMonitorInfoW, HGDIOBJ, MONITOR_DEFAULTTONEAREST, MONITORINFO,
                     MonitorFromWindow, OUT_DEFAULT_PRECIS, PAINTSTRUCT, ReleaseDC, SelectObject,
                     SetBkMode, SetTextColor, SetWindowRgn, TRANSPARENT,
@@ -129,7 +129,7 @@ mod windows_overlay {
             MouseSensitivityPreset, PinOverlayStyle, PinPreset, ProfileRecord, RgbaColor,
             SoundLibraryItem, SoundPreset, HudPreset, WindowAnchor, WindowExpandControls,
             WindowExpandDirection, WindowFocusPreset, WindowPreset,
-            TimerPreset,
+            TimerPreset, IfConditionType,
         },
         render::{RenderedCrosshair, render_crosshair},
         storage::AppPaths,
@@ -501,6 +501,8 @@ mod windows_overlay {
         held_inputs: HashSet<String>,
         pressed_inputs: HashSet<String>,
         held_mouse_buttons: HashSet<String>,
+        last_scroll_up_at: Option<std::time::Instant>,
+        last_scroll_down_at: Option<std::time::Instant>,
     }
 
     impl Default for HookState {
@@ -561,6 +563,8 @@ mod windows_overlay {
                 held_inputs: HashSet::new(),
                 pressed_inputs: HashSet::new(),
                 held_mouse_buttons: HashSet::new(),
+                last_scroll_up_at: None,
+                last_scroll_down_at: None,
             }
         }
     }
@@ -1386,6 +1390,16 @@ mod windows_overlay {
                 return CallNextHookEx(None, code, wparam, lparam);
             }
             let message = wparam.0 as u32;
+
+            if message == WM_MOUSEWHEEL {
+                let delta = ((info.mouseData >> 16) & 0xFFFF) as i16;
+                let mut hook_state = HOOK_STATE.lock();
+                if delta > 0 {
+                    hook_state.last_scroll_up_at = Some(std::time::Instant::now());
+                } else if delta < 0 {
+                    hook_state.last_scroll_down_at = Some(std::time::Instant::now());
+                }
+            }
 
             record_mouse_event(message, &info);
             record_macro_mouse_event(message, &info);
@@ -6219,24 +6233,169 @@ mod windows_overlay {
     }
 
     fn evaluate_if_condition(step: &MacroStep) -> bool {
-        let var_name = step.if_variable_name.clone();
-        let value = {
-            let vars = RUNTIME_VARIABLES.lock();
-            *vars.get(&var_name).unwrap_or(&0)
+        let parse_hex_color = |hex: &str| -> Option<(u8, u8, u8)> {
+            let clean = hex.trim().trim_start_matches('#');
+            if clean.len() == 6 {
+                let r = u8::from_str_radix(&clean[0..2], 16).ok()?;
+                let g = u8::from_str_radix(&clean[2..4], 16).ok()?;
+                let b = u8::from_str_radix(&clean[4..6], 16).ok()?;
+                Some((r, g, b))
+            } else {
+                None
+            }
         };
-        let comp = if !step.key.trim().is_empty() {
-            evaluate_math_expression(&step.key)
-        } else {
-            step.if_compare_value
-        };
-        let primary_ok = match step.if_operator.as_str() {
-            ">" => value > comp,
-            "<" => value < comp,
-            "=" | "==" => value == comp,
-            ">=" => value >= comp,
-            "<=" => value <= comp,
-            "!=" => value != comp,
-            _ => false,
+
+        let primary_ok = match step.if_condition_type {
+            IfConditionType::Variable => {
+                let var_name = step.if_variable_name.clone();
+                let value = {
+                    let vars = RUNTIME_VARIABLES.lock();
+                    *vars.get(&var_name).unwrap_or(&0)
+                };
+                let comp = if !step.key.trim().is_empty() {
+                    evaluate_math_expression(&step.key)
+                } else {
+                    step.if_compare_value
+                };
+                match step.if_operator.as_str() {
+                    ">" => value > comp,
+                    "<" => value < comp,
+                    "=" | "==" => value == comp,
+                    ">=" => value >= comp,
+                    "<=" => value <= comp,
+                    "!=" => value != comp,
+                    _ => false,
+                }
+            }
+            IfConditionType::PixelColor => {
+                let x = step.x;
+                let y = step.y;
+                let hex_str = step.if_target_color.trim();
+                if let Some((tr, tg, tb)) = parse_hex_color(hex_str) {
+                    unsafe {
+                        let hdc = GetDC(None);
+                        let color = GetPixel(hdc, x, y);
+                        let _ = ReleaseDC(None, hdc);
+                        let r = (color.0 & 0xFF) as u8;
+                        let g = ((color.0 >> 8) & 0xFF) as u8;
+                        let b = ((color.0 >> 16) & 0xFF) as u8;
+                        let dist = (r as i32 - tr as i32).abs()
+                            .max((g as i32 - tg as i32).abs())
+                            .max((b as i32 - tb as i32).abs()) as u8;
+                        dist <= step.if_color_tolerance
+                    }
+                } else {
+                    false
+                }
+            }
+            IfConditionType::VisionMatch => {
+                if let Some(preset_id) = step.if_vision_preset_id {
+                    if let Some(preset) = vision_preset_by_id(&preset_id.to_string()).ok() {
+                        run_vision_once_with_options(&preset, false, false, None)
+                            .map(|outcome| outcome.matched)
+                            .unwrap_or(false)
+                    } else {
+                        false
+                    }
+                } else {
+                    false
+                }
+            }
+            IfConditionType::KeyHeld => {
+                let key = step.if_key_held_name.trim();
+                if key.is_empty() {
+                    false
+                } else {
+                    let mut held = if let Some(vk) = hotkey::key_name_to_vk(key) {
+                        unsafe { GetAsyncKeyState(vk as i32) } < 0
+                    } else {
+                        false
+                    };
+                    if !held {
+                        held = HOOK_STATE.lock().held_inputs.iter().any(|h| h.eq_ignore_ascii_case(key));
+                    }
+                    held
+                }
+            }
+            IfConditionType::KeyPressed => {
+                let key = step.if_key_held_name.trim();
+                if key.is_empty() {
+                    false
+                } else {
+                    let mut hook_state = HOOK_STATE.lock();
+                    if let Some(pressed) = hook_state.pressed_inputs.iter().find(|p| p.eq_ignore_ascii_case(key)).cloned() {
+                        hook_state.pressed_inputs.remove(&pressed);
+                        true
+                    } else {
+                        false
+                    }
+                }
+            }
+            IfConditionType::MouseHeld => {
+                let button = step.if_mouse_button.trim();
+                if button.is_empty() {
+                    false
+                } else {
+                    HOOK_STATE.lock().held_mouse_buttons.iter().any(|b| b.eq_ignore_ascii_case(button))
+                }
+            }
+            IfConditionType::MouseScroll => {
+                let direction = step.if_scroll_direction.trim();
+                let now = std::time::Instant::now();
+                let hook_state = HOOK_STATE.lock();
+                if direction.eq_ignore_ascii_case("Up") {
+                    if let Some(t) = hook_state.last_scroll_up_at {
+                        now.duration_since(t).as_millis() <= 200
+                    } else {
+                        false
+                    }
+                } else if direction.eq_ignore_ascii_case("Down") {
+                    if let Some(t) = hook_state.last_scroll_down_at {
+                        now.duration_since(t).as_millis() <= 200
+                    } else {
+                        false
+                    }
+                } else {
+                    false
+                }
+            }
+            IfConditionType::MousePosition => {
+                let mut pt = windows::Win32::Foundation::POINT::default();
+                if unsafe { GetCursorPos(&mut pt) }.is_ok() {
+                    let axis = step.if_mouse_axis.trim();
+                    let value = if axis.eq_ignore_ascii_case("Y") { pt.y } else { pt.x };
+                    let comp = if !step.key.trim().is_empty() {
+                        evaluate_math_expression(&step.key)
+                    } else {
+                        step.if_compare_value
+                    };
+                    match step.if_operator.as_str() {
+                        ">" => value > comp,
+                        "<" => value < comp,
+                        "=" | "==" => value == comp,
+                        ">=" => value >= comp,
+                        "<=" => value <= comp,
+                        "!=" => value != comp,
+                        _ => false,
+                    }
+                } else {
+                    false
+                }
+            }
+            IfConditionType::PresetRunning => {
+                if let Some(preset_id) = step.if_running_preset_id {
+                    HOOK_STATE.lock().active_hold_macros.contains_key(&preset_id)
+                } else {
+                    false
+                }
+            }
+            IfConditionType::TimerRunning => {
+                if let Some(t_id) = step.timer_preset_id {
+                    HOOK_STATE.lock().active_timers.get(&t_id).map(|s| s.running).unwrap_or(false)
+                } else {
+                    false
+                }
+            }
         };
 
         if !primary_ok {

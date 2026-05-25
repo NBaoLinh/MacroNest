@@ -435,9 +435,16 @@ pub enum MacroAction {
 #[derive(Debug, Clone, Copy, Serialize, Deserialize, PartialEq, Eq, Hash, Default)]
 pub enum IfConditionType {
     #[default]
+    Variable,
     PixelColor,
     VisionMatch,
     KeyHeld,
+    KeyPressed,
+    MouseHeld,
+    MouseScroll,
+    MousePosition,
+    PresetRunning,
+    TimerRunning,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
@@ -500,6 +507,14 @@ pub struct MacroStep {
     pub if_vision_preset_id: Option<u32>,
     #[serde(default)]
     pub if_key_held_name: String,
+    #[serde(default)]
+    pub if_mouse_button: String,
+    #[serde(default)]
+    pub if_scroll_direction: String,
+    #[serde(default)]
+    pub if_mouse_axis: String,
+    #[serde(default)]
+    pub if_running_preset_id: Option<u32>,
     #[serde(default)]
     pub timer_preset_id: Option<u32>,
     #[serde(default)]
@@ -564,6 +579,10 @@ impl Default for MacroStep {
             if_color_tolerance: 10,
             if_vision_preset_id: None,
             if_key_held_name: String::new(),
+            if_mouse_button: "MouseLeft".to_string(),
+            if_scroll_direction: "Up".to_string(),
+            if_mouse_axis: "X".to_string(),
+            if_running_preset_id: None,
             timer_preset_id: None,
             timer_on_complete_macro_preset_id: None,
             lock_mouse_left: true,
