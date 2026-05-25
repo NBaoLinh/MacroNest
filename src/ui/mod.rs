@@ -677,7 +677,7 @@ impl CrosshairApp {
             confirm_release_folder_id: None,
             confirm_delete_macro_group_id: None,
             pending_macro_infinite_loop_enable: None,
-            center_window_next_frame: true,
+            center_window_next_frame: false,
             enforce_square_window_frames: 8,
             last_window_refresh_at: Instant::now(),
             last_active_panel: initial_active_panel,
