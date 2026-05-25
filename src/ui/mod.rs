@@ -1087,7 +1087,7 @@ impl CrosshairApp {
     fn export_macro_step(&mut self, step: &MacroStep) {
         match crate::macro_code::encode_step(step) {
             Ok(code) => {
-                self.status = Self::tr_lang(&self.state.language, "Step code copied to clipboard.", "Đã sao chép mã bước vào clipboard.").to_owned();
+                self.status = Self::tr_lang(self.state.ui_language, "Step code copied to clipboard.", "Đã sao chép mã bước vào clipboard.").to_owned();
                 if let Ok(mut clipboard) = Clipboard::new() {
                     let _ = clipboard.set_text(code);
                 }
@@ -1118,7 +1118,7 @@ impl CrosshairApp {
                         preset.steps.push(step);
                         self.sync_macro_presets();
                         self.persist();
-                        self.status = Self::tr_lang(&self.state.language, "Step imported successfully.", "Đã nhập bước thành công.").to_owned();
+                        self.status = Self::tr_lang(self.state.ui_language, "Step imported successfully.", "Đã nhập bước thành công.").to_owned();
                     }
                 }
             }
@@ -1129,7 +1129,7 @@ impl CrosshairApp {
     fn export_macro_preset(&mut self, preset: &MacroPreset) {
         match crate::macro_code::encode_preset(preset) {
             Ok(code) => {
-                self.status = Self::tr_lang(&self.state.language, "Preset code copied to clipboard.", "Đã sao chép mã preset vào clipboard.").to_owned();
+                self.status = Self::tr_lang(self.state.ui_language, "Preset code copied to clipboard.", "Đã sao chép mã preset vào clipboard.").to_owned();
                 if let Ok(mut clipboard) = Clipboard::new() {
                     let _ = clipboard.set_text(code);
                 }
@@ -1163,7 +1163,7 @@ impl CrosshairApp {
                     self.reconcile_master_presets();
                     self.sync_macro_presets();
                     self.persist();
-                    self.status = Self::tr_lang(&self.state.language, "Preset imported successfully.", "Đã nhập preset thành công.").to_owned();
+                    self.status = Self::tr_lang(self.state.ui_language, "Preset imported successfully.", "Đã nhập preset thành công.").to_owned();
                 }
             }
             Err(error) => self.status = format!("Import failed: {error}"),
@@ -1173,7 +1173,7 @@ impl CrosshairApp {
     fn export_macro_group(&mut self, group: &MacroGroup) {
         match crate::macro_code::encode_group(group) {
             Ok(code) => {
-                self.status = Self::tr_lang(&self.state.language, "Group code copied to clipboard.", "Đã sao chép mã nhóm vào clipboard.").to_owned();
+                self.status = Self::tr_lang(self.state.ui_language, "Group code copied to clipboard.", "Đã sao chép mã nhóm vào clipboard.").to_owned();
                 if let Ok(mut clipboard) = Clipboard::new() {
                     let _ = clipboard.set_text(code);
                 }
@@ -1182,7 +1182,7 @@ impl CrosshairApp {
         }
     }
 
-    fn import_macro_group_from_clipboard(&mut self) {
+    fn import_macro_group_from_clipboard(&mut self, folder_id: Option<u32>) {
         let mut clipboard = match Clipboard::new() {
             Ok(cb) => cb,
             Err(e) => {
@@ -1203,6 +1203,7 @@ impl CrosshairApp {
                 self.state.next_macro_group_id = id + 1;
                 group.id = id;
                 group.name = self.unique_macro_group_name(&group.name);
+                group.folder_id = folder_id;
                 
                 for preset in &mut group.presets {
                     let preset_id = self.state.next_macro_preset_id.max(1);
@@ -1214,7 +1215,7 @@ impl CrosshairApp {
                 self.reconcile_master_presets();
                 self.sync_macro_presets();
                 self.persist();
-                self.status = Self::tr_lang(&self.state.language, "Group imported successfully.", "Đã nhập nhóm thành công.").to_owned();
+                self.status = Self::tr_lang(self.state.ui_language, "Group imported successfully.", "Đã nhập nhóm thành công.").to_owned();
             }
             Err(error) => self.status = format!("Import failed: {error}"),
         }
