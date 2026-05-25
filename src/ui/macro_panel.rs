@@ -14131,6 +14131,73 @@ impl CrosshairApp {
 
         }
 
+        if let Some(folder_id) = toggle_folder_enabled_id {
+            if let Some(folder) = self
+                .state
+                .macro_folders
+                .iter_mut()
+                .find(|folder| folder.id == folder_id)
+            {
+                folder.enabled = !folder.enabled;
+                self.persist();
+                self.sync_macro_presets();
+            }
+        }
+
+        if let Some(folder_id) = disable_all_folder_id {
+            if let Some(folder) = self
+                .state
+                .macro_folders
+                .iter_mut()
+                .find(|folder| folder.id == folder_id)
+            {
+                folder.enabled = false;
+            }
+
+            for group in self
+                .state
+                .macro_groups
+                .iter_mut()
+                .filter(|group| group.folder_id == Some(folder_id))
+            {
+                group.enabled = false;
+                for preset in &mut group.presets {
+                    preset.enabled = false;
+                }
+            }
+
+            self.persist_macro_presets();
+            self.persist();
+            self.sync_macro_presets();
+        }
+
+        if let Some(folder_id) = enable_all_folder_id {
+            if let Some(folder) = self
+                .state
+                .macro_folders
+                .iter_mut()
+                .find(|folder| folder.id == folder_id)
+            {
+                folder.enabled = true;
+            }
+
+            for group in self
+                .state
+                .macro_groups
+                .iter_mut()
+                .filter(|group| group.folder_id == Some(folder_id))
+            {
+                group.enabled = true;
+                for preset in &mut group.presets {
+                    preset.enabled = true;
+                }
+            }
+
+            self.persist_macro_presets();
+            self.persist();
+            self.sync_macro_presets();
+        }
+
         ui.add_space((ui.ctx().screen_rect().height() - 250.0).max(0.0));
 
     }
@@ -14512,4 +14579,3 @@ impl CrosshairApp {
     fn render_variable_suggestions_raw(_ui: &mut egui::Ui, _text: &mut String, _language: UiLanguage) {}
 
 }
-

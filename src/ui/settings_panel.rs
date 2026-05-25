@@ -1,8 +1,9 @@
 use std::time::{Duration, Instant};
 use std::fs;
 use std::process::Command;
+use std::path::Path;
 use std::sync::atomic::Ordering;
-use eframe::egui::{self, Button, RichText, Stroke, Margin, TextEdit, Color32, vec2, Frame, TextBuffer, Order, Shadow};
+use eframe::egui::{self, Button, RichText, Stroke, Margin, TextEdit, Color32, vec2, Frame, Order, Shadow};
 use anyhow::Result;
 use crate::model::*;
 use crate::overlay::UiCommand;
@@ -235,9 +236,7 @@ impl CrosshairApp {
                     ui.add_space(12.0);
                     self.render_advanced_settings(ui);
                     ui.add_space(12.0);
-                    self.render_opencv_settings(ui);
-                    ui.add_space(12.0);
-                    self.render_interception_settings(ui);
+                    self.render_downloaded_tools_settings(ui);
                     ui.add_space(12.0);
                     let ctx_clone = ui.ctx().clone();
                     self.render_update_settings(ui, &ctx_clone);
@@ -344,87 +343,170 @@ impl CrosshairApp {
         });
     }
 
-    pub(crate) fn render_opencv_settings(&mut self, ui: &mut egui::Ui) {
+    pub(crate) fn render_downloaded_tools_settings(&mut self, ui: &mut egui::Ui) {
         let language = self.state.ui_language;
+        let opencv_path = self.paths.opencv_dll.clone();
+        let interception_path = self.paths.interception_dll.clone();
+        let opencv_progress = self
+            .opencv_download_job
+            .as_ref()
+            .map(|_| self.opencv_download_progress.load(Ordering::SeqCst) as f32 / 1000.0);
+        let interception_progress = self
+            .interception_download_job
+            .as_ref()
+            .map(|_| self.interception_download_progress.load(Ordering::SeqCst) as f32 / 1000.0);
+
         Self::settings_card_frame(ui).show(ui, |ui| {
             ui.set_min_width(ui.available_width());
             ui.vertical(|ui| {
-                ui.label(RichText::new("Vision Support (OpenCV)").strong().size(14.0));
+                ui.label(
+                    RichText::new(Self::tr_lang(
+                        language,
+                        "Downloaded Tools",
+                        "Công cụ đã tải",
+                    ))
+                    .strong()
+                    .size(14.0),
+                );
                 ui.add_space(8.0);
-
-            if self.opencv_installed {
-                ui.horizontal(|ui| {
-                    ui.label(Self::tr_lang(language, "Status: Installed", "Trạng thái: Đã cài đặt"));
-                    if ui.button(Self::tr_lang(language, "Delete", "Xóa")).clicked() {
-                        let _ = fs::remove_file(&self.paths.opencv_dll);
-                        self.opencv_installed = false;
-                        self.status = Self::tr_lang(language, "OpenCV DLL deleted.", "Đã xóa file OpenCV DLL.").to_owned();
+                ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
+                    if ui
+                        .small_button(if self.downloaded_tools_open { "Hide" } else { "Show" })
+                        .clicked()
+                    {
+                        self.downloaded_tools_open = !self.downloaded_tools_open;
                     }
                 });
-                ui.label(RichText::new(self.paths.opencv_dll.display().to_string()).small().weak());
-            } else if self.opencv_download_job.is_some() {
-                let progress = self.opencv_download_progress.load(Ordering::SeqCst) as f32 / 1000.0;
+                ui.add_space(6.0);
+
+                if self.downloaded_tools_open {
+                self.render_downloaded_tool_entry(
+                    ui,
+                    language,
+                    "Vision Support (OpenCV)",
+                    &opencv_path,
+                    self.opencv_installed,
+                    opencv_progress,
+                    60 * 1024 * 1024,
+                    Self::tr_lang(language, "Download OpenCV", "Tải OpenCV"),
+                    Self::tr_lang(
+                        language,
+                        "Vision features require OpenCV.",
+                        "Tính năng Vision cần OpenCV.",
+                    ),
+                    Self::tr_lang(
+                        language,
+                        "OpenCV DLL deleted.",
+                        "Đã xóa file OpenCV DLL.",
+                    ),
+                    Self::start_opencv_download,
+                    Self::delete_opencv_tool,
+                );
+
+                ui.add_space(12.0);
+                ui.separator();
+                ui.add_space(12.0);
+
+                self.render_downloaded_tool_entry(
+                    ui,
+                    language,
+                    "Interception Driver",
+                    &interception_path,
+                    self.interception_installed,
+                    interception_progress,
+                    11_264,
+                    Self::tr_lang(
+                        language,
+                        "Download Interception Wrapper",
+                        "Tải Interception Wrapper",
+                    ),
+                    Self::tr_lang(
+                        language,
+                        "Low-level driver input requires interception.dll.",
+                        "Điều khiển cấp thấp cần interception.dll.",
+                    ),
+                    Self::tr_lang(
+                        language,
+                        "Interception wrapper deleted.",
+                        "Đã xóa wrapper Interception.",
+                    ),
+                    Self::start_interception_download,
+                    Self::delete_interception_tool,
+                );
+                } else {
+                    ui.label(
+                        RichText::new(Self::tr_lang(
+                            language,
+                            "Click Show to manage downloaded tools.",
+                            "Nhấn Show để quản lý công cụ đã tải.",
+                        ))
+                        .small()
+                        .weak(),
+                    );
+                }
+            });
+        });
+    }
+
+    fn render_downloaded_tool_entry(
+        &mut self,
+        ui: &mut egui::Ui,
+        language: UiLanguage,
+        title: &str,
+        path: &Path,
+        installed: bool,
+        downloading_progress: Option<f32>,
+        expected_size_bytes: u64,
+        download_button_text: &str,
+        description_text: &str,
+        delete_status_text: &str,
+        download_action: fn(&mut Self),
+        delete_action: fn(&mut Self),
+    ) {
+        ui.vertical(|ui| {
+            ui.label(RichText::new(title).strong().size(13.0));
+            ui.add_space(6.0);
+
+            if installed {
+                ui.horizontal(|ui| {
+                    ui.label(Self::tr_lang(language, "Status: Installed", "Trạng thái: Đã cài đặt"));
+                    ui.label(
+                        RichText::new(Self::tool_size_label(path, expected_size_bytes))
+                            .small()
+                            .weak(),
+                    );
+                    if ui.button(Self::tr_lang(language, "Delete", "Xóa")).clicked() {
+                        delete_action(self);
+                        self.status = delete_status_text.to_owned();
+                    }
+                });
+            } else if let Some(progress) = downloading_progress {
                 ui.horizontal(|ui| {
                     ui.label(Self::tr_lang(language, "Downloading...", "Đang tải..."));
                     ui.add(egui::ProgressBar::new(progress).show_percentage());
                 });
+                ui.label(
+                    RichText::new(Self::tool_size_label(path, expected_size_bytes))
+                        .small()
+                        .weak(),
+                );
                 ui.ctx().request_repaint();
             } else {
-                ui.vertical(|ui| {
-                    ui.label(Self::tr_lang(
-                        language, 
-                        "Vision features require OpenCV (~60MB).", 
-                        "Tính năng Vision cần thư viện OpenCV (~60MB)."
-                    ));
-                    if ui.button(RichText::new(Self::tr_lang(language, "Download OpenCV", "Tải OpenCV")).strong()).clicked() {
-                        self.start_opencv_download();
+                ui.horizontal(|ui| {
+                    ui.label(RichText::new(description_text).weak());
+                    ui.add_space(8.0);
+                    ui.label(
+                        RichText::new(Self::tool_size_label(path, expected_size_bytes))
+                            .small()
+                            .weak(),
+                    );
+                    if ui.button(RichText::new(download_button_text).strong()).clicked() {
+                        download_action(self);
                     }
                 });
             }
         });
-    });
-}
-
-    pub(crate) fn render_interception_settings(&mut self, ui: &mut egui::Ui) {
-        let language = self.state.ui_language;
-        Self::settings_card_frame(ui).show(ui, |ui| {
-            ui.set_min_width(ui.available_width());
-            ui.vertical(|ui| {
-                ui.label(RichText::new("Interception Driver").strong().size(14.0));
-                ui.add_space(8.0);
-
-            if self.interception_installed {
-                ui.horizontal(|ui| {
-                    ui.label(Self::tr_lang(language, "Status: Installed", "Trạng thái: Đã cài đặt"));
-                    if ui.button(Self::tr_lang(language, "Delete", "Xóa")).clicked() {
-                        let _ = fs::remove_file(&self.paths.interception_dll);
-                        self.interception_installed = false;
-                        self.status = Self::tr_lang(language, "Interception wrapper deleted.", "Đã xóa wrapper Interception.").to_owned();
-                    }
-                });
-                ui.label(RichText::new(self.paths.interception_dll.display().to_string()).small().weak());
-            } else if self.interception_download_job.is_some() {
-                let progress = self.interception_download_progress.load(Ordering::SeqCst) as f32 / 1000.0;
-                ui.horizontal(|ui| {
-                    ui.label(Self::tr_lang(language, "Downloading...", "Đang tải..."));
-                    ui.add(egui::ProgressBar::new(progress).show_percentage());
-                });
-                ui.ctx().request_repaint();
-            } else {
-                ui.vertical(|ui| {
-                    ui.label(Self::tr_lang(
-                        language, 
-                        "Low-level driver input requires interception.dll (~200KB).", 
-                        "Điều khiển cấp thấp cần interception.dll (~200KB)."
-                    ));
-                    if ui.button(RichText::new(Self::tr_lang(language, "Download Interception Wrapper", "Tải Interception Wrapper")).strong()).clicked() {
-                        self.start_interception_download();
-                    }
-                });
-            }
-        });
-    });
-}
+    }
 
     pub(crate) fn render_update_settings(&mut self, ui: &mut egui::Ui, ctx: &egui::Context) {
         let language = self.state.ui_language;
@@ -742,7 +824,7 @@ impl CrosshairApp {
         progress.store(0, Ordering::SeqCst);
 
         let job = std::thread::spawn(move || -> Result<()> {
-            let url = "https://github.com/Baolinh0305/MacroNest/releases/download/v0.1/opencv_world4100.dll";
+            let url = "https://github.com/Baolinh0305/MacroNest/releases/download/v1.0/opencv_world4100.dll";
             let mut response = reqwest::blocking::get(url)?.error_for_status()?;
             let total_size = response.content_length().unwrap_or(64 * 1024 * 1024);
 
@@ -776,7 +858,7 @@ impl CrosshairApp {
         progress.store(0, Ordering::SeqCst);
 
         let job = std::thread::spawn(move || -> Result<()> {
-            let url = "https://github.com/Baolinh0305/MacroNest/releases/download/v0.1/interception.dll";
+            let url = "https://github.com/Baolinh0305/MacroNest/releases/download/v1.0/interception.dll";
             let mut response = reqwest::blocking::get(url)?.error_for_status()?;
             let total_size = response.content_length().unwrap_or(200 * 1024);
 
@@ -798,6 +880,39 @@ impl CrosshairApp {
         });
 
         self.interception_download_job = Some(job);
+    }
+
+    fn delete_opencv_tool(&mut self) {
+        let _ = fs::remove_file(&self.paths.opencv_dll);
+        self.opencv_installed = false;
+    }
+
+    fn delete_interception_tool(&mut self) {
+        let _ = fs::remove_file(&self.paths.interception_dll);
+        self.interception_installed = false;
+    }
+
+    fn tool_size_label(path: &Path, expected_size_bytes: u64) -> String {
+        match fs::metadata(path) {
+            Ok(metadata) => format!("Size: {}", Self::format_file_size(metadata.len())),
+            Err(_) => format!("Expected size: ~{}", Self::format_file_size(expected_size_bytes)),
+        }
+    }
+
+    fn format_file_size(bytes: u64) -> String {
+        const UNITS: [&str; 5] = ["B", "KB", "MB", "GB", "TB"];
+        let mut value = bytes as f64;
+        let mut unit = 0usize;
+        while value >= 1024.0 && unit < UNITS.len() - 1 {
+            value /= 1024.0;
+            unit += 1;
+        }
+
+        if unit == 0 {
+            format!("{bytes} {}", UNITS[unit])
+        } else {
+            format!("{value:.1} {}", UNITS[unit])
+        }
     }
 
     pub(crate) fn check_for_update(&mut self, ctx: &egui::Context) {
