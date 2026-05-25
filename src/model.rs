@@ -1360,6 +1360,7 @@ pub struct VisionSettings {
     pub enabled: bool,
     pub trigger_hotkey: Option<HotkeyBinding>,
     pub click_after_move: bool,
+    pub use_interception: bool,
 }
 
 impl Default for VisionSettings {
@@ -1368,6 +1369,7 @@ impl Default for VisionSettings {
             enabled: false,
             trigger_hotkey: None,
             click_after_move: false,
+            use_interception: false,
         }
     }
 }

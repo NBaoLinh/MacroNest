@@ -325,6 +325,7 @@ mod windows_overlay {
         UpdateMacroPresets(Vec<MacroGroup>),
         UpdateAudioSettings(AudioSettings),
         SetMacrosMasterEnabled(bool),
+        UpdateVisionSettings(VisionSettings),
         SetVietnameseInputEnabled(bool),
         UpdateMacrosMasterHotkey(Option<HotkeyBinding>),
         RefreshPinOverlay,
@@ -462,6 +463,8 @@ mod windows_overlay {
         vision_following_presets: HashSet<u32>,
         vision_dir: PathBuf,
         opencv_dll_path: PathBuf,
+        interception_dll_path: PathBuf,
+        use_interception: bool,
 
         mouse_sensitivity_restore_on_exit: bool,
         mouse_sensitivity_exit_restore_speed: u32,
@@ -524,6 +527,8 @@ mod windows_overlay {
                 vision_following_presets: HashSet::new(),
                 vision_dir: PathBuf::new(),
                 opencv_dll_path: PathBuf::new(),
+                interception_dll_path: PathBuf::new(),
+                use_interception: false,
 
                 mouse_sensitivity_restore_on_exit: false,
                 mouse_sensitivity_exit_restore_speed: 6,
@@ -735,6 +740,7 @@ mod windows_overlay {
             
             hook_state.vision_dir = paths.vision_dir.clone();
             hook_state.opencv_dll_path = paths.opencv_dll.clone();
+            hook_state.interception_dll_path = paths.interception_dll.clone();
         }
         unsafe {
             let instance = HINSTANCE(GetModuleHandleW(None)?.0);
@@ -3215,6 +3221,10 @@ mod windows_overlay {
                     }
                     drop(hook_state);
                     let _ = update_tray_icon(hwnd, enabled);
+                }
+                OverlayCommand::UpdateVisionSettings(settings) => {
+                    let mut hook_state = HOOK_STATE.lock();
+                    hook_state.use_interception = settings.use_interception;
                 }
                 OverlayCommand::SetTrayIconVisible(visible) => {
                     if visible {
@@ -7281,6 +7291,78 @@ mod windows_overlay {
     
 
     fn send_mouse_input(dw_flags: MOUSE_EVENT_FLAGS, mouse_data: u32) -> Result<()> {
+        let use_interception = {
+            let state = HOOK_STATE.lock();
+            state.use_interception && state.interception_dll_path.exists()
+        };
+
+        if use_interception {
+            let interception_dll = { HOOK_STATE.lock().interception_dll_path.clone() };
+            unsafe {
+                if let Ok(lib) = libloading::Library::new(&interception_dll) {
+                    let create_context: Result<libloading::Symbol<unsafe extern "C" fn() -> *mut std::ffi::c_void>, _> = lib.get(b"interception_create_context");
+                    let send: Result<libloading::Symbol<unsafe extern "C" fn(*mut std::ffi::c_void, i32, *const u8, u32) -> i32>, _> = lib.get(b"interception_send");
+                    let destroy_context: Result<libloading::Symbol<unsafe extern "C" fn(*mut std::ffi::c_void)>, _> = lib.get(b"interception_destroy_context");
+                    
+                    if let (Ok(create_fn), Ok(send_fn), Ok(destroy_fn)) = (create_context, send, destroy_context) {
+                        let context = create_fn();
+                        if !context.is_null() {
+                            #[repr(C)]
+                            struct InterceptionMouseStroke {
+                                state: u16,
+                                flags: u16,
+                                rolling: i16,
+                                x: i32,
+                                y: i32,
+                                information: u32,
+                            }
+
+                            let mut state_val = 0u16;
+                            // Map win32 MOUSEEVENTF flags to Interception mouse state bits
+                            if dw_flags.contains(MOUSEEVENTF_LEFTDOWN) { state_val |= 0x0001; }
+                            if dw_flags.contains(MOUSEEVENTF_LEFTUP) { state_val |= 0x0002; }
+                            if dw_flags.contains(MOUSEEVENTF_RIGHTDOWN) { state_val |= 0x0004; }
+                            if dw_flags.contains(MOUSEEVENTF_RIGHTUP) { state_val |= 0x0008; }
+                            if dw_flags.contains(MOUSEEVENTF_MIDDLEDOWN) { state_val |= 0x0010; }
+                            if dw_flags.contains(MOUSEEVENTF_MIDDLEUP) { state_val |= 0x0020; }
+                            if dw_flags.contains(MOUSEEVENTF_XDOWN) {
+                                if mouse_data == XBUTTON1_DATA as u32 { state_val |= 0x0040; }
+                                else if mouse_data == XBUTTON2_DATA as u32 { state_val |= 0x0100; }
+                            }
+                            if dw_flags.contains(MOUSEEVENTF_XUP) {
+                                if mouse_data == XBUTTON1_DATA as u32 { state_val |= 0x0080; }
+                                else if mouse_data == XBUTTON2_DATA as u32 { state_val |= 0x0200; }
+                            }
+                            if dw_flags.contains(MOUSEEVENTF_WHEEL) {
+                                state_val |= 0x0400;
+                            }
+
+                            let rolling_val = if dw_flags.contains(MOUSEEVENTF_WHEEL) {
+                                mouse_data as i16
+                            } else {
+                                0
+                            };
+
+                            let stroke = InterceptionMouseStroke {
+                                state: state_val,
+                                flags: 0,
+                                rolling: rolling_val,
+                                x: 0,
+                                y: 0,
+                                information: 0,
+                            };
+
+                            // Send to mouse device 12 (standard first mouse handle INTERCEPTION_MOUSE(0))
+                            let stroke_ptr = &stroke as *const InterceptionMouseStroke as *const u8;
+                            let _ = send_fn(context, 12, stroke_ptr, 1);
+                            destroy_fn(context);
+                            return Ok(());
+                        }
+                    }
+                }
+            }
+        }
+
         let input = INPUT {
             r#type: INPUT_MOUSE,
             Anonymous: INPUT_0 {
@@ -7370,6 +7452,56 @@ mod windows_overlay {
     }
 
     fn send_mouse_move_absolute(x: i32, y: i32) -> Result<()> {
+        let use_interception = {
+            let state = HOOK_STATE.lock();
+            state.use_interception && state.interception_dll_path.exists()
+        };
+
+        if use_interception {
+            let interception_dll = { HOOK_STATE.lock().interception_dll_path.clone() };
+            unsafe {
+                if let Ok(lib) = libloading::Library::new(&interception_dll) {
+                    let create_context: Result<libloading::Symbol<unsafe extern "C" fn() -> *mut std::ffi::c_void>, _> = lib.get(b"interception_create_context");
+                    let send: Result<libloading::Symbol<unsafe extern "C" fn(*mut std::ffi::c_void, i32, *const u8, u32) -> i32>, _> = lib.get(b"interception_send");
+                    let destroy_context: Result<libloading::Symbol<unsafe extern "C" fn(*mut std::ffi::c_void)>, _> = lib.get(b"interception_destroy_context");
+                    
+                    if let (Ok(create_fn), Ok(send_fn), Ok(destroy_fn)) = (create_context, send, destroy_context) {
+                        let context = create_fn();
+                        if !context.is_null() {
+                            #[repr(C)]
+                            struct InterceptionMouseStroke {
+                                state: u16,
+                                flags: u16,
+                                rolling: i16,
+                                x: i32,
+                                y: i32,
+                                information: u32,
+                            }
+
+                            let screen_w = GetSystemMetrics(SM_CXSCREEN).max(1);
+                            let screen_h = GetSystemMetrics(SM_CYSCREEN).max(1);
+                            let normalized_x = ((x.clamp(0, screen_w - 1) as i64) * 65535 / (screen_w - 1).max(1) as i64) as i32;
+                            let normalized_y = ((y.clamp(0, screen_h - 1) as i64) * 65535 / (screen_h - 1).max(1) as i64) as i32;
+
+                            let stroke = InterceptionMouseStroke {
+                                state: 0,
+                                flags: 0x001 | 0x002, // absolute movement + virtual desktop
+                                rolling: 0,
+                                x: normalized_x,
+                                y: normalized_y,
+                                information: 0,
+                            };
+
+                            let stroke_ptr = &stroke as *const InterceptionMouseStroke as *const u8;
+                            let _ = send_fn(context, 12, stroke_ptr, 1);
+                            destroy_fn(context);
+                            return Ok(());
+                        }
+                    }
+                }
+            }
+        }
+
         let screen_w = unsafe { GetSystemMetrics(SM_CXSCREEN) }.max(1);
         let screen_h = unsafe { GetSystemMetrics(SM_CYSCREEN) }.max(1);
         let normalized_x = ((x.clamp(0, screen_w - 1) as i64) * 65535 / (screen_w - 1).max(1) as i64) as i32;
@@ -7451,6 +7583,51 @@ mod windows_overlay {
     }
 
     fn send_mouse_move_relative(dx: i32, dy: i32) -> Result<()> {
+        let use_interception = {
+            let state = HOOK_STATE.lock();
+            state.use_interception && state.interception_dll_path.exists()
+        };
+
+        if use_interception {
+            let interception_dll = { HOOK_STATE.lock().interception_dll_path.clone() };
+            unsafe {
+                if let Ok(lib) = libloading::Library::new(&interception_dll) {
+                    let create_context: Result<libloading::Symbol<unsafe extern "C" fn() -> *mut std::ffi::c_void>, _> = lib.get(b"interception_create_context");
+                    let send: Result<libloading::Symbol<unsafe extern "C" fn(*mut std::ffi::c_void, i32, *const u8, u32) -> i32>, _> = lib.get(b"interception_send");
+                    let destroy_context: Result<libloading::Symbol<unsafe extern "C" fn(*mut std::ffi::c_void)>, _> = lib.get(b"interception_destroy_context");
+                    
+                    if let (Ok(create_fn), Ok(send_fn), Ok(destroy_fn)) = (create_context, send, destroy_context) {
+                        let context = create_fn();
+                        if !context.is_null() {
+                            #[repr(C)]
+                            struct InterceptionMouseStroke {
+                                state: u16,
+                                flags: u16,
+                                rolling: i16,
+                                x: i32,
+                                y: i32,
+                                information: u32,
+                            }
+
+                            let stroke = InterceptionMouseStroke {
+                                state: 0,
+                                flags: 0x000, // relative movement
+                                rolling: 0,
+                                x: dx,
+                                y: dy,
+                                information: 0,
+                            };
+
+                            let stroke_ptr = &stroke as *const InterceptionMouseStroke as *const u8;
+                            let _ = send_fn(context, 12, stroke_ptr, 1);
+                            destroy_fn(context);
+                            return Ok(());
+                        }
+                    }
+                }
+            }
+        }
+
         let input = INPUT {
             r#type: INPUT_MOUSE,
             Anonymous: INPUT_0 {

@@ -25,6 +25,7 @@ pub struct AppPaths {
     pub vision_template_file: PathBuf,
     pub bin_dir: PathBuf,
     pub opencv_dll: PathBuf,
+    pub interception_dll: PathBuf,
 }
 
 impl AppPaths {
@@ -50,6 +51,7 @@ impl AppPaths {
         let vision_template_file = vision_dir.join("template.png");
         let bin_dir = root.join("bin");
         let opencv_dll = bin_dir.join("opencv_world4100.dll");
+        let interception_dll = bin_dir.join("interception.dll");
 
         fs::create_dir_all(&root)?;
         fs::create_dir_all(&profiles_dir)?;
@@ -68,6 +70,7 @@ impl AppPaths {
             vision_template_file,
             bin_dir,
             opencv_dll,
+            interception_dll,
         })
     }
 

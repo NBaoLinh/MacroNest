@@ -237,6 +237,8 @@ impl CrosshairApp {
                     ui.add_space(12.0);
                     self.render_opencv_settings(ui);
                     ui.add_space(12.0);
+                    self.render_interception_settings(ui);
+                    ui.add_space(12.0);
                     let ctx_clone = ui.ctx().clone();
                     self.render_update_settings(ui, &ctx_clone);
                     ui.add_space(8.0);
@@ -292,8 +294,29 @@ impl CrosshairApp {
                         }
                     });
 
+                    ui.add_space(6.0);
+
+                    let mut interception_changed = false;
+                    ui.horizontal(|ui| {
+                        let res = ui.checkbox(
+                            &mut self.state.vision_settings.use_interception,
+                            Self::tr_lang(
+                                language,
+                                "Use Interception Driver (Mouse clicks/movement in games)",
+                                "Sử dụng Driver Interception (Di chuyển/click chuột trong game)"
+                            )
+                        );
+                        if res.changed() {
+                            interception_changed = true;
+                        }
+                    });
+
                     if delay_changed {
                         self.sync_macro_delay_settings();
+                        self.persist();
+                    }
+                    if interception_changed {
+                        self.sync_vision_settings();
                         self.persist();
                     }
                 } else {
@@ -345,6 +368,47 @@ impl CrosshairApp {
                     ));
                     if ui.button(RichText::new(Self::tr_lang(language, "Download OpenCV", "Tải OpenCV")).strong()).clicked() {
                         self.start_opencv_download();
+                    }
+                });
+            }
+        });
+    });
+}
+
+    pub(crate) fn render_interception_settings(&mut self, ui: &mut egui::Ui) {
+        let language = self.state.ui_language;
+        Self::settings_card_frame(ui).show(ui, |ui| {
+            ui.set_min_width(ui.available_width());
+            ui.vertical(|ui| {
+                ui.label(RichText::new("Interception Driver").strong().size(14.0));
+                ui.add_space(8.0);
+
+            if self.interception_installed {
+                ui.horizontal(|ui| {
+                    ui.label(Self::tr_lang(language, "Status: Installed", "Trạng thái: Đã cài đặt"));
+                    if ui.button(Self::tr_lang(language, "Delete", "Xóa")).clicked() {
+                        let _ = fs::remove_file(&self.paths.interception_dll);
+                        self.interception_installed = false;
+                        self.status = Self::tr_lang(language, "Interception wrapper deleted.", "Đã xóa wrapper Interception.").to_owned();
+                    }
+                });
+                ui.label(RichText::new(self.paths.interception_dll.display().to_string()).small().weak());
+            } else if self.interception_download_job.is_some() {
+                let progress = self.interception_download_progress.load(Ordering::SeqCst) as f32 / 1000.0;
+                ui.horizontal(|ui| {
+                    ui.label(Self::tr_lang(language, "Downloading...", "Đang tải..."));
+                    ui.add(egui::ProgressBar::new(progress).show_percentage());
+                });
+                ui.ctx().request_repaint();
+            } else {
+                ui.vertical(|ui| {
+                    ui.label(Self::tr_lang(
+                        language, 
+                        "Low-level driver input requires interception.dll (~200KB).", 
+                        "Điều khiển cấp thấp cần interception.dll (~200KB)."
+                    ));
+                    if ui.button(RichText::new(Self::tr_lang(language, "Download Interception Wrapper", "Tải Interception Wrapper")).strong()).clicked() {
+                        self.start_interception_download();
                     }
                 });
             }
@@ -690,6 +754,40 @@ impl CrosshairApp {
         });
 
         self.opencv_download_job = Some(job);
+    }
+
+    pub(crate) fn start_interception_download(&mut self) {
+        if self.interception_download_job.is_some() {
+            return;
+        }
+
+        let paths = self.paths.clone();
+        let progress = self.interception_download_progress.clone();
+        progress.store(0, Ordering::SeqCst);
+
+        let job = std::thread::spawn(move || -> Result<()> {
+            let url = "https://github.com/Baolinh0305/MacroNest/releases/download/v0.1/interception.dll";
+            let mut response = reqwest::blocking::get(url)?.error_for_status()?;
+            let total_size = response.content_length().unwrap_or(200 * 1024);
+
+            let mut file = fs::File::create(&paths.interception_dll)?;
+            let mut downloaded: u64 = 0;
+            let mut buffer = [0u8; 16384];
+
+            use std::io::{Read, Write};
+            loop {
+                let n = response.read(&mut buffer)?;
+                if n == 0 { break; }
+                file.write_all(&buffer[..n])?;
+                downloaded += n as u64;
+                let p = (downloaded as f32 / total_size as f32 * 1000.0) as u32;
+                progress.store(p, Ordering::SeqCst);
+            }
+
+            Ok(())
+        });
+
+        self.interception_download_job = Some(job);
     }
 
     pub(crate) fn check_for_update(&mut self, ctx: &egui::Context) {

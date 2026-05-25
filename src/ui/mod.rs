@@ -564,6 +564,9 @@ pub struct CrosshairApp {
     opencv_download_job: Option<JoinHandle<Result<()>>>,
     opencv_download_progress: Arc<AtomicU32>,
     opencv_installed: bool,
+    interception_download_job: Option<JoinHandle<Result<()>>>,
+    interception_download_progress: Arc<AtomicU32>,
+    interception_installed: bool,
     copy_folder_feedback_until: Option<Instant>,
     vision_manual_color: RgbaColor,
     vision_manual_color_hex: String,
@@ -705,6 +708,9 @@ impl CrosshairApp {
             opencv_download_job: None,
             opencv_download_progress: Arc::new(AtomicU32::new(0)),
             opencv_installed,
+            interception_download_job: None,
+            interception_download_progress: Arc::new(AtomicU32::new(0)),
+            interception_installed: paths.interception_dll.exists(),
             copy_folder_feedback_until: None,
             vision_manual_color: RgbaColor { r: 0, g: 255, b: 170, a: 255 },
             vision_manual_color_hex: "00FFAA".to_owned(),
@@ -741,6 +747,7 @@ impl CrosshairApp {
         app.sync_macro_presets();
         app.sync_audio_settings();
         app.sync_vision_presets();
+        app.sync_vision_settings();
         app.sync_hud_presets();
         app.sync_timer_presets();
         app.sync_command_presets();
@@ -828,6 +835,12 @@ impl CrosshairApp {
     fn sync_audio_settings(&self) {
         let _ = self.overlay_tx.send(OverlayCommand::UpdateAudioSettings(
             self.state.audio_settings.clone(),
+        ));
+    }
+
+    fn sync_vision_settings(&self) {
+        let _ = self.overlay_tx.send(OverlayCommand::UpdateVisionSettings(
+            self.state.vision_settings.clone(),
         ));
     }
 
@@ -1837,7 +1850,7 @@ impl CrosshairApp {
     }
 
     fn desired_window_size() -> egui::Vec2 {
-        vec2(980.0, 680.0)
+        vec2(980.0, 600.0)
     }
 
     #[cfg(windows)]
@@ -7344,6 +7357,29 @@ impl eframe::App for CrosshairApp {
                     Ok(Err(error)) => {
                         self.status = format!("Download failed: {error}");
                         let _ = fs::remove_file(&self.paths.opencv_dll);
+                    }
+                    Err(_) => {
+                        self.status = "Download thread panicked.".to_owned();
+                    }
+                }
+            }
+        }
+
+        if let Some(job) = &self.interception_download_job {
+            if job.is_finished() {
+                let job = self.interception_download_job.take().unwrap();
+                match job.join() {
+                    Ok(Ok(())) => {
+                        self.interception_installed = true;
+                        self.status = Self::tr_lang(
+                            self.state.ui_language,
+                            "Interception driver wrapper installed successfully.",
+                            "Cài đặt Interception driver thành công."
+                        ).to_owned();
+                    }
+                    Ok(Err(error)) => {
+                        self.status = format!("Download failed: {error}");
+                        let _ = fs::remove_file(&self.paths.interception_dll);
                     }
                     Err(_) => {
                         self.status = "Download thread panicked.".to_owned();

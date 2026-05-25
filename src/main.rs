@@ -126,7 +126,7 @@ fn main() -> Result<()> {
     let app_title = "MacroNest v1.0";
     let mut viewport_builder = eframe::egui::ViewportBuilder::default()
         .with_title(app_title)
-        .with_inner_size([1060.0, 680.0])
+        .with_inner_size([1060.0, 600.0])
         .with_min_inner_size([980.0, 600.0])
         .with_decorations(false)
         .with_transparent(true)
