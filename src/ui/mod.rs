@@ -7418,7 +7418,7 @@ impl eframe::App for CrosshairApp {
             let target_size = Self::desired_window_size();
             ctx.send_viewport_cmd(egui::ViewportCommand::InnerSize(target_size));
             let target_pos = Self::centered_outer_position_for_size(target_size);
-            ctx.send_viewport_cmd(egui::ViewportCommand::Position(target_pos));
+            ctx.send_viewport_cmd(egui::ViewportCommand::OuterPosition(target_pos));
             self.center_window_next_frame = false;
         }
 
