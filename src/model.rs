@@ -135,6 +135,10 @@ fn default_if_operator() -> String {
     "==".to_string()
 }
 
+fn default_condition_join_operator() -> String {
+    "AND".to_string()
+}
+
 fn default_if_color_tolerance() -> u8 {
     10
 }
@@ -452,6 +456,8 @@ pub enum IfConditionType {
 #[serde(default)]
 pub struct ExtraCondition {
     pub variable_name: String,
+    #[serde(default = "default_condition_join_operator")]
+    pub join_operator: String,
     #[serde(default = "default_if_operator")]
     pub operator: String,
     pub compare_value: i32,
@@ -462,6 +468,7 @@ impl Default for ExtraCondition {
     fn default() -> Self {
         Self {
             variable_name: String::new(),
+            join_operator: "AND".to_string(),
             operator: "==".to_string(),
             compare_value: 0,
             expression: String::new(),

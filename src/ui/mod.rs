@@ -3412,7 +3412,7 @@ impl CrosshairApp {
                 MacroAction::MouseMoveAbsolute => "Move mouse to absolute coordinates.",
                 MacroAction::MouseMoveRelative => "Move mouse relative to current position.",
                 MacroAction::IfStart => {
-                    "Start a conditional If block. Only runs steps inside if the variable condition is met."
+                    "Start a conditional If block. Only runs steps inside if the variable comparison is met."
                 }
                 MacroAction::Else => {
                     "Otherwise (Else) block. Runs steps inside if the above If condition was NOT met."
