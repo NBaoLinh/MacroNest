@@ -4606,7 +4606,7 @@ mod windows_overlay {
             match command
                 .stdout(std::process::Stdio::inherit())
                 .stderr(std::process::Stdio::inherit())
-                .creation_flags(CREATE_NO_WINDOW.0)
+                .creation_flags(0)
                 .spawn() {
                 Ok(_) => {
                     println!("Successfully spawned custom command: {}", command_text);
