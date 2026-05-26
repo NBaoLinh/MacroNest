@@ -1838,29 +1838,29 @@ impl CrosshairApp {
                             .color(ui.visuals().strong_text_color()),
                     );
                     ui.add_space(8.0);
-                }
-
-                if ui
-                    .add_sized(
-                        [28.0, 28.0],
-                        Button::new(Self::material_icon_text(0xe2cc, 18.0))
-                            .fill(ui.visuals().faint_bg_color)
-                            .stroke(egui::Stroke::new(
-                                1.0,
-                                ui.visuals().widgets.noninteractive.bg_stroke.color,
-                            )),
-                    )
-                    .on_hover_text(Self::tr_lang(
-                        language,
-                        "Add folder",
-                        "Them thu muc",
-                    ))
-                    .clicked()
-                {
-                    self.add_macro_folder();
-                    self.persist();
-                    self.macro_folders_panel_open = true;
-                    self.active_macro_folder_view = None;
+                } else {
+                    if ui
+                        .add_sized(
+                            [28.0, 28.0],
+                            Button::new(Self::material_icon_text(0xe2cc, 18.0))
+                                .fill(ui.visuals().faint_bg_color)
+                                .stroke(egui::Stroke::new(
+                                    1.0,
+                                    ui.visuals().widgets.noninteractive.bg_stroke.color,
+                                )),
+                        )
+                        .on_hover_text(Self::tr_lang(
+                            language,
+                            "Add folder",
+                            "Them thu muc",
+                        ))
+                        .clicked()
+                    {
+                        self.add_macro_folder();
+                        self.persist();
+                        self.macro_folders_panel_open = true;
+                        self.active_macro_folder_view = None;
+                    }
                 }
             }
 
