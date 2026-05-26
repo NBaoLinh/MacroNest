@@ -3380,6 +3380,19 @@ impl CrosshairApp {
                                          {
                                              import_preset_to_group = Some((group.id, None));
                                          }
+
+                                         ui.add_space(4.0);
+
+                                         live_sync |= Self::render_multi_window_targets_with_duplicate_mode(
+                                             ui,
+                                             language,
+                                             (group.id, "macro-group-window-target"),
+                                             Self::tr_lang(language, "Any focused window", ""),
+                                             &mut group.target_window_title,
+                                             &mut group.extra_target_window_titles,
+                                             &mut group.match_duplicate_window_titles,
+                                             &self.open_windows,
+                                         );
                                     }
 
                                 },
@@ -3393,51 +3406,6 @@ impl CrosshairApp {
                             return;
 
                         }
-
-                        ui.separator();
-
-                        egui::Grid::new((group.id, "group-target-row"))
-
-                            .num_columns(2)
-
-                            .spacing([8.0, 8.0])
-
-                            .show(ui, |ui| {
-
-                                ui.label(Self::tr_lang(language, "Target Window", "Target Window"));
-
-                                live_sync |= Self::render_multi_window_targets_with_duplicate_mode(
-
-                                    ui,
-
-                                    language,
-
-                                    (group.id, "macro-group-window-target"),
-
-                                    Self::tr_lang(
-
-                                        language,
-
-                                        "Any focused window",
-
-                                        "Cá»­a sá»• Ä‘ang focus",
-
-                                    ),
-
-                                    &mut group.target_window_title,
-
-                                    &mut group.extra_target_window_titles,
-
-                                    &mut group.match_duplicate_window_titles,
-
-                                    &self.open_windows,
-
-                                );
-
-                                ui.end_row();
-
-                            });
-
 
 
                         let binding_labels = Self::macro_group_binding_labels(group);
