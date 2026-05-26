@@ -1703,6 +1703,8 @@ pub struct AppState {
     pub macro_mouse_click_delay_ms: u32,
     #[serde(default = "default_macro_keyboard_key_press_delay_ms")]
     pub macro_keyboard_key_press_delay_ms: u32,
+    #[serde(default)]
+    pub global_constants: Vec<(String, i32)>,
 }
 
 impl Default for AppState {
@@ -1767,6 +1769,7 @@ impl Default for AppState {
             vision_settings: VisionSettings::default(),
             macro_mouse_click_delay_ms: 16,
             macro_keyboard_key_press_delay_ms: 0,
+            global_constants: Vec::new(),
         }
     }
 }
