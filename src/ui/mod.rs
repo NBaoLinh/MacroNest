@@ -582,6 +582,7 @@ pub struct CrosshairApp {
     vision_manual_color: RgbaColor,
     vision_manual_color_hex: String,
     variable_inspector_open: bool,
+    pub show_share_buttons: bool,
 }
 
 impl CrosshairApp {
@@ -739,6 +740,7 @@ impl CrosshairApp {
             vision_manual_color: RgbaColor { r: 0, g: 255, b: 170, a: 255 },
             vision_manual_color_hex: "00FFAA".to_owned(),
             variable_inspector_open: false,
+            show_share_buttons: false,
         };
         app.interception_installed = app.paths.interception_dll.exists();
         app.ensure_master_presets();

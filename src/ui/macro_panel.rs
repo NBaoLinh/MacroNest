@@ -1487,6 +1487,35 @@ impl CrosshairApp {
                     "Hotkey macro",
                 ));
             }
+
+            let share_icon = 0xe80d; // Material icon for share
+            let share_fill = if self.show_share_buttons {
+                Color32::from_rgba_premultiplied(0, 191, 255, 30)
+            } else {
+                ui.visuals().faint_bg_color
+            };
+            let share_stroke = if self.show_share_buttons {
+                Color32::from_rgb(0, 191, 255)
+            } else {
+                ui.visuals().widgets.noninteractive.bg_stroke.color
+            };
+            if ui
+                .add_sized(
+                    [28.0, 28.0],
+                    Button::new(Self::material_icon_text(share_icon, 18.0))
+                        .fill(share_fill)
+                        .stroke(egui::Stroke::new(1.0, share_stroke)),
+                )
+                .on_hover_text(Self::tr_lang(
+                    language,
+                    "Toggle Import/Export buttons",
+                    "Bật/Tắt hiển thị nút chia sẻ (Import/Export)",
+                ))
+                .clicked()
+            {
+                self.show_share_buttons = !self.show_share_buttons;
+            }
+
             if let Some(folder_id) = active_folder_for_controls
                 && Self::sized_button(
                     ui,
@@ -3538,7 +3567,8 @@ impl CrosshairApp {
                                             add_preset_to_group = Some(group.id);
 
                                         }
-                                         let group_export_feedback = Self::is_copy_feedback_active(
+                                        if self.show_share_buttons {
+                                            let group_export_feedback = Self::is_copy_feedback_active(
                                              self.macro_group_export_feedback_until,
                                          );
                                          let group_export_label = if group_export_feedback {
@@ -3583,8 +3613,9 @@ impl CrosshairApp {
                                          {
                                              import_preset_to_group = Some((group.id, None));
                                          }
+                                        }
 
-                                         ui.add_space(4.0);
+                                        ui.add_space(4.0);
 
                                          live_sync |= Self::render_multi_window_targets_with_duplicate_mode(
                                              ui,
@@ -3829,7 +3860,8 @@ impl CrosshairApp {
                                                  self.status = "Copied macro preset.".to_owned();
                                              }
 
-                                              let preset_export_feedback = Self::is_copy_feedback_active(
+                                             if self.show_share_buttons {
+                                                 let preset_export_feedback = Self::is_copy_feedback_active(
                                                   self.macro_preset_export_feedback_until,
                                               );
                                               let preset_export_label = if preset_export_feedback {
@@ -3869,12 +3901,12 @@ impl CrosshairApp {
                                                  46.0,
                                                  Self::tr_lang(language, "Imp", "Imp"),
                                              )
-                                             .on_hover_text(Self::tr_lang(language, "Import Preset from Clipboard", "Nháº­p Preset tÃ¡Â»Â« clipboard"))
+                                             .on_hover_text(Self::tr_lang(language, "Import Preset from Clipboard", "Nhập Preset từ clipboard"))
                                              .clicked()
                                              {
                                                  import_preset_to_group = Some((group.id, Some(preset.id)));
                                              }
-
+                                             }
 
 
                                             let mouse_trigger_options = [
@@ -13137,7 +13169,8 @@ impl CrosshairApp {
                                                       copy_single_step = Some((group.id, preset.id, step_index));
                                                   }
 
-                                                  if ui
+                                                  if self.show_share_buttons {
+                                                      if ui
                                                       .add(
                                                           Button::new(Self::tr_lang(language, "Exp", "Exp"))
                                                               .min_size(vec2(32.0, 18.0)),
@@ -13182,6 +13215,7 @@ impl CrosshairApp {
                                                       .clicked()
                                                   {
                                                       import_step_to = Some((group.id, preset.id, Some(step_index)));
+                                                  }
                                                   }
 
 
