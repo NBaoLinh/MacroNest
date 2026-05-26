@@ -8644,30 +8644,28 @@ impl CrosshairApp {
 
 
 
+                                                let is_preset_active = preset.enabled && group.enabled && folder_enabled;
                                                 let enabled_icon = if step.enabled {
-
-                                                    Self::material_icon_text(0xe834, 16.0).color(Color32::from_rgb(0, 255, 170))
-
+                                                    let color = if is_preset_active {
+                                                        Color32::from_rgb(0, 255, 170)
+                                                    } else {
+                                                        Color32::from_rgb(0, 150, 100)
+                                                    };
+                                                    Self::material_icon_text(0xe834, 16.0).color(color)
                                                 } else {
-
                                                     Self::material_icon_text(0xe835, 16.0).color(Color32::from_rgb(180, 180, 180))
-
                                                 };
 
-                                                if ui
+                                                let toggle_clicked = ui.scope(|ui| {
+                                                    ui.visuals_mut().override_text_color = None;
+                                                    ui.add_sized([22.0, 20.0], Button::new(enabled_icon))
+                                                        .on_hover_text(Self::tr_lang(language, "Toggle step enabled", ""))
+                                                        .clicked()
+                                                }).inner;
 
-                                                    .add_sized([22.0, 20.0], Button::new(enabled_icon))
-
-                                                    .on_hover_text(Self::tr_lang(language, "Toggle step enabled", ""))
-
-                                                    .clicked()
-
-                                                {
-
+                                                if toggle_clicked {
                                                     step.enabled = !step.enabled;
-
                                                     live_sync = true;
-
                                                 }
 
                                                 if ui
