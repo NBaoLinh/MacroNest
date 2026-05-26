@@ -5861,17 +5861,35 @@ impl CrosshairApp {
 
                                                     if !step.unlock_on_exit {
 
-                                                        ui.label(RichText::new("⚠").color(Color32::RED).strong())
+                                                        let warn_color = Color32::from_rgb(255, 90, 0);
 
-                                                            .on_hover_text(Self::tr_lang(
+                                                        let response = ui.add(egui::Label::new(Self::material_icon_text(0xe002, 14.0).color(warn_color)).sense(egui::Sense::hover()));
 
-                                                                language,
+                                                        if response.contains_pointer() {
 
-                                                                "Warning: Keeping keys locked after the macro ends can make your keyboard unresponsive until manually unlocked!",
+                                                            egui::show_tooltip_at_pointer(ui.ctx(), ui.layer_id(), response.id.with("lockkeys-warning-tip"), |ui| {
 
-                                                                ""
+                                                                ui.horizontal(|ui| {
 
-                                                            ));
+                                                                    ui.label(Self::material_icon_text(0xe002, 14.0).color(warn_color));
+
+                                                                    ui.label(RichText::new(Self::tr_lang(language, "STEP WARNING", "CẢNH BÁO BƯỚC")).strong().color(warn_color));
+
+                                                                });
+
+                                                                ui.label(Self::tr_lang(
+
+                                                                    language,
+
+                                                                    "Warning: Keeping keys locked after the macro ends can make your keyboard unresponsive until manually unlocked!",
+
+                                                                    ""
+
+                                                                ));
+
+                                                            });
+
+                                                        }
 
                                                     }
 
@@ -6628,9 +6646,23 @@ impl CrosshairApp {
 
                                                         if !step.unlock_on_exit {
 
-                                                            ui.label(RichText::new("⚠").color(Color32::RED).strong())
+                                                        let warn_color = Color32::from_rgb(255, 90, 0);
 
-                                                                .on_hover_text(Self::tr_lang(
+                                                        let response = ui.add(egui::Label::new(Self::material_icon_text(0xe002, 14.0).color(warn_color)).sense(egui::Sense::hover()));
+
+                                                        if response.contains_pointer() {
+
+                                                            egui::show_tooltip_at_pointer(ui.ctx(), ui.layer_id(), response.id.with("lockmouse-warning-tip"), |ui| {
+
+                                                                ui.horizontal(|ui| {
+
+                                                                    ui.label(Self::material_icon_text(0xe002, 14.0).color(warn_color));
+
+                                                                    ui.label(RichText::new(Self::tr_lang(language, "STEP WARNING", "CẢNH BÁO BƯỚC")).strong().color(warn_color));
+
+                                                                });
+
+                                                                ui.label(Self::tr_lang(
 
                                                                     language,
 
@@ -6640,7 +6672,11 @@ impl CrosshairApp {
 
                                                                 ));
 
+                                                            });
+
                                                         }
+
+                                                    }
 
                                                     });
 
@@ -10705,17 +10741,35 @@ impl CrosshairApp {
 
                                                     if !step.unlock_on_exit {
 
-                                                        ui.label(RichText::new("⚠").color(Color32::RED).strong())
+                                                        let warn_color = Color32::from_rgb(255, 90, 0);
 
-                                                            .on_hover_text(Self::tr_lang(
+                                                        let response = ui.add(egui::Label::new(Self::material_icon_text(0xe002, 14.0).color(warn_color)).sense(egui::Sense::hover()));
 
-                                                                language,
+                                                        if response.contains_pointer() {
 
-                                                                "Warning: Keeping keys locked after the macro ends can make your keyboard unresponsive until manually unlocked!",
+                                                            egui::show_tooltip_at_pointer(ui.ctx(), ui.layer_id(), response.id.with("lockkeys-compact-warning-tip"), |ui| {
 
-                                                                ""
+                                                                ui.horizontal(|ui| {
 
-                                                            ));
+                                                                    ui.label(Self::material_icon_text(0xe002, 14.0).color(warn_color));
+
+                                                                    ui.label(RichText::new(Self::tr_lang(language, "STEP WARNING", "CẢNH BÁO BƯỚC")).strong().color(warn_color));
+
+                                                                });
+
+                                                                ui.label(Self::tr_lang(
+
+                                                                    language,
+
+                                                                    "Warning: Keeping keys locked after the macro ends can make your keyboard unresponsive until manually unlocked!",
+
+                                                                    ""
+
+                                                                ));
+
+                                                            });
+
+                                                        }
 
                                                     }
 
@@ -11448,9 +11502,23 @@ impl CrosshairApp {
 
                                                         if !step.unlock_on_exit {
 
-                                                            ui.label(RichText::new("⚠").color(Color32::RED).strong())
+                                                        let warn_color = Color32::from_rgb(255, 90, 0);
 
-                                                                .on_hover_text(Self::tr_lang(
+                                                        let response = ui.add(egui::Label::new(Self::material_icon_text(0xe002, 14.0).color(warn_color)).sense(egui::Sense::hover()));
+
+                                                        if response.contains_pointer() {
+
+                                                            egui::show_tooltip_at_pointer(ui.ctx(), ui.layer_id(), response.id.with("lockmouse-compact-warning-tip"), |ui| {
+
+                                                                ui.horizontal(|ui| {
+
+                                                                    ui.label(Self::material_icon_text(0xe002, 14.0).color(warn_color));
+
+                                                                    ui.label(RichText::new(Self::tr_lang(language, "STEP WARNING", "CẢNH BÁO BƯỚC")).strong().color(warn_color));
+
+                                                                });
+
+                                                                ui.label(Self::tr_lang(
 
                                                                     language,
 
@@ -11460,7 +11528,11 @@ impl CrosshairApp {
 
                                                                 ));
 
+                                                            });
+
                                                         }
+
+                                                    }
 
                                                     });
 
