@@ -4600,13 +4600,11 @@ mod windows_overlay {
                 cmd
             } else {
                 let mut cmd = Command::new("cmd.exe");
-                cmd.args(["/C", &command_text]);
+                cmd.raw_arg(format!("/C {}", command_text));
                 cmd
             };
             match command
-                .stdout(std::process::Stdio::inherit())
-                .stderr(std::process::Stdio::inherit())
-                .creation_flags(0)
+                .creation_flags(CREATE_NO_WINDOW.0)
                 .spawn() {
                 Ok(_) => {
                     println!("Successfully spawned custom command: {}", command_text);
