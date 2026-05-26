@@ -9246,17 +9246,14 @@ impl CrosshairApp {
                                                     ui.add_space(2.0);
                                                     ui.label(Self::tr_lang(
                                                         language,
-                                                        "You can write math expressions and use variables in {}. Math operators + - * / and parentheses () are supported.",
+                                                        "You can write math expressions and use variables in {}. Math operators + - * / and parentheses () are supported.\nExample: {100 + (A - B) * 2}",
                                                         ""
                                                     ));
                                                     ui.add_space(4.0);
                                                     ui.label(egui::RichText::new(Self::tr_lang(language, "Supported Functions:", "")).strong());
-                                                    ui.label(egui::RichText::new("• random(min, max):").strong());
-                                                    ui.label(Self::tr_lang(language, "  Generate random delay. Example: {random(50, 150)}", ""));
-                                                    ui.label(egui::RichText::new("• min(a, b) / max(a, b):").strong());
-                                                    ui.label(Self::tr_lang(language, "  Minimum / Maximum value. Example: {min(A, 100)}", ""));
-                                                    ui.label(egui::RichText::new("• abs(a):").strong());
-                                                    ui.label(Self::tr_lang(language, "  Absolute value. Example: {abs(A)}", ""));
+                                                    ui.label(Self::tr_lang(language, "• random(min, max): Generate random delay.", ""));
+                                                    ui.label(Self::tr_lang(language, "• min(a, b) / max(a, b): Minimum / Maximum value.", ""));
+                                                    ui.label(Self::tr_lang(language, "• abs(a): Absolute value.", ""));
                                                 });
                                             }
                                             ui.add_space(4.0);
