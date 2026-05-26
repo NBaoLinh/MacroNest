@@ -6546,6 +6546,9 @@ impl CrosshairApp {
     }
 
     fn poll_capture_input(&mut self, ctx: &egui::Context) {
+        if self.capture_target.is_some() {
+            ctx.request_repaint();
+        }
         if self
             .capture_mouse_guard_until
             .is_some_and(|until| Instant::now() < until)
@@ -6692,9 +6695,6 @@ impl CrosshairApp {
 
     #[cfg(windows)]
     fn capture_scroll_binding(&self, ctx: &egui::Context) -> Option<crate::model::HotkeyBinding> {
-        if ctx.input(|i| i.pointer.hover_pos()).is_some() {
-            return None;
-        }
         let scroll_y = ctx.input(|input| input.raw_scroll_delta.y);
         if scroll_y.abs() < 0.01 {
             return None;
