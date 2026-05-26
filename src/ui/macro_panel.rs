@@ -1527,25 +1527,7 @@ impl CrosshairApp {
                 self.show_share_buttons = !self.show_share_buttons;
             }
 
-            if let Some(folder_id) = active_folder_for_controls
-                && Self::sized_button(
-                    ui,
-                    138.0,
-                    Self::tr_lang(language, "Enable All Groups", ""),
-                )
-                .clicked()
-            {
-                for group in self
-                    .state
-                    .macro_groups
-                    .iter_mut()
-                    .filter(|group| group.folder_id == Some(folder_id))
-                {
-                    group.enabled = true;
-                }
 
-                self.persist_macro_presets();
-            }
 
 
 
@@ -3021,8 +3003,12 @@ impl CrosshairApp {
 
                     let mut folder_name = folder.name.clone();
 
+                    let rect_key = ui.make_persistent_id((folder_id, "folder-rect"));
+                    let last_rect: Option<egui::Rect> = ui.ctx().data(|data| data.get_temp(rect_key));
+                    let hovered = last_rect.map_or(false, |rect| ui.rect_contains_pointer(rect));
+
                     let mut delete_clicked = false;
-                    let (inner_res, frame_response) = Self::show_folder_card(ui, folder_has_enabled_content, |ui| {
+                    let (inner_res, frame_response) = Self::show_folder_card(ui, folder_has_enabled_content, hovered, |ui| {
 
                         ui.horizontal(|ui| {
 
@@ -3091,9 +3077,17 @@ impl CrosshairApp {
                     });
 
                     let (icon_btn, name_response, delete_response) = inner_res.inner;
-                    let card_clicked = frame_response.interact(egui::Sense::click()).clicked();
+                    ui.ctx().data_mut(|data| data.insert_temp(rect_key, frame_response.rect));
+
+                    let card_response = frame_response.interact(egui::Sense::click());
+                    let card_clicked = card_response.clicked();
                     let pointer_in_widgets = ui.rect_contains_pointer(name_response.rect) || ui.rect_contains_pointer(delete_response.rect);
-                    if ((card_clicked && !pointer_in_widgets) || icon_btn.clicked()) && !self.confirm_delete_folder_id.is_some() {
+                    
+                    if card_response.hovered() && !pointer_in_widgets {
+                        ui.ctx().set_cursor_icon(egui::CursorIcon::PointingHand);
+                    }
+
+                    if ((card_clicked && !pointer_in_widgets && !delete_clicked && !name_response.has_focus()) || icon_btn.clicked()) && !self.confirm_delete_folder_id.is_some() {
                         enter_folder_id = Some(folder_id);
                     }
 
