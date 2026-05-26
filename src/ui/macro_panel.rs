@@ -1679,36 +1679,7 @@ impl CrosshairApp {
                 };
             }
 
-            if ui
-                .add_sized(
-                    [28.0, 28.0],
-                    Button::new(Self::folder_icon_text(self.macro_folders_panel_open, 18.0))
-                        .fill(if self.macro_folders_panel_open {
-                            Color32::from_rgba_premultiplied(72, 156, 116, 120)
-                        } else {
-                            ui.visuals().faint_bg_color
-                        })
-                        .stroke(egui::Stroke::new(
-                            1.0,
-                            if self.macro_folders_panel_open {
-                                Color32::from_rgb(126, 224, 182)
-                            } else {
-                                ui.visuals().widgets.noninteractive.bg_stroke.color
-                            },
-                        )),
-                )
-                .on_hover_text(Self::tr_lang(
-                    language,
-                    "Show / hide macro folders",
-                    "Hien / an macro folder",
-                ))
-                .clicked()
-            {
-                self.macro_folders_panel_open = !self.macro_folders_panel_open;
-                if !self.macro_folders_panel_open {
-                    self.set_active_macro_folder_view(None);
-                }
-            }
+
 
             ui.group(|ui| {
                 ui.spacing_mut().item_spacing.x = 4.0;
@@ -1801,6 +1772,37 @@ impl CrosshairApp {
                     self.variable_inspector_open = !self.variable_inspector_open;
                 }
             });
+
+            if ui
+                .add_sized(
+                    [28.0, 28.0],
+                    Button::new(Self::folder_icon_text(self.macro_folders_panel_open, 18.0))
+                        .fill(if self.macro_folders_panel_open {
+                            Color32::from_rgba_premultiplied(72, 156, 116, 120)
+                        } else {
+                            ui.visuals().faint_bg_color
+                        })
+                        .stroke(egui::Stroke::new(
+                            1.0,
+                            if self.macro_folders_panel_open {
+                                Color32::from_rgb(126, 224, 182)
+                            } else {
+                                ui.visuals().widgets.noninteractive.bg_stroke.color
+                            },
+                        )),
+                )
+                .on_hover_text(Self::tr_lang(
+                    language,
+                    "Show / hide macro folders",
+                    "Hien / an macro folder",
+                ))
+                .clicked()
+            {
+                self.macro_folders_panel_open = !self.macro_folders_panel_open;
+                if !self.macro_folders_panel_open {
+                    self.set_active_macro_folder_view(None);
+                }
+            }
 
 
             if self.macro_folders_panel_open {
