@@ -1593,6 +1593,15 @@ mod windows_overlay {
                 (WM_XBUTTONUP, XBUTTON1_DATA) => Some((binding_from_trigger_event("MouseX1"), false)),
                 (WM_XBUTTONDOWN, XBUTTON2_DATA) => Some((binding_from_trigger_event("MouseX2"), true)),
                 (WM_XBUTTONUP, XBUTTON2_DATA) => Some((binding_from_trigger_event("MouseX2"), false)),
+                (WM_MOUSEWHEEL, _) => {
+                    let data = ((info.mouseData >> 16) & 0xFFFF) as i16;
+                    let name = if data > 0 {
+                        "MouseWheelUp"
+                    } else {
+                        "MouseWheelDown"
+                    };
+                    Some((binding_from_trigger_event(name), true))
+                }
                 _ => None,
             };
             if let Some((binding, is_down)) = event {
