@@ -4070,7 +4070,7 @@ impl CrosshairApp {
     }
 
     fn enabled_icon_button(ui: &mut egui::Ui, enabled: bool) -> egui::Response {
-        let icon = if enabled { 0xe834 } else { 0xe835 };
+        let icon = if enabled { 0xe5ca } else { 0xe835 };
         let fill = if enabled {
             Color32::from_rgba_premultiplied(72, 156, 116, 120)
         } else {

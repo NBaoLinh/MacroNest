@@ -3057,7 +3057,7 @@ impl CrosshairApp {
 
                                     let is_active = group.enabled && folder_enabled;
 
-                                    let enabled_icon = if is_active { 0xe834 } else { 0xe835 };
+                                    let enabled_icon = if is_active { 0xe5ca } else { 0xe835 };
 
                                     let enabled_fill = if is_active {
 
@@ -3941,7 +3941,7 @@ impl CrosshairApp {
                                             }
 
                                             let is_preset_active = preset.enabled && group.enabled && folder_enabled;
-                                            let enabled_icon = if is_preset_active { 0xe834 } else { 0xe835 };
+                                            let enabled_icon = if is_preset_active { 0xe5ca } else { 0xe835 };
                                             let enabled_fill = if is_preset_active {
                                                 Color32::from_rgba_premultiplied(72, 156, 116, 120)
                                             } else {
@@ -8651,7 +8651,7 @@ impl CrosshairApp {
                                                     } else {
                                                         Color32::from_rgb(0, 150, 100)
                                                     };
-                                                    Self::material_icon_text(0xe834, 16.0).color(color)
+                                                    Self::material_icon_text(0xe5ca, 16.0).color(color)
                                                 } else {
                                                     Self::material_icon_text(0xe835, 16.0).color(Color32::from_rgb(180, 180, 180))
                                                 };
