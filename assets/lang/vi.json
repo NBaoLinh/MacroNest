@@ -393,5 +393,8 @@
   "Toggle step enabled": "Bật/Tắt bước này",
   "Unlock when macro ends": "Mở khóa khi chạy xong macro",
   "Warning: Keeping keys locked after the macro ends can make your keyboard unresponsive until manually unlocked!": "Cảnh báo: Việc giữ khóa phím sau khi chạy xong macro có thể khiến bàn phím của bạn không phản hồi cho đến khi được mở khóa thủ công!",
-  "Warning: Keeping mouse locked after the macro ends can make your mouse unresponsive until manually unlocked!": "Cảnh báo: Việc giữ khóa di chuyển và các nút chuột sau khi chạy xong macro có thể khiến chuột không phản hồi cho đến khi được mở khóa thủ công!"
+  "Warning: Keeping mouse locked after the macro ends can make your mouse unresponsive until manually unlocked!": "Cảnh báo: Việc giữ khóa di chuyển và các nút chuột sau khi chạy xong macro có thể khiến chuột không phản hồi cho đến khi được mở khóa thủ công!",
+  "Folder containing this group is disabled": "Thư mục chứa nhóm này đang bị tắt",
+  "Folder containing this preset is disabled": "Thư mục chứa preset này đang bị tắt",
+  "Group containing this preset is disabled": "Nhóm chứa preset này đang bị tắt"
 }

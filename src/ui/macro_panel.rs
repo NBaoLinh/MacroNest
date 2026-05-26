@@ -3120,9 +3120,7 @@ impl CrosshairApp {
 
                                             language,
 
-                                            "Enable / disable group",
-
-                                            "Enable / disable group",
+                                            if folder_enabled { "Enable / disable group" } else { "Folder containing this group is disabled" }, "",
 
                                         ))
 
@@ -3466,7 +3464,7 @@ impl CrosshairApp {
 
                             let preset = &mut group.presets[preset_index];
 
-                            Self::show_macro_preset_card(ui, group.enabled, preset.enabled, |ui| {
+                            Self::show_macro_preset_card(ui, group.enabled && folder_enabled, preset.enabled, |ui| {
 
                                 ui.horizontal_top(|ui| {
 
@@ -3959,56 +3957,38 @@ impl CrosshairApp {
 
                                             }
 
-                                            let enabled_icon = if preset.enabled { 0xe834 } else { 0xe835 };
-
-                                            let enabled_fill = if preset.enabled {
-
+                                            let is_preset_active = preset.enabled && group.enabled && folder_enabled;
+                                            let enabled_icon = if is_preset_active { 0xe834 } else { 0xe835 };
+                                            let enabled_fill = if is_preset_active {
                                                 Color32::from_rgba_premultiplied(72, 156, 116, 120)
-
                                             } else {
-
                                                 ui.visuals().faint_bg_color
-
                                             };
-
-                                            let enabled_stroke = if preset.enabled {
-
+                                            let enabled_stroke = if is_preset_active {
                                                 Color32::from_rgb(126, 224, 182)
-
                                             } else {
-
                                                 ui.visuals().widgets.noninteractive.bg_stroke.color
-
                                             };
-
                                             if ui
-
                                                 .add_sized(
-
                                                     [36.0, 24.0],
-
                                                     Button::new(Self::material_icon_text(
-
                                                         enabled_icon,
-
                                                         18.0,
-
                                                     ))
-
                                                     .fill(enabled_fill)
-
                                                     .stroke(egui::Stroke::new(1.0, enabled_stroke)),
-
                                                 )
-
                                                 .on_hover_text(Self::tr_lang(
-
                                                     language,
-
-                                                    "Enable / disable preset",
-
+                                                    if !folder_enabled {
+                                                        "Folder containing this preset is disabled"
+                                                    } else if !group.enabled {
+                                                        "Group containing this preset is disabled"
+                                                    } else {
+                                                        "Enable / disable preset"
+                                                    },
                                                     "",
-
                                                 ))
 
                                                 .clicked()
