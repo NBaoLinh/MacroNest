@@ -1789,7 +1789,7 @@ impl CrosshairApp {
             if ui
                 .add_sized(
                     [28.0, 28.0],
-                    Button::new(Self::material_icon_text(0xe3e1, 18.0)) // function f(x) icon
+                    Button::new(Self::material_icon_text(0xe150, 18.0)) // variable add icon
                         .fill(if self.variable_inspector_open {
                             Color32::from_rgba_premultiplied(72, 156, 116, 120)
                         } else {
@@ -2311,7 +2311,7 @@ impl CrosshairApp {
 
                     [28.0, 28.0],
 
-                    Button::new(Self::material_icon_text(0xe3e1, 18.0)) // function f(x) icon
+                    Button::new(Self::material_icon_text(0xe150, 18.0)) // variable add icon
 
                         .fill(if variable_inspector_active {
 
@@ -14645,71 +14645,60 @@ impl CrosshairApp {
         ui.vertical(|ui| {
             ui.add_space(4.0);
 
-            // Tab / Section 1: Global Constants
-            ui.label(RichText::new(Self::tr_lang(
-                language,
-                "Global Constants (Fixed Values)",
-                "Hằng số cố định toàn cục",
-            )).strong().size(14.0));
-            ui.add_space(2.0);
-
             // Grid for global constants
-            egui::ScrollArea::vertical()
-                .id_salt("global_constants_scroll")
-                .max_height(140.0)
-                .show(ui, |ui| {
-                    egui::Grid::new("global_constants_grid")
-                        .num_columns(3)
-                        .spacing([8.0, 6.0])
-                        .striped(true)
-                        .show(ui, |ui| {
-                            ui.label(RichText::new(Self::tr_lang(language, "Constant Name", "Tên hằng số")).strong());
-                            ui.label(RichText::new(Self::tr_lang(language, "Fixed Value", "Giá trị cố định")).strong());
-                            ui.label("");
-                            ui.end_row();
+            if !self.state.global_constants.is_empty() {
+                egui::ScrollArea::vertical()
+                    .id_salt("global_constants_scroll")
+                    .max_height(100.0)
+                    .show(ui, |ui| {
+                        egui::Grid::new("global_constants_grid")
+                            .num_columns(3)
+                            .spacing([8.0, 6.0])
+                            .striped(true)
+                            .show(ui, |ui| {
+                                let mut to_remove_idx = None;
+                                let mut to_update = None;
 
-                            let mut to_remove_idx = None;
-                            let mut to_update = None;
+                                for (idx, (name, val)) in self.state.global_constants.iter().enumerate() {
+                                    ui.label(RichText::new(name).monospace().color(Color32::from_rgb(0, 180, 216)));
 
-                            for (idx, (name, val)) in self.state.global_constants.iter().enumerate() {
-                                ui.label(RichText::new(name).monospace().color(Color32::from_rgb(0, 180, 216)));
-
-                                let mut val_str = val.to_string();
-                                let response = ui.add(
-                                    egui::TextEdit::singleline(&mut val_str)
-                                        .desired_width(70.0)
-                                        .font(egui::FontId::monospace(14.0))
-                                );
-                                if response.lost_focus() || response.clicked_elsewhere() {
-                                    if let Ok(new_val) = val_str.trim().parse::<i32>() {
-                                        to_update = Some((idx, new_val));
+                                    let mut val_str = val.to_string();
+                                    let response = ui.add(
+                                        egui::TextEdit::singleline(&mut val_str)
+                                            .desired_width(70.0)
+                                            .font(egui::FontId::monospace(14.0))
+                                    );
+                                    if response.lost_focus() || response.clicked_elsewhere() {
+                                        if let Ok(new_val) = val_str.trim().parse::<i32>() {
+                                            to_update = Some((idx, new_val));
+                                        }
                                     }
+
+                                    if ui.button(Self::material_icon_text(0xe872, 14.0)) // trash
+                                        .on_hover_text(Self::tr_lang(language, "Delete", "Xóa"))
+                                        .clicked()
+                                    {
+                                        to_remove_idx = Some(idx);
+                                    }
+                                    ui.end_row();
                                 }
 
-                                if ui.button(Self::material_icon_text(0xe872, 14.0)) // trash
-                                    .on_hover_text(Self::tr_lang(language, "Delete constant", "Xóa hằng số"))
-                                    .clicked()
-                                {
-                                    to_remove_idx = Some(idx);
+                                if let Some(idx) = to_remove_idx {
+                                    let (removed_name, _) = self.state.global_constants.remove(idx);
+                                    let mut vars = crate::overlay::RUNTIME_VARIABLES.lock();
+                                    vars.remove(&removed_name);
+                                    self.persist();
                                 }
-                                ui.end_row();
-                            }
 
-                            if let Some(idx) = to_remove_idx {
-                                let (removed_name, _) = self.state.global_constants.remove(idx);
-                                let mut vars = crate::overlay::RUNTIME_VARIABLES.lock();
-                                vars.remove(&removed_name);
-                                self.persist();
-                            }
-
-                            if let Some((idx, new_val)) = to_update {
-                                self.state.global_constants[idx].1 = new_val;
-                                let mut vars = crate::overlay::RUNTIME_VARIABLES.lock();
-                                vars.insert(self.state.global_constants[idx].0.clone(), new_val);
-                                self.persist();
-                            }
-                        });
-                });
+                                if let Some((idx, new_val)) = to_update {
+                                    self.state.global_constants[idx].1 = new_val;
+                                    let mut vars = crate::overlay::RUNTIME_VARIABLES.lock();
+                                    vars.insert(self.state.global_constants[idx].0.clone(), new_val);
+                                    self.persist();
+                                }
+                            });
+                    });
+            }
 
             // Quick add global constant
             ui.add_space(4.0);
@@ -14722,24 +14711,24 @@ impl CrosshairApp {
 
                 let is_dark_theme = self.state.ui_theme == UiThemeMode::Dark;
                 let hint_color = if is_dark_theme {
-                    Color32::from_rgba_unmultiplied(140, 140, 140, 150)
+                    Color32::from_rgba_premultiplied(140, 140, 140, 150)
                 } else {
-                    Color32::from_rgba_unmultiplied(100, 100, 100, 150)
+                    Color32::from_rgba_premultiplied(100, 100, 100, 150)
                 };
 
                 ui.add_sized(
                     [100.0, 20.0],
                     egui::TextEdit::singleline(&mut name_buf)
-                        .hint_text(RichText::new(Self::tr_lang(language, "CONST_NAME", "TÊN_HẰNG_SỐ")).color(hint_color).weak())
+                        .hint_text(RichText::new(Self::tr_lang(language, "CONST_NAME", "CONST_NAME")).color(hint_color).weak())
                 );
                 ui.label("=");
                 ui.add_sized(
                     [70.0, 20.0],
                     egui::TextEdit::singleline(&mut val_buf)
-                        .hint_text(RichText::new(Self::tr_lang(language, "Value", "Giá trị")).color(hint_color).weak())
+                        .hint_text(RichText::new(Self::tr_lang(language, "Value", "Value")).color(hint_color).weak())
                 );
 
-                if ui.button(Self::tr_lang(language, "Add", "Thêm")).clicked() {
+                if ui.button(Self::tr_lang(language, "Add", "Add")).clicked() {
                     let name_trimmed = name_buf.trim().to_uppercase();
                     if !name_trimmed.is_empty() {
                         let parsed_val = val_buf.trim().parse::<i32>().unwrap_or(0);
@@ -14760,27 +14749,11 @@ impl CrosshairApp {
                 });
             });
 
-            ui.add_space(8.0);
+            ui.add_space(4.0);
             ui.separator();
             ui.add_space(4.0);
 
-            // Tab / Section 2: Macro & Active Runtime Variables
-            ui.horizontal(|ui| {
-                ui.label(RichText::new(Self::tr_lang(
-                    language,
-                    "Macro & Active Runtime Variables",
-                    "Biến động Macro & Runtime",
-                )).strong().size(14.0));
-
-                ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
-                    if ui.button(Self::tr_lang(language, "Clear Runtime Map", "Xóa sạch Runtime")).clicked() {
-                        let mut vars = crate::overlay::RUNTIME_VARIABLES.lock();
-                        vars.clear();
-                    }
-                });
-            });
-            ui.add_space(4.0);
-
+            // Collect referenced variables statically + dynamic runtime variables
             let mut all_vars_set = std::collections::HashSet::new();
             for v in self.collect_all_macro_referenced_variables() {
                 all_vars_set.insert(v);
@@ -14797,32 +14770,16 @@ impl CrosshairApp {
             let mut vars_list: Vec<String> = all_vars_set.into_iter().collect();
             vars_list.sort();
 
-            if vars_list.is_empty() {
-                ui.vertical_centered(|ui| {
-                    ui.add_space(10.0);
-                    ui.label(RichText::new(Self::tr_lang(
-                        language,
-                        "No macro variables referenced or active.",
-                        "Không có biến macro nào được sử dụng hoặc kích hoạt.",
-                    )).italics().color(ui.visuals().weak_text_color()));
-                    ui.add_space(10.0);
-                });
-            } else {
+            if !vars_list.is_empty() {
                 egui::ScrollArea::vertical()
                     .id_salt("macro_vars_scroll")
-                    .max_height(200.0)
+                    .max_height(160.0)
                     .show(ui, |ui| {
                         egui::Grid::new("macro_vars_grid")
-                            .num_columns(4)
+                            .num_columns(3)
                             .spacing([8.0, 6.0])
                             .striped(true)
                             .show(ui, |ui| {
-                                ui.label(RichText::new(Self::tr_lang(language, "Variable", "Biến")).strong());
-                                ui.label(RichText::new(Self::tr_lang(language, "Current Value", "Giá trị hiện tại")).strong());
-                                ui.label(RichText::new(Self::tr_lang(language, "Status", "Trạng thái")).strong());
-                                ui.label("");
-                                ui.end_row();
-
                                 let mut to_remove = None;
                                 let mut to_update = None;
 
@@ -14846,16 +14803,8 @@ impl CrosshairApp {
                                         }
                                     }
 
-                                    let is_active = crate::overlay::RUNTIME_VARIABLES.lock().contains_key(name);
-                                    let status_text = if is_active {
-                                        RichText::new(Self::tr_lang(language, "Active", "Đang chạy")).color(Color32::from_rgb(46, 204, 113))
-                                    } else {
-                                        RichText::new(Self::tr_lang(language, "Referenced", "Tham chiếu")).color(ui.visuals().weak_text_color())
-                                    };
-                                    ui.label(status_text);
-
                                     if ui.button(Self::material_icon_text(0xe872, 14.0))
-                                        .on_hover_text(Self::tr_lang(language, "Remove from runtime", "Xóa khỏi runtime"))
+                                        .on_hover_text(Self::tr_lang(language, "Delete", "Xóa"))
                                         .clicked()
                                     {
                                         to_remove = Some(name.clone());
@@ -14876,7 +14825,8 @@ impl CrosshairApp {
                     });
             }
 
-            ui.separator();
+            // Quick set dynamic variable at the bottom
+            ui.add_space(4.0);
             ui.horizontal(|ui| {
                 ui.set_row_height(24.0);
 
@@ -14896,13 +14846,13 @@ impl CrosshairApp {
                 ui.add_sized(
                     [100.0, 20.0],
                     egui::TextEdit::singleline(&mut name_buf)
-                        .hint_text(RichText::new(Self::tr_lang(language, "Var Name", "Tên biến")).color(hint_color).weak())
+                        .hint_text(RichText::new(Self::tr_lang(language, "Var Name", "Var Name")).color(hint_color).weak())
                 );
                 ui.label("=");
                 ui.add_sized(
                     [70.0, 20.0],
                     egui::TextEdit::singleline(&mut val_buf)
-                        .hint_text(RichText::new(Self::tr_lang(language, "Value", "Giá trị")).color(hint_color).weak())
+                        .hint_text(RichText::new(Self::tr_lang(language, "Value", "Value")).color(hint_color).weak())
                 );
 
                 if ui.button(Self::tr_lang(language, "Set", "Set")).clicked() {
@@ -14923,6 +14873,7 @@ impl CrosshairApp {
             });
         });
     }
+
 
 
 

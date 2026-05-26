@@ -8106,8 +8106,8 @@ impl eframe::App for CrosshairApp {
             let screen_center = ctx.screen_rect().center();
             egui::Window::new(Self::tr_lang(
                 self.state.ui_language,
-                "Variable Inspector / Debugger",
-                "",
+                "Variables",
+                "Biến",
             ))
             .open(&mut open)
             .default_pos(screen_center)
