@@ -4603,7 +4603,11 @@ mod windows_overlay {
                 cmd.args(["/C", &command_text]);
                 cmd
             };
-            match command.creation_flags(CREATE_NO_WINDOW.0).spawn() {
+            match command
+                .stdout(std::process::Stdio::inherit())
+                .stderr(std::process::Stdio::inherit())
+                .creation_flags(CREATE_NO_WINDOW.0)
+                .spawn() {
                 Ok(_) => {
                     println!("Successfully spawned custom command: {}", command_text);
                 }
