@@ -1822,6 +1822,40 @@ impl CrosshairApp {
 
 
             if self.macro_folders_panel_open {
+                if let Some(folder_id) = self.active_macro_folder_view {
+                    let folder_name = self.state.macro_folders.iter()
+                        .find(|f| f.id == folder_id)
+                        .map(|f| f.name.clone())
+                        .unwrap_or_default();
+
+                    if ui
+                        .add_sized(
+                            [28.0, 28.0],
+                            Button::new(Self::material_icon_text(0xe5c4, 18.0)) // arrow_back icon
+                                .fill(ui.visuals().faint_bg_color)
+                                .stroke(egui::Stroke::new(
+                                    1.0,
+                                    ui.visuals().widgets.noninteractive.bg_stroke.color,
+                                )),
+                        )
+                        .on_hover_text(Self::tr_lang(
+                            language,
+                            "Back to folder list",
+                            "Quay lại danh sách thư mục",
+                        ))
+                        .clicked()
+                    {
+                        self.set_active_macro_folder_view(None);
+                    }
+
+                    ui.label(
+                        RichText::new(folder_name)
+                            .strong()
+                            .color(ui.visuals().strong_text_color()),
+                    );
+                    ui.add_space(8.0);
+                }
+
                 if ui
                     .add_sized(
                         [28.0, 28.0],
@@ -1895,6 +1929,8 @@ impl CrosshairApp {
         let mut release_folder_id = None;
 
         let mut delete_folder_id = None;
+
+        let mut enter_folder_id = None;
 
         let mut begin_mouse_move_absolute_capture_target = None;
 
@@ -2821,35 +2857,28 @@ impl CrosshairApp {
 
                     "No folders yet. Macro groups can stay outside folders if you want.",
 
-                    "ChÃ†Â°a cÃƒÂ³ thÆ° má»¥c nÃƒÂ o. NÃ¡ÂºÂ¿u muÃ¡Â»â€˜n, macro group cÃƒÂ³ thá»ƒ náº±m ngoÃ i thÆ° má»¥c.",
+                    "Chưa có thư mục nào. Nếu muốn, macro group có thể nằm ngoài thư mục.",
 
                 ));
 
             }
 
-            for folder in &self.state.macro_folders {
+            if let Some(active_folder_id) = self.active_macro_folder_view {
+                for (index, group) in self.state.macro_groups.iter().enumerate() {
 
-                render_items.push(RenderItem::FolderHeader(folder.id));
+                    if group.folder_id == Some(active_folder_id) {
 
-                if !folder.collapsed {
+                        if Self::macro_group_matches_search_query(group, &search_query) {
 
-                    for (index, group) in self.state.macro_groups.iter().enumerate() {
+                            if match self.macro_groups_favorite_filter {
 
-                        if group.folder_id == Some(folder.id) {
+                                MacroGroupFavoriteFilter::All => true,
 
-                            if Self::macro_group_matches_search_query(group, &search_query) {
+                                MacroGroupFavoriteFilter::Star => group.favorite,
 
-                                if match self.macro_groups_favorite_filter {
+                            } {
 
-                                    MacroGroupFavoriteFilter::All => true,
-
-                                    MacroGroupFavoriteFilter::Star => group.favorite,
-
-                                } {
-
-                                    render_items.push(RenderItem::MacroGroup(index));
-
-                                }
+                                render_items.push(RenderItem::MacroGroup(index));
 
                             }
 
@@ -2858,7 +2887,12 @@ impl CrosshairApp {
                     }
 
                 }
+            } else {
+                for folder in &self.state.macro_folders {
 
+                    render_items.push(RenderItem::FolderHeader(folder.id));
+
+                }
             }
 
         } else {
@@ -2905,9 +2939,9 @@ impl CrosshairApp {
 
 
 
-        let mut toggle_collapsed_folder_id = None;
+        let mut toggle_collapsed_folder_id: Option<u32> = None;
 
-        let mut add_group_to_folder_id = None;
+        let mut add_group_to_folder_id: Option<u32> = None;
 
         let mut renamed_folder: Option<(u32, String)> = None;
 
@@ -2987,37 +3021,28 @@ impl CrosshairApp {
 
                     let mut folder_name = folder.name.clone();
 
-                    Self::show_folder_card(ui, |ui| {
+                    let mut delete_clicked = false;
+                    let (inner_res, frame_response) = Self::show_folder_card(ui, folder_has_enabled_content, |ui| {
 
                         ui.horizontal(|ui| {
 
-                            if ui
+                            let icon_btn = ui.add_sized(
 
-                                .add_sized(
+                                [28.0, 24.0],
 
-                                    [28.0, 24.0],
+                                Button::new(Self::folder_icon_text(false, 18.0)),
 
-                                    Button::new(Self::folder_icon_text(!folder.collapsed, 18.0)),
-
-                                )
-
-                                .clicked()
-
-                            {
-
-                                toggle_collapsed_folder_id = Some(folder_id);
-
-                            }
+                            );
 
                             
 
-                            let response =
+                            let name_response =
 
                                 ui.add_sized([220.0, 24.0], TextEdit::singleline(&mut folder_name));
 
                             Self::apply_vietnamese_input_if_changed(
 
-                                &response,
+                                &name_response,
 
                                 self.state.vietnamese_input_enabled,
 
@@ -3027,7 +3052,7 @@ impl CrosshairApp {
 
                             );
 
-                            if response.changed() {
+                            if name_response.changed() {
 
                                 renamed_folder = Some((folder_id, folder_name.clone()));
 
@@ -3039,7 +3064,7 @@ impl CrosshairApp {
 
                                 egui::Label::new(match language {
 
-                                    UiLanguage::Vietnamese => format!("{folder_group_count} nhÃ³m"),
+                                    UiLanguage::Vietnamese => format!("{folder_group_count} nhóm"),
 
                                     _ => format!("{folder_group_count} group(s)"),
 
@@ -3049,77 +3074,36 @@ impl CrosshairApp {
 
 
 
-                            ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
+                            let delete_response = ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
 
-                                if Self::sound_style_remove_button(ui).clicked() {
-
-                                    if folder_group_count > 0 {
-
-                                        self.confirm_delete_folder_id = Some(folder_id);
-
-                                    } else {
-
-                                        delete_folder_id = Some(folder_id);
-
-                                    }
-
+                                let btn = Self::sound_style_remove_button(ui);
+                                if btn.clicked() {
+                                    delete_clicked = true;
                                 }
+                                btn
 
-                                let is_collapsed = folder.collapsed;
+                            }).inner;
 
-                                let button_text = if is_collapsed {
+                            (icon_btn, name_response, delete_response)
 
-                                    Self::tr_lang(language, "Show", "Hiá»‡n")
-
-                                } else {
-
-                                    Self::tr_lang(language, "Hide", "áº¨n")
-
-                                };
-
-                                if ui
-
-                                    .add_sized(
-
-                                        [70.0, 24.0],
-
-                                        Button::new(button_text),
-
-                                    )
-
-                                    .clicked()
-
-                                {
-
-                                    toggle_collapsed_folder_id = Some(folder_id);
-
-                                }
-
-
-
-                                if ui
-
-                                    .add_sized(
-
-                                        [86.0, 24.0],
-
-                                        Button::new(Self::tr_lang(language, "+ Group", "+ NhÃ³m")),
-
-                                    )
-
-                                    .clicked()
-
-                                {
-
-                                    add_group_to_folder_id = Some(folder_id);
-
-                                }
-
-                            });
-
-                        });
+                        })
 
                     });
+
+                    let (icon_btn, name_response, delete_response) = inner_res.inner;
+                    let card_clicked = frame_response.interact(egui::Sense::click()).clicked();
+                    let pointer_in_widgets = ui.rect_contains_pointer(name_response.rect) || ui.rect_contains_pointer(delete_response.rect);
+                    if ((card_clicked && !pointer_in_widgets) || icon_btn.clicked()) && !self.confirm_delete_folder_id.is_some() {
+                        enter_folder_id = Some(folder_id);
+                    }
+
+                    if delete_clicked {
+                        if folder_group_count > 0 {
+                            self.confirm_delete_folder_id = Some(folder_id);
+                        } else {
+                            delete_folder_id = Some(folder_id);
+                        }
+                    }
 
                     ui.add_space(4.0);
 
@@ -14449,6 +14433,12 @@ impl CrosshairApp {
                 self.persist_macro_presets();
 
             }
+
+        }
+
+        if let Some(folder_id) = enter_folder_id {
+
+            self.set_active_macro_folder_view(Some(folder_id));
 
         }
 

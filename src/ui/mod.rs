@@ -1746,9 +1746,18 @@ impl CrosshairApp {
             .stroke(egui::Stroke::new(1.0, stroke_color))
     }
 
-    fn folder_frame(ui: &egui::Ui) -> egui::Frame {
-        let fill = Color32::from_rgba_premultiplied(100, 60, 20, 100);
-        let stroke_color = Color32::from_rgb(220, 130, 45);
+    fn folder_frame(ui: &egui::Ui, active: bool) -> egui::Frame {
+        let (fill, stroke_color) = if active {
+            (
+                Color32::from_rgba_premultiplied(100, 60, 20, 100),
+                Color32::from_rgb(220, 130, 45),
+            )
+        } else {
+            (
+                Color32::from_rgba_premultiplied(45, 30, 15, 60),
+                Color32::from_rgb(140, 90, 45),
+            )
+        };
         egui::Frame::group(ui.style())
             .fill(fill)
             .stroke(egui::Stroke::new(1.0, stroke_color))
@@ -1756,10 +1765,11 @@ impl CrosshairApp {
 
     fn show_folder_card<R>(
         ui: &mut egui::Ui,
+        active: bool,
         add_contents: impl FnOnce(&mut egui::Ui) -> R,
-    ) -> R {
+    ) -> (R, egui::Response) {
         let dark_mode = ui.visuals().dark_mode;
-        Self::folder_frame(ui)
+        let res = Self::folder_frame(ui, active)
             .show(ui, |ui| {
                 ui.set_min_width(ui.available_width());
                 let previous = ui.visuals().override_text_color;
@@ -1769,8 +1779,8 @@ impl CrosshairApp {
                 let output = add_contents(ui);
                 ui.visuals_mut().override_text_color = previous;
                 output
-            })
-            .inner
+            });
+        (res.inner, res.response)
     }
 
     fn preset_body_text_color(dark_mode: bool, enabled: bool) -> Color32 {
