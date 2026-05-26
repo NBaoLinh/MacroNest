@@ -9229,6 +9229,38 @@ impl CrosshairApp {
 
                                                 });
 
+                                            // Chèn nút Trợ giúp biểu thức toán học ⓘ ngay sau ComboBox chọn đơn vị trễ
+                                            child_ui.add_space(2.0);
+                                            let info_color = child_ui.visuals().weak_text_color().linear_multiply(0.7);
+                                            let info_resp = child_ui.add(egui::Label::new(
+                                                Self::material_icon_text(0xe88f, 13.0).color(info_color)
+                                            ).sense(egui::Sense::hover()));
+                                            
+                                            if info_resp.contains_pointer() {
+                                                egui::show_tooltip_at_pointer(child_ui.ctx(), child_ui.layer_id(), info_resp.id.with("delay-math-help-tip"), |ui| {
+                                                    ui.set_max_width(280.0);
+                                                    ui.horizontal(|ui| {
+                                                        ui.label(Self::material_icon_text(0xe88f, 14.0).color(egui::Color32::from_rgb(0, 170, 255)));
+                                                        ui.label(egui::RichText::new(Self::tr_lang(language, "EXPRESSION HELP", "")).strong().color(egui::Color32::from_rgb(0, 170, 255)));
+                                                    });
+                                                    ui.add_space(2.0);
+                                                    ui.label(Self::tr_lang(
+                                                        language,
+                                                        "You can write math expressions and use variables in {}. Math operators + - * / and parentheses () are supported.",
+                                                        ""
+                                                    ));
+                                                    ui.add_space(4.0);
+                                                    ui.label(egui::RichText::new(Self::tr_lang(language, "Supported Functions:", "")).strong());
+                                                    ui.label(egui::RichText::new("• random(min, max):").strong());
+                                                    ui.label(Self::tr_lang(language, "  Generate random delay. Example: {random(50, 150)}", ""));
+                                                    ui.label(egui::RichText::new("• min(a, b) / max(a, b):").strong());
+                                                    ui.label(Self::tr_lang(language, "  Minimum / Maximum value. Example: {min(A, 100)}", ""));
+                                                    ui.label(egui::RichText::new("• abs(a):").strong());
+                                                    ui.label(Self::tr_lang(language, "  Absolute value. Example: {abs(A)}", ""));
+                                                });
+                                            }
+                                            child_ui.add_space(2.0);
+
                                             let action_combo = egui::ComboBox::from_id_salt((group.id, preset.id, step_index, "action"))
 
                                                 .close_behavior(egui::PopupCloseBehavior::CloseOnClickOutside)

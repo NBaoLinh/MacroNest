@@ -6302,19 +6302,83 @@ mod windows_overlay {
         result
     }
 
+fn get_pseudo_random(min: i32, max: i32) -> i32 {
+    use std::time::SystemTime;
+    let seed = SystemTime::now()
+        .duration_since(SystemTime::UNIX_EPOCH)
+        .unwrap_or_default()
+        .as_nanos();
+    
+    if min >= max {
+        return min;
+    }
+    
+    let mut rng = seed as u64;
+    rng = rng.wrapping_mul(6364136223846793005).wrapping_add(1442695040888963407);
+    let range = (max - min + 1) as u64;
+    min + (rng % range) as i32
+}
+
     pub(crate) fn evaluate_math_expression(expr: &str) -> i32 {
         let mut expr_str = expr.trim().to_string();
         if expr_str.is_empty() {
             return 0;
         }
 
-        // 1. Vòng lặp giải quyết tất cả dấu ngoặc đơn lồng nhau (innermost first)
+        // Vòng lặp giải quyết tất cả các hàm (random, min, max, abs) và dấu ngoặc đơn lồng nhau
         while let Some(open_idx) = expr_str.rfind('(') {
+            let mut func_name = String::new();
+            let mut func_start_idx = open_idx;
+            
+            while func_start_idx > 0 {
+                let prev_char = expr_str.chars().nth(func_start_idx - 1).unwrap_or('\0');
+                if prev_char.is_ascii_alphabetic() {
+                    func_name.insert(0, prev_char);
+                    func_start_idx -= 1;
+                } else {
+                    break;
+                }
+            }
+
             if let Some(close_offset) = expr_str[open_idx..].find(')') {
                 let close_idx = open_idx + close_offset;
                 let sub_expr = &expr_str[open_idx + 1..close_idx];
-                let sub_value = evaluate_math_expression(sub_expr);
-                expr_str.replace_range(open_idx..=close_idx, &sub_value.to_string());
+                
+                if !func_name.is_empty() {
+                    let args: Vec<&str> = sub_expr.split(',').map(|s| s.trim()).collect();
+                    let mut resolved_args = Vec::new();
+                    for arg in args {
+                        resolved_args.push(evaluate_math_expression(arg));
+                    }
+                    
+                    let result_val = match func_name.to_ascii_lowercase().as_str() {
+                        "random" => {
+                            let min_val = resolved_args.first().copied().unwrap_or(0);
+                            let max_val = resolved_args.get(1).copied().unwrap_or(min_val);
+                            get_pseudo_random(min_val, max_val)
+                        }
+                        "min" => {
+                            let val1 = resolved_args.first().copied().unwrap_or(0);
+                            let val2 = resolved_args.get(1).copied().unwrap_or(0);
+                            val1.min(val2)
+                        }
+                        "max" => {
+                            let val1 = resolved_args.first().copied().unwrap_or(0);
+                            let val2 = resolved_args.get(1).copied().unwrap_or(0);
+                            val1.max(val2)
+                        }
+                        "abs" => {
+                            let val = resolved_args.first().copied().unwrap_or(0);
+                            val.abs()
+                        }
+                        _ => 0,
+                    };
+                    
+                    expr_str.replace_range(func_start_idx..=close_idx, &result_val.to_string());
+                } else {
+                    let sub_value = evaluate_math_expression(sub_expr);
+                    expr_str.replace_range(open_idx..=close_idx, &sub_value.to_string());
+                }
             } else {
                 expr_str.remove(open_idx);
             }
@@ -6490,6 +6554,14 @@ mod windows_overlay {
             assert_eq!(evaluate_math_expression("10 - -20"), 30);
             assert_eq!(evaluate_math_expression("-5 + 10"), 5);
             assert_eq!(evaluate_math_expression("-5 * -2"), 10);
+
+            // Functions support (min, max, abs, random)
+            assert_eq!(evaluate_math_expression("abs(-50)"), 50);
+            assert_eq!(evaluate_math_expression("min(20, 50)"), 20);
+            assert_eq!(evaluate_math_expression("max(20, 50)"), 50);
+            assert_eq!(evaluate_math_expression("min(max(-10, 0), 100)"), 0);
+            let rnd = evaluate_math_expression("random(10, 20)");
+            assert!(rnd >= 10 && rnd <= 20);
 
             // Variable resolution
             {

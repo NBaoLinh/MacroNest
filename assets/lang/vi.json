@@ -1,4 +1,10 @@
 {
+  "EXPRESSION HELP": "Trợ giúp công thức",
+  "You can write math expressions and use variables in {}. Math operators + - * / and parentheses () are supported.": "Bạn có thể viết biểu thức toán và sử dụng biến trong ngoặc {}. Hỗ trợ các phép toán + - * / và dấu ngoặc đơn ().",
+  "Supported Functions:": "Các hàm được hỗ trợ:",
+  "  Generate random delay. Example: {random(50, 150)}": "  Sinh trễ ngẫu nhiên. Ví dụ: {random(50, 150)}",
+  "  Minimum / Maximum value. Example: {min(A, 100)}": "  Giá trị nhỏ nhất / lớn nhất. Ví dụ: {min(A, 100)}",
+  "  Absolute value. Example: {abs(A)}": "  Giá trị tuyệt đối. Ví dụ: {abs(A)}",
   "Commands": "Lệnh",
   "Vision": "Nhận dạng",
   "HUD": "HUD",
