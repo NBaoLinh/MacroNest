@@ -4603,7 +4603,14 @@ mod windows_overlay {
                 cmd.args(["/C", &command_text]);
                 cmd
             };
-            let _ = command.creation_flags(CREATE_NO_WINDOW.0).spawn();
+            match command.creation_flags(CREATE_NO_WINDOW.0).spawn() {
+                Ok(_) => {
+                    println!("Successfully spawned custom command: {}", command_text);
+                }
+                Err(e) => {
+                    eprintln!("Failed to spawn custom command: {}, error: {}", command_text, e);
+                }
+            }
         });
     }
 
