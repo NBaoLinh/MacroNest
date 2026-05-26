@@ -5805,7 +5805,7 @@ impl CrosshairApp {
 
                                                         TextEdit::singleline(&mut step.key)
 
-                                                            .hint_text(RichText::new("A,S,W,D").color(hint_color).italics()),
+                                                            .hint_text("A,S,W,D"),
 
                                                     );
 
@@ -5831,7 +5831,7 @@ impl CrosshairApp {
 
                                                         TextEdit::singleline(&mut step.key)
 
-                                                            .hint_text(RichText::new("A,S,W,D").color(hint_color).italics()),
+                                                            .hint_text("A,S,W,D"),
 
                                                     );
 
@@ -10685,7 +10685,7 @@ impl CrosshairApp {
 
                                                         TextEdit::singleline(&mut step.key)
 
-                                                            .hint_text(RichText::new(Self::tr_lang(language, "A,S,W,D", "A,S,W,D")).color(hint_color).italics()),
+                                                            .hint_text(Self::tr_lang(language, "A,S,W,D", "A,S,W,D")),
 
                                                     );
 
@@ -10711,7 +10711,7 @@ impl CrosshairApp {
 
                                                         TextEdit::singleline(&mut step.key)
 
-                                                            .hint_text(RichText::new(Self::tr_lang(language, "A,S,W,D", "A,S,W,D")).color(hint_color).italics()),
+                                                            .hint_text(Self::tr_lang(language, "A,S,W,D", "A,S,W,D")),
 
                                                     );
 
