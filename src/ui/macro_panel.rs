@@ -1360,7 +1360,6 @@ impl CrosshairApp {
 
             ui.label(Self::material_icon_text(0xe8b6, 18.0));
 
-            ui.label(Self::tr_lang(language, "Search", "TÃ¬m"));
 
             let response = ui.add_sized(
 
@@ -1395,6 +1394,111 @@ impl CrosshairApp {
                 &mut self.macro_preset_search_query,
 
             );
+
+            let master_label = if self.state.macros_master_enabled {
+                Self::tr_lang(language, "Macro On", "Macro On")
+            } else {
+                Self::tr_lang(language, "Macro Off", "Macro Off")
+            };
+
+            let master_fill = if self.state.macros_master_enabled {
+                Color32::from_rgb(44, 132, 74)
+            } else {
+                Color32::from_rgb(74, 78, 86)
+            };
+
+            let master_stroke = if self.state.macros_master_enabled {
+                Color32::from_rgb(124, 240, 164)
+            } else {
+                Color32::from_rgb(156, 162, 172)
+            };
+
+            if ui
+                .add_sized(
+                    [120.0, 28.0],
+                    Button::new(RichText::new(master_label).color(Color32::WHITE))
+                        .fill(master_fill)
+                        .stroke(egui::Stroke::new(1.0, master_stroke)),
+                )
+                .clicked()
+            {
+                self.state.macros_master_enabled = !self.state.macros_master_enabled;
+                self.sync_macro_master_enabled();
+                self.persist();
+            }
+
+            let macro_hotkey_capture_target = CaptureRequest::MacrosMasterHotkey;
+            let macro_hotkey_capture_active =
+                self.capture_target.as_ref() == Some(&macro_hotkey_capture_target);
+            let macro_hotkey_preview = if macro_hotkey_capture_active
+                && let Some(pending) = self.capture_hotkey_combo_keys.as_ref()
+            {
+                Some(Self::hotkey_binding_from_combo_keys(pending.clone()))
+            } else {
+                self.state.macros_master_hotkey.clone()
+            };
+            let macro_hotkey_capture_button_text = if macro_hotkey_capture_active {
+                Self::capture_button_text(language, true)
+            } else {
+                Self::material_icon_text(0xe312, 18.0)
+            };
+
+            if ui
+                .add_sized(
+                    if macro_hotkey_capture_active {
+                        [104.0, 28.0]
+                    } else {
+                        [28.0, 28.0]
+                    },
+                    Button::new(macro_hotkey_capture_button_text)
+                        .fill(if macro_hotkey_capture_active {
+                            Color32::from_rgba_premultiplied(72, 156, 116, 120)
+                        } else {
+                            ui.visuals().faint_bg_color
+                        })
+                        .stroke(egui::Stroke::new(
+                            1.0,
+                            if macro_hotkey_capture_active {
+                                Color32::from_rgb(126, 224, 182)
+                            } else {
+                                ui.visuals().widgets.noninteractive.bg_stroke.color
+                            },
+                        )),
+                )
+                .on_hover_text(Self::tr_lang(
+                    language,
+                    "Capture macro hotkey",
+                    "Bat macro hotkey",
+                ))
+                .clicked()
+            {
+                if macro_hotkey_capture_active {
+                    self.cancel_capture();
+                } else {
+                    self.begin_capture(
+                        macro_hotkey_capture_target,
+                        Self::tr_lang(
+                            language,
+                            "Press a hotkey for Macro On / Off.",
+                            "Nhan hotkey de bat / tat Macro.",
+                        )
+                        .to_owned(),
+                    );
+                }
+            }
+
+            if let Some(binding) = macro_hotkey_preview.as_ref() {
+                let label = hotkey::format_binding(Some(binding));
+                ui.add(
+                    Button::new(RichText::new(label).monospace())
+                        .min_size(vec2(0.0, 28.0)),
+                )
+                .on_hover_text(Self::tr_lang(
+                    language,
+                    "Macro hotkey",
+                    "Hotkey macro",
+                ));
+            }
 
 
 
@@ -1476,73 +1580,210 @@ impl CrosshairApp {
 
 
             let paste_enabled = !self.macro_group_clipboard.is_empty();
-
+            let paste_fill = if paste_enabled {
+                Color32::from_rgb(84, 90, 102)
+            } else {
+                ui.visuals().faint_bg_color
+            };
+            let paste_stroke = if paste_enabled {
+                ui.visuals().widgets.active.bg_stroke.color
+            } else {
+                ui.visuals().widgets.noninteractive.bg_stroke.color
+            };
             if ui
-
                 .add_enabled(
-
                     paste_enabled,
-
-                    Button::new(Self::tr_lang(language, "Paste", "Paste"))
-
-                        .min_size(egui::vec2(112.0, 24.0)),
-
+                    Button::new(Self::material_icon_text(0xe14f, 18.0))
+                        .min_size(egui::vec2(28.0, 28.0))
+                        .fill(paste_fill)
+                        .stroke(egui::Stroke::new(1.0, paste_stroke)),
                 )
-
+                .on_hover_text(Self::tr_lang(language, "Paste macro groups", "DÃƒÂ¡n macro group"))
                 .clicked()
-
             {
-
                 self.paste_macro_groups_into_folder(paste_target_folder);
-
             }
-
-
 
             let copy_enabled = !self.selected_macro_groups.is_empty();
-
+            let copy_fill = if copy_enabled {
+                Color32::from_rgb(84, 90, 102)
+            } else {
+                ui.visuals().faint_bg_color
+            };
+            let copy_stroke = if copy_enabled {
+                ui.visuals().widgets.active.bg_stroke.color
+            } else {
+                ui.visuals().widgets.noninteractive.bg_stroke.color
+            };
             if ui
-
                 .add_enabled(
-
                     copy_enabled,
-
-                    Button::new(Self::tr_lang(language, "Copy", "Copy"))
-
-                        .min_size(egui::vec2(112.0, 24.0)),
-
+                    Button::new(Self::material_icon_text(0xe14d, 18.0))
+                        .min_size(egui::vec2(28.0, 28.0))
+                        .fill(copy_fill)
+                        .stroke(egui::Stroke::new(1.0, copy_stroke)),
                 )
-
+                .on_hover_text(Self::tr_lang(
+                    language,
+                    "Copy selected macro groups",
+                    "Sao chÃƒÂ©p macro group Ãƒâ€žÃ¢â‚¬ËœÃƒÂ£ chÃ¡Â»Ân",
+                ))
                 .clicked()
-
             {
-
                 self.copy_selected_macro_groups();
-
             }
 
-
-
             let cut_enabled = !self.selected_macro_groups.is_empty();
+            let cut_fill = if cut_enabled {
+                Color32::from_rgb(84, 90, 102)
+            } else {
+                ui.visuals().faint_bg_color
+            };
+            let cut_stroke = if cut_enabled {
+                ui.visuals().widgets.active.bg_stroke.color
+            } else {
+                ui.visuals().widgets.noninteractive.bg_stroke.color
+            };
+            if ui
+                .add_enabled(
+                    cut_enabled,
+                    Button::new(Self::material_icon_text(0xe14e, 18.0))
+                        .min_size(egui::vec2(28.0, 28.0))
+                        .fill(cut_fill)
+                        .stroke(egui::Stroke::new(1.0, cut_stroke)),
+                )
+                .on_hover_text(Self::tr_lang(
+                    language,
+                    "Cut selected macro groups",
+                    "Cat macro group Ãƒâ€žÃ¢â‚¬ËœÃƒÂ£ chÃ¡Â»Ân",
+                ))
+                .clicked()
+            {
+                self.cut_selected_macro_groups();
+            }
+
+            let star_filter_active = matches!(
+                self.macro_groups_favorite_filter,
+                MacroGroupFavoriteFilter::Star
+            );
+            if ui
+                .add_sized(
+                    [28.0, 28.0],
+                    Button::new(Self::material_icon_text(0xe838, 18.0))
+                        .fill(if star_filter_active {
+                            Color32::from_rgb(124, 96, 28)
+                        } else {
+                            ui.visuals().faint_bg_color
+                        })
+                        .stroke(egui::Stroke::new(
+                            1.0,
+                            if star_filter_active {
+                                Color32::from_rgb(255, 220, 96)
+                            } else {
+                                ui.visuals().widgets.noninteractive.bg_stroke.color
+                            },
+                        )),
+                )
+                .on_hover_text(Self::tr_lang(
+                    language,
+                    "Show star macros only",
+                    "Chi nhÃƒÂ³m Ãƒâ€žÃ¢â‚¬ËœÃƒÂ£ favorite",
+                ))
+                .clicked()
+            {
+                self.macro_groups_favorite_filter = if star_filter_active {
+                    MacroGroupFavoriteFilter::All
+                } else {
+                    MacroGroupFavoriteFilter::Star
+                };
+            }
 
             if ui
-
-                .add_enabled(
-
-                    cut_enabled,
-
-                    Button::new(Self::tr_lang(language, "Cut", "Cut"))
-
-                        .min_size(egui::vec2(112.0, 24.0)),
-
+                .add_sized(
+                    [28.0, 28.0],
+                    Button::new(Self::folder_icon_text(self.macro_folders_panel_open, 18.0))
+                        .fill(if self.macro_folders_panel_open {
+                            Color32::from_rgba_premultiplied(72, 156, 116, 120)
+                        } else {
+                            ui.visuals().faint_bg_color
+                        })
+                        .stroke(egui::Stroke::new(
+                            1.0,
+                            if self.macro_folders_panel_open {
+                                Color32::from_rgb(126, 224, 182)
+                            } else {
+                                ui.visuals().widgets.noninteractive.bg_stroke.color
+                            },
+                        )),
                 )
-
+                .on_hover_text(Self::tr_lang(
+                    language,
+                    "Show / hide macro folders",
+                    "Hien / an macro folder",
+                ))
                 .clicked()
-
             {
+                self.macro_folders_panel_open = !self.macro_folders_panel_open;
+                if !self.macro_folders_panel_open {
+                    self.set_active_macro_folder_view(None);
+                }
+            }
 
-                self.cut_selected_macro_groups();
+            if ui
+                .add_sized(
+                    [28.0, 28.0],
+                    Button::new(Self::material_icon_text(0xe868, 18.0)) // bug icon
+                        .fill(if self.variable_inspector_open {
+                            Color32::from_rgba_premultiplied(72, 156, 116, 120)
+                        } else {
+                            ui.visuals().faint_bg_color
+                        })
+                        .stroke(egui::Stroke::new(
+                            1.0,
+                            if self.variable_inspector_open {
+                                Color32::from_rgb(126, 224, 182)
+                            } else {
+                                ui.visuals().widgets.noninteractive.bg_stroke.color
+                            },
+                        )),
+                )
+                .on_hover_text(Self::tr_lang(
+                    language,
+                    "Variable Inspector / Debugger (Real-time)",
+                    "TrÃƒÆ’Ã‚Â¬nh theo dÃƒÆ’Ã‚Âµi biÃƒÂ¡Ã‚ÂºÃ‚Â¿n thÃ¡Â»Âii gian thÃ¡Â»Â±c (Real-time)",
+                ))
+                .clicked()
+            {
+                self.variable_inspector_open = !self.variable_inspector_open;
+            }
 
+            let trash_enabled = !self.selected_macro_groups.is_empty();
+            let trash_fill = if trash_enabled {
+                Color32::from_rgb(84, 90, 102)
+            } else {
+                ui.visuals().faint_bg_color
+            };
+            let trash_stroke = if trash_enabled {
+                ui.visuals().widgets.active.bg_stroke.color
+            } else {
+                ui.visuals().widgets.noninteractive.bg_stroke.color
+            };
+            if ui
+                .add_enabled(
+                    trash_enabled,
+                    Button::new(Self::material_icon_text(0xe872, 18.0))
+                        .min_size(egui::vec2(28.0, 28.0))
+                        .fill(trash_fill)
+                        .stroke(egui::Stroke::new(1.0, trash_stroke)),
+                )
+                .on_hover_text(Self::tr_lang(
+                    language,
+                    "Delete selected macro groups",
+                    "Xoa cac macro group da chon",
+                ))
+                .clicked()
+            {
+                self.remove_selected_macro_groups();
             }
 
         });
@@ -1614,7 +1855,8 @@ impl CrosshairApp {
 
         }
 
-        ui.horizontal_wrapped(|ui| {
+        if false {
+            ui.horizontal_wrapped(|ui| {
 
             let master_label = if self.state.macros_master_enabled {
 
@@ -2093,6 +2335,7 @@ impl CrosshairApp {
             }
 
         });
+        }
 
         ui.add_space(6.0);
 
@@ -3940,15 +4183,20 @@ impl CrosshairApp {
 
                                             }
 
-                                            let is_preset_active = preset.enabled && group.enabled && folder_enabled;
-                                            let enabled_icon = if is_preset_active { 0xe5ca } else { 0xe835 };
+                                            let is_preset_enabled = preset.enabled;
+                                            let is_preset_active = is_preset_enabled && group.enabled && folder_enabled;
+                                            let enabled_icon = if is_preset_enabled { 0xe5ca } else { 0xe835 };
                                             let enabled_fill = if is_preset_active {
                                                 Color32::from_rgba_premultiplied(72, 156, 116, 120)
+                                            } else if is_preset_enabled {
+                                                Color32::from_rgba_premultiplied(72, 156, 116, 50)
                                             } else {
                                                 ui.visuals().faint_bg_color
                                             };
                                             let enabled_stroke = if is_preset_active {
                                                 Color32::from_rgb(126, 224, 182)
+                                            } else if is_preset_enabled {
+                                                Color32::from_rgb(110, 180, 142)
                                             } else {
                                                 ui.visuals().widgets.noninteractive.bg_stroke.color
                                             };
@@ -8645,26 +8893,33 @@ impl CrosshairApp {
 
 
                                                 let is_preset_active = preset.enabled && group.enabled && folder_enabled;
-                                                let enabled_icon = if step.enabled {
-                                                    let color = if is_preset_active {
-                                                        Color32::from_rgb(0, 255, 170)
-                                                    } else {
-                                                        Color32::from_rgb(0, 150, 100)
-                                                    };
-                                                    Self::material_icon_text(0xe5ca, 16.0).color(color)
-                                                } else {
-                                                    Self::material_icon_text(0xe835, 16.0).color(Color32::from_rgb(180, 180, 180))
-                                                };
-
-                                                let toggle_clicked = ui.scope(|ui| {
+                                                let (toggle_changed, new_enabled) = ui.scope(|ui| {
                                                     ui.visuals_mut().override_text_color = None;
-                                                    ui.add_sized([22.0, 20.0], Button::new(enabled_icon))
-                                                        .on_hover_text(Self::tr_lang(language, "Toggle step enabled", ""))
-                                                        .clicked()
+                                                    let stroke_color = if step.enabled {
+                                                        if is_preset_active {
+                                                            Color32::from_rgb(0, 255, 170)
+                                                        } else {
+                                                            Color32::from_rgb(0, 150, 100)
+                                                        }
+                                                    } else {
+                                                        Color32::from_rgb(130, 130, 130)
+                                                    };
+                                                    ui.visuals_mut().selection.stroke = egui::Stroke::new(2.0, stroke_color);
+                                                    ui.visuals_mut().selection.bg_fill = if step.enabled {
+                                                        stroke_color.linear_multiply(0.2)
+                                                    } else {
+                                                        Color32::TRANSPARENT
+                                                    };
+                                                    ui.visuals_mut().widgets.inactive.fg_stroke = egui::Stroke::new(1.0, stroke_color);
+                                                    ui.visuals_mut().widgets.hovered.fg_stroke = egui::Stroke::new(1.5, stroke_color);
+                                                    let mut checked = step.enabled;
+                                                    let resp = ui.add_sized([22.0, 20.0], egui::Checkbox::new(&mut checked, ""))
+                                                        .on_hover_text(Self::tr_lang(language, "Toggle step enabled", ""));
+                                                    (resp.changed(), checked)
                                                 }).inner;
 
-                                                if toggle_clicked {
-                                                    step.enabled = !step.enabled;
+                                                if toggle_changed {
+                                                    step.enabled = new_enabled;
                                                     live_sync = true;
                                                 }
 
@@ -14143,7 +14398,6 @@ impl CrosshairApp {
         ui.add_space((ui.ctx().screen_rect().height() - 250.0).max(0.0));
 
         });
-
     }
 
 
@@ -14523,8 +14777,3 @@ impl CrosshairApp {
     fn render_variable_suggestions_raw(_ui: &mut egui::Ui, _text: &mut String, _language: UiLanguage) {}
 
 }
-
-
-
-
-
