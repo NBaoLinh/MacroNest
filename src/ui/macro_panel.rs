@@ -3397,7 +3397,13 @@ impl CrosshairApp {
 
                                     TextEdit::singleline(&mut group.name)
                                         .font(egui::FontId::proportional(17.0))
-                                        .margin(egui::Margin::symmetric(4, 0))
+                                        .margin(egui::Margin {
+                                            left: 4,
+                                            right: 4,
+                                            top: 1,
+                                            bottom: 0,
+                                        })
+                                        .text_color(ui.visuals().strong_text_color())
                                         .horizontal_align(egui::Align::Center),
 
                                 );
