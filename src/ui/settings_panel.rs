@@ -1011,7 +1011,7 @@ impl CrosshairApp {
         progress.store(0, Ordering::SeqCst);
 
         let job = std::thread::spawn(move || -> Result<()> {
-            let url = "https://github.com/Baolinh0305/MacroNest/releases/download/v1.0/opencv_world4100.dll";
+            let url = "https://github.com/Baolinh0305/MacroNest/releases/download/tools/opencv_world4100.dll";
             let mut response = reqwest::blocking::get(url)?.error_for_status()?;
             let total_size = response.content_length().unwrap_or(64 * 1024 * 1024);
 
@@ -1045,7 +1045,7 @@ impl CrosshairApp {
         progress.store(0, Ordering::SeqCst);
 
         let job = std::thread::spawn(move || -> Result<()> {
-            let url = "https://github.com/oblitum/Interception/releases/download/v1.0.1/Interception.zip";
+            let url = "https://github.com/Baolinh0305/MacroNest/releases/download/tools/Interception.zip";
             let mut response = reqwest::blocking::get(url)?.error_for_status()?;
             let total_size = response.content_length().unwrap_or(389_119);
 
