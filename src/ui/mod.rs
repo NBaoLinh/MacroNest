@@ -1957,6 +1957,8 @@ impl CrosshairApp {
                 visuals.widgets.active.fg_stroke.color = Color32::from_rgb(16, 24, 38);
                 visuals.widgets.open.fg_stroke.color = Color32::from_rgb(18, 26, 40);
                 visuals.hyperlink_color = Color32::from_rgb(26, 92, 164);
+                visuals.panel_fill = Color32::from_rgb(248, 248, 248);
+                visuals.window_fill = Color32::from_rgb(248, 248, 248);
                 ctx.set_visuals(visuals);
                 ctx.send_viewport_cmd(egui::ViewportCommand::SetTheme(egui::SystemTheme::Light));
             }
