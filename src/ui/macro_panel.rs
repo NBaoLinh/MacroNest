@@ -5825,63 +5825,55 @@ impl CrosshairApp {
 
                                                 } else if step.action == MacroAction::LockKeys {
 
-                                                    ui.vertical(|ui| {
+                                                    let response = ui.add_sized(
 
-                                                        let response = ui.add_sized(
+                                                        [160.0, 22.0],
 
-                                                            [160.0, 22.0],
+                                                        TextEdit::singleline(&mut step.key)
 
-                                                            TextEdit::singleline(&mut step.key)
+                                                            .hint_text(RichText::new("A,S,W,D").color(hint_color).italics()),
 
-                                                                .hint_text(RichText::new("A,S,W,D").color(hint_color).italics()),
+                                                    );
 
-                                                        );
+                                                    Self::apply_vietnamese_input_if_changed(
 
-                                                        Self::apply_vietnamese_input_if_changed(
+                                                        &response,
 
-                                                            &response,
+                                                        self.state.vietnamese_input_enabled,
 
-                                                            self.state.vietnamese_input_enabled,
+                                                        self.state.vietnamese_input_mode,
 
-                                                            self.state.vietnamese_input_mode,
+                                                        &mut step.key,
 
-                                                            &mut step.key,
+                                                    );
 
-                                                        );
+                                                    live_sync |= response.changed();
 
-                                                        live_sync |= response.changed();
+                                                    ui.add_space(4.0);
 
-                                                        ui.add_space(2.0);
+                                                    let unlock_resp = ui.checkbox(&mut step.unlock_on_exit, Self::tr_lang(language, "Unlock when macro ends", ""));
 
-                                                        ui.horizontal(|ui| {
+                                                    if unlock_resp.changed() {
 
-                                                            let unlock_resp = ui.checkbox(&mut step.unlock_on_exit, Self::tr_lang(language, "Unlock when macro ends", ""));
+                                                        live_sync = true;
 
-                                                            if unlock_resp.changed() {
+                                                    }
 
-                                                                live_sync = true;
+                                                    if !step.unlock_on_exit {
 
-                                                            }
+                                                        ui.label(RichText::new("⚠").color(Color32::RED).strong())
 
-                                                            if !step.unlock_on_exit {
+                                                            .on_hover_text(Self::tr_lang(
 
-                                                                ui.label(RichText::new("⚠").color(Color32::RED).strong())
+                                                                language,
 
-                                                                    .on_hover_text(Self::tr_lang(
+                                                                "Warning: Keeping keys locked after the macro ends can make your keyboard unresponsive until manually unlocked!",
 
-                                                                        language,
+                                                                ""
 
-                                                                        "Warning: Keeping keys locked after the macro ends can make your keyboard unresponsive until manually unlocked!",
+                                                            ));
 
-                                                                        ""
-
-                                                                    ));
-
-                                                            }
-
-                                                        });
-
-                                                    });
+                                                    }
 
                                                 } else if step.action == MacroAction::LoopStart {
 
@@ -10677,63 +10669,55 @@ impl CrosshairApp {
 
                                                 } else if step.action == MacroAction::LockKeys {
 
-                                                    ui.vertical(|ui| {
+                                                    let response = ui.add_sized(
 
-                                                        let response = ui.add_sized(
+                                                        [146.0, 18.0],
 
-                                                            [146.0, 18.0],
+                                                        TextEdit::singleline(&mut step.key)
 
-                                                            TextEdit::singleline(&mut step.key)
+                                                            .hint_text(RichText::new(Self::tr_lang(language, "A,S,W,D", "A,S,W,D")).color(hint_color).italics()),
 
-                                                                .hint_text(RichText::new(Self::tr_lang(language, "A,S,W,D", "A,S,W,D")).color(hint_color).italics()),
+                                                    );
 
-                                                        );
+                                                    Self::apply_vietnamese_input_if_changed(
 
-                                                        Self::apply_vietnamese_input_if_changed(
+                                                        &response,
 
-                                                            &response,
+                                                        self.state.vietnamese_input_enabled,
 
-                                                            self.state.vietnamese_input_enabled,
+                                                        self.state.vietnamese_input_mode,
 
-                                                            self.state.vietnamese_input_mode,
+                                                        &mut step.key,
 
-                                                            &mut step.key,
+                                                     );
 
-                                                         );
+                                                     live_sync |= response.changed();
 
-                                                         live_sync |= response.changed();
+                                                    ui.add_space(4.0);
 
-                                                        ui.add_space(2.0);
+                                                    let unlock_resp = ui.checkbox(&mut step.unlock_on_exit, Self::tr_lang(language, "Unlock when macro ends", ""));
 
-                                                        ui.horizontal(|ui| {
+                                                    if unlock_resp.changed() {
 
-                                                            let unlock_resp = ui.checkbox(&mut step.unlock_on_exit, Self::tr_lang(language, "Unlock when macro ends", ""));
+                                                        live_sync = true;
 
-                                                            if unlock_resp.changed() {
+                                                    }
 
-                                                                live_sync = true;
+                                                    if !step.unlock_on_exit {
 
-                                                            }
+                                                        ui.label(RichText::new("⚠").color(Color32::RED).strong())
 
-                                                            if !step.unlock_on_exit {
+                                                            .on_hover_text(Self::tr_lang(
 
-                                                                ui.label(RichText::new("⚠").color(Color32::RED).strong())
+                                                                language,
 
-                                                                    .on_hover_text(Self::tr_lang(
+                                                                "Warning: Keeping keys locked after the macro ends can make your keyboard unresponsive until manually unlocked!",
 
-                                                                        language,
+                                                                ""
 
-                                                                        "Warning: Keeping keys locked after the macro ends can make your keyboard unresponsive until manually unlocked!",
+                                                            ));
 
-                                                                        ""
-
-                                                                    ));
-
-                                                            }
-
-                                                        });
-
-                                                    });
+                                                    }
 
                                                  } else if step.action == MacroAction::LoopStart {
 
