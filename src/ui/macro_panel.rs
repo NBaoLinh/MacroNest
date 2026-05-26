@@ -14676,7 +14676,7 @@ impl CrosshairApp {
                                     );
                                     if response.lost_focus() || response.clicked_elsewhere() {
                                         if let Ok(new_val) = val_str.trim().parse::<i32>() {
-                                            to_update = Some((idx, new_val));
+                                            to_update = Some((name.clone(), new_val));
                                         }
                                     }
 
@@ -14694,13 +14694,13 @@ impl CrosshairApp {
                                     let mut vars = crate::overlay::RUNTIME_VARIABLES.lock();
                                     vars.remove(&removed_name);
                                     self.persist();
-                                }
-
-                                if let Some((idx, new_val)) = to_update {
-                                    self.state.global_constants[idx].1 = new_val;
-                                    let mut vars = crate::overlay::RUNTIME_VARIABLES.lock();
-                                    vars.insert(self.state.global_constants[idx].0.clone(), new_val);
-                                    self.persist();
+                                } else if let Some((name_to_up, new_val)) = to_update {
+                                    if let Some(pos) = self.state.global_constants.iter().position(|(n, _)| n == &name_to_up) {
+                                        self.state.global_constants[pos].1 = new_val;
+                                        let mut vars = crate::overlay::RUNTIME_VARIABLES.lock();
+                                        vars.insert(name_to_up, new_val);
+                                        self.persist();
+                                    }
                                 }
                             });
                     });
@@ -14821,9 +14821,7 @@ impl CrosshairApp {
                                 if let Some(name) = to_remove {
                                     let mut vars = crate::overlay::RUNTIME_VARIABLES.lock();
                                     vars.remove(&name);
-                                }
-
-                                if let Some((name, new_val)) = to_update {
+                                } else if let Some((name, new_val)) = to_update {
                                     let mut vars = crate::overlay::RUNTIME_VARIABLES.lock();
                                     vars.insert(name, new_val);
                                 }
