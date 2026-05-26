@@ -7821,11 +7821,11 @@ impl CrosshairApp {
 
                                          let record_text = if is_recording_this {
 
-                                             Self::tr_lang(language, "Stop", "Dá»«ng")
+                                             Self::tr_lang(language, "Stop", "")
 
                                          } else {
 
-                                             Self::tr_lang(language, "Record", "Ghi")
+                                             Self::tr_lang(language, "Record", "")
 
                                          };
 
@@ -8061,7 +8061,7 @@ impl CrosshairApp {
 
                                              child_ui.add_sized([30.0, 20.0], egui::Label::new(
 
-                                                 RichText::new("Ã¢â€”Â REC")
+                                                 RichText::new("● REC")
 
                                                      .color(dot_color)
 
@@ -8069,7 +8069,7 @@ impl CrosshairApp {
 
                                                      .strong()
 
-                                             )).on_hover_text(Self::tr_lang(language, "Macro recording is active", "Ã„Âang ghi macro"));
+                                             )).on_hover_text(Self::tr_lang(language, "Macro recording is active", ""));
 
                                          }
 

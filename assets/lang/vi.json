@@ -1,4 +1,8 @@
 {
+  "Stop": "Dừng",
+  "Record": "Ghi",
+  "Macro recording is active": "Đang ghi macro",
+  "Record your keyboard and mouse clicks globally to automatically generate macro steps": "Ghi lại thao tác phím và click chuột toàn màn hình để tự động tạo bước macro",
   "EXPRESSION HELP": "Trợ giúp công thức",
   "You can write math expressions and use variables in {}. Math operators + - * / and parentheses () are supported.\nExample: {100 + (A - B) * 2}": "Bạn có thể viết biểu thức toán và sử dụng biến trong ngoặc {}. Hỗ trợ các phép toán + - * / và dấu ngoặc đơn ().\nVí dụ: {100 + (A - B) * 2}",
   "Supported Functions:": "Các hàm được hỗ trợ:",
