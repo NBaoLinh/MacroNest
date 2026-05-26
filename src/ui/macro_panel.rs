@@ -3079,11 +3079,11 @@ impl CrosshairApp {
                     let (icon_btn, name_response, delete_response) = inner_res.inner;
                     ui.ctx().data_mut(|data| data.insert_temp(rect_key, frame_response.rect));
 
-                    let card_response = frame_response.interact(egui::Sense::click());
-                    let card_clicked = card_response.clicked();
+                    let card_hovered = frame_response.hovered();
                     let pointer_in_widgets = ui.rect_contains_pointer(name_response.rect) || ui.rect_contains_pointer(delete_response.rect);
+                    let card_clicked = card_hovered && ui.input(|i| i.pointer.any_click());
                     
-                    if card_response.hovered() && !pointer_in_widgets {
+                    if card_hovered && !pointer_in_widgets {
                         ui.ctx().set_cursor_icon(egui::CursorIcon::PointingHand);
                     }
 
