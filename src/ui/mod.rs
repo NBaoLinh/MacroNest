@@ -6821,7 +6821,7 @@ impl CrosshairApp {
                 let panel_alpha = alpha.saturating_div(3);
                 painter.rect_filled(
                     rect,
-                    0.0,
+                    16.0,
                     Color32::from_rgba_premultiplied(8, 10, 14, alpha.saturating_div(2)),
                 );
                 painter.rect_filled(
@@ -6912,7 +6912,7 @@ impl CrosshairApp {
             1.0 - (1.0 - progress).clamp(0.0, 1.0).powi(2)
         };
         let alpha = ((1.0 - eased).clamp(0.0, 1.0) * 180.0) as u8;
-        painter.rect_filled(rect, 0.0, Color32::from_rgba_premultiplied(6, 8, 12, alpha));
+        painter.rect_filled(rect, 16.0, Color32::from_rgba_premultiplied(6, 8, 12, alpha));
     }
 
 
@@ -7655,6 +7655,7 @@ impl eframe::App for CrosshairApp {
                             Color32::from_rgb(210, 219, 230)
                         },
                     ))
+                    .corner_radius(egui::CornerRadius { nw: 16, ne: 16, se: 0, sw: 0 })
                     .inner_margin(egui::Margin::symmetric(10, 3)),
             )
             .show(ctx, |ui| {
@@ -7932,7 +7933,14 @@ impl eframe::App for CrosshairApp {
             self.clear_pin_preview_cache();
         }
 
-        egui::CentralPanel::default().show(ctx, |ui| {
+        egui::CentralPanel::default()
+            .frame(
+                egui::Frame::new()
+                    .fill(ctx.style().visuals.panel_fill)
+                    .corner_radius(egui::CornerRadius { nw: 0, ne: 0, se: 16, sw: 16 })
+                    .inner_margin(ctx.style().spacing.window_margin)
+            )
+            .show(ctx, |ui| {
             if self.state.active_panel == AppPanel::Macros || self.state.active_panel == AppPanel::Modes {
                 self.render_macro_panel(ui);
                 ui.separator();
