@@ -1110,6 +1110,18 @@ impl CrosshairApp {
 
                     }
 
+                    let is_dark_theme = ui.visuals().dark_mode;
+
+                    let hint_color = if is_dark_theme {
+
+                        Color32::from_rgba_unmultiplied(140, 140, 140, 150)
+
+                    } else {
+
+                        Color32::from_rgba_unmultiplied(100, 100, 100, 150)
+
+                    };
+
                     let command_changed = ui
 
                         .add_sized(
@@ -1120,7 +1132,7 @@ impl CrosshairApp {
 
                                 .desired_rows(3)
 
-                                .hint_text("shutdown /s /t 0"),
+                                .hint_text(RichText::new("shutdown /s /t 0").color(hint_color)),
 
                         )
 
