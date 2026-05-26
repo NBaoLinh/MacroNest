@@ -5206,6 +5206,12 @@ impl CrosshairApp {
         } else {
             self.open_windows.join("\n- ")
         };
+        let shell_type = if preset.use_powershell { "PowerShell" } else { "CMD" };
+        let other_shell = if preset.use_powershell { "CMD" } else { "PowerShell" };
+        let power_rule = format!(
+            "The target environment is configured to use {}. You MUST write the 'command' field specifically as a {} command, NOT a {} command. Do NOT change the 'use_powershell' field in the JSON (keep it as {}).",
+            shell_type, shell_type, other_shell, preset.use_powershell
+        );
         format!(
             "Edit the current MacroNest custom preset for one existing preset.\n\
              \n\
@@ -5220,6 +5226,7 @@ impl CrosshairApp {
              - Use only fields that exist in CommandPreset.\n\
              - Omit any field you do not want to change.\n\
              - Do not invent new fields or prose.\n\
+             - IMPORTANT: {}\n\
              - The command field must be a shell command or PowerShell command string, not a macro step list.\n\
              - If the user asks for a simple task like shutdown, open app, launch file, or run console commands, encode that as the command string.\n\
              - If the user says center or center of the screen, that is not screen coordinate 0,0; that means the middle of the screen.\n\
@@ -5233,6 +5240,7 @@ impl CrosshairApp {
             extra_windows,
             current_preset,
             open_windows,
+            power_rule,
             user_prompt.trim()
         )
     }

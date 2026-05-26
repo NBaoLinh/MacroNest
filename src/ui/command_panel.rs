@@ -63,6 +63,10 @@ impl CrosshairApp {
                         }
                     }
                     ui.add_space(6.0);
+                    changed |= ui.radio_value(&mut preset.use_powershell, false, "CMD").changed();
+                    ui.add_space(4.0);
+                    changed |= ui.radio_value(&mut preset.use_powershell, true, "PowerShell").changed();
+                    ui.add_space(6.0);
                     ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
                         if ui
                             .add_sized(
@@ -98,20 +102,10 @@ impl CrosshairApp {
                     return;
                 }
 
-                if preset.use_powershell {
-                    preset.use_powershell = false;
-                    changed = true;
-                }
-
                 egui::Grid::new((preset.id, "custom-preset-grid"))
                     .num_columns(2)
                     .spacing([14.0, 8.0])
                     .show(ui, |ui| {
-
-
-                        ui.label(Self::tr_lang(language, "Shell", "Shell (Dòng lệnh)"));
-                        ui.label(Self::material_icon_text(0xeb8e, 15.0));
-                        ui.end_row();
 
                         ui.label(Self::tr_lang(language, "Command", "Câu lệnh"));
                         let command_hint = RichText::new(Self::tr_lang(
