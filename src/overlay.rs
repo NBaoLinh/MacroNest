@@ -6303,7 +6303,24 @@ mod windows_overlay {
     }
 
     pub(crate) fn evaluate_math_expression(expr: &str) -> i32 {
-        let expr = expr.trim();
+        let mut expr_str = expr.trim().to_string();
+        if expr_str.is_empty() {
+            return 0;
+        }
+
+        // 1. Vòng lặp giải quyết tất cả dấu ngoặc đơn lồng nhau (innermost first)
+        while let Some(open_idx) = expr_str.rfind('(') {
+            if let Some(close_offset) = expr_str[open_idx..].find(')') {
+                let close_idx = open_idx + close_offset;
+                let sub_expr = &expr_str[open_idx + 1..close_idx];
+                let sub_value = evaluate_math_expression(sub_expr);
+                expr_str.replace_range(open_idx..=close_idx, &sub_value.to_string());
+            } else {
+                expr_str.remove(open_idx);
+            }
+        }
+
+        let expr = expr_str.trim();
         if expr.is_empty() {
             return 0;
         }
@@ -6313,7 +6330,7 @@ mod windows_overlay {
             return val;
         }
 
-        // Tokenize standard arithmetic operators (+, -, *, /)
+        // Tokenize standard arithmetic operators (+, -, *, /) và nhận diện số âm
         let mut tokens = Vec::new();
         let mut current_token = String::new();
         let chars: Vec<char> = expr.chars().collect();
@@ -6326,12 +6343,27 @@ mod windows_overlay {
                     tokens.push(current_token.clone());
                     current_token.clear();
                 }
-            } else if c == '+' || c == '-' || c == '*' || c == '/' {
+            } else if c == '+' || c == '*' || c == '/' {
                 if !current_token.is_empty() {
                     tokens.push(current_token.clone());
                     current_token.clear();
                 }
                 tokens.push(c.to_string());
+            } else if c == '-' {
+                let is_unary = current_token.is_empty() && (
+                    tokens.is_empty() || 
+                    matches!(tokens.last().map(|s| s.as_str()), Some("+") | Some("-") | Some("*") | Some("/"))
+                );
+                
+                if is_unary {
+                    current_token.push(c);
+                } else {
+                    if !current_token.is_empty() {
+                        tokens.push(current_token.clone());
+                        current_token.clear();
+                    }
+                    tokens.push(c.to_string());
+                }
             } else {
                 current_token.push(c);
             }
@@ -6447,6 +6479,17 @@ mod windows_overlay {
             
             // Saturating bounds
             assert_eq!(evaluate_math_expression("2147483647 + 1"), 2147483647);
+
+            // Parentheses support
+            assert_eq!(evaluate_math_expression("10 - (10 + 10)"), -10);
+            assert_eq!(evaluate_math_expression("(2 + 3) * 4"), 20);
+            assert_eq!(evaluate_math_expression("10 - (4 / 2)"), 8);
+            assert_eq!(evaluate_math_expression("((2 + 3) * 2) - 5"), 5);
+            
+            // Unary minus / negative numbers
+            assert_eq!(evaluate_math_expression("10 - -20"), 30);
+            assert_eq!(evaluate_math_expression("-5 + 10"), 5);
+            assert_eq!(evaluate_math_expression("-5 * -2"), 10);
 
             // Variable resolution
             {
