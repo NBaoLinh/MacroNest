@@ -5941,8 +5941,24 @@ impl CrosshairApp {
     }
 
     fn capture_request_accepts_mouse(&self, target: &CaptureRequest) -> bool {
-        let _ = target;
-        false
+        matches!(
+            target,
+            CaptureRequest::MacroPresetHotkey(_, _)
+                | CaptureRequest::MacroPresetRecordHotkey(_, _)
+                | CaptureRequest::MacroPresetReleaseWaitKey(_, _)
+                | CaptureRequest::MacroPresetHoldStopInput(_, _)
+                | CaptureRequest::CommandPresetHotkey(_)
+                | CaptureRequest::WindowPresetHotkey(_)
+                | CaptureRequest::WindowFocusPresetHotkey(_)
+                | CaptureRequest::WindowPresetAnimateHotkey(_)
+                | CaptureRequest::WindowPresetTitlebarHotkey(_)
+                | CaptureRequest::WindowExpandHotkey(_)
+                | CaptureRequest::PinPresetHotkey(_)
+                | CaptureRequest::MouseSensitivityPresetHotkey(_)
+                | CaptureRequest::ZoomPresetHotkey(_)
+                | CaptureRequest::VisionPresetHotkey(_)
+                | CaptureRequest::MacrosMasterHotkey
+        )
     }
 
     fn cancel_capture(&mut self) {
@@ -6609,6 +6625,9 @@ impl CrosshairApp {
             if !accepts_mouse && Self::capture_mouse_vk(vk) {
                 continue;
             }
+            if vk == 0x01 && ctx.input(|i| i.pointer.hover_pos()).is_some() {
+                continue;
+            }
             let pressed = unsafe { (GetAsyncKeyState(vk as i32) as u16 & 0x8000) != 0 };
             if pressed {
                 if self.capture_ignored_keys.contains(&vk) {
@@ -6673,6 +6692,9 @@ impl CrosshairApp {
 
     #[cfg(windows)]
     fn capture_scroll_binding(&self, ctx: &egui::Context) -> Option<crate::model::HotkeyBinding> {
+        if ctx.input(|i| i.pointer.hover_pos()).is_some() {
+            return None;
+        }
         let scroll_y = ctx.input(|input| input.raw_scroll_delta.y);
         if scroll_y.abs() < 0.01 {
             return None;
