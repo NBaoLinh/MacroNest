@@ -1356,44 +1356,7 @@ impl CrosshairApp {
 
         ui.add_space(2.0);
 
-        ui.horizontal_wrapped(|ui| {
-
-            ui.label(Self::material_icon_text(0xe8b6, 18.0));
-
-
-            let response = ui.add_sized(
-
-                [260.0, 24.0],
-
-                TextEdit::singleline(&mut self.macro_preset_search_query).hint_text(
-
-                    RichText::new(Self::tr_lang(
-
-                        language,
-
-                        "Search macro groups and presets",
-
-                        "TÃ¬m group macro vÃƒÂ  preset",
-
-                    ))
-
-                    .weak(),
-
-                ),
-
-            );
-
-            Self::apply_vietnamese_input_if_changed(
-
-                &response,
-
-                self.state.vietnamese_input_enabled,
-
-                self.state.vietnamese_input_mode,
-
-                &mut self.macro_preset_search_query,
-
-            );
+        ui.horizontal(|ui| {
 
             let master_label = if self.state.macros_master_enabled {
                 Self::tr_lang(language, "Macro On", "Macro On")
@@ -1424,6 +1387,31 @@ impl CrosshairApp {
             {
                 self.state.macros_master_enabled = !self.state.macros_master_enabled;
                 self.sync_macro_master_enabled();
+                self.persist();
+            }
+
+            if ui
+                .add_sized(
+                    [28.0, 28.0],
+                    Button::new(Self::material_icon_text(0xe145, 18.0))
+                        .fill(ui.visuals().faint_bg_color)
+                        .stroke(egui::Stroke::new(
+                            1.0,
+                            ui.visuals().widgets.noninteractive.bg_stroke.color,
+                        )),
+                )
+                .on_hover_text(Self::tr_lang(
+                    language,
+                    "Add macro group",
+                    "Them macro group",
+                ))
+                .clicked()
+            {
+                if let Some(folder_id) = active_folder_for_controls {
+                    self.add_macro_group_to_folder(folder_id);
+                } else {
+                    self.add_macro_group();
+                }
                 self.persist();
             }
 
@@ -1498,64 +1486,6 @@ impl CrosshairApp {
                     "Macro hotkey",
                     "Hotkey macro",
                 ));
-            }
-
-
-
-            if active_folder_for_controls.is_none() {
-
-                if Self::sized_button(
-
-                    ui,
-
-                    112.0,
-
-                    Self::tr_lang(language, "+ Add folder", "+ ThÃªm thÆ° má»¥c"),
-
-                )
-
-                .clicked()
-
-                {
-
-                    self.add_macro_folder();
-
-                    self.persist();
-
-                    self.macro_folders_panel_open = true;
-
-                    self.active_macro_folder_view = None;
-
-                }
-
-            }
-
-            if Self::sized_button(
-
-                ui,
-
-                138.0,
-
-                Self::tr_lang(language, "+ Add macro group", "+ ThÃªm macro group"),
-
-            )
-
-            .clicked()
-
-            {
-
-                if let Some(folder_id) = active_folder_for_controls {
-
-                    self.add_macro_group_to_folder(folder_id);
-
-                } else {
-
-                    self.add_macro_group();
-
-                }
-
-                self.persist();
-
             }
             if let Some(folder_id) = active_folder_for_controls
                 && Self::sized_button(
@@ -1662,6 +1592,35 @@ impl CrosshairApp {
                 self.cut_selected_macro_groups();
             }
 
+            let trash_enabled = !self.selected_macro_groups.is_empty();
+            let trash_fill = if trash_enabled {
+                Color32::from_rgb(84, 90, 102)
+            } else {
+                ui.visuals().faint_bg_color
+            };
+            let trash_stroke = if trash_enabled {
+                ui.visuals().widgets.active.bg_stroke.color
+            } else {
+                ui.visuals().widgets.noninteractive.bg_stroke.color
+            };
+            if ui
+                .add_enabled(
+                    trash_enabled,
+                    Button::new(Self::material_icon_text(0xe872, 18.0))
+                        .min_size(egui::vec2(28.0, 28.0))
+                        .fill(trash_fill)
+                        .stroke(egui::Stroke::new(1.0, trash_stroke)),
+                )
+                .on_hover_text(Self::tr_lang(
+                    language,
+                    "Delete selected macro groups",
+                    "Xoa cac macro group da chon",
+                ))
+                .clicked()
+            {
+                self.remove_selected_macro_groups();
+            }
+
             let star_filter_active = matches!(
                 self.macro_groups_favorite_filter,
                 MacroGroupFavoriteFilter::Star
@@ -1757,38 +1716,55 @@ impl CrosshairApp {
                 self.variable_inspector_open = !self.variable_inspector_open;
             }
 
-            let trash_enabled = !self.selected_macro_groups.is_empty();
-            let trash_fill = if trash_enabled {
-                Color32::from_rgb(84, 90, 102)
-            } else {
-                ui.visuals().faint_bg_color
-            };
-            let trash_stroke = if trash_enabled {
-                ui.visuals().widgets.active.bg_stroke.color
-            } else {
-                ui.visuals().widgets.noninteractive.bg_stroke.color
-            };
-            if ui
-                .add_enabled(
-                    trash_enabled,
-                    Button::new(Self::material_icon_text(0xe872, 18.0))
-                        .min_size(egui::vec2(28.0, 28.0))
-                        .fill(trash_fill)
-                        .stroke(egui::Stroke::new(1.0, trash_stroke)),
-                )
-                .on_hover_text(Self::tr_lang(
-                    language,
-                    "Delete selected macro groups",
-                    "Xoa cac macro group da chon",
-                ))
-                .clicked()
-            {
-                self.remove_selected_macro_groups();
+            if self.macro_folders_panel_open {
+                if ui
+                    .add_sized(
+                        [28.0, 28.0],
+                        Button::new(Self::material_icon_text(0xe2cc, 18.0))
+                            .fill(ui.visuals().faint_bg_color)
+                            .stroke(egui::Stroke::new(
+                                1.0,
+                                ui.visuals().widgets.noninteractive.bg_stroke.color,
+                            )),
+                    )
+                    .on_hover_text(Self::tr_lang(
+                        language,
+                        "Add folder",
+                        "Them thu muc",
+                    ))
+                    .clicked()
+                {
+                    self.add_macro_folder();
+                    self.persist();
+                    self.macro_folders_panel_open = true;
+                    self.active_macro_folder_view = None;
+                }
             }
 
+            ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
+                let response = ui.add_sized(
+                    [260.0, 24.0],
+                    TextEdit::singleline(&mut self.macro_preset_search_query).hint_text(
+                        RichText::new(Self::tr_lang(
+                            language,
+                            "Search macro groups and presets",
+                            "Tìm group macro và preset",
+                        ))
+                        .weak(),
+                    ),
+                );
+
+                ui.label(Self::material_icon_text(0xe8b6, 18.0));
+
+                Self::apply_vietnamese_input_if_changed(
+                    &response,
+                    self.state.vietnamese_input_enabled,
+                    self.state.vietnamese_input_mode,
+                    &mut self.macro_preset_search_query,
+                );
+            });
+
         });
-
-
 
         ui.add_space(8.0);
 
