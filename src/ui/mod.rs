@@ -4703,6 +4703,7 @@ impl CrosshairApp {
                 ui.layer_id(),
                 response.id.with("instant-tip"),
                 |ui| {
+                    ui.set_max_width(280.0);
                     ui.label(text.into());
                 },
             );
