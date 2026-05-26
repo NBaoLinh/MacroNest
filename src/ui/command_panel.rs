@@ -58,7 +58,8 @@ impl CrosshairApp {
                     {
                         let command_text = ai::normalize_command_text(&preset.command);
                         if !command_text.is_empty() {
-                            crate::overlay::spawn_custom_command(preset.use_powershell, command_text);
+                            preset.run_output = Some(Self::tr_lang(language, "Running command...", "Đang chạy câu lệnh...").to_string());
+                            crate::overlay::spawn_custom_command(Some(preset.id), preset.use_powershell, command_text);
                         }
                     }
                     ui.add_space(6.0);
@@ -130,6 +131,41 @@ impl CrosshairApp {
                             .changed();
                         ui.end_row();
                     });
+
+                let mut clear_output = false;
+                if let Some(ref output) = preset.run_output {
+                    ui.add_space(8.0);
+                    ui.horizontal(|ui| {
+                        ui.label(RichText::new(Self::tr_lang(language, "Output:", "Kết quả:")).strong());
+                        if ui.button(Self::tr_lang(language, "Clear", "Xóa")).clicked() {
+                            clear_output = true;
+                        }
+                    });
+                    ui.add_space(4.0);
+                    egui::Frame::canvas(ui.style())
+                        .fill(Color32::from_rgb(25, 25, 25))
+                        .stroke(egui::Stroke::new(1.0, Color32::from_rgb(60, 60, 60)))
+                        .corner_radius(4.0)
+                        .show(ui, |ui| {
+                            ui.set_clip_rect(ui.available_rect_before_wrap());
+                            egui::ScrollArea::vertical()
+                                .max_height(120.0)
+                                .show(ui, |ui| {
+                                    ui.add(
+                                        egui::Label::new(
+                                            RichText::new(output)
+                                                .monospace()
+                                                .color(Color32::from_rgb(220, 220, 220))
+                                        )
+                                        .wrap()
+                                    );
+                                });
+                        });
+                }
+                if clear_output {
+                    preset.run_output = None;
+                    changed = true;
+                }
             });
         }
 

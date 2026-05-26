@@ -411,6 +411,10 @@ mod windows_overlay {
         UpdateError(String),
         UpdateUpToDate,
         SetInterceptionStatus(String),
+        CustomCommandResult {
+            preset_id: u32,
+            output: String,
+        },
         AudioWaveformLoaded {
             path: String,
             waveform: Vec<f32>,
@@ -4583,7 +4587,7 @@ mod windows_overlay {
         window_preset::apply_window_preset_by_id(spec)
     }
 
-    pub fn spawn_custom_command(use_powershell: bool, command_text: String) {
+    pub fn spawn_custom_command(preset_id: Option<u32>, use_powershell: bool, command_text: String) {
         let command_text = interpolate_variables(&command_text);
         thread::spawn(move || {
             let mut command = if use_powershell {
@@ -4603,15 +4607,42 @@ mod windows_overlay {
                 cmd.raw_arg(format!("/C {}", command_text));
                 cmd
             };
-            match command
+            let output_res = command
                 .creation_flags(CREATE_NO_WINDOW.0)
-                .spawn() {
-                Ok(_) => {
-                    println!("Successfully spawned custom command: {}", command_text);
+                .output();
+
+            let text = match output_res {
+                Ok(out) => {
+                    let stdout = String::from_utf8_lossy(&out.stdout);
+                    let stderr = String::from_utf8_lossy(&out.stderr);
+                    let mut combined = String::new();
+                    if !stdout.is_empty() {
+                        combined.push_str(&stdout);
+                    }
+                    if !stderr.is_empty() {
+                        if !combined.is_empty() {
+                            combined.push_str("\n");
+                        }
+                        combined.push_str("Error:\n");
+                        combined.push_str(&stderr);
+                    }
+                    if combined.is_empty() {
+                        combined = if out.status.success() {
+                            "Command finished successfully with no output.".to_owned()
+                        } else {
+                            format!("Command exited with status code: {}", out.status.code().unwrap_or(-1))
+                        };
+                    }
+                    combined
                 }
-                Err(e) => {
-                    eprintln!("Failed to spawn custom command: {}, error: {}", command_text, e);
-                }
+                Err(e) => format!("Failed to execute command: {}", e),
+            };
+
+            if let Some(id) = preset_id {
+                send_ui_command(UiCommand::CustomCommandResult {
+                    preset_id: id,
+                    output: text,
+                });
             }
         });
     }
@@ -4661,7 +4692,7 @@ mod windows_overlay {
             bail!("Custom preset command is empty");
         }
 
-        spawn_custom_command(preset.use_powershell, command_text);
+        spawn_custom_command(Some(preset.id), preset.use_powershell, command_text);
         Ok(())
     }
 
@@ -4715,7 +4746,7 @@ mod windows_overlay {
                 bail!("Custom preset command is empty");
             }
 
-            spawn_custom_command(preset.use_powershell, command_text);
+            spawn_custom_command(Some(preset.id), preset.use_powershell, command_text);
             return Ok(());
         }
 
@@ -4723,7 +4754,7 @@ mod windows_overlay {
         if command_text.is_empty() {
             bail!("Custom preset was not found");
         }
-        spawn_custom_command(step.command_preset_use_powershell, command_text);
+        spawn_custom_command(None, step.command_preset_use_powershell, command_text);
         Ok(())
     }
 
@@ -11018,6 +11049,10 @@ mod fallback {
         VisionFinished(String),
         VisionPointCaptureCancelled(String),
         MacroRealtimeStepRemoved(u32, u32),
+        CustomCommandResult {
+            preset_id: u32,
+            output: String,
+        },
     }
 
     pub struct OverlayHandle;
@@ -11028,7 +11063,7 @@ mod fallback {
 
     pub fn wake_command_queue() {}
 
-    pub fn spawn_custom_command(_use_powershell: bool, _command_text: String) {}
+    pub fn spawn_custom_command(_preset_id: Option<u32>, _use_powershell: bool, _command_text: String) {}
 
     pub fn start(
         _paths: AppPaths,

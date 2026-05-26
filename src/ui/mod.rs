@@ -7446,6 +7446,12 @@ impl eframe::App for CrosshairApp {
                 UiCommand::SetInterceptionStatus(status) => {
                     self.interception_status = status;
                 }
+                UiCommand::CustomCommandResult { preset_id, output } => {
+                    if let Some(preset) = self.state.command_presets.iter_mut().find(|p| p.id == preset_id) {
+                        preset.run_output = Some(output);
+                    }
+                    ctx.request_repaint();
+                }
                 UiCommand::AudioWaveformLoaded { path, waveform, duration_ms } => {
                     self.audio_waveforms.insert(path.clone(), waveform);
                     for preset in &mut self.state.audio_settings.presets {

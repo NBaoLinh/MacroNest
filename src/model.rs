@@ -1131,6 +1131,8 @@ pub struct CommandPreset {
     pub match_duplicate_window_titles: bool,
     pub use_powershell: bool,
     pub command: String,
+    #[serde(skip)]
+    pub run_output: Option<String>,
 }
 
 impl CommandPreset {
@@ -1146,6 +1148,7 @@ impl CommandPreset {
             match_duplicate_window_titles: true,
             use_powershell: false,
             command: String::new(),
+            run_output: None,
         }
     }
 }
