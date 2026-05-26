@@ -781,6 +781,12 @@ impl CrosshairApp {
         app.sync_macro_master_enabled();
         app.sync_vietnamese_input_enabled();
         app.sync_macro_master_hotkey();
+        {
+            let mut vars = crate::overlay::RUNTIME_VARIABLES.lock();
+            for (name, val) in &app.state.global_constants {
+                vars.insert(name.clone(), *val);
+            }
+        }
         app
     }
 
@@ -7189,29 +7195,6 @@ impl eframe::App for CrosshairApp {
     }
 
     fn update(&mut self, ctx: &egui::Context, frame: &mut eframe::Frame) {
-        // Sync global constants to RUNTIME_VARIABLES at the start of each frame
-        {
-            let mut vars = crate::overlay::RUNTIME_VARIABLES.lock();
-            for (name, val) in &self.state.global_constants {
-                vars.insert(name.clone(), *val);
-            }
-        }
-
-        unsafe {
-            if let Some(hwnd) = crate::overlay::find_app_ui_window_for_ui_thread() {
-                let visible = windows::Win32::UI::WindowsAndMessaging::IsWindowVisible(hwnd).as_bool();
-                let mut rect = windows::Win32::Foundation::RECT::default();
-                if visible && windows::Win32::UI::WindowsAndMessaging::GetWindowRect(hwnd, &mut rect).is_ok() {
-                    let is_foreground = ctx.input(|i| i.viewport().focused == Some(true));
-                    crate::overlay::update_ui_window_metrics(true, is_foreground, rect.left, rect.top, rect.right, rect.bottom);
-                } else {
-                    crate::overlay::update_ui_window_metrics(false, false, 0, 0, 0, 0);
-                }
-            } else {
-                crate::overlay::update_ui_window_metrics(false, false, 0, 0, 0, 0);
-            }
-        }
-
         if matches!(self.state.active_panel, AppPanel::Zoom | AppPanel::Modes) {
             self.state.active_panel = AppPanel::Pin;
         }
