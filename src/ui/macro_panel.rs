@@ -9251,9 +9251,9 @@ impl CrosshairApp {
                                                     ));
                                                     ui.add_space(4.0);
                                                     ui.label(egui::RichText::new(Self::tr_lang(language, "Supported Functions:", "")).strong());
-                                                    ui.label(Self::tr_lang(language, "• random(min, max): Generate random delay.", ""));
-                                                    ui.label(Self::tr_lang(language, "• min(a, b) / max(a, b): Minimum / Maximum value.", ""));
-                                                    ui.label(Self::tr_lang(language, "• abs(a): Absolute value.", ""));
+                                                    ui.label(egui::RichText::new("• random(min, max)").monospace());
+                                                    ui.label(egui::RichText::new("• min(a, b)  •  max(a, b)").monospace());
+                                                    ui.label(egui::RichText::new("• abs(a)").monospace());
                                                 });
                                             }
                                             ui.add_space(4.0);
