@@ -1477,15 +1477,22 @@ impl CrosshairApp {
 
             if let Some(binding) = macro_hotkey_preview.as_ref() {
                 let label = hotkey::format_binding(Some(binding));
-                ui.add(
-                    Button::new(RichText::new(label).monospace())
-                        .min_size(vec2(0.0, 28.0)),
-                )
-                .on_hover_text(Self::tr_lang(
-                    language,
-                    "Macro hotkey",
-                    "Hotkey macro",
-                ));
+                if ui
+                    .add(
+                        Button::new(RichText::new(label).monospace())
+                            .min_size(vec2(0.0, 28.0)),
+                    )
+                    .on_hover_text(Self::tr_lang(
+                        language,
+                        "Click to remove this hotkey",
+                        "Bấm để xóa hotkey này",
+                    ))
+                    .clicked()
+                {
+                    self.state.macros_master_hotkey = None;
+                    self.sync_macro_master_hotkey();
+                    self.persist();
+                }
             }
 
             let share_icon = 0xe80d; // Material icon for share
