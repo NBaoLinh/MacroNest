@@ -516,6 +516,7 @@ pub struct CrosshairApp {
     macro_group_clipboard_is_cut: bool,
     macro_preset_clipboard: Option<MacroPreset>,
     macro_step_clipboard: Vec<MacroStep>,
+    pending_macro_group_scroll_target: Option<u32>,
     crosshair_profile_clipboard: Option<ProfileRecord>,
     crosshair_editor_dirty: bool,
     crosshair_preview_last_sync_at: Option<Instant>,
@@ -667,6 +668,7 @@ impl CrosshairApp {
             macro_group_clipboard_is_cut: false,
             macro_preset_clipboard: None,
             macro_step_clipboard: Vec::new(),
+            pending_macro_group_scroll_target: None,
             crosshair_profile_clipboard: None,
             crosshair_editor_dirty: false,
             crosshair_preview_last_sync_at: None,
@@ -5113,6 +5115,7 @@ impl CrosshairApp {
         self.state.next_macro_preset_id = preset_id + 1;
         group.presets = vec![MacroPreset::new(preset_id)];
         self.state.macro_groups.push(group);
+        self.pending_macro_group_scroll_target = Some(id);
         self.reconcile_master_presets();
         self.sync_macro_presets();
         self.status = format!("Added macro group {id}.");
@@ -5577,6 +5580,7 @@ impl CrosshairApp {
         self.state.next_macro_preset_id = preset_id + 1;
         group.presets = vec![MacroPreset::new(preset_id)];
         self.state.macro_groups.push(group);
+        self.pending_macro_group_scroll_target = Some(id);
         self.reconcile_master_presets();
         self.sync_macro_presets();
         self.status = format!("Added macro group {id} to folder.");

@@ -1780,6 +1780,8 @@ impl CrosshairApp {
 
 
         let macro_panel_scroll_height = ui.available_height() - 10.0;
+        let pending_macro_group_scroll_target = self.pending_macro_group_scroll_target.take();
+        let mut pending_macro_group_scroll_consumed = false;
 
         egui::ScrollArea::vertical()
             .auto_shrink([false, false])
@@ -3039,6 +3041,7 @@ impl CrosshairApp {
                     let all_presets: Vec<(u32, String)> = self.state.macro_groups.iter().flat_map(|g| &g.presets).map(|p| (p.id, Self::format_macro_trigger_ui(language, p))).collect();
 
                     let group = &mut self.state.macro_groups[group_index];
+                    let should_scroll_to_group = pending_macro_group_scroll_target == Some(group.id);
 
                     let folder_enabled = true;
 
@@ -3600,6 +3603,11 @@ impl CrosshairApp {
                             );
 
                         });
+
+                        if should_scroll_to_group {
+                            ui.scroll_to_cursor(Some(egui::Align::Center));
+                            pending_macro_group_scroll_consumed = true;
+                        }
 
                         if group.collapsed {
 
@@ -14372,6 +14380,10 @@ impl CrosshairApp {
 
 
         ui.add_space((ui.ctx().screen_rect().height() - 250.0).max(0.0));
+
+        if !pending_macro_group_scroll_consumed {
+            self.pending_macro_group_scroll_target = pending_macro_group_scroll_target;
+        }
 
         });
     }
