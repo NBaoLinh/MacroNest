@@ -14,7 +14,7 @@ mod windows_platform {
             Graphics::Dwm::{
                 DWMNCRP_DISABLED, DWMNCRP_ENABLED, DWMWA_NCRENDERING_POLICY,
                 DWMWA_WINDOW_CORNER_PREFERENCE, DWMWCP_DEFAULT, DWMWCP_ROUND,
-                DwmSetWindowAttribute,
+                DWMWCP_DONOTROUND, DwmSetWindowAttribute,
             },
             System::Threading::{
                 CreateMutexW, GetCurrentProcess, HIGH_PRIORITY_CLASS, SetPriorityClass,
@@ -209,7 +209,7 @@ mod windows_platform {
             );
 
             let corner = if enabled {
-                DWMWCP_ROUND
+                DWMWCP_DONOTROUND
             } else {
                 DWMWCP_DEFAULT
             };
