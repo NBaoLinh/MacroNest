@@ -6628,9 +6628,6 @@ impl CrosshairApp {
             if !accepts_mouse && Self::capture_mouse_vk(vk) {
                 continue;
             }
-            if vk == 0x01 && ctx.input(|i| i.pointer.hover_pos()).is_some() {
-                continue;
-            }
             let pressed = unsafe { (GetAsyncKeyState(vk as i32) as u16 & 0x8000) != 0 };
             if pressed {
                 if self.capture_ignored_keys.contains(&vk) {
