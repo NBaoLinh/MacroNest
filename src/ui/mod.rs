@@ -7045,7 +7045,9 @@ impl CrosshairApp {
     }
 
     fn render_custom_window_border(&self, ctx: &egui::Context) {
-        let rect = ctx.content_rect().shrink(0.5);
+        let mut rect = ctx.content_rect().shrink(0.5);
+        rect.max.x -= 1.0;
+        rect.max.y -= 1.0;
 
         let stroke = if self.state.ui_theme == UiThemeMode::Dark {
             egui::Stroke::new(1.4, Color32::from_rgb(64, 84, 108))
