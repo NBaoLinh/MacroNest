@@ -2522,7 +2522,7 @@ impl CrosshairApp {
 
         let mut renamed_folder: Option<(u32, String)> = None;
 
-        let mut toggle_folder_enabled_id = None;
+        let mut toggle_folder_enabled_id: Option<u32> = None;
 
         let mut pending_custom_preset_save: Option<(
 
@@ -2598,9 +2598,7 @@ impl CrosshairApp {
 
                     let mut folder_name = folder.name.clone();
 
-                    let card_active = folder.enabled && folder_has_enabled_content;
-
-                    Self::show_preset_card(ui, card_active, |ui| {
+                    Self::show_folder_card(ui, |ui| {
 
                         ui.horizontal(|ui| {
 
@@ -2622,13 +2620,7 @@ impl CrosshairApp {
 
                             }
 
-                            let mut folder_enabled = folder.enabled;
-
-                            if ui.checkbox(&mut folder_enabled, "").changed() {
-
-                                toggle_folder_enabled_id = Some(folder_id);
-
-                            }
+                            
 
                             let response =
 
@@ -2829,16 +2821,7 @@ impl CrosshairApp {
 
                     let group = &mut self.state.macro_groups[group_index];
 
-                    let folder_enabled = if let Some(folder_id) = group.folder_id {
-                        self.state
-                            .macro_folders
-                            .iter()
-                            .find(|f| f.id == folder_id)
-                            .map(|f| f.enabled)
-                            .unwrap_or(true)
-                    } else {
-                        true
-                    };
+                    let folder_enabled = true;
 
                     Self::show_preset_card(ui, group.enabled && folder_enabled, |ui| {
 
@@ -14155,18 +14138,7 @@ impl CrosshairApp {
 
         }
 
-        if let Some(folder_id) = toggle_folder_enabled_id {
-            if let Some(folder) = self
-                .state
-                .macro_folders
-                .iter_mut()
-                .find(|folder| folder.id == folder_id)
-            {
-                folder.enabled = !folder.enabled;
-                self.persist();
-                self.sync_macro_presets();
-            }
-        }
+        
 
 
 

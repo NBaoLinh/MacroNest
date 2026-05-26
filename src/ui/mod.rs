@@ -818,15 +818,6 @@ impl CrosshairApp {
 
     fn sync_macro_presets(&self) {
         let mut macro_groups = self.state.macro_groups.clone();
-        for group in &mut macro_groups {
-            if let Some(folder_id) = group.folder_id {
-                if let Some(folder) = self.state.macro_folders.iter().find(|f| f.id == folder_id) {
-                    if !folder.enabled {
-                        group.enabled = false;
-                    }
-                }
-            }
-        }
         Self::sort_macro_groups(&mut macro_groups);
         let _ = self
             .overlay_tx
@@ -1749,6 +1740,33 @@ impl CrosshairApp {
         egui::Frame::group(ui.style())
             .fill(fill)
             .stroke(egui::Stroke::new(1.0, stroke_color))
+    }
+
+    fn folder_frame(ui: &egui::Ui) -> egui::Frame {
+        let fill = Color32::from_rgba_premultiplied(100, 60, 20, 100);
+        let stroke_color = Color32::from_rgb(220, 130, 45);
+        egui::Frame::group(ui.style())
+            .fill(fill)
+            .stroke(egui::Stroke::new(1.0, stroke_color))
+    }
+
+    fn show_folder_card<R>(
+        ui: &mut egui::Ui,
+        add_contents: impl FnOnce(&mut egui::Ui) -> R,
+    ) -> R {
+        let dark_mode = ui.visuals().dark_mode;
+        Self::folder_frame(ui)
+            .show(ui, |ui| {
+                ui.set_min_width(ui.available_width());
+                let previous = ui.visuals().override_text_color;
+                if dark_mode {
+                    ui.visuals_mut().override_text_color = Some(Color32::from_rgb(255, 240, 220));
+                }
+                let output = add_contents(ui);
+                ui.visuals_mut().override_text_color = previous;
+                output
+            })
+            .inner
     }
 
     fn preset_body_text_color(dark_mode: bool, enabled: bool) -> Color32 {
