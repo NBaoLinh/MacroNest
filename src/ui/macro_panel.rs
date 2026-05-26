@@ -3689,15 +3689,15 @@ impl CrosshairApp {
 
 
 
-                                        if Self::sized_button(
+                                        if Self::sound_style_icon_button(
 
                                             ui,
 
-                                            92.0,
-
-                                            Self::tr_lang(language, "+ Preset", "+ Preset"),
+                                            Self::material_icon_text(0xe145, 18.0),
 
                                         )
+
+                                        .on_hover_text(Self::tr_lang(language, "Add Preset", "Thêm Preset"))
 
                                         .clicked()
 
