@@ -3395,7 +3395,8 @@ impl CrosshairApp {
 
                                     [name_width, 24.0],
 
-                                    TextEdit::singleline(&mut group.name),
+                                    TextEdit::singleline(&mut group.name)
+                                        .font(egui::FontId::proportional(17.0)),
 
                                 );
 
