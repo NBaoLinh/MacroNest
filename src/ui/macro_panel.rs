@@ -1445,7 +1445,7 @@ impl CrosshairApp {
                 && Self::sized_button(
                     ui,
                     138.0,
-                    Self::tr_lang(language, "Enable All Groups", "Báº­t táº¥t cáº£ group"),
+                    Self::tr_lang(language, "Enable All Groups", ""),
                 )
                 .clicked()
             {
@@ -4027,7 +4027,7 @@ impl CrosshairApp {
 
                                                     "Enable / disable preset",
 
-                                                    "Báº­t / táº¯t macro",
+                                                    "",
 
                                                 ))
 
@@ -4511,9 +4511,9 @@ impl CrosshairApp {
 
                                                     language,
 
-                                                    "ðŸ”„ Toggle self enabled on run",
+                                                    "🔄 Toggle self enabled on run",
 
-                                                    "ðŸ”„ TÃ¡Â»Â± Ä‘á»™ng bÃ¡ÂºÂ­t/táº¯t bÆ°á»›c khi chÃ¡ÂºÂ¡y"
+                                                    ""
 
                                                 )).changed();
 
@@ -5797,7 +5797,7 @@ impl CrosshairApp {
 
                                                         });
 
-                                                } else if matches!(step.action, MacroAction::LockKeys | MacroAction::UnlockKeys) {
+                                                } else if step.action == MacroAction::UnlockKeys {
 
                                                     let response = ui.add_sized(
 
@@ -5822,6 +5822,66 @@ impl CrosshairApp {
                                                     );
 
                                                     live_sync |= response.changed();
+
+                                                } else if step.action == MacroAction::LockKeys {
+
+                                                    ui.vertical(|ui| {
+
+                                                        let response = ui.add_sized(
+
+                                                            [160.0, 22.0],
+
+                                                            TextEdit::singleline(&mut step.key)
+
+                                                                .hint_text(RichText::new("A,S,W,D").color(hint_color).italics()),
+
+                                                        );
+
+                                                        Self::apply_vietnamese_input_if_changed(
+
+                                                            &response,
+
+                                                            self.state.vietnamese_input_enabled,
+
+                                                            self.state.vietnamese_input_mode,
+
+                                                            &mut step.key,
+
+                                                        );
+
+                                                        live_sync |= response.changed();
+
+                                                        ui.add_space(2.0);
+
+                                                        ui.horizontal(|ui| {
+
+                                                            let unlock_resp = ui.checkbox(&mut step.unlock_on_exit, Self::tr_lang(language, "Unlock when macro ends", ""));
+
+                                                            if unlock_resp.changed() {
+
+                                                                live_sync = true;
+
+                                                            }
+
+                                                            if !step.unlock_on_exit {
+
+                                                                ui.label(RichText::new("⚠").color(Color32::RED).strong())
+
+                                                                    .on_hover_text(Self::tr_lang(
+
+                                                                        language,
+
+                                                                        "Warning: Keeping keys locked after the macro ends can make your keyboard unresponsive until manually unlocked!",
+
+                                                                        ""
+
+                                                                    ));
+
+                                                            }
+
+                                                        });
+
+                                                    });
 
                                                 } else if step.action == MacroAction::LoopStart {
 
@@ -6426,7 +6486,7 @@ impl CrosshairApp {
 
                                                         ui.horizontal(|ui| {
 
-                                                            let response = ui.checkbox(&mut step.lock_mouse_left, Self::tr_lang(language, "All", "Táº¯t háº¿t"));
+                                                            let response = ui.checkbox(&mut step.lock_mouse_left, Self::tr_lang(language, "All", ""));
 
                                                             live_sync |= response.changed();
 
@@ -6488,7 +6548,7 @@ impl CrosshairApp {
 
                                                         ui.horizontal(|ui| {
 
-                                                            let response = ui.checkbox(&mut step.lock_mouse_left, Self::tr_lang(language, "All", "Táº¯t háº¿t"));
+                                                            let response = ui.checkbox(&mut step.lock_mouse_left, Self::tr_lang(language, "All", ""));
 
                                                             live_sync |= response.changed();
 
@@ -6552,7 +6612,7 @@ impl CrosshairApp {
 
                                                     });
 
-                                                } else if matches!(step.action, MacroAction::DisableZoom | MacroAction::Else | MacroAction::IfEnd | MacroAction::HideHud | MacroAction::LockMouse | MacroAction::UnlockMouse) {
+                                                } else if matches!(step.action, MacroAction::DisableZoom | MacroAction::Else | MacroAction::IfEnd | MacroAction::HideHud | MacroAction::UnlockMouse) {
 
                                                     ui.add_sized(
 
@@ -6561,6 +6621,36 @@ impl CrosshairApp {
                                                         egui::Label::new(Self::tr_lang(language, "No input", "No input")),
 
                                                     );
+
+                                                } else if step.action == MacroAction::LockMouse {
+
+                                                    ui.horizontal(|ui| {
+
+                                                        let unlock_resp = ui.checkbox(&mut step.unlock_on_exit, Self::tr_lang(language, "Unlock when macro ends", ""));
+
+                                                        if unlock_resp.changed() {
+
+                                                            live_sync = true;
+
+                                                        }
+
+                                                        if !step.unlock_on_exit {
+
+                                                            ui.label(RichText::new("⚠").color(Color32::RED).strong())
+
+                                                                .on_hover_text(Self::tr_lang(
+
+                                                                    language,
+
+                                                                    "Warning: Keeping mouse locked after the macro ends can make your mouse unresponsive until manually unlocked!",
+
+                                                                    ""
+
+                                                                ));
+
+                                                        }
+
+                                                    });
 
                                                 } else if step.action == MacroAction::IfStart {
 
@@ -7369,9 +7459,9 @@ impl CrosshairApp {
 
                                                         language,
 
-                                                        "Báº¯t phÃ­m giá»¯",
+                                                        "Capture hold stop key",
 
-                                                        "Báº¯t phÃ­m cho action khi dÃ¡Â»Â«ng giá»¯",
+                                                        "",
 
                                                     ))
 
@@ -8597,7 +8687,7 @@ impl CrosshairApp {
 
                                                     .add_sized([22.0, 20.0], Button::new(enabled_icon))
 
-                                                    .on_hover_text(Self::tr_lang(language, "Toggle step enabled", "Báº­t/Táº¯t bÆ°á»›c nÃƒÂ y"))
+                                                    .on_hover_text(Self::tr_lang(language, "Toggle step enabled", ""))
 
                                                     .clicked()
 
@@ -9121,9 +9211,9 @@ impl CrosshairApp {
 
                                                         language,
 
-                                                        "ðŸ”„ Toggle self enabled on run",
+                                                        "🔄 Toggle self enabled on run",
 
-                                                        "ðŸ”„ TÃ¡Â»Â± Ä‘á»™ng bÃ¡ÂºÂ­t/táº¯t bÆ°á»›c khi chÃ¡ÂºÂ¡y"
+                                                        ""
 
                                                     )).changed();
 
@@ -10559,7 +10649,7 @@ impl CrosshairApp {
 
                                                     }
 
-                                                } else if matches!(step.action, MacroAction::LockKeys | MacroAction::UnlockKeys) {
+                                                } else if step.action == MacroAction::UnlockKeys {
 
                                                     let response = ui.add_sized(
 
@@ -10584,6 +10674,66 @@ impl CrosshairApp {
                                                      );
 
                                                      live_sync |= response.changed();
+
+                                                } else if step.action == MacroAction::LockKeys {
+
+                                                    ui.vertical(|ui| {
+
+                                                        let response = ui.add_sized(
+
+                                                            [146.0, 18.0],
+
+                                                            TextEdit::singleline(&mut step.key)
+
+                                                                .hint_text(RichText::new(Self::tr_lang(language, "A,S,W,D", "A,S,W,D")).color(hint_color).italics()),
+
+                                                        );
+
+                                                        Self::apply_vietnamese_input_if_changed(
+
+                                                            &response,
+
+                                                            self.state.vietnamese_input_enabled,
+
+                                                            self.state.vietnamese_input_mode,
+
+                                                            &mut step.key,
+
+                                                         );
+
+                                                         live_sync |= response.changed();
+
+                                                        ui.add_space(2.0);
+
+                                                        ui.horizontal(|ui| {
+
+                                                            let unlock_resp = ui.checkbox(&mut step.unlock_on_exit, Self::tr_lang(language, "Unlock when macro ends", ""));
+
+                                                            if unlock_resp.changed() {
+
+                                                                live_sync = true;
+
+                                                            }
+
+                                                            if !step.unlock_on_exit {
+
+                                                                ui.label(RichText::new("⚠").color(Color32::RED).strong())
+
+                                                                    .on_hover_text(Self::tr_lang(
+
+                                                                        language,
+
+                                                                        "Warning: Keeping keys locked after the macro ends can make your keyboard unresponsive until manually unlocked!",
+
+                                                                        ""
+
+                                                                    ));
+
+                                                            }
+
+                                                        });
+
+                                                    });
 
                                                  } else if step.action == MacroAction::LoopStart {
 
@@ -11164,7 +11314,7 @@ impl CrosshairApp {
 
                                                         ui.horizontal(|ui| {
 
-                                                            let response = ui.checkbox(&mut step.lock_mouse_left, Self::tr_lang(language, "All", "Táº¯t háº¿t"));
+                                                            let response = ui.checkbox(&mut step.lock_mouse_left, Self::tr_lang(language, "All", ""));
 
                                                             live_sync |= response.changed();
 
@@ -11226,7 +11376,7 @@ impl CrosshairApp {
 
                                                         ui.horizontal(|ui| {
 
-                                                            let response = ui.checkbox(&mut step.lock_mouse_left, Self::tr_lang(language, "All", "Táº¯t háº¿t"));
+                                                            let response = ui.checkbox(&mut step.lock_mouse_left, Self::tr_lang(language, "All", ""));
 
                                                             live_sync |= response.changed();
 
@@ -11290,7 +11440,7 @@ impl CrosshairApp {
 
                                                     });
 
-                                                } else if matches!(step.action, MacroAction::DisableZoom | MacroAction::Else | MacroAction::IfEnd | MacroAction::HideHud | MacroAction::LockMouse | MacroAction::UnlockMouse) {
+                                                } else if matches!(step.action, MacroAction::DisableZoom | MacroAction::Else | MacroAction::IfEnd | MacroAction::HideHud | MacroAction::UnlockMouse) {
 
                                                     ui.add_sized(
 
@@ -11299,6 +11449,36 @@ impl CrosshairApp {
                                                         egui::Label::new(Self::tr_lang(language, "No input", "No input")),
 
                                                     );
+
+                                                } else if step.action == MacroAction::LockMouse {
+
+                                                    ui.horizontal(|ui| {
+
+                                                        let unlock_resp = ui.checkbox(&mut step.unlock_on_exit, Self::tr_lang(language, "Unlock when macro ends", ""));
+
+                                                        if unlock_resp.changed() {
+
+                                                            live_sync = true;
+
+                                                        }
+
+                                                        if !step.unlock_on_exit {
+
+                                                            ui.label(RichText::new("⚠").color(Color32::RED).strong())
+
+                                                                .on_hover_text(Self::tr_lang(
+
+                                                                    language,
+
+                                                                    "Warning: Keeping mouse locked after the macro ends can make your mouse unresponsive until manually unlocked!",
+
+                                                                    ""
+
+                                                                ));
+
+                                                        }
+
+                                                    });
 
                                                 } else if step.action == MacroAction::IfStart {
 
@@ -12417,9 +12597,9 @@ impl CrosshairApp {
 
                                                         language,
 
-                                                        "Báº¯t input",
+                                                        "Capture input",
 
-                                                        "Báº¯t phÃ­m cho bÆ°á»›c nÃƒÂ y",
+                                                        "",
 
                                                     ))
 

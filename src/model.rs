@@ -559,6 +559,8 @@ pub struct MacroStep {
     pub extra_conditions: Vec<ExtraCondition>,
     #[serde(default)]
     pub wait_time_unit: String,
+    #[serde(default = "default_true")]
+    pub unlock_on_exit: bool,
 }
 
 impl Default for MacroStep {
@@ -609,6 +611,7 @@ impl Default for MacroStep {
             if_compare_by_expression: false,
             extra_conditions: Vec::new(),
             wait_time_unit: String::new(),
+            unlock_on_exit: true,
         }
     }
 }

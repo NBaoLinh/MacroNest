@@ -5335,13 +5335,13 @@ mod windows_overlay {
                 );
             }
             MacroAction::LockKeys => {
-                apply_lock_keys(&parse_locked_keys(&step.key), Some(preset_id));
+                apply_lock_keys(&parse_locked_keys(&step.key), Some(preset_id), step.unlock_on_exit);
             }
             MacroAction::UnlockKeys => {
                 apply_unlock_keys(&parse_locked_keys(&step.key), Some(preset_id));
             }
             MacroAction::LockMouse => {
-                apply_lock_mouse(Some(preset_id));
+                apply_lock_mouse(Some(preset_id), step.unlock_on_exit);
             }
             MacroAction::UnlockMouse => {
                 apply_unlock_mouse(Some(preset_id));
@@ -5709,15 +5709,17 @@ mod windows_overlay {
                 }
                 MacroAction::LockKeys => {
                     let keys = parse_locked_keys(&step.key);
-                    for key in &keys {
-                        if !press_locked_keys
-                            .iter()
-                            .any(|existing| existing.eq_ignore_ascii_case(key))
-                        {
-                            press_locked_keys.push(key.clone());
+                    if step.unlock_on_exit {
+                        for key in &keys {
+                            if !press_locked_keys
+                                .iter()
+                                .any(|existing| existing.eq_ignore_ascii_case(key))
+                            {
+                                press_locked_keys.push(key.clone());
+                            }
                         }
                     }
-                    apply_lock_keys(&keys, None);
+                    apply_lock_keys(&keys, None, step.unlock_on_exit);
                 }
                 MacroAction::UnlockKeys => {
                     let keys = parse_locked_keys(&step.key);
@@ -5726,8 +5728,10 @@ mod windows_overlay {
                         .retain(|locked| !keys.iter().any(|key| key.eq_ignore_ascii_case(locked)));
                 }
                 MacroAction::LockMouse => {
-                    apply_lock_mouse(None);
-                    *press_locked_mouse_count = press_locked_mouse_count.saturating_add(1);
+                    apply_lock_mouse(None, step.unlock_on_exit);
+                    if step.unlock_on_exit {
+                        *press_locked_mouse_count = press_locked_mouse_count.saturating_add(1);
+                    }
                 }
                 MacroAction::UnlockMouse => {
                     if *press_locked_mouse_count > 0 {
@@ -6058,13 +6062,13 @@ mod windows_overlay {
                     hide_hud_now();
                 }
                 MacroAction::LockKeys => {
-                    apply_lock_keys(&parse_locked_keys(&step.key), Some(preset_id));
+                    apply_lock_keys(&parse_locked_keys(&step.key), Some(preset_id), step.unlock_on_exit);
                 }
                 MacroAction::UnlockKeys => {
                     apply_unlock_keys(&parse_locked_keys(&step.key), Some(preset_id));
                 }
                 MacroAction::LockMouse => {
-                    apply_lock_mouse(Some(preset_id));
+                    apply_lock_mouse(Some(preset_id), step.unlock_on_exit);
                 }
                 MacroAction::UnlockMouse => {
                     apply_unlock_mouse(Some(preset_id));
@@ -6737,7 +6741,7 @@ mod windows_overlay {
         }
     }
 
-    fn apply_lock_keys(keys: &[String], preset_id: Option<u32>) {
+    fn apply_lock_keys(keys: &[String], preset_id: Option<u32>, unlock_on_exit: bool) {
         let keys_to_release = {
             let mut to_release = Vec::new();
             let mut hook_state = HOOK_STATE.lock();
@@ -6752,7 +6756,8 @@ mod windows_overlay {
                     to_release.push(key.clone());
                 }
                 *hook_state.locked_inputs.entry(key.clone()).or_insert(0) += 1;
-                if let Some(preset_id) = preset_id
+                if unlock_on_exit
+                    && let Some(preset_id) = preset_id
                     && let Some(active) = hook_state.active_hold_macros.get_mut(&preset_id)
                     && !active
                         .locked_keys
@@ -6817,12 +6822,13 @@ mod windows_overlay {
         }
     }
 
-    fn apply_lock_mouse(preset_id: Option<u32>) {
+    fn apply_lock_mouse(preset_id: Option<u32>, unlock_on_exit: bool) {
         let buttons_to_release = {
             let mut hook_state = HOOK_STATE.lock();
             let first_lock = hook_state.locked_mouse_count == 0;
             hook_state.locked_mouse_count = hook_state.locked_mouse_count.saturating_add(1);
-            if let Some(preset_id) = preset_id
+            if unlock_on_exit
+                && let Some(preset_id) = preset_id
                 && let Some(active) = hook_state.active_hold_macros.get_mut(&preset_id)
             {
                 active.locked_mouse_count = active.locked_mouse_count.saturating_add(1);
