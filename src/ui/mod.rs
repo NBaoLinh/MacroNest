@@ -7168,6 +7168,14 @@ impl eframe::App for CrosshairApp {
     }
 
     fn update(&mut self, ctx: &egui::Context, frame: &mut eframe::Frame) {
+        // Sync global constants to RUNTIME_VARIABLES at the start of each frame
+        {
+            let mut vars = crate::overlay::RUNTIME_VARIABLES.lock();
+            for (name, val) in &self.state.global_constants {
+                vars.insert(name.clone(), *val);
+            }
+        }
+
         unsafe {
             if let Some(hwnd) = crate::overlay::find_app_ui_window_for_ui_thread() {
                 let visible = windows::Win32::UI::WindowsAndMessaging::IsWindowVisible(hwnd).as_bool();
