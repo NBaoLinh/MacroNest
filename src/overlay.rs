@@ -1593,21 +1593,30 @@ mod windows_overlay {
             if recording_active {
                 return CallNextHookEx(None, code, wparam, lparam);
             }
-            let event = match (wparam.0 as u32, ((info.mouseData >> 16) & 0xFFFF) as u16) {
-                (WM_LBUTTONDOWN, _) => Some((binding_from_trigger_event("MouseLeft"), true)),
-                (WM_LBUTTONUP, _) => Some((binding_from_trigger_event("MouseLeft"), false)),
-                (WM_RBUTTONDOWN, _) => Some((binding_from_trigger_event("MouseRight"), true)),
-                (WM_RBUTTONUP, _) => Some((binding_from_trigger_event("MouseRight"), false)),
-                (WM_MBUTTONDOWN, _) => Some((binding_from_trigger_event("MouseMiddle"), true)),
-                (windows::Win32::UI::WindowsAndMessaging::WM_MBUTTONUP, _) => {
+            let mouse_data = ((info.mouseData >> 16) & 0xFFFF) as u16;
+            let event = match wparam.0 as u32 {
+                WM_LBUTTONDOWN => Some((binding_from_trigger_event("MouseLeft"), true)),
+                WM_LBUTTONUP => Some((binding_from_trigger_event("MouseLeft"), false)),
+                WM_RBUTTONDOWN => Some((binding_from_trigger_event("MouseRight"), true)),
+                WM_RBUTTONUP => Some((binding_from_trigger_event("MouseRight"), false)),
+                WM_MBUTTONDOWN => Some((binding_from_trigger_event("MouseMiddle"), true)),
+                windows::Win32::UI::WindowsAndMessaging::WM_MBUTTONUP => {
                     Some((binding_from_trigger_event("MouseMiddle"), false))
                 }
-                (WM_XBUTTONDOWN, XBUTTON1_DATA) => Some((binding_from_trigger_event("MouseX1"), true)),
-                (WM_XBUTTONUP, XBUTTON1_DATA) => Some((binding_from_trigger_event("MouseX1"), false)),
-                (WM_XBUTTONDOWN, XBUTTON2_DATA) => Some((binding_from_trigger_event("MouseX2"), true)),
-                (WM_XBUTTONUP, XBUTTON2_DATA) => Some((binding_from_trigger_event("MouseX2"), false)),
-                (WM_MOUSEWHEEL, _) => {
-                    let data = ((info.mouseData >> 16) & 0xFFFF) as i16;
+                WM_XBUTTONDOWN if (mouse_data & XBUTTON1_DATA) != 0 => {
+                    Some((binding_from_trigger_event("MouseX1"), true))
+                }
+                WM_XBUTTONUP if (mouse_data & XBUTTON1_DATA) != 0 => {
+                    Some((binding_from_trigger_event("MouseX1"), false))
+                }
+                WM_XBUTTONDOWN if (mouse_data & XBUTTON2_DATA) != 0 => {
+                    Some((binding_from_trigger_event("MouseX2"), true))
+                }
+                WM_XBUTTONUP if (mouse_data & XBUTTON2_DATA) != 0 => {
+                    Some((binding_from_trigger_event("MouseX2"), false))
+                }
+                WM_MOUSEWHEEL => {
+                    let data = mouse_data as i16;
                     let name = if data > 0 {
                         "MouseWheelUp"
                     } else {
@@ -2074,10 +2083,12 @@ mod windows_overlay {
             WM_MBUTTONDOWN => Some(crate::model::MacroAction::MouseMiddleClick),
             WM_XBUTTONDOWN => {
                 let xbutton = ((info.mouseData >> 16) & 0xFFFF) as u16;
-                if xbutton == 1 {
+                if (xbutton & XBUTTON1_DATA) != 0 {
                     Some(crate::model::MacroAction::MouseX1Click)
-                } else {
+                } else if (xbutton & XBUTTON2_DATA) != 0 {
                     Some(crate::model::MacroAction::MouseX2Click)
+                } else {
+                    None
                 }
             }
             WM_MOUSEWHEEL => {
@@ -2982,15 +2993,15 @@ mod windows_overlay {
     }
 
     fn mouse_binding_name_from_message(message: u32, mouse_data: u16) -> Option<&'static str> {
-        match (message, mouse_data) {
-            (WM_LBUTTONDOWN | WM_LBUTTONUP, _) => Some("MouseLeft"),
-            (WM_RBUTTONDOWN | WM_RBUTTONUP, _) => Some("MouseRight"),
-            (WM_MBUTTONDOWN | windows::Win32::UI::WindowsAndMessaging::WM_MBUTTONUP, _) => {
+        match message {
+            WM_LBUTTONDOWN | WM_LBUTTONUP => Some("MouseLeft"),
+            WM_RBUTTONDOWN | WM_RBUTTONUP => Some("MouseRight"),
+            WM_MBUTTONDOWN | windows::Win32::UI::WindowsAndMessaging::WM_MBUTTONUP => {
                 Some("MouseMiddle")
             }
-            (WM_XBUTTONDOWN | WM_XBUTTONUP, XBUTTON1_DATA) => Some("MouseX1"),
-            (WM_XBUTTONDOWN | WM_XBUTTONUP, XBUTTON2_DATA) => Some("MouseX2"),
-            (WM_MOUSEWHEEL, _) => {
+            WM_XBUTTONDOWN | WM_XBUTTONUP if (mouse_data & XBUTTON1_DATA) != 0 => Some("MouseX1"),
+            WM_XBUTTONDOWN | WM_XBUTTONUP if (mouse_data & XBUTTON2_DATA) != 0 => Some("MouseX2"),
+            WM_MOUSEWHEEL => {
                 if (mouse_data as i16) > 0 {
                     Some("MouseWheelUp")
                 } else {
