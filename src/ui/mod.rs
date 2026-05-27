@@ -2978,6 +2978,50 @@ impl CrosshairApp {
         }
     }
 
+    fn clean_invisible_chars(s: &str) -> String {
+        s.chars()
+            .filter(|&c| c != '\u{200B}' && c != '\u{200C}' && c != '\u{200D}' && c != '\u{FEFF}')
+            .collect()
+    }
+
+    fn simplify_window_title(title: &str) -> String {
+        let clean = Self::clean_invisible_chars(title);
+        let base = Self::selector_base_title(&clean);
+        
+        const BROWSER_SUFFIXES: &[&str] = &[
+            " - Microsoft Edge",
+            " - Google Chrome",
+            " - Brave",
+            " - Firefox",
+            " - Opera GX",
+            " - Opera",
+            " - Vivaldi",
+            " - Chromium",
+            " - Tor Browser",
+            " - Arc",
+            " - Visual Studio Code",
+            " - VS Code",
+            " - Discord",
+            " - Slack",
+            " - Spotify",
+        ];
+
+        for suffix in BROWSER_SUFFIXES {
+            if base.ends_with(suffix) {
+                return suffix.trim_start_matches(" - ").to_owned();
+            }
+        }
+        
+        if let Some((_, last)) = base.rsplit_once(" - ") {
+            let trimmed = last.trim();
+            if !trimmed.is_empty() {
+                return trimmed.to_owned();
+            }
+        }
+        
+        base.to_owned()
+    }
+
     fn render_multi_window_targets(
         ui: &mut egui::Ui,
         language: UiLanguage,
@@ -2991,12 +3035,11 @@ impl CrosshairApp {
         ui.vertical(|ui| {
             ui.horizontal(|ui| {
                 ui.spacing_mut().interact_size.y = 24.0;
-                let truncated_primary = Self::truncate_window_title(
-                    &primary
-                        .clone()
-                        .unwrap_or_else(|| label_when_none.to_owned()),
-                    40,
-                );
+                let display_primary = primary
+                    .as_deref()
+                    .map(|current| Self::simplify_window_title(current))
+                    .unwrap_or_else(|| label_when_none.to_owned());
+                let truncated_primary = Self::truncate_window_title(&display_primary, 40);
                 egui::ComboBox::from_id_salt((id_source, "primary-target-window"))
                     .width(320.0)
                     .selected_text(truncated_primary)
@@ -3009,7 +3052,8 @@ impl CrosshairApp {
                             changed = true;
                         }
                         for title in open_windows {
-                            let truncated_title = Self::truncate_window_title(title, 50);
+                            let display_title = Self::simplify_window_title(title);
+                            let truncated_title = Self::truncate_window_title(&display_title, 50);
                             if ui
                                 .selectable_label(primary.as_deref() == Some(title), truncated_title)
                                 .on_hover_text(title)
@@ -3046,13 +3090,15 @@ impl CrosshairApp {
             for (index, extra) in extras.iter_mut().enumerate() {
                 ui.horizontal(|ui| {
                     ui.spacing_mut().interact_size.y = 24.0;
-                    let truncated_extra = Self::truncate_window_title(extra, 40);
+                    let display_extra = Self::simplify_window_title(extra);
+                    let truncated_extra = Self::truncate_window_title(&display_extra, 40);
                     egui::ComboBox::from_id_salt((id_source, "extra-target-window", index))
                         .width(320.0)
                         .selected_text(truncated_extra)
                         .show_ui(ui, |ui| {
                             for title in open_windows {
-                                let truncated_title = Self::truncate_window_title(title, 50);
+                                let display_title = Self::simplify_window_title(title);
+                                let truncated_title = Self::truncate_window_title(&display_title, 50);
                                 if ui
                                     .selectable_label(extra == title, truncated_title)
                                     .on_hover_text(title)
@@ -3125,9 +3171,9 @@ impl CrosshairApp {
                         .iter()
                         .any(|(title, selectors)| title == base_title && selectors.len() > 1);
                 if selected_specific_duplicate {
-                    current.to_owned()
+                    Self::simplify_window_title(current)
                 } else {
-                    base_title.to_owned()
+                    Self::simplify_window_title(base_title)
                 }
             })
             .unwrap_or(label_when_none.to_owned());
@@ -3160,15 +3206,16 @@ impl CrosshairApp {
                         .as_deref()
                         .is_some_and(|current| Self::selector_base_title(current) == title)
                         && *match_duplicate_window_titles;
+                    let display_title = Self::simplify_window_title(&title);
                     let row_label = if has_duplicates {
-                        format!("{title}  >")
+                        format!("{display_title}  >")
                     } else {
-                        title.clone()
-                        };
+                        display_title
+                    };
                     let truncated_row_label = Self::truncate_window_title(&row_label, 50);
                     let row_response = ui
                         .selectable_label(main_selected, truncated_row_label)
-                        .on_hover_text(&row_label);
+                        .on_hover_text(&title);
 
                     if row_response.hovered() && has_duplicates {
                         expanded_title = Some(title.clone());
@@ -3189,7 +3236,8 @@ impl CrosshairApp {
                                     let child_selected = target.as_deref()
                                         == Some(selector.as_str())
                                         && !*match_duplicate_window_titles;
-                                    let truncated_selector = Self::truncate_window_title(selector, 50);
+                                    let display_selector = Self::simplify_window_title(selector);
+                                    let truncated_selector = Self::truncate_window_title(&display_selector, 50);
                                     let child_response = ui
                                         .selectable_label(child_selected, truncated_selector)
                                         .on_hover_text(selector);

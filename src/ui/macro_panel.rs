@@ -13,48 +13,6 @@ impl CrosshairApp {
             "infinite" | "inf" | "forever" | "-1"
         )
     }
-    fn clean_invisible_chars(s: &str) -> String {
-        s.chars()
-            .filter(|&c| c != '\u{200B}' && c != '\u{200C}' && c != '\u{200D}' && c != '\u{FEFF}')
-            .collect()
-    }
-    fn simplify_window_title(title: &str) -> String {
-        let clean = Self::clean_invisible_chars(title);
-        let base = Self::selector_base_title(&clean);
-        
-        const BROWSER_SUFFIXES: &[&str] = &[
-            " - Microsoft Edge",
-            " - Google Chrome",
-            " - Brave",
-            " - Firefox",
-            " - Opera GX",
-            " - Opera",
-            " - Vivaldi",
-            " - Chromium",
-            " - Tor Browser",
-            " - Arc",
-            " - Visual Studio Code",
-            " - VS Code",
-            " - Discord",
-            " - Slack",
-            " - Spotify",
-        ];
-
-        for suffix in BROWSER_SUFFIXES {
-            if base.ends_with(suffix) {
-                return suffix.trim_start_matches(" - ").to_owned();
-            }
-        }
-        
-        if let Some((_, last)) = base.rsplit_once(" - ") {
-            let trimmed = last.trim();
-            if !trimmed.is_empty() {
-                return trimmed.to_owned();
-            }
-        }
-        
-        base.to_owned()
-    }
     fn render_macro_action_option(
         ui: &mut egui::Ui,
         language: UiLanguage,
