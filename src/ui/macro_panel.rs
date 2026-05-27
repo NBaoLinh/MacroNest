@@ -3630,11 +3630,35 @@ impl CrosshairApp {
                                                              egui::Layout::top_down(egui::Align::Min),
                                                              |ui| {
                                                              ui.horizontal(|ui| {
-                                                                 let cb_text = Self::tr_lang(language, "Var compare", "So sánh biến");
-                                                                 if ui.checkbox(&mut step.break_loop_by_variable, cb_text).changed() {
-                                                                     live_sync = true;
-                                                                 }
-                                                                 if step.break_loop_by_variable {
+                                                                 let current_mode = step.get_break_loop_mode().to_string();
+                                                                 let mode_label = match current_mode.as_str() {
+                                                                     "VarCompare" => Self::tr_lang(language, "Var compare", "So sánh biến"),
+                                                                     "StopKey" => Self::tr_lang(language, "Stop key", "Nút đã nhấn"),
+                                                                     _ => Self::tr_lang(language, "Break Loop", "Ngắt lặp"),
+                                                                 };
+                                                                 egui::ComboBox::from_id_salt((group.id, preset.id, "hold-stop-loop-break-mode"))
+                                                                     .width(100.0)
+                                                                     .selected_text(mode_label)
+                                                                     .show_ui(ui, |ui| {
+                                                                         if ui.selectable_label(current_mode == "Immediate", Self::tr_lang(language, "Break Loop", "Ngắt lặp")).clicked() {
+                                                                             step.break_loop_mode = "Immediate".to_string();
+                                                                             step.break_loop_by_variable = false;
+                                                                             live_sync = true;
+                                                                         }
+                                                                         if ui.selectable_label(current_mode == "VarCompare", Self::tr_lang(language, "Var compare", "So sánh biến")).clicked() {
+                                                                             step.break_loop_mode = "VarCompare".to_string();
+                                                                             step.break_loop_by_variable = true;
+                                                                             live_sync = true;
+                                                                         }
+                                                                         if ui.selectable_label(current_mode == "StopKey", Self::tr_lang(language, "Stop key", "Nút đã nhấn")).clicked() {
+                                                                             step.break_loop_mode = "StopKey".to_string();
+                                                                             step.break_loop_by_variable = false;
+                                                                             live_sync = true;
+                                                                         }
+                                                                     });
+
+                                                                 let mode = step.get_break_loop_mode();
+                                                                 if mode == "VarCompare" {
                                                                      let var_name_id = ui.id().with("hold-stop-loop-break-var-name");
                                                                      let response = Self::render_expandable_text_edit(
                                                                          ui,
@@ -3654,6 +3678,7 @@ impl CrosshairApp {
                                                                          &mut step.if_variable_name,
                                                                      );
                                                                      live_sync |= response.changed();
+                                                                     Self::render_variable_suggestions(ui, &response, &mut step.if_variable_name, &timer_names, language);
                                                                      egui::ComboBox::from_id_salt((group.id, preset.id, "hold-stop-loop-if-op"))
                                                                          .width(40.0)
                                                                          .selected_text(&step.if_operator)
@@ -3684,6 +3709,7 @@ impl CrosshairApp {
                                                                          &mut step.key,
                                                                      );
                                                                      live_sync |= response2.changed();
+                                                                     Self::render_variable_suggestions(ui, &response2, &mut step.key, &timer_names, language);
                                                                      let var_name = step.if_variable_name.trim();
                                                                      if !var_name.is_empty() {
                                                                          let current_val = crate::overlay::RUNTIME_VARIABLES.lock().get(var_name).copied();
@@ -3693,20 +3719,20 @@ impl CrosshairApp {
                                                                              RichText::new(format!("({})", val_str))
                                                                                  .size(10.0)
                                                                                  .color(Color32::from_rgb(0, 191, 255))
-                                                                         ).on_hover_text(Self::tr_lang(language, "Current runtime value", "GiÃƒÂ¡ trÃ¡Â»â€¹ chÃ¡ÂºÂ¡y hiÃ¡Â»â€¡n táº¡i"));
+                                                                         ).on_hover_text(Self::tr_lang(language, "Current runtime value", "Giá trị chạy hiện tại"));
                                                                      }
                                                                      if ui.add_sized([24.0, 24.0], Button::new("+")).on_hover_text(Self::tr_lang(language, "Add condition", "Thêm điều kiện")).clicked() {
                                                                          step.extra_conditions.push(ExtraCondition::default());
                                                                          live_sync = true;
                                                                      }
-                                                                 } else {
+                                                                 } else if mode == "StopKey" {
                                                                      let response = ui.add_sized(
                                                                          [160.0, 22.0],
                                                                          TextEdit::singleline(&mut step.key).hint_text(
                                                                              RichText::new(Self::tr_lang(
                                                                                  language,
                                                                                  "Stop key",
-                                                                                 "PhÃ­m dÃ¡Â»Â«ng vÃƒÂ²ng lÃ¡ÂºÂ·p",
+                                                                                 "Phím dừng vòng lặp",
                                                                              ))
                                                                              .color(hint_color)
                                                                              .italics(),
@@ -3720,9 +3746,11 @@ impl CrosshairApp {
                                                                      );
                                                                      live_sync |= response.changed();
                                                                      Self::render_variable_suggestions(ui, &response, &mut step.key, &timer_names, language);
+                                                                 } else {
+                                                                     ui.label(RichText::new(Self::tr_lang(language, "No input", "Không có đầu vào")).weak().italics());
                                                                  }
                                                              });
-                                                             if step.break_loop_by_variable {
+                                                             if step.get_break_loop_mode() == "VarCompare" {
                                                                  let mut remove_extra_idx = None;
                                                                  for (extra_idx, cond) in step.extra_conditions.iter_mut().enumerate() {
                                                                       ui.horizontal(|ui| {
@@ -4035,6 +4063,7 @@ impl CrosshairApp {
                                                                         &mut step.if_variable_name,
                                                                     );
                                                                     live_sync |= response.changed();
+                                                                    Self::render_variable_suggestions(ui, &response, &mut step.if_variable_name, &timer_names, language);
                                                                     egui::ComboBox::from_id_salt((group.id, preset.id, "hold-stop-if-op"))
                                                                         .width(40.0)
                                                                         .selected_text(&step.if_operator)
@@ -4065,6 +4094,7 @@ impl CrosshairApp {
                                                                         &mut step.key,
                                                                     );
                                                                     live_sync |= response2.changed();
+                                                                    Self::render_variable_suggestions(ui, &response2, &mut step.key, &timer_names, language);
                                                                        let left_expr = step.if_variable_name.trim();
                                                                        if !left_expr.is_empty() {
                                                                            let left_val = crate::overlay::evaluate_math_expression(left_expr);
@@ -6205,11 +6235,35 @@ Example: {100 + (A - B) * 2}",
                                                              egui::Layout::top_down(egui::Align::Min),
                                                              |ui| {
                                                              ui.horizontal(|ui| {
-                                                                 let cb_text = Self::tr_lang(language, "Var compare", "So sÃ¡nh biáº¿n");
-                                                                 if ui.checkbox(&mut step.break_loop_by_variable, cb_text).changed() {
-                                                                     live_sync = true;
-                                                                 }
-                                                                 if step.break_loop_by_variable {
+                                                                 let current_mode = step.get_break_loop_mode().to_string();
+                                                                 let mode_label = match current_mode.as_str() {
+                                                                     "VarCompare" => Self::tr_lang(language, "Var compare", "So sánh biến"),
+                                                                     "StopKey" => Self::tr_lang(language, "Stop key", "Nút đã nhấn"),
+                                                                     _ => Self::tr_lang(language, "Break Loop", "Ngắt lặp"),
+                                                                 };
+                                                                 egui::ComboBox::from_id_salt((group.id, preset.id, step_index, "stop-loop-break-mode"))
+                                                                     .width(100.0)
+                                                                     .selected_text(mode_label)
+                                                                     .show_ui(ui, |ui| {
+                                                                         if ui.selectable_label(current_mode == "Immediate", Self::tr_lang(language, "Break Loop", "Ngắt lặp")).clicked() {
+                                                                             step.break_loop_mode = "Immediate".to_string();
+                                                                             step.break_loop_by_variable = false;
+                                                                             live_sync = true;
+                                                                         }
+                                                                         if ui.selectable_label(current_mode == "VarCompare", Self::tr_lang(language, "Var compare", "So sánh biến")).clicked() {
+                                                                             step.break_loop_mode = "VarCompare".to_string();
+                                                                             step.break_loop_by_variable = true;
+                                                                             live_sync = true;
+                                                                         }
+                                                                         if ui.selectable_label(current_mode == "StopKey", Self::tr_lang(language, "Stop key", "Nút đã nhấn")).clicked() {
+                                                                             step.break_loop_mode = "StopKey".to_string();
+                                                                             step.break_loop_by_variable = false;
+                                                                             live_sync = true;
+                                                                         }
+                                                                     });
+
+                                                                 let mode = step.get_break_loop_mode();
+                                                                 if mode == "VarCompare" {
                                                                      let var_name_id = ui.id().with((step_index, "loop-break-var-name"));
                                                                      let response = Self::render_expandable_text_edit(
                                                                          ui,
@@ -6229,6 +6283,7 @@ Example: {100 + (A - B) * 2}",
                                                                          &mut step.if_variable_name,
                                                                      );
                                                                      live_sync |= response.changed();
+                                                                     Self::render_variable_suggestions(ui, &response, &mut step.if_variable_name, &timer_names, language);
                                                                      egui::ComboBox::from_id_salt((group.id, preset.id, step_index, "stop-loop-if-op"))
                                                                          .width(40.0)
                                                                          .selected_text(&step.if_operator)
@@ -6259,6 +6314,7 @@ Example: {100 + (A - B) * 2}",
                                                                          &mut step.key,
                                                                      );
                                                                      live_sync |= response2.changed();
+                                                                     Self::render_variable_suggestions(ui, &response2, &mut step.key, &timer_names, language);
                                                                      let var_name = step.if_variable_name.trim();
                                                                      if !var_name.is_empty() {
                                                                          let current_val = crate::overlay::RUNTIME_VARIABLES.lock().get(var_name).copied();
@@ -6268,13 +6324,13 @@ Example: {100 + (A - B) * 2}",
                                                                              RichText::new(format!("({})", val_str))
                                                                                  .size(10.0)
                                                                                  .color(Color32::from_rgb(0, 191, 255))
-                                                                         ).on_hover_text(Self::tr_lang(language, "Current runtime value", "GiÃƒÂ¡ trÃ¡Â»â€¹ chÃ¡ÂºÂ¡y hiÃ¡Â»â€¡n táº¡i"));
+                                                                         ).on_hover_text(Self::tr_lang(language, "Current runtime value", "Giá trị chạy hiện tại"));
                                                                      }
                                                                      if ui.add_sized([24.0, 24.0], Button::new("+")).on_hover_text(Self::tr_lang(language, "Add condition", "Thêm điều kiện")).clicked() {
                                                                          step.extra_conditions.push(ExtraCondition::default());
                                                                          live_sync = true;
                                                                      }
-                                                                 } else {
+                                                                 } else if mode == "StopKey" {
                                                                      let response = ui.add_sized(
                                                                          [146.0, 18.0],
                                                                          TextEdit::singleline(&mut step.key)
@@ -6288,9 +6344,11 @@ Example: {100 + (A - B) * 2}",
                                                                      );
                                                                      live_sync |= response.changed();
                                                                      Self::render_variable_suggestions(ui, &response, &mut step.key, &timer_names, language);
+                                                                 } else {
+                                                                     ui.label(RichText::new(Self::tr_lang(language, "No input", "Không có đầu vào")).weak().italics());
                                                                  }
                                                              });
-                                                             if step.break_loop_by_variable {
+                                                             if step.get_break_loop_mode() == "VarCompare" {
                                                                  let mut remove_extra_idx = None;
                                                                  for (extra_idx, cond) in step.extra_conditions.iter_mut().enumerate() {
                                                                       ui.horizontal(|ui| {
@@ -6606,6 +6664,7 @@ Example: {100 + (A - B) * 2}",
                                                                         &mut step.if_variable_name,
                                                                     );
                                                                     live_sync |= response.changed();
+                                                                    Self::render_variable_suggestions(ui, &response, &mut step.if_variable_name, &timer_names, language);
                                                                     egui::ComboBox::from_id_salt((group.id, preset.id, step_index, "if-op"))
                                                                         .width(40.0)
                                                                         .selected_text(&step.if_operator)
@@ -6636,6 +6695,7 @@ Example: {100 + (A - B) * 2}",
                                                                         &mut step.key,
                                                                     );
                                                                     live_sync |= response2.changed();
+                                                                    Self::render_variable_suggestions(ui, &response2, &mut step.key, &timer_names, language);
                                                                        let left_expr = step.if_variable_name.trim();
                                                                        if !left_expr.is_empty() {
                                                                            let left_val = crate::overlay::evaluate_math_expression(left_expr);

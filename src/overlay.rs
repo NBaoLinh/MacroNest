@@ -5948,17 +5948,24 @@ mod windows_overlay {
                     }
                 }
                 MacroAction::StopIfKeyPressed => {
-                    if step.break_loop_by_variable {
-                        if evaluate_if_condition(step) {
-                            return MacroRunFlow::BreakLoop;
+                    match step.get_break_loop_mode() {
+                        "VarCompare" => {
+                            if evaluate_if_condition(step) {
+                                return MacroRunFlow::BreakLoop;
+                            }
                         }
-                    } else {
-                        let key = normalize_locked_key(&step.key);
-                        if key.trim().is_empty() || stop_key_triggered(preset_id, &key) {
+                        "StopKey" => {
+                            let key = normalize_locked_key(&step.key);
+                            if !key.trim().is_empty() && stop_key_triggered(preset_id, &key) {
+                                return MacroRunFlow::BreakLoop;
+                            }
+                        }
+                        _ => {
                             return MacroRunFlow::BreakLoop;
                         }
                     }
                 }
+
 
                 MacroAction::ApplyWindowPreset => {
                     let _ = apply_window_preset_by_id(&step.key);
@@ -6338,17 +6345,24 @@ mod windows_overlay {
                     }
                 }
                 MacroAction::StopIfKeyPressed => {
-                    if step.break_loop_by_variable {
-                        if evaluate_if_condition(step) {
-                            return MacroRunFlow::BreakLoop;
+                    match step.get_break_loop_mode() {
+                        "VarCompare" => {
+                            if evaluate_if_condition(step) {
+                                return MacroRunFlow::BreakLoop;
+                            }
                         }
-                    } else {
-                        let key = normalize_locked_key(&step.key);
-                        if key.trim().is_empty() || stop_key_triggered(preset_id, &key) {
+                        "StopKey" => {
+                            let key = normalize_locked_key(&step.key);
+                            if !key.trim().is_empty() && stop_key_triggered(preset_id, &key) {
+                                return MacroRunFlow::BreakLoop;
+                            }
+                        }
+                        _ => {
                             return MacroRunFlow::BreakLoop;
                         }
                     }
                 }
+
 
                 MacroAction::ApplyWindowPreset => {
                     let _ = apply_window_preset_by_id(&step.key);

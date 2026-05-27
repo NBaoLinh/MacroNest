@@ -563,6 +563,8 @@ pub struct MacroStep {
     #[serde(default)]
     pub break_loop_by_variable: bool,
     #[serde(default)]
+    pub break_loop_mode: String,
+    #[serde(default)]
     pub if_compare_value: i32,
     #[serde(default)]
     pub if_compare_by_expression: bool,
@@ -622,6 +624,7 @@ impl Default for MacroStep {
             if_operator: "==".to_string(),
             manual_mouse_sensitivity: false,
             break_loop_by_variable: false,
+            break_loop_mode: String::new(),
             if_compare_value: 0,
             if_compare_by_expression: false,
             extra_conditions: Vec::new(),
@@ -634,6 +637,20 @@ impl Default for MacroStep {
 }
 
 impl MacroStep {
+    pub fn get_break_loop_mode(&self) -> &str {
+        if self.break_loop_mode.is_empty() {
+            if self.break_loop_by_variable {
+                "VarCompare"
+            } else if !self.key.trim().is_empty() {
+                "StopKey"
+            } else {
+                "Immediate"
+            }
+        } else {
+            &self.break_loop_mode
+        }
+    }
+
     pub fn get_delay_ms(&self) -> u64 {
         if !self.delay_expr.trim().is_empty() {
             let interpolated = crate::overlay::interpolate_variables(&self.delay_expr);
