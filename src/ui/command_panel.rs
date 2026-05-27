@@ -33,7 +33,7 @@ impl CrosshairApp {
             preset.target_window_title = None;
             preset.extra_target_window_titles.clear();
             preset.enabled = true;
-            Self::show_preset_card(ui, true, |ui| {
+            Self::show_command_preset_card(ui, preset.use_powershell, |ui| {
                 ui.horizontal(|ui| {
                     let name_width = Self::preset_header_name_width(ui);
                     let response =
@@ -72,7 +72,11 @@ impl CrosshairApp {
                             .map(|job| job.preset_id == preset.id)
                             .unwrap_or(false);
                         if is_generating {
-                            ui.spinner();
+                            let (rect, _response) = ui.allocate_exact_size(
+                                egui::vec2(40.0, 24.0),
+                                egui::Sense::hover(),
+                            );
+                            Self::draw_spinning_wand(ui, rect, Color32::from_rgb(255, 220, 100));
                         } else {
                             if ui
                                 .add_sized(
@@ -203,5 +207,91 @@ impl CrosshairApp {
         let _ = self.overlay_tx.send(OverlayCommand::UpdateCommandPresets(
             self.state.command_presets.clone(),
         ));
+    }
+
+    fn show_command_preset_card<R>(
+        ui: &mut egui::Ui,
+        use_powershell: bool,
+        add_contents: impl FnOnce(&mut egui::Ui) -> R,
+    ) -> R {
+        let (fill, stroke_color) = if use_powershell {
+            (
+                Color32::from_rgba_premultiplied(27, 58, 96, 120),
+                Color32::from_rgb(90, 190, 255),
+            )
+        } else {
+            (
+                Color32::from_rgba_premultiplied(100, 60, 20, 100),
+                Color32::from_rgb(255, 170, 75),
+            )
+        };
+
+        egui::Frame::group(ui.style())
+            .fill(fill)
+            .stroke(egui::Stroke::new(1.0, stroke_color))
+            .show(ui, |ui| {
+                ui.set_min_width(ui.available_width());
+                let previous = ui.visuals().override_text_color;
+                if ui.visuals().dark_mode {
+                    ui.visuals_mut().override_text_color =
+                        Some(Color32::from_rgb(220, 220, 220));
+                }
+                let output = add_contents(ui);
+                ui.visuals_mut().override_text_color = previous;
+                output
+            })
+            .inner
+    }
+
+    fn draw_spinning_wand(ui: &mut egui::Ui, rect: egui::Rect, color: Color32) {
+        let painter = ui.painter();
+        let center = rect.center();
+        let time = ui.ctx().input(|i| i.time) as f32;
+        let angle = time * 4.0;
+
+        let rotate_point = |x: f32, y: f32| -> egui::Pos2 {
+            let (sin, cos) = angle.sin_cos();
+            egui::Pos2::new(
+                center.x + x * cos - y * sin,
+                center.y + x * sin + y * cos,
+            )
+        };
+
+        let p_handle_start = rotate_point(-8.0, 8.0);
+        let p_handle_end = rotate_point(1.0, -1.0);
+        painter.line_segment(
+            [p_handle_start, p_handle_end],
+            egui::Stroke::new(2.5, color),
+        );
+
+        let p_tip_start = rotate_point(1.0, -1.0);
+        let p_tip_end = rotate_point(4.0, -4.0);
+        painter.line_segment(
+            [p_tip_start, p_tip_end],
+            egui::Stroke::new(2.5, Color32::from_rgb(255, 255, 255)),
+        );
+
+        let draw_star = |cx: f32, cy: f32, size: f32| {
+            let mut points = Vec::new();
+            let r_inner = size * 0.35;
+            let star_pts = vec![
+                (0.0, -size),
+                (r_inner, -r_inner),
+                (size, 0.0),
+                (r_inner, r_inner),
+                (0.0, size),
+                (-r_inner, r_inner),
+                (-size, 0.0),
+                (-r_inner, -r_inner),
+            ];
+            for (px, py) in star_pts {
+                points.push(rotate_point(cx + px, cy + py));
+            }
+            painter.add(egui::Shape::convex_polygon(points, color, egui::Stroke::NONE));
+        };
+
+        draw_star(5.0, -5.0, 5.0);
+        draw_star(-5.0, -5.0, 2.0);
+        draw_star(5.0, 5.0, 2.0);
     }
 }
