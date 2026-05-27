@@ -243,7 +243,7 @@ impl CrosshairApp {
             .inner
     }
 
-    fn draw_spinning_wand(ui: &mut egui::Ui, rect: egui::Rect, color: Color32) {
+    pub(crate) fn draw_spinning_wand(ui: &mut egui::Ui, rect: egui::Rect, color: Color32) {
         let painter = ui.painter();
         let center = rect.center();
         let time = ui.ctx().input(|i| i.time) as f32;

@@ -996,8 +996,10 @@ impl CrosshairApp {
             self.command_ai_dialog = None;
         }
         if self.command_ai_dialog.is_none() {
-            self.command_ai_step_target = None;
-            self.state.command_presets.retain(|preset| preset.id != 999999);
+            if self.command_ai_job.is_none() {
+                self.command_ai_step_target = None;
+                self.state.command_presets.retain(|preset| preset.id != 999999);
+            }
         }
         if self.command_ai_dialog.is_some() {
             ctx.request_repaint_after(Duration::from_millis(16));

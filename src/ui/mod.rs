@@ -5351,7 +5351,9 @@ impl CrosshairApp {
                     }
                 }
                 let old_name = temp_preset.name.clone();
+                let old_use_powershell = temp_preset.use_powershell;
                 patch.apply_to(&mut temp_preset);
+                temp_preset.use_powershell = old_use_powershell;
 
                 // Robust Fallback: If the name wasn't renamed by AI, but the command changed, let's auto-generate a descriptive name!
                 if temp_preset.name.trim().eq_ignore_ascii_case(old_name.trim()) && temp_preset.command.trim() != old_name.trim() {
@@ -5569,13 +5571,12 @@ impl CrosshairApp {
         &mut self,
         name: String,
         command: String,
-        _use_powershell: bool,
+        use_powershell: bool,
     ) -> Option<u32> {
         let command = ai::normalize_command_text(&command);
         if name.is_empty() || command.is_empty() {
             return None;
         }
-        let use_powershell = false;
 
         if let Some(existing_index) = self
             .state
