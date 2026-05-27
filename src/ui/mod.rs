@@ -27,7 +27,7 @@ use crate::{
         MacroFolder, MacroGroup, MacroPreset, MacroStep, MacroTriggerMode, MasterMacroGroupState,
         MasterMacroPresetState, MasterPreset, MasterWindowFocusPresetState,
         MasterWindowPresetState, MasterZoomPresetState, MousePathEventKind, ProfileRecord,
-        RgbaColor, SoundLibraryItem, UiLanguage, UiThemeMode, TimerPreset,
+        RgbaColor, SoundLibraryItem, TimerPreset, UiLanguage, UiThemeMode, VideoClipSettings,
         VietnameseInputMode, WindowAnchor, WindowExpandDirection, WindowPreset,
     },
     overlay::{OverlayCommand, UiCommand},
@@ -481,6 +481,7 @@ pub struct CrosshairApp {
     exit_sound_collapsed: bool,
     audio_waveforms: HashMap<String, Vec<f32>>,
     sound_preset_clip_duration_ms: HashMap<u32, Option<u64>>,
+    video_preset_clip_duration_ms: HashMap<u32, Option<u64>>,
     show_sound_preset_audio_editor: HashSet<u32>,
     library_clip_duration_ms: HashMap<u32, Option<u64>>,
     show_library_audio_editor: HashSet<u32>,
@@ -634,6 +635,7 @@ impl CrosshairApp {
             exit_sound_collapsed: true,
             audio_waveforms: HashMap::new(),
             sound_preset_clip_duration_ms: HashMap::new(),
+            video_preset_clip_duration_ms: HashMap::new(),
             show_sound_preset_audio_editor: HashSet::new(),
             library_clip_duration_ms: HashMap::new(),
             show_library_audio_editor: HashSet::new(),
@@ -761,6 +763,12 @@ impl CrosshairApp {
         for preset in &app.state.audio_settings.presets {
             if let Some(duration) = audio_duration(&preset.clip) {
                 app.sound_preset_clip_duration_ms
+                    .insert(preset.id, Some(duration));
+            }
+        }
+        for preset in &app.state.audio_settings.video_presets {
+            if let Some(duration) = video_duration(&preset.clip) {
+                app.video_preset_clip_duration_ms
                     .insert(preset.id, Some(duration));
             }
         }
@@ -1627,6 +1635,34 @@ impl CrosshairApp {
             self.refresh_audio_waveform_for_path(&path_str);
             self.preview_cursor = None;
             self.trim_timeline_zoom = 1.0;
+            self.sync_audio_settings();
+            self.persist();
+        }
+    }
+
+    fn choose_video_file_for_preset(&mut self, preset_id: u32) {
+        let Some(path) = rfd::FileDialog::new()
+            .add_filter("Video", &["webm", "mp4", "mov", "mkv", "avi"])
+            .pick_file()
+        else {
+            return;
+        };
+        let path_str = path.to_string_lossy().to_string();
+        let duration = crate::media::load_video_metadata(&path_str)
+            .ok()
+            .map(|meta| meta.duration_ms);
+        if let Some(preset) = self
+            .state
+            .audio_settings
+            .video_presets
+            .iter_mut()
+            .find(|preset| preset.id == preset_id)
+        {
+            preset.clip.file_path = path_str;
+            preset.clip.start_ms = 0;
+            preset.clip.end_ms = duration.unwrap_or(0);
+            preset.clip.enabled = true;
+            self.video_preset_clip_duration_ms.insert(preset_id, duration);
             self.sync_audio_settings();
             self.persist();
         }
@@ -2700,8 +2736,8 @@ impl CrosshairApp {
             AppPanel::Vision => "Vision",
             AppPanel::Macros | AppPanel::Modes => "Macro",
             AppPanel::Commands => "Commands",
-            AppPanel::Sound => "Sound",
-            AppPanel::Media => "Media",
+            AppPanel::Sound => "Media",
+            AppPanel::Media => "Editor",
             AppPanel::Hud => "HUD",
         };
         Self::tr_lang(self.state.ui_language, english, english)
@@ -3225,6 +3261,7 @@ impl CrosshairApp {
             MacroAction::EnableZoomPreset => "EnableZoom",
             MacroAction::DisableZoom => "DisableZoom",
             MacroAction::PlaySoundPreset => "PlaySound",
+            MacroAction::PlayVideoPreset => "PlayVideo",
             MacroAction::StartVisionSearch => "StartImageSearch",
             MacroAction::ScanVisionOnce => "ScanImageOnce",
             MacroAction::TriggerVisionMove => "TriggerImageAction",
@@ -3304,7 +3341,8 @@ impl CrosshairApp {
                 }
                 MacroAction::EnableZoomPreset => "Bật một preset phóng to đã lưu.",
                 MacroAction::DisableZoom => "Tắt hiển thị phóng to overlay.",
-                MacroAction::PlaySoundPreset => "Phát một preset âm thanh đã chọn từ tab Âm thanh.",
+                MacroAction::PlaySoundPreset => "Phát một preset âm thanh đã chọn từ tab Media.",
+                MacroAction::PlayVideoPreset => "Phát một preset video fullscreen đã chọn từ tab Media.",
                 MacroAction::StartVisionSearch => {
                     "Bắt đầu quét tìm hình ảnh trong nền bằng preset tìm ảnh đã chọn."
                 }
@@ -3401,7 +3439,8 @@ impl CrosshairApp {
                 }
                 MacroAction::EnableZoomPreset => "Enable one saved zoom preset.",
                 MacroAction::DisableZoom => "Turn the zoom overlay off.",
-                MacroAction::PlaySoundPreset => "Play one sound preset from the Sound tab.",
+                MacroAction::PlaySoundPreset => "Play one sound preset from the Media tab.",
+                MacroAction::PlayVideoPreset => "Play one fullscreen video preset from the Media tab.",
                 MacroAction::StartVisionSearch => {
                     "Start scanning one image-search preset in the background."
                 }
@@ -3493,6 +3532,7 @@ impl CrosshairApp {
             MacroAction::EnableZoomPreset => 0xe8ff,
             MacroAction::DisableZoom => 0xe8f4,
             MacroAction::PlaySoundPreset => 0xe050,
+            MacroAction::PlayVideoPreset => 0xe04b,
             MacroAction::StartVisionSearch => 0xe8b6,
             MacroAction::ScanVisionOnce => 0xe8b6,
             MacroAction::TriggerVisionMove => 0xe8f9,
@@ -3568,6 +3608,7 @@ impl CrosshairApp {
                 MacroAction::EnableZoomPreset => "Phóng",
                 MacroAction::DisableZoom => "Tắt phóng",
                 MacroAction::PlaySoundPreset => "Âm thanh",
+                MacroAction::PlayVideoPreset => "Video",
                 MacroAction::StartVisionSearch => "Tìm ảnh",
                 MacroAction::ScanVisionOnce => "Quét 1 lần",
                 MacroAction::TriggerVisionMove => "Tương tác",
@@ -3634,6 +3675,7 @@ impl CrosshairApp {
                 MacroAction::EnableZoomPreset => "Zoom",
                 MacroAction::DisableZoom => "NoZoom",
                 MacroAction::PlaySoundPreset => "Sound",
+                MacroAction::PlayVideoPreset => "Video",
                 MacroAction::StartVisionSearch => "Start",
                 MacroAction::ScanVisionOnce => "Scan Once",
                 MacroAction::TriggerVisionMove => "Interact",
@@ -3845,6 +3887,7 @@ impl CrosshairApp {
                 | MacroAction::ApplyMouseSensitivityPreset
                 | MacroAction::EnableZoomPreset
                 | MacroAction::PlaySoundPreset
+                | MacroAction::PlayVideoPreset
                 | MacroAction::EnableMacroPreset
                 | MacroAction::DisableMacroPreset
                 | MacroAction::StartTimerPreset
@@ -8163,5 +8206,15 @@ pub(crate) fn audio_duration(clip: &AudioClipSettings) -> Option<u64> {
         None
     } else {
         audio::load_duration_ms(&clip.file_path).ok()
+    }
+}
+
+pub(crate) fn video_duration(clip: &VideoClipSettings) -> Option<u64> {
+    if clip.file_path.trim().is_empty() {
+        None
+    } else {
+        crate::media::load_video_metadata(&clip.file_path)
+            .ok()
+            .map(|meta| meta.duration_ms)
     }
 }

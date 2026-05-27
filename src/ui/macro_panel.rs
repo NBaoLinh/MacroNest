@@ -2817,6 +2817,7 @@ impl CrosshairApp {
                                                             MacroAction::EnablePinPreset,
                                                             MacroAction::DisablePin,
                                                             MacroAction::PlaySoundPreset,
+                                                            MacroAction::PlayVideoPreset,
                                                             MacroAction::ApplyMouseSensitivityPreset,
                                                             MacroAction::LoopStart,
                                                             MacroAction::LoopEnd,
@@ -3427,6 +3428,34 @@ impl CrosshairApp {
                                                         .selected_text(selected_label)
                                                         .show_ui(ui, |ui| {
                                                             for preset_option in &self.state.audio_settings.presets {
+                                                                if ui
+                                                                    .selectable_label(selected_id == Some(preset_option.id), &preset_option.name)
+                                                                    .clicked()
+                                                                {
+                                                                    step.key = preset_option.id.to_string();
+                                                                    live_sync = true;
+                                                                }
+                                                            }
+                                                        });
+                                                } else if step.action == MacroAction::PlayVideoPreset {
+                                                    let selected_id = step.key.trim().parse::<u32>().ok();
+                                                    let selected_label = selected_id
+                                                        .and_then(|id| {
+                                                            self.state
+                                                                .audio_settings
+                                                                .video_presets
+                                                                .iter()
+                                                                .find(|preset| preset.id == id)
+                                                                .map(|preset| preset.name.clone())
+                                                        })
+                                                        .unwrap_or_else(|| {
+                                                            Self::tr_lang(language, "Select video", "Chọn video").to_owned()
+                                                        });
+                                                    egui::ComboBox::from_id_salt((group.id, preset.id, "hold-stop-video"))
+                                                        .width(160.0)
+                                                        .selected_text(selected_label)
+                                                        .show_ui(ui, |ui| {
+                                                            for preset_option in &self.state.audio_settings.video_presets {
                                                                 if ui
                                                                     .selectable_label(selected_id == Some(preset_option.id), &preset_option.name)
                                                                     .clicked()
@@ -5244,6 +5273,7 @@ Example: {100 + (A - B) * 2}",
                                                                 MacroAction::EnablePinPreset,
                                                                 MacroAction::DisablePin,
                                                                 MacroAction::PlaySoundPreset,
+                                                                MacroAction::PlayVideoPreset,
                                                                 MacroAction::ApplyMouseSensitivityPreset,
                                                                 MacroAction::LoopStart,
                                                                 MacroAction::LoopEnd,
@@ -5869,6 +5899,35 @@ Example: {100 + (A - B) * 2}",
                                                         .selected_text(selected_label)
                                                         .show_ui(ui, |ui| {
                                                             for preset_option in &self.state.audio_settings.presets {
+                                                                if ui
+                                                                    .selectable_label(
+                                                                        selected_id == Some(preset_option.id),
+                                                                        &preset_option.name,
+                                                                    )
+                                                                    .clicked()
+                                                                {
+                                                                    step.key = preset_option.id.to_string();
+                                                                    live_sync = true;
+                                                                }
+                                                            }
+                                                        });
+                                                } else if step.action == MacroAction::PlayVideoPreset {
+                                                    let selected_id = step.key.trim().parse::<u32>().ok();
+                                                    let selected_label = selected_id
+                                                        .and_then(|id| {
+                                                            self.state
+                                                                .audio_settings
+                                                                .video_presets
+                                                                .iter()
+                                                                .find(|preset| preset.id == id)
+                                                                .map(|preset| preset.name.clone())
+                                                        })
+                                                        .unwrap_or_else(|| Self::tr_lang(language, "Select video", "Chọn video").to_owned());
+                                                    egui::ComboBox::from_id_salt((group.id, preset.id, step_index, "video-preset-step"))
+                                                        .width(146.0)
+                                                        .selected_text(selected_label)
+                                                        .show_ui(ui, |ui| {
+                                                            for preset_option in &self.state.audio_settings.video_presets {
                                                                 if ui
                                                                     .selectable_label(
                                                                         selected_id == Some(preset_option.id),

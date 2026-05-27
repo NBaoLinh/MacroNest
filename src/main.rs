@@ -10,6 +10,7 @@ mod overlay;
 mod platform;
 mod profile_code;
 mod macro_code;
+mod media;
 mod render;
 mod storage;
 mod ui;

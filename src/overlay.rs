@@ -92,7 +92,7 @@ mod windows_overlay {
                 },
                 WindowsAndMessaging::{
                     AppendMenuW, CREATESTRUCTW, CallNextHookEx, CreatePopupMenu,
-                    CreateWindowExW, DefWindowProcW, DestroyIcon, DestroyMenu, DispatchMessageW,
+                    CreateWindowExW, DefWindowProcW, DestroyIcon, DestroyMenu, DestroyWindow, DispatchMessageW,
                     GA_ROOT, GW_OWNER, GWLP_USERDATA, GetAncestor, GetClassNameW, GetClientRect,
                     GetCursorPos, GetForegroundWindow, GetMessageW, GetSystemMetrics, GetWindow,
                     GetWindowLongPtrW, GetWindowRect, GetWindowThreadProcessId, HC_ACTION, HHOOK,
@@ -138,13 +138,13 @@ mod windows_overlay {
     }
 
     use crate::{
-        ai, audio, hotkey,
+        ai, audio, hotkey, media,
         model::{
             AudioSettings, CrosshairStyle, CommandPreset, HotkeyBinding, VisionPreset, VisionSettings,
             MacroAction, MacroGroup, MacroPreset, MacroStep,
             MacroTriggerMode, MousePathEvent, MousePathEventKind, MousePathPreset,
             MouseSensitivityPreset, PinOverlayStyle, PinPreset, ProfileRecord, RgbaColor,
-            SoundLibraryItem, SoundPreset, HudPreset, WindowAnchor, WindowExpandControls,
+            SoundLibraryItem, SoundPreset, VideoPreset, HudPreset, WindowAnchor, WindowExpandControls,
             WindowExpandDirection, WindowFocusPreset, WindowPreset,
             TimerPreset, IfConditionType,
         },
@@ -191,6 +191,8 @@ mod windows_overlay {
     static MACRO_RECORDING: Lazy<Mutex<Option<MacroRecordingSession>>> =
         Lazy::new(|| Mutex::new(None));
     static HOOK_STATE: Lazy<Mutex<HookState>> = Lazy::new(|| Mutex::new(HookState::default()));
+    static ACTIVE_VIDEO_STOP: Lazy<Mutex<Option<Arc<AtomicBool>>>> =
+        Lazy::new(|| Mutex::new(None));
 
     pub static ACTIVE_MACRO_STEPS: Lazy<Mutex<HashMap<u32, HashSet<usize>>>> =
         Lazy::new(|| Mutex::new(HashMap::new()));
@@ -341,6 +343,7 @@ mod windows_overlay {
         PreviewHudPreset(Option<HudPreset>),
         UpdateMacroPresets(Vec<MacroGroup>),
         UpdateAudioSettings(AudioSettings),
+        PlayVideoPreset(u32),
         SetMacrosMasterEnabled(bool),
         UpdateVisionSettings(VisionSettings),
         SetVietnameseInputEnabled(bool),
@@ -514,6 +517,7 @@ mod windows_overlay {
         current_style: CrosshairStyle,
         profiles: Vec<ProfileRecord>,
         sound_presets: Vec<SoundPreset>,
+        video_presets: Vec<VideoPreset>,
         sound_library: Vec<SoundLibraryItem>,
         active_hold_macros: HashMap<u32, ActiveHoldMacro>,
         timer_presets: Vec<TimerPreset>,
@@ -579,6 +583,7 @@ mod windows_overlay {
                 current_style: CrosshairStyle::default(),
                 profiles: Vec::new(),
                 sound_presets: Vec::new(),
+                video_presets: Vec::new(),
                 sound_library: Vec::new(),
                 active_hold_macros: HashMap::new(),
                 timer_presets: Vec::new(),
@@ -3259,7 +3264,11 @@ mod windows_overlay {
                 OverlayCommand::UpdateAudioSettings(settings) => {
                     let mut hook_state = HOOK_STATE.lock();
                     hook_state.sound_presets = settings.presets.clone();
+                    hook_state.video_presets = settings.video_presets.clone();
                     runtime.audio_settings = settings;
+                }
+                OverlayCommand::PlayVideoPreset(preset_id) => {
+                    let _ = play_video_preset_by_id(preset_id);
                 }
                 OverlayCommand::SetMacrosMasterEnabled(enabled) => {
                     let mut hook_state = HOOK_STATE.lock();
@@ -4977,6 +4986,172 @@ mod windows_overlay {
         Ok(())
     }
 
+    fn play_video_preset(spec: &str) -> Result<()> {
+        let preset_id = spec
+            .trim()
+            .parse::<u32>()
+            .context("Video preset id is invalid")?;
+        play_video_preset_by_id(preset_id)
+    }
+
+    fn play_video_preset_by_id(preset_id: u32) -> Result<()> {
+        let preset = {
+            let hook_state = HOOK_STATE.lock();
+            hook_state
+                .video_presets
+                .iter()
+                .find(|preset| preset.id == preset_id)
+                .cloned()
+                .context("Video preset was not found")?
+        };
+        spawn_video_preset_playback(preset);
+        Ok(())
+    }
+
+    fn spawn_video_preset_playback(preset: VideoPreset) {
+        if preset.clip.file_path.trim().is_empty() {
+            return;
+        }
+
+        let stop_flag = Arc::new(AtomicBool::new(false));
+        let previous = {
+            let mut guard = ACTIVE_VIDEO_STOP.lock();
+            guard.replace(stop_flag.clone())
+        };
+        if let Some(previous) = previous {
+            previous.store(true, Ordering::Relaxed);
+        }
+
+        thread::spawn(move || {
+            let _ = unsafe { run_video_preset_window(&preset, stop_flag.clone()) };
+            let mut guard = ACTIVE_VIDEO_STOP.lock();
+            if let Some(active) = guard.as_ref() {
+                if Arc::ptr_eq(active, &stop_flag) {
+                    *guard = None;
+                }
+            }
+        });
+    }
+
+    unsafe fn run_video_preset_window(
+        preset: &VideoPreset,
+        stop_flag: Arc<AtomicBool>,
+    ) -> Result<()> {
+        let screen_w = GetSystemMetrics(SM_CXSCREEN).max(1);
+        let screen_h = GetSystemMetrics(SM_CYSCREEN).max(1);
+        let instance = HINSTANCE(GetModuleHandleW(None)?.0);
+        let hwnd = CreateWindowExW(
+            WS_EX_LAYERED | WS_EX_TOOLWINDOW | WS_EX_TOPMOST | WS_EX_NOACTIVATE | WS_EX_TRANSPARENT,
+            w!("CrosshairOverlay"),
+            w!("MacroNestVideoOverlay"),
+            WS_POPUP,
+            0,
+            0,
+            screen_w,
+            screen_h,
+            None,
+            None,
+            Some(instance),
+            None,
+        )?;
+
+        let screen_dc = GetDC(None);
+        let mem_dc = CreateCompatibleDC(Some(screen_dc));
+        let bitmap_info = BITMAPINFO {
+            bmiHeader: BITMAPINFOHEADER {
+                biSize: size_of::<BITMAPINFOHEADER>() as u32,
+                biWidth: screen_w,
+                biHeight: -screen_h,
+                biPlanes: 1,
+                biBitCount: 32,
+                biCompression: BI_RGB.0,
+                ..Default::default()
+            },
+            ..Default::default()
+        };
+        let mut bits_ptr: *mut c_void = std::ptr::null_mut();
+        let bitmap = CreateDIBSection(
+            Some(mem_dc),
+            &bitmap_info,
+            DIB_RGB_COLORS,
+            &mut bits_ptr,
+            None,
+            0,
+        )?;
+        let old_bitmap = SelectObject(mem_dc, HGDIOBJ(bitmap.0));
+
+        let (mut capture, metadata) = media::open_video_capture(&preset.clip.file_path, preset.clip.start_ms)?;
+        let chroma_key = if preset.clip.chroma_key_enabled {
+            Some((preset.clip.chroma_key_color, preset.clip.chroma_key_tolerance))
+        } else {
+            None
+        };
+        let frame_delay = Duration::from_secs_f64((1.0 / metadata.fps.max(1.0)).clamp(1.0 / 60.0, 1.0 / 12.0));
+        let clip_end_ms = if preset.clip.end_ms > preset.clip.start_ms {
+            preset.clip.end_ms
+        } else {
+            metadata.duration_ms.max(preset.clip.start_ms.saturating_add(1))
+        };
+
+        let mut pt_src = POINT::default();
+        let mut pt_dst = POINT { x: 0, y: 0 };
+        let mut size_wnd = SIZE { cx: screen_w, cy: screen_h };
+        let mut blend = BLENDFUNCTION {
+            BlendOp: AC_SRC_OVER as u8,
+            BlendFlags: 0,
+            SourceConstantAlpha: 255,
+            AlphaFormat: AC_SRC_ALPHA as u8,
+        };
+
+        let _ = ShowWindow(hwnd, SW_SHOWNA);
+        loop {
+            if stop_flag.load(Ordering::Relaxed) {
+                break;
+            }
+
+            let started_at = Instant::now();
+            let mut frame = Mat::default();
+            if !capture.read(&mut frame)? || frame.empty() {
+                break;
+            }
+
+            let position_ms = capture.get(opencv::videoio::CAP_PROP_POS_MSEC)?.round().max(0.0) as u64;
+            if position_ms > clip_end_ms {
+                break;
+            }
+
+            let pixels = media::frame_to_premultiplied_bgra(&frame, screen_w, screen_h, chroma_key)?;
+            let bytes_len = (screen_w as usize) * (screen_h as usize) * 4;
+            let dib_pixels = std::slice::from_raw_parts_mut(bits_ptr as *mut u8, bytes_len);
+            dib_pixels.copy_from_slice(&pixels);
+
+            let _ = UpdateLayeredWindow(
+                hwnd,
+                Some(screen_dc),
+                Some(&mut pt_dst),
+                Some(&mut size_wnd),
+                Some(mem_dc),
+                Some(&mut pt_src),
+                COLORREF(0),
+                Some(&mut blend),
+                ULW_ALPHA,
+            );
+
+            let elapsed = started_at.elapsed();
+            if elapsed < frame_delay {
+                thread::sleep(frame_delay - elapsed);
+            }
+        }
+
+        let _ = ShowWindow(hwnd, SW_HIDE);
+        let _ = SelectObject(mem_dc, old_bitmap);
+        let _ = DeleteObject(HGDIOBJ(bitmap.0));
+        let _ = DeleteDC(mem_dc);
+        let _ = ReleaseDC(None, screen_dc);
+        let _ = DestroyWindow(hwnd);
+        Ok(())
+    }
+
     fn play_mouse_path_preset(
         spec: &str,
         step: &MacroStep,
@@ -5319,6 +5494,9 @@ mod windows_overlay {
             }
             MacroAction::PlaySoundPreset => {
                 let _ = play_sound_preset(&step.key);
+            }
+            MacroAction::PlayVideoPreset => {
+                let _ = play_video_preset(&step.key);
             }
             MacroAction::StartVisionSearch => {
                 let _ = start_vision_following(&step.key, Some(&step.if_variable_name));
@@ -5709,6 +5887,9 @@ mod windows_overlay {
                 MacroAction::PlaySoundPreset => {
                     let _ = play_sound_preset(&step.key);
                 }
+                MacroAction::PlayVideoPreset => {
+                    let _ = play_video_preset(&step.key);
+                }
                 MacroAction::StartVisionSearch => {
                     let _ = start_vision_following(&step.key, Some(&step.if_variable_name));
                 }
@@ -6091,6 +6272,9 @@ mod windows_overlay {
                 }
                 MacroAction::PlaySoundPreset => {
                     let _ = play_sound_preset(&step.key);
+                }
+                MacroAction::PlayVideoPreset => {
+                    let _ = play_video_preset(&step.key);
                 }
                 MacroAction::StartVisionSearch => {
                     let _ = start_vision_following(&step.key, Some(&step.if_variable_name));
@@ -7302,6 +7486,7 @@ fn set_variable_value(target_var: &str, value: i32) {
                 | MacroAction::EnableZoomPreset
                 | MacroAction::DisableZoom
                 | MacroAction::PlaySoundPreset
+                | MacroAction::PlayVideoPreset
                 | MacroAction::StartVisionSearch
                 | MacroAction::ScanVisionOnce
                 | MacroAction::TriggerVisionMove
@@ -7437,6 +7622,7 @@ fn set_variable_value(target_var: &str, value: i32) {
             | MacroAction::EnableZoomPreset
             | MacroAction::DisableZoom
             | MacroAction::PlaySoundPreset
+            | MacroAction::PlayVideoPreset
             | MacroAction::StartVisionSearch
             | MacroAction::ScanVisionOnce
             | MacroAction::TriggerVisionMove
@@ -11233,6 +11419,7 @@ mod fallback {
         UpdateWindowExpandControls(WindowExpandControls),
         UpdateMacroPresets(Vec<MacroGroup>),
         UpdateAudioSettings(AudioSettings),
+        PlayVideoPreset(u32),
 
         UpdateKeyboardArrowMouseSettings {
             enabled: bool,

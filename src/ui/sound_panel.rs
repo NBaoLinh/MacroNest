@@ -1,5 +1,6 @@
 use crate::model::*;
-use crate::ui::{CrosshairApp, AudioCardOutcome, AudioEditorTarget, audio_duration};
+use crate::overlay::OverlayCommand;
+use crate::ui::{CrosshairApp, AudioCardOutcome, AudioEditorTarget, video_duration};
 use crate::audio;
 use eframe::egui::{self, *};
 
@@ -762,6 +763,121 @@ impl CrosshairApp {
         outcome
     }
 
+    fn trim_video_bounds(clip: &mut VideoClipSettings, total_ms: u64) {
+        if total_ms == 0 {
+            clip.start_ms = 0;
+            clip.end_ms = 0;
+            return;
+        }
+        clip.start_ms = clip.start_ms.min(total_ms);
+        clip.end_ms = clip.end_ms.min(total_ms);
+        if clip.end_ms < clip.start_ms {
+            clip.end_ms = clip.start_ms;
+        }
+    }
+
+    fn render_video_trim_bar(
+        ui: &mut egui::Ui,
+        id_source: impl std::hash::Hash + Copy,
+        clip: &mut VideoClipSettings,
+        total_ms: u64,
+        desired_height: f32,
+    ) -> bool {
+        Self::trim_video_bounds(clip, total_ms);
+        let desired_size = vec2(ui.available_width().max(220.0), desired_height);
+        let (rect, response) = ui.allocate_exact_size(desired_size, Sense::click_and_drag());
+        let painter = ui.painter_at(rect);
+
+        painter.rect_filled(rect, 8.0, ui.visuals().extreme_bg_color);
+        painter.line_segment(
+            [
+                egui::pos2(rect.left(), rect.center().y),
+                egui::pos2(rect.right(), rect.center().y),
+            ],
+            egui::Stroke::new(2.0, Color32::from_gray(120)),
+        );
+
+        let total_ms_f32 = total_ms.max(1) as f32;
+        let start_x = rect.left() + rect.width() * (clip.start_ms as f32 / total_ms_f32);
+        let end_x = rect.left() + rect.width() * (clip.end_ms as f32 / total_ms_f32);
+        let selected_rect = egui::Rect::from_min_max(
+            egui::pos2(start_x, rect.top()),
+            egui::pos2(end_x.max(start_x + 2.0), rect.bottom()),
+        );
+        painter.rect_filled(
+            selected_rect,
+            8.0,
+            Color32::from_rgba_premultiplied(72, 198, 120, 70),
+        );
+        painter.line_segment(
+            [egui::pos2(start_x, rect.top()), egui::pos2(start_x, rect.bottom())],
+            egui::Stroke::new(2.0, Color32::from_rgb(255, 232, 96)),
+        );
+        painter.line_segment(
+            [egui::pos2(end_x, rect.top()), egui::pos2(end_x, rect.bottom())],
+            egui::Stroke::new(2.0, Color32::from_rgb(255, 232, 96)),
+        );
+
+        let start_handle_rect = egui::Rect::from_center_size(
+            egui::pos2(start_x, rect.center().y),
+            vec2(20.0, rect.height()),
+        );
+        let end_handle_rect = egui::Rect::from_center_size(
+            egui::pos2(end_x, rect.center().y),
+            vec2(20.0, rect.height()),
+        );
+        let start_response = ui.interact(
+            start_handle_rect,
+            ui.make_persistent_id((id_source, "video-trim-start")),
+            Sense::click_and_drag(),
+        );
+        let end_response = ui.interact(
+            end_handle_rect,
+            ui.make_persistent_id((id_source, "video-trim-end")),
+            Sense::click_and_drag(),
+        );
+
+        let mut changed = false;
+        if let Some(pointer) = start_response.interact_pointer_pos()
+            && (start_response.clicked() || start_response.dragged())
+        {
+            let ratio = ((pointer.x - rect.left()) / rect.width()).clamp(0.0, 1.0);
+            clip.start_ms = ((ratio * total_ms_f32).round() as u64).min(clip.end_ms);
+            changed = true;
+        } else if let Some(pointer) = end_response.interact_pointer_pos()
+            && (end_response.clicked() || end_response.dragged())
+        {
+            let ratio = ((pointer.x - rect.left()) / rect.width()).clamp(0.0, 1.0);
+            clip.end_ms = ((ratio * total_ms_f32).round() as u64).max(clip.start_ms);
+            changed = true;
+        } else if response.clicked()
+            && let Some(pointer) = response.interact_pointer_pos()
+        {
+            let ratio = ((pointer.x - rect.left()) / rect.width()).clamp(0.0, 1.0);
+            let next_ms = (ratio * total_ms_f32).round() as u64;
+            if (pointer.x - start_x).abs() <= (pointer.x - end_x).abs() {
+                clip.start_ms = next_ms.min(clip.end_ms);
+            } else {
+                clip.end_ms = next_ms.max(clip.start_ms);
+            }
+            changed = true;
+        }
+
+        ui.add_space(4.0);
+        ui.horizontal(|ui| {
+            ui.label(format!("Start: {}", Self::format_ms(clip.start_ms)));
+            ui.separator();
+            ui.label(format!("End: {}", Self::format_ms(clip.end_ms)));
+            ui.separator();
+            ui.label(format!(
+                "Selected: {}",
+                Self::format_ms(clip.end_ms.saturating_sub(clip.start_ms))
+            ));
+        });
+
+        changed
+    }
+
 
 
     pub(crate) fn render_sound_panel(&mut self, ui: &mut egui::Ui) {
@@ -770,6 +886,13 @@ impl CrosshairApp {
         ui.spacing_mut().item_spacing = vec2(6.0, 4.0);
         ui.add_space(2.0);
         let mut changed = false;
+        ui.heading(Self::tr_lang(language, "Media", "Media"));
+        ui.label(Self::tr_lang(
+            language,
+            "Manage reusable audio and video presets for macro steps.",
+            "Quản lý preset âm thanh và video dùng lại cho các bước macro.",
+        ));
+        ui.add_space(6.0);
         ui.horizontal(|ui| {
 
             if ui
@@ -785,9 +908,31 @@ impl CrosshairApp {
                 self.show_sound_preset_audio_editor.insert(id);
                 changed = true;
             }
+            if ui
+                .button(Self::tr_lang(language, "+ Add Video Preset", "+ Thêm preset video"))
+                .clicked()
+            {
+                let mut id = 1;
+                while self.state.audio_settings.video_presets.iter().any(|p| p.id == id) {
+                    id += 1;
+                }
+                self.state.audio_settings.next_video_preset_id = (self
+                    .state
+                    .audio_settings
+                    .video_presets
+                    .iter()
+                    .map(|p| p.id)
+                    .max()
+                    .unwrap_or(0)
+                    + 1)
+                    .max(id + 1);
+                self.state.audio_settings.video_presets.push(VideoPreset::new(id));
+                changed = true;
+            }
         });
 
         ui.add_space(8.0);
+        ui.label(RichText::new(Self::tr_lang(language, "Sound Presets", "Preset âm thanh")).strong());
 
         let mut remove_sound_preset = None;
         for index in 0..self.state.audio_settings.presets.len() {
@@ -907,6 +1052,183 @@ impl CrosshairApp {
             self.sound_preset_clip_duration_ms.remove(&preset_id);
             self.show_sound_preset_audio_editor.remove(&preset_id);
             changed = true;
+        }
+
+        ui.add_space(10.0);
+        ui.separator();
+        ui.add_space(8.0);
+        ui.label(RichText::new(Self::tr_lang(language, "Video Presets", "Preset video")).strong());
+
+        let mut remove_video_preset = None;
+        let mut preview_video_preset = None;
+        for index in 0..self.state.audio_settings.video_presets.len() {
+            let preset_id = self.state.audio_settings.video_presets[index].id;
+            let mut choose_video_for = None;
+            let mut preview_now = false;
+            let preset = &mut self.state.audio_settings.video_presets[index];
+            let mut duration = self
+                .video_preset_clip_duration_ms
+                .get(&preset_id)
+                .copied()
+                .flatten()
+                .or_else(|| video_duration(&preset.clip));
+            if !preset.clip.enabled {
+                preset.clip.enabled = true;
+                changed = true;
+            }
+
+            ui.add_space(6.0);
+            Self::show_preset_card(ui, false, |ui| {
+                ui.set_min_width(ui.available_width());
+                ui.horizontal(|ui| {
+                    let name_width = Self::preset_header_name_width(ui);
+                    let response = ui.add_sized([name_width, 24.0], TextEdit::singleline(&mut preset.name));
+                    Self::apply_vietnamese_input_if_changed(
+                        &response,
+                        self.state.vietnamese_input_enabled,
+                        self.state.vietnamese_input_mode,
+                        &mut preset.name,
+                    );
+                    changed |= response.changed();
+                    ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
+                        if ui
+                            .add_sized([36.0, 24.0], Button::new(Self::material_icon_text(0xe872, 18.0)))
+                            .on_hover_text(Self::tr_lang(language, "Delete video preset", "Xóa preset video"))
+                            .clicked()
+                        {
+                            remove_video_preset = Some(preset.id);
+                        }
+                        if ui
+                            .add_sized(
+                                [84.0, 24.0],
+                                Button::new(if preset.collapsed {
+                                    Self::tr_lang(language, "Show", "Show")
+                                } else {
+                                    Self::tr_lang(language, "Hide", "Hide")
+                                }),
+                            )
+                            .clicked()
+                        {
+                            preset.collapsed = !preset.collapsed;
+                        }
+                    });
+                });
+                if preset.collapsed {
+                    return;
+                }
+
+                ui.horizontal_wrapped(|ui| {
+                    if ui
+                        .button(Self::material_icon_text(0xe145, 18.0))
+                        .on_hover_text(Self::tr_lang(language, "Choose video file", "Chọn file video"))
+                        .clicked()
+                    {
+                        choose_video_for = Some(preset.id);
+                    }
+                    if ui
+                        .add_enabled(
+                            !preset.clip.file_path.trim().is_empty(),
+                            Button::new(Self::material_icon_text(0xe037, 18.0)),
+                        )
+                        .on_hover_text(Self::tr_lang(language, "Preview fullscreen", "Xem thử fullscreen"))
+                        .clicked()
+                    {
+                        preview_now = true;
+                    }
+                });
+
+                ui.label(if preset.clip.file_path.is_empty() {
+                    Self::tr_lang(language, "No video file selected.", "Chưa chọn file video.")
+                } else {
+                    preset.clip.file_path.as_str()
+                });
+
+                if let Some(total_ms) = duration {
+                    Self::trim_video_bounds(&mut preset.clip, total_ms);
+                    ui.label(format!(
+                        "{} {}  |  {} {}",
+                        Self::tr_lang(language, "Total:", "Tổng:"),
+                        Self::format_ms(total_ms),
+                        Self::tr_lang(language, "Slice", "Đoạn"),
+                        Self::format_ms(preset.clip.end_ms.saturating_sub(preset.clip.start_ms))
+                    ));
+                    changed |= Self::render_video_trim_bar(
+                        ui,
+                        ("video-trim", preset.id),
+                        &mut preset.clip,
+                        total_ms,
+                        44.0,
+                    );
+                    ui.horizontal(|ui| {
+                        ui.label(Self::tr_lang(language, "Start", "Bắt đầu"));
+                        changed |= ui
+                            .add(DragValue::new(&mut preset.clip.start_ms).range(0..=total_ms))
+                            .changed();
+                        ui.label(Self::tr_lang(language, "End", "Kết thúc"));
+                        changed |= ui
+                            .add(DragValue::new(&mut preset.clip.end_ms).range(0..=total_ms))
+                            .changed();
+                    });
+                    Self::trim_video_bounds(&mut preset.clip, total_ms);
+                }
+
+                ui.separator();
+                ui.horizontal_wrapped(|ui| {
+                    changed |= ui
+                        .checkbox(
+                            &mut preset.clip.chroma_key_enabled,
+                            Self::tr_lang(language, "Chroma Key", "Xóa phông màu"),
+                        )
+                        .changed();
+                    ui.label(Self::tr_lang(language, "Color", "Màu"));
+                    let mut key_rgba = [
+                        preset.clip.chroma_key_color.r,
+                        preset.clip.chroma_key_color.g,
+                        preset.clip.chroma_key_color.b,
+                        255,
+                    ];
+                    if ui.color_edit_button_srgba_unmultiplied(&mut key_rgba).changed() {
+                        preset.clip.chroma_key_color = RgbaColor {
+                            r: key_rgba[0],
+                            g: key_rgba[1],
+                            b: key_rgba[2],
+                            a: 255,
+                        };
+                        changed = true;
+                    }
+                    ui.label(Self::tr_lang(language, "Tolerance", "Ngưỡng"));
+                    changed |= ui
+                        .add(Slider::new(&mut preset.clip.chroma_key_tolerance, 0..=128))
+                        .changed();
+                });
+            });
+
+            self.video_preset_clip_duration_ms.insert(preset.id, duration);
+            if let Some(preset_id) = choose_video_for {
+                self.choose_video_file_for_preset(preset_id);
+            }
+            if preview_now {
+                preview_video_preset = Some(preset_id);
+            }
+        }
+
+        if let Some(preset_id) = remove_video_preset {
+            self.state
+                .audio_settings
+                .video_presets
+                .retain(|preset| preset.id != preset_id);
+            self.video_preset_clip_duration_ms.remove(&preset_id);
+            changed = true;
+        }
+
+        if let Some(preset_id) = preview_video_preset {
+            let _ = self.overlay_tx.send(OverlayCommand::PlayVideoPreset(preset_id));
+            self.status = Self::tr_lang(
+                language,
+                "Playing video preset fullscreen.",
+                "Đang phát preset video fullscreen.",
+            )
+            .to_owned();
         }
 
         if changed {
