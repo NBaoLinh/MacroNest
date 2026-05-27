@@ -225,6 +225,12 @@ mod windows_impl {
         target
     }
 
+    fn clean_invisible_chars(s: &str) -> String {
+        s.chars()
+            .filter(|&c| c != '\u{200B}' && c != '\u{200C}' && c != '\u{200D}' && c != '\u{FEFF}')
+            .collect()
+    }
+
     const BROWSER_SUFFIXES: &[&str] = &[
         " - Microsoft Edge",
         " - Google Chrome",
@@ -244,8 +250,10 @@ mod windows_impl {
     ];
 
     fn matches_browser_suffix(target: &str, candidate: &str) -> bool {
-        let target_base = selector_base_title(target);
-        let candidate_base = selector_base_title(candidate);
+        let clean_target = clean_invisible_chars(target);
+        let clean_candidate = clean_invisible_chars(candidate);
+        let target_base = selector_base_title(&clean_target);
+        let candidate_base = selector_base_title(&clean_candidate);
         for suffix in BROWSER_SUFFIXES {
             if target_base.ends_with(suffix) && candidate_base.ends_with(suffix) {
                 return true;

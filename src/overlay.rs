@@ -10374,6 +10374,12 @@ fn set_variable_value(target_var: &str, value: i32) {
         target
     }
 
+    fn clean_invisible_chars(s: &str) -> String {
+        s.chars()
+            .filter(|&c| c != '\u{200B}' && c != '\u{200C}' && c != '\u{200D}' && c != '\u{FEFF}')
+            .collect()
+    }
+
     const BROWSER_SUFFIXES: &[&str] = &[
         " - Microsoft Edge",
         " - Google Chrome",
@@ -10393,8 +10399,10 @@ fn set_variable_value(target_var: &str, value: i32) {
     ];
 
     fn matches_browser_suffix(target: &str, candidate: &str) -> bool {
-        let target_base = selector_base_title(target);
-        let candidate_base = selector_base_title(candidate);
+        let clean_target = clean_invisible_chars(target);
+        let clean_candidate = clean_invisible_chars(candidate);
+        let target_base = selector_base_title(&clean_target);
+        let candidate_base = selector_base_title(&clean_candidate);
         for suffix in BROWSER_SUFFIXES {
             if target_base.ends_with(suffix) && candidate_base.ends_with(suffix) {
                 return true;
