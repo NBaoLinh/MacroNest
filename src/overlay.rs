@@ -182,11 +182,10 @@ mod windows_overlay {
         Lazy::new(|| Mutex::new(HashSet::new()));
     static IMAGE_SEARCH_WAIT_GENERATIONS: Lazy<Mutex<HashMap<u32, u64>>> =
         Lazy::new(|| Mutex::new(HashMap::new()));
-    static HUD_DISPLAY: Lazy<Mutex<Vec<HudDisplayState>>> =
-        Lazy::new(|| Mutex::new(Vec::new()));
-    static HUD_PREVIEW_DISPLAY: Lazy<Mutex<Vec<HudDisplayState>>> =
-        Lazy::new(|| Mutex::new(Vec::new()));
-    static HUD_DISPLAY_NEXT_KEY: Lazy<Mutex<u64>> = Lazy::new(|| Mutex::new(1));
+    static HUD_DISPLAY: Lazy<Mutex<HashMap<u32, HudDisplayState>>> =
+        Lazy::new(|| Mutex::new(HashMap::new()));
+    static HUD_PREVIEW_DISPLAY: Lazy<Mutex<HashMap<u32, HudDisplayState>>> =
+        Lazy::new(|| Mutex::new(HashMap::new()));
     static MOUSE_RECORDING: Lazy<Mutex<Option<MouseRecordingSession>>> =
         Lazy::new(|| Mutex::new(None));
     static MACRO_RECORDING: Lazy<Mutex<Option<MacroRecordingSession>>> =
@@ -645,7 +644,7 @@ mod windows_overlay {
         hud_hwnd: HWND,
         pin_hwnd: HWND,
         last_pin_update: Instant,
-        hud_display: Vec<HudDisplayState>,
+        hud_display: HashMap<u32, HudDisplayState>,
         tray_menu: HMENU,
         keyboard_hook: HHOOK,
         mouse_hook: HHOOK,
@@ -687,7 +686,6 @@ mod windows_overlay {
 
     #[derive(Clone, PartialEq)]
     struct HudDisplayState {
-        display_key: u64,
         owner_preset_id: Option<u32>,
         preset_id: Option<u32>,
         text: String,
@@ -702,17 +700,6 @@ mod windows_overlay {
         height: i32,
         auto_hide_on_owner_completion: bool,
         expires_at: Option<Instant>,
-    }
-
-    fn hud_display_key(display: &HudDisplayState) -> u64 {
-        display.display_key
-    }
-
-    fn next_hud_display_key() -> u64 {
-        let mut guard = HUD_DISPLAY_NEXT_KEY.lock();
-        let key = *guard;
-        *guard = (*guard).saturating_add(1).max(1);
-        key
     }
 
     struct ActivePinThumbnail {
@@ -938,7 +925,7 @@ mod windows_overlay {
                 hud_hwnd,
                 pin_hwnd,
                 last_pin_update: Instant::now() - Duration::from_secs(1),
-                hud_display: Vec::new(),
+                hud_display: HashMap::new(),
                 tray_menu,
                 keyboard_hook: HHOOK::default(),
                 mouse_hook: HHOOK::default(),
@@ -1043,6 +1030,12 @@ mod windows_overlay {
             WM_TIMER => {
                 if let Some(runtime) = runtime_mut(hwnd) {
                     process_pending_commands(hwnd, runtime);
+                    let hud_active = !HUD_DISPLAY.lock().is_empty()
+                        || !HUD_PREVIEW_DISPLAY.lock().is_empty()
+                        || !runtime.hud_display.is_empty();
+                    if hud_active {
+                        let _ = refresh_hud(runtime);
+                    }
                     let ui_foreground = is_ui_in_foreground();
                     if ui_foreground != runtime.ui_foreground {
                         runtime.ui_foreground = ui_foreground;
@@ -1099,6 +1092,12 @@ mod windows_overlay {
             WMAPP_PROCESS_QUEUE => {
                 if let Some(runtime) = runtime_mut(hwnd) {
                     process_pending_commands(hwnd, runtime);
+                    let hud_active = !HUD_DISPLAY.lock().is_empty()
+                        || !HUD_PREVIEW_DISPLAY.lock().is_empty()
+                        || !runtime.hud_display.is_empty();
+                    if hud_active {
+                        let _ = refresh_hud(runtime);
+                    }
                     let _ = refresh_search_area_overlay(runtime);
                     let _ = refresh_timer_overlays(runtime);
                     refresh_overlay_timer(hwnd, runtime);
@@ -3341,11 +3340,12 @@ mod windows_overlay {
                     HOOK_STATE.lock().command_presets = presets;
                 }
                 OverlayCommand::PreviewHudPreset(presets) => {
-                    let preview_list = presets
+                    let preview_map = presets
                         .into_iter()
                         .map(toolbox_preview_display_from_preset)
-                        .collect::<Vec<_>>();
-                    *HUD_PREVIEW_DISPLAY.lock() = preview_list;
+                        .map(|display| (display.preset_id.unwrap_or_default(), display))
+                        .collect::<HashMap<_, _>>();
+                    *HUD_PREVIEW_DISPLAY.lock() = preview_map;
                     let _ = refresh_hud(runtime);
                 }
                 OverlayCommand::UpdateMacroPresets(presets) => {
@@ -3600,21 +3600,21 @@ mod windows_overlay {
     fn refresh_hud(runtime: &mut Runtime) -> Result<()> {
         let displays = {
             let mut preview_guard = HUD_PREVIEW_DISPLAY.lock();
-            preview_guard.retain(|active| {
+            preview_guard.retain(|_, active| {
                 active
                     .expires_at
                     .is_none_or(|expires_at| Instant::now() < expires_at)
             });
             if !preview_guard.is_empty() {
-                preview_guard.clone()
+                preview_guard.values().cloned().collect::<Vec<_>>()
             } else {
                 let mut guard = HUD_DISPLAY.lock();
-                guard.retain(|active| {
+                guard.retain(|_, active| {
                     active
                         .expires_at
                         .is_none_or(|expires_at| Instant::now() < expires_at)
                 });
-                guard.clone()
+                guard.values().cloned().collect::<Vec<_>>()
             }
         };
 
@@ -3628,38 +3628,18 @@ mod windows_overlay {
         for display in &mut display_signature {
             display.text = resolve_variables_in_text(&display.text);
         }
-        display_signature.sort_by_key(|display| display.display_key);
-        layout_hud_displays(&mut display_signature);
-        if runtime.hud_display == display_signature {
+        if runtime.hud_display == display_signature.iter().map(|display| {
+            let preset_key = display.preset_id.unwrap_or_default();
+            (preset_key, display.clone())
+        }).collect::<HashMap<_, _>>() {
             return Ok(());
         }
-        runtime.hud_display = display_signature.clone();
+        runtime.hud_display = display_signature
+            .iter()
+            .map(|display| (display.preset_id.unwrap_or_default(), display.clone()))
+            .collect();
 
         unsafe { paint_hud(runtime.hud_hwnd, &display_signature) }
-    }
-
-    fn layout_hud_displays(displays: &mut [HudDisplayState]) {
-        let mut placed: Vec<(i32, i32, i32, i32)> = Vec::new();
-        let gap = 8;
-        for display in displays.iter_mut() {
-            let width = display.width.max(1);
-            let height = display.height.max(1);
-            let mut y = display.y;
-            let x = display.x;
-            let mut attempts = 0;
-            loop {
-                let overlaps = placed.iter().any(|(px, py, pw, ph)| {
-                    x < *px + *pw && x + width > *px && y < *py + *ph && y + height > *py
-                });
-                if !overlaps || attempts >= 32 {
-                    break;
-                }
-                y += height + gap;
-                attempts += 1;
-            }
-            display.y = y;
-            placed.push((x, y, width, height));
-        }
     }
 
     fn refresh_mouse_record_trail(runtime: &mut Runtime) -> Result<()> {
@@ -7466,9 +7446,7 @@ fn set_variable_value(target_var: &str, value: i32) {
             None
         };
 
-        let display_key = next_hud_display_key();
-        HUD_DISPLAY.lock().push(HudDisplayState {
-            display_key,
+        HUD_DISPLAY.lock().insert(preset.id, HudDisplayState {
             owner_preset_id: Some(owner_preset_id),
             preset_id: Some(preset.id),
             text,
@@ -7493,7 +7471,6 @@ fn set_variable_value(target_var: &str, value: i32) {
         let scale_x = screen_width as f32 / 1920.0;
         let scale_y = screen_height as f32 / 1080.0;
         HudDisplayState {
-            display_key: u64::from(preset.id),
             owner_preset_id: None,
             preset_id: Some(preset.id),
             text: preset.text,
@@ -7522,9 +7499,7 @@ fn set_variable_value(target_var: &str, value: i32) {
             hide_hud_now();
             return;
         }
-        let display_key = next_hud_display_key();
-        HUD_DISPLAY.lock().push(HudDisplayState {
-            display_key,
+        HUD_DISPLAY.lock().insert(owner_preset_id, HudDisplayState {
             owner_preset_id: Some(owner_preset_id),
             preset_id: None,
             text: trimmed,
@@ -7571,7 +7546,7 @@ fn set_variable_value(target_var: &str, value: i32) {
     fn hide_toolbox_for_owner(owner_preset_id: u32) {
         HUD_DISPLAY
             .lock()
-            .retain(|active| {
+            .retain(|_, active| {
                 !(active.owner_preset_id == Some(owner_preset_id)
                     && active.auto_hide_on_owner_completion)
             });
