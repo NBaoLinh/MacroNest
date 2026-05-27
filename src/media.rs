@@ -23,19 +23,14 @@ use opencv::{
     imgproc,
     prelude::*,
     videoio::{
-        CAP_ANY, CAP_PROP_FPS, CAP_PROP_FRAME_COUNT, CAP_PROP_FRAME_HEIGHT, CAP_PROP_FRAME_WIDTH,
-        CAP_PROP_POS_MSEC, VideoCapture,
+        CAP_ANY, CAP_FFMPEG, CAP_PROP_FPS, CAP_PROP_FRAME_COUNT, CAP_PROP_FRAME_HEIGHT,
+        CAP_PROP_FRAME_WIDTH, CAP_PROP_POS_MSEC, VideoCapture,
     },
 };
 
 #[cfg(windows)]
 pub fn load_video_metadata(path: &str) -> Result<VideoMetadata> {
-    let capture =
-        VideoCapture::from_file(path, CAP_ANY).with_context(|| format!("Open video: {path}"))?;
-    if !capture.is_opened()? {
-        bail!("Video could not be opened");
-    }
-
+    let capture = open_video_capture_with_backend(path)?;
     let width = capture.get(CAP_PROP_FRAME_WIDTH)?.round() as i32;
     let height = capture.get(CAP_PROP_FRAME_HEIGHT)?.round() as i32;
     let fps = capture.get(CAP_PROP_FPS)?;
@@ -61,12 +56,21 @@ pub fn load_video_metadata(_path: &str) -> Result<VideoMetadata> {
 
 #[cfg(windows)]
 pub fn open_video_capture(path: &str, start_ms: u64) -> Result<(VideoCapture, VideoMetadata)> {
-    let metadata = load_video_metadata(path)?;
-    let mut capture =
-        VideoCapture::from_file(path, CAP_ANY).with_context(|| format!("Open video: {path}"))?;
-    if !capture.is_opened()? {
-        bail!("Video could not be opened");
-    }
+    let mut capture = open_video_capture_with_backend(path)?;
+    let metadata = VideoMetadata {
+        width: capture.get(CAP_PROP_FRAME_WIDTH)?.round() as i32,
+        height: capture.get(CAP_PROP_FRAME_HEIGHT)?.round() as i32,
+        fps: capture.get(CAP_PROP_FPS)?,
+        duration_ms: {
+            let fps = capture.get(CAP_PROP_FPS)?;
+            let frame_count = capture.get(CAP_PROP_FRAME_COUNT)?;
+            if fps.is_finite() && fps > 0.0 && frame_count.is_finite() && frame_count > 0.0 {
+                ((frame_count / fps) * 1000.0).round().max(0.0) as u64
+            } else {
+                0
+            }
+        },
+    };
     if start_ms > 0 {
         let _ = capture.set(CAP_PROP_POS_MSEC, start_ms as f64);
     }
@@ -76,6 +80,27 @@ pub fn open_video_capture(path: &str, start_ms: u64) -> Result<(VideoCapture, Vi
 #[cfg(not(windows))]
 pub fn open_video_capture(_path: &str, _start_ms: u64) -> Result<((), VideoMetadata)> {
     bail!("Video playback is only supported on Windows")
+}
+
+#[cfg(windows)]
+fn open_video_capture_with_backend(path: &str) -> Result<VideoCapture> {
+    let mut last_error = None;
+    for backend in [CAP_FFMPEG, CAP_ANY] {
+        match VideoCapture::from_file(path, backend)
+            .with_context(|| format!("Open video with backend {backend}: {path}"))
+        {
+            Ok(capture) => {
+                if capture.is_opened()? {
+                    return Ok(capture);
+                }
+                last_error = Some(anyhow::anyhow!(
+                    "Video backend {backend} did not open the file"
+                ));
+            }
+            Err(error) => last_error = Some(error),
+        }
+    }
+    Err(last_error.unwrap_or_else(|| anyhow::anyhow!("Video could not be opened")))
 }
 
 #[cfg(windows)]

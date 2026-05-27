@@ -1102,6 +1102,7 @@ impl CrosshairApp {
 
     fn delete_opencv_tool(&mut self) {
         let _ = fs::remove_file(&self.paths.opencv_dll);
+        let _ = fs::remove_file(&self.paths.opencv_videoio_ffmpeg_dll);
         self.opencv_installed = false;
     }
 

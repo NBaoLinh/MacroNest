@@ -1,4 +1,5 @@
 use std::{
+    env,
     fs,
     path::{Path, PathBuf},
 };
@@ -28,6 +29,7 @@ pub struct AppPaths {
     pub interception_package_dir: PathBuf,
     pub interception_installer_exe: PathBuf,
     pub opencv_dll: PathBuf,
+    pub opencv_videoio_ffmpeg_dll: PathBuf,
     pub interception_dll: PathBuf,
 }
 
@@ -59,6 +61,7 @@ impl AppPaths {
             .join("command line installer")
             .join("install-interception.exe");
         let opencv_dll = bin_dir.join("opencv_world4100.dll");
+        let opencv_videoio_ffmpeg_dll = bin_dir.join("opencv_videoio_ffmpeg4100_64.dll");
         let interception_dll = bin_dir.join("interception.dll");
 
         fs::create_dir_all(&root)?;
@@ -66,6 +69,7 @@ impl AppPaths {
         fs::create_dir_all(&asset_dir)?;
         fs::create_dir_all(&vision_dir)?;
         fs::create_dir_all(&bin_dir)?;
+        ensure_opencv_videoio_ffmpeg_plugin(&opencv_videoio_ffmpeg_dll);
 
         Ok(Self {
             root,
@@ -81,6 +85,7 @@ impl AppPaths {
             interception_package_dir,
             interception_installer_exe,
             opencv_dll,
+            opencv_videoio_ffmpeg_dll,
             interception_dll,
         })
     }
@@ -556,4 +561,70 @@ fn is_supported_asset(path: &Path) -> bool {
             .as_deref(),
         Some("svg" | "png" | "jpg" | "jpeg" | "bmp" | "webp" | "ico")
     )
+}
+
+fn ensure_opencv_videoio_ffmpeg_plugin(target_path: &Path) {
+    if target_path.exists() {
+        return;
+    }
+    let Some(source_path) = find_local_opencv_videoio_ffmpeg_plugin() else {
+        return;
+    };
+    if let Some(parent) = target_path.parent() {
+        let _ = fs::create_dir_all(parent);
+    }
+    let _ = fs::copy(source_path, target_path);
+}
+
+fn find_local_opencv_videoio_ffmpeg_plugin() -> Option<PathBuf> {
+    let mut candidates = Vec::new();
+
+    if let Ok(current_dir) = env::current_dir() {
+        candidates.push(
+            current_dir
+                .join("target")
+                .join("tmp")
+                .join("python_pkgs")
+                .join("cv2")
+                .join("opencv_videoio_ffmpeg4100_64.dll"),
+        );
+        candidates.push(
+            current_dir
+                .join("target")
+                .join("tmp")
+                .join("python_pkgs")
+                .join("cv2")
+                .join("opencv_videoio_ffmpeg4130_64.dll"),
+        );
+    }
+
+    if let Ok(virtual_env) = env::var("VIRTUAL_ENV") {
+        candidates.push(
+            PathBuf::from(&virtual_env)
+                .join("Lib")
+                .join("site-packages")
+                .join("cv2")
+                .join("opencv_videoio_ffmpeg4100_64.dll"),
+        );
+        candidates.push(
+            PathBuf::from(virtual_env)
+                .join("Lib")
+                .join("site-packages")
+                .join("cv2")
+                .join("opencv_videoio_ffmpeg4130_64.dll"),
+        );
+    }
+
+    if let Ok(local_app_data) = env::var("LOCALAPPDATA") {
+        let python_root = PathBuf::from(local_app_data).join("Programs").join("Python");
+        if let Ok(entries) = fs::read_dir(&python_root) {
+            for entry in entries.flatten() {
+                let base = entry.path().join("Lib").join("site-packages").join("cv2");
+                candidates.push(base.join("opencv_videoio_ffmpeg4100_64.dll"));
+                candidates.push(base.join("opencv_videoio_ffmpeg4130_64.dll"));
+            }
+        }
+    }
+
+    candidates.into_iter().find(|path| path.exists())
 }
