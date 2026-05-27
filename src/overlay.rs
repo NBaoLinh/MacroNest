@@ -5948,7 +5948,7 @@ mod windows_overlay {
                         }
                     } else {
                         let key = normalize_locked_key(&step.key);
-                        if stop_key_triggered(preset_id, &key) {
+                        if key.trim().is_empty() || stop_key_triggered(preset_id, &key) {
                             return MacroRunFlow::BreakLoop;
                         }
                     }
@@ -6332,7 +6332,7 @@ mod windows_overlay {
                         }
                     } else {
                         let key = normalize_locked_key(&step.key);
-                        if stop_key_triggered(preset_id, &key) {
+                        if key.trim().is_empty() || stop_key_triggered(preset_id, &key) {
                             return MacroRunFlow::BreakLoop;
                         }
                     }

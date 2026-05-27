@@ -3630,10 +3630,17 @@ impl CrosshairApp {
                                                                      live_sync = true;
                                                                  }
                                                                  if step.break_loop_by_variable {
-                                                                     let response = ui.add_sized(
-                                                                         [76.0, 22.0],
-                                                                         TextEdit::singleline(&mut step.if_variable_name)
-                                                                             .hint_text(RichText::new(Self::tr_lang(language, "variable", "biến")).color(hint_color).weak()),
+                                                                     let var_name_id = ui.id().with("hold-stop-loop-break-var-name");
+                                                                     let response = Self::render_expandable_text_edit(
+                                                                         ui,
+                                                                         &mut step.if_variable_name,
+                                                                         var_name_id,
+                                                                         76.0,
+                                                                         140.0,
+                                                                         22.0,
+                                                                         22.0,
+                                                                         Self::tr_lang(language, "variable", "biến"),
+                                                                         false,
                                                                      );
                                                                      Self::apply_vietnamese_input_if_changed(
                                                                          &response,
@@ -3653,10 +3660,17 @@ impl CrosshairApp {
                                                                                  }
                                                                              }
                                                                          });
-                                                                     let response2 = ui.add_sized(
-                                                                         [76.0, 22.0],
-                                                                         TextEdit::singleline(&mut step.key)
-                                                                             .hint_text(RichText::new(Self::tr_lang(language, "value/expr", "giá trị")).color(hint_color).weak()),
+                                                                     let key_val_id = ui.id().with("hold-stop-loop-break-var-val");
+                                                                     let response2 = Self::render_expandable_text_edit(
+                                                                         ui,
+                                                                         &mut step.key,
+                                                                         key_val_id,
+                                                                         76.0,
+                                                                         140.0,
+                                                                         22.0,
+                                                                         22.0,
+                                                                         Self::tr_lang(language, "value/expr", "giá trị"),
+                                                                         false,
                                                                      );
                                                                      Self::apply_vietnamese_input_if_changed(
                                                                          &response2,
@@ -4405,7 +4419,7 @@ impl CrosshairApp {
                                                 ui.add_sized([24.0, 22.0], egui::Label::new(""));
                                                 ui.add_sized([24.0, 22.0], egui::Label::new(""));
                                             }
-                                            if action_supports_capture {
+                                            if action_supports_capture && !(step.action == MacroAction::StopIfKeyPressed && step.break_loop_by_variable) {
                                                 let hold_stop_capture_target =
                                                     CaptureRequest::MacroPresetHoldStopInput(group.id, preset.id);
                                                 let hold_stop_capture_active =
@@ -6186,10 +6200,17 @@ Example: {100 + (A - B) * 2}",
                                                                      live_sync = true;
                                                                  }
                                                                  if step.break_loop_by_variable {
-                                                                     let response = ui.add_sized(
-                                                                         [64.0, 18.0],
-                                                                         TextEdit::singleline(&mut step.if_variable_name)
-                                                                             .hint_text(RichText::new(Self::tr_lang(language, "variable", "biáº¿n")).color(hint_color).weak()),
+                                                                     let var_name_id = ui.id().with((step_index, "loop-break-var-name"));
+                                                                     let response = Self::render_expandable_text_edit(
+                                                                         ui,
+                                                                         &mut step.if_variable_name,
+                                                                         var_name_id,
+                                                                         64.0,
+                                                                         140.0,
+                                                                         18.0,
+                                                                         18.0,
+                                                                         Self::tr_lang(language, "variable", "biến"),
+                                                                         false,
                                                                      );
                                                                      Self::apply_vietnamese_input_if_changed(
                                                                          &response,
@@ -6209,10 +6230,17 @@ Example: {100 + (A - B) * 2}",
                                                                                  }
                                                                              }
                                                                          });
-                                                                     let response2 = ui.add_sized(
-                                                                         [76.0, 18.0],
-                                                                         TextEdit::singleline(&mut step.key)
-                                                                             .hint_text(RichText::new(Self::tr_lang(language, "value/expr", "giÃƒÂ¡ trÃ¡Â»â€¹")).color(hint_color).weak()),
+                                                                     let var_val_id = ui.id().with((step_index, "loop-break-var-val"));
+                                                                     let response2 = Self::render_expandable_text_edit(
+                                                                         ui,
+                                                                         &mut step.key,
+                                                                         var_val_id,
+                                                                         76.0,
+                                                                         180.0,
+                                                                         18.0,
+                                                                         18.0,
+                                                                         Self::tr_lang(language, "value/expr", "giá trị"),
+                                                                         false,
                                                                      );
                                                                      Self::apply_vietnamese_input_if_changed(
                                                                          &response2,
@@ -7109,7 +7137,7 @@ Example: {100 + (A - B) * 2}",
                                                     step.timed_override = temp_ms > 0;
                                                     live_sync = true;
                                                 }
-                                            } else if action_supports_capture {
+                                            } else if action_supports_capture && !(step.action == MacroAction::StopIfKeyPressed && step.break_loop_by_variable) {
                                                 let step_capture_target = CaptureRequest::MacroStepInput {
                                                     group_id: group.id,
                                                     preset_id: preset.id,
