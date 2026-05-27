@@ -182,10 +182,11 @@ mod windows_overlay {
         Lazy::new(|| Mutex::new(HashSet::new()));
     static IMAGE_SEARCH_WAIT_GENERATIONS: Lazy<Mutex<HashMap<u32, u64>>> =
         Lazy::new(|| Mutex::new(HashMap::new()));
-    static HUD_DISPLAY: Lazy<Mutex<HashMap<u32, HudDisplayState>>> =
+    static HUD_DISPLAY: Lazy<Mutex<HashMap<u64, HudDisplayState>>> =
         Lazy::new(|| Mutex::new(HashMap::new()));
-    static HUD_PREVIEW_DISPLAY: Lazy<Mutex<HashMap<u32, HudDisplayState>>> =
+    static HUD_PREVIEW_DISPLAY: Lazy<Mutex<HashMap<u64, HudDisplayState>>> =
         Lazy::new(|| Mutex::new(HashMap::new()));
+    static HUD_DISPLAY_NEXT_KEY: Lazy<Mutex<u64>> = Lazy::new(|| Mutex::new(1));
     static MOUSE_RECORDING: Lazy<Mutex<Option<MouseRecordingSession>>> =
         Lazy::new(|| Mutex::new(None));
     static MACRO_RECORDING: Lazy<Mutex<Option<MacroRecordingSession>>> =
@@ -644,7 +645,7 @@ mod windows_overlay {
         hud_hwnd: HWND,
         pin_hwnd: HWND,
         last_pin_update: Instant,
-        hud_display: HashMap<u32, HudDisplayState>,
+        hud_display: HashMap<u64, HudDisplayState>,
         tray_menu: HMENU,
         keyboard_hook: HHOOK,
         mouse_hook: HHOOK,
@@ -686,6 +687,7 @@ mod windows_overlay {
 
     #[derive(Clone, PartialEq)]
     struct HudDisplayState {
+        display_key: u64,
         owner_preset_id: Option<u32>,
         preset_id: Option<u32>,
         text: String,
@@ -702,11 +704,15 @@ mod windows_overlay {
         expires_at: Option<Instant>,
     }
 
-    fn hud_display_key(display: &HudDisplayState) -> u32 {
-        display
-            .preset_id
-            .or(display.owner_preset_id)
-            .unwrap_or_default()
+    fn hud_display_key(display: &HudDisplayState) -> u64 {
+        display.display_key
+    }
+
+    fn next_hud_display_key() -> u64 {
+        let mut guard = HUD_DISPLAY_NEXT_KEY.lock();
+        let key = *guard;
+        *guard = (*guard).saturating_add(1).max(1);
+        key
     }
 
     struct ActivePinThumbnail {
@@ -3623,6 +3629,8 @@ mod windows_overlay {
         for display in &mut display_signature {
             display.text = resolve_variables_in_text(&display.text);
         }
+        display_signature.sort_by_key(|display| display.display_key);
+        layout_hud_displays(&mut display_signature);
         let display_signature_map = display_signature
             .iter()
             .map(|display| (hud_display_key(display), display.clone()))
@@ -3633,6 +3641,30 @@ mod windows_overlay {
         runtime.hud_display = display_signature_map;
 
         unsafe { paint_hud(runtime.hud_hwnd, &display_signature) }
+    }
+
+    fn layout_hud_displays(displays: &mut [HudDisplayState]) {
+        let mut placed: Vec<(i32, i32, i32, i32)> = Vec::new();
+        let gap = 8;
+        for display in displays.iter_mut() {
+            let width = display.width.max(1);
+            let height = display.height.max(1);
+            let mut y = display.y;
+            let x = display.x;
+            let mut attempts = 0;
+            loop {
+                let overlaps = placed.iter().any(|(px, py, pw, ph)| {
+                    x < *px + *pw && x + width > *px && y < *py + *ph && y + height > *py
+                });
+                if !overlaps || attempts >= 32 {
+                    break;
+                }
+                y += height + gap;
+                attempts += 1;
+            }
+            display.y = y;
+            placed.push((x, y, width, height));
+        }
     }
 
     fn refresh_mouse_record_trail(runtime: &mut Runtime) -> Result<()> {
@@ -7422,7 +7454,9 @@ fn set_variable_value(target_var: &str, value: i32) {
             None
         };
 
-        HUD_DISPLAY.lock().insert(preset.id, HudDisplayState {
+        let display_key = next_hud_display_key();
+        HUD_DISPLAY.lock().insert(display_key, HudDisplayState {
+            display_key,
             owner_preset_id: Some(owner_preset_id),
             preset_id: Some(preset.id),
             text,
@@ -7447,6 +7481,7 @@ fn set_variable_value(target_var: &str, value: i32) {
         let scale_x = screen_width as f32 / 1920.0;
         let scale_y = screen_height as f32 / 1080.0;
         HudDisplayState {
+            display_key: u64::from(preset.id),
             owner_preset_id: None,
             preset_id: Some(preset.id),
             text: preset.text,
@@ -7475,7 +7510,9 @@ fn set_variable_value(target_var: &str, value: i32) {
             hide_hud_now();
             return;
         }
-        HUD_DISPLAY.lock().insert(owner_preset_id, HudDisplayState {
+        let display_key = next_hud_display_key();
+        HUD_DISPLAY.lock().insert(display_key, HudDisplayState {
+            display_key,
             owner_preset_id: Some(owner_preset_id),
             preset_id: None,
             text: trimmed,
