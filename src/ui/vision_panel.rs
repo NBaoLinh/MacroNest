@@ -609,76 +609,86 @@ impl CrosshairApp {
                                     });
                                     ui.end_row();
     
-                                    if preset.is_pixel_counter {
-                                        ui.label(Self::tr_lang(language, "Variable", "Tên biến"));
-                                        ui.horizontal_wrapped(|ui| {
-                                            let is_dark_theme = self.state.ui_theme == UiThemeMode::Dark;
-                                            let hint_color = if is_dark_theme {
-                                                Color32::from_rgba_unmultiplied(140, 140, 140, 150)
-                                            } else {
-                                                Color32::from_rgba_unmultiplied(100, 100, 100, 150)
-                                            };
-                                            let text_edit = egui::TextEdit::singleline(&mut preset.pixel_counter_variable_name)
-                                                .desired_width(120.0)
-                                                .hint_text(RichText::new(format!("pixel_count_{}", preset.id)).color(hint_color).weak());
-                                            live_sync |= ui.add(text_edit).changed();
-                                        });
-                                        ui.end_row();
-                                    }
-    
-                                    if !preset.is_pixel_counter {
-                                        ui.label(Self::tr_lang(
-                                            language,
-                                            "Color priority",
-                                            "Ưu tiên màu",
-                                        ));
-                                        ui.horizontal_wrapped(|ui| {
-                                            live_sync |= ui
-                                                .checkbox(
-                                                    &mut preset.dual_color_scan_midpoint,
-                                                    Self::tr_lang(language, "Midpoint", "Điểm giữa"),
-                                                )
-                                                .changed();
-                                            live_sync |= ui
-                                                .checkbox(
-                                                    &mut preset.color_priority_from_anchor,
-                                                    Self::tr_lang(language, "From point", "Từ điểm cố định"),
-                                                )
-                                                .changed();
-                                            let anchor = preset
-                                                .color_priority_anchor_screen_x
-                                                .zip(preset.color_priority_anchor_screen_y);
-                                            if let Some((x, y)) = anchor {
-                                                ui.monospace(format!("{x}, {y}"));
-                                                if ui
-                                                    .small_button(Self::tr_lang(language, "x", "x"))
-                                                    .on_hover_text(Self::tr_lang(
-                                                        language,
-                                                        "Clear priority point",
-                                                        "Xóa điểm ưu tiên",
-                                                    ))
-                                                    .clicked()
-                                                {
-                                                    preset.color_priority_anchor_screen_x = None;
-                                                    preset.color_priority_anchor_screen_y = None;
-                                                    live_sync = true;
-                                                }
-                                            }
-                                            if preset.color_priority_from_anchor
-                                                && ui
-                                                    .button(Self::tr_lang(
-                                                        language,
-                                                        "Pick point",
-                                                        "Chọn điểm",
-                                                    ))
-                                                    .clicked()
+                                    ui.label(Self::tr_lang(
+                                        language,
+                                        "Color priority",
+                                        "Ưu tiên màu",
+                                    ));
+                                    ui.horizontal_wrapped(|ui| {
+                                        live_sync |= ui
+                                            .checkbox(
+                                                &mut preset.dual_color_scan_midpoint,
+                                                Self::tr_lang(language, "Midpoint", "Điểm giữa"),
+                                            )
+                                            .changed();
+                                        live_sync |= ui
+                                            .checkbox(
+                                                &mut preset.color_priority_from_anchor,
+                                                Self::tr_lang(language, "From point", "Từ điểm cố định"),
+                                            )
+                                            .changed();
+                                        let anchor = preset
+                                            .color_priority_anchor_screen_x
+                                            .zip(preset.color_priority_anchor_screen_y);
+                                        if let Some((x, y)) = anchor {
+                                            ui.monospace(format!("{x}, {y}"));
+                                            if ui
+                                                .small_button(Self::tr_lang(language, "x", "x"))
+                                                .on_hover_text(Self::tr_lang(
+                                                    language,
+                                                    "Clear priority point",
+                                                    "Xóa điểm ưu tiên",
+                                                ))
+                                                .clicked()
                                             {
-                                                start_color_priority_anchor_capture = Some(preset.id);
+                                                preset.color_priority_anchor_screen_x = None;
+                                                preset.color_priority_anchor_screen_y = None;
+                                                live_sync = true;
                                             }
-                                        });
-                                        ui.end_row();
-                                    }
+                                        }
+                                        if preset.color_priority_from_anchor
+                                            && ui
+                                                .button(Self::tr_lang(
+                                                    language,
+                                                    "Pick point",
+                                                    "Chọn điểm",
+                                                ))
+                                                .clicked()
+                                        {
+                                            start_color_priority_anchor_capture = Some(preset.id);
+                                        }
+                                    });
+                                    ui.end_row();
                                 }
+                            }
+    
+                            if preset.is_pixel_counter {
+                                ui.label(Self::tr_lang(language, "Color scan", "Quét màu"));
+                                ui.horizontal_wrapped(|ui| {
+                                    ui.label(Self::tr_lang(language, "Tolerance", "Sai số"));
+                                    live_sync |= ui
+                                        .add(
+                                            DragValue::new(&mut preset.color_tolerance)
+                                                .range(0..=96),
+                                        )
+                                        .changed();
+                                });
+                                ui.end_row();
+    
+                                ui.label(Self::tr_lang(language, "Variable", "Tên biến"));
+                                ui.horizontal_wrapped(|ui| {
+                                    let is_dark_theme = self.state.ui_theme == UiThemeMode::Dark;
+                                    let hint_color = if is_dark_theme {
+                                        Color32::from_rgba_unmultiplied(140, 140, 140, 150)
+                                    } else {
+                                        Color32::from_rgba_unmultiplied(100, 100, 100, 150)
+                                    };
+                                    let text_edit = egui::TextEdit::singleline(&mut preset.pixel_counter_variable_name)
+                                        .desired_width(120.0)
+                                        .hint_text(RichText::new(format!("pixel_count_{}", preset.id)).color(hint_color).weak());
+                                    live_sync |= ui.add(text_edit).changed();
+                                });
+                                ui.end_row();
                             }
     
     
