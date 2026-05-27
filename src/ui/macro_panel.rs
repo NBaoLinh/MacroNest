@@ -4956,7 +4956,7 @@ Example: {100 + (A - B) * 2}",
                                             }
                                             if is_active {
                                                 child_ui.add_sized([8.0, 20.0], egui::Label::new(
-                                                    RichText::new("Ã¢â€”Â")
+                                                    RichText::new("\u{25CF} ")
                                                         .color(Color32::from_rgb(0, 255, 170))
                                                         .size(12.0)
                                                 ))
