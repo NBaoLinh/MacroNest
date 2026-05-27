@@ -658,6 +658,7 @@ impl CrosshairApp {
     }
     pub(crate) fn render_macro_panel(&mut self, ui: &mut egui::Ui) {
         let language = self.state.ui_language;
+        let timer_names: Vec<String> = self.state.timer_presets.iter().map(|t| t.name.clone()).collect();
         let active_folder_for_controls = if self.macro_folders_panel_open {
             self.active_macro_folder_view.filter(|folder_id| {
                 self.state
@@ -3281,7 +3282,7 @@ impl CrosshairApp {
                                                                  &mut step.if_variable_name,
                                                              );
                                                              live_sync |= response.changed();
-                                                             Self::render_variable_suggestions_raw(ui, &mut step.if_variable_name, language);
+                                                             Self::render_variable_suggestions_raw(ui, &mut step.if_variable_name, &timer_names, language);
                                                          });
                                                      }
                                                 } else if step.action == MacroAction::ApplyMouseSensitivityPreset {
@@ -3308,7 +3309,7 @@ impl CrosshairApp {
                                                                 _ => format!("Evaluated: {} (clamped to: {} within 1..20)", evaluated, clamped),
                                                             };
                                                             response.on_hover_text(tooltip_text);
-                                                            Self::render_variable_suggestions(ui, &mut step.key, language);
+                                                            Self::render_variable_suggestions(ui, &mut step.key, &timer_names, language);
                                                         });
                                                     } else {
                                                         let selected_id = step.key.trim().parse::<u32>().ok();
@@ -3493,7 +3494,7 @@ impl CrosshairApp {
                                                                   &mut step.key,
                                                               );
                                                               live_sync |= response.changed();
-                                                              Self::render_variable_suggestions(ui, &mut step.key, language);
+                                                              Self::render_variable_suggestions(ui, &mut step.key, &timer_names, language);
                                                           });
                                                       }
                                                 } else if step.action == MacroAction::StopIfKeyPressed {
@@ -3658,8 +3659,8 @@ impl CrosshairApp {
                                                                      step.extra_conditions.remove(remove_idx);
                                                                      live_sync = true;
                                                                  }
-                                                                 Self::render_variable_suggestions_raw(ui, &mut step.if_variable_name, language);
-                                                                 Self::render_variable_suggestions(ui, &mut step.key, language);
+                                                                 Self::render_variable_suggestions_raw(ui, &mut step.if_variable_name, &timer_names, language);
+                                                                 Self::render_variable_suggestions(ui, &mut step.key, &timer_names, language);
                                                              }
                                                          });
                                                      });
@@ -3740,7 +3741,7 @@ impl CrosshairApp {
                                                             &mut step.key,
                                                         );
                                                         live_sync |= response.changed();
-                                                        Self::render_variable_suggestions(ui, &mut step.key, language);
+                                                        Self::render_variable_suggestions(ui, &mut step.key, &timer_names, language);
                                                     });
                                                 } else if step.action == MacroAction::DisableCrosshair {
                                                     ui.scope(|ui| {
@@ -4128,18 +4129,17 @@ impl CrosshairApp {
                                                                  step.extra_conditions.remove(remove_idx);
                                                                  live_sync = true;
                                                              }
-                                                             Self::render_variable_suggestions_raw(ui, &mut step.if_variable_name, language);
-                                                             Self::render_variable_suggestions(ui, &mut step.key, language);
+                                                             Self::render_variable_suggestions_raw(ui, &mut step.if_variable_name, &timer_names, language);
+                                                             Self::render_variable_suggestions(ui, &mut step.key, &timer_names, language);
                                                          });
                                                      });
-                                                } else if step.action == MacroAction::SetVariable {
+                                                                                                } else if step.action == MacroAction::SetVariable {
                                                     ui.scope(|ui| {
                                                         ui.spacing_mut().item_spacing.x = 4.0;
                                                         ui.spacing_mut().interact_size.y = 22.0;
                                                         ui.spacing_mut().button_padding.y = 0.0;
                                                         ui.vertical(|ui| {
                                                             ui.horizontal(|ui| {
-                                                                use crate::model::SetVariableSource;
                                                                 let response = ui.add_sized(
                                                                     [76.0, 22.0],
                                                                     TextEdit::singleline(&mut step.if_variable_name)
@@ -4153,43 +4153,18 @@ impl CrosshairApp {
                                                                 );
                                                                 live_sync |= response.changed();
                                                                 ui.label(" = ");
-                                                                // Source selector
-                                                                let src_label = match step.set_variable_source {
-                                                                    SetVariableSource::Expression => Self::tr_lang(language, "expr", "biểu thức"),
-                                                                    SetVariableSource::TimeHour => Self::tr_lang(language, "Hour", "Giờ"),
-                                                                    SetVariableSource::TimeMinute => Self::tr_lang(language, "Minute", "Phút"),
-                                                                    SetVariableSource::TimeSecond => Self::tr_lang(language, "Second", "Giây"),
-                                                                    SetVariableSource::TimeMillisecond => Self::tr_lang(language, "Millisec", "Mili giây"),
-                                                                };
-                                                                egui::ComboBox::from_id_salt((group.id, preset.id, "set_var_src"))
-                                                                    .selected_text(src_label)
-                                                                    .width(72.0)
-                                                                    .show_ui(ui, |ui| {
-                                                                        let prev = step.set_variable_source;
-                                                                        ui.selectable_value(&mut step.set_variable_source, SetVariableSource::Expression, Self::tr_lang(language, "expr", "biểu thức"));
-                                                                        ui.selectable_value(&mut step.set_variable_source, SetVariableSource::TimeHour, Self::tr_lang(language, "Hour", "Giờ"));
-                                                                        ui.selectable_value(&mut step.set_variable_source, SetVariableSource::TimeMinute, Self::tr_lang(language, "Minute", "Phút"));
-                                                                        ui.selectable_value(&mut step.set_variable_source, SetVariableSource::TimeSecond, Self::tr_lang(language, "Second", "Giây"));
-                                                                        ui.selectable_value(&mut step.set_variable_source, SetVariableSource::TimeMillisecond, Self::tr_lang(language, "Millisec", "Mili giây"));
-                                                                        if step.set_variable_source != prev {
-                                                                            live_sync = true;
-                                                                        }
-                                                                    });
-                                                                // Chỉ hiện ô giá trị khi mode Expression
-                                                                if step.set_variable_source == SetVariableSource::Expression {
-                                                                    let response2 = ui.add_sized(
-                                                                        [76.0, 22.0],
-                                                                        TextEdit::singleline(&mut step.key)
-                                                                            .hint_text(RichText::new(Self::tr_lang(language, "value/expr", "giá trị")).color(hint_color).weak()),
-                                                                    );
-                                                                    Self::apply_vietnamese_input_if_changed(
-                                                                        &response2,
-                                                                        self.state.vietnamese_input_enabled,
-                                                                        self.state.vietnamese_input_mode,
-                                                                        &mut step.key,
-                                                                    );
-                                                                    live_sync |= response2.changed();
-                                                                }
+                                                                let response2 = ui.add_sized(
+                                                                    [76.0, 22.0],
+                                                                    TextEdit::singleline(&mut step.key)
+                                                                        .hint_text(RichText::new(Self::tr_lang(language, "value/expr", "giá trị")).color(hint_color).weak()),
+                                                                );
+                                                                Self::apply_vietnamese_input_if_changed(
+                                                                    &response2,
+                                                                    self.state.vietnamese_input_enabled,
+                                                                    self.state.vietnamese_input_mode,
+                                                                    &mut step.key,
+                                                                );
+                                                                live_sync |= response2.changed();
                                                                 let var_name = step.if_variable_name.trim();
                                                                 if !var_name.is_empty() {
                                                                     let current_val = crate::overlay::RUNTIME_VARIABLES.lock().get(var_name).copied();
@@ -4202,10 +4177,8 @@ impl CrosshairApp {
                                                                     ).on_hover_text(Self::tr_lang(language, "Current runtime value", "Giá trị chạy hiện tại"));
                                                                 }
                                                             });
-                                                            Self::render_variable_suggestions_raw(ui, &mut step.if_variable_name, language);
-                                                            if step.set_variable_source == SetVariableSource::Expression {
-                                                                Self::render_variable_suggestions(ui, &mut step.key, language);
-                                                            }
+                                                            Self::render_variable_suggestions_raw(ui, &mut step.if_variable_name, &timer_names, language);
+                                                            Self::render_variable_suggestions(ui, &mut step.key, &timer_names, language);
                                                         });
                                                     });
                                                 } else {
@@ -5633,7 +5606,7 @@ Example: {100 + (A - B) * 2}",
                                                                  &mut step.if_variable_name,
                                                              );
                                                              live_sync |= response.changed();
-                                                             Self::render_variable_suggestions_raw(ui, &mut step.if_variable_name, language);
+                                                             Self::render_variable_suggestions_raw(ui, &mut step.if_variable_name, &timer_names, language);
                                                          });
                                                      }
                                                     if step.action == MacroAction::TriggerVisionMove {
@@ -5805,7 +5778,7 @@ Example: {100 + (A - B) * 2}",
                                                                 _ => format!("Evaluated: {} (clamped to: {} within 1..20)", evaluated, clamped),
                                                             };
                                                             response.on_hover_text(tooltip_text);
-                                                            Self::render_variable_suggestions(ui, &mut step.key, language);
+                                                            Self::render_variable_suggestions(ui, &mut step.key, &timer_names, language);
                                                         });
                                                     } else {
                                                         let selected_id = step.key.trim().parse::<u32>().ok();
@@ -5929,7 +5902,7 @@ Example: {100 + (A - B) * 2}",
                                                                   &mut step.key,
                                                               );
                                                               live_sync |= response.changed();
-                                                              Self::render_variable_suggestions(ui, &mut step.key, language);
+                                                              Self::render_variable_suggestions(ui, &mut step.key, &timer_names, language);
                                                           });
                                                       }
                                                 } else if step.action == MacroAction::StopIfKeyPressed {
@@ -6087,8 +6060,8 @@ Example: {100 + (A - B) * 2}",
                                                                      step.extra_conditions.remove(remove_idx);
                                                                      live_sync = true;
                                                                  }
-                                                                 Self::render_variable_suggestions_raw(ui, &mut step.if_variable_name, language);
-                                                                 Self::render_variable_suggestions(ui, &mut step.key, language);
+                                                                 Self::render_variable_suggestions_raw(ui, &mut step.if_variable_name, &timer_names, language);
+                                                                 Self::render_variable_suggestions(ui, &mut step.key, &timer_names, language);
                                                              }
                                                          });
                                                      });
@@ -6165,7 +6138,7 @@ Example: {100 + (A - B) * 2}",
                                                              &mut step.key,
                                                          );
                                                          live_sync |= response.changed();
-                                                         Self::render_variable_suggestions(ui, &mut step.key, language);
+                                                         Self::render_variable_suggestions(ui, &mut step.key, &timer_names, language);
                                                      });
                                                 } else if step.action == MacroAction::DisableCrosshair {
                                                     ui.scope(|ui| {
@@ -6553,86 +6526,58 @@ Example: {100 + (A - B) * 2}",
                                                                  step.extra_conditions.remove(remove_idx);
                                                                  live_sync = true;
                                                              }
-                                                             Self::render_variable_suggestions_raw(ui, &mut step.if_variable_name, language);
-                                                             Self::render_variable_suggestions(ui, &mut step.key, language);
+                                                             Self::render_variable_suggestions_raw(ui, &mut step.if_variable_name, &timer_names, language);
+                                                             Self::render_variable_suggestions(ui, &mut step.key, &timer_names, language);
                                                          });
                                                      });
-                                                 } else if step.action == MacroAction::SetVariable {
-                                                     ui.scope(|ui| {
-                                                         ui.spacing_mut().item_spacing.x = 4.0;
-                                                         ui.spacing_mut().interact_size.y = 22.0;
-                                                         ui.spacing_mut().button_padding.y = 0.0;
-                                                         ui.vertical(|ui| {
-                                                             ui.horizontal(|ui| {
-                                                                 use crate::model::SetVariableSource;
-                                                                 let response = ui.add_sized(
-                                                                     [76.0, 22.0],
-                                                                     TextEdit::singleline(&mut step.if_variable_name)
-                                                                         .hint_text(RichText::new(Self::tr_lang(language, "variable", "biến")).color(hint_color).weak()),
-                                                                 );
-                                                                 Self::apply_vietnamese_input_if_changed(
-                                                                     &response,
-                                                                     self.state.vietnamese_input_enabled,
-                                                                     self.state.vietnamese_input_mode,
-                                                                     &mut step.if_variable_name,
-                                                                 );
-                                                                 live_sync |= response.changed();
-                                                                 ui.label(" = ");
-                                                                 // Source selector
-                                                                 let src_label = match step.set_variable_source {
-                                                                     SetVariableSource::Expression => Self::tr_lang(language, "expr", "biểu thức"),
-                                                                     SetVariableSource::TimeHour => Self::tr_lang(language, "Hour", "Giờ"),
-                                                                     SetVariableSource::TimeMinute => Self::tr_lang(language, "Minute", "Phút"),
-                                                                     SetVariableSource::TimeSecond => Self::tr_lang(language, "Second", "Giây"),
-                                                                     SetVariableSource::TimeMillisecond => Self::tr_lang(language, "Millisec", "Mili giây"),
-                                                                 };
-                                                                 egui::ComboBox::from_id_salt((group.id, preset.id, "set_var_src_hs"))
-                                                                     .selected_text(src_label)
-                                                                     .width(72.0)
-                                                                     .show_ui(ui, |ui| {
-                                                                         let prev = step.set_variable_source;
-                                                                         ui.selectable_value(&mut step.set_variable_source, SetVariableSource::Expression, Self::tr_lang(language, "expr", "biểu thức"));
-                                                                         ui.selectable_value(&mut step.set_variable_source, SetVariableSource::TimeHour, Self::tr_lang(language, "Hour", "Giờ"));
-                                                                         ui.selectable_value(&mut step.set_variable_source, SetVariableSource::TimeMinute, Self::tr_lang(language, "Minute", "Phút"));
-                                                                         ui.selectable_value(&mut step.set_variable_source, SetVariableSource::TimeSecond, Self::tr_lang(language, "Second", "Giây"));
-                                                                         ui.selectable_value(&mut step.set_variable_source, SetVariableSource::TimeMillisecond, Self::tr_lang(language, "Millisec", "Mili giây"));
-                                                                         if step.set_variable_source != prev {
-                                                                             live_sync = true;
-                                                                         }
-                                                                     });
-                                                                 // Chỉ hiện ô giá trị khi mode Expression
-                                                                 if step.set_variable_source == SetVariableSource::Expression {
-                                                                     let response2 = ui.add_sized(
-                                                                         [76.0, 22.0],
-                                                                         TextEdit::singleline(&mut step.key)
-                                                                             .hint_text(RichText::new(Self::tr_lang(language, "value/expr", "giá trị")).color(hint_color).weak()),
-                                                                     );
-                                                                     Self::apply_vietnamese_input_if_changed(
-                                                                         &response2,
-                                                                         self.state.vietnamese_input_enabled,
-                                                                         self.state.vietnamese_input_mode,
-                                                                         &mut step.key,
-                                                                     );
-                                                                     live_sync |= response2.changed();
-                                                                 }
-                                                                 let var_name = step.if_variable_name.trim();
-                                                                 if !var_name.is_empty() {
-                                                                     let current_val = crate::overlay::RUNTIME_VARIABLES.lock().get(var_name).copied();
-                                                                     let val_str = current_val.map(|v| v.to_string()).unwrap_or_else(|| "?".to_string());
-                                                                     ui.add_space(2.0);
-                                                                     ui.label(
-                                                                         RichText::new(format!("({})", val_str))
-                                                                             .size(10.0)
-                                                                             .color(Color32::from_rgb(0, 191, 255))
-                                                                     ).on_hover_text(Self::tr_lang(language, "Current runtime value", "Giá trị chạy hiện tại"));
-                                                                 }
-                                                             });
-                                                             Self::render_variable_suggestions_raw(ui, &mut step.if_variable_name, language);
-                                                             if step.set_variable_source == SetVariableSource::Expression {
-                                                                 Self::render_variable_suggestions(ui, &mut step.key, language);
-                                                             }
-                                                         });
-                                                     });
+                                                                                                 } else if step.action == MacroAction::SetVariable {
+                                                    ui.scope(|ui| {
+                                                        ui.spacing_mut().item_spacing.x = 4.0;
+                                                        ui.spacing_mut().interact_size.y = 22.0;
+                                                        ui.spacing_mut().button_padding.y = 0.0;
+                                                        ui.vertical(|ui| {
+                                                            ui.horizontal(|ui| {
+                                                                let response = ui.add_sized(
+                                                                    [76.0, 22.0],
+                                                                    TextEdit::singleline(&mut step.if_variable_name)
+                                                                        .hint_text(RichText::new(Self::tr_lang(language, "variable", "biến")).color(hint_color).weak()),
+                                                                );
+                                                                Self::apply_vietnamese_input_if_changed(
+                                                                    &response,
+                                                                    self.state.vietnamese_input_enabled,
+                                                                    self.state.vietnamese_input_mode,
+                                                                    &mut step.if_variable_name,
+                                                                );
+                                                                live_sync |= response.changed();
+                                                                ui.label(" = ");
+                                                                let response2 = ui.add_sized(
+                                                                    [76.0, 22.0],
+                                                                    TextEdit::singleline(&mut step.key)
+                                                                        .hint_text(RichText::new(Self::tr_lang(language, "value/expr", "giá trị")).color(hint_color).weak()),
+                                                                );
+                                                                Self::apply_vietnamese_input_if_changed(
+                                                                    &response2,
+                                                                    self.state.vietnamese_input_enabled,
+                                                                    self.state.vietnamese_input_mode,
+                                                                    &mut step.key,
+                                                                );
+                                                                live_sync |= response2.changed();
+                                                                let var_name = step.if_variable_name.trim();
+                                                                if !var_name.is_empty() {
+                                                                    let current_val = crate::overlay::RUNTIME_VARIABLES.lock().get(var_name).copied();
+                                                                    let val_str = current_val.map(|v| v.to_string()).unwrap_or_else(|| "?".to_string());
+                                                                    ui.add_space(2.0);
+                                                                    ui.label(
+                                                                        RichText::new(format!("({})", val_str))
+                                                                            .size(10.0)
+                                                                            .color(Color32::from_rgb(0, 191, 255))
+                                                                    ).on_hover_text(Self::tr_lang(language, "Current runtime value", "Giá trị chạy hiện tại"));
+                                                                }
+                                                            });
+                                                            Self::render_variable_suggestions_raw(ui, &mut step.if_variable_name, &timer_names, language);
+                                                            Self::render_variable_suggestions(ui, &mut step.key, &timer_names, language);
+                                                        });
+                                                    });
                                                 } else if matches!(step.action, MacroAction::StartVisionSearch
                                                          | MacroAction::ScanVisionOnce
                                                          | MacroAction::TriggerVisionMove
@@ -6693,7 +6638,7 @@ Example: {100 + (A - B) * 2}",
                                                                  &mut step.if_variable_name,
                                                              );
                                                              live_sync |= response.changed();
-                                                             Self::render_variable_suggestions_raw(ui, &mut step.if_variable_name, language);
+                                                             Self::render_variable_suggestions_raw(ui, &mut step.if_variable_name, &timer_names, language);
                                                          });
                                                      }
                                                 } else {
@@ -7987,11 +7932,116 @@ Example: {100 + (A - B) * 2}",
             format!("{} - {}", trimmed, -delta)
         }
     }
-    fn render_variable_suggestions(_ui: &mut egui::Ui, _text: &mut String, _language: UiLanguage) {}
-    fn render_variable_suggestions_raw(
-        _ui: &mut egui::Ui,
-        _text: &mut String,
+        fn render_variable_suggestions(
+        ui: &mut egui::Ui,
+        text: &mut String,
+        timer_names: &[String],
         _language: UiLanguage,
     ) {
+        let (last_word_trimmed, prefix) = {
+            let text_str = text.as_str();
+            let mut last_word_start = 0;
+            for (i, c) in text_str.char_indices() {
+                if c.is_whitespace() || c == '+' || c == '-' || c == '*' || c == '/' || c == '(' || c == ')' || c == ',' {
+                    last_word_start = i + 1;
+                }
+            }
+            let last_word = &text_str[last_word_start..];
+            (last_word.trim().to_string(), text_str[..last_word_start].to_string())
+        };
+        
+        if last_word_trimmed.is_empty() {
+            return;
+        }
+
+        let mut suggestions = Vec::new();
+
+        if last_word_trimmed.contains('.') {
+            let parts: Vec<&str> = last_word_trimmed.split('.').collect();
+            let obj_part = parts[0].to_lowercase();
+            let prop_part = parts[1].to_lowercase();
+
+            let timer_exists = timer_names.iter().any(|name| {
+                name.replace(" ", "").to_lowercase() == obj_part
+            });
+
+            if timer_exists {
+                let props = vec!["hour", "minute", "second", "millisecond", "ms", "raw", "total_sec"];
+                for prop in props {
+                    if prop.starts_with(&prop_part) {
+                        suggestions.push(format!("{}.{}", parts[0], prop));
+                    }
+                }
+            }
+        } else {
+            for name in timer_names {
+                let timer_name_no_space = name.replace(" ", "");
+                if timer_name_no_space.to_lowercase().starts_with(&last_word_trimmed.to_lowercase()) {
+                    suggestions.push(timer_name_no_space);
+                }
+            }
+        }
+
+        if !suggestions.is_empty() {
+            ui.horizontal(|ui| {
+                ui.spacing_mut().item_spacing.x = 4.0;
+                for sug in suggestions {
+                    if ui.small_button(&sug).clicked() {
+                        *text = format!("{}{}", prefix, sug);
+                    }
+                }
+            });
+        }
+    }
+
+    fn render_variable_suggestions_raw(
+        ui: &mut egui::Ui,
+        text: &mut String,
+        timer_names: &[String],
+        _language: UiLanguage,
+    ) {
+        let last_word = text.trim().to_string();
+        if last_word.is_empty() {
+            return;
+        }
+
+        let mut suggestions = Vec::new();
+
+        if last_word.contains('.') {
+            let parts: Vec<&str> = last_word.split('.').collect();
+            let obj_part = parts[0].to_lowercase();
+            let prop_part = parts[1].to_lowercase();
+
+            let timer_exists = timer_names.iter().any(|name| {
+                name.replace(" ", "").to_lowercase() == obj_part
+            });
+
+            if timer_exists {
+                let props = vec!["hour", "minute", "second", "millisecond", "ms", "raw", "total_sec"];
+                for prop in props {
+                    if prop.starts_with(&prop_part) {
+                        suggestions.push(format!("{}.{}", parts[0], prop));
+                    }
+                }
+            }
+        } else {
+            for name in timer_names {
+                let timer_name_no_space = name.replace(" ", "");
+                if timer_name_no_space.to_lowercase().starts_with(&last_word.to_lowercase()) {
+                    suggestions.push(timer_name_no_space);
+                }
+            }
+        }
+
+        if !suggestions.is_empty() {
+            ui.horizontal(|ui| {
+                ui.spacing_mut().item_spacing.x = 4.0;
+                for sug in suggestions {
+                    if ui.small_button(&sug).clicked() {
+                        *text = sug;
+                    }
+                }
+            });
+        }
     }
 }
