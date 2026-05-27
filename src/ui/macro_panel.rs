@@ -659,6 +659,19 @@ impl CrosshairApp {
     pub(crate) fn render_macro_panel(&mut self, ui: &mut egui::Ui) {
         let language = self.state.ui_language;
         let timer_names: Vec<String> = self.state.timer_presets.iter().map(|t| t.name.clone()).collect();
+        let any_popup_open = ui.memory(|mem| mem.data.get_temp::<bool>(egui::Id::new("any_popup_open"))).unwrap_or(false);
+        let mut enter_pressed = false;
+        if any_popup_open {
+            ui.input_mut(|i| {
+                if i.consume_key(egui::Modifiers::NONE, egui::Key::Enter) {
+                    enter_pressed = true;
+                }
+            });
+        }
+        ui.memory_mut(|mem| {
+            mem.data.insert_temp(egui::Id::new("enter_pressed"), enter_pressed);
+            mem.data.insert_temp(egui::Id::new("any_popup_open"), false);
+        });
         let active_folder_for_controls = if self.macro_folders_panel_open {
             self.active_macro_folder_view.filter(|folder_id| {
                 self.state
@@ -7928,7 +7941,7 @@ Example: {100 + (A - B) * 2}",
             format!("{} - {}", trimmed, -delta)
         }
     }
-            fn render_variable_suggestions(
+                fn render_variable_suggestions(
         ui: &mut egui::Ui,
         response: &egui::Response,
         text: &mut String,
@@ -8016,15 +8029,17 @@ Example: {100 + (A - B) * 2}",
         }
 
         if response.has_focus() {
+            let enter_pressed = ui.memory(|mem| mem.data.get_temp::<bool>(egui::Id::new("enter_pressed"))).unwrap_or(false);
+            if enter_pressed {
+                confirm_selected = true;
+            }
+            
             ui.input(|i| {
                 if i.key_pressed(egui::Key::ArrowDown) {
                     selected_index = (selected_index + 1) % sug_count;
                 }
                 if i.key_pressed(egui::Key::ArrowUp) {
                     selected_index = if selected_index == 0 { sug_count - 1 } else { selected_index - 1 };
-                }
-                if i.key_pressed(egui::Key::Enter) {
-                    confirm_selected = true;
                 }
             });
             ui.memory_mut(|mem| mem.data.insert_temp(response.id, selected_index));
@@ -8035,7 +8050,10 @@ Example: {100 + (A - B) * 2}",
             *text = format!("{}{}", prefix, chosen);
             response.request_focus();
             popup_open = false;
-            ui.memory_mut(|mem| mem.data.insert_temp(popup_open_key, popup_open));
+            ui.memory_mut(|mem| {
+                mem.data.insert_temp(popup_open_key, popup_open);
+                mem.data.insert_temp(egui::Id::new("enter_pressed"), false);
+            });
             return;
         }
 
@@ -8071,7 +8089,10 @@ Example: {100 + (A - B) * 2}",
                 ui.memory_mut(|mem| mem.data.insert_temp(ui.make_persistent_id((response.id, "popup_rect")), rect));
             });
             
-        ui.memory_mut(|mem| mem.data.insert_temp(popup_open_key, popup_open));
+        ui.memory_mut(|mem| {
+            mem.data.insert_temp(popup_open_key, popup_open);
+            mem.data.insert_temp(egui::Id::new("any_popup_open"), true);
+        });
     }
 
     fn render_variable_suggestions_raw(
@@ -8151,15 +8172,17 @@ Example: {100 + (A - B) * 2}",
         }
 
         if response.has_focus() {
+            let enter_pressed = ui.memory(|mem| mem.data.get_temp::<bool>(egui::Id::new("enter_pressed"))).unwrap_or(false);
+            if enter_pressed {
+                confirm_selected = true;
+            }
+            
             ui.input(|i| {
                 if i.key_pressed(egui::Key::ArrowDown) {
                     selected_index = (selected_index + 1) % sug_count;
                 }
                 if i.key_pressed(egui::Key::ArrowUp) {
                     selected_index = if selected_index == 0 { sug_count - 1 } else { selected_index - 1 };
-                }
-                if i.key_pressed(egui::Key::Enter) {
-                    confirm_selected = true;
                 }
             });
             ui.memory_mut(|mem| mem.data.insert_temp(response.id, selected_index));
@@ -8170,7 +8193,10 @@ Example: {100 + (A - B) * 2}",
             *text = chosen.clone();
             response.request_focus();
             popup_open = false;
-            ui.memory_mut(|mem| mem.data.insert_temp(popup_open_key, popup_open));
+            ui.memory_mut(|mem| {
+                mem.data.insert_temp(popup_open_key, popup_open);
+                mem.data.insert_temp(egui::Id::new("enter_pressed"), false);
+            });
             return;
         }
 
@@ -8206,6 +8232,9 @@ Example: {100 + (A - B) * 2}",
                 ui.memory_mut(|mem| mem.data.insert_temp(ui.make_persistent_id((response.id, "popup_rect_raw")), rect));
             });
             
-        ui.memory_mut(|mem| mem.data.insert_temp(popup_open_key, popup_open));
+        ui.memory_mut(|mem| {
+            mem.data.insert_temp(popup_open_key, popup_open);
+            mem.data.insert_temp(egui::Id::new("any_popup_open"), true);
+        });
     }
 }
