@@ -7914,15 +7914,17 @@ fn set_variable_value(target_var: &str, value: i32) {
         } else {
             None
         };
-        if let Some(key_name) = suppressed_mouse_name {
-            suppress_next_mouse_trigger(key_name);
-        }
         let use_interception = {
             let state = HOOK_STATE.lock();
             state.use_interception
                 && state.interception_dll_path.exists()
                 && crate::platform::is_interception_driver_installed()
         };
+        if use_interception {
+            if let Some(key_name) = suppressed_mouse_name {
+                suppress_next_mouse_trigger(key_name);
+            }
+        }
 
         if use_interception {
             let interception_dll = { HOOK_STATE.lock().interception_dll_path.clone() };
