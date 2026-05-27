@@ -1609,10 +1609,10 @@ mod windows_overlay {
                 WM_XBUTTONUP if (mouse_data & XBUTTON1_DATA) != 0 => {
                     Some((binding_from_trigger_event("MouseX1"), false))
                 }
-                WM_XBUTTONDOWN if (mouse_data & XBUTTON2_DATA) != 0 => {
+                WM_XBUTTONDOWN => {
                     Some((binding_from_trigger_event("MouseX2"), true))
                 }
-                WM_XBUTTONUP if (mouse_data & XBUTTON2_DATA) != 0 => {
+                WM_XBUTTONUP => {
                     Some((binding_from_trigger_event("MouseX2"), false))
                 }
                 WM_MOUSEWHEEL => {
@@ -2085,10 +2085,8 @@ mod windows_overlay {
                 let xbutton = ((info.mouseData >> 16) & 0xFFFF) as u16;
                 if (xbutton & XBUTTON1_DATA) != 0 {
                     Some(crate::model::MacroAction::MouseX1Click)
-                } else if (xbutton & XBUTTON2_DATA) != 0 {
-                    Some(crate::model::MacroAction::MouseX2Click)
                 } else {
-                    None
+                    Some(crate::model::MacroAction::MouseX2Click)
                 }
             }
             WM_MOUSEWHEEL => {
@@ -3000,7 +2998,7 @@ mod windows_overlay {
                 Some("MouseMiddle")
             }
             WM_XBUTTONDOWN | WM_XBUTTONUP if (mouse_data & XBUTTON1_DATA) != 0 => Some("MouseX1"),
-            WM_XBUTTONDOWN | WM_XBUTTONUP if (mouse_data & XBUTTON2_DATA) != 0 => Some("MouseX2"),
+            WM_XBUTTONDOWN | WM_XBUTTONUP => Some("MouseX2"),
             WM_MOUSEWHEEL => {
                 if (mouse_data as i16) > 0 {
                     Some("MouseWheelUp")
