@@ -8521,7 +8521,13 @@ Example: {100 + (A - B) * 2}",
                 .id(id)
         };
 
+        // Temporarily clear override_text_color so hint/placeholder text is properly dimmed.
+        // Preset cards set override_text_color for their content, which bleeds into TextEdit
+        // and makes hint text appear at full brightness instead of the dimmed weak_text_color.
+        let prev_override = ui.visuals().override_text_color;
+        ui.visuals_mut().override_text_color = None;
         let response = ui.add_sized([animated_width, animated_height], text_edit);
+        ui.visuals_mut().override_text_color = prev_override;
 
         let now_focused = response.has_focus();
         if now_focused != has_focus {
