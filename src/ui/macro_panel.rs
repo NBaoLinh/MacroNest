@@ -8037,38 +8037,24 @@ Example: {100 + (A - B) * 2}",
         ui: &mut egui::Ui,
         text: &mut String,
         id: egui::Id,
-        normal_width: f32,
+        _normal_width: f32,
         expanded_width: f32,
-        normal_height: f32,
+        _normal_height: f32,
         expanded_height: f32,
         hint: &str,
         multiline_on_focus: bool,
     ) -> egui::Response {
-        let focus_key = id.with("expand-focus");
-        let has_focus = ui.memory(|mem| mem.data.get_temp::<bool>(focus_key)).unwrap_or(false);
-
-        let target_width = if has_focus { expanded_width } else { normal_width };
-        let target_height = if has_focus { expanded_height } else { normal_height };
-
-        let animated_width = ui.ctx().animate_value_with_time(id.with("w"), target_width, 0.20);
-        let animated_height = ui.ctx().animate_value_with_time(id.with("h"), target_height, 0.20);
-
-        let text_edit = if multiline_on_focus && has_focus {
+        let text_edit = if multiline_on_focus {
             egui::TextEdit::multiline(text)
                 .hint_text(hint)
                 .desired_rows(2)
+                .id(id)
         } else {
-            egui::TextEdit::singleline(text).hint_text(hint)
+            egui::TextEdit::singleline(text)
+                .hint_text(hint)
+                .id(id)
         };
-
-        let response = ui.add_sized([animated_width, animated_height], text_edit);
-
-        let now_focused = response.has_focus();
-        if now_focused != has_focus {
-            ui.memory_mut(|mem| mem.data.insert_temp(focus_key, now_focused));
-        }
-
-        response
+        ui.add_sized([expanded_width, expanded_height], text_edit)
     }
 
     fn render_expandable_command_text_edit(
@@ -8077,24 +8063,10 @@ Example: {100 + (A - B) * 2}",
         id: egui::Id,
         hint: &str,
     ) -> egui::Response {
-        let focus_key = id.with("expand-focus");
-        let has_focus = ui.memory(|mem| mem.data.get_temp::<bool>(focus_key)).unwrap_or(false);
-
-        let target_height = if has_focus { 160.0 } else { 72.0 };
-        let animated_height = ui.ctx().animate_value_with_time(id.with("h"), target_height, 0.20);
-
-        let response = ui.add_sized(
-            [300.0, animated_height],
-            egui::TextEdit::multiline(text)
-                .hint_text(hint)
-                .desired_rows(if has_focus { 7 } else { 3 }),
-        );
-
-        let now_focused = response.has_focus();
-        if now_focused != has_focus {
-            ui.memory_mut(|mem| mem.data.insert_temp(focus_key, now_focused));
-        }
-
-        response
+        let text_edit = egui::TextEdit::multiline(text)
+            .hint_text(hint)
+            .desired_rows(5)
+            .id(id);
+        ui.add_sized([300.0, 120.0], text_edit)
     }
 }
