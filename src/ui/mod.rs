@@ -5434,7 +5434,9 @@ impl CrosshairApp {
                 return;
             };
             let old_name = preset.name.clone();
+            let old_use_powershell = preset.use_powershell;
             patch.apply_to(preset);
+            preset.use_powershell = old_use_powershell;
             preset.collapsed = false;
 
             // Robust Fallback: If the name wasn't renamed by AI, but the command changed, let's auto-generate a descriptive name!

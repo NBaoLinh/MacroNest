@@ -68,16 +68,23 @@ impl CrosshairApp {
                     changed |= ui.radio_value(&mut preset.use_powershell, true, "PowerShell").changed();
                     ui.add_space(6.0);
                     ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
-                        if ui
-                            .add_sized(
-                                [40.0, 24.0],
-                                Button::new(Self::ai_badge_text(false))
-                                    .fill(Self::ai_badge_fill())
-                                    .stroke(Self::ai_badge_stroke())
-                            )
-                            .clicked()
-                        {
-                            open_ai_dialog = Some(preset.id);
+                        let is_generating = self.command_ai_job.as_ref()
+                            .map(|job| job.preset_id == preset.id)
+                            .unwrap_or(false);
+                        if is_generating {
+                            ui.spinner();
+                        } else {
+                            if ui
+                                .add_sized(
+                                    [40.0, 24.0],
+                                    Button::new(Self::ai_badge_text(false))
+                                        .fill(Self::ai_badge_fill())
+                                        .stroke(Self::ai_badge_stroke())
+                                )
+                                .clicked()
+                            {
+                                open_ai_dialog = Some(preset.id);
+                            }
                         }
                         if Self::sound_style_toggle_button(
                             ui,

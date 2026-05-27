@@ -988,6 +988,9 @@ impl CrosshairApp {
 
         if generate_request {
             self.start_custom_ai_generation(ctx);
+            if self.command_ai_job.is_some() {
+                self.command_ai_dialog = None;
+            }
         }
         if close_request {
             self.command_ai_dialog = None;
