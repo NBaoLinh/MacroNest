@@ -5145,13 +5145,12 @@ mod windows_overlay {
         )?;
         let old_bitmap = SelectObject(mem_dc, HGDIOBJ(bitmap.0));
 
-        let (mut capture, metadata) = media::open_video_capture(&preset.clip.file_path, preset.clip.start_ms)?;
+        let (_, metadata) = media::open_video_capture(&preset.clip.file_path, preset.clip.start_ms)?;
         let chroma_key = if preset.clip.chroma_key_enabled {
             Some((preset.clip.chroma_key_color, preset.clip.chroma_key_tolerance))
         } else {
             None
         };
-        let frame_delay = Duration::from_secs_f64((1.0 / metadata.fps.max(1.0)).clamp(1.0 / 60.0, 1.0 / 12.0));
         let clip_end_ms = if preset.clip.end_ms > preset.clip.start_ms {
             preset.clip.end_ms
         } else if metadata.duration_ms > preset.clip.start_ms {
@@ -5159,6 +5158,36 @@ mod windows_overlay {
         } else {
             u64::MAX
         };
+
+        let (tx, rx) = std::sync::mpsc::sync_channel::<(Vec<u8>, u64)>(8);
+        let stop_flag_clone = stop_flag.clone();
+        let file_path = preset.clip.file_path.clone();
+        let start_ms = preset.clip.start_ms;
+
+        thread::spawn(move || -> Result<()> {
+            let (mut capture, _metadata) = media::open_video_capture(&file_path, start_ms)?;
+            loop {
+                if stop_flag_clone.load(Ordering::Relaxed) {
+                    break;
+                }
+
+                let mut frame = Mat::default();
+                if !capture.read(&mut frame)? || frame.empty() {
+                    break;
+                }
+
+                let position_ms = capture.get(opencv::videoio::CAP_PROP_POS_MSEC)?.round().max(0.0) as u64;
+                if position_ms > clip_end_ms {
+                    break;
+                }
+
+                let pixels = media::frame_to_premultiplied_bgra(&frame, screen_w, screen_h, chroma_key)?;
+                if tx.send((pixels, position_ms)).is_err() {
+                    break;
+                }
+            }
+            Ok(())
+        });
 
         let mut pt_src = POINT::default();
         let mut pt_dst = POINT { x: 0, y: 0 };
@@ -5177,18 +5206,8 @@ mod windows_overlay {
             clip_end_ms,
         );
         let playback_start = Instant::now();
-        loop {
+        while let Ok((pixels, position_ms)) = rx.recv() {
             if stop_flag.load(Ordering::Relaxed) {
-                break;
-            }
-
-            let mut frame = Mat::default();
-            if !capture.read(&mut frame)? || frame.empty() {
-                break;
-            }
-
-            let position_ms = capture.get(opencv::videoio::CAP_PROP_POS_MSEC)?.round().max(0.0) as u64;
-            if position_ms > clip_end_ms {
                 break;
             }
 
@@ -5203,7 +5222,6 @@ mod windows_overlay {
                 continue;
             }
 
-            let pixels = media::frame_to_premultiplied_bgra(&frame, screen_w, screen_h, chroma_key)?;
             let bytes_len = (screen_w as usize) * (screen_h as usize) * 4;
             let dib_pixels = std::slice::from_raw_parts_mut(bits_ptr as *mut u8, bytes_len);
             dib_pixels.copy_from_slice(&pixels);
