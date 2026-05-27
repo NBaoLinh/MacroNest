@@ -3641,11 +3641,18 @@ impl CrosshairApp {
                                                                                      }
                                                                                  }
                                                                              });
-                                                                         let response2 = ui.add_sized(
-                                                                             [76.0, 22.0],
-                                                                             TextEdit::singleline(&mut cond.expression)
-                                                                                 .hint_text(RichText::new(Self::tr_lang(language, "value/expr", "giÃƒÂ¡ trÃ¡Â»â€¹/expr")).color(hint_color).weak()),
-                                                                         );
+                                                                          let cond_expr_id = ui.id().with((extra_idx, "hold-stop-loop-extra-expr"));
+                                                                          let response2 = Self::render_expandable_text_edit(
+                                                                              ui,
+                                                                              &mut cond.expression,
+                                                                              cond_expr_id,
+                                                                              76.0,
+                                                                              160.0,
+                                                                              22.0,
+                                                                              22.0,
+                                                                              Self::tr_lang(language, "value/expr", "giá trị/expr"),
+                                                                              false,
+                                                                          );
                                                                          Self::apply_vietnamese_input_if_changed(
                                                                              &response2,
                                                                              self.state.vietnamese_input_enabled,
@@ -4110,11 +4117,18 @@ impl CrosshairApp {
                                                                                  }
                                                                              }
                                                                          });
-                                                                     let response2 = ui.add_sized(
-                                                                         [76.0, 22.0],
-                                                                         TextEdit::singleline(&mut cond.expression)
-                                                                             .hint_text(RichText::new(Self::tr_lang(language, "value/expr", "giÃƒÂ¡ trÃ¡Â»â€¹/expr")).color(hint_color).weak()),
-                                                                     );
+                                                                      let cond_expr_id = ui.id().with((extra_idx, "hold-stop-extra-if-expr"));
+                                                                      let response2 = Self::render_expandable_text_edit(
+                                                                          ui,
+                                                                          &mut cond.expression,
+                                                                          cond_expr_id,
+                                                                          76.0,
+                                                                          160.0,
+                                                                          22.0,
+                                                                          22.0,
+                                                                          Self::tr_lang(language, "value/expr", "giá trị/expr"),
+                                                                          false,
+                                                                      );
                                                                      Self::apply_vietnamese_input_if_changed(
                                                                          &response2,
                                                                          self.state.vietnamese_input_enabled,
@@ -6046,11 +6060,18 @@ Example: {100 + (A - B) * 2}",
                                                                                      }
                                                                                  }
                                                                              });
-                                                                         let response2 = ui.add_sized(
-                                                                             [64.0, 18.0],
-                                                                             TextEdit::singleline(&mut cond.expression)
-                                                                                 .hint_text(RichText::new(Self::tr_lang(language, "value/expr", "giÃƒÂ¡ trÃ¡Â»â€¹/expr")).color(hint_color).weak()),
-                                                                         );
+                                                                          let cond_expr_id = ui.id().with((step_index, extra_idx, "extra-stop-expr"));
+                                                                          let response2 = Self::render_expandable_text_edit(
+                                                                              ui,
+                                                                              &mut cond.expression,
+                                                                              cond_expr_id,
+                                                                              64.0,
+                                                                              160.0,
+                                                                              18.0,
+                                                                              18.0,
+                                                                              Self::tr_lang(language, "value/expr", "giá trị/expr"),
+                                                                              false,
+                                                                          );
                                                                          Self::apply_vietnamese_input_if_changed(
                                                                              &response2,
                                                                              self.state.vietnamese_input_enabled,
@@ -6518,11 +6539,18 @@ Example: {100 + (A - B) * 2}",
                                                                                  }
                                                                              }
                                                                          });
-                                                                     let response2 = ui.add_sized(
-                                                                         [76.0, 22.0],
-                                                                         TextEdit::singleline(&mut cond.expression)
-                                                                             .hint_text(RichText::new(Self::tr_lang(language, "value/expr", "giÃƒÂ¡ trÃ¡Â»â€¹/expr")).color(hint_color).weak()),
-                                                                     );
+                                                                      let cond_expr_id = ui.id().with((step_index, extra_idx, "extra-if-expr"));
+                                                                      let response2 = Self::render_expandable_text_edit(
+                                                                          ui,
+                                                                          &mut cond.expression,
+                                                                          cond_expr_id,
+                                                                          76.0,
+                                                                          160.0,
+                                                                          22.0,
+                                                                          22.0,
+                                                                          Self::tr_lang(language, "value/expr", "giá trị/expr"),
+                                                                          false,
+                                                                      );
                                                                      Self::apply_vietnamese_input_if_changed(
                                                                          &response2,
                                                                          self.state.vietnamese_input_enabled,
@@ -7701,15 +7729,14 @@ Example: {100 + (A - B) * 2}",
                                             .desired_width(70.0)
                                             .font(egui::FontId::monospace(14.0)),
                                     );
-                                    if response.has_focus() {
+                                    if response.changed() {
                                         ui.memory_mut(|mem| mem.data.insert_temp(id_editing, val_str.clone()));
-                                    } else {
-                                        ui.memory_mut(|mem| mem.data.remove_temp::<String>(id_editing));
                                     }
                                     if response.lost_focus() || response.clicked_elsewhere() {
                                         if let Ok(new_val) = val_str.trim().parse::<i32>() {
                                             to_update = Some((name.clone(), new_val));
                                         }
+                                        ui.memory_mut(|mem| mem.data.remove_temp::<String>(id_editing));
                                     }
                                     if ui
                                         .button(Self::material_icon_text(0xe872, 14.0)) // trash
@@ -7853,15 +7880,14 @@ Example: {100 + (A - B) * 2}",
                                             .desired_width(70.0)
                                             .font(egui::FontId::monospace(14.0)),
                                     );
-                                    if response.has_focus() {
+                                    if response.changed() {
                                         ui.memory_mut(|mem| mem.data.insert_temp(id_editing, val_str.clone()));
-                                    } else {
-                                        ui.memory_mut(|mem| mem.data.remove_temp::<String>(id_editing));
                                     }
                                     if response.lost_focus() || response.clicked_elsewhere() {
                                         if let Ok(new_val) = val_str.trim().parse::<i32>() {
                                             to_update = Some((name.clone(), new_val));
                                         }
+                                        ui.memory_mut(|mem| mem.data.remove_temp::<String>(id_editing));
                                     }
                                     if ui
                                         .button(Self::material_icon_text(0xe872, 14.0))
