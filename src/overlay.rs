@@ -10092,6 +10092,9 @@ fn set_variable_value(target_var: &str, value: i32) {
             if group.match_duplicate_window_titles && title == selector_base_title(target) {
                 return true;
             }
+            if matches_browser_suffix(target, title) {
+                return true;
+            }
         }
         
         group.extra_target_window_titles.iter().any(|target| {
@@ -10104,6 +10107,9 @@ fn set_variable_value(target_var: &str, value: i32) {
                 return true;
             }
             if group.match_duplicate_window_titles && title.as_str() == selector_base_title(target_str) {
+                return true;
+            }
+            if matches_browser_suffix(target_str, title) {
                 return true;
             }
             false
@@ -10172,6 +10178,9 @@ fn set_variable_value(target_var: &str, value: i32) {
             if match_duplicate_window_titles && title == selector_base_title(target) {
                 return true;
             }
+            if matches_browser_suffix(target, title) {
+                return true;
+            }
         }
         
         extra_target_titles.iter().any(|target| {
@@ -10184,6 +10193,9 @@ fn set_variable_value(target_var: &str, value: i32) {
                 return true;
             }
             if match_duplicate_window_titles && title.as_str() == selector_base_title(target_str) {
+                return true;
+            }
+            if matches_browser_suffix(target_str, title) {
                 return true;
             }
             false
@@ -10362,6 +10374,35 @@ fn set_variable_value(target_var: &str, value: i32) {
         target
     }
 
+    const BROWSER_SUFFIXES: &[&str] = &[
+        " - Microsoft Edge",
+        " - Google Chrome",
+        " - Brave",
+        " - Firefox",
+        " - Opera GX",
+        " - Opera",
+        " - Vivaldi",
+        " - Chromium",
+        " - Tor Browser",
+        " - Arc",
+        " - Visual Studio Code",
+        " - VS Code",
+        " - Discord",
+        " - Slack",
+        " - Spotify",
+    ];
+
+    fn matches_browser_suffix(target: &str, candidate: &str) -> bool {
+        let target_base = selector_base_title(target);
+        let candidate_base = selector_base_title(candidate);
+        for suffix in BROWSER_SUFFIXES {
+            if target_base.ends_with(suffix) && candidate_base.ends_with(suffix) {
+                return true;
+            }
+        }
+        false
+    }
+
     unsafe fn window_matches_selector(hwnd: HWND, target: &str) -> bool {
         let Some(title) = window_title(hwnd) else {
             return false;
@@ -10383,13 +10424,20 @@ fn set_variable_value(target_var: &str, value: i32) {
         {
             return true;
         }
-        if !match_duplicate_window_titles {
-            return false;
+        if match_duplicate_window_titles {
+            let Some(title) = window_title(hwnd) else {
+                return false;
+            };
+            if title == selector_base_title(target) {
+                return true;
+            }
         }
-        let Some(title) = window_title(hwnd) else {
-            return false;
-        };
-        title == selector_base_title(target)
+        if let Some(title) = window_title(hwnd) {
+            if matches_browser_suffix(target, &title) {
+                return true;
+            }
+        }
+        false
     }
 
     unsafe fn window_matches_any_selector(

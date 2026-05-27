@@ -193,7 +193,7 @@ mod windows_impl {
         let Some(title) = window_title(hwnd) else {
             return true.into();
         };
-        let matches = if *match_duplicate_window_titles {
+        let mut matches = if *match_duplicate_window_titles {
             title == selector_base_title(target_title)
                 || window_selector(hwnd, &title) == *target_title
         } else {
@@ -202,6 +202,9 @@ mod windows_impl {
                 || (selector_base_title(target_title) != *target_title
                     && title == selector_base_title(target_title))
         };
+        if !matches {
+            matches = matches_browser_suffix(target_title, &title);
+        }
         if matches {
             **found = Some(hwnd);
             return false.into();
@@ -220,6 +223,35 @@ mod windows_impl {
             return base;
         }
         target
+    }
+
+    const BROWSER_SUFFIXES: &[&str] = &[
+        " - Microsoft Edge",
+        " - Google Chrome",
+        " - Brave",
+        " - Firefox",
+        " - Opera GX",
+        " - Opera",
+        " - Vivaldi",
+        " - Chromium",
+        " - Tor Browser",
+        " - Arc",
+        " - Visual Studio Code",
+        " - VS Code",
+        " - Discord",
+        " - Slack",
+        " - Spotify",
+    ];
+
+    fn matches_browser_suffix(target: &str, candidate: &str) -> bool {
+        let target_base = selector_base_title(target);
+        let candidate_base = selector_base_title(candidate);
+        for suffix in BROWSER_SUFFIXES {
+            if target_base.ends_with(suffix) && candidate_base.ends_with(suffix) {
+                return true;
+            }
+        }
+        false
     }
 
     fn window_title(hwnd: HWND) -> Option<String> {
