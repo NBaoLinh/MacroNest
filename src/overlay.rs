@@ -67,7 +67,7 @@ mod windows_overlay {
                     DeleteDC, DeleteObject, DrawTextW, EndPaint, FF_DONTCARE, FW_MEDIUM, GetDC,
                     GetMonitorInfoW, HGDIOBJ, MONITOR_DEFAULTTONEAREST, MONITORINFO,
                     MonitorFromWindow, OUT_DEFAULT_PRECIS, PAINTSTRUCT, ReleaseDC, SelectObject,
-                    SetBkMode, SetTextColor, SetWindowRgn, TRANSPARENT,
+                    SetBkMode, SetTextColor, SetWindowRgn, SRCCOPY, StretchDIBits, TRANSPARENT,
                 },
             },
             System::{
@@ -5214,16 +5214,40 @@ mod windows_overlay {
                 continue;
             }
 
-            let pixels = media::frame_to_premultiplied_bgra(
+            let (pixels, video_w, video_h) = media::frame_to_premultiplied_bgra(
                 &frame,
-                screen_w,
-                screen_h,
                 chroma_key,
                 &preset.clip.resolution,
             )?;
-            let bytes_len = (screen_w as usize) * (screen_h as usize) * 4;
-            let dib_pixels = std::slice::from_raw_parts_mut(bits_ptr as *mut u8, bytes_len);
-            dib_pixels.copy_from_slice(&pixels);
+
+            let video_bitmap_info = BITMAPINFO {
+                bmiHeader: BITMAPINFOHEADER {
+                    biSize: size_of::<BITMAPINFOHEADER>() as u32,
+                    biWidth: video_w,
+                    biHeight: -video_h,
+                    biPlanes: 1,
+                    biBitCount: 32,
+                    biCompression: BI_RGB.0,
+                    ..Default::default()
+                },
+                ..Default::default()
+            };
+
+            let _ = StretchDIBits(
+                mem_dc,
+                0,
+                0,
+                screen_w,
+                screen_h,
+                0,
+                0,
+                video_w,
+                video_h,
+                Some(pixels.as_ptr() as *const c_void),
+                &video_bitmap_info,
+                DIB_RGB_COLORS,
+                SRCCOPY,
+            );
 
             let _ = UpdateLayeredWindow(
                 hwnd,

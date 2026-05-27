@@ -106,15 +106,9 @@ fn open_video_capture_with_backend(path: &str) -> Result<VideoCapture> {
 #[cfg(windows)]
 pub fn frame_to_premultiplied_bgra(
     frame: &Mat,
-    target_width: i32,
-    target_height: i32,
     chroma_key: Option<(RgbaColor, u8)>,
     resolution: &str,
-) -> Result<Vec<u8>> {
-    if target_width <= 0 || target_height <= 0 {
-        bail!("Invalid output size");
-    }
-
+) -> Result<(Vec<u8>, i32, i32)> {
     let source_size = frame.size()?;
     let native_w = source_size.width;
     let native_h = source_size.height;
@@ -183,37 +177,17 @@ pub fn frame_to_premultiplied_bgra(
         chunk[2] = ((r as u32 * alpha as u32) / 255) as u8;
     }
 
-    // 3. Resize the processed BGRA frame to target fullscreen resolution
-    let mut resized = Mat::default();
-    let source_size = bgra.size()?;
-    if source_size.width != target_width || source_size.height != target_height {
-        imgproc::resize(
-            &bgra,
-            &mut resized,
-            Size::new(target_width, target_height),
-            0.0,
-            0.0,
-            imgproc::INTER_LINEAR,
-        )?;
-    } else {
-        resized = bgra;
-    }
-
-    if !resized.is_continuous() {
-        resized = resized.try_clone()?;
-    }
-    let final_pixels = resized.data_bytes()?;
-    Ok(final_pixels.to_vec())
+    let final_size = bgra.size()?;
+    let final_pixels = bgra.data_bytes()?;
+    Ok((final_pixels.to_vec(), final_size.width, final_size.height))
 }
 
 #[cfg(not(windows))]
 pub fn frame_to_premultiplied_bgra(
     _frame: &(),
-    _target_width: i32,
-    _target_height: i32,
     _chroma_key: Option<(RgbaColor, u8)>,
     _resolution: &str,
-) -> Result<Vec<u8>> {
+) -> Result<(Vec<u8>, i32, i32)> {
     bail!("Video playback is only supported on Windows")
 }
 
