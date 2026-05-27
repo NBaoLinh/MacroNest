@@ -62,7 +62,7 @@ mod windows_overlay {
                 Gdi::{
                     AC_SRC_ALPHA, AC_SRC_OVER, ANTIALIASED_QUALITY, BI_RGB, BITMAPINFO,
                     BITMAPINFOHEADER, BLENDFUNCTION, BeginPaint, CLIP_DEFAULT_PRECIS,
-                    CreateCompatibleDC, CreateDIBSection, CreateFontW, CreateRectRgn,
+                    CreateCompatibleDC, CreateDIBSection, CreateFontW, CreateRectRgn, HDC,
                     DEFAULT_CHARSET, DIB_RGB_COLORS, DT_CENTER, DT_SINGLELINE, DT_VCENTER,
                     DeleteDC, DeleteObject, DrawTextW, EndPaint, FF_DONTCARE, FW_MEDIUM, GetDC,
                     GetMonitorInfoW, HGDIOBJ, MONITOR_DEFAULTTONEAREST, MONITORINFO,
@@ -182,10 +182,10 @@ mod windows_overlay {
         Lazy::new(|| Mutex::new(HashSet::new()));
     static IMAGE_SEARCH_WAIT_GENERATIONS: Lazy<Mutex<HashMap<u32, u64>>> =
         Lazy::new(|| Mutex::new(HashMap::new()));
-    static HUD_DISPLAY: Lazy<Mutex<Option<HudDisplayState>>> =
-        Lazy::new(|| Mutex::new(None));
-    static HUD_PREVIEW_DISPLAY: Lazy<Mutex<Option<HudDisplayState>>> =
-        Lazy::new(|| Mutex::new(None));
+    static HUD_DISPLAY: Lazy<Mutex<HashMap<u32, HudDisplayState>>> =
+        Lazy::new(|| Mutex::new(HashMap::new()));
+    static HUD_PREVIEW_DISPLAY: Lazy<Mutex<HashMap<u32, HudDisplayState>>> =
+        Lazy::new(|| Mutex::new(HashMap::new()));
     static MOUSE_RECORDING: Lazy<Mutex<Option<MouseRecordingSession>>> =
         Lazy::new(|| Mutex::new(None));
     static MACRO_RECORDING: Lazy<Mutex<Option<MacroRecordingSession>>> =
@@ -344,7 +344,7 @@ mod windows_overlay {
         RestoreMouseSensitivity,
         UpdateHudPresets(Vec<HudPreset>),
         UpdateCommandPresets(Vec<CommandPreset>),
-        PreviewHudPreset(Option<HudPreset>),
+        PreviewHudPreset(Vec<HudPreset>),
         UpdateMacroPresets(Vec<MacroGroup>),
         UpdateAudioSettings(AudioSettings),
         PlayVideoPreset(u32),
@@ -644,7 +644,7 @@ mod windows_overlay {
         hud_hwnd: HWND,
         pin_hwnd: HWND,
         last_pin_update: Instant,
-        hud_display: Option<HudDisplayState>,
+        hud_display: HashMap<u32, HudDisplayState>,
         tray_menu: HMENU,
         keyboard_hook: HHOOK,
         mouse_hook: HHOOK,
@@ -700,6 +700,13 @@ mod windows_overlay {
         height: i32,
         auto_hide_on_owner_completion: bool,
         expires_at: Option<Instant>,
+    }
+
+    fn hud_display_key(display: &HudDisplayState) -> u32 {
+        display
+            .preset_id
+            .or(display.owner_preset_id)
+            .unwrap_or_default()
     }
 
     struct ActivePinThumbnail {
@@ -925,7 +932,7 @@ mod windows_overlay {
                 hud_hwnd,
                 pin_hwnd,
                 last_pin_update: Instant::now() - Duration::from_secs(1),
-                hud_display: None,
+                hud_display: HashMap::new(),
                 tray_menu,
                 keyboard_hook: HHOOK::default(),
                 mouse_hook: HHOOK::default(),
@@ -1059,9 +1066,9 @@ mod windows_overlay {
                             let _ = refresh_pin_overlay(runtime);
                         }
 
-                        let toolbox_active = HUD_DISPLAY.lock().is_some()
-                            || HUD_PREVIEW_DISPLAY.lock().is_some()
-                            || runtime.hud_display.is_some();
+                        let toolbox_active = !HUD_DISPLAY.lock().is_empty()
+                            || !HUD_PREVIEW_DISPLAY.lock().is_empty()
+                            || !runtime.hud_display.is_empty();
                         if toolbox_active {
                             let _ = refresh_hud(runtime);
                         }
@@ -3327,9 +3334,13 @@ mod windows_overlay {
                 OverlayCommand::UpdateCommandPresets(presets) => {
                     HOOK_STATE.lock().command_presets = presets;
                 }
-                OverlayCommand::PreviewHudPreset(preset) => {
-                    *HUD_PREVIEW_DISPLAY.lock() =
-                        preset.map(toolbox_preview_display_from_preset);
+                OverlayCommand::PreviewHudPreset(presets) => {
+                    let preview_map = presets
+                        .into_iter()
+                        .map(toolbox_preview_display_from_preset)
+                        .map(|display| (hud_display_key(&display), display))
+                        .collect::<HashMap<_, _>>();
+                    *HUD_PREVIEW_DISPLAY.lock() = preview_map;
                     let _ = refresh_hud(runtime);
                 }
                 OverlayCommand::UpdateMacroPresets(presets) => {
@@ -3394,7 +3405,7 @@ mod windows_overlay {
                         let _ = ShowWindow(runtime.hud_hwnd, SW_HIDE);
                         let _ = ShowWindow(runtime.mouse_trail_hwnd, SW_HIDE);
                     } else {
-                        *HUD_PREVIEW_DISPLAY.lock() = None;
+                        HUD_PREVIEW_DISPLAY.lock().clear();
                         let _ = set_input_hooks_enabled(runtime, desired_hooks_enabled(runtime));
                         let _ = refresh_overlay(runtime);
                         let _ = refresh_pin_overlay(runtime);
@@ -3582,42 +3593,46 @@ mod windows_overlay {
     }
 
     fn refresh_hud(runtime: &mut Runtime) -> Result<()> {
-        let display = {
+        let displays = {
             let mut preview_guard = HUD_PREVIEW_DISPLAY.lock();
-            if let Some(active) = preview_guard.as_ref()
-                && let Some(expires_at) = active.expires_at
-                && Instant::now() >= expires_at
-            {
-                *preview_guard = None;
-            }
-            if let Some(preview) = preview_guard.clone() {
-                Some(preview)
+            preview_guard.retain(|_, active| {
+                active
+                    .expires_at
+                    .is_none_or(|expires_at| Instant::now() < expires_at)
+            });
+            if !preview_guard.is_empty() {
+                preview_guard.values().cloned().collect::<Vec<_>>()
             } else {
                 let mut guard = HUD_DISPLAY.lock();
-                if let Some(active) = guard.as_ref()
-                    && let Some(expires_at) = active.expires_at
-                    && Instant::now() >= expires_at
-                {
-                    *guard = None;
-                }
-                guard.clone()
+                guard.retain(|_, active| {
+                    active
+                        .expires_at
+                        .is_none_or(|expires_at| Instant::now() < expires_at)
+                });
+                guard.values().cloned().collect::<Vec<_>>()
             }
         };
 
-        let Some(mut display) = display else {
+        if displays.is_empty() {
             let _ = unsafe { ShowWindow(runtime.hud_hwnd, SW_HIDE) };
-            runtime.hud_display = None;
-            return Ok(());
-        };
-
-        display.text = resolve_variables_in_text(&display.text);
-
-        if runtime.hud_display.as_ref() == Some(&display) {
+            runtime.hud_display.clear();
             return Ok(());
         }
-        runtime.hud_display = Some(display.clone());
 
-        unsafe { paint_hud(runtime.hud_hwnd, &display) }
+        let mut display_signature = displays;
+        for display in &mut display_signature {
+            display.text = resolve_variables_in_text(&display.text);
+        }
+        let display_signature_map = display_signature
+            .iter()
+            .map(|display| (hud_display_key(display), display.clone()))
+            .collect::<HashMap<_, _>>();
+        if runtime.hud_display == display_signature_map {
+            return Ok(());
+        }
+        runtime.hud_display = display_signature_map;
+
+        unsafe { paint_hud(runtime.hud_hwnd, &display_signature) }
     }
 
     fn refresh_mouse_record_trail(runtime: &mut Runtime) -> Result<()> {
@@ -3722,9 +3737,9 @@ mod windows_overlay {
             return 100;
         }
 
-        let toolbox_active = HUD_DISPLAY.lock().is_some()
-            || HUD_PREVIEW_DISPLAY.lock().is_some()
-            || runtime.hud_display.is_some();
+        let toolbox_active = !HUD_DISPLAY.lock().is_empty()
+            || !HUD_PREVIEW_DISPLAY.lock().is_empty()
+            || !runtime.hud_display.is_empty();
         if toolbox_active {
             return 100;
         }
@@ -4230,11 +4245,25 @@ mod windows_overlay {
         Ok(())
     }
 
-    unsafe fn paint_hud(hwnd: HWND, display: &HudDisplayState) -> Result<()> {
-        let window_x = display.x.max(0);
-        let window_y = display.y.max(0);
-        let width = display.width.max(1);
-        let height = display.height.max(1);
+    unsafe fn paint_hud(hwnd: HWND, displays: &[HudDisplayState]) -> Result<()> {
+        if displays.is_empty() {
+            let _ = ShowWindow(hwnd, SW_HIDE);
+            return Ok(());
+        }
+
+        let mut left = i32::MAX;
+        let mut top = i32::MAX;
+        let mut right = i32::MIN;
+        let mut bottom = i32::MIN;
+        for display in displays {
+            left = left.min(display.x);
+            top = top.min(display.y);
+            right = right.max(display.x + display.width.max(1));
+            bottom = bottom.max(display.y + display.height.max(1));
+        }
+
+        let width = (right - left).max(1);
+        let height = (bottom - top).max(1);
 
         let screen_dc = GetDC(None);
         let mem_dc = CreateCompatibleDC(Some(screen_dc));
@@ -4263,20 +4292,75 @@ mod windows_overlay {
         )?;
         let old_bitmap = SelectObject(mem_dc, HGDIOBJ(bitmap.0));
 
-        let bg_alpha = (display.background_opacity.clamp(0.0, 1.0) * 255.0).round() as u8;
         let bytes_len = (width as usize) * (height as usize) * 4;
         let pixels = std::slice::from_raw_parts_mut(bits_ptr as *mut u8, bytes_len);
-        let radius = if display.rounded_background {
-            16.0
-        } else {
-            0.0
+        pixels.fill(0);
+
+        for display in displays {
+            render_hud_display(mem_dc, pixels, width, height, display, display.x - left, display.y - top)?;
+        }
+
+        let size = SIZE {
+            cx: width,
+            cy: height,
         };
+        let src_pt = POINT { x: 0, y: 0 };
+        let pos = POINT { x: left, y: top };
+        let blend = BLENDFUNCTION {
+            BlendOp: AC_SRC_OVER as u8,
+            BlendFlags: 0,
+            SourceConstantAlpha: 255,
+            AlphaFormat: AC_SRC_ALPHA as u8,
+        };
+        let _ = UpdateLayeredWindow(
+            hwnd,
+            Some(screen_dc),
+            Some(&pos),
+            Some(&size),
+            Some(mem_dc),
+            Some(&src_pt),
+            COLORREF(0),
+            Some(&blend),
+            ULW_ALPHA,
+        );
+
+        let _ = SelectObject(mem_dc, old_bitmap);
+        let _ = DeleteObject(HGDIOBJ(bitmap.0));
+        let _ = DeleteDC(mem_dc);
+        let _ = ReleaseDC(None, screen_dc);
+        let _ = ShowWindow(hwnd, SW_SHOWNA);
+        Ok(())
+    }
+
+    unsafe fn render_hud_display(
+        mem_dc: HDC,
+        pixels: &mut [u8],
+        canvas_width: i32,
+        canvas_height: i32,
+        display: &HudDisplayState,
+        origin_x: i32,
+        origin_y: i32,
+    ) -> Result<()> {
+        let width = display.width.max(1);
+        let height = display.height.max(1);
+        let bg_alpha = (display.background_opacity.clamp(0.0, 1.0) * 255.0).round() as u8;
+        let canvas_width_usize = canvas_width as usize;
+        let radius = if display.rounded_background { 16.0 } else { 0.0 };
         let bg_b = ((display.background_color.b as u32 * bg_alpha as u32) / 255) as u8;
         let bg_g = ((display.background_color.g as u32 * bg_alpha as u32) / 255) as u8;
         let bg_r = ((display.background_color.r as u32 * bg_alpha as u32) / 255) as u8;
+
         for py in 0..height {
+            let canvas_y = origin_y + py;
+            if canvas_y < 0 || canvas_y >= canvas_height {
+                continue;
+            }
             for px in 0..width {
-                let index = ((py as usize) * (width as usize) + (px as usize)) * 4;
+                let canvas_x = origin_x + px;
+                if canvas_x < 0 || canvas_x >= canvas_width {
+                    continue;
+                }
+                let index = ((canvas_y as usize) * canvas_width_usize + (canvas_x as usize)) * 4;
                 let inside = if radius <= 0.0 {
                     true
                 } else {
@@ -4351,10 +4435,10 @@ mod windows_overlay {
             ),
         );
         let mut text_rect = RECT {
-            left: 12,
-            top: 4,
-            right: width - 12,
-            bottom: height - 4,
+            left: origin_x + 12,
+            top: origin_y + 4,
+            right: origin_x + width - 12,
+            bottom: origin_y + height - 4,
         };
         let mut wide = display
             .text
@@ -4369,56 +4453,39 @@ mod windows_overlay {
         );
 
         let text_alpha = display.text_color.a.max(1);
-        for chunk in pixels.chunks_exact_mut(4) {
-            let looks_like_bg =
-                chunk[0] == bg_b && chunk[1] == bg_g && chunk[2] == bg_r && chunk[3] == bg_alpha;
-            let alpha = if looks_like_bg {
-                bg_alpha
-            } else if chunk[0] == 0 && chunk[1] == 0 && chunk[2] == 0 && chunk[3] == 0 {
-                0
-            } else {
-                text_alpha
-            };
-            chunk[3] = alpha;
-            chunk[0] = ((chunk[0] as u32 * alpha as u32) / 255) as u8;
-            chunk[1] = ((chunk[1] as u32 * alpha as u32) / 255) as u8;
-            chunk[2] = ((chunk[2] as u32 * alpha as u32) / 255) as u8;
+        for py in 0..height {
+            let canvas_y = origin_y + py;
+            if canvas_y < 0 || canvas_y >= canvas_height {
+                continue;
+            }
+            for px in 0..width {
+                let canvas_x = origin_x + px;
+                if canvas_x < 0 || canvas_x >= canvas_width {
+                    continue;
+                }
+                let index = ((canvas_y as usize) * canvas_width_usize + (canvas_x as usize)) * 4;
+                let looks_like_bg =
+                    pixels[index] == bg_b && pixels[index + 1] == bg_g && pixels[index + 2] == bg_r && pixels[index + 3] == bg_alpha;
+                let alpha = if looks_like_bg {
+                    bg_alpha
+                } else if pixels[index] == 0
+                    && pixels[index + 1] == 0
+                    && pixels[index + 2] == 0
+                    && pixels[index + 3] == 0
+                {
+                    0
+                } else {
+                    text_alpha
+                };
+                pixels[index + 3] = alpha;
+                pixels[index] = ((pixels[index] as u32 * alpha as u32) / 255) as u8;
+                pixels[index + 1] = ((pixels[index + 1] as u32 * alpha as u32) / 255) as u8;
+                pixels[index + 2] = ((pixels[index + 2] as u32 * alpha as u32) / 255) as u8;
+            }
         }
-
-        let size = SIZE {
-            cx: width,
-            cy: height,
-        };
-        let src_pt = POINT { x: 0, y: 0 };
-        let pos = POINT {
-            x: window_x,
-            y: window_y,
-        };
-        let blend = BLENDFUNCTION {
-            BlendOp: AC_SRC_OVER as u8,
-            BlendFlags: 0,
-            SourceConstantAlpha: 255,
-            AlphaFormat: AC_SRC_ALPHA as u8,
-        };
-        let _ = UpdateLayeredWindow(
-            hwnd,
-            Some(screen_dc),
-            Some(&pos),
-            Some(&size),
-            Some(mem_dc),
-            Some(&src_pt),
-            COLORREF(0),
-            Some(&blend),
-            ULW_ALPHA,
-        );
 
         let _ = SelectObject(mem_dc, old_font);
         let _ = DeleteObject(HGDIOBJ(font.0));
-        let _ = SelectObject(mem_dc, old_bitmap);
-        let _ = DeleteObject(HGDIOBJ(bitmap.0));
-        let _ = DeleteDC(mem_dc);
-        let _ = ReleaseDC(None, screen_dc);
-        let _ = ShowWindow(hwnd, SW_SHOWNA);
         Ok(())
     }
 
@@ -7355,7 +7422,7 @@ fn set_variable_value(target_var: &str, value: i32) {
             None
         };
 
-        *HUD_DISPLAY.lock() = Some(HudDisplayState {
+        HUD_DISPLAY.lock().insert(preset.id, HudDisplayState {
             owner_preset_id: Some(owner_preset_id),
             preset_id: Some(preset.id),
             text,
@@ -7408,7 +7475,7 @@ fn set_variable_value(target_var: &str, value: i32) {
             hide_hud_now();
             return;
         }
-        *HUD_DISPLAY.lock() = Some(HudDisplayState {
+        HUD_DISPLAY.lock().insert(owner_preset_id, HudDisplayState {
             owner_preset_id: Some(owner_preset_id),
             preset_id: None,
             text: trimmed,
@@ -7448,18 +7515,14 @@ fn set_variable_value(target_var: &str, value: i32) {
     }
 
     fn hide_hud_now() {
-        *HUD_DISPLAY.lock() = None;
+        HUD_DISPLAY.lock().clear();
         wake_command_queue();
     }
 
     fn hide_toolbox_for_owner(owner_preset_id: u32) {
-        let mut guard = HUD_DISPLAY.lock();
-        if let Some(active) = guard.as_ref()
-            && active.owner_preset_id == Some(owner_preset_id)
-            && active.auto_hide_on_owner_completion
-        {
-            *guard = None;
-        }
+        HUD_DISPLAY
+            .lock()
+            .retain(|_, active| !(active.owner_preset_id == Some(owner_preset_id) && active.auto_hide_on_owner_completion));
     }
 
     fn apply_lock_keys(keys: &[String], preset_id: Option<u32>, unlock_on_exit: bool) {

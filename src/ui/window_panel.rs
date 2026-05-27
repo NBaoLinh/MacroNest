@@ -2153,21 +2153,23 @@ impl CrosshairApp {
             if let Some(preset) = preset {
                 let _ = self
                     .overlay_tx
-                    .send(OverlayCommand::PreviewHudPreset(Some(preset.clone())));
+                    .send(OverlayCommand::PreviewHudPreset(vec![preset.clone()]));
             }
             return;
         }
         self.active_hud_preview_preset_id = next_id;
         let _ = self
             .overlay_tx
-            .send(OverlayCommand::PreviewHudPreset(preset.cloned()));
+            .send(OverlayCommand::PreviewHudPreset(
+                preset.cloned().into_iter().collect(),
+            ));
     }
 
     pub(crate) fn clear_hud_preview(&mut self) {
         if self.active_hud_preview_preset_id.take().is_some() {
             let _ = self
                 .overlay_tx
-                .send(OverlayCommand::PreviewHudPreset(None));
+                .send(OverlayCommand::PreviewHudPreset(Vec::new()));
         }
     }
 
