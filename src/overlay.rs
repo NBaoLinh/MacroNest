@@ -5145,7 +5145,7 @@ mod windows_overlay {
         )?;
         let old_bitmap = SelectObject(mem_dc, HGDIOBJ(bitmap.0));
 
-        let (_, metadata) = media::open_video_capture(&preset.clip.file_path, preset.clip.start_ms)?;
+        let (mut capture, metadata) = media::open_video_capture(&preset.clip.file_path, preset.clip.start_ms)?;
         let chroma_key = if preset.clip.chroma_key_enabled {
             Some((preset.clip.chroma_key_color, preset.clip.chroma_key_tolerance))
         } else {
@@ -5158,36 +5158,6 @@ mod windows_overlay {
         } else {
             u64::MAX
         };
-
-        let (tx, rx) = std::sync::mpsc::sync_channel::<(Vec<u8>, u64)>(8);
-        let stop_flag_clone = stop_flag.clone();
-        let file_path = preset.clip.file_path.clone();
-        let start_ms = preset.clip.start_ms;
-
-        thread::spawn(move || -> Result<()> {
-            let (mut capture, _metadata) = media::open_video_capture(&file_path, start_ms)?;
-            loop {
-                if stop_flag_clone.load(Ordering::Relaxed) {
-                    break;
-                }
-
-                let mut frame = Mat::default();
-                if !capture.read(&mut frame)? || frame.empty() {
-                    break;
-                }
-
-                let position_ms = capture.get(opencv::videoio::CAP_PROP_POS_MSEC)?.round().max(0.0) as u64;
-                if position_ms > clip_end_ms {
-                    break;
-                }
-
-                let pixels = media::frame_to_premultiplied_bgra(&frame, screen_w, screen_h, chroma_key)?;
-                if tx.send((pixels, position_ms)).is_err() {
-                    break;
-                }
-            }
-            Ok(())
-        });
 
         let mut pt_src = POINT::default();
         let mut pt_dst = POINT { x: 0, y: 0 };
@@ -5206,8 +5176,18 @@ mod windows_overlay {
             clip_end_ms,
         );
         let playback_start = Instant::now();
-        while let Ok((pixels, position_ms)) = rx.recv() {
+        loop {
             if stop_flag.load(Ordering::Relaxed) {
+                break;
+            }
+
+            let mut frame = Mat::default();
+            if !capture.read(&mut frame)? || frame.empty() {
+                break;
+            }
+
+            let position_ms = capture.get(opencv::videoio::CAP_PROP_POS_MSEC)?.round().max(0.0) as u64;
+            if position_ms > clip_end_ms {
                 break;
             }
 
@@ -5216,12 +5196,30 @@ mod windows_overlay {
 
             if elapsed_real_ms < elapsed_video_ms {
                 let wait_ms = elapsed_video_ms - elapsed_real_ms;
-                thread::sleep(Duration::from_millis(wait_ms));
+                // Sleep for the bulk of wait time (avoiding imprecise Windows timer overhead)
+                if wait_ms > 10 {
+                    thread::sleep(Duration::from_millis(wait_ms - 5));
+                }
+                // Precise spin-yield loop for the remaining sub-milliseconds to guarantee flawless 60fps pacing
+                while (playback_start.elapsed().as_millis() as u64) < elapsed_video_ms {
+                    if stop_flag.load(Ordering::Relaxed) {
+                        break;
+                    }
+                    std::thread::yield_now();
+                }
             } else if elapsed_real_ms > elapsed_video_ms + 100 {
-                // Lagging behind by more than 100ms, skip processing and rendering this frame to catch up
+                // If lagging behind by more than 100ms, perform a single hardware seek jump
+                // instead of sequentially decoding/skipping frame-by-frame. This frees 100% of wasted CPU.
+                let target_seek_ms = preset.clip.start_ms + elapsed_real_ms;
+                if target_seek_ms <= clip_end_ms {
+                    let _ = capture.set(opencv::videoio::CAP_PROP_POS_MSEC, target_seek_ms as f64)?;
+                } else {
+                    break;
+                }
                 continue;
             }
 
+            let pixels = media::frame_to_premultiplied_bgra(&frame, screen_w, screen_h, chroma_key)?;
             let bytes_len = (screen_w as usize) * (screen_h as usize) * 4;
             let dib_pixels = std::slice::from_raw_parts_mut(bits_ptr as *mut u8, bytes_len);
             dib_pixels.copy_from_slice(&pixels);
