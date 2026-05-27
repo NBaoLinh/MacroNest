@@ -781,6 +781,7 @@ impl CrosshairApp {
         id_source: impl std::hash::Hash + Copy,
         clip: &mut VideoClipSettings,
         total_ms: u64,
+        preview_cursor_ms: &mut u64,
         desired_height: f32,
     ) -> bool {
         Self::trim_video_bounds(clip, total_ms);
@@ -843,25 +844,33 @@ impl CrosshairApp {
         {
             let ratio = ((pointer.x - rect.left()) / rect.width()).clamp(0.0, 1.0);
             clip.start_ms = ((ratio * total_ms_f32).round() as u64).min(clip.end_ms);
+            *preview_cursor_ms = clip.start_ms; // Sync playhead to start bound during drag
             changed = true;
         } else if let Some(pointer) = end_response.interact_pointer_pos()
             && (end_response.clicked() || end_response.dragged())
         {
             let ratio = ((pointer.x - rect.left()) / rect.width()).clamp(0.0, 1.0);
             clip.end_ms = ((ratio * total_ms_f32).round() as u64).max(clip.start_ms);
+            *preview_cursor_ms = clip.end_ms; // Sync playhead to end bound during drag
             changed = true;
-        } else if response.clicked()
-            && let Some(pointer) = response.interact_pointer_pos()
-        {
-            let ratio = ((pointer.x - rect.left()) / rect.width()).clamp(0.0, 1.0);
-            let next_ms = (ratio * total_ms_f32).round() as u64;
-            if (pointer.x - start_x).abs() <= (pointer.x - end_x).abs() {
-                clip.start_ms = next_ms.min(clip.end_ms);
-            } else {
-                clip.end_ms = next_ms.max(clip.start_ms);
+        } else if response.clicked() || response.dragged() {
+            if let Some(pointer) = response.interact_pointer_pos() {
+                let ratio = ((pointer.x - rect.left()) / rect.width()).clamp(0.0, 1.0);
+                *preview_cursor_ms = ((ratio * total_ms_f32).round() as u64).min(total_ms);
             }
-            changed = true;
         }
+
+        // Draw Playhead
+        let playhead_x = rect.left() + rect.width() * (*preview_cursor_ms as f32 / total_ms_f32);
+        painter.line_segment(
+            [egui::pos2(playhead_x, rect.top()), egui::pos2(playhead_x, rect.bottom())],
+            egui::Stroke::new(2.5, Color32::from_rgb(255, 60, 60)),
+        );
+        painter.circle_filled(
+            egui::pos2(playhead_x, rect.top()),
+            4.0,
+            Color32::from_rgb(255, 60, 60),
+        );
 
         ui.add_space(4.0);
         ui.horizontal(|ui| {
@@ -1310,6 +1319,7 @@ impl CrosshairApp {
                         ("video-trim", preset.id),
                         &mut preset.clip,
                         total_ms,
+                        &mut preview_cursor_ms,
                         44.0,
                     );
                     ui.horizontal(|ui| {

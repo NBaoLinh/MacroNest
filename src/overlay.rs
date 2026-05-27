@@ -5176,12 +5176,12 @@ mod windows_overlay {
             preset.clip.start_ms,
             clip_end_ms,
         );
+        let playback_start = Instant::now();
         loop {
             if stop_flag.load(Ordering::Relaxed) {
                 break;
             }
 
-            let started_at = Instant::now();
             let mut frame = Mat::default();
             if !capture.read(&mut frame)? || frame.empty() {
                 break;
@@ -5190,6 +5190,17 @@ mod windows_overlay {
             let position_ms = capture.get(opencv::videoio::CAP_PROP_POS_MSEC)?.round().max(0.0) as u64;
             if position_ms > clip_end_ms {
                 break;
+            }
+
+            let elapsed_video_ms = position_ms.saturating_sub(preset.clip.start_ms);
+            let elapsed_real_ms = playback_start.elapsed().as_millis() as u64;
+
+            if elapsed_real_ms < elapsed_video_ms {
+                let wait_ms = elapsed_video_ms - elapsed_real_ms;
+                thread::sleep(Duration::from_millis(wait_ms));
+            } else if elapsed_real_ms > elapsed_video_ms + 100 {
+                // Lagging behind by more than 100ms, skip processing and rendering this frame to catch up
+                continue;
             }
 
             let pixels = media::frame_to_premultiplied_bgra(&frame, screen_w, screen_h, chroma_key)?;
@@ -5208,11 +5219,6 @@ mod windows_overlay {
                 Some(&mut blend),
                 ULW_ALPHA,
             );
-
-            let elapsed = started_at.elapsed();
-            if elapsed < frame_delay {
-                thread::sleep(frame_delay - elapsed);
-            }
         }
 
         let _ = ShowWindow(hwnd, SW_HIDE);
