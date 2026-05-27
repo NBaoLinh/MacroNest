@@ -5208,18 +5208,19 @@ mod windows_overlay {
                     std::thread::yield_now();
                 }
             } else if elapsed_real_ms > elapsed_video_ms + 100 {
-                // If lagging behind by more than 100ms, perform a single hardware seek jump
-                // instead of sequentially decoding/skipping frame-by-frame. This frees 100% of wasted CPU.
-                let target_seek_ms = preset.clip.start_ms + elapsed_real_ms;
-                if target_seek_ms <= clip_end_ms {
-                    let _ = capture.set(opencv::videoio::CAP_PROP_POS_MSEC, target_seek_ms as f64)?;
-                } else {
-                    break;
-                }
+                // Lagging behind by more than 100ms, skip processing and rendering this frame to catch up.
+                // Do NOT use capture.set seek here because seeking is a very expensive keyframe decode operation
+                // that causes massive stuttering/frame jumping. Pure frame skipping is extremely fast.
                 continue;
             }
 
-            let pixels = media::frame_to_premultiplied_bgra(&frame, screen_w, screen_h, chroma_key)?;
+            let pixels = media::frame_to_premultiplied_bgra(
+                &frame,
+                screen_w,
+                screen_h,
+                chroma_key,
+                &preset.clip.resolution,
+            )?;
             let bytes_len = (screen_w as usize) * (screen_h as usize) * 4;
             let dib_pixels = std::slice::from_raw_parts_mut(bits_ptr as *mut u8, bytes_len);
             dib_pixels.copy_from_slice(&pixels);

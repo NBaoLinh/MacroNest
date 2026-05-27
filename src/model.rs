@@ -1572,6 +1572,10 @@ impl Default for AudioClipSettings {
     }
 }
 
+fn default_video_resolution() -> String {
+    "Auto".to_owned()
+}
+
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
 #[serde(default)]
 pub struct VideoClipSettings {
@@ -1582,6 +1586,8 @@ pub struct VideoClipSettings {
     pub chroma_key_enabled: bool,
     pub chroma_key_color: RgbaColor,
     pub chroma_key_tolerance: u8,
+    #[serde(default = "default_video_resolution")]
+    pub resolution: String,
 }
 
 impl Default for VideoClipSettings {
@@ -1599,6 +1605,7 @@ impl Default for VideoClipSettings {
                 a: 255,
             },
             chroma_key_tolerance: 36,
+            resolution: "Auto".to_owned(),
         }
     }
 }

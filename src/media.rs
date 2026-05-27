@@ -109,17 +109,49 @@ pub fn frame_to_premultiplied_bgra(
     target_width: i32,
     target_height: i32,
     chroma_key: Option<(RgbaColor, u8)>,
+    resolution: &str,
 ) -> Result<Vec<u8>> {
     if target_width <= 0 || target_height <= 0 {
         bail!("Invalid output size");
     }
 
+    let source_size = frame.size()?;
+    let native_w = source_size.width;
+    let native_h = source_size.height;
+
+    let max_dim = match resolution {
+        "360p" => Some(360),
+        "720p" => Some(720),
+        "1080p" => Some(1080),
+        _ => None,
+    };
+
+    let mut temp_frame = frame.try_clone()?;
+
+    if let Some(limit_h) = max_dim {
+        if native_h > limit_h {
+            let scale = limit_h as f32 / native_h as f32;
+            let temp_w = ((native_w as f32 * scale).round() as i32).max(1);
+            let temp_h = limit_h;
+            let mut downscaled = Mat::default();
+            imgproc::resize(
+                frame,
+                &mut downscaled,
+                Size::new(temp_w, temp_h),
+                0.0,
+                0.0,
+                imgproc::INTER_LINEAR,
+            )?;
+            temp_frame = downscaled;
+        }
+    }
+
     // 1. Convert source frame to BGRA first at its native resolution
     let mut bgra = Mat::default();
-    match frame.channels() {
-        4 => bgra = frame.try_clone()?,
-        3 => imgproc::cvt_color(frame, &mut bgra, imgproc::COLOR_BGR2BGRA, 0)?,
-        1 => imgproc::cvt_color(frame, &mut bgra, imgproc::COLOR_GRAY2BGRA, 0)?,
+    match temp_frame.channels() {
+        4 => bgra = temp_frame.try_clone()?,
+        3 => imgproc::cvt_color(&temp_frame, &mut bgra, imgproc::COLOR_BGR2BGRA, 0)?,
+        1 => imgproc::cvt_color(&temp_frame, &mut bgra, imgproc::COLOR_GRAY2BGRA, 0)?,
         channels => bail!("Unsupported frame channels: {channels}"),
     }
 
@@ -180,6 +212,7 @@ pub fn frame_to_premultiplied_bgra(
     _target_width: i32,
     _target_height: i32,
     _chroma_key: Option<(RgbaColor, u8)>,
+    _resolution: &str,
 ) -> Result<Vec<u8>> {
     bail!("Video playback is only supported on Windows")
 }

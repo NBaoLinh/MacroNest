@@ -1333,6 +1333,20 @@ impl CrosshairApp {
                             .changed();
                     });
                     Self::trim_video_bounds(&mut preset.clip, total_ms);
+
+                    ui.add_space(2.0);
+                    ui.horizontal(|ui| {
+                        ui.label(Self::tr_lang(language, "Render Resolution:", "Độ phân giải dựng:"));
+                        egui::ComboBox::from_id_source(("video-res", preset.id))
+                            .selected_text(preset.clip.resolution.as_str())
+                            .show_ui(ui, |ui| {
+                                for res in &["Auto", "1080p", "720p", "360p"] {
+                                    changed |= ui
+                                        .selectable_value(&mut preset.clip.resolution, res.to_string(), *res)
+                                        .changed();
+                                }
+                            });
+                    });
                 }
 
                 ui.separator();
