@@ -4326,6 +4326,7 @@ mod windows_overlay {
         for display in displays {
             render_hud_display(mem_dc, pixels, width, height, display, display.x - left, display.y - top)?;
         }
+        finalize_hud_canvas(pixels, width, height, displays);
 
         let size = SIZE {
             cx: width,
@@ -4479,21 +4480,41 @@ mod windows_overlay {
             DT_CENTER | DT_VCENTER | DT_SINGLELINE,
         );
 
-        let text_alpha = display.text_color.a.max(1);
-        for py in 0..height {
-            let canvas_y = origin_y + py;
-            if canvas_y < 0 || canvas_y >= canvas_height {
-                continue;
-            }
-            for px in 0..width {
-                let canvas_x = origin_x + px;
-                if canvas_x < 0 || canvas_x >= canvas_width {
+        let _ = SelectObject(mem_dc, old_font);
+        let _ = DeleteObject(HGDIOBJ(font.0));
+        Ok(())
+    }
+
+    fn finalize_hud_canvas(pixels: &mut [u8], canvas_width: i32, canvas_height: i32, displays: &[HudDisplayState]) {
+        let canvas_width_usize = canvas_width as usize;
+        let displays = displays.to_vec();
+        for y in 0..canvas_height {
+            for x in 0..canvas_width {
+                let index = ((y as usize) * canvas_width_usize + (x as usize)) * 4;
+                let display = displays.iter().rev().find(|display| {
+                    x >= display.x
+                        && x < display.x + display.width.max(1)
+                        && y >= display.y
+                        && y < display.y + display.height.max(1)
+                });
+                let Some(display) = display else {
+                    pixels[index] = 0;
+                    pixels[index + 1] = 0;
+                    pixels[index + 2] = 0;
+                    pixels[index + 3] = 0;
                     continue;
-                }
-                let index = ((canvas_y as usize) * canvas_width_usize + (canvas_x as usize)) * 4;
-                let looks_like_bg =
-                    pixels[index] == bg_b && pixels[index + 1] == bg_g && pixels[index + 2] == bg_r && pixels[index + 3] == bg_alpha;
-                let alpha = if looks_like_bg {
+                };
+
+                let bg_alpha = (display.background_opacity.clamp(0.0, 1.0) * 255.0).round() as u8;
+                let bg_b = ((display.background_color.b as u32 * bg_alpha as u32) / 255) as u8;
+                let bg_g = ((display.background_color.g as u32 * bg_alpha as u32) / 255) as u8;
+                let bg_r = ((display.background_color.r as u32 * bg_alpha as u32) / 255) as u8;
+                let text_alpha = display.text_color.a.max(1);
+                let alpha = if pixels[index] == bg_b
+                    && pixels[index + 1] == bg_g
+                    && pixels[index + 2] == bg_r
+                    && pixels[index + 3] == bg_alpha
+                {
                     bg_alpha
                 } else if pixels[index] == 0
                     && pixels[index + 1] == 0
@@ -4510,10 +4531,6 @@ mod windows_overlay {
                 pixels[index + 2] = ((pixels[index + 2] as u32 * alpha as u32) / 255) as u8;
             }
         }
-
-        let _ = SelectObject(mem_dc, old_font);
-        let _ = DeleteObject(HGDIOBJ(font.0));
-        Ok(())
     }
 
     fn sync_window_hotkeys(hwnd: HWND, runtime: &mut Runtime) -> Result<()> {
