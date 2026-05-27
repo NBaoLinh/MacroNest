@@ -2378,6 +2378,7 @@ impl CrosshairApp {
                                                  import_preset_to_group = Some((group.id, Some(preset.id)));
                                              }
                                              }
+                                            if false {
                                             let mouse_trigger_options = [
                                                 (
                                                     "MouseLeft",
@@ -2487,6 +2488,7 @@ impl CrosshairApp {
                                             mouse_trigger_response
                                                 .response
                                                 .on_hover_text(selected_mouse_label);
+                                            }
                                             let capture_target = CaptureRequest::MacroPresetHotkey(
                                                 group.id, preset.id,
                                             );

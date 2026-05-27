@@ -203,6 +203,14 @@ pub(crate) struct VisionPreviewCache {
     view: VisionPreviewView,
 }
 
+#[derive(Clone)]
+pub(crate) struct VideoPreviewView {
+    texture: TextureHandle,
+    width: usize,
+    height: usize,
+    rgba: Vec<u8>,
+}
+
 pub(crate) const MATERIAL_ICONS_FONT: &str = "material_icons";
 const UI_SANS_FONT: &str = "ui_sans";
 const UI_SANS_SEMIBOLD_FONT: &str = "ui_sans_semibold";
@@ -548,6 +556,7 @@ pub struct CrosshairApp {
     downloaded_tools_open: bool,
     zoom_preview_cache: HashMap<u32, ZoomPreviewCache>,
     vision_preview_cache: HashMap<u32, VisionPreviewCache>,
+    video_preview_cache: HashMap<String, VideoPreviewView>,
     vision_color_pick_texture: Option<TextureHandle>,
     vision_color_pick_preview_color: Option<RgbaColor>,
     vietnamese_input_enabled_texture: Option<TextureHandle>,
@@ -705,6 +714,7 @@ impl CrosshairApp {
             downloaded_tools_open: false,
             zoom_preview_cache: HashMap::new(),
             vision_preview_cache: HashMap::new(),
+            video_preview_cache: HashMap::new(),
             vision_color_pick_texture: None,
             vision_color_pick_preview_color: None,
             vietnamese_input_enabled_texture: None,
@@ -1726,6 +1736,46 @@ impl CrosshairApp {
                 duration_ms,
             });
         });
+    }
+
+    fn video_preview_cache_key(path: &str, start_ms: u64) -> String {
+        format!("{}|{}", path.trim(), start_ms)
+    }
+
+    fn ensure_video_preview_frame(
+        &mut self,
+        ctx: &egui::Context,
+        path: &str,
+        start_ms: u64,
+    ) -> Option<String> {
+        let trimmed = path.trim();
+        if trimmed.is_empty() {
+            return None;
+        }
+        let key = Self::video_preview_cache_key(trimmed, start_ms);
+        if self.video_preview_cache.contains_key(&key) {
+            return Some(key);
+        }
+        let preview = crate::media::load_video_preview_frame(trimmed, start_ms, 360, 220).ok()?;
+        let image = ColorImage::from_rgba_unmultiplied(
+            [preview.width, preview.height],
+            &preview.rgba,
+        );
+        let texture = ctx.load_texture(
+            format!("video_preview_{key}"),
+            image,
+            TextureOptions::LINEAR,
+        );
+        self.video_preview_cache.insert(
+            key.clone(),
+            VideoPreviewView {
+                texture,
+                width: preview.width,
+                height: preview.height,
+                rgba: preview.rgba,
+            },
+        );
+        Some(key)
     }
 
     fn preview_cursor_ms_for(

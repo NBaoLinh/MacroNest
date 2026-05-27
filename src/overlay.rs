@@ -97,7 +97,7 @@ mod windows_overlay {
                     GetCursorPos, GetForegroundWindow, GetMessageW, GetSystemMetrics, GetWindow,
                     GetWindowLongPtrW, GetWindowRect, GetWindowThreadProcessId, HC_ACTION, HHOOK,
                     WindowFromPoint,
-                    HMENU, HTTRANSPARENT, HWND_TOPMOST, IDC_ARROW, IMAGE_ICON, IsZoomed, KBDLLHOOKSTRUCT, KillTimer, LR_LOADFROMFILE, LoadCursorW,
+                    HMENU, HTTRANSPARENT, HWND_TOPMOST, IDC_ARROW, IMAGE_ICON, IsZoomed, KBDLLHOOKSTRUCT, KillTimer, LLMHF_INJECTED, LR_LOADFROMFILE, LoadCursorW,
                     LoadImageW, MA_NOACTIVATE, MF_SEPARATOR, MF_STRING, MSG, MSLLHOOKSTRUCT,
                     PostMessageW, PostQuitMessage, RegisterClassW, SM_CXSCREEN, SM_CYSCREEN,
                     SPI_GETMOUSESPEED, SPI_SETMOUSESPEED,
@@ -193,6 +193,8 @@ mod windows_overlay {
     static HOOK_STATE: Lazy<Mutex<HookState>> = Lazy::new(|| Mutex::new(HookState::default()));
     static ACTIVE_VIDEO_STOP: Lazy<Mutex<Option<Arc<AtomicBool>>>> =
         Lazy::new(|| Mutex::new(None));
+    static SYNTHETIC_MOUSE_TRIGGER_SUPPRESSION: Lazy<Mutex<HashMap<String, usize>>> =
+        Lazy::new(|| Mutex::new(HashMap::new()));
 
     pub static ACTIVE_MACRO_STEPS: Lazy<Mutex<HashMap<u32, HashSet<usize>>>> =
         Lazy::new(|| Mutex::new(HashMap::new()));
@@ -1614,7 +1616,14 @@ mod windows_overlay {
                 _ => None,
             };
             if let Some((binding, is_down)) = event {
+                let event_key_name =
+                    mouse_binding_name_from_message(message, ((info.mouseData >> 16) & 0xFFFF) as u16);
                 update_held_mouse_button(message, ((info.mouseData >> 16) & 0xFFFF) as u16);
+                if let Some(key_name) = event_key_name
+                    && consume_suppressed_mouse_trigger(key_name)
+                {
+                    return CallNextHookEx(None, code, wparam, lparam);
+                }
                 let mut swallow = if is_down {
                     process_binding_press(&binding, false).unwrap_or(false)
                 } else {
@@ -2939,16 +2948,7 @@ mod windows_overlay {
     }
 
     fn update_held_mouse_button(message: u32, mouse_data: u16) {
-        let key_name = match (message, mouse_data) {
-            (WM_LBUTTONDOWN | WM_LBUTTONUP, _) => Some("MouseLeft"),
-            (WM_RBUTTONDOWN | WM_RBUTTONUP, _) => Some("MouseRight"),
-            (WM_MBUTTONDOWN | windows::Win32::UI::WindowsAndMessaging::WM_MBUTTONUP, _) => {
-                Some("MouseMiddle")
-            }
-            (WM_XBUTTONDOWN | WM_XBUTTONUP, XBUTTON1_DATA) => Some("MouseX1"),
-            (WM_XBUTTONDOWN | WM_XBUTTONUP, XBUTTON2_DATA) => Some("MouseX2"),
-            _ => None,
-        };
+        let key_name = mouse_binding_name_from_message(message, mouse_data);
         let Some(key_name) = key_name else {
             return;
         };
@@ -2962,6 +2962,43 @@ mod windows_overlay {
         } else {
             hook_state.held_mouse_buttons.remove(key_name);
         }
+    }
+
+    fn mouse_binding_name_from_message(message: u32, mouse_data: u16) -> Option<&'static str> {
+        match (message, mouse_data) {
+            (WM_LBUTTONDOWN | WM_LBUTTONUP, _) => Some("MouseLeft"),
+            (WM_RBUTTONDOWN | WM_RBUTTONUP, _) => Some("MouseRight"),
+            (WM_MBUTTONDOWN | windows::Win32::UI::WindowsAndMessaging::WM_MBUTTONUP, _) => {
+                Some("MouseMiddle")
+            }
+            (WM_XBUTTONDOWN | WM_XBUTTONUP, XBUTTON1_DATA) => Some("MouseX1"),
+            (WM_XBUTTONDOWN | WM_XBUTTONUP, XBUTTON2_DATA) => Some("MouseX2"),
+            (WM_MOUSEWHEEL, _) => {
+                if (mouse_data as i16) > 0 {
+                    Some("MouseWheelUp")
+                } else {
+                    Some("MouseWheelDown")
+                }
+            }
+            _ => None,
+        }
+    }
+
+    fn suppress_next_mouse_trigger(key_name: &str) {
+        let mut guard = SYNTHETIC_MOUSE_TRIGGER_SUPPRESSION.lock();
+        *guard.entry(key_name.to_owned()).or_insert(0) += 1;
+    }
+
+    fn consume_suppressed_mouse_trigger(key_name: &str) -> bool {
+        let mut guard = SYNTHETIC_MOUSE_TRIGGER_SUPPRESSION.lock();
+        let Some(count) = guard.get_mut(key_name) else {
+            return false;
+        };
+        *count = count.saturating_sub(1);
+        if *count == 0 {
+            guard.remove(key_name);
+        }
+        true
     }
 
     fn deactivate_all_hold_macros() {
@@ -5089,8 +5126,10 @@ mod windows_overlay {
         let frame_delay = Duration::from_secs_f64((1.0 / metadata.fps.max(1.0)).clamp(1.0 / 60.0, 1.0 / 12.0));
         let clip_end_ms = if preset.clip.end_ms > preset.clip.start_ms {
             preset.clip.end_ms
+        } else if metadata.duration_ms > preset.clip.start_ms {
+            metadata.duration_ms
         } else {
-            metadata.duration_ms.max(preset.clip.start_ms.saturating_add(1))
+            u64::MAX
         };
 
         let mut pt_src = POINT::default();
@@ -7760,6 +7799,32 @@ fn set_variable_value(target_var: &str, value: i32) {
     
 
     fn send_mouse_input(dw_flags: MOUSE_EVENT_FLAGS, mouse_data: u32) -> Result<()> {
+        let suppressed_mouse_name = if dw_flags == MOUSEEVENTF_LEFTDOWN || dw_flags == MOUSEEVENTF_LEFTUP {
+            Some("MouseLeft")
+        } else if dw_flags == MOUSEEVENTF_RIGHTDOWN || dw_flags == MOUSEEVENTF_RIGHTUP {
+            Some("MouseRight")
+        } else if dw_flags == MOUSEEVENTF_MIDDLEDOWN || dw_flags == MOUSEEVENTF_MIDDLEUP {
+            Some("MouseMiddle")
+        } else if dw_flags == MOUSEEVENTF_XDOWN || dw_flags == MOUSEEVENTF_XUP {
+            if mouse_data == XBUTTON1_DATA as u32 {
+                Some("MouseX1")
+            } else if mouse_data == XBUTTON2_DATA as u32 {
+                Some("MouseX2")
+            } else {
+                None
+            }
+        } else if dw_flags == MOUSEEVENTF_WHEEL {
+            if mouse_data == 120u32 {
+                Some("MouseWheelUp")
+            } else {
+                Some("MouseWheelDown")
+            }
+        } else {
+            None
+        };
+        if let Some(key_name) = suppressed_mouse_name {
+            suppress_next_mouse_trigger(key_name);
+        }
         let use_interception = {
             let state = HOOK_STATE.lock();
             state.use_interception

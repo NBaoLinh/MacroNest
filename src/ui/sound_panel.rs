@@ -1063,6 +1063,17 @@ impl CrosshairApp {
         let mut preview_video_preset = None;
         for index in 0..self.state.audio_settings.video_presets.len() {
             let preset_id = self.state.audio_settings.video_presets[index].id;
+            let preview_path = self.state.audio_settings.video_presets[index]
+                .clip
+                .file_path
+                .trim()
+                .to_owned();
+            let preview_start_ms = self.state.audio_settings.video_presets[index].clip.start_ms;
+            let preview_key = self.ensure_video_preview_frame(ui.ctx(), &preview_path, preview_start_ms);
+            let preview_frame = preview_key
+                .as_ref()
+                .and_then(|key| self.video_preview_cache.get(key))
+                .cloned();
             let mut choose_video_for = None;
             let mut preview_now = false;
             let preset = &mut self.state.audio_settings.video_presets[index];
@@ -1142,6 +1153,46 @@ impl CrosshairApp {
                 } else {
                     preset.clip.file_path.as_str()
                 });
+
+                if let Some(preview) = preview_frame.as_ref() {
+                    ui.add_space(4.0);
+                    ui.label(Self::tr_lang(
+                        language,
+                        "Preview frame: click to pick chroma key color",
+                        "Khung xem trước: bấm để lấy màu xóa phông",
+                    ));
+                    let size = vec2(preview.width as f32, preview.height as f32);
+                    let response = ui.add(
+                        Image::new((preview.texture.id(), size))
+                            .sense(Sense::click())
+                            .max_size(size),
+                    );
+                    if response.clicked()
+                        && let Some(pointer) = response.interact_pointer_pos()
+                    {
+                        let local_x = ((pointer.x - response.rect.left()) / response.rect.width()
+                            * preview.width as f32)
+                            .floor()
+                            .clamp(0.0, preview.width.saturating_sub(1) as f32)
+                            as usize;
+                        let local_y = ((pointer.y - response.rect.top()) / response.rect.height()
+                            * preview.height as f32)
+                            .floor()
+                            .clamp(0.0, preview.height.saturating_sub(1) as f32)
+                            as usize;
+                        let pixel_index = (local_y * preview.width + local_x) * 4;
+                        if pixel_index + 3 < preview.rgba.len() {
+                            preset.clip.chroma_key_color = RgbaColor {
+                                r: preview.rgba[pixel_index],
+                                g: preview.rgba[pixel_index + 1],
+                                b: preview.rgba[pixel_index + 2],
+                                a: 255,
+                            };
+                            preset.clip.chroma_key_enabled = true;
+                            changed = true;
+                        }
+                    }
+                }
 
                 if let Some(total_ms) = duration {
                     Self::trim_video_bounds(&mut preset.clip, total_ms);

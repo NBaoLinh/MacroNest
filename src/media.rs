@@ -10,6 +10,13 @@ pub struct VideoMetadata {
     pub fps: f64,
 }
 
+#[derive(Debug, Clone, Default)]
+pub struct VideoPreviewFrame {
+    pub width: usize,
+    pub height: usize,
+    pub rgba: Vec<u8>,
+}
+
 #[cfg(windows)]
 use opencv::{
     core::{Mat, Size},
@@ -142,5 +149,69 @@ pub fn frame_to_premultiplied_bgra(
     _target_height: i32,
     _chroma_key: Option<(RgbaColor, u8)>,
 ) -> Result<Vec<u8>> {
+    bail!("Video playback is only supported on Windows")
+}
+
+#[cfg(windows)]
+pub fn load_video_preview_frame(
+    path: &str,
+    start_ms: u64,
+    max_width: i32,
+    max_height: i32,
+) -> Result<VideoPreviewFrame> {
+    let (mut capture, _) = open_video_capture(path, start_ms)?;
+    let mut frame = Mat::default();
+    if !capture.read(&mut frame)? || frame.empty() {
+        bail!("Video preview frame could not be read");
+    }
+
+    let source_size = frame.size()?;
+    let src_w = source_size.width.max(1);
+    let src_h = source_size.height.max(1);
+    let scale = ((max_width.max(1) as f32 / src_w as f32)
+        .min(max_height.max(1) as f32 / src_h as f32))
+        .min(1.0);
+    let dst_w = ((src_w as f32 * scale).round() as i32).max(1);
+    let dst_h = ((src_h as f32 * scale).round() as i32).max(1);
+
+    let mut resized = Mat::default();
+    if dst_w != src_w || dst_h != src_h {
+        imgproc::resize(
+            &frame,
+            &mut resized,
+            Size::new(dst_w, dst_h),
+            0.0,
+            0.0,
+            imgproc::INTER_LINEAR,
+        )?;
+    } else {
+        resized = frame.try_clone()?;
+    }
+
+    let mut rgba = Mat::default();
+    match resized.channels() {
+        4 => imgproc::cvt_color(&resized, &mut rgba, imgproc::COLOR_BGRA2RGBA, 0)?,
+        3 => imgproc::cvt_color(&resized, &mut rgba, imgproc::COLOR_BGR2RGBA, 0)?,
+        1 => imgproc::cvt_color(&resized, &mut rgba, imgproc::COLOR_GRAY2RGBA, 0)?,
+        channels => bail!("Unsupported preview frame channels: {channels}"),
+    }
+    if !rgba.is_continuous() {
+        rgba = rgba.try_clone()?;
+    }
+    let bytes = rgba.data_bytes()?.to_vec();
+    Ok(VideoPreviewFrame {
+        width: dst_w as usize,
+        height: dst_h as usize,
+        rgba: bytes,
+    })
+}
+
+#[cfg(not(windows))]
+pub fn load_video_preview_frame(
+    _path: &str,
+    _start_ms: u64,
+    _max_width: i32,
+    _max_height: i32,
+) -> Result<VideoPreviewFrame> {
     bail!("Video playback is only supported on Windows")
 }
