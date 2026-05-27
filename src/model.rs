@@ -438,6 +438,16 @@ pub enum MacroAction {
 }
 
 #[derive(Debug, Clone, Copy, Serialize, Deserialize, PartialEq, Eq, Hash, Default)]
+pub enum SetVariableSource {
+    #[default]
+    Expression,
+    TimeHour,
+    TimeMinute,
+    TimeSecond,
+    TimeMillisecond,
+}
+
+#[derive(Debug, Clone, Copy, Serialize, Deserialize, PartialEq, Eq, Hash, Default)]
 pub enum IfConditionType {
     #[default]
     Variable,
@@ -561,6 +571,8 @@ pub struct MacroStep {
     pub wait_time_unit: String,
     #[serde(default = "default_true")]
     pub unlock_on_exit: bool,
+    #[serde(default)]
+    pub set_variable_source: SetVariableSource,
 }
 
 impl Default for MacroStep {
@@ -612,6 +624,7 @@ impl Default for MacroStep {
             extra_conditions: Vec::new(),
             wait_time_unit: String::new(),
             unlock_on_exit: true,
+            set_variable_source: SetVariableSource::Expression,
         }
     }
 }

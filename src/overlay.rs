@@ -5603,7 +5603,27 @@ mod windows_overlay {
                 MacroAction::SetVariable => {
                     let target_var = step.if_variable_name.trim().to_string();
                     if !target_var.is_empty() {
-                        let value = evaluate_math_expression(&step.key);
+                        let value = match step.set_variable_source {
+                            crate::model::SetVariableSource::Expression => {
+                                evaluate_math_expression(&step.key)
+                            }
+                            crate::model::SetVariableSource::TimeHour => {
+                                use chrono::Timelike;
+                                chrono::Local::now().hour() as i32
+                            }
+                            crate::model::SetVariableSource::TimeMinute => {
+                                use chrono::Timelike;
+                                chrono::Local::now().minute() as i32
+                            }
+                            crate::model::SetVariableSource::TimeSecond => {
+                                use chrono::Timelike;
+                                chrono::Local::now().second() as i32
+                            }
+                            crate::model::SetVariableSource::TimeMillisecond => {
+                                use chrono::Timelike;
+                                chrono::Local::now().nanosecond() as i32 / 1_000_000
+                            }
+                        };
                         let mut vars = RUNTIME_VARIABLES.lock();
                         vars.insert(target_var, value);
                     }
@@ -5965,7 +5985,27 @@ mod windows_overlay {
                 MacroAction::SetVariable => {
                     let target_var = step.if_variable_name.trim().to_string();
                     if !target_var.is_empty() {
-                        let value = evaluate_math_expression(&step.key);
+                        let value = match step.set_variable_source {
+                            crate::model::SetVariableSource::Expression => {
+                                evaluate_math_expression(&step.key)
+                            }
+                            crate::model::SetVariableSource::TimeHour => {
+                                use chrono::Timelike;
+                                chrono::Local::now().hour() as i32
+                            }
+                            crate::model::SetVariableSource::TimeMinute => {
+                                use chrono::Timelike;
+                                chrono::Local::now().minute() as i32
+                            }
+                            crate::model::SetVariableSource::TimeSecond => {
+                                use chrono::Timelike;
+                                chrono::Local::now().second() as i32
+                            }
+                            crate::model::SetVariableSource::TimeMillisecond => {
+                                use chrono::Timelike;
+                                chrono::Local::now().nanosecond() as i32 / 1_000_000
+                            }
+                        };
                         let mut vars = RUNTIME_VARIABLES.lock();
                         vars.insert(target_var, value);
                     }

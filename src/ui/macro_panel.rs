@@ -3506,7 +3506,7 @@ impl CrosshairApp {
                                                              egui::Layout::top_down(egui::Align::Min),
                                                              |ui| {
                                                              ui.horizontal(|ui| {
-                                                                 let cb_text = Self::tr_lang(language, "Var compare", "So sÃ¡nh biáº¿n");
+                                                                 let cb_text = Self::tr_lang(language, "Var compare", "So sánh biến");
                                                                  if ui.checkbox(&mut step.break_loop_by_variable, cb_text).changed() {
                                                                      live_sync = true;
                                                                  }
@@ -3514,7 +3514,7 @@ impl CrosshairApp {
                                                                      let response = ui.add_sized(
                                                                          [76.0, 22.0],
                                                                          TextEdit::singleline(&mut step.if_variable_name)
-                                                                             .hint_text(RichText::new(Self::tr_lang(language, "variable", "biáº¿n")).color(hint_color).weak()),
+                                                                             .hint_text(RichText::new(Self::tr_lang(language, "variable", "biến")).color(hint_color).weak()),
                                                                      );
                                                                      Self::apply_vietnamese_input_if_changed(
                                                                          &response,
@@ -3537,7 +3537,7 @@ impl CrosshairApp {
                                                                      let response2 = ui.add_sized(
                                                                          [76.0, 22.0],
                                                                          TextEdit::singleline(&mut step.key)
-                                                                             .hint_text(RichText::new(Self::tr_lang(language, "value/expr", "giÃƒÂ¡ trÃ¡Â»â€¹")).color(hint_color).weak()),
+                                                                             .hint_text(RichText::new(Self::tr_lang(language, "value/expr", "giá trị")).color(hint_color).weak()),
                                                                      );
                                                                      Self::apply_vietnamese_input_if_changed(
                                                                          &response2,
@@ -4139,10 +4139,11 @@ impl CrosshairApp {
                                                         ui.spacing_mut().button_padding.y = 0.0;
                                                         ui.vertical(|ui| {
                                                             ui.horizontal(|ui| {
+                                                                use crate::model::SetVariableSource;
                                                                 let response = ui.add_sized(
                                                                     [76.0, 22.0],
                                                                     TextEdit::singleline(&mut step.if_variable_name)
-                                                                        .hint_text(RichText::new(Self::tr_lang(language, "variable", "biáº¿n")).color(hint_color).weak()),
+                                                                        .hint_text(RichText::new(Self::tr_lang(language, "variable", "biến")).color(hint_color).weak()),
                                                                 );
                                                                 Self::apply_vietnamese_input_if_changed(
                                                                     &response,
@@ -4152,18 +4153,43 @@ impl CrosshairApp {
                                                                 );
                                                                 live_sync |= response.changed();
                                                                 ui.label(" = ");
-                                                                let response2 = ui.add_sized(
-                                                                    [76.0, 22.0],
-                                                                    TextEdit::singleline(&mut step.key)
-                                                                        .hint_text(RichText::new(Self::tr_lang(language, "value/expr", "giÃƒÂ¡ trÃ¡Â»â€¹")).color(hint_color).weak()),
-                                                                );
-                                                                Self::apply_vietnamese_input_if_changed(
-                                                                    &response2,
-                                                                    self.state.vietnamese_input_enabled,
-                                                                    self.state.vietnamese_input_mode,
-                                                                    &mut step.key,
-                                                                );
-                                                                live_sync |= response2.changed();
+                                                                // Source selector
+                                                                let src_label = match step.set_variable_source {
+                                                                    SetVariableSource::Expression => Self::tr_lang(language, "expr", "biểu thức"),
+                                                                    SetVariableSource::TimeHour => Self::tr_lang(language, "Hour", "Giờ"),
+                                                                    SetVariableSource::TimeMinute => Self::tr_lang(language, "Minute", "Phút"),
+                                                                    SetVariableSource::TimeSecond => Self::tr_lang(language, "Second", "Giây"),
+                                                                    SetVariableSource::TimeMillisecond => Self::tr_lang(language, "Millisec", "Mili giây"),
+                                                                };
+                                                                egui::ComboBox::from_id_salt((group.id, preset.id, "set_var_src"))
+                                                                    .selected_text(src_label)
+                                                                    .width(72.0)
+                                                                    .show_ui(ui, |ui| {
+                                                                        let prev = step.set_variable_source;
+                                                                        ui.selectable_value(&mut step.set_variable_source, SetVariableSource::Expression, Self::tr_lang(language, "expr", "biểu thức"));
+                                                                        ui.selectable_value(&mut step.set_variable_source, SetVariableSource::TimeHour, Self::tr_lang(language, "Hour", "Giờ"));
+                                                                        ui.selectable_value(&mut step.set_variable_source, SetVariableSource::TimeMinute, Self::tr_lang(language, "Minute", "Phút"));
+                                                                        ui.selectable_value(&mut step.set_variable_source, SetVariableSource::TimeSecond, Self::tr_lang(language, "Second", "Giây"));
+                                                                        ui.selectable_value(&mut step.set_variable_source, SetVariableSource::TimeMillisecond, Self::tr_lang(language, "Millisec", "Mili giây"));
+                                                                        if step.set_variable_source != prev {
+                                                                            live_sync = true;
+                                                                        }
+                                                                    });
+                                                                // Chỉ hiện ô giá trị khi mode Expression
+                                                                if step.set_variable_source == SetVariableSource::Expression {
+                                                                    let response2 = ui.add_sized(
+                                                                        [76.0, 22.0],
+                                                                        TextEdit::singleline(&mut step.key)
+                                                                            .hint_text(RichText::new(Self::tr_lang(language, "value/expr", "giá trị")).color(hint_color).weak()),
+                                                                    );
+                                                                    Self::apply_vietnamese_input_if_changed(
+                                                                        &response2,
+                                                                        self.state.vietnamese_input_enabled,
+                                                                        self.state.vietnamese_input_mode,
+                                                                        &mut step.key,
+                                                                    );
+                                                                    live_sync |= response2.changed();
+                                                                }
                                                                 let var_name = step.if_variable_name.trim();
                                                                 if !var_name.is_empty() {
                                                                     let current_val = crate::overlay::RUNTIME_VARIABLES.lock().get(var_name).copied();
@@ -4173,11 +4199,13 @@ impl CrosshairApp {
                                                                         RichText::new(format!("({})", val_str))
                                                                             .size(10.0)
                                                                             .color(Color32::from_rgb(0, 191, 255))
-                                                                    ).on_hover_text(Self::tr_lang(language, "Current runtime value", "GiÃƒÂ¡ trÃ¡Â»â€¹ chÃ¡ÂºÂ¡y hiÃ¡Â»â€¡n táº¡i"));
+                                                                    ).on_hover_text(Self::tr_lang(language, "Current runtime value", "Giá trị chạy hiện tại"));
                                                                 }
                                                             });
                                                             Self::render_variable_suggestions_raw(ui, &mut step.if_variable_name, language);
-                                                            Self::render_variable_suggestions(ui, &mut step.key, language);
+                                                            if step.set_variable_source == SetVariableSource::Expression {
+                                                                Self::render_variable_suggestions(ui, &mut step.key, language);
+                                                            }
                                                         });
                                                     });
                                                 } else {
