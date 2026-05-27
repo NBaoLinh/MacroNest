@@ -564,14 +564,13 @@ impl CrosshairApp {
                     } else {
                         Color32::from_rgba_unmultiplied(100, 100, 100, 150)
                     };
-                    let command_changed = ui
-                        .add_sized(
-                            [300.0, 72.0],
-                            TextEdit::multiline(&mut step.command_preset_command)
-                                .desired_rows(3)
-                                .hint_text(RichText::new("shutdown /s /t 0").color(hint_color)),
-                        )
-                        .changed();
+                    let command_changed = Self::render_expandable_command_text_edit(
+                        ui,
+                        &mut step.command_preset_command,
+                        ui.id().with((step_index, "command-preset-cmd")),
+                        "shutdown /s /t 0",
+                    )
+                    .changed();
                     if command_changed {
                         changed = true;
                     }
@@ -3734,17 +3733,16 @@ impl CrosshairApp {
                                                     });
                                                 } else if step.action == MacroAction::TypeText {
                                                     ui.vertical(|ui| {
-                                                        let response = ui.add_sized(
-                                                            [220.0, 22.0],
-                                                            TextEdit::singleline(&mut step.key).hint_text(
-                                                                RichText::new(Self::tr_lang(
-                                                                    language,
-                                                                    "Text to type",
-                                                                    "VÃ„Æ’n báº£nh cÃ¡ÂºÂ§n gÃƒÂµ",
-                                                                ))
-                                                                .color(hint_color)
-                                                                .italics(),
-                                                            ),
+                                                        let response = Self::render_expandable_text_edit(
+                                                            ui,
+                                                            &mut step.key,
+                                                            ui.id().with("hold-stop-type-text-key"),
+                                                            220.0,
+                                                            360.0,
+                                                            22.0,
+                                                            44.0,
+                                                            Self::tr_lang(language, "Text to type", "Văn bảnh cần gõ"),
+                                                            true,
                                                         );
                                                         Self::apply_vietnamese_input_if_changed(
                                                             &response,
@@ -4987,10 +4985,17 @@ Example: {100 + (A - B) * 2}",
                                             let edit_id = child_ui.make_persistent_id((group.id, preset.id, step_index, "delay-edit-state"));
                                             let is_editing = child_ui.memory(|mem| mem.data.get_temp::<bool>(edit_id).unwrap_or(false));
                                             if is_editing {
-                                                let response = child_ui.add_sized(
-                                                    [78.0, 18.0],
-                                                    TextEdit::singleline(&mut step.delay_expr)
-                                                        .hint_text("0"),
+                                                let delay_id = child_ui.id().with((step_index, "delay"));
+                                                let response = Self::render_expandable_text_edit(
+                                                    &mut child_ui,
+                                                    &mut step.delay_expr,
+                                                    delay_id,
+                                                    78.0,
+                                                    130.0,
+                                                    18.0,
+                                                    18.0,
+                                                    "0",
+                                                    false,
                                                 );
                                                 Self::apply_vietnamese_input_if_changed(
                                                     &response,
@@ -6136,10 +6141,16 @@ Example: {100 + (A - B) * 2}",
                                                      });
                                                 } else if step.action == MacroAction::TypeText {
                                                      ui.vertical(|ui| {
-                                                         let response = ui.add_sized(
-                                                             [146.0, 18.0],
-                                                             TextEdit::singleline(&mut step.key)
-                                                                 .hint_text(RichText::new(Self::tr_lang(language, "Text to type", "Text to type")).color(hint_color).italics()),
+                                                         let response = Self::render_expandable_text_edit(
+                                                             ui,
+                                                             &mut step.key,
+                                                             ui.id().with((step_index, "type-text-key")),
+                                                             146.0,
+                                                             260.0,
+                                                             18.0,
+                                                             36.0,
+                                                             Self::tr_lang(language, "Text to type", "Văn bảnh cần gõ"),
+                                                             true,
                                                          );
                                                          Self::apply_vietnamese_input_if_changed(
                                                              &response,
@@ -7682,12 +7693,19 @@ Example: {100 + (A - B) * 2}",
                                             .monospace()
                                             .color(Color32::from_rgb(0, 180, 216)),
                                     );
-                                    let mut val_str = val.to_string();
+                                    let id_editing = ui.id().with(("var-edit", name));
+                                    let mut val_str = ui.memory(|mem| mem.data.get_temp::<String>(id_editing))
+                                        .unwrap_or_else(|| val.to_string());
                                     let response = ui.add(
                                         egui::TextEdit::singleline(&mut val_str)
                                             .desired_width(70.0)
                                             .font(egui::FontId::monospace(14.0)),
                                     );
+                                    if response.has_focus() {
+                                        ui.memory_mut(|mem| mem.data.insert_temp(id_editing, val_str.clone()));
+                                    } else {
+                                        ui.memory_mut(|mem| mem.data.remove_temp::<String>(id_editing));
+                                    }
                                     if response.lost_focus() || response.clicked_elsewhere() {
                                         if let Ok(new_val) = val_str.trim().parse::<i32>() {
                                             to_update = Some((name.clone(), new_val));
@@ -7827,12 +7845,19 @@ Example: {100 + (A - B) * 2}",
                                         let vars = crate::overlay::RUNTIME_VARIABLES.lock();
                                         vars.get(name).copied().unwrap_or(0)
                                     };
-                                    let mut val_str = runtime_val.to_string();
+                                    let id_editing = ui.id().with(("var-edit", name));
+                                    let mut val_str = ui.memory(|mem| mem.data.get_temp::<String>(id_editing))
+                                        .unwrap_or_else(|| runtime_val.to_string());
                                     let response = ui.add(
                                         egui::TextEdit::singleline(&mut val_str)
                                             .desired_width(70.0)
                                             .font(egui::FontId::monospace(14.0)),
                                     );
+                                    if response.has_focus() {
+                                        ui.memory_mut(|mem| mem.data.insert_temp(id_editing, val_str.clone()));
+                                    } else {
+                                        ui.memory_mut(|mem| mem.data.remove_temp::<String>(id_editing));
+                                    }
                                     if response.lost_focus() || response.clicked_elsewhere() {
                                         if let Ok(new_val) = val_str.trim().parse::<i32>() {
                                             to_update = Some((name.clone(), new_val));
@@ -8266,5 +8291,70 @@ Example: {100 + (A - B) * 2}",
             mem.data.insert_temp(popup_open_key, popup_open);
             mem.data.insert_temp(egui::Id::new("any_popup_open"), true);
         });
+    }
+
+    fn render_expandable_text_edit(
+        ui: &mut egui::Ui,
+        text: &mut String,
+        id: egui::Id,
+        normal_width: f32,
+        expanded_width: f32,
+        normal_height: f32,
+        expanded_height: f32,
+        hint: &str,
+        multiline_on_focus: bool,
+    ) -> egui::Response {
+        let focus_key = id.with("expand-focus");
+        let has_focus = ui.memory(|mem| mem.data.get_temp::<bool>(focus_key)).unwrap_or(false);
+
+        let target_width = if has_focus { expanded_width } else { normal_width };
+        let target_height = if has_focus { expanded_height } else { normal_height };
+
+        let animated_width = ui.ctx().animate_value_with_time(id.with("w"), target_width, 0.20);
+        let animated_height = ui.ctx().animate_value_with_time(id.with("h"), target_height, 0.20);
+
+        let text_edit = if multiline_on_focus && has_focus {
+            egui::TextEdit::multiline(text)
+                .hint_text(hint)
+                .desired_rows(2)
+        } else {
+            egui::TextEdit::singleline(text).hint_text(hint)
+        };
+
+        let response = ui.add_sized([animated_width, animated_height], text_edit);
+
+        let now_focused = response.has_focus();
+        if now_focused != has_focus {
+            ui.memory_mut(|mem| mem.data.insert_temp(focus_key, now_focused));
+        }
+
+        response
+    }
+
+    fn render_expandable_command_text_edit(
+        ui: &mut egui::Ui,
+        text: &mut String,
+        id: egui::Id,
+        hint: &str,
+    ) -> egui::Response {
+        let focus_key = id.with("expand-focus");
+        let has_focus = ui.memory(|mem| mem.data.get_temp::<bool>(focus_key)).unwrap_or(false);
+
+        let target_height = if has_focus { 160.0 } else { 72.0 };
+        let animated_height = ui.ctx().animate_value_with_time(id.with("h"), target_height, 0.20);
+
+        let response = ui.add_sized(
+            [300.0, animated_height],
+            egui::TextEdit::multiline(text)
+                .hint_text(hint)
+                .desired_rows(if has_focus { 7 } else { 3 }),
+        );
+
+        let now_focused = response.has_focus();
+        if now_focused != has_focus {
+            ui.memory_mut(|mem| mem.data.insert_temp(focus_key, now_focused));
+        }
+
+        response
     }
 }
