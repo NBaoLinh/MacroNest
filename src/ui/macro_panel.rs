@@ -4834,10 +4834,6 @@ Example: {100 + (A - B) * 2}",
                                                 ui.visuals_mut().widgets.active.bg_fill = active_bg;
                                                 ui.visuals_mut().widgets.active.bg_stroke = active_stroke;
                                                 let (toggle_changed, new_enabled) = ui.scope(|ui| {
-                                                    let circle_radius = egui::CornerRadius { nw: 8, ne: 8, se: 8, sw: 8 };
-                                                    ui.visuals_mut().widgets.inactive.corner_radius = circle_radius;
-                                                    ui.visuals_mut().widgets.hovered.corner_radius = circle_radius;
-                                                    ui.visuals_mut().widgets.active.corner_radius = circle_radius;
                                                     let icon = if step.enabled { 0xe5ca } else { 0xe835 };
                                                     let fill = if step.enabled {
                                                         Color32::from_rgba_premultiplied(72, 156, 116, 120)
@@ -4849,18 +4845,12 @@ Example: {100 + (A - B) * 2}",
                                                     } else {
                                                         ui.visuals().widgets.noninteractive.bg_stroke.color
                                                     };
-                                                    let resp = ui.allocate_ui_with_layout(
-                                                        egui::vec2(22.0, 20.0),
-                                                        egui::Layout::centered_and_justified(egui::Direction::LeftToRight),
-                                                        |ui| {
-                                                            ui.add_sized(
-                                                                [16.0, 16.0],
-                                                                Button::new(Self::material_icon_text(icon, 10.0))
-                                                                    .fill(fill)
-                                                                    .stroke(egui::Stroke::new(1.0, stroke)),
-                                                            )
-                                                        }
-                                                    ).inner.on_hover_text(Self::tr_lang(language, "Toggle step enabled", "Bật/Tắt bước này"));
+                                                    let resp = ui.add_sized(
+                                                        [22.0, 20.0],
+                                                        Button::new(Self::material_icon_text(icon, 12.0))
+                                                            .fill(fill)
+                                                            .stroke(egui::Stroke::new(1.0, stroke)),
+                                                    ).on_hover_text(Self::tr_lang(language, "Toggle step enabled", "Bật/Tắt bước này"));
                                                     (resp.clicked(), !step.enabled)
                                                 }).inner;
                                                 if toggle_changed {
