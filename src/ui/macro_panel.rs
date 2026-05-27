@@ -8390,18 +8390,48 @@ Example: {100 + (A - B) * 2}",
         let has_focus = ui.memory(|mem| mem.data.get_temp::<bool>(focus_key)).unwrap_or(false);
 
         let target_width = if has_focus { expanded_width } else { normal_width };
-        let target_height = if has_focus { expanded_height } else { normal_height };
+
+        // Calculate dynamic height based on text content when focused
+        let target_height = if has_focus {
+            let chars_per_line = ((expanded_width / 7.2) as usize).max(10);
+            let mut estimated_rows = 0;
+            for line in text.split('\n') {
+                let line_len = line.chars().count();
+                estimated_rows += 1 + line_len / chars_per_line;
+            }
+            let rows = estimated_rows.clamp(1, 12);
+            
+            if multiline_on_focus || rows > 1 {
+                (rows as f32 * 18.0 + 6.0).max(expanded_height)
+            } else {
+                expanded_height
+            }
+        } else {
+            normal_height
+        };
 
         let animated_width = ui.ctx().animate_value_with_time(id.with("w"), target_width, 0.20);
         let animated_height = ui.ctx().animate_value_with_time(id.with("h"), target_height, 0.20);
 
-        let text_edit = if multiline_on_focus && has_focus {
+        let is_multiline = has_focus && (multiline_on_focus || (text.chars().count() > (expanded_width / 7.2) as usize) || text.contains('\n'));
+
+        let text_edit = if is_multiline {
+            let chars_per_line = ((expanded_width / 7.2) as usize).max(10);
+            let mut estimated_rows = 0;
+            for line in text.split('\n') {
+                let line_len = line.chars().count();
+                estimated_rows += 1 + line_len / chars_per_line;
+            }
+            let rows = estimated_rows.clamp(1, 12);
+
             egui::TextEdit::multiline(text)
                 .hint_text(hint)
-                .desired_rows(2)
+                .desired_rows(rows)
                 .id(id)
         } else {
-            egui::TextEdit::singleline(text).hint_text(hint).id(id)
+            egui::TextEdit::singleline(text)
+                .hint_text(hint)
+                .id(id)
         };
 
         let response = ui.add_sized([animated_width, animated_height], text_edit);
