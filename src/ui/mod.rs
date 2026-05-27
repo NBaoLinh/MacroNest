@@ -1988,7 +1988,6 @@ impl CrosshairApp {
         match self.state.ui_theme {
             UiThemeMode::Dark => {
                 let mut visuals = egui::Visuals::dark();
-                visuals.override_text_color = Some(Color32::from_rgb(232, 238, 248));
                 visuals.widgets.noninteractive.fg_stroke.color = Color32::from_rgb(220, 228, 238);
                 visuals.widgets.inactive.fg_stroke.color = Color32::from_rgb(228, 234, 242);
                 visuals.widgets.hovered.fg_stroke.color = Color32::from_rgb(240, 246, 252);
@@ -1999,7 +1998,6 @@ impl CrosshairApp {
             }
             UiThemeMode::Light => {
                 let mut visuals = egui::Visuals::light();
-                visuals.override_text_color = Some(Color32::from_rgb(28, 34, 44));
                 visuals.widgets.noninteractive.fg_stroke.color = Color32::from_rgb(32, 40, 54);
                 visuals.widgets.inactive.fg_stroke.color = Color32::from_rgb(28, 36, 48);
                 visuals.widgets.hovered.fg_stroke.color = Color32::from_rgb(18, 26, 40);
