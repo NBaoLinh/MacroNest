@@ -126,6 +126,7 @@ impl CrosshairApp {
                     ui.ctx()
                         .data_mut(|data| data.insert_temp(timer_popup_id, false));
                 }
+                let popup_rect_id = ui.make_persistent_id((id_source, "mouse-submenu-rect"));
                 let popup_response = egui::Popup::from_response(&response)
                     .id(popup_id)
                     .open_bool(&mut open)
@@ -134,6 +135,8 @@ impl CrosshairApp {
                     .width(372.0)
                     .close_behavior(egui::PopupCloseBehavior::IgnoreClicks)
                     .show(|ui| {
+                        let rect = ui.max_rect();
+                        ui.ctx().data_mut(|data| data.insert_temp(popup_rect_id, rect));
                         egui::Grid::new((id_source, "mouse-action-grid"))
                             .num_columns(6)
                             .spacing([6.0, 6.0])
@@ -150,12 +153,13 @@ impl CrosshairApp {
                                 }
                             });
                     });
+                let popup_rect: Option<egui::Rect> = ui.ctx().data(|data| data.get_temp(popup_rect_id));
                 if open {
                     if let Some(pointer_pos) = ui.ctx().pointer_hover_pos() {
-                        let mut keep_open_rect = response.rect.expand(10.0);
-                        if let Some(popup) = &popup_response {
-                            keep_open_rect = keep_open_rect.union(popup.response.rect.expand(10.0));
-                            if popup.response.rect.contains(pointer_pos) {
+                        let mut keep_open_rect = response.rect.expand(12.0);
+                        if let Some(rect) = popup_rect {
+                            keep_open_rect = keep_open_rect.union(rect.expand(12.0));
+                            if rect.contains(pointer_pos) {
                                 ui.ctx().data_mut(|data| {
                                     data.insert_temp(owner_id, MacroActionSubmenuKind::Mouse)
                                 });
@@ -163,10 +167,12 @@ impl CrosshairApp {
                         }
                         if !keep_open_rect.contains(pointer_pos) {
                             open = false;
+                            ui.ctx().data_mut(|data| data.insert_temp(owner_id, None::<MacroActionSubmenuKind>));
                             ui.ctx().request_repaint();
                         }
                     } else {
                         open = false;
+                        ui.ctx().data_mut(|data| data.insert_temp(owner_id, None::<MacroActionSubmenuKind>));
                         ui.ctx().request_repaint();
                     }
                 }
@@ -248,6 +254,7 @@ impl CrosshairApp {
                     ui.ctx()
                         .data_mut(|data| data.insert_temp(timer_popup_id, false));
                 }
+                let popup_rect_id = ui.make_persistent_id((id_source, "image-search-submenu-rect"));
                 let popup_response = egui::Popup::from_response(&response)
                     .id(popup_id)
                     .open_bool(&mut open)
@@ -256,6 +263,8 @@ impl CrosshairApp {
                     .width(220.0)
                     .close_behavior(egui::PopupCloseBehavior::IgnoreClicks)
                     .show(|ui| {
+                        let rect = ui.max_rect();
+                        ui.ctx().data_mut(|data| data.insert_temp(popup_rect_id, rect));
                         egui::Grid::new((id_source, "image-search-action-grid"))
                             .num_columns(3)
                             .spacing([6.0, 6.0])
@@ -274,12 +283,13 @@ impl CrosshairApp {
                                 }
                             });
                     });
+                let popup_rect: Option<egui::Rect> = ui.ctx().data(|data| data.get_temp(popup_rect_id));
                 if open {
                     if let Some(pointer_pos) = ui.ctx().pointer_hover_pos() {
-                        let mut keep_open_rect = response.rect.expand(10.0);
-                        if let Some(popup) = &popup_response {
-                            keep_open_rect = keep_open_rect.union(popup.response.rect.expand(10.0));
-                            if popup.response.rect.contains(pointer_pos) {
+                        let mut keep_open_rect = response.rect.expand(12.0);
+                        if let Some(rect) = popup_rect {
+                            keep_open_rect = keep_open_rect.union(rect.expand(12.0));
+                            if rect.contains(pointer_pos) {
                                 ui.ctx().data_mut(|data| {
                                     data.insert_temp(owner_id, MacroActionSubmenuKind::ImageSearch)
                                 });
@@ -287,10 +297,12 @@ impl CrosshairApp {
                         }
                         if !keep_open_rect.contains(pointer_pos) {
                             open = false;
+                            ui.ctx().data_mut(|data| data.insert_temp(owner_id, None::<MacroActionSubmenuKind>));
                             ui.ctx().request_repaint();
                         }
                     } else {
                         open = false;
+                        ui.ctx().data_mut(|data| data.insert_temp(owner_id, None::<MacroActionSubmenuKind>));
                         ui.ctx().request_repaint();
                     }
                 }
@@ -370,6 +382,7 @@ impl CrosshairApp {
                     ui.ctx()
                         .data_mut(|data| data.insert_temp(image_popup_id, false));
                 }
+                let popup_rect_id = ui.make_persistent_id((id_source, "timer-submenu-rect"));
                 let popup_response = egui::Popup::from_response(&response)
                     .id(popup_id)
                     .open_bool(&mut open)
@@ -378,6 +391,8 @@ impl CrosshairApp {
                     .width(220.0)
                     .close_behavior(egui::PopupCloseBehavior::IgnoreClicks)
                     .show(|ui| {
+                        let rect = ui.max_rect();
+                        ui.ctx().data_mut(|data| data.insert_temp(popup_rect_id, rect));
                         egui::Grid::new((id_source, "timer-action-grid"))
                             .num_columns(3)
                             .spacing([6.0, 6.0])
@@ -394,12 +409,13 @@ impl CrosshairApp {
                                 }
                             });
                     });
+                let popup_rect: Option<egui::Rect> = ui.ctx().data(|data| data.get_temp(popup_rect_id));
                 if open {
                     if let Some(pointer_pos) = ui.ctx().pointer_hover_pos() {
-                        let mut keep_open_rect = response.rect.expand(10.0);
-                        if let Some(popup) = &popup_response {
-                            keep_open_rect = keep_open_rect.union(popup.response.rect.expand(10.0));
-                            if popup.response.rect.contains(pointer_pos) {
+                        let mut keep_open_rect = response.rect.expand(12.0);
+                        if let Some(rect) = popup_rect {
+                            keep_open_rect = keep_open_rect.union(rect.expand(12.0));
+                            if rect.contains(pointer_pos) {
                                 ui.ctx().data_mut(|data| {
                                     data.insert_temp(owner_id, MacroActionSubmenuKind::Timer)
                                 });
@@ -407,10 +423,12 @@ impl CrosshairApp {
                         }
                         if !keep_open_rect.contains(pointer_pos) {
                             open = false;
+                            ui.ctx().data_mut(|data| data.insert_temp(owner_id, None::<MacroActionSubmenuKind>));
                             ui.ctx().request_repaint();
                         }
                     } else {
                         open = false;
+                        ui.ctx().data_mut(|data| data.insert_temp(owner_id, None::<MacroActionSubmenuKind>));
                         ui.ctx().request_repaint();
                     }
                 }
@@ -2921,12 +2939,17 @@ impl CrosshairApp {
                                                                 .map(|preset| preset.name.clone())
                                                         })
                                                         .unwrap_or_else(|| {
-                                                            Self::tr_lang(language, "Select focus", "Chá»n focus").to_owned()
+                                                            if step.key.trim().is_empty() {
+                                                                Self::tr_lang(language, "Select window/focus", "Chọn cửa sổ/focus").to_owned()
+                                                            } else {
+                                                                step.key.clone()
+                                                            }
                                                         });
                                                     egui::ComboBox::from_id_salt((group.id, preset.id, "hold-stop-focus-window-preset"))
-                                                        .width(146.0)
+                                                        .width(160.0)
                                                         .selected_text(selected_label)
                                                         .show_ui(ui, |ui| {
+                                                            ui.strong(Self::tr_lang(language, "Focus Presets", "Preset Focus"));
                                                             for preset_option in &self.state.window_focus_presets {
                                                                 if ui
                                                                     .selectable_label(
@@ -2937,6 +2960,21 @@ impl CrosshairApp {
                                                                 {
                                                                     step.key = preset_option.id.to_string();
                                                                     live_sync = true;
+                                                                }
+                                                            }
+                                                            ui.separator();
+                                                            ui.strong(Self::tr_lang(language, "Open Windows", "Cửa sổ đang mở"));
+                                                            if self.open_windows.is_empty() {
+                                                                ui.weak(Self::tr_lang(language, "No open windows found", "Không tìm thấy cửa sổ nào"));
+                                                            } else {
+                                                                for win in self.open_windows.iter().take(30) {
+                                                                    if ui
+                                                                        .selectable_label(step.key == *win, win)
+                                                                        .clicked()
+                                                                    {
+                                                                        step.key = win.clone();
+                                                                        live_sync = true;
+                                                                    }
                                                                 }
                                                             }
                                                         });
@@ -5377,11 +5415,18 @@ Example: {100 + (A - B) * 2}",
                                                                 .find(|preset| preset.id == id)
                                                                 .map(|preset| preset.name.clone())
                                                         })
-                                                        .unwrap_or_else(|| Self::tr_lang(language, "Select focus", "Chá»n focus").to_owned());
+                                                        .unwrap_or_else(|| {
+                                                            if step.key.trim().is_empty() {
+                                                                Self::tr_lang(language, "Select window/focus", "Chọn cửa sổ/focus").to_owned()
+                                                            } else {
+                                                                step.key.clone()
+                                                            }
+                                                        });
                                                     egui::ComboBox::from_id_salt((group.id, preset.id, step_index, "focus-window-preset-step"))
-                                                        .width(146.0)
+                                                        .width(160.0)
                                                         .selected_text(selected_label)
                                                         .show_ui(ui, |ui| {
+                                                            ui.strong(Self::tr_lang(language, "Focus Presets", "Preset Focus"));
                                                             for preset_option in &self.state.window_focus_presets {
                                                                 if ui
                                                                     .selectable_label(selected_id == Some(preset_option.id), &preset_option.name)
@@ -5389,6 +5434,21 @@ Example: {100 + (A - B) * 2}",
                                                                 {
                                                                     step.key = preset_option.id.to_string();
                                                                     live_sync = true;
+                                                                }
+                                                            }
+                                                            ui.separator();
+                                                            ui.strong(Self::tr_lang(language, "Open Windows", "Cửa sổ đang mở"));
+                                                            if self.open_windows.is_empty() {
+                                                                ui.weak(Self::tr_lang(language, "No open windows found", "Không tìm thấy cửa sổ nào"));
+                                                            } else {
+                                                                for win in self.open_windows.iter().take(30) {
+                                                                    if ui
+                                                                        .selectable_label(step.key == *win, win)
+                                                                        .clicked()
+                                                                    {
+                                                                        step.key = win.clone();
+                                                                        live_sync = true;
+                                                                    }
                                                                 }
                                                             }
                                                         });

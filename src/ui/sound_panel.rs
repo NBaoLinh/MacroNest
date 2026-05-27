@@ -1205,45 +1205,6 @@ impl CrosshairApp {
 
                 if let Some(total_ms) = duration {
                     preview_cursor_ms = preview_cursor_ms.min(total_ms);
-                    ui.add_space(4.0);
-                    ui.label(format!(
-                        "{} {}",
-                        Self::tr_lang(language, "Preview frame", "Khung xem"),
-                        Self::format_ms(preview_cursor_ms)
-                    ));
-                    ui.add(
-                        Slider::new(&mut preview_cursor_ms, 0..=total_ms)
-                            .show_value(false)
-                            .clamping(egui::SliderClamping::Always),
-                    );
-                    ui.horizontal_wrapped(|ui| {
-                        if ui
-                            .button(Self::tr_lang(language, "Set start", "Đặt đầu"))
-                            .clicked()
-                        {
-                            preset.clip.start_ms = preview_cursor_ms.min(preset.clip.end_ms);
-                            changed = true;
-                        }
-                        if ui
-                            .button(Self::tr_lang(language, "Set end", "Đặt cuối"))
-                            .clicked()
-                        {
-                            preset.clip.end_ms = preview_cursor_ms.max(preset.clip.start_ms);
-                            changed = true;
-                        }
-                        if ui
-                            .button(Self::tr_lang(language, "Jump to start", "Tới đầu trim"))
-                            .clicked()
-                        {
-                            preview_cursor_ms = preset.clip.start_ms.min(total_ms);
-                        }
-                        if ui
-                            .button(Self::tr_lang(language, "Jump to end", "Tới cuối trim"))
-                            .clicked()
-                        {
-                            preview_cursor_ms = preset.clip.end_ms.min(total_ms);
-                        }
-                    });
                 }
                 if preset.clip.file_path.trim().is_empty() {
                     ui.label(
@@ -1322,16 +1283,7 @@ impl CrosshairApp {
                         &mut preview_cursor_ms,
                         44.0,
                     );
-                    ui.horizontal(|ui| {
-                        ui.label(Self::tr_lang(language, "Start", "Bắt đầu"));
-                        changed |= ui
-                            .add(DragValue::new(&mut preset.clip.start_ms).range(0..=total_ms))
-                            .changed();
-                        ui.label(Self::tr_lang(language, "End", "Kết thúc"));
-                        changed |= ui
-                            .add(DragValue::new(&mut preset.clip.end_ms).range(0..=total_ms))
-                            .changed();
-                    });
+
                     Self::trim_video_bounds(&mut preset.clip, total_ms);
 
                     ui.add_space(2.0);

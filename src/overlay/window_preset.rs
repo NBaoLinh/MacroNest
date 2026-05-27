@@ -41,9 +41,9 @@ pub(super) fn apply_window_preset_by_id(spec: &str) -> Result<()> {
 }
 
 pub(super) fn focus_window_by_preset_id(spec: &str) -> Result<()> {
+    let spec = spec.trim();
     let preset = {
         let hook_state = HOOK_STATE.lock();
-        let spec = spec.trim();
         hook_state
             .window_focus_presets
             .iter()
@@ -56,9 +56,20 @@ pub(super) fn focus_window_by_preset_id(spec: &str) -> Result<()> {
                     .find(|preset| preset.name.trim().eq_ignore_ascii_case(spec))
                     .cloned()
             })
+    };
+    if let Some(preset) = preset {
+        focus_window_for_preset(&preset)
+    } else {
+        // Fallback: if spec matches no preset, treat it as a direct window title/selector
+        let clean_title = if let Some(prefix) = spec.strip_suffix(')')
+            && let Some((base, _)) = prefix.rsplit_once(" (0x")
+        {
+            base
+        } else {
+            spec
+        };
+        focus_window_for_title(Some(clean_title), &[], false, true)
     }
-    .context("Window preset was not found")?;
-    focus_window_for_preset(&preset)
 }
 
 pub(super) fn focus_window_for_preset(preset: &WindowFocusPreset) -> Result<()> {
@@ -176,7 +187,9 @@ fn focus_window_for_title(
             let _ = AttachThreadInput(target_thread, current_thread, true);
         }
 
-        let _ = ShowWindow(hwnd, SW_RESTORE);
+        if IsIconic(hwnd).as_bool() {
+            let _ = ShowWindow(hwnd, SW_RESTORE);
+        }
         let _ = BringWindowToTop(hwnd);
         let _ = SetWindowPos(
             hwnd,
