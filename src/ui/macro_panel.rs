@@ -13,6 +13,48 @@ impl CrosshairApp {
             "infinite" | "inf" | "forever" | "-1"
         )
     }
+    fn clean_invisible_chars(s: &str) -> String {
+        s.chars()
+            .filter(|&c| c != '\u{200B}' && c != '\u{200C}' && c != '\u{200D}' && c != '\u{FEFF}')
+            .collect()
+    }
+    fn simplify_window_title(title: &str) -> String {
+        let clean = Self::clean_invisible_chars(title);
+        let base = Self::selector_base_title(&clean);
+        
+        const BROWSER_SUFFIXES: &[&str] = &[
+            " - Microsoft Edge",
+            " - Google Chrome",
+            " - Brave",
+            " - Firefox",
+            " - Opera GX",
+            " - Opera",
+            " - Vivaldi",
+            " - Chromium",
+            " - Tor Browser",
+            " - Arc",
+            " - Visual Studio Code",
+            " - VS Code",
+            " - Discord",
+            " - Slack",
+            " - Spotify",
+        ];
+
+        for suffix in BROWSER_SUFFIXES {
+            if base.ends_with(suffix) {
+                return suffix.trim_start_matches(" - ").to_owned();
+            }
+        }
+        
+        if let Some((_, last)) = base.rsplit_once(" - ") {
+            let trimmed = last.trim();
+            if !trimmed.is_empty() {
+                return trimmed.to_owned();
+            }
+        }
+        
+        base.to_owned()
+    }
     fn render_macro_action_option(
         ui: &mut egui::Ui,
         language: UiLanguage,
@@ -2942,7 +2984,7 @@ impl CrosshairApp {
                                                             if step.key.trim().is_empty() {
                                                                 Self::tr_lang(language, "Select window/focus", "Chọn cửa sổ/focus").to_owned()
                                                             } else {
-                                                                step.key.clone()
+                                                                Self::simplify_window_title(&step.key)
                                                             }
                                                         });
                                                     egui::ComboBox::from_id_salt((group.id, preset.id, "hold-stop-focus-window-preset"))
@@ -2968,8 +3010,10 @@ impl CrosshairApp {
                                                                 ui.weak(Self::tr_lang(language, "No open windows found", "Không tìm thấy cửa sổ nào"));
                                                             } else {
                                                                 for win in self.open_windows.iter().take(30) {
+                                                                    let label = Self::simplify_window_title(win);
                                                                     if ui
-                                                                        .selectable_label(step.key == *win, win)
+                                                                        .selectable_label(step.key == *win, label)
+                                                                        .on_hover_text(win)
                                                                         .clicked()
                                                                     {
                                                                         step.key = win.clone();
@@ -5419,7 +5463,7 @@ Example: {100 + (A - B) * 2}",
                                                             if step.key.trim().is_empty() {
                                                                 Self::tr_lang(language, "Select window/focus", "Chọn cửa sổ/focus").to_owned()
                                                             } else {
-                                                                step.key.clone()
+                                                                Self::simplify_window_title(&step.key)
                                                             }
                                                         });
                                                     egui::ComboBox::from_id_salt((group.id, preset.id, step_index, "focus-window-preset-step"))
@@ -5442,8 +5486,10 @@ Example: {100 + (A - B) * 2}",
                                                                 ui.weak(Self::tr_lang(language, "No open windows found", "Không tìm thấy cửa sổ nào"));
                                                             } else {
                                                                 for win in self.open_windows.iter().take(30) {
+                                                                    let label = Self::simplify_window_title(win);
                                                                     if ui
-                                                                        .selectable_label(step.key == *win, win)
+                                                                        .selectable_label(step.key == *win, label)
+                                                                        .on_hover_text(win)
                                                                         .clicked()
                                                                     {
                                                                         step.key = win.clone();
