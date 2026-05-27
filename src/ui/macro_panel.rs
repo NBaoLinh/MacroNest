@@ -3012,6 +3012,11 @@ impl CrosshairApp {
                                                                 }
                                                             }
                                                         });
+                                                        ui.add_space(4.0);
+                                                        let cb_text = Self::tr_lang(language, "Wait for completion", "Đợi chạy xong");
+                                                        if ui.checkbox(&mut step.wait_for_completion, cb_text).changed() {
+                                                            live_sync = true;
+                                                        }
                                                 } else if step.action == MacroAction::TriggerCommandPreset {
                                                     let selected_id = step
                                                         .key
@@ -5502,6 +5507,11 @@ Example: {100 + (A - B) * 2}",
                                                                 }
                                                             }
                                                         });
+                                                        ui.add_space(4.0);
+                                                        let cb_text = Self::tr_lang(language, "Wait for completion", "Đợi chạy xong");
+                                                        if ui.checkbox(&mut step.wait_for_completion, cb_text).changed() {
+                                                            live_sync = true;
+                                                        }
                                                 } else if step.action == MacroAction::TriggerCommandPreset {
                                                     let selected_id = step
                                                         .key

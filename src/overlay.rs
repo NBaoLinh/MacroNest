@@ -5579,17 +5579,23 @@ mod windows_overlay {
                 let _ = focus_window_by_preset_id(&step.key);
             }
             MacroAction::TriggerMacroPreset => {
-                let mut no_locked_keys = Vec::new();
-                let mut no_locked_mouse = 0usize;
-                let _ = trigger_nested_macro_preset(
-                    &step.key,
-                    &mut no_locked_keys,
-                    &mut no_locked_mouse,
-                    false,
-                    None,
-                    &[],
-                    false,
-                );
+                if step.wait_for_completion {
+                    let mut no_locked_keys = Vec::new();
+                    let mut no_locked_mouse = 0usize;
+                    let _ = trigger_nested_macro_preset(
+                        &step.key,
+                        &mut no_locked_keys,
+                        &mut no_locked_mouse,
+                        false,
+                        None,
+                        &[],
+                        false,
+                    );
+                } else {
+                    if let Ok(pid) = step.key.trim().parse::<u32>() {
+                        spawn_macro_by_preset_id(pid);
+                    }
+                }
             }
             MacroAction::TriggerCommandPreset => {
                 let _ = trigger_command_preset_step(step);
@@ -5961,15 +5967,21 @@ mod windows_overlay {
                     let _ = focus_window_by_preset_id(&step.key);
                 }
                 MacroAction::TriggerMacroPreset => {
-                    let _ = trigger_nested_macro_preset(
-                        &step.key,
-                        press_locked_keys,
-                        press_locked_mouse_count,
-                        stop_immediately_on_retrigger,
-                        target_window_title,
-                        extra_target_window_titles,
-                        match_duplicate_window_titles,
-                    );
+                    if step.wait_for_completion {
+                        let _ = trigger_nested_macro_preset(
+                            &step.key,
+                            press_locked_keys,
+                            press_locked_mouse_count,
+                            stop_immediately_on_retrigger,
+                            target_window_title,
+                            extra_target_window_titles,
+                            match_duplicate_window_titles,
+                        );
+                    } else {
+                        if let Ok(pid) = step.key.trim().parse::<u32>() {
+                            spawn_macro_by_preset_id(pid);
+                        }
+                    }
                 }
                 MacroAction::TriggerCommandPreset => {
                     let _ = trigger_command_preset_step(step);
@@ -6345,17 +6357,23 @@ mod windows_overlay {
                     let _ = focus_window_by_preset_id(&step.key);
                 }
                 MacroAction::TriggerMacroPreset => {
-                    let mut no_locked_keys = Vec::new();
-                    let mut no_locked_mouse = 0usize;
-                    let _ = trigger_nested_macro_preset(
-                        &step.key,
-                        &mut no_locked_keys,
-                        &mut no_locked_mouse,
-                        stop_immediately_on_retrigger,
-                        target_window_title,
-                        extra_target_window_titles,
-                        match_duplicate_window_titles,
-                    );
+                    if step.wait_for_completion {
+                        let mut no_locked_keys = Vec::new();
+                        let mut no_locked_mouse = 0usize;
+                        let _ = trigger_nested_macro_preset(
+                            &step.key,
+                            &mut no_locked_keys,
+                            &mut no_locked_mouse,
+                            stop_immediately_on_retrigger,
+                            target_window_title,
+                            extra_target_window_titles,
+                            match_duplicate_window_titles,
+                        );
+                    } else {
+                        if let Ok(pid) = step.key.trim().parse::<u32>() {
+                            spawn_macro_by_preset_id(pid);
+                        }
+                    }
                 }
                 MacroAction::TriggerCommandPreset => {
                     let _ = trigger_command_preset_step(step);

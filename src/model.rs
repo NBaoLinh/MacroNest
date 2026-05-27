@@ -574,6 +574,8 @@ pub struct MacroStep {
     pub unlock_on_exit: bool,
     #[serde(default)]
     pub set_variable_source: SetVariableSource,
+    #[serde(default = "default_false")]
+    pub wait_for_completion: bool,
 }
 
 impl Default for MacroStep {
@@ -626,6 +628,7 @@ impl Default for MacroStep {
             wait_time_unit: String::new(),
             unlock_on_exit: true,
             set_variable_source: SetVariableSource::Expression,
+            wait_for_completion: false,
         }
     }
 }
