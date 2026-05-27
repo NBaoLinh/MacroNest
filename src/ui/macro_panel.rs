@@ -3294,7 +3294,6 @@ impl CrosshairApp {
                                                                  &mut step.if_variable_name,
                                                              );
                                                              live_sync |= response.changed();
-                                                             Self::render_variable_suggestions_raw(ui, &response, &mut step.if_variable_name, &timer_names, language);
                                                          });
                                                      }
                                                 } else if step.action == MacroAction::ApplyMouseSensitivityPreset {
@@ -3321,7 +3320,6 @@ impl CrosshairApp {
                                                                 _ => format!("Evaluated: {} (clamped to: {} within 1..20)", evaluated, clamped),
                                                             };
                                                             let response = response.on_hover_text(tooltip_text);
-                                                            Self::render_variable_suggestions(ui, &response, &mut step.key, &timer_names, language);
                                                         });
                                                     } else {
                                                         let selected_id = step.key.trim().parse::<u32>().ok();
@@ -3506,7 +3504,6 @@ impl CrosshairApp {
                                                                   &mut step.key,
                                                               );
                                                               live_sync |= response.changed();
-                                                              Self::render_variable_suggestions(ui, &response, &mut step.key, &timer_names, language);
                                                           });
                                                       }
                                                 } else if step.action == MacroAction::StopIfKeyPressed {
@@ -3594,7 +3591,6 @@ impl CrosshairApp {
                                                                          &mut step.key,
                                                                      );
                                                                      live_sync |= response.changed();
-                                                                     Self::render_variable_suggestions(ui, &response, &mut step.key, &timer_names, language);
                                                                  }
                                                              });
                                                              if step.break_loop_by_variable {
@@ -3758,7 +3754,6 @@ impl CrosshairApp {
                                                             &mut step.key,
                                                         );
                                                         live_sync |= response.changed();
-                                                        Self::render_variable_suggestions(ui, &response, &mut step.key, &timer_names, language);
                                                     });
                                                 } else if step.action == MacroAction::DisableCrosshair {
                                                     ui.scope(|ui| {
@@ -4046,7 +4041,6 @@ impl CrosshairApp {
                                                                             &mut step.key,
                                                                         );
                                                                         live_sync |= response2.changed();
-                                                                        Self::render_variable_suggestions(ui, &response2, &mut step.key, &timer_names, language);
                                                                    } else if step.if_condition_type == IfConditionType::PresetRunning {
                                                                        let selected_id = step.if_running_preset_id;
                                                                        let selected_label = selected_id
@@ -4216,8 +4210,6 @@ impl CrosshairApp {
                                                                       &mut step.key,
                                                                   );
                                                                   live_sync |= response2.changed();
-                                                                Self::render_variable_suggestions_raw(ui, &response, &mut step.if_variable_name, &timer_names, language);
-                                                                Self::render_variable_suggestions(ui, &response2, &mut step.key, &timer_names, language);
                                                                 let var_name = step.if_variable_name.trim();
                                                                 if !var_name.is_empty() {
                                                                     let current_val = crate::overlay::RUNTIME_VARIABLES.lock().get(var_name).copied();
@@ -5664,7 +5656,6 @@ Example: {100 + (A - B) * 2}",
                                                                  &mut step.if_variable_name,
                                                              );
                                                              live_sync |= response.changed();
-                                                             Self::render_variable_suggestions_raw(ui, &response, &mut step.if_variable_name, &timer_names, language);
                                                          });
                                                      }
                                                     if step.action == MacroAction::TriggerVisionMove {
@@ -5836,7 +5827,6 @@ Example: {100 + (A - B) * 2}",
                                                                 _ => format!("Evaluated: {} (clamped to: {} within 1..20)", evaluated, clamped),
                                                             };
                                                             let response = response.on_hover_text(tooltip_text);
-                                                            Self::render_variable_suggestions(ui, &response, &mut step.key, &timer_names, language);
                                                         });
                                                     } else {
                                                         let selected_id = step.key.trim().parse::<u32>().ok();
@@ -5960,7 +5950,6 @@ Example: {100 + (A - B) * 2}",
                                                                   &mut step.key,
                                                               );
                                                               live_sync |= response.changed();
-                                                              Self::render_variable_suggestions(ui, &response, &mut step.key, &timer_names, language);
                                                           });
                                                       }
                                                 } else if step.action == MacroAction::StopIfKeyPressed {
@@ -6041,7 +6030,6 @@ Example: {100 + (A - B) * 2}",
                                                                          &mut step.key,
                                                                      );
                                                                      live_sync |= response.changed();
-                                                                     Self::render_variable_suggestions(ui, &response, &mut step.key, &timer_names, language);
                                                                  }
                                                              });
                                                              if step.break_loop_by_variable {
@@ -6208,7 +6196,6 @@ Example: {100 + (A - B) * 2}",
                                                              &mut step.key,
                                                          );
                                                          live_sync |= response.changed();
-                                                         Self::render_variable_suggestions(ui, &response, &mut step.key, &timer_names, language);
                                                      });
                                                 } else if step.action == MacroAction::DisableCrosshair {
                                                     ui.scope(|ui| {
@@ -6496,7 +6483,6 @@ Example: {100 + (A - B) * 2}",
                                                                             &mut step.key,
                                                                         );
                                                                         live_sync |= response2.changed();
-                                                                        Self::render_variable_suggestions(ui, &response2, &mut step.key, &timer_names, language);
                                                                    } else if step.if_condition_type == IfConditionType::PresetRunning {
                                                                        let selected_id = step.if_running_preset_id;
                                                                        let selected_label = selected_id
@@ -6666,8 +6652,6 @@ Example: {100 + (A - B) * 2}",
                                                                       &mut step.key,
                                                                   );
                                                                   live_sync |= response2.changed();
-                                                                Self::render_variable_suggestions_raw(ui, &response, &mut step.if_variable_name, &timer_names, language);
-                                                                Self::render_variable_suggestions(ui, &response2, &mut step.key, &timer_names, language);
                                                                 let var_name = step.if_variable_name.trim();
                                                                 if !var_name.is_empty() {
                                                                     let current_val = crate::overlay::RUNTIME_VARIABLES.lock().get(var_name).copied();
@@ -6742,7 +6726,6 @@ Example: {100 + (A - B) * 2}",
                                                                  &mut step.if_variable_name,
                                                              );
                                                              live_sync |= response.changed();
-                                                             Self::render_variable_suggestions_raw(ui, &response, &mut step.if_variable_name, &timer_names, language);
                                                          });
                                                      }
                                                 } else {
@@ -8048,332 +8031,7 @@ Example: {100 + (A - B) * 2}",
             format!("{} - {}", trimmed, -delta)
         }
     }
-                fn render_variable_suggestions(
-        ui: &mut egui::Ui,
-        response: &egui::Response,
-        text: &mut String,
-        timer_names: &[String],
-        _language: UiLanguage,
-    ) {
-        let (last_word_trimmed, prefix) = {
-            let text_str = text.as_str();
-            let mut last_word_start = 0;
-            for (i, c) in text_str.char_indices() {
-                if c.is_whitespace() || c == '+' || c == '-' || c == '*' || c == '/' || c == '(' || c == ')' || c == ',' {
-                    last_word_start = i + 1;
-                }
-            }
-            let last_word = &text_str[last_word_start..];
-            (last_word.trim().to_string(), text_str[..last_word_start].to_string())
-        };
-        
-        if last_word_trimmed.is_empty() {
-            return;
-        }
 
-        let mut suggestions = Vec::new();
-
-        if last_word_trimmed.contains('.') {
-            let parts: Vec<&str> = last_word_trimmed.split('.').collect();
-            let obj_part = parts[0].to_lowercase();
-            let prop_part = parts[1].to_lowercase();
-
-            let timer_exists = timer_names.iter().any(|name| {
-                name.replace(" ", "").to_lowercase() == obj_part
-            });
-
-            if timer_exists {
-                let props = vec!["hour", "minute", "second", "millisecond", "ms", "raw", "total_sec"];
-                for prop in props {
-                    let full_prop = format!("{}.{}", parts[0], prop);
-                    if prop.starts_with(&prop_part) && full_prop.to_lowercase() != last_word_trimmed.to_lowercase() {
-                        suggestions.push(full_prop);
-                    }
-                }
-            }
-        } else {
-            for name in timer_names {
-                let timer_name_no_space = name.replace(" ", "");
-                if timer_name_no_space.to_lowercase().starts_with(&last_word_trimmed.to_lowercase()) 
-                   && timer_name_no_space.to_lowercase() != last_word_trimmed.to_lowercase() {
-                    suggestions.push(timer_name_no_space);
-                }
-            }
-        }
-
-        if suggestions.is_empty() {
-            return;
-        }
-
-        let popup_open_key = response.id.with("popup_open");
-        let mut popup_open = ui.memory(|mem| mem.data.get_temp::<bool>(popup_open_key)).unwrap_or(false);
-        
-        if response.has_focus() {
-            popup_open = true;
-        } else {
-            let popup_rect = ui.memory(|mem| mem.data.get_temp::<egui::Rect>(response.id.with("popup_rect")));
-            if let Some(rect) = popup_rect {
-                let hover = ui.input(|i| i.pointer.hover_pos().map_or(false, |pos| rect.contains(pos)));
-                let mouse_down = ui.input(|i| i.pointer.any_down());
-                if !hover && mouse_down {
-                    popup_open = false;
-                }
-            } else {
-                popup_open = false;
-            }
-        }
-
-        if !popup_open {
-            return;
-        }
-
-        let mut selected_index = ui.memory(|mem| mem.data.get_temp::<usize>(response.id)).unwrap_or(0);
-        let mut confirm_selected = false;
-        let sug_count = suggestions.len();
-        
-        if selected_index >= sug_count {
-            selected_index = 0;
-        }
-
-        if response.has_focus() {
-            let enter_pressed = ui.memory(|mem| mem.data.get_temp::<bool>(egui::Id::new("enter_pressed"))).unwrap_or(false);
-            if enter_pressed {
-                confirm_selected = true;
-            }
-            
-            ui.input(|i| {
-                if i.key_pressed(egui::Key::ArrowDown) {
-                    selected_index = (selected_index + 1) % sug_count;
-                }
-                if i.key_pressed(egui::Key::ArrowUp) {
-                    selected_index = if selected_index == 0 { sug_count - 1 } else { selected_index - 1 };
-                }
-            });
-            ui.memory_mut(|mem| mem.data.insert_temp(response.id, selected_index));
-        }
-
-        if confirm_selected {
-            let chosen = &suggestions[selected_index];
-            *text = format!("{}{}", prefix, chosen);
-            response.request_focus();
-            
-            let char_count = text.chars().count();
-            if let Some(mut state) = egui::widgets::text_edit::TextEditState::load(ui.ctx(), response.id) {
-                let cursor_pos = egui::text::CCursor::new(char_count);
-                state.cursor.set_char_range(Some(egui::text::CCursorRange::two(cursor_pos, cursor_pos)));
-                state.store(ui.ctx(), response.id);
-            }
-
-            popup_open = false;
-            ui.memory_mut(|mem| {
-                mem.data.insert_temp(popup_open_key, popup_open);
-                mem.data.insert_temp(egui::Id::new("enter_pressed"), false);
-            });
-            return;
-        }
-
-        let popup_id = response.id.with("sug_popup");
-        let popup_position = response.rect.left_bottom();
-        
-        let area_res = egui::Area::new(popup_id)
-            .order(egui::Order::Foreground)
-            .fixed_pos(popup_position)
-            .show(ui.ctx(), |ui| {
-                let frame_res = egui::Frame::popup(ui.style()).show(ui, |ui| {
-                    ui.set_max_width(200.0);
-                    egui::ScrollArea::vertical()
-                        .max_height(150.0)
-                        .show(ui, |ui| {
-                            ui.vertical(|ui| {
-                                for (idx, sug) in suggestions.iter().enumerate() {
-                                    let is_selected = idx == selected_index;
-                                    let mut resp = ui.selectable_label(is_selected, sug);
-                                    if is_selected {
-                                        resp.scroll_to_me(None);
-                                    }
-                                    if resp.clicked() {
-                                        *text = format!("{}{}", prefix, sug);
-                                        response.request_focus();
-                                        
-                                        let char_count = text.chars().count();
-                                        if let Some(mut state) = egui::widgets::text_edit::TextEditState::load(ui.ctx(), response.id) {
-                                            let cursor_pos = egui::text::CCursor::new(char_count);
-                                            state.cursor.set_char_range(Some(egui::text::CCursorRange::two(cursor_pos, cursor_pos)));
-                                            state.store(ui.ctx(), response.id);
-                                        }
-                                    }
-                                }
-                            });
-                        });
-                });
-                
-                let rect = frame_res.response.rect;
-                ui.memory_mut(|mem| mem.data.insert_temp(response.id.with("popup_rect"), rect));
-            });
-            
-        ui.memory_mut(|mem| {
-            mem.data.insert_temp(popup_open_key, popup_open);
-            mem.data.insert_temp(egui::Id::new("any_popup_open"), true);
-        });
-    }
-
-    fn render_variable_suggestions_raw(
-        ui: &mut egui::Ui,
-        response: &egui::Response,
-        text: &mut String,
-        timer_names: &[String],
-        _language: UiLanguage,
-    ) {
-        let last_word = text.trim().to_string();
-        if last_word.is_empty() {
-            return;
-        }
-
-        let mut suggestions = Vec::new();
-
-        if last_word.contains('.') {
-            let parts: Vec<&str> = last_word.split('.').collect();
-            let obj_part = parts[0].to_lowercase();
-            let prop_part = parts[1].to_lowercase();
-
-            let timer_exists = timer_names.iter().any(|name| {
-                name.replace(" ", "").to_lowercase() == obj_part
-            });
-
-            if timer_exists {
-                let props = vec!["hour", "minute", "second", "millisecond", "ms", "raw", "total_sec"];
-                for prop in props {
-                    let full_prop = format!("{}.{}", parts[0], prop);
-                    if prop.starts_with(&prop_part) && full_prop.to_lowercase() != last_word.to_lowercase() {
-                        suggestions.push(full_prop);
-                    }
-                }
-            }
-        } else {
-            for name in timer_names {
-                let timer_name_no_space = name.replace(" ", "");
-                if timer_name_no_space.to_lowercase().starts_with(&last_word.to_lowercase()) 
-                   && timer_name_no_space.to_lowercase() != last_word.to_lowercase() {
-                    suggestions.push(timer_name_no_space);
-                }
-            }
-        }
-
-        if suggestions.is_empty() {
-            return;
-        }
-
-        let popup_open_key = response.id.with("popup_open_raw");
-        let mut popup_open = ui.memory(|mem| mem.data.get_temp::<bool>(popup_open_key)).unwrap_or(false);
-        
-        if response.has_focus() {
-            popup_open = true;
-        } else {
-            let popup_rect = ui.memory(|mem| mem.data.get_temp::<egui::Rect>(response.id.with("popup_rect_raw")));
-            if let Some(rect) = popup_rect {
-                let hover = ui.input(|i| i.pointer.hover_pos().map_or(false, |pos| rect.contains(pos)));
-                let mouse_down = ui.input(|i| i.pointer.any_down());
-                if !hover && mouse_down {
-                    popup_open = false;
-                }
-            } else {
-                popup_open = false;
-            }
-        }
-
-        if !popup_open {
-            return;
-        }
-
-        let mut selected_index = ui.memory(|mem| mem.data.get_temp::<usize>(response.id)).unwrap_or(0);
-        let mut confirm_selected = false;
-        let sug_count = suggestions.len();
-        
-        if selected_index >= sug_count {
-            selected_index = 0;
-        }
-
-        if response.has_focus() {
-            let enter_pressed = ui.memory(|mem| mem.data.get_temp::<bool>(egui::Id::new("enter_pressed"))).unwrap_or(false);
-            if enter_pressed {
-                confirm_selected = true;
-            }
-            
-            ui.input(|i| {
-                if i.key_pressed(egui::Key::ArrowDown) {
-                    selected_index = (selected_index + 1) % sug_count;
-                }
-                if i.key_pressed(egui::Key::ArrowUp) {
-                    selected_index = if selected_index == 0 { sug_count - 1 } else { selected_index - 1 };
-                }
-            });
-            ui.memory_mut(|mem| mem.data.insert_temp(response.id, selected_index));
-        }
-
-        if confirm_selected {
-            let chosen = &suggestions[selected_index];
-            *text = chosen.clone();
-            response.request_focus();
-            
-            let char_count = text.chars().count();
-            if let Some(mut state) = egui::widgets::text_edit::TextEditState::load(ui.ctx(), response.id) {
-                let cursor_pos = egui::text::CCursor::new(char_count);
-                state.cursor.set_char_range(Some(egui::text::CCursorRange::two(cursor_pos, cursor_pos)));
-                state.store(ui.ctx(), response.id);
-            }
-
-            popup_open = false;
-            ui.memory_mut(|mem| {
-                mem.data.insert_temp(popup_open_key, popup_open);
-                mem.data.insert_temp(egui::Id::new("enter_pressed"), false);
-            });
-            return;
-        }
-
-        let popup_id = response.id.with("sug_popup_raw");
-        let popup_position = response.rect.left_bottom();
-        
-        let area_res = egui::Area::new(popup_id)
-            .order(egui::Order::Foreground)
-            .fixed_pos(popup_position)
-            .show(ui.ctx(), |ui| {
-                let frame_res = egui::Frame::popup(ui.style()).show(ui, |ui| {
-                    ui.set_max_width(200.0);
-                    egui::ScrollArea::vertical()
-                        .max_height(150.0)
-                        .show(ui, |ui| {
-                            ui.vertical(|ui| {
-                                for (idx, sug) in suggestions.iter().enumerate() {
-                                    let is_selected = idx == selected_index;
-                                    let mut resp = ui.selectable_label(is_selected, sug);
-                                    if is_selected {
-                                        resp.scroll_to_me(None);
-                                    }
-                                    if resp.clicked() {
-                                        *text = sug.clone();
-                                        response.request_focus();
-                                        
-                                        let char_count = text.chars().count();
-                                        if let Some(mut state) = egui::widgets::text_edit::TextEditState::load(ui.ctx(), response.id) {
-                                            let cursor_pos = egui::text::CCursor::new(char_count);
-                                            state.cursor.set_char_range(Some(egui::text::CCursorRange::two(cursor_pos, cursor_pos)));
-                                            state.store(ui.ctx(), response.id);
-                                        }
-                                    }
-                                }
-                            });
-                        });
-                });
-                
-                let rect = frame_res.response.rect;
-                ui.memory_mut(|mem| mem.data.insert_temp(response.id.with("popup_rect_raw"), rect));
-            });
-            
-        ui.memory_mut(|mem| {
-            mem.data.insert_temp(popup_open_key, popup_open);
-            mem.data.insert_temp(egui::Id::new("any_popup_open"), true);
-        });
-    }
 
     fn render_expandable_text_edit(
         ui: &mut egui::Ui,
