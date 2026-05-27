@@ -8049,6 +8049,14 @@ Example: {100 + (A - B) * 2}",
             let chosen = &suggestions[selected_index];
             *text = format!("{}{}", prefix, chosen);
             response.request_focus();
+            
+            let char_count = text.chars().count();
+            if let Some(mut state) = egui::widgets::text_edit::TextEditState::load(ui.ctx(), response.id) {
+                let cursor_pos = egui::text::CCursor::new(char_count);
+                state.cursor.set_char_range(Some(egui::text::CCursorRange::two(cursor_pos, cursor_pos)));
+                state.store(ui.ctx(), response.id);
+            }
+
             popup_open = false;
             ui.memory_mut(|mem| {
                 mem.data.insert_temp(popup_open_key, popup_open);
@@ -8079,6 +8087,13 @@ Example: {100 + (A - B) * 2}",
                                     if resp.clicked() {
                                         *text = format!("{}{}", prefix, sug);
                                         response.request_focus();
+                                        
+                                        let char_count = text.chars().count();
+                                        if let Some(mut state) = egui::widgets::text_edit::TextEditState::load(ui.ctx(), response.id) {
+                                            let cursor_pos = egui::text::CCursor::new(char_count);
+                                            state.cursor.set_char_range(Some(egui::text::CCursorRange::two(cursor_pos, cursor_pos)));
+                                            state.store(ui.ctx(), response.id);
+                                        }
                                     }
                                 }
                             });
@@ -8192,6 +8207,14 @@ Example: {100 + (A - B) * 2}",
             let chosen = &suggestions[selected_index];
             *text = chosen.clone();
             response.request_focus();
+            
+            let char_count = text.chars().count();
+            if let Some(mut state) = egui::widgets::text_edit::TextEditState::load(ui.ctx(), response.id) {
+                let cursor_pos = egui::text::CCursor::new(char_count);
+                state.cursor.set_char_range(Some(egui::text::CCursorRange::two(cursor_pos, cursor_pos)));
+                state.store(ui.ctx(), response.id);
+            }
+
             popup_open = false;
             ui.memory_mut(|mem| {
                 mem.data.insert_temp(popup_open_key, popup_open);
@@ -8222,6 +8245,13 @@ Example: {100 + (A - B) * 2}",
                                     if resp.clicked() {
                                         *text = sug.clone();
                                         response.request_focus();
+                                        
+                                        let char_count = text.chars().count();
+                                        if let Some(mut state) = egui::widgets::text_edit::TextEditState::load(ui.ctx(), response.id) {
+                                            let cursor_pos = egui::text::CCursor::new(char_count);
+                                            state.cursor.set_char_range(Some(egui::text::CCursorRange::two(cursor_pos, cursor_pos)));
+                                            state.store(ui.ctx(), response.id);
+                                        }
                                     }
                                 }
                             });

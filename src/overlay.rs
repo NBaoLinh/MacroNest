@@ -6421,7 +6421,7 @@ fn get_object_property_value(token: &str) -> Option<i32> {
     let timer_preset = hook_state
         .timer_presets
         .iter()
-        .find(|t| t.name.trim().to_lowercase() == obj_name)
+        .find(|t| t.name.replace(" ", "").to_lowercase() == obj_name.replace(" ", ""))
         .cloned();
 
     if let Some(timer) = timer_preset {
@@ -6476,7 +6476,7 @@ fn set_variable_value(target_var: &str, value: i32) {
             let timer_preset = hook_state
                 .timer_presets
                 .iter()
-                .find(|t| t.name.trim().to_lowercase() == obj_name)
+                .find(|t| t.name.replace(" ", "").to_lowercase() == obj_name.replace(" ", ""))
                 .cloned();
                 
             if let Some(timer) = timer_preset {
