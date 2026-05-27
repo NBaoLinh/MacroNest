@@ -114,26 +114,12 @@ pub fn frame_to_premultiplied_bgra(
         bail!("Invalid output size");
     }
 
-    let mut resized = Mat::default();
-    let source_size = frame.size()?;
-    if source_size.width != target_width || source_size.height != target_height {
-        imgproc::resize(
-            frame,
-            &mut resized,
-            Size::new(target_width, target_height),
-            0.0,
-            0.0,
-            imgproc::INTER_LINEAR,
-        )?;
-    } else {
-        resized = frame.try_clone()?;
-    }
-
+    // 1. Convert source frame to BGRA first at its native resolution
     let mut bgra = Mat::default();
-    match resized.channels() {
-        4 => bgra = resized,
-        3 => imgproc::cvt_color(&resized, &mut bgra, imgproc::COLOR_BGR2BGRA, 0)?,
-        1 => imgproc::cvt_color(&resized, &mut bgra, imgproc::COLOR_GRAY2BGRA, 0)?,
+    match frame.channels() {
+        4 => bgra = frame.try_clone()?,
+        3 => imgproc::cvt_color(frame, &mut bgra, imgproc::COLOR_BGR2BGRA, 0)?,
+        1 => imgproc::cvt_color(frame, &mut bgra, imgproc::COLOR_GRAY2BGRA, 0)?,
         channels => bail!("Unsupported frame channels: {channels}"),
     }
 
@@ -141,6 +127,7 @@ pub fn frame_to_premultiplied_bgra(
         bgra = bgra.try_clone()?;
     }
 
+    // 2. Apply Chroma key & Alpha Premultiplication at native resolution (drastically reducing pixel count)
     let pixels = bgra.data_bytes_mut()?;
     let tolerance = chroma_key.map(|(_, tol)| tol as i32).unwrap_or(0);
     for chunk in pixels.chunks_exact_mut(4) {
@@ -164,7 +151,27 @@ pub fn frame_to_premultiplied_bgra(
         chunk[2] = ((r as u32 * alpha as u32) / 255) as u8;
     }
 
-    Ok(pixels.to_vec())
+    // 3. Resize the processed BGRA frame to target fullscreen resolution
+    let mut resized = Mat::default();
+    let source_size = bgra.size()?;
+    if source_size.width != target_width || source_size.height != target_height {
+        imgproc::resize(
+            &bgra,
+            &mut resized,
+            Size::new(target_width, target_height),
+            0.0,
+            0.0,
+            imgproc::INTER_LINEAR,
+        )?;
+    } else {
+        resized = bgra;
+    }
+
+    if !resized.is_continuous() {
+        resized = resized.try_clone()?;
+    }
+    let final_pixels = resized.data_bytes()?;
+    Ok(final_pixels.to_vec())
 }
 
 #[cfg(not(windows))]
