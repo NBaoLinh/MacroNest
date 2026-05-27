@@ -10,7 +10,18 @@ use std::{
 use anyhow::{Context, Result, bail};
 use once_cell::sync::Lazy;
 use parking_lot::Mutex;
+use rodio::buffer::SamplesBuffer;
 use rodio::{Decoder, OutputStreamBuilder, Sink, Source};
+use symphonia::core::{
+    audio::{AudioBufferRef, SampleBuffer},
+    codecs::DecoderOptions,
+    errors::Error as SymphoniaError,
+    formats::FormatOptions,
+    io::MediaSourceStream,
+    meta::MetadataOptions,
+    probe::Hint,
+};
+use symphonia::default::{get_codecs, get_probe};
 
 use crate::model::AudioClipSettings;
 
@@ -202,6 +213,39 @@ impl PreviewState {
 }
 
 static PREVIEW_STATE: Lazy<Mutex<Option<PreviewState>>> = Lazy::new(|| Mutex::new(None));
+static VIDEO_PREVIEW_STATE: Lazy<Mutex<Option<VideoPreviewAudioState>>> =
+    Lazy::new(|| Mutex::new(None));
+
+struct VideoPreviewAudioState {
+    _stream: rodio::OutputStream,
+    sink: Option<Sink>,
+    path: String,
+    start_ms: u64,
+    end_ms: u64,
+}
+
+impl VideoPreviewAudioState {
+    fn new() -> Result<Self> {
+        let stream = OutputStreamBuilder::open_default_stream()
+            .context("Could not open the default audio output")?;
+        Ok(Self {
+            _stream: stream,
+            sink: None,
+            path: String::new(),
+            start_ms: 0,
+            end_ms: 0,
+        })
+    }
+
+    fn stop(&mut self) {
+        if let Some(sink) = self.sink.take() {
+            sink.stop();
+        }
+        self.path.clear();
+        self.start_ms = 0;
+        self.end_ms = 0;
+    }
+}
 
 pub fn load_duration_ms(path: &str) -> Result<u64> {
     let decoder = open_decoder(path)?;
@@ -382,6 +426,57 @@ pub fn preview_position_ms(clip: &AudioClipSettings) -> Option<u64> {
         .position_ms(clip)
 }
 
+pub fn play_video_audio_preview(path: &str, start_ms: u64, end_ms: u64) -> Result<()> {
+    let trimmed = path.trim();
+    if trimmed.is_empty() {
+        bail!("Choose a video file first");
+    }
+
+    let mut state = video_preview_state()?;
+    let state = state
+        .as_mut()
+        .expect("video preview state should be initialized");
+    state.stop();
+
+    let decoded = decode_media_audio(trimmed)?;
+    let channels = decoded.channels.max(1);
+    let sample_rate = decoded.sample_rate.max(1);
+    let clip_end_ms = end_ms.max(start_ms.saturating_add(1));
+    let start_frame =
+        ((start_ms as f64 / 1000.0) * sample_rate as f64).floor().max(0.0) as usize;
+    let end_frame =
+        ((clip_end_ms as f64 / 1000.0) * sample_rate as f64).ceil().max(0.0) as usize;
+    let start_sample = start_frame.saturating_mul(channels as usize);
+    let end_sample = end_frame
+        .saturating_mul(channels as usize)
+        .min(decoded.samples.len());
+    if start_sample >= end_sample {
+        return Ok(());
+    }
+
+    let sink = Sink::connect_new(state._stream.mixer());
+    sink.append(SamplesBuffer::new(
+        channels,
+        sample_rate,
+        decoded.samples[start_sample..end_sample].to_vec(),
+    ));
+    sink.play();
+    state.path = trimmed.to_owned();
+    state.start_ms = start_ms;
+    state.end_ms = clip_end_ms;
+    state.sink = Some(sink);
+    Ok(())
+}
+
+pub fn stop_video_audio_preview() {
+    if let Ok(mut state) = video_preview_state() {
+        state
+            .as_mut()
+            .expect("video preview state should be initialized")
+            .stop();
+    }
+}
+
 pub fn load_waveform(path: &str, buckets: usize) -> Result<Vec<f32>> {
     let path = path.trim();
     if path.is_empty() {
@@ -467,6 +562,14 @@ fn preview_state() -> Result<parking_lot::MutexGuard<'static, Option<PreviewStat
     Ok(state)
 }
 
+fn video_preview_state() -> Result<parking_lot::MutexGuard<'static, Option<VideoPreviewAudioState>>> {
+    let mut state = VIDEO_PREVIEW_STATE.lock();
+    if state.is_none() {
+        *state = Some(VideoPreviewAudioState::new()?);
+    }
+    Ok(state)
+}
+
 fn load_cached_audio(path: &str) -> Result<CachedAudio> {
     let mut decoder = open_decoder(path)?;
     let channels = decoder.channels();
@@ -483,4 +586,84 @@ fn load_cached_audio(path: &str) -> Result<CachedAudio> {
 fn open_decoder(path: &str) -> Result<Decoder<BufReader<File>>> {
     let file = File::open(path).with_context(|| format!("Failed to open audio file: {path}"))?;
     Decoder::new(BufReader::new(file)).context("Failed to decode the audio file")
+}
+
+fn decode_media_audio(path: &str) -> Result<CachedAudio> {
+    let file = File::open(path).with_context(|| format!("Failed to open media file: {path}"))?;
+    let mss = MediaSourceStream::new(Box::new(file), Default::default());
+    let mut hint = Hint::new();
+    if let Some(extension) = Path::new(path).extension().and_then(|ext| ext.to_str()) {
+        hint.with_extension(extension);
+    }
+    let probed = get_probe()
+        .format(
+            &hint,
+            mss,
+            &FormatOptions::default(),
+            &MetadataOptions::default(),
+        )
+        .context("Failed to probe media file")?;
+    let mut format = probed.format;
+    let track = format
+        .default_track()
+        .context("No default audio track was found")?;
+    let track_id = track.id;
+    let mut decoder = get_codecs()
+        .make(&track.codec_params, &DecoderOptions::default())
+        .context("Failed to create media audio decoder")?;
+
+    let mut sample_rate = track.codec_params.sample_rate.unwrap_or(48_000);
+    let mut channels = track
+        .codec_params
+        .channels
+        .map(|layout| layout.count() as u16)
+        .unwrap_or(2);
+    let mut samples = Vec::<f32>::new();
+
+    loop {
+        let packet = match format.next_packet() {
+            Ok(packet) => packet,
+            Err(SymphoniaError::IoError(error))
+                if error.kind() == std::io::ErrorKind::UnexpectedEof =>
+            {
+                break;
+            }
+            Err(SymphoniaError::ResetRequired) => {
+                bail!("Media decoder requested a reset")
+            }
+            Err(error) => return Err(anyhow::anyhow!("Failed to read media packet: {error}")),
+        };
+        if packet.track_id() != track_id {
+            continue;
+        }
+
+        let decoded = match decoder.decode(&packet) {
+            Ok(decoded) => decoded,
+            Err(SymphoniaError::DecodeError(_)) => continue,
+            Err(SymphoniaError::IoError(error))
+                if error.kind() == std::io::ErrorKind::UnexpectedEof =>
+            {
+                break;
+            }
+            Err(error) => return Err(anyhow::anyhow!("Failed to decode media audio: {error}")),
+        };
+
+        sample_rate = decoded.spec().rate;
+        channels = decoded.spec().channels.count() as u16;
+        let mut sample_buffer =
+            SampleBuffer::<f32>::new(decoded.capacity() as u64, *decoded.spec());
+        match decoded {
+            AudioBufferRef::F32(_) => {}
+            _ => {}
+        }
+        sample_buffer.copy_interleaved_ref(decoded);
+        samples.extend_from_slice(sample_buffer.samples());
+    }
+
+    Ok(CachedAudio {
+        path: Path::new(path).to_path_buf(),
+        channels,
+        sample_rate,
+        samples: Arc::from(samples.into_boxed_slice()),
+    })
 }

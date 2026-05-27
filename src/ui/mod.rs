@@ -490,6 +490,7 @@ pub struct CrosshairApp {
     audio_waveforms: HashMap<String, Vec<f32>>,
     sound_preset_clip_duration_ms: HashMap<u32, Option<u64>>,
     video_preset_clip_duration_ms: HashMap<u32, Option<u64>>,
+    video_preview_cursor_ms: HashMap<u32, u64>,
     show_sound_preset_audio_editor: HashSet<u32>,
     library_clip_duration_ms: HashMap<u32, Option<u64>>,
     show_library_audio_editor: HashSet<u32>,
@@ -557,6 +558,7 @@ pub struct CrosshairApp {
     zoom_preview_cache: HashMap<u32, ZoomPreviewCache>,
     vision_preview_cache: HashMap<u32, VisionPreviewCache>,
     video_preview_cache: HashMap<String, VideoPreviewView>,
+    video_chroma_pick_preset_id: Option<u32>,
     vision_color_pick_texture: Option<TextureHandle>,
     vision_color_pick_preview_color: Option<RgbaColor>,
     vietnamese_input_enabled_texture: Option<TextureHandle>,
@@ -645,6 +647,7 @@ impl CrosshairApp {
             audio_waveforms: HashMap::new(),
             sound_preset_clip_duration_ms: HashMap::new(),
             video_preset_clip_duration_ms: HashMap::new(),
+            video_preview_cursor_ms: HashMap::new(),
             show_sound_preset_audio_editor: HashSet::new(),
             library_clip_duration_ms: HashMap::new(),
             show_library_audio_editor: HashSet::new(),
@@ -715,6 +718,7 @@ impl CrosshairApp {
             zoom_preview_cache: HashMap::new(),
             vision_preview_cache: HashMap::new(),
             video_preview_cache: HashMap::new(),
+            video_chroma_pick_preset_id: None,
             vision_color_pick_texture: None,
             vision_color_pick_preview_color: None,
             vietnamese_input_enabled_texture: None,
@@ -781,6 +785,8 @@ impl CrosshairApp {
                 app.video_preset_clip_duration_ms
                     .insert(preset.id, Some(duration));
             }
+            app.video_preview_cursor_ms
+                .insert(preset.id, preset.clip.start_ms);
         }
         app.sync_crosshair();
         app.sync_window_presets();
@@ -1673,6 +1679,7 @@ impl CrosshairApp {
             preset.clip.end_ms = duration.unwrap_or(0);
             preset.clip.enabled = true;
             self.video_preset_clip_duration_ms.insert(preset_id, duration);
+            self.video_preview_cursor_ms.insert(preset_id, 0);
             self.sync_audio_settings();
             self.persist();
         }
@@ -1747,6 +1754,8 @@ impl CrosshairApp {
         ctx: &egui::Context,
         path: &str,
         start_ms: u64,
+        max_width: i32,
+        max_height: i32,
     ) -> Option<String> {
         let trimmed = path.trim();
         if trimmed.is_empty() {
@@ -1756,7 +1765,8 @@ impl CrosshairApp {
         if self.video_preview_cache.contains_key(&key) {
             return Some(key);
         }
-        let preview = crate::media::load_video_preview_frame(trimmed, start_ms, 360, 220).ok()?;
+        let preview =
+            crate::media::load_video_preview_frame(trimmed, start_ms, max_width, max_height).ok()?;
         let image = ColorImage::from_rgba_unmultiplied(
             [preview.width, preview.height],
             &preview.rgba,

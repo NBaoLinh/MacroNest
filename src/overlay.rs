@@ -5077,6 +5077,7 @@ mod windows_overlay {
             return;
         }
 
+        audio::stop_video_audio_preview();
         let stop_flag = Arc::new(AtomicBool::new(false));
         let previous = {
             let mut guard = ACTIVE_VIDEO_STOP.lock();
@@ -5170,6 +5171,11 @@ mod windows_overlay {
         };
 
         let _ = ShowWindow(hwnd, SW_SHOWNA);
+        let _ = audio::play_video_audio_preview(
+            &preset.clip.file_path,
+            preset.clip.start_ms,
+            clip_end_ms,
+        );
         loop {
             if stop_flag.load(Ordering::Relaxed) {
                 break;
@@ -5215,6 +5221,7 @@ mod windows_overlay {
         let _ = DeleteDC(mem_dc);
         let _ = ReleaseDC(None, screen_dc);
         let _ = DestroyWindow(hwnd);
+        audio::stop_video_audio_preview();
         Ok(())
     }
 

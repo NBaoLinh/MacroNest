@@ -1065,26 +1065,35 @@ impl CrosshairApp {
         let mut preview_video_preset = None;
         for index in 0..self.state.audio_settings.video_presets.len() {
             let preset_id = self.state.audio_settings.video_presets[index].id;
-            let preview_path = self.state.audio_settings.video_presets[index]
-                .clip
-                .file_path
-                .trim()
-                .to_owned();
-            let preview_start_ms = self.state.audio_settings.video_presets[index].clip.start_ms;
-            let preview_key = self.ensure_video_preview_frame(ui.ctx(), &preview_path, preview_start_ms);
-            let preview_frame = preview_key
-                .as_ref()
-                .and_then(|key| self.video_preview_cache.get(key))
-                .cloned();
+            let clip_snapshot = self.state.audio_settings.video_presets[index].clip.clone();
             let mut choose_video_for = None;
             let mut preview_now = false;
-            let preset = &mut self.state.audio_settings.video_presets[index];
             let mut duration = self
                 .video_preset_clip_duration_ms
                 .get(&preset_id)
                 .copied()
                 .flatten()
-                .or_else(|| video_duration(&preset.clip));
+                .or_else(|| video_duration(&clip_snapshot));
+            let mut preview_cursor_ms = self
+                .video_preview_cursor_ms
+                .get(&preset_id)
+                .copied()
+                .unwrap_or(clip_snapshot.start_ms);
+            if let Some(total_ms) = duration {
+                preview_cursor_ms = preview_cursor_ms.min(total_ms);
+            }
+            let preview_key = self.ensure_video_preview_frame(
+                ui.ctx(),
+                clip_snapshot.file_path.trim(),
+                preview_cursor_ms,
+                720,
+                420,
+            );
+            let preview_frame = preview_key
+                .as_ref()
+                .and_then(|key| self.video_preview_cache.get(key))
+                .cloned();
+            let preset = &mut self.state.audio_settings.video_presets[index];
             if !preset.clip.enabled {
                 preset.clip.enabled = true;
                 changed = true;
@@ -1151,6 +1160,32 @@ impl CrosshairApp {
                     {
                         preview_now = true;
                     }
+                    let pick_active = self.video_chroma_pick_preset_id == Some(preset.id);
+                    if ui
+                        .add_enabled(
+                            !preset.clip.file_path.trim().is_empty(),
+                            Button::new(Self::tr_lang(
+                                language,
+                                if pick_active {
+                                    "Picking color..."
+                                } else {
+                                    "Pick chroma color"
+                                },
+                                if pick_active {
+                                    "Đang lấy màu..."
+                                } else {
+                                    "Lấy màu chroma"
+                                },
+                            )),
+                        )
+                        .clicked()
+                    {
+                        self.video_chroma_pick_preset_id = if pick_active {
+                            None
+                        } else {
+                            Some(preset.id)
+                        };
+                    }
                 });
 
                 ui.label(if preset.clip.file_path.is_empty() {
@@ -1159,6 +1194,48 @@ impl CrosshairApp {
                     preset.clip.file_path.as_str()
                 });
 
+                if let Some(total_ms) = duration {
+                    preview_cursor_ms = preview_cursor_ms.min(total_ms);
+                    ui.add_space(4.0);
+                    ui.label(format!(
+                        "{} {}",
+                        Self::tr_lang(language, "Preview frame", "Khung xem"),
+                        Self::format_ms(preview_cursor_ms)
+                    ));
+                    ui.add(
+                        Slider::new(&mut preview_cursor_ms, 0..=total_ms)
+                            .show_value(false)
+                            .clamping(egui::SliderClamping::Always),
+                    );
+                    ui.horizontal_wrapped(|ui| {
+                        if ui
+                            .button(Self::tr_lang(language, "Set start", "Đặt đầu"))
+                            .clicked()
+                        {
+                            preset.clip.start_ms = preview_cursor_ms.min(preset.clip.end_ms);
+                            changed = true;
+                        }
+                        if ui
+                            .button(Self::tr_lang(language, "Set end", "Đặt cuối"))
+                            .clicked()
+                        {
+                            preset.clip.end_ms = preview_cursor_ms.max(preset.clip.start_ms);
+                            changed = true;
+                        }
+                        if ui
+                            .button(Self::tr_lang(language, "Jump to start", "Tới đầu trim"))
+                            .clicked()
+                        {
+                            preview_cursor_ms = preset.clip.start_ms.min(total_ms);
+                        }
+                        if ui
+                            .button(Self::tr_lang(language, "Jump to end", "Tới cuối trim"))
+                            .clicked()
+                        {
+                            preview_cursor_ms = preset.clip.end_ms.min(total_ms);
+                        }
+                    });
+                }
                 if preset.clip.file_path.trim().is_empty() {
                     ui.label(
                         RichText::new(Self::tr_lang(
@@ -1177,13 +1254,21 @@ impl CrosshairApp {
                         "Preview frame: click to pick chroma key color",
                         "Khung xem trước: bấm để lấy màu xóa phông",
                     ));
-                    let size = vec2(preview.width as f32, preview.height as f32);
+                    let pick_active = self.video_chroma_pick_preset_id == Some(preset.id);
+                    let scale = (ui.available_width().min(720.0) / preview.width as f32)
+                        .clamp(0.5, 1.0);
+                    let size =
+                        vec2(preview.width as f32 * scale, preview.height as f32 * scale);
                     let response = ui.add(
                         Image::new((preview.texture.id(), size))
                             .sense(Sense::click())
                             .max_size(size),
                     );
+                    if pick_active && response.hovered() {
+                        ui.ctx().set_cursor_icon(egui::CursorIcon::Crosshair);
+                    }
                     if response.clicked()
+                        && pick_active
                         && let Some(pointer) = response.interact_pointer_pos()
                     {
                         let local_x = ((pointer.x - response.rect.left()) / response.rect.width()
@@ -1205,6 +1290,7 @@ impl CrosshairApp {
                                 a: 255,
                             };
                             preset.clip.chroma_key_enabled = true;
+                            self.video_chroma_pick_preset_id = None;
                             changed = true;
                         }
                     }
@@ -1271,6 +1357,8 @@ impl CrosshairApp {
             });
 
             self.video_preset_clip_duration_ms.insert(preset.id, duration);
+            self.video_preview_cursor_ms
+                .insert(preset.id, preview_cursor_ms);
             if let Some(preset_id) = choose_video_for {
                 self.choose_video_file_for_preset(preset_id);
             }
@@ -1285,6 +1373,10 @@ impl CrosshairApp {
                 .video_presets
                 .retain(|preset| preset.id != preset_id);
             self.video_preset_clip_duration_ms.remove(&preset_id);
+            self.video_preview_cursor_ms.remove(&preset_id);
+            if self.video_chroma_pick_preset_id == Some(preset_id) {
+                self.video_chroma_pick_preset_id = None;
+            }
             changed = true;
         }
 
