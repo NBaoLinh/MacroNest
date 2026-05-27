@@ -195,6 +195,8 @@ mod windows_overlay {
         Lazy::new(|| Mutex::new(None));
     static SYNTHETIC_MOUSE_TRIGGER_SUPPRESSION: Lazy<Mutex<HashMap<String, usize>>> =
         Lazy::new(|| Mutex::new(HashMap::new()));
+    static SWALLOWED_MOUSE_TRIGGER_RELEASES: Lazy<Mutex<HashSet<String>>> =
+        Lazy::new(|| Mutex::new(HashSet::new()));
 
     pub static ACTIVE_MACRO_STEPS: Lazy<Mutex<HashMap<u32, HashSet<usize>>>> =
         Lazy::new(|| Mutex::new(HashMap::new()));
@@ -1624,11 +1626,25 @@ mod windows_overlay {
                 {
                     return CallNextHookEx(None, code, wparam, lparam);
                 }
+                let swallow_release = if !is_down {
+                    event_key_name
+                        .map(consume_swallowed_mouse_trigger_release)
+                        .unwrap_or(false)
+                } else {
+                    false
+                };
                 let mut swallow = if is_down {
                     process_binding_press(&binding, false).unwrap_or(false)
                 } else {
                     process_binding_release(&binding)
                 };
+                if is_down
+                    && swallow
+                    && let Some(key_name) = event_key_name
+                {
+                    swallow_mouse_trigger_until_release(key_name);
+                }
+                swallow |= swallow_release;
 
                 let macros_master_enabled = {
                     let hook_state = HOOK_STATE.lock();
@@ -2612,6 +2628,7 @@ mod windows_overlay {
                 }
 
                 if preset.trigger_mode == MacroTriggerMode::Release {
+                    matched_any_macro = true;
                     continue;
                 }
 
@@ -2987,6 +3004,16 @@ mod windows_overlay {
     fn suppress_next_mouse_trigger(key_name: &str) {
         let mut guard = SYNTHETIC_MOUSE_TRIGGER_SUPPRESSION.lock();
         *guard.entry(key_name.to_owned()).or_insert(0) += 1;
+    }
+
+    fn swallow_mouse_trigger_until_release(key_name: &str) {
+        SWALLOWED_MOUSE_TRIGGER_RELEASES
+            .lock()
+            .insert(key_name.to_owned());
+    }
+
+    fn consume_swallowed_mouse_trigger_release(key_name: &str) -> bool {
+        SWALLOWED_MOUSE_TRIGGER_RELEASES.lock().remove(key_name)
     }
 
     fn consume_suppressed_mouse_trigger(key_name: &str) -> bool {

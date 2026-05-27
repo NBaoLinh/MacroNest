@@ -893,6 +893,7 @@ impl CrosshairApp {
             "Quản lý preset âm thanh và video dùng lại cho các bước macro.",
         ));
         ui.add_space(6.0);
+        let mut import_video_for_new_preset = None;
         ui.horizontal(|ui| {
 
             if ui
@@ -927,6 +928,7 @@ impl CrosshairApp {
                     + 1)
                     .max(id + 1);
                 self.state.audio_settings.video_presets.push(VideoPreset::new(id));
+                import_video_for_new_preset = Some(id);
                 changed = true;
             }
         });
@@ -1130,7 +1132,10 @@ impl CrosshairApp {
 
                 ui.horizontal_wrapped(|ui| {
                     if ui
-                        .button(Self::material_icon_text(0xe145, 18.0))
+                        .add_sized(
+                            [118.0, 26.0],
+                            Button::new(Self::tr_lang(language, "Import video", "Import video")),
+                        )
                         .on_hover_text(Self::tr_lang(language, "Choose video file", "Chọn file video"))
                         .clicked()
                     {
@@ -1139,7 +1144,7 @@ impl CrosshairApp {
                     if ui
                         .add_enabled(
                             !preset.clip.file_path.trim().is_empty(),
-                            Button::new(Self::material_icon_text(0xe037, 18.0)),
+                            Button::new(Self::tr_lang(language, "Preview", "Xem thử")),
                         )
                         .on_hover_text(Self::tr_lang(language, "Preview fullscreen", "Xem thử fullscreen"))
                         .clicked()
@@ -1154,6 +1159,17 @@ impl CrosshairApp {
                     preset.clip.file_path.as_str()
                 });
 
+                if preset.clip.file_path.trim().is_empty() {
+                    ui.label(
+                        RichText::new(Self::tr_lang(
+                            language,
+                            "Import a video first to unlock preview, trim, and chroma key picking.",
+                            "Import video trước để mở preview, trim và chọn màu xóa phông.",
+                        ))
+                        .small()
+                        .color(ui.visuals().weak_text_color()),
+                    );
+                }
                 if let Some(preview) = preview_frame.as_ref() {
                     ui.add_space(4.0);
                     ui.label(Self::tr_lang(
@@ -1270,6 +1286,10 @@ impl CrosshairApp {
                 .retain(|preset| preset.id != preset_id);
             self.video_preset_clip_duration_ms.remove(&preset_id);
             changed = true;
+        }
+
+        if let Some(preset_id) = import_video_for_new_preset {
+            self.choose_video_file_for_preset(preset_id);
         }
 
         if let Some(preset_id) = preview_video_preset {
