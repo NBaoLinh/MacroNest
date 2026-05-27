@@ -1603,17 +1603,17 @@ mod windows_overlay {
                 windows::Win32::UI::WindowsAndMessaging::WM_MBUTTONUP => {
                     Some((binding_from_trigger_event("MouseMiddle"), false))
                 }
+                WM_XBUTTONDOWN if (mouse_data & XBUTTON2_DATA) != 0 => {
+                    Some((binding_from_trigger_event("MouseX2"), true))
+                }
+                WM_XBUTTONUP if (mouse_data & XBUTTON2_DATA) != 0 => {
+                    Some((binding_from_trigger_event("MouseX2"), false))
+                }
                 WM_XBUTTONDOWN if (mouse_data & XBUTTON1_DATA) != 0 => {
                     Some((binding_from_trigger_event("MouseX1"), true))
                 }
                 WM_XBUTTONUP if (mouse_data & XBUTTON1_DATA) != 0 => {
                     Some((binding_from_trigger_event("MouseX1"), false))
-                }
-                WM_XBUTTONDOWN => {
-                    Some((binding_from_trigger_event("MouseX2"), true))
-                }
-                WM_XBUTTONUP => {
-                    Some((binding_from_trigger_event("MouseX2"), false))
                 }
                 WM_MOUSEWHEEL => {
                     let data = mouse_data as i16;
@@ -2083,10 +2083,12 @@ mod windows_overlay {
             WM_MBUTTONDOWN => Some(crate::model::MacroAction::MouseMiddleClick),
             WM_XBUTTONDOWN => {
                 let xbutton = ((info.mouseData >> 16) & 0xFFFF) as u16;
-                if (xbutton & XBUTTON1_DATA) != 0 {
+                if (xbutton & XBUTTON2_DATA) != 0 {
+                    Some(crate::model::MacroAction::MouseX2Click)
+                } else if (xbutton & XBUTTON1_DATA) != 0 {
                     Some(crate::model::MacroAction::MouseX1Click)
                 } else {
-                    Some(crate::model::MacroAction::MouseX2Click)
+                    None
                 }
             }
             WM_MOUSEWHEEL => {
@@ -2997,8 +2999,8 @@ mod windows_overlay {
             WM_MBUTTONDOWN | windows::Win32::UI::WindowsAndMessaging::WM_MBUTTONUP => {
                 Some("MouseMiddle")
             }
+            WM_XBUTTONDOWN | WM_XBUTTONUP if (mouse_data & XBUTTON2_DATA) != 0 => Some("MouseX2"),
             WM_XBUTTONDOWN | WM_XBUTTONUP if (mouse_data & XBUTTON1_DATA) != 0 => Some("MouseX1"),
-            WM_XBUTTONDOWN | WM_XBUTTONUP => Some("MouseX2"),
             WM_MOUSEWHEEL => {
                 if (mouse_data as i16) > 0 {
                     Some("MouseWheelUp")
