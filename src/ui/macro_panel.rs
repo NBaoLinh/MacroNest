@@ -3877,41 +3877,55 @@ impl CrosshairApp {
                                                                        live_sync = true;
                                                                    }
                                                                    if step.if_condition_type == IfConditionType::Variable {
-                                                                       let response = ui.add_sized(
-                                                                           [76.0, 22.0],
-                                                                           TextEdit::singleline(&mut step.if_variable_name)
-                                                                               .hint_text(RichText::new(Self::tr_lang(language, "value/expr", "giÃƒÂ¡ trÃ¡Â»â€¹/expr")).color(hint_color).weak()),
-                                                                       );
-                                                                       Self::apply_vietnamese_input_if_changed(
-                                                                           &response,
-                                                                           self.state.vietnamese_input_enabled,
-                                                                           self.state.vietnamese_input_mode,
-                                                                           &mut step.if_variable_name,
-                                                                       );
-                                                                       live_sync |= response.changed();
-                                                                       egui::ComboBox::from_id_salt((group.id, preset.id, "hold-stop-if-op"))
-                                                                           .width(40.0)
-                                                                           .selected_text(&step.if_operator)
-                                                                           .show_ui(ui, |ui| {
-                                                                               for op in &["==", ">", "<", ">=", "<=", "!="] {
-                                                                                   if ui.selectable_label(step.if_operator == *op, *op).clicked() {
-                                                                                       step.if_operator = op.to_string();
-                                                                                       live_sync = true;
-                                                                                   }
-                                                                               }
-                                                                           });
-                                                                       let response2 = ui.add_sized(
-                                                                            [76.0, 22.0],
-                                                                            TextEdit::singleline(&mut step.key)
-                                                                                .hint_text(RichText::new(Self::tr_lang(language, "value/expr", "giÃƒÂ¡ trÃ¡Â»â€¹/expr")).color(hint_color).weak()),
-                                                                        );
-                                                                        Self::apply_vietnamese_input_if_changed(
-                                                                            &response2,
-                                                                            self.state.vietnamese_input_enabled,
-                                                                            self.state.vietnamese_input_mode,
-                                                                            &mut step.key,
-                                                                        );
-                                                                        live_sync |= response2.changed();
+                                                                    let var_name_id = ui.id().with("hold-stop-if-var-name");
+                                                                    let response = Self::render_expandable_text_edit(
+                                                                        ui,
+                                                                        &mut step.if_variable_name,
+                                                                        var_name_id,
+                                                                        76.0,
+                                                                        140.0,
+                                                                        22.0,
+                                                                        22.0,
+                                                                        Self::tr_lang(language, "value/expr", "biến/expr"),
+                                                                        false,
+                                                                    );
+                                                                    Self::apply_vietnamese_input_if_changed(
+                                                                        &response,
+                                                                        self.state.vietnamese_input_enabled,
+                                                                        self.state.vietnamese_input_mode,
+                                                                        &mut step.if_variable_name,
+                                                                    );
+                                                                    live_sync |= response.changed();
+                                                                    egui::ComboBox::from_id_salt((group.id, preset.id, "hold-stop-if-op"))
+                                                                        .width(40.0)
+                                                                        .selected_text(&step.if_operator)
+                                                                        .show_ui(ui, |ui| {
+                                                                            for op in &["==", ">", "<", ">=", "<=", "!="] {
+                                                                                if ui.selectable_label(step.if_operator == *op, *op).clicked() {
+                                                                                    step.if_operator = op.to_string();
+                                                                                    live_sync = true;
+                                                                                }
+                                                                            }
+                                                                        });
+                                                                    let var_val_id = ui.id().with("hold-stop-if-var-val");
+                                                                    let response2 = Self::render_expandable_text_edit(
+                                                                        ui,
+                                                                        &mut step.key,
+                                                                        var_val_id,
+                                                                        76.0,
+                                                                        180.0,
+                                                                        22.0,
+                                                                        22.0,
+                                                                        Self::tr_lang(language, "value/expr", "giá trị/expr"),
+                                                                        false,
+                                                                    );
+                                                                    Self::apply_vietnamese_input_if_changed(
+                                                                        &response2,
+                                                                        self.state.vietnamese_input_enabled,
+                                                                        self.state.vietnamese_input_mode,
+                                                                        &mut step.key,
+                                                                    );
+                                                                    live_sync |= response2.changed();
                                                                        let left_expr = step.if_variable_name.trim();
                                                                        if !left_expr.is_empty() {
                                                                            let left_val = crate::overlay::evaluate_math_expression(left_expr);
@@ -4163,31 +4177,45 @@ impl CrosshairApp {
                                                         ui.spacing_mut().button_padding.y = 0.0;
                                                         ui.vertical(|ui| {
                                                             ui.horizontal(|ui| {
-                                                                let response = ui.add_sized(
-                                                                    [76.0, 22.0],
-                                                                    TextEdit::singleline(&mut step.if_variable_name)
-                                                                        .hint_text(RichText::new(Self::tr_lang(language, "variable", "biến")).color(hint_color).weak()),
-                                                                );
-                                                                Self::apply_vietnamese_input_if_changed(
-                                                                    &response,
-                                                                    self.state.vietnamese_input_enabled,
-                                                                    self.state.vietnamese_input_mode,
-                                                                    &mut step.if_variable_name,
-                                                                );
-                                                                live_sync |= response.changed();
-                                                                ui.label(" = ");
-                                                                let response2 = ui.add_sized(
-                                                                    [76.0, 22.0],
-                                                                    TextEdit::singleline(&mut step.key)
-                                                                        .hint_text(RichText::new(Self::tr_lang(language, "value/expr", "giá trị")).color(hint_color).weak()),
-                                                                );
-                                                                Self::apply_vietnamese_input_if_changed(
-                                                                    &response2,
-                                                                    self.state.vietnamese_input_enabled,
-                                                                    self.state.vietnamese_input_mode,
-                                                                    &mut step.key,
-                                                                );
-                                                                live_sync |= response2.changed();
+                                                                  let var_name_id = ui.id().with("hold-stop-set-var-name");
+                                                                  let response = Self::render_expandable_text_edit(
+                                                                      ui,
+                                                                      &mut step.if_variable_name,
+                                                                      var_name_id,
+                                                                      76.0,
+                                                                      140.0,
+                                                                      22.0,
+                                                                      22.0,
+                                                                      Self::tr_lang(language, "variable", "biến"),
+                                                                      false,
+                                                                  );
+                                                                  Self::apply_vietnamese_input_if_changed(
+                                                                      &response,
+                                                                      self.state.vietnamese_input_enabled,
+                                                                      self.state.vietnamese_input_mode,
+                                                                      &mut step.if_variable_name,
+                                                                  );
+                                                                  live_sync |= response.changed();
+                                                                  ui.label(" = ");
+                                                                  let var_val_id = ui.id().with("hold-stop-set-var-val");
+                                                                  let response2 = Self::render_expandable_text_edit(
+                                                                      ui,
+                                                                      &mut step.key,
+                                                                      var_val_id,
+                                                                      76.0,
+                                                                      180.0,
+                                                                      22.0,
+                                                                      22.0,
+                                                                      Self::tr_lang(language, "value/expr", "giá trị"),
+                                                                      false,
+                                                                  );
+                                                                  Self::apply_vietnamese_input_if_changed(
+                                                                      &response2,
+                                                                      self.state.vietnamese_input_enabled,
+                                                                      self.state.vietnamese_input_mode,
+                                                                      &mut step.key,
+                                                                  );
+                                                                  live_sync |= response2.changed();
                                                                 Self::render_variable_suggestions_raw(ui, &response, &mut step.if_variable_name, &timer_names, language);
                                                                 Self::render_variable_suggestions(ui, &response2, &mut step.key, &timer_names, language);
                                                                 let var_name = step.if_variable_name.trim();
@@ -6299,41 +6327,55 @@ Example: {100 + (A - B) * 2}",
                                                                        live_sync = true;
                                                                    }
                                                                    if step.if_condition_type == IfConditionType::Variable {
-                                                                       let response = ui.add_sized(
-                                                                           [76.0, 22.0],
-                                                                           TextEdit::singleline(&mut step.if_variable_name)
-                                                                               .hint_text(RichText::new(Self::tr_lang(language, "value/expr", "giÃƒÂ¡ trÃ¡Â»â€¹/expr")).color(hint_color).weak()),
-                                                                       );
-                                                                       Self::apply_vietnamese_input_if_changed(
-                                                                           &response,
-                                                                           self.state.vietnamese_input_enabled,
-                                                                           self.state.vietnamese_input_mode,
-                                                                           &mut step.if_variable_name,
-                                                                       );
-                                                                       live_sync |= response.changed();
-                                                                       egui::ComboBox::from_id_salt((group.id, preset.id, step_index, "if-op"))
-                                                                           .width(40.0)
-                                                                           .selected_text(&step.if_operator)
-                                                                           .show_ui(ui, |ui| {
-                                                                               for op in &["==", ">", "<", ">=", "<=", "!="] {
-                                                                                   if ui.selectable_label(step.if_operator == *op, *op).clicked() {
-                                                                                       step.if_operator = op.to_string();
-                                                                                       live_sync = true;
-                                                                                   }
-                                                                               }
-                                                                           });
-                                                                       let response2 = ui.add_sized(
-                                                                            [76.0, 22.0],
-                                                                            TextEdit::singleline(&mut step.key)
-                                                                                .hint_text(RichText::new(Self::tr_lang(language, "value/expr", "giÃƒÂ¡ trÃ¡Â»â€¹/expr")).color(hint_color).weak()),
-                                                                        );
-                                                                        Self::apply_vietnamese_input_if_changed(
-                                                                            &response2,
-                                                                            self.state.vietnamese_input_enabled,
-                                                                            self.state.vietnamese_input_mode,
-                                                                            &mut step.key,
-                                                                        );
-                                                                        live_sync |= response2.changed();
+                                                                    let var_name_id = ui.id().with((step_index, "regular-if-var-name"));
+                                                                    let response = Self::render_expandable_text_edit(
+                                                                        ui,
+                                                                        &mut step.if_variable_name,
+                                                                        var_name_id,
+                                                                        76.0,
+                                                                        140.0,
+                                                                        22.0,
+                                                                        22.0,
+                                                                        Self::tr_lang(language, "value/expr", "biến/expr"),
+                                                                        false,
+                                                                    );
+                                                                    Self::apply_vietnamese_input_if_changed(
+                                                                        &response,
+                                                                        self.state.vietnamese_input_enabled,
+                                                                        self.state.vietnamese_input_mode,
+                                                                        &mut step.if_variable_name,
+                                                                    );
+                                                                    live_sync |= response.changed();
+                                                                    egui::ComboBox::from_id_salt((group.id, preset.id, step_index, "if-op"))
+                                                                        .width(40.0)
+                                                                        .selected_text(&step.if_operator)
+                                                                        .show_ui(ui, |ui| {
+                                                                            for op in &["==", ">", "<", ">=", "<=", "!="] {
+                                                                                if ui.selectable_label(step.if_operator == *op, *op).clicked() {
+                                                                                    step.if_operator = op.to_string();
+                                                                                    live_sync = true;
+                                                                                }
+                                                                            }
+                                                                        });
+                                                                    let var_val_id = ui.id().with((step_index, "regular-if-var-val"));
+                                                                    let response2 = Self::render_expandable_text_edit(
+                                                                        ui,
+                                                                        &mut step.key,
+                                                                        var_val_id,
+                                                                        76.0,
+                                                                        180.0,
+                                                                        22.0,
+                                                                        22.0,
+                                                                        Self::tr_lang(language, "value/expr", "giá trị/expr"),
+                                                                        false,
+                                                                    );
+                                                                    Self::apply_vietnamese_input_if_changed(
+                                                                        &response2,
+                                                                        self.state.vietnamese_input_enabled,
+                                                                        self.state.vietnamese_input_mode,
+                                                                        &mut step.key,
+                                                                    );
+                                                                    live_sync |= response2.changed();
                                                                        let left_expr = step.if_variable_name.trim();
                                                                        if !left_expr.is_empty() {
                                                                            let left_val = crate::overlay::evaluate_math_expression(left_expr);
@@ -6585,31 +6627,45 @@ Example: {100 + (A - B) * 2}",
                                                         ui.spacing_mut().button_padding.y = 0.0;
                                                         ui.vertical(|ui| {
                                                             ui.horizontal(|ui| {
-                                                                let response = ui.add_sized(
-                                                                    [76.0, 22.0],
-                                                                    TextEdit::singleline(&mut step.if_variable_name)
-                                                                        .hint_text(RichText::new(Self::tr_lang(language, "variable", "biến")).color(hint_color).weak()),
-                                                                );
-                                                                Self::apply_vietnamese_input_if_changed(
-                                                                    &response,
-                                                                    self.state.vietnamese_input_enabled,
-                                                                    self.state.vietnamese_input_mode,
-                                                                    &mut step.if_variable_name,
-                                                                );
-                                                                live_sync |= response.changed();
-                                                                ui.label(" = ");
-                                                                let response2 = ui.add_sized(
-                                                                    [76.0, 22.0],
-                                                                    TextEdit::singleline(&mut step.key)
-                                                                        .hint_text(RichText::new(Self::tr_lang(language, "value/expr", "giá trị")).color(hint_color).weak()),
-                                                                );
-                                                                Self::apply_vietnamese_input_if_changed(
-                                                                    &response2,
-                                                                    self.state.vietnamese_input_enabled,
-                                                                    self.state.vietnamese_input_mode,
-                                                                    &mut step.key,
-                                                                );
-                                                                live_sync |= response2.changed();
+                                                                  let var_name_id = ui.id().with((step_index, "regular-set-var-name"));
+                                                                  let response = Self::render_expandable_text_edit(
+                                                                      ui,
+                                                                      &mut step.if_variable_name,
+                                                                      var_name_id,
+                                                                      76.0,
+                                                                      140.0,
+                                                                      22.0,
+                                                                      22.0,
+                                                                      Self::tr_lang(language, "variable", "biến"),
+                                                                      false,
+                                                                  );
+                                                                  Self::apply_vietnamese_input_if_changed(
+                                                                      &response,
+                                                                      self.state.vietnamese_input_enabled,
+                                                                      self.state.vietnamese_input_mode,
+                                                                      &mut step.if_variable_name,
+                                                                  );
+                                                                  live_sync |= response.changed();
+                                                                  ui.label(" = ");
+                                                                  let var_val_id = ui.id().with((step_index, "regular-set-var-val"));
+                                                                  let response2 = Self::render_expandable_text_edit(
+                                                                      ui,
+                                                                      &mut step.key,
+                                                                      var_val_id,
+                                                                      76.0,
+                                                                      180.0,
+                                                                      22.0,
+                                                                      22.0,
+                                                                      Self::tr_lang(language, "value/expr", "giá trị"),
+                                                                      false,
+                                                                  );
+                                                                  Self::apply_vietnamese_input_if_changed(
+                                                                      &response2,
+                                                                      self.state.vietnamese_input_enabled,
+                                                                      self.state.vietnamese_input_mode,
+                                                                      &mut step.key,
+                                                                  );
+                                                                  live_sync |= response2.changed();
                                                                 Self::render_variable_suggestions_raw(ui, &response, &mut step.if_variable_name, &timer_names, language);
                                                                 Self::render_variable_suggestions(ui, &response2, &mut step.key, &timer_names, language);
                                                                 let var_name = step.if_variable_name.trim();
@@ -8049,13 +8105,13 @@ Example: {100 + (A - B) * 2}",
             return;
         }
 
-        let popup_open_key = ui.make_persistent_id((response.id, "popup_open"));
+        let popup_open_key = response.id.with("popup_open");
         let mut popup_open = ui.memory(|mem| mem.data.get_temp::<bool>(popup_open_key)).unwrap_or(false);
         
         if response.has_focus() {
             popup_open = true;
         } else {
-            let popup_rect = ui.memory(|mem| mem.data.get_temp::<egui::Rect>(ui.make_persistent_id((response.id, "popup_rect"))));
+            let popup_rect = ui.memory(|mem| mem.data.get_temp::<egui::Rect>(response.id.with("popup_rect")));
             if let Some(rect) = popup_rect {
                 let hover = ui.input(|i| i.pointer.hover_pos().map_or(false, |pos| rect.contains(pos)));
                 let mouse_down = ui.input(|i| i.pointer.any_down());
@@ -8116,7 +8172,7 @@ Example: {100 + (A - B) * 2}",
             return;
         }
 
-        let popup_id = ui.make_persistent_id((response.id, "sug_popup"));
+        let popup_id = response.id.with("sug_popup");
         let popup_position = response.rect.left_bottom();
         
         let area_res = egui::Area::new(popup_id)
@@ -8152,7 +8208,7 @@ Example: {100 + (A - B) * 2}",
                 });
                 
                 let rect = frame_res.response.rect;
-                ui.memory_mut(|mem| mem.data.insert_temp(ui.make_persistent_id((response.id, "popup_rect")), rect));
+                ui.memory_mut(|mem| mem.data.insert_temp(response.id.with("popup_rect"), rect));
             });
             
         ui.memory_mut(|mem| {
@@ -8207,13 +8263,13 @@ Example: {100 + (A - B) * 2}",
             return;
         }
 
-        let popup_open_key = ui.make_persistent_id((response.id, "popup_open_raw"));
+        let popup_open_key = response.id.with("popup_open_raw");
         let mut popup_open = ui.memory(|mem| mem.data.get_temp::<bool>(popup_open_key)).unwrap_or(false);
         
         if response.has_focus() {
             popup_open = true;
         } else {
-            let popup_rect = ui.memory(|mem| mem.data.get_temp::<egui::Rect>(ui.make_persistent_id((response.id, "popup_rect_raw"))));
+            let popup_rect = ui.memory(|mem| mem.data.get_temp::<egui::Rect>(response.id.with("popup_rect_raw")));
             if let Some(rect) = popup_rect {
                 let hover = ui.input(|i| i.pointer.hover_pos().map_or(false, |pos| rect.contains(pos)));
                 let mouse_down = ui.input(|i| i.pointer.any_down());
@@ -8274,7 +8330,7 @@ Example: {100 + (A - B) * 2}",
             return;
         }
 
-        let popup_id = ui.make_persistent_id((response.id, "sug_popup_raw"));
+        let popup_id = response.id.with("sug_popup_raw");
         let popup_position = response.rect.left_bottom();
         
         let area_res = egui::Area::new(popup_id)
@@ -8310,7 +8366,7 @@ Example: {100 + (A - B) * 2}",
                 });
                 
                 let rect = frame_res.response.rect;
-                ui.memory_mut(|mem| mem.data.insert_temp(ui.make_persistent_id((response.id, "popup_rect_raw")), rect));
+                ui.memory_mut(|mem| mem.data.insert_temp(response.id.with("popup_rect_raw"), rect));
             });
             
         ui.memory_mut(|mem| {
