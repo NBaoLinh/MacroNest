@@ -955,17 +955,11 @@ impl CrosshairApp {
         });
 
         if open {
-
             let popup_size = vec2(320.0, 132.0);
-
-            let mut pos = anchor_response.rect.left_top() - vec2(popup_size.x + 8.0, 0.0);
-
+            let mut pos = anchor_response.rect.right_top() + vec2(8.0, 0.0);
             let screen_rect = ui.ctx().content_rect();
-
-            if pos.x < screen_rect.left() {
-
-                pos.x = anchor_response.rect.right() + 8.0;
-
+            if pos.x + popup_size.x > screen_rect.right() {
+                pos.x = anchor_response.rect.left() - popup_size.x - 8.0;
             }
 
             let area = egui::Area::new(popup_id)
