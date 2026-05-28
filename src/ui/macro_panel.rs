@@ -3380,6 +3380,7 @@ impl CrosshairApp {
                                                             MacroAction::KeyUp,
                                                             MacroAction::TypeText,
                                                             MacroAction::ApplyWindowPreset,
+                                                            MacroAction::FocusWindowPreset,
                                                             MacroAction::TriggerMacroPreset,
                                                             MacroAction::TriggerCommandPreset,
                                                             MacroAction::EnableCrosshairProfile,
@@ -3489,40 +3490,15 @@ impl CrosshairApp {
                                                             }
                                                         });
                                                 } else if step.action == MacroAction::FocusWindowPreset {
-                                                    let selected_id = step.key.trim().parse::<u32>().ok();
-                                                    let selected_label = selected_id
-                                                        .and_then(|id| {
-                                                            self.state
-                                                                .window_presets
-                                                                .iter()
-                                                                .find(|preset| preset.id == id)
-                                                                .map(|preset| preset.name.clone())
-                                                        })
-                                                        .unwrap_or_else(|| {
-                                                            if step.key.trim().is_empty() {
-                                                                Self::tr_lang(language, "Select window", "Chọn cửa sổ").to_owned()
-                                                            } else {
-                                                                Self::simplify_window_title(&step.key)
-                                                            }
-                                                        });
+                                                    let selected_label = if step.key.trim().is_empty() {
+                                                        Self::tr_lang(language, "Select window", "Chọn cửa sổ").to_owned()
+                                                    } else {
+                                                        Self::simplify_window_title(&step.key)
+                                                    };
                                                     egui::ComboBox::from_id_salt((group.id, preset.id, "hold-stop-focus-window-preset"))
                                                         .width(160.0)
                                                         .selected_text(selected_label)
                                                         .show_ui(ui, |ui| {
-                                                            ui.strong(Self::tr_lang(language, "Window Presets", "Preset cửa sổ"));
-                                                            for preset_option in &self.state.window_presets {
-                                                                if ui
-                                                                    .selectable_label(
-                                                                        selected_id == Some(preset_option.id),
-                                                                        &preset_option.name,
-                                                                    )
-                                                                    .clicked()
-                                                                {
-                                                                    step.key = preset_option.id.to_string();
-                                                                    live_sync = true;
-                                                                }
-                                                            }
-                                                            ui.separator();
                                                             ui.strong(Self::tr_lang(language, "Open Windows", "Cửa sổ đang mở"));
                                                             if self.open_windows.is_empty() {
                                                                 ui.weak(Self::tr_lang(language, "No open windows found", "Không tìm thấy cửa sổ nào"));
@@ -5922,6 +5898,7 @@ impl CrosshairApp {
                                                                 MacroAction::KeyUp,
                                                                 MacroAction::TypeText,
                                                                 MacroAction::ApplyWindowPreset,
+                                                                MacroAction::FocusWindowPreset,
                                                                 MacroAction::TriggerMacroPreset,
                                                                 MacroAction::TriggerCommandPreset,
                                                                 MacroAction::EnableCrosshairProfile,
@@ -6032,37 +6009,15 @@ impl CrosshairApp {
                                                             }
                                                         });
                                                 } else if step.action == MacroAction::FocusWindowPreset {
-                                                    let selected_id = step.key.trim().parse::<u32>().ok();
-                                                    let selected_label = selected_id
-                                                        .and_then(|id| {
-                                                            self.state
-                                                                .window_presets
-                                                                .iter()
-                                                                .find(|preset| preset.id == id)
-                                                                .map(|preset| preset.name.clone())
-                                                        })
-                                                        .unwrap_or_else(|| {
-                                                            if step.key.trim().is_empty() {
-                                                                Self::tr_lang(language, "Select window", "Chọn cửa sổ").to_owned()
-                                                            } else {
-                                                                Self::simplify_window_title(&step.key)
-                                                            }
-                                                        });
+                                                    let selected_label = if step.key.trim().is_empty() {
+                                                        Self::tr_lang(language, "Select window", "Chọn cửa sổ").to_owned()
+                                                    } else {
+                                                        Self::simplify_window_title(&step.key)
+                                                    };
                                                     egui::ComboBox::from_id_salt((group.id, preset.id, step_index, "focus-window-preset-step"))
                                                         .width(160.0)
                                                         .selected_text(selected_label)
                                                         .show_ui(ui, |ui| {
-                                                            ui.strong(Self::tr_lang(language, "Window Presets", "Preset cửa sổ"));
-                                                            for preset_option in &self.state.window_presets {
-                                                                if ui
-                                                                    .selectable_label(selected_id == Some(preset_option.id), &preset_option.name)
-                                                                    .clicked()
-                                                                {
-                                                                    step.key = preset_option.id.to_string();
-                                                                    live_sync = true;
-                                                                }
-                                                            }
-                                                            ui.separator();
                                                             ui.strong(Self::tr_lang(language, "Open Windows", "Cửa sổ đang mở"));
                                                             if self.open_windows.is_empty() {
                                                                 ui.weak(Self::tr_lang(language, "No open windows found", "Không tìm thấy cửa sổ nào"));
