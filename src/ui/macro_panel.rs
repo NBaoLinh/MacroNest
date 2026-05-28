@@ -8744,8 +8744,8 @@ Example: {100 + (A - B) * 2}",
         _language: UiLanguage,
     ) {
         let suggestion_names = ui
-            .memory(|mem| mem.data.get_temp::<Vec<String>>(egui::Id::new("macro_variable_suggestion_names")))
-            .unwrap_or_else(|| timer_names.to_vec());
+            .memory(|mem| mem.data.get_temp::<Vec<String>>(egui::Id::new("macro_variable_writable_suggestion_names")))
+            .unwrap_or_default();
         let cursor_index = match egui::widgets::text_edit::TextEditState::load(ui.ctx(), response.id)
             .and_then(|state| state.cursor.char_range().and_then(|range| range.single().map(|c| c.index)))
         {
