@@ -694,6 +694,24 @@ impl CrosshairApp {
     pub(crate) fn render_macro_panel(&mut self, ui: &mut egui::Ui) {
         let language = self.state.ui_language;
         let timer_names: Vec<String> = self.state.timer_presets.iter().map(|t| t.name.clone()).collect();
+        let mut suggestion_names = std::collections::HashSet::new();
+        for name in &timer_names {
+            suggestion_names.insert(name.clone());
+        }
+        for name in self.collect_all_macro_referenced_variables() {
+            suggestion_names.insert(name);
+        }
+        {
+            let vars = crate::overlay::RUNTIME_VARIABLES.lock();
+            for name in vars.keys() {
+                suggestion_names.insert(name.clone());
+            }
+        }
+        let mut suggestion_names: Vec<String> = suggestion_names.into_iter().collect();
+        suggestion_names.sort();
+        ui.memory_mut(|mem| {
+            mem.data.insert_temp(egui::Id::new("macro_variable_suggestion_names"), suggestion_names);
+        });
         let any_popup_open = ui.memory(|mem| mem.data.get_temp::<bool>(egui::Id::new("any_popup_open"))).unwrap_or(false);
         let mut enter_pressed = false;
         if any_popup_open {
@@ -8407,6 +8425,9 @@ Example: {100 + (A - B) * 2}",
         timer_names: &[String],
         _language: UiLanguage,
     ) {
+        let suggestion_names = ui
+            .memory(|mem| mem.data.get_temp::<Vec<String>>(egui::Id::new("macro_variable_suggestion_names")))
+            .unwrap_or_else(|| timer_names.to_vec());
         let cursor_index = match egui::widgets::text_edit::TextEditState::load(ui.ctx(), response.id)
             .and_then(|state| state.cursor.char_range().and_then(|range| range.single().map(|c| c.index)))
         {
@@ -8466,11 +8487,11 @@ Example: {100 + (A - B) * 2}",
                 }
             }
         } else {
-            for name in timer_names {
-                let timer_name_no_space = name.replace(" ", "");
-                if timer_name_no_space.to_lowercase().starts_with(&last_word_trimmed.to_lowercase()) 
-                   && timer_name_no_space.to_lowercase() != last_word_trimmed.to_lowercase() {
-                    suggestions.push(timer_name_no_space);
+            for name in &suggestion_names {
+                let name_no_space = name.replace(" ", "");
+                if name_no_space.to_lowercase().starts_with(&last_word_trimmed.to_lowercase()) 
+                   && name_no_space.to_lowercase() != last_word_trimmed.to_lowercase() {
+                    suggestions.push(name_no_space);
                 }
             }
         }
@@ -8604,6 +8625,9 @@ Example: {100 + (A - B) * 2}",
         timer_names: &[String],
         _language: UiLanguage,
     ) {
+        let suggestion_names = ui
+            .memory(|mem| mem.data.get_temp::<Vec<String>>(egui::Id::new("macro_variable_suggestion_names")))
+            .unwrap_or_else(|| timer_names.to_vec());
         let cursor_index = match egui::widgets::text_edit::TextEditState::load(ui.ctx(), response.id)
             .and_then(|state| state.cursor.char_range().and_then(|range| range.single().map(|c| c.index)))
         {
@@ -8663,11 +8687,11 @@ Example: {100 + (A - B) * 2}",
                 }
             }
         } else {
-            for name in timer_names {
-                let timer_name_no_space = name.replace(" ", "");
-                if timer_name_no_space.to_lowercase().starts_with(&last_word.to_lowercase()) 
-                   && timer_name_no_space.to_lowercase() != last_word.to_lowercase() {
-                    suggestions.push(timer_name_no_space);
+            for name in &suggestion_names {
+                let name_no_space = name.replace(" ", "");
+                if name_no_space.to_lowercase().starts_with(&last_word.to_lowercase()) 
+                   && name_no_space.to_lowercase() != last_word.to_lowercase() {
+                    suggestions.push(name_no_space);
                 }
             }
         }
