@@ -3904,6 +3904,13 @@ impl CrosshairApp {
                                                             &mut step.text_override,
                                                         );
                                                         live_sync |= response.changed();
+                                                        Self::render_variable_suggestions(
+                                                            ui,
+                                                            &response,
+                                                            &mut step.text_override,
+                                                            &timer_names,
+                                                            language,
+                                                        );
                                                     });
                                                 } else if step.action == MacroAction::TypeText {
                                                     ui.vertical(|ui| {
@@ -6498,13 +6505,20 @@ Example: {100 + (A - B) * 2}",
                                                             &Self::tr_lang(language, "Text override", "Ghi đè văn bản"),
                                                             false,
                                                         );
-                                                        Self::apply_vietnamese_input_if_changed(
-                                                            &response,
-                                                            self.state.vietnamese_input_enabled,
-                                                            self.state.vietnamese_input_mode,
-                                                            &mut step.text_override,
-                                                        );
-                                                        live_sync |= response.changed();
+                                                         Self::apply_vietnamese_input_if_changed(
+                                                             &response,
+                                                             self.state.vietnamese_input_enabled,
+                                                             self.state.vietnamese_input_mode,
+                                                             &mut step.text_override,
+                                                         );
+                                                         live_sync |= response.changed();
+                                                         Self::render_variable_suggestions(
+                                                             ui,
+                                                             &response,
+                                                             &mut step.text_override,
+                                                             &timer_names,
+                                                             language,
+                                                         );
                                                      });
                                                 } else if step.action == MacroAction::TypeText {
                                                      ui.vertical(|ui| {
