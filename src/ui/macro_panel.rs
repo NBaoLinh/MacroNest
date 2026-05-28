@@ -447,6 +447,7 @@ impl CrosshairApp {
                         .data_mut(|data| data.insert_temp(timer_popup_id, false));
                 }
                 let popup_rect_id = ui.make_persistent_id((id_source, "mouse-submenu-rect"));
+                let mut close_requested = false;
                 let popup_response = egui::Popup::from_response(&response)
                     .id(popup_id)
                     .open_bool(&mut open)
@@ -482,15 +483,30 @@ impl CrosshairApp {
                                     }
                                 }
                                 for action in Self::mouse_leaf_action_groups().iter().copied() {
-                                    Self::render_macro_action_option(
+                                    let leaf_response = Self::render_macro_action_button(
                                         ui,
                                         language,
                                         current,
                                         action,
-                                        live_sync,
                                         action_hover_id,
                                         true,
                                     );
+                                    if leaf_response.hovered() || leaf_response.clicked() {
+                                        for (_, _, _, popup_key) in Self::mouse_click_action_groups().iter().copied() {
+                                            let child_popup_id =
+                                                ui.make_persistent_id((id_source, popup_key, "popup"));
+                                            ui.ctx().data_mut(|data| data.insert_temp(child_popup_id, false));
+                                        }
+                                        ui.ctx()
+                                            .data_mut(|data| data.insert_temp(owner_id, None::<MacroActionSubmenuKind>));
+                                        ui.ctx().request_repaint();
+                                        close_requested = true;
+                                    }
+                                    if leaf_response.clicked() {
+                                        *current = action;
+                                        *live_sync = true;
+                                        ui.close();
+                                    }
                                     item_index += 1;
                                     if item_index % 6 == 0 {
                                         ui.end_row();
@@ -498,6 +514,9 @@ impl CrosshairApp {
                                 }
                             });
                     });
+                if close_requested {
+                    open = false;
+                }
                 let popup_rect: Option<egui::Rect> = ui.ctx().data(|data| data.get_temp(popup_rect_id));
                 if open {
                     if let Some(pointer_pos) = ui.ctx().pointer_hover_pos() {
