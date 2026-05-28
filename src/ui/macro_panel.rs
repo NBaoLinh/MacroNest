@@ -9729,7 +9729,7 @@ impl CrosshairApp {
             }
             self.persist();
         }
-        ui.add_space(macro_panel_scroll_height);
+        ui.add_space((macro_panel_scroll_height - 50.0).max(0.0));
         let active_hover_preview_state = ui
             .ctx()
             .data(|data| data.get_temp::<Option<(u32, HoverPreviewRequest, egui::Pos2)>>(hover_preview_state_id))
