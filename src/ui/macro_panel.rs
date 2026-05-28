@@ -434,15 +434,9 @@ impl CrosshairApp {
                     ui.add_space(4.0);
                     match &preview.kind {
                         MacroStepHoverPreviewKind::MacroPreset {
-                            mode_label,
-                            preset_name,
                             steps,
+                            ..
                         } => {
-                            ui.horizontal(|ui| {
-                                ui.label(RichText::new(mode_label).strong());
-                                ui.label(RichText::new(preset_name).strong().color(Color32::from_rgb(124, 240, 164)));
-                            });
-                            ui.add_space(4.0);
                             Self::render_macro_step_hover_preview_list(
                                 ui,
                                 language,
@@ -452,16 +446,10 @@ impl CrosshairApp {
                             );
                         }
                         MacroStepHoverPreviewKind::StepToggle {
-                            mode_label,
-                            preset_name,
                             steps,
                             selected_steps,
+                            ..
                         } => {
-                            ui.horizontal(|ui| {
-                                ui.label(RichText::new(mode_label).strong());
-                                ui.label(RichText::new(preset_name).strong().color(Color32::from_rgb(124, 240, 164)));
-                            });
-                            ui.add_space(4.0);
                             Self::render_macro_step_hover_preview_list(
                                 ui,
                                 language,
@@ -4579,11 +4567,6 @@ impl CrosshairApp {
                                                         );
                                 });
                             });
-                                            Self::show_instant_hover_tooltip(
-                                                ui,
-                                                &hold_stop_combo.response,
-                                                Self::macro_action_tooltip(step.action, language),
-                                            );
                                             if hold_stop_combo.response.hovered() {
                                                 let hover_request = Self::build_hover_preview_request(
                                                     language,
@@ -5696,11 +5679,16 @@ impl CrosshairApp {
                                                             }
                                                         });
                                                     });
-                                                } else if matches!(step.action, MacroAction::DisableZoom | MacroAction::Else | MacroAction::IfEnd | MacroAction::HideHud | MacroAction::UnlockMouse) {
-                                                    ui.add_sized(
-                                                        [110.0, 22.0],
-                                                        egui::Label::new(Self::tr_lang(language, "No input", "No input")),
-                                                    );
+                                                } else if matches!(step.action, MacroAction::Else | MacroAction::IfEnd) {
+                                                     ui.add_sized(
+                                                         [110.0, 22.0],
+                                                         egui::Label::new(""),
+                                                     );
+                                                } else if matches!(step.action, MacroAction::DisableZoom | MacroAction::HideHud | MacroAction::UnlockMouse) {
+                                                     ui.add_sized(
+                                                         [110.0, 22.0],
+                                                         egui::Label::new(Self::tr_lang(language, "No input", "No input")),
+                                                     );
                                                 } else if step.action == MacroAction::LockMouse {
                                                     ui.horizontal(|ui| {
                                                         let unlock_resp = ui.checkbox(&mut step.unlock_on_exit, Self::tr_lang(language, "Unlock when macro ends", ""));
@@ -6159,7 +6147,7 @@ impl CrosshairApp {
                                                 ui.add_sized([24.0, 22.0], egui::Label::new(""));
                                                 ui.add_sized([24.0, 22.0], egui::Label::new(""));
                                             }
-                                            if action_supports_capture && !(step.action == MacroAction::StopIfKeyPressed && step.break_loop_by_variable) {
+                                            if action_supports_capture && !(step.action == MacroAction::StopIfKeyPressed && step.get_break_loop_mode() != "StopKey") {
                                                 let hold_stop_capture_target =
                                                     CaptureRequest::MacroPresetHoldStopInput(group.id, preset.id);
                                                 let hold_stop_capture_active =
@@ -7124,11 +7112,6 @@ impl CrosshairApp {
                                                             );
                                                         });
                                                 });
-                                            Self::show_instant_hover_tooltip(
-                                                ui,
-                                                &action_combo.response,
-                                                Self::macro_action_tooltip(step.action, language),
-                                            );
                                             let action_uses_key = Self::macro_action_uses_key(step.action);
                                             let action_supports_capture =
                                                 Self::macro_action_supports_capture(step.action);
@@ -8287,11 +8270,16 @@ impl CrosshairApp {
                                                             }
                                                         });
                                                     });
-                                                } else if matches!(step.action, MacroAction::DisableZoom | MacroAction::Else | MacroAction::IfEnd | MacroAction::HideHud | MacroAction::UnlockMouse) {
-                                                    ui.add_sized(
-                                                        [146.0, 18.0],
-                                                        egui::Label::new(Self::tr_lang(language, "No input", "No input")),
-                                                    );
+                                                } else if matches!(step.action, MacroAction::Else | MacroAction::IfEnd) {
+                                                     ui.add_sized(
+                                                         [146.0, 18.0],
+                                                         egui::Label::new(""),
+                                                     );
+                                                } else if matches!(step.action, MacroAction::DisableZoom | MacroAction::HideHud | MacroAction::UnlockMouse) {
+                                                     ui.add_sized(
+                                                         [146.0, 18.0],
+                                                         egui::Label::new(Self::tr_lang(language, "No input", "No input")),
+                                                     );
                                                 } else if step.action == MacroAction::LockMouse {
                                                     ui.horizontal(|ui| {
                                                         let unlock_resp = ui.checkbox(&mut step.unlock_on_exit, Self::tr_lang(language, "Unlock when macro ends", ""));
@@ -8897,7 +8885,7 @@ impl CrosshairApp {
                                                     step.timed_override = temp_ms > 0;
                                                     live_sync = true;
                                                 }
-                                            } else if action_supports_capture && !(step.action == MacroAction::StopIfKeyPressed && step.break_loop_by_variable) {
+                                            } else if action_supports_capture && !(step.action == MacroAction::StopIfKeyPressed && step.get_break_loop_mode() != "StopKey") {
                                                 let step_capture_target = CaptureRequest::MacroStepInput {
                                                     group_id: group.id,
                                                     preset_id: preset.id,
