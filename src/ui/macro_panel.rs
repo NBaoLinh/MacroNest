@@ -326,6 +326,14 @@ impl CrosshairApp {
         parts.join("  ")
     }
 
+    fn macro_step_preview_visible_entries(steps: &[MacroStep]) -> Vec<(usize, &MacroStep)> {
+        steps
+            .iter()
+            .enumerate()
+            .filter(|(_, step)| !matches!(step.action, MacroAction::LoopStart | MacroAction::LoopEnd))
+            .collect()
+    }
+
     fn render_macro_step_hover_preview_list(
         ui: &mut egui::Ui,
         language: UiLanguage,
@@ -335,21 +343,21 @@ impl CrosshairApp {
     ) {
         let offset_id = source_id.with("macro-hover-preview-offset");
         let visible_lines = 5usize;
-        let max_offset = steps.len().saturating_sub(visible_lines) as i32;
+        let visible_steps = Self::macro_step_preview_visible_entries(steps);
+        let max_offset = visible_steps.len().saturating_sub(visible_lines) as i32;
         let mut offset = ui
             .ctx()
             .data(|data| data.get_temp::<i32>(offset_id))
             .unwrap_or(0)
             .clamp(0, max_offset.max(0));
         let start = offset as usize;
-        let end = (start + visible_lines).min(steps.len());
-        if steps.is_empty() {
+        let end = (start + visible_lines).min(visible_steps.len());
+        if visible_steps.is_empty() {
             ui.label(Self::tr_lang(language, "No steps.", "Không có step nào."));
             return;
         }
-        for (index, step) in steps[start..end].iter().enumerate() {
-            let step_no = start + index + 1;
-            let is_selected = selected_steps.contains(&(step_no as u32));
+        for (step_no, step) in visible_steps[start..end].iter() {
+            let is_selected = selected_steps.contains(&(*step_no as u32));
             let line = format!("{}. {}", step_no, Self::macro_step_preview_summary_line(step, language));
             let text = if is_selected {
                 RichText::new(line)
@@ -360,15 +368,53 @@ impl CrosshairApp {
             };
             ui.label(text);
         }
-        if steps.len() > visible_lines {
+        if visible_steps.len() > visible_lines {
             ui.add_space(2.0);
             ui.label(
-                RichText::new(format!("{} / {}", start + 1, steps.len()))
+                RichText::new(format!("{} / {}", start + 1, visible_steps.len()))
                     .weak()
                     .monospace(),
             );
         }
         ui.ctx().data_mut(|data| data.insert_temp(offset_id, offset));
+    }
+
+    fn render_hover_preview_screen_canvas(
+        ui: &mut egui::Ui,
+        max_height: f32,
+    ) -> (egui::Rect, egui::Rect, f32) {
+        let screen_size = Self::screen_size();
+        let available_width = ui.available_width().clamp(320.0, 720.0);
+        let aspect = if screen_size.y > 0.0 {
+            screen_size.x / screen_size.y
+        } else {
+            16.0 / 9.0
+        };
+        let mut desired_width = available_width;
+        let mut desired_height = desired_width / aspect;
+        if desired_height > max_height {
+            desired_height = max_height;
+            desired_width = desired_height * aspect;
+        }
+        let (canvas_rect, _) = ui.allocate_exact_size(vec2(desired_width, desired_height), Sense::hover());
+        let draw_rect = canvas_rect.shrink(4.0);
+        let scale = (draw_rect.width() / screen_size.x.max(1.0))
+            .min(draw_rect.height() / screen_size.y.max(1.0))
+            .max(0.0001);
+        let preview_size = vec2(screen_size.x * scale, screen_size.y * scale);
+        let preview_rect = egui::Rect::from_center_size(draw_rect.center(), preview_size);
+        ui.painter().rect_filled(
+            preview_rect,
+            8.0,
+            Color32::from_rgba_premultiplied(18, 24, 22, 220),
+        );
+        ui.painter().rect_stroke(
+            preview_rect,
+            8.0,
+            egui::Stroke::new(1.0, Color32::from_rgb(104, 148, 124)),
+            egui::StrokeKind::Outside,
+        );
+        (canvas_rect, preview_rect, scale)
     }
 
     fn render_hover_preview_panel(
@@ -384,10 +430,7 @@ impl CrosshairApp {
                 .stroke(stroke)
                 .inner_margin(egui::Margin::symmetric(10, 8))
                 .show(ui, |ui| {
-                    ui.horizontal(|ui| {
-                        ui.label(Self::material_icon_text(0xe8f4, 16.0).color(Color32::from_rgb(124, 240, 164)));
-                        ui.label(RichText::new(&preview.title).strong());
-                    });
+                    ui.label(RichText::new(&preview.title).strong());
                     ui.add_space(4.0);
                     match &preview.kind {
                         MacroStepHoverPreviewKind::MacroPreset {
@@ -441,52 +484,80 @@ impl CrosshairApp {
                                 ui.label(RichText::new(preset_name).strong().color(Color32::from_rgb(124, 240, 164)));
                             });
                             ui.add_space(6.0);
-                            ui.horizontal(|ui| {
-                                let canvas_size = vec2(170.0, 98.0);
-                                let (rect, _) = ui.allocate_exact_size(canvas_size, Sense::hover());
-                                ui.painter().rect_filled(rect, 8.0, Color32::from_rgba_unmultiplied(14, 18, 16, 255));
+                            let (_, preview_rect, scale) = Self::render_hover_preview_screen_canvas(ui, 360.0);
+                            let colors = Self::image_search_target_colors(preset);
+                            let mut swatch_pos = preview_rect.left_top() + vec2(10.0, 10.0);
+                            for color in colors.iter().take(6) {
+                                let swatch = egui::Rect::from_min_size(swatch_pos, vec2(14.0, 14.0));
+                                ui.painter().rect_filled(swatch, 3.0, Self::rgba_to_color32(*color));
                                 ui.painter().rect_stroke(
-                                    rect,
-                                    8.0,
-                                    egui::Stroke::new(1.0, Color32::from_rgb(72, 108, 82)),
+                                    swatch,
+                                    3.0,
+                                    egui::Stroke::new(1.0, Color32::BLACK),
                                     egui::StrokeKind::Outside,
                                 );
-                                let inner = rect.shrink(10.0);
-                                let target_rect = if let (Some(x), Some(y), Some(w), Some(h)) = (
-                                    preset.search_region_screen_x,
-                                    preset.search_region_screen_y,
-                                    preset.search_region_width,
-                                    preset.search_region_height,
-                                ) {
-                                    let sx = inner.width() / 320.0;
-                                    let sy = inner.height() / 180.0;
-                                    egui::Rect::from_min_size(
-                                        egui::pos2(inner.left() + (x.max(0) as f32 * sx), inner.top() + (y.max(0) as f32 * sy)),
-                                        vec2((w.max(1) as f32 * sx).max(16.0), (h.max(1) as f32 * sy).max(16.0)),
-                                    )
+                                swatch_pos.x += 18.0;
+                            }
+                            let region_rect = if let (Some(x), Some(y), Some(w), Some(h)) = (
+                                preset.search_region_screen_x,
+                                preset.search_region_screen_y,
+                                preset.search_region_width,
+                                preset.search_region_height,
+                            ) {
+                                egui::Rect::from_min_size(
+                                    egui::pos2(
+                                        preview_rect.left() + (x.max(0) as f32 * scale),
+                                        preview_rect.top() + (y.max(0) as f32 * scale),
+                                    ),
+                                    vec2(
+                                        (w.max(1) as f32 * scale).max(10.0),
+                                        (h.max(1) as f32 * scale).max(10.0),
+                                    ),
+                                )
+                            } else {
+                                preview_rect.shrink2(vec2(preview_rect.width() * 0.18, preview_rect.height() * 0.18))
+                            };
+                            let region_fill = if preset.show_search_region_overlay {
+                                Color32::from_rgba_unmultiplied(0, 255, 170, 28)
+                            } else {
+                                Color32::TRANSPARENT
+                            };
+                            if region_fill != Color32::TRANSPARENT {
+                                if preset.search_region_is_circle {
+                                    let radius = 0.5 * region_rect.width().min(region_rect.height());
+                                    ui.painter().circle_filled(region_rect.center(), radius, region_fill);
                                 } else {
-                                    inner.shrink2(vec2(8.0, 8.0))
-                                };
+                                    ui.painter().rect_filled(region_rect, 6.0, region_fill);
+                                }
+                            }
+                            if preset.search_region_is_circle {
+                                let radius = 0.5 * region_rect.width().min(region_rect.height());
+                                ui.painter().circle_stroke(
+                                    region_rect.center(),
+                                    radius,
+                                    egui::Stroke::new(2.0, Color32::from_rgb(0, 255, 170)),
+                                );
+                            } else {
                                 ui.painter().rect_stroke(
-                                    target_rect,
+                                    region_rect,
                                     6.0,
                                     egui::Stroke::new(2.0, Color32::from_rgb(0, 255, 170)),
                                     egui::StrokeKind::Outside,
                                 );
-                                if let Some(color) = preset.target_color {
-                                    let swatch = egui::Rect::from_min_size(
-                                        target_rect.left_top() + vec2(6.0, 6.0),
-                                        vec2(14.0, 14.0),
-                                    );
-                                    ui.painter().rect_filled(swatch, 3.0, Self::rgba_to_color32(color));
-                                    ui.painter().rect_stroke(
-                                        swatch,
-                                        3.0,
-                                        egui::Stroke::new(1.0, Color32::BLACK),
-                                        egui::StrokeKind::Outside,
-                                    );
-                                }
-                            });
+                            }
+                            if let Some(color) = preset.target_color {
+                                let swatch = egui::Rect::from_min_size(
+                                    region_rect.left_top() + vec2(6.0, 6.0),
+                                    vec2(14.0, 14.0),
+                                );
+                                ui.painter().rect_filled(swatch, 3.0, Self::rgba_to_color32(color));
+                                ui.painter().rect_stroke(
+                                    swatch,
+                                    3.0,
+                                    egui::Stroke::new(1.0, Color32::BLACK),
+                                    egui::StrokeKind::Outside,
+                                );
+                            }
                             ui.add_space(6.0);
                             ui.label(format!(
                                 "{} {}",
@@ -544,30 +615,17 @@ impl CrosshairApp {
                                 ));
                             });
                             ui.add_space(6.0);
-                            let (rect, _) = ui.allocate_exact_size(vec2(ui.available_width().min(460.0), 82.0), Sense::hover());
-                            ui.painter().rect_filled(
-                                rect,
-                                if preset.rounded_background { 10.0 } else { 4.0 },
-                                Self::rgba_to_color32(preset.background_color).linear_multiply(preset.background_opacity.clamp(0.0, 1.0)),
-                            );
-                            ui.painter().rect_stroke(
-                                rect,
-                                if preset.rounded_background { 10.0 } else { 4.0 },
-                                egui::Stroke::new(1.0, Self::rgba_to_color32(preset.text_color)),
-                                egui::StrokeKind::Outside,
-                            );
-                            let sample = crate::overlay::interpolate_variables(text.trim());
-                            let text = if sample.is_empty() {
+                            let mut preview_preset = preset.clone();
+                            let resolved_text = crate::overlay::interpolate_variables(text.trim());
+                            preview_preset.text = if resolved_text.is_empty() {
                                 Self::tr_lang(language, "No text", "Không có text").to_owned()
                             } else {
-                                sample
+                                resolved_text
                             };
-                            ui.painter().text(
-                                rect.center(),
-                                egui::Align2::CENTER_CENTER,
-                                text,
-                                egui::FontId::proportional(preset.font_size.clamp(10.0, 36.0)),
-                                Self::rgba_to_color32(preset.text_color),
+                            Self::render_hud_rect_editor(
+                                ui,
+                                (preview.source_id, "hover-hud-preview"),
+                                &mut preview_preset,
                             );
                             ui.add_space(4.0);
                             ui.label(format!(
@@ -594,23 +652,22 @@ impl CrosshairApp {
                                 }
                             });
                             ui.add_space(6.0);
-                            let (rect, _) = ui.allocate_exact_size(vec2(180.0, 100.0), Sense::hover());
-                            ui.painter().rect_filled(rect, 8.0, Color32::from_rgba_unmultiplied(14, 18, 16, 255));
-                            ui.painter().rect_stroke(
-                                rect,
-                                8.0,
-                                egui::Stroke::new(1.0, Color32::from_rgb(72, 108, 82)),
-                                egui::StrokeKind::Outside,
+                            let (_, preview_rect, scale) = Self::render_hover_preview_screen_canvas(ui, 340.0);
+                            let center = egui::pos2(
+                                preview_rect.left() + style.x_offset as f32 * scale,
+                                preview_rect.top() + style.y_offset as f32 * scale,
                             );
-                            let center = rect.center() + vec2(style.x_offset as f32 * 0.5, style.y_offset as f32 * 0.5);
                             let arm_color = Self::rgba_to_color32(style.color);
                             let outline_color = Self::rgba_to_color32(style.outline_color);
-                            let scale = 0.9_f32.min((rect.width().min(rect.height()) / 80.0).max(0.5));
                             let thickness = (style.thickness.max(1.0) * scale).max(1.0);
                             let gap = style.gap.max(0.0) * scale;
                             let h_len = style.horizontal_length.max(0.0) * scale;
                             let v_len = style.vertical_length.max(0.0) * scale;
-                            let outline = if style.outline_enabled { style.outline_thickness.max(0.0) * scale } else { 0.0 };
+                            let outline = if style.outline_enabled {
+                                style.outline_thickness.max(0.0) * scale
+                            } else {
+                                0.0
+                            };
                             let fill_rect = |painter: &egui::Painter, x: f32, y: f32, w: f32, h: f32, color: Color32| {
                                 painter.rect_filled(
                                     egui::Rect::from_min_size(egui::pos2(x, y), vec2(w, h)),
@@ -711,32 +768,9 @@ impl CrosshairApp {
                                 ui.label(RichText::new(Self::tr_lang(language, "Mouse move target", "Điểm di chuyển chuột")).strong());
                             });
                             ui.add_space(6.0);
-                            let screen = Self::screen_size();
-                            let (rect, _) = ui.allocate_exact_size(vec2(ui.available_width().min(340.0), 118.0), Sense::hover());
-                            ui.painter().rect_filled(rect, 8.0, Color32::from_rgba_unmultiplied(14, 18, 16, 255));
-                            ui.painter().rect_stroke(
-                                rect,
-                                8.0,
-                                egui::Stroke::new(1.0, Color32::from_rgb(72, 108, 82)),
-                                egui::StrokeKind::Outside,
-                            );
-                            let inner = rect.shrink(10.0);
-                            ui.painter().rect_stroke(
-                                inner,
-                                4.0,
-                                egui::Stroke::new(1.2, Color32::from_rgb(124, 240, 164)),
-                                egui::StrokeKind::Outside,
-                            );
-                                let px = if screen.x > 0.0 {
-                                    inner.left() + (*x as f32 / screen.x).clamp(0.0, 1.0) * inner.width()
-                                } else {
-                                    inner.center().x
-                                };
-                                let py = if screen.y > 0.0 {
-                                    inner.top() + (*y as f32 / screen.y).clamp(0.0, 1.0) * inner.height()
-                                } else {
-                                    inner.center().y
-                                };
+                            let (_, preview_rect, scale) = Self::render_hover_preview_screen_canvas(ui, 320.0);
+                            let px = preview_rect.left() + (*x as f32 * scale);
+                            let py = preview_rect.top() + (*y as f32 * scale);
                             ui.painter().circle_filled(egui::pos2(px, py), 4.5, Color32::from_rgb(0, 255, 170));
                             ui.painter().line_segment(
                                 [egui::pos2(px - 8.0, py), egui::pos2(px + 8.0, py)],
@@ -777,22 +811,24 @@ impl CrosshairApp {
                                 }
                             });
                             ui.add_space(6.0);
-                            let (rect, _) = ui.allocate_exact_size(vec2(ui.available_width().min(360.0), 116.0), Sense::hover());
-                            ui.painter().rect_filled(rect, 8.0, Color32::from_rgba_unmultiplied(14, 18, 16, 255));
-                            ui.painter().rect_stroke(
-                                rect,
-                                8.0,
-                                egui::Stroke::new(1.0, Color32::from_rgb(72, 108, 82)),
-                                egui::StrokeKind::Outside,
-                            );
-                            let left = rect.shrink(10.0);
-                            let source_rect = egui::Rect::from_min_size(
-                                left.left_top() + vec2(8.0, 6.0),
-                                vec2((preset.source_width.max(1) as f32).min(left.width() * 0.38), (preset.source_height.max(1) as f32).min(left.height() * 0.7)),
-                            );
+                            let (_, preview_rect, scale) = Self::render_hover_preview_screen_canvas(ui, 320.0);
                             let target_rect = egui::Rect::from_min_size(
-                                egui::pos2(left.center().x + 6.0, left.top() + 18.0),
-                                vec2((preset.width.max(1) as f32).min(left.width() * 0.42), (preset.height.max(1) as f32).min(left.height() * 0.72)),
+                                egui::pos2(
+                                    preview_rect.left() + preset.x.max(0) as f32 * scale,
+                                    preview_rect.top() + preset.y.max(0) as f32 * scale,
+                                ),
+                                vec2(
+                                    preset.width.max(1) as f32 * scale,
+                                    preset.height.max(1) as f32 * scale,
+                                ),
+                            );
+                            let source_preview_size = vec2(
+                                (preset.source_width.max(1) as f32 * scale).min(preview_rect.width() * 0.36),
+                                (preset.source_height.max(1) as f32 * scale).min(preview_rect.height() * 0.36),
+                            );
+                            let source_rect = egui::Rect::from_min_size(
+                                preview_rect.left_top() + vec2(10.0, 10.0),
+                                vec2(source_preview_size.x.max(44.0), source_preview_size.y.max(28.0)),
                             );
                             ui.painter().rect_stroke(
                                 source_rect,
@@ -875,12 +911,12 @@ impl CrosshairApp {
         let estimated_size = match &preview.kind {
             MacroStepHoverPreviewKind::MacroPreset { .. }
             | MacroStepHoverPreviewKind::StepToggle { .. } => vec2(360.0, 180.0),
-            MacroStepHoverPreviewKind::Vision { .. } => vec2(260.0, 220.0),
-            MacroStepHoverPreviewKind::Hud { .. } => vec2(320.0, 170.0),
-            MacroStepHoverPreviewKind::Crosshair { .. } => vec2(260.0, 160.0),
-            MacroStepHoverPreviewKind::MouseMoveAbsolute { .. } => vec2(220.0, 120.0),
-            MacroStepHoverPreviewKind::WindowResize { .. } => vec2(240.0, 160.0),
-            MacroStepHoverPreviewKind::Pin { .. } => vec2(260.0, 150.0),
+            MacroStepHoverPreviewKind::Vision { .. } => vec2(560.0, 440.0),
+            MacroStepHoverPreviewKind::Hud { .. } => vec2(600.0, 520.0),
+            MacroStepHoverPreviewKind::Crosshair { .. } => vec2(560.0, 420.0),
+            MacroStepHoverPreviewKind::MouseMoveAbsolute { .. } => vec2(560.0, 380.0),
+            MacroStepHoverPreviewKind::WindowResize { .. } => vec2(560.0, 440.0),
+            MacroStepHoverPreviewKind::Pin { .. } => vec2(560.0, 420.0),
             MacroStepHoverPreviewKind::FocusWindow { .. } => vec2(240.0, 110.0),
             MacroStepHoverPreviewKind::Generic { .. } => vec2(240.0, 120.0),
         };
@@ -908,8 +944,12 @@ impl CrosshairApp {
                 if scroll_y.abs() > 0.0 {
                     let offset_id = preview.source_id.with("macro-hover-preview-offset");
                     let line_count = match &preview.kind {
-                        MacroStepHoverPreviewKind::MacroPreset { steps, .. } => steps.len() as i32,
-                        MacroStepHoverPreviewKind::StepToggle { steps, .. } => steps.len() as i32,
+                        MacroStepHoverPreviewKind::MacroPreset { steps, .. } => {
+                            Self::macro_step_preview_visible_entries(steps).len() as i32
+                        }
+                        MacroStepHoverPreviewKind::StepToggle { steps, .. } => {
+                            Self::macro_step_preview_visible_entries(steps).len() as i32
+                        }
                         _ => 0,
                     };
                     let visible_lines = 5i32;
@@ -931,23 +971,23 @@ impl CrosshairApp {
         language: UiLanguage,
         source_id: egui::Id,
         step: &MacroStep,
-    ) -> HoverPreviewRequest {
+    ) -> Option<HoverPreviewRequest> {
         match step.action {
-            MacroAction::TriggerMacroPreset => HoverPreviewRequest::MacroPreset {
+            MacroAction::TriggerMacroPreset => Some(HoverPreviewRequest::MacroPreset {
                 source_id,
                 preset_id: step.key.trim().parse::<u32>().ok().unwrap_or(0),
                 mode_label: Self::tr_lang(language, "Trigger macro", "Kích hoạt macro").to_owned(),
-            },
-            MacroAction::EnableMacroPreset => HoverPreviewRequest::MacroPreset {
+            }),
+            MacroAction::EnableMacroPreset => Some(HoverPreviewRequest::MacroPreset {
                 source_id,
                 preset_id: step.key.trim().parse::<u32>().ok().unwrap_or(0),
                 mode_label: Self::tr_lang(language, "Enable macro", "Bật macro").to_owned(),
-            },
-            MacroAction::DisableMacroPreset => HoverPreviewRequest::MacroPreset {
+            }),
+            MacroAction::DisableMacroPreset => Some(HoverPreviewRequest::MacroPreset {
                 source_id,
                 preset_id: step.key.trim().parse::<u32>().ok().unwrap_or(0),
                 mode_label: Self::tr_lang(language, "Disable macro", "Tắt macro").to_owned(),
-            },
+            }),
             MacroAction::EnableStep | MacroAction::DisableStep => {
                 let (preset_id, steps) = {
                     let parts: Vec<&str> = step.key.split('|').collect();
@@ -969,7 +1009,7 @@ impl CrosshairApp {
                         )
                     }
                 };
-                HoverPreviewRequest::StepToggle {
+                Some(HoverPreviewRequest::StepToggle {
                     source_id,
                     preset_id,
                     mode_label: if step.action == MacroAction::EnableStep {
@@ -978,38 +1018,38 @@ impl CrosshairApp {
                         Self::tr_lang(language, "Disable steps", "Tắt step").to_owned()
                     },
                     selected_steps: steps,
-                }
+                })
             }
-            MacroAction::ApplyWindowPreset => HoverPreviewRequest::WindowResize {
+            MacroAction::ApplyWindowPreset => Some(HoverPreviewRequest::WindowResize {
                 source_id,
                 preset_id: step.key.trim().parse::<u32>().ok().unwrap_or(0),
-            },
-            MacroAction::EnableCrosshairProfile => HoverPreviewRequest::Crosshair {
+            }),
+            MacroAction::EnableCrosshairProfile => Some(HoverPreviewRequest::Crosshair {
                 source_id,
                 profile_name: step.key.trim().to_owned(),
                 disabled: false,
-            },
-            MacroAction::DisableCrosshair => HoverPreviewRequest::Crosshair {
+            }),
+            MacroAction::DisableCrosshair => Some(HoverPreviewRequest::Crosshair {
                 source_id,
                 profile_name: step.key.trim().to_owned(),
                 disabled: true,
-            },
-            MacroAction::EnablePinPreset => HoverPreviewRequest::Pin {
+            }),
+            MacroAction::EnablePinPreset => Some(HoverPreviewRequest::Pin {
                 source_id,
                 preset_id: step.key.trim().parse::<u32>().ok().unwrap_or(0),
                 disabled: false,
                 disable_all: false,
-            },
-            MacroAction::DisablePin => HoverPreviewRequest::Pin {
+            }),
+            MacroAction::DisablePin => Some(HoverPreviewRequest::Pin {
                 source_id,
                 preset_id: step.key.trim().parse::<u32>().ok().unwrap_or(0),
                 disabled: true,
                 disable_all: step.lock_mouse_left,
-            },
+            }),
             MacroAction::StartVisionSearch
             | MacroAction::ScanVisionOnce
             | MacroAction::TriggerVisionMove
-            | MacroAction::StopVision => HoverPreviewRequest::Vision {
+            | MacroAction::StopVision => Some(HoverPreviewRequest::Vision {
                 source_id,
                 preset_id: step.key.trim().parse::<u32>().ok().unwrap_or(0),
                 action_label: Self::macro_action_short_label(step.action, language).to_owned(),
@@ -1017,28 +1057,20 @@ impl CrosshairApp {
                 wait_until_found: step.vision_wait_until_found,
                 trigger_macro_enabled: step.vision_trigger_macro_enabled,
                 trigger_macro_preset_id: step.vision_trigger_macro_preset_id,
-            },
-            MacroAction::ShowHud => HoverPreviewRequest::Hud {
+            }),
+            MacroAction::ShowHud => Some(HoverPreviewRequest::Hud {
                 source_id,
                 preset_id: step.key.trim().parse::<u32>().ok().unwrap_or(0),
                 text_override: step.text_override.clone(),
                 duration_override_ms: step.duration_override_ms,
                 timed_override: step.timed_override,
-            },
-            MacroAction::MouseMoveAbsolute => HoverPreviewRequest::MouseMoveAbsolute {
+            }),
+            MacroAction::MouseMoveAbsolute => Some(HoverPreviewRequest::MouseMoveAbsolute {
                 source_id,
                 x: step.x,
                 y: step.y,
-            },
-            MacroAction::FocusWindowPreset => HoverPreviewRequest::FocusWindow {
-                source_id,
-                window_title: step.key.clone(),
-            },
-            _ => HoverPreviewRequest::Generic {
-                source_id,
-                title: Self::macro_action_short_label(step.action, language).to_owned(),
-                lines: vec![Self::macro_step_preview_summary_line(step, language)],
-            },
+            }),
+            _ => None,
         }
     }
 
@@ -3586,7 +3618,17 @@ impl CrosshairApp {
                         .state
                         .macro_groups
                         .iter()
-                        .flat_map(|g| g.presets.iter().map(|p| (p.id, p.steps.len() as i32)))
+                        .flat_map(|g| {
+                            g.presets.iter().map(|p| {
+                                (
+                                    p.id,
+                                    p.steps
+                                        .iter()
+                                        .filter(|step| !matches!(step.action, MacroAction::LoopStart | MacroAction::LoopEnd))
+                                        .count() as i32,
+                                )
+                            })
+                        })
                         .collect();
                     let group = &mut self.state.macro_groups[group_index];
                     let should_scroll_to_group = pending_macro_group_scroll_target == Some(group.id);
@@ -4599,10 +4641,16 @@ impl CrosshairApp {
                                                 ui.ctx().data_mut(|data| {
                                                     data.insert_temp(
                                                         hover_preview_state_id,
-                                                        Some((group.id, hover_request.clone(), hover_anchor_pos)),
+                                                        hover_request
+                                                            .as_ref()
+                                                            .map(|request| (group.id, request.clone(), hover_anchor_pos)),
                                                     )
                                                 });
-                                                hover_preview_request = Some((group.id, hover_request));
+                                                if let Some(hover_request) = hover_request {
+                                                    hover_preview_request = Some((group.id, hover_request));
+                                                } else {
+                                                    hover_preview_request = None;
+                                                }
                                             }
                                             let action_uses_key = Self::macro_action_uses_key(step.action);
                                             let action_supports_capture =
@@ -9194,46 +9242,52 @@ impl CrosshairApp {
                                     ui.ctx().data_mut(|data| {
                                         data.insert_temp(
                                             hover_preview_state_id,
-                                            Some((group.id, hover_request.clone(), hover_anchor_pos)),
+                                            hover_request
+                                                .as_ref()
+                                                .map(|request| (group.id, request.clone(), hover_anchor_pos)),
                                         )
                                     });
-                                    if matches!(
-                                        &hover_request,
-                                        HoverPreviewRequest::MacroPreset { .. }
-                                            | HoverPreviewRequest::StepToggle { .. }
-                                    ) {
-                                        let scroll_y = ui.ctx().input(|i| i.raw_scroll_delta.y);
-                                        if scroll_y.abs() > 0.0 {
-                                            let source_id = match &hover_request {
-                                                HoverPreviewRequest::MacroPreset { source_id, .. }
-                                                | HoverPreviewRequest::StepToggle { source_id, .. } => *source_id,
-                                                _ => hover_preview_source_id,
-                                            };
-                                            let offset_id = source_id.with("macro-hover-preview-offset");
-                                            let line_count = match &hover_request {
-                                                HoverPreviewRequest::MacroPreset { preset_id, .. }
-                                                | HoverPreviewRequest::StepToggle { preset_id, .. } => {
-                                                    all_preset_step_counts
-                                                        .iter()
-                                                        .find(|(id, _)| *id == *preset_id)
-                                                        .map(|(_, count)| *count)
-                                                        .unwrap_or(0)
-                                                }
-                                                _ => 0,
-                                            };
-                                            let visible_lines = 5i32;
-                                            let max_offset = (line_count - visible_lines).max(0);
-                                            let mut offset = ui
-                                                .ctx()
-                                                .data(|data| data.get_temp::<i32>(offset_id))
-                                                .unwrap_or(0);
-                                            let delta = if scroll_y > 0.0 { -1 } else { 1 };
-                                            offset = (offset + delta).clamp(0, max_offset);
-                                            ui.ctx().data_mut(|data| data.insert_temp(offset_id, offset));
-                                            ui.ctx().request_repaint();
+                                    if let Some(hover_request) = hover_request {
+                                        if matches!(
+                                            &hover_request,
+                                            HoverPreviewRequest::MacroPreset { .. }
+                                                | HoverPreviewRequest::StepToggle { .. }
+                                        ) {
+                                            let scroll_y = ui.ctx().input(|i| i.raw_scroll_delta.y);
+                                            if scroll_y.abs() > 0.0 {
+                                                let source_id = match &hover_request {
+                                                    HoverPreviewRequest::MacroPreset { source_id, .. }
+                                                    | HoverPreviewRequest::StepToggle { source_id, .. } => *source_id,
+                                                    _ => hover_preview_source_id,
+                                                };
+                                                let offset_id = source_id.with("macro-hover-preview-offset");
+                                                let line_count = match &hover_request {
+                                                    HoverPreviewRequest::MacroPreset { preset_id, .. }
+                                                    | HoverPreviewRequest::StepToggle { preset_id, .. } => {
+                                                        all_preset_step_counts
+                                                            .iter()
+                                                            .find(|(id, _)| *id == *preset_id)
+                                                            .map(|(_, count)| *count)
+                                                            .unwrap_or(0)
+                                                    }
+                                                    _ => 0,
+                                                };
+                                                let visible_lines = 5i32;
+                                                let max_offset = (line_count - visible_lines).max(0);
+                                                let mut offset = ui
+                                                    .ctx()
+                                                    .data(|data| data.get_temp::<i32>(offset_id))
+                                                    .unwrap_or(0);
+                                                let delta = if scroll_y > 0.0 { -1 } else { 1 };
+                                                offset = (offset + delta).clamp(0, max_offset);
+                                                ui.ctx().data_mut(|data| data.insert_temp(offset_id, offset));
+                                                ui.ctx().request_repaint();
+                                            }
                                         }
+                                        hover_preview_request = Some((group.id, hover_request));
+                                    } else {
+                                        hover_preview_request = None;
                                     }
-                                    hover_preview_request = Some((group.id, hover_request));
                                 }
                                 step_rects[step_index] = row_response.rect;
                             }
