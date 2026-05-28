@@ -70,7 +70,12 @@ mod windows_overlay {
                     SetBkMode, SetTextColor, SetWindowRgn, SRCCOPY, StretchDIBits, TRANSPARENT,
                 },
             },
+            Media::Audio::{
+                Endpoints::IAudioEndpointVolume, IMMDeviceEnumerator, MMDeviceEnumerator,
+                eConsole, eRender,
+            },
             System::{
+                Com::{CLSCTX_ALL, COINIT_MULTITHREADED, CoCreateInstance, CoInitializeEx, CoUninitialize},
                 LibraryLoader::GetModuleHandleW,
                 Threading::{
                     CREATE_NO_WINDOW, GetCurrentProcessId,
@@ -2892,6 +2897,25 @@ mod windows_overlay {
             .context("Failed to read mouse speed")?;
         }
         Ok(speed.clamp(1, 20))
+    }
+
+    fn current_system_volume_percent() -> Option<i32> {
+        let need_uninit = unsafe { CoInitializeEx(None, COINIT_MULTITHREADED).is_ok() };
+        let result = unsafe {
+            let enumerator: IMMDeviceEnumerator =
+                CoCreateInstance(&MMDeviceEnumerator, None, CLSCTX_ALL).ok()?;
+            let device = enumerator
+                .GetDefaultAudioEndpoint(eRender, eConsole)
+                .ok()?;
+            let endpoint: IAudioEndpointVolume =
+                device.Activate(CLSCTX_ALL, None).ok()?;
+            let volume = endpoint.GetMasterVolumeLevelScalar().ok()?;
+            Some((volume.clamp(0.0, 1.0) * 100.0).round() as i32)
+        };
+        if need_uninit {
+            unsafe { CoUninitialize(); }
+        }
+        result
     }
 
     fn set_mouse_speed(speed: u32) -> Result<()> {
@@ -6859,6 +6883,14 @@ fn get_object_property_value(token: &str) -> Option<i32> {
     let obj_name = parts[0].trim().to_lowercase();
     let prop_name = parts[1].trim().to_lowercase();
 
+    if obj_name == "screen" {
+        return match prop_name.as_str() {
+            "width" | "w" => Some(unsafe { GetSystemMetrics(SM_CXSCREEN) }.max(0)),
+            "height" | "h" => Some(unsafe { GetSystemMetrics(SM_CYSCREEN) }.max(0)),
+            _ => None,
+        };
+    }
+
     if obj_name == "mouse" {
         let mut point = POINT::default();
         unsafe {
@@ -6869,6 +6901,29 @@ fn get_object_property_value(token: &str) -> Option<i32> {
         return match prop_name.as_str() {
             "x" => Some(point.x),
             "y" => Some(point.y),
+            "sensitivity" => current_mouse_speed().ok().map(|speed| speed as i32),
+            _ => None,
+        };
+    }
+
+    if obj_name == "volume" {
+        return match prop_name.as_str() {
+            "level" | "percent" | "value" => current_system_volume_percent(),
+            _ => None,
+        };
+    }
+
+    if obj_name == "system" {
+        use chrono::{Datelike, Timelike};
+        let now = chrono::Local::now();
+        return match prop_name.as_str() {
+            "year" => Some(now.year() as i32),
+            "month" => Some(now.month() as i32),
+            "day" => Some(now.day() as i32),
+            "hour" => Some(now.hour() as i32),
+            "minute" => Some(now.minute() as i32),
+            "second" => Some(now.second() as i32),
+            "millisecond" | "ms" => Some((now.nanosecond() / 1_000_000) as i32),
             _ => None,
         };
     }
@@ -6956,6 +7011,15 @@ fn get_object_property_text_value(token: &str) -> Option<String> {
     }
     let obj_name = parts[0].trim().to_lowercase();
     let prop_name = parts[1].trim().to_lowercase();
+
+    if obj_name == "system" {
+        let now = chrono::Local::now();
+        return match prop_name.as_str() {
+            "date" => Some(now.format("%Y-%m-%d").to_string()),
+            "time" => Some(now.format("%H:%M:%S").to_string()),
+            _ => None,
+        };
+    }
 
     if obj_name == "window" && prop_name == "title" {
         let hwnd = unsafe { GetForegroundWindow() };

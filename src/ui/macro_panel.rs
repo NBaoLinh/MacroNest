@@ -8425,18 +8425,34 @@ Example: {100 + (A - B) * 2}",
     }
     fn builtin_variable_suggestions() -> &'static [&'static str] {
         &[
+            "System.Date",
+            "System.Time",
+            "System.Year",
+            "System.Month",
+            "System.Day",
+            "System.Hour",
+            "System.Minute",
+            "System.Second",
+            "System.Millisecond",
+            "Screen.Width",
+            "Screen.Height",
             "Mouse.X",
             "Mouse.Y",
+            "Mouse.Sensitivity",
             "Window.Title",
             "Window.Width",
             "Window.Height",
+            "Volume.Level",
             "Clipboard.Text",
         ]
     }
     fn object_property_suggestions(base: &str) -> Option<&'static [&'static str]> {
         match base.to_ascii_lowercase().as_str() {
+            "system" => Some(&["date", "time", "year", "month", "day", "hour", "minute", "second", "millisecond"]),
             s if s.starts_with("timer") => Some(&["hour", "minute", "second", "millisecond", "ms", "raw", "total_sec"]),
-            "mouse" => Some(&["x", "y"]),
+            "screen" => Some(&["width", "height"]),
+            "mouse" => Some(&["x", "y", "sensitivity"]),
+            "volume" => Some(&["level"]),
             "window" => Some(&["title", "width", "height"]),
             "clipboard" => Some(&["text"]),
             _ => None,
