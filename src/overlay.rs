@@ -298,8 +298,12 @@ mod windows_overlay {
                 }
                 if found_close {
                     let var_trimmed = var_name.trim();
-                    let val = evaluate_math_expression(var_trimmed);
-                    result.push_str(&val.to_string());
+                    if let Some(text_val) = resolve_text_variable_value(var_trimmed) {
+                        result.push_str(&text_val);
+                    } else {
+                        let val = evaluate_math_expression(var_trimmed);
+                        result.push_str(&val.to_string());
+                    }
                 } else {
                     result.push('{');
                     result.push_str(&var_name);
@@ -6855,6 +6859,38 @@ fn get_object_property_value(token: &str) -> Option<i32> {
     let obj_name = parts[0].trim().to_lowercase();
     let prop_name = parts[1].trim().to_lowercase();
 
+    if obj_name == "mouse" {
+        let mut point = POINT::default();
+        unsafe {
+            if GetCursorPos(&mut point).is_err() {
+                return Some(0);
+            }
+        }
+        return match prop_name.as_str() {
+            "x" => Some(point.x),
+            "y" => Some(point.y),
+            _ => None,
+        };
+    }
+
+    if obj_name == "window" {
+        let hwnd = unsafe { GetForegroundWindow() };
+        if hwnd.0.is_null() {
+            return Some(0);
+        }
+        let mut rect = RECT::default();
+        unsafe {
+            if GetWindowRect(hwnd, &mut rect).is_err() {
+                return Some(0);
+            }
+        }
+        return match prop_name.as_str() {
+            "width" | "w" => Some((rect.right - rect.left).max(0)),
+            "height" | "h" => Some((rect.bottom - rect.top).max(0)),
+            _ => None,
+        };
+    }
+
     let hook_state = HOOK_STATE.lock();
     let timer_preset = hook_state
         .timer_presets
@@ -6895,6 +6931,54 @@ fn get_object_property_value(token: &str) -> Option<i32> {
         return Some(val);
     }
     None
+}
+
+fn get_object_property_text_value(token: &str) -> Option<String> {
+    if !token.contains('.') {
+        return None;
+    }
+    let parts: Vec<&str> = token.split('.').collect();
+    if parts.len() != 2 {
+        return None;
+    }
+    let obj_name = parts[0].trim().to_lowercase();
+    let prop_name = parts[1].trim().to_lowercase();
+
+    if obj_name == "window" && prop_name == "title" {
+        let hwnd = unsafe { GetForegroundWindow() };
+        if hwnd.0.is_null() {
+            return Some(String::new());
+        }
+        return unsafe { window_title(hwnd) }.or_else(|| Some(String::new()));
+    }
+
+    if obj_name == "clipboard" && prop_name == "text" {
+        let text = arboard::Clipboard::new()
+            .ok()
+            .and_then(|mut clipboard| clipboard.get_text().ok())
+            .unwrap_or_default();
+        return Some(text);
+    }
+
+    None
+}
+
+fn resolve_text_variable_value(token: &str) -> Option<String> {
+    let trimmed = token.trim();
+    if trimmed.is_empty() {
+        return None;
+    }
+
+    if let Some(text) = get_object_property_text_value(trimmed) {
+        return Some(text);
+    }
+
+    if let Some(value) = get_object_property_value(trimmed) {
+        return Some(value.to_string());
+    }
+
+    let vars = RUNTIME_VARIABLES.lock();
+    vars.get(trimmed).map(|v| v.to_string())
 }
 
 fn set_variable_value(target_var: &str, value: i32) {
@@ -8979,20 +9063,10 @@ fn set_variable_value(target_var: &str, value: i32) {
                 }
                 if found_close {
                     let trimmed = var_name.trim();
-                    let val = {
-                        let vars = RUNTIME_VARIABLES.lock();
-                        vars.get(trimmed).cloned()
-                    };
-                    if let Some(v) = val {
-                        result.push_str(&v.to_string());
+                    if let Some(text_val) = resolve_text_variable_value(trimmed) {
+                        result.push_str(&text_val);
                     } else {
-                        if !trimmed.is_empty() {
-                            result.push_str("0");
-                        } else {
-                            result.push('{');
-                            result.push_str(&var_name);
-                            result.push('}');
-                        }
+                        result.push_str("0");
                     }
                 } else {
                     result.push('{');

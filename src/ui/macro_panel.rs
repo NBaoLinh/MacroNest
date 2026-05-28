@@ -698,6 +698,9 @@ impl CrosshairApp {
         for name in &timer_names {
             suggestion_names.insert(name.clone());
         }
+        for name in Self::builtin_variable_suggestions() {
+            suggestion_names.insert(name.to_string());
+        }
         for name in self.collect_all_macro_referenced_variables() {
             suggestion_names.insert(name);
         }
@@ -8418,6 +8421,42 @@ Example: {100 + (A - B) * 2}",
             format!("{} - {}", trimmed, -delta)
         }
     }
+    fn builtin_variable_suggestions() -> &'static [&'static str] {
+        &[
+            "Mouse.X",
+            "Mouse.Y",
+            "Window.Title",
+            "Window.Width",
+            "Window.Height",
+            "Clipboard.Text",
+        ]
+    }
+    fn object_property_suggestions(base: &str) -> Option<&'static [&'static str]> {
+        match base.to_ascii_lowercase().as_str() {
+            "timer" => Some(&["hour", "minute", "second", "millisecond", "ms", "raw", "total_sec"]),
+            "mouse" => Some(&["x", "y"]),
+            "window" => Some(&["title", "width", "height"]),
+            "clipboard" => Some(&["text"]),
+            _ => None,
+        }
+    }
+    fn timer_suggestion_label(suggestion: &str, timer_names: &[String]) -> String {
+        let normalized = |s: &str| s.replace(" ", "").to_lowercase();
+        if let Some((base, prop)) = suggestion.split_once('.') {
+            if let Some(timer_name) = timer_names
+                .iter()
+                .find(|name| normalized(name) == normalized(base))
+            {
+                return format!("{}.{} ({})", base, prop, timer_name);
+            }
+        } else if let Some(timer_name) = timer_names
+            .iter()
+            .find(|name| normalized(name) == normalized(suggestion))
+        {
+            return format!("{} ({})", suggestion, timer_name);
+        }
+        suggestion.to_string()
+    }
     fn render_variable_suggestions(
         ui: &mut egui::Ui,
         response: &egui::Response,
@@ -8477,13 +8516,16 @@ Example: {100 + (A - B) * 2}",
                 name.replace(" ", "").to_lowercase() == obj_part
             });
 
-            if timer_exists {
-                let props = vec!["hour", "minute", "second", "millisecond", "ms", "raw", "total_sec"];
-                for prop in props {
-                    let full_prop = format!("{}.{}", parts[0], prop);
-                    if prop.starts_with(&prop_part) && full_prop.to_lowercase() != last_word_trimmed.to_lowercase() {
-                        suggestions.push(full_prop);
-                    }
+            let props: Vec<&str> = if timer_exists {
+                vec!["hour", "minute", "second", "millisecond", "ms", "raw", "total_sec"]
+            } else {
+                Self::object_property_suggestions(&parts[0]).map_or_else(Vec::new, |props| props.to_vec())
+            };
+
+            for prop in props {
+                let full_prop = format!("{}.{}", parts[0], prop);
+                if prop.starts_with(&prop_part) && full_prop.to_lowercase() != last_word_trimmed.to_lowercase() {
+                    suggestions.push(full_prop);
                 }
             }
         } else {
@@ -8588,7 +8630,8 @@ Example: {100 + (A - B) * 2}",
                             ui.vertical(|ui| {
                                 for (idx, sug) in suggestions.iter().enumerate() {
                                     let is_selected = idx == selected_index;
-                                    let mut resp = ui.selectable_label(is_selected, sug);
+                                    let label = Self::timer_suggestion_label(sug, timer_names);
+                                    let mut resp = ui.selectable_label(is_selected, label);
                                     if is_selected {
                                         resp.scroll_to_me(None);
                                     }
@@ -8677,13 +8720,16 @@ Example: {100 + (A - B) * 2}",
                 name.replace(" ", "").to_lowercase() == obj_part
             });
 
-            if timer_exists {
-                let props = vec!["hour", "minute", "second", "millisecond", "ms", "raw", "total_sec"];
-                for prop in props {
-                    let full_prop = format!("{}.{}", parts[0], prop);
-                    if prop.starts_with(&prop_part) && full_prop.to_lowercase() != last_word.to_lowercase() {
-                        suggestions.push(full_prop);
-                    }
+            let props: Vec<&str> = if timer_exists {
+                vec!["hour", "minute", "second", "millisecond", "ms", "raw", "total_sec"]
+            } else {
+                Self::object_property_suggestions(&parts[0]).map_or_else(Vec::new, |props| props.to_vec())
+            };
+
+            for prop in props {
+                let full_prop = format!("{}.{}", parts[0], prop);
+                if prop.starts_with(&prop_part) && full_prop.to_lowercase() != last_word.to_lowercase() {
+                    suggestions.push(full_prop);
                 }
             }
         } else {
@@ -8788,7 +8834,8 @@ Example: {100 + (A - B) * 2}",
                             ui.vertical(|ui| {
                                 for (idx, sug) in suggestions.iter().enumerate() {
                                     let is_selected = idx == selected_index;
-                                    let mut resp = ui.selectable_label(is_selected, sug);
+                                    let label = Self::timer_suggestion_label(sug, timer_names);
+                                    let mut resp = ui.selectable_label(is_selected, label);
                                     if is_selected {
                                         resp.scroll_to_me(None);
                                     }
