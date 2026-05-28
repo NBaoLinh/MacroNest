@@ -2763,10 +2763,7 @@ impl CrosshairApp {
                     {
                         self.variable_inspector_open = !self.variable_inspector_open;
                     }
-                    if self.variable_inspector_open {
-                        ui.add_space(4.0);
-                        Self::render_expression_help_box(ui, language);
-                    }
+
                 });
             });
             if ui
@@ -2855,6 +2852,7 @@ impl CrosshairApp {
                 }
             }
             ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
+                ui.add_space(8.0);
                 let response = ui.add_sized(
                     [260.0, 24.0],
                     TextEdit::singleline(&mut self.macro_preset_search_query).hint_text(
@@ -4309,7 +4307,7 @@ impl CrosshairApp {
                                                         RichText::new(format!("{} = {}", var_name, val_str))
                                                             .size(11.0)
                                                             .strong()
-                                                            .color(if val.is_some() { Color32::from_rgb(0, 191, 255) } else { Color32::from_rgb(245, 245, 245) })
+                                                            .color(Color32::WHITE)
                                                     );
                                                 });
                                         }
@@ -5422,8 +5420,6 @@ impl CrosshairApp {
                                                                      );
                                                                      live_sync |= response.changed();
                                                                      Self::render_variable_suggestions(ui, &response, &mut step.key, &timer_names, language);
-                                                                 } else {
-                                                                     ui.label(RichText::new(Self::tr_lang(language, "No input", "Không có đầu vào")).weak().italics());
                                                                  }
                                                              });
                                                              if step.get_break_loop_mode() == "VarCompare" {
@@ -8010,8 +8006,6 @@ impl CrosshairApp {
                                                                      );
                                                                      live_sync |= response.changed();
                                                                      Self::render_variable_suggestions(ui, &response, &mut step.key, &timer_names, language);
-                                                                 } else {
-                                                                     ui.label(RichText::new(Self::tr_lang(language, "No input", "Không có đầu vào")).weak().italics());
                                                                  }
                                                              });
                                                              if step.get_break_loop_mode() == "VarCompare" {
@@ -9851,6 +9845,8 @@ impl CrosshairApp {
         let language = self.state.ui_language;
         ui.vertical(|ui| {
             ui.add_space(4.0);
+            Self::render_expression_help_box(ui, language);
+            ui.add_space(6.0);
             // Grid for global constants
             if !self.state.global_constants.is_empty() {
                 egui::ScrollArea::vertical()

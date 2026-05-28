@@ -8285,7 +8285,7 @@ impl eframe::App for CrosshairApp {
             .pivot(egui::Align2::CENTER_CENTER)
             .default_size(egui::vec2(280.0, 180.0))
             .resizable(true)
-            .collapsible(true)
+            .collapsible(false)
             .show(ctx, |ui| {
                 self.render_variable_inspector(ui);
             });
