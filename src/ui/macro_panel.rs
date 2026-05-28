@@ -722,6 +722,8 @@ impl CrosshairApp {
                 if i.consume_key(egui::Modifiers::NONE, egui::Key::Enter) {
                     enter_pressed = true;
                 }
+                let _ = i.consume_key(egui::Modifiers::NONE, egui::Key::ArrowUp);
+                let _ = i.consume_key(egui::Modifiers::NONE, egui::Key::ArrowDown);
             });
         }
         ui.memory_mut(|mem| {
@@ -8460,6 +8462,31 @@ Example: {100 + (A - B) * 2}",
         }
         suggestion.to_string()
     }
+    fn apply_variable_suggestion(
+        ui: &mut egui::Ui,
+        response: &egui::Response,
+        text: &mut String,
+        prefix: &str,
+        chosen: &str,
+        wrap_open: bool,
+        after_cursor: &str,
+    ) {
+        let suffix = if wrap_open && after_cursor.starts_with('}') {
+            &after_cursor['}'.len_utf8()..]
+        } else {
+            after_cursor
+        };
+        let closing = if wrap_open { "}" } else { "" };
+        *text = format!("{}{}{}{}", prefix, chosen, closing, suffix);
+        response.request_focus();
+
+        let char_count = text.chars().count();
+        if let Some(mut state) = egui::widgets::text_edit::TextEditState::load(ui.ctx(), response.id) {
+            let cursor_pos = egui::text::CCursor::new(char_count);
+            state.cursor.set_char_range(Some(egui::text::CCursorRange::two(cursor_pos, cursor_pos)));
+            state.store(ui.ctx(), response.id);
+        }
+    }
     fn render_variable_suggestions(
         ui: &mut egui::Ui,
         response: &egui::Response,
@@ -8619,6 +8646,7 @@ Example: {100 + (A - B) * 2}",
 
         let popup_id = response.id.with("sug_popup");
         let popup_position = response.rect.left_bottom();
+        let mut clicked_choice: Option<String> = None;
         
         let area_res = egui::Area::new(popup_id)
             .order(egui::Order::Foreground)
@@ -8638,15 +8666,7 @@ Example: {100 + (A - B) * 2}",
                                         resp.scroll_to_me(None);
                                     }
                                     if resp.clicked() {
-                                        *text = format!("{}{}", prefix, sug);
-                                        response.request_focus();
-                                        
-                                        let char_count = text.chars().count();
-                                        if let Some(mut state) = egui::widgets::text_edit::TextEditState::load(ui.ctx(), response.id) {
-                                            let cursor_pos = egui::text::CCursor::new(char_count);
-                                            state.cursor.set_char_range(Some(egui::text::CCursorRange::two(cursor_pos, cursor_pos)));
-                                            state.store(ui.ctx(), response.id);
-                                        }
+                                        clicked_choice = Some(sug.clone());
                                     }
                                 }
                             });
@@ -8656,6 +8676,16 @@ Example: {100 + (A - B) * 2}",
                 let rect = frame_res.response.rect;
                 ui.memory_mut(|mem| mem.data.insert_temp(response.id.with("popup_rect"), rect));
             });
+
+        if let Some(chosen) = clicked_choice {
+            Self::apply_variable_suggestion(ui, response, text, &prefix, &chosen, wrap_open, &after_cursor);
+            popup_open = false;
+            ui.memory_mut(|mem| {
+                mem.data.insert_temp(popup_open_key, popup_open);
+                mem.data.insert_temp(egui::Id::new("enter_pressed"), false);
+            });
+            return;
+        }
             
         ui.memory_mut(|mem| {
             mem.data.insert_temp(popup_open_key, popup_open);
@@ -8822,6 +8852,7 @@ Example: {100 + (A - B) * 2}",
 
         let popup_id = response.id.with("sug_popup_raw");
         let popup_position = response.rect.left_bottom();
+        let mut clicked_choice: Option<String> = None;
         
         let area_res = egui::Area::new(popup_id)
             .order(egui::Order::Foreground)
@@ -8841,15 +8872,7 @@ Example: {100 + (A - B) * 2}",
                                         resp.scroll_to_me(None);
                                     }
                                     if resp.clicked() {
-                                        *text = sug.clone();
-                                        response.request_focus();
-                                        
-                                        let char_count = text.chars().count();
-                                        if let Some(mut state) = egui::widgets::text_edit::TextEditState::load(ui.ctx(), response.id) {
-                                            let cursor_pos = egui::text::CCursor::new(char_count);
-                                            state.cursor.set_char_range(Some(egui::text::CCursorRange::two(cursor_pos, cursor_pos)));
-                                            state.store(ui.ctx(), response.id);
-                                        }
+                                        clicked_choice = Some(sug.clone());
                                     }
                                 }
                             });
@@ -8859,6 +8882,16 @@ Example: {100 + (A - B) * 2}",
                 let rect = frame_res.response.rect;
                 ui.memory_mut(|mem| mem.data.insert_temp(response.id.with("popup_rect_raw"), rect));
             });
+
+        if let Some(chosen) = clicked_choice {
+            Self::apply_variable_suggestion(ui, response, text, &prefix, &chosen, wrap_open, &after_cursor);
+            popup_open = false;
+            ui.memory_mut(|mem| {
+                mem.data.insert_temp(popup_open_key, popup_open);
+                mem.data.insert_temp(egui::Id::new("enter_pressed"), false);
+            });
+            return;
+        }
             
         ui.memory_mut(|mem| {
             mem.data.insert_temp(popup_open_key, popup_open);
