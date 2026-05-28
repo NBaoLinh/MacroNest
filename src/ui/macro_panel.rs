@@ -325,11 +325,13 @@ impl CrosshairApp {
             },
         );
         let response = inner.inner;
-        Self::show_instant_hover_tooltip(
-            ui,
-            &response,
-            Self::macro_action_tooltip(base_action, language),
-        );
+        if !open {
+            Self::show_instant_hover_tooltip(
+                ui,
+                &response,
+                Self::macro_action_tooltip(base_action, language),
+            );
+        }
     }
     fn render_if_action_group_option(
         ui: &mut egui::Ui,
@@ -437,11 +439,13 @@ impl CrosshairApp {
             },
         );
         let response = inner.inner;
-        Self::show_instant_hover_tooltip(
-            ui,
-            &response,
-            Self::macro_action_tooltip(MacroAction::IfStart, language),
-        );
+        if !open {
+            Self::show_instant_hover_tooltip(
+                ui,
+                &response,
+                Self::macro_action_tooltip(MacroAction::IfStart, language),
+            );
+        }
     }
     fn render_mouse_action_group_option(
         ui: &mut egui::Ui,
