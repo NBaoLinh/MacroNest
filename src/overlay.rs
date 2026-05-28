@@ -11528,15 +11528,7 @@ fn set_variable_value(target_var: &str, value: i32) {
                     } else {
                         total_ms - elapsed
                     };
-                    let display_ms = if preset.show_ms {
-                        remaining
-                    } else if preset.show_seconds {
-                        ((remaining + 999) / 1000) * 1000
-                    } else if preset.show_minutes {
-                        ((remaining + 59999) / 60000) * 60000
-                    } else {
-                        remaining
-                    };
+                    let display_ms = remaining;
                     format_stopwatch_time(
                         display_ms,
                         preset.show_minutes,
