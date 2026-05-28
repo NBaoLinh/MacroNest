@@ -168,18 +168,10 @@ impl AppPaths {
             preset.collapsed = true;
         }
         state.window_expand_controls.enabled = false;
-        let next_focus_preset_id = state
-            .window_focus_presets
-            .iter()
-            .map(|preset| preset.id)
-            .max()
-            .unwrap_or(0)
-            + 1;
-        if state.next_window_focus_preset_id < next_focus_preset_id {
-            state.next_window_focus_preset_id = next_focus_preset_id;
-        }
-        for preset in &mut state.window_focus_presets {
-            preset.collapsed = true;
+        state.window_focus_presets.clear();
+        state.next_window_focus_preset_id = 1;
+        for preset in &mut state.master_presets {
+            preset.window_focus_presets.clear();
         }
         if state.vision_presets.is_empty() {
             let mut preset = VisionPreset::default();
@@ -463,6 +455,8 @@ impl AppPaths {
 
         if !self.state_file.exists() {
             self.save_state(&state)?;
+        } else {
+            self.save_state(&state)?;
         }
 
         Ok((state, status))
@@ -472,6 +466,10 @@ impl AppPaths {
         let mut state = state.clone();
         state.macro_presets.clear();
         state.profiles.clear();
+        state.window_focus_presets.clear();
+        for preset in &mut state.master_presets {
+            preset.window_focus_presets.clear();
+        }
         let content = serde_json::to_string_pretty(&state)?;
         fs::write(&self.state_file, content)?;
         Ok(())

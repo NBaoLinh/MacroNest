@@ -1240,6 +1240,7 @@ pub struct MasterPreset {
     pub macros_master_enabled: bool,
     pub window_expand_controls_enabled: bool,
     pub window_presets: Vec<MasterWindowPresetState>,
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
     pub window_focus_presets: Vec<MasterWindowFocusPresetState>,
     pub zoom_presets: Vec<MasterZoomPresetState>,
     pub macro_groups: Vec<MasterMacroGroupState>,
@@ -1759,6 +1760,7 @@ pub struct AppState {
     pub window_presets: Vec<WindowPreset>,
     pub next_preset_id: u32,
     pub window_expand_controls: WindowExpandControls,
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
     pub window_focus_presets: Vec<WindowFocusPreset>,
     pub next_window_focus_preset_id: u32,
     pub pin_presets: Vec<PinPreset>,
