@@ -8163,6 +8163,12 @@ impl eframe::App for CrosshairApp {
                     .fill(ctx.style().visuals.panel_fill)
                     .corner_radius(egui::CornerRadius { nw: 0, ne: 0, se: 16, sw: 16 })
                     .inner_margin(ctx.style().spacing.window_margin)
+                    .shadow(egui::Shadow {
+                        offset: [0, 8],
+                        blur: 24,
+                        spread: 0,
+                        color: egui::Color32::from_rgba_premultiplied(0, 0, 0, 80),
+                    })
             )
             .show(ctx, |ui| {
             if self.state.active_panel == AppPanel::Macros || self.state.active_panel == AppPanel::Modes {
