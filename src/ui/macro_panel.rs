@@ -6,6 +6,14 @@ use crate::ui::{
     MacroStepDragPayload, MouseMoveAbsoluteCaptureTarget,
 };
 use eframe::egui::{self, *};
+
+#[derive(Clone, Copy, PartialEq, Eq)]
+enum VariableValueKind {
+    Neutral,
+    Number,
+    Text,
+}
+
 impl CrosshairApp {
     fn loop_is_infinite(step: &MacroStep) -> bool {
         matches!(
@@ -3402,9 +3410,14 @@ impl CrosshairApp {
                                                      if step.action == MacroAction::ScanVisionOnce && is_pixel {
                                                          ui.add_space(4.0);
                                                          ui.horizontal(|ui| {
+                                                             let mut variable_layouter = |ui: &egui::Ui, string: &dyn TextBuffer, wrap_width: f32| {
+                                                                 let job = Self::variable_highlight_job(ui, string.as_str(), wrap_width);
+                                                                 ui.fonts_mut(|fonts| fonts.layout_job(job))
+                                                             };
                                                              let response = ui.add_sized(
                                                                  [100.0, 22.0],
                                                                  TextEdit::singleline(&mut step.if_variable_name)
+                                                                     .layouter(&mut variable_layouter)
                                                                      .hint_text(RichText::new(Self::tr_lang(language, "set variable", "gÃ¡n biáº¿n")).color(hint_color).weak()),
                                                              );
                                                              Self::apply_vietnamese_input_if_changed(
@@ -3421,9 +3434,14 @@ impl CrosshairApp {
                                                     live_sync |= ui.checkbox(&mut step.manual_mouse_sensitivity, Self::tr_lang(language, "Manual", "Nháº­p tay")).changed();
                                                     if step.manual_mouse_sensitivity {
                                                         ui.vertical(|ui| {
+                                                            let mut variable_layouter = |ui: &egui::Ui, string: &dyn TextBuffer, wrap_width: f32| {
+                                                                let job = Self::variable_highlight_job(ui, string.as_str(), wrap_width);
+                                                                ui.fonts_mut(|fonts| fonts.layout_job(job))
+                                                            };
                                                             let response = ui.add_sized(
                                                                 [110.0, 22.0],
                                                                 TextEdit::singleline(&mut step.key)
+                                                                    .layouter(&mut variable_layouter)
                                                                     .hint_text(RichText::new(Self::tr_lang(language, "value/expr", "giÃƒÂ¡ trÃ¡Â»â€¹")).color(hint_color).weak()),
                                                             );
                                                             Self::apply_vietnamese_input_if_changed(
@@ -3650,7 +3668,7 @@ impl CrosshairApp {
                                                       if !infinite {
                                                           ui.vertical(|ui| {
                                                               let key_id = ui.id().with(("hold-stop-loop-count",));
-                                                              let response = Self::render_expandable_text_edit(
+                                                              let response = Self::render_variable_text_edit(
                                                                   ui,
                                                                   &mut step.key,
                                                                   key_id,
@@ -3711,7 +3729,7 @@ impl CrosshairApp {
                                                                  let mode = step.get_break_loop_mode();
                                                                  if mode == "VarCompare" {
                                                                      let var_name_id = ui.id().with("hold-stop-loop-break-var-name");
-                                                                     let response = Self::render_expandable_text_edit(
+                                                                     let response = Self::render_variable_text_edit(
                                                                          ui,
                                                                          &mut step.if_variable_name,
                                                                          var_name_id,
@@ -3742,7 +3760,7 @@ impl CrosshairApp {
                                                                              }
                                                                          });
                                                                      let key_val_id = ui.id().with("hold-stop-loop-break-var-val");
-                                                                     let response2 = Self::render_expandable_text_edit(
+                                                                     let response2 = Self::render_variable_text_edit(
                                                                          ui,
                                                                          &mut step.key,
                                                                          key_val_id,
@@ -3823,7 +3841,7 @@ impl CrosshairApp {
                                                                                  }
                                                                              });
                                                                          let cond_var_id = ui.id().with((extra_idx, "hold-stop-loop-extra-var"));
-                                                                         let response = Self::render_expandable_text_edit(
+                                                                         let response = Self::render_variable_text_edit(
                                                                              ui,
                                                                              &mut cond.variable_name,
                                                                              cond_var_id,
@@ -3853,7 +3871,7 @@ impl CrosshairApp {
                                                                                  }
                                                                              });
                                                                           let cond_expr_id = ui.id().with((extra_idx, "hold-stop-loop-extra-expr"));
-                                                                          let response2 = Self::render_expandable_text_edit(
+                                                                          let response2 = Self::render_variable_text_edit(
                                                                               ui,
                                                                               &mut cond.expression,
                                                                               cond_expr_id,
@@ -3937,7 +3955,7 @@ impl CrosshairApp {
                                                                 }
                                                             });
                                                         let text_id = ui.id().with(("hold-stop-showhud-text-override",));
-                                                        let response = Self::render_expandable_text_edit(
+                                                        let response = Self::render_variable_text_edit(
                                                             ui,
                                                             &mut step.text_override,
                                                             text_id,
@@ -3965,7 +3983,7 @@ impl CrosshairApp {
                                                     });
                                                 } else if step.action == MacroAction::TypeText {
                                                     ui.vertical(|ui| {
-                                                        let response = Self::render_expandable_text_edit(
+                                                        let response = Self::render_variable_text_edit(
                                                             ui,
                                                             &mut step.key,
                                                             ui.id().with("hold-stop-type-text-key"),
@@ -4103,7 +4121,7 @@ impl CrosshairApp {
                                                                    }
                                                                    if step.if_condition_type == IfConditionType::Variable {
                                                                     let var_name_id = ui.id().with("hold-stop-if-var-name");
-                                                                    let response = Self::render_expandable_text_edit(
+                                                                    let response = Self::render_variable_text_edit(
                                                                         ui,
                                                                         &mut step.if_variable_name,
                                                                         var_name_id,
@@ -4134,7 +4152,7 @@ impl CrosshairApp {
                                                                             }
                                                                         });
                                                                     let var_val_id = ui.id().with("hold-stop-if-var-val");
-                                                                    let response2 = Self::render_expandable_text_edit(
+                                                                    let response2 = Self::render_variable_text_edit(
                                                                         ui,
                                                                         &mut step.key,
                                                                         var_val_id,
@@ -4261,9 +4279,14 @@ impl CrosshairApp {
                                                                                    }
                                                                                }
                                                                            });
+                                                                       let mut variable_layouter = |ui: &egui::Ui, string: &dyn TextBuffer, wrap_width: f32| {
+                                                                           let job = Self::variable_highlight_job(ui, string.as_str(), wrap_width);
+                                                                           ui.fonts_mut(|fonts| fonts.layout_job(job))
+                                                                       };
                                                                        let response2 = ui.add_sized(
                                                                             [76.0, 22.0],
                                                                             TextEdit::singleline(&mut step.key)
+                                                                                .layouter(&mut variable_layouter)
                                                                                 .hint_text(RichText::new(Self::tr_lang(language, "value/expr", "giÃƒÂ¡ trÃ¡Â»â€¹/expr")).color(hint_color).weak()),
                                                                         );
                                                                         Self::apply_vietnamese_input_if_changed(
@@ -4336,7 +4359,7 @@ impl CrosshairApp {
                                                                                  }
                                                                              });
                                                                          let cond_var_id = ui.id().with((extra_idx, "hold-stop-extra-if-var"));
-                                                                         let response = Self::render_expandable_text_edit(
+                                                                         let response = Self::render_variable_text_edit(
                                                                              ui,
                                                                              &mut cond.variable_name,
                                                                              cond_var_id,
@@ -4366,7 +4389,7 @@ impl CrosshairApp {
                                                                              }
                                                                          });
                                                                       let cond_expr_id = ui.id().with((extra_idx, "hold-stop-extra-if-expr"));
-                                                                      let response2 = Self::render_expandable_text_edit(
+                                                                      let response2 = Self::render_variable_text_edit(
                                                                           ui,
                                                                           &mut cond.expression,
                                                                           cond_expr_id,
@@ -4412,7 +4435,7 @@ impl CrosshairApp {
                                                         ui.vertical(|ui| {
                                                             ui.horizontal(|ui| {
                                                                   let var_name_id = ui.id().with("hold-stop-set-var-name");
-                                                                  let response = Self::render_expandable_text_edit(
+                                                                  let response = Self::render_variable_text_edit(
                                                                       ui,
                                                                       &mut step.if_variable_name,
                                                                       var_name_id,
@@ -4432,7 +4455,7 @@ impl CrosshairApp {
                                                                   live_sync |= response.changed();
                                                                   ui.label(" = ");
                                                                   let var_val_id = ui.id().with("hold-stop-set-var-val");
-                                                                  let response2 = Self::render_expandable_text_edit(
+                                                                  let response2 = Self::render_variable_text_edit(
                                                                       ui,
                                                                       &mut step.key,
                                                                       var_val_id,
@@ -5272,7 +5295,7 @@ Example: {100 + (A - B) * 2}",
                                             let is_editing = child_ui.memory(|mem| mem.data.get_temp::<bool>(edit_id).unwrap_or(false));
                                             if is_editing {
                                                 let delay_id = child_ui.id().with((step_index, "delay"));
-                                                let response = Self::render_expandable_text_edit(
+                                                let response = Self::render_variable_text_edit(
                                                     &mut child_ui,
                                                     &mut step.delay_expr,
                                                     delay_id,
@@ -6262,7 +6285,7 @@ Example: {100 + (A - B) * 2}",
                                                       if !infinite {
                                                           ui.vertical(|ui| {
                                                               let key_id = ui.id().with((step_index, "loop-count"));
-                                                              let response = Self::render_expandable_text_edit(
+                                                              let response = Self::render_variable_text_edit(
                                                                   ui,
                                                                   &mut step.key,
                                                                   key_id,
@@ -6323,7 +6346,7 @@ Example: {100 + (A - B) * 2}",
                                                                  let mode = step.get_break_loop_mode();
                                                                  if mode == "VarCompare" {
                                                                      let var_name_id = ui.id().with((step_index, "loop-break-var-name"));
-                                                                     let response = Self::render_expandable_text_edit(
+                                                                     let response = Self::render_variable_text_edit(
                                                                          ui,
                                                                          &mut step.if_variable_name,
                                                                          var_name_id,
@@ -6354,7 +6377,7 @@ Example: {100 + (A - B) * 2}",
                                                                              }
                                                                          });
                                                                      let var_val_id = ui.id().with((step_index, "loop-break-var-val"));
-                                                                     let response2 = Self::render_expandable_text_edit(
+                                                                     let response2 = Self::render_variable_text_edit(
                                                                          ui,
                                                                          &mut step.key,
                                                                          var_val_id,
@@ -6428,7 +6451,7 @@ Example: {100 + (A - B) * 2}",
                                                                                  }
                                                                              });
                                                                         let cond_var_id = ui.id().with((step_index, extra_idx, "extra-stop-var"));
-                                                                        let response = Self::render_expandable_text_edit(
+                                                                        let response = Self::render_variable_text_edit(
                                                                             ui,
                                                                             &mut cond.variable_name,
                                                                             cond_var_id,
@@ -6458,7 +6481,7 @@ Example: {100 + (A - B) * 2}",
                                                                                  }
                                                                              });
                                                                           let cond_expr_id = ui.id().with((step_index, extra_idx, "extra-stop-expr"));
-                                                                          let response2 = Self::render_expandable_text_edit(
+                                                                          let response2 = Self::render_variable_text_edit(
                                                                               ui,
                                                                               &mut cond.expression,
                                                                               cond_expr_id,
@@ -6545,7 +6568,7 @@ Example: {100 + (A - B) * 2}",
                                                                 }
                                                             });
                                                         let text_id = ui.id().with((step_index, "showhud-text-override"));
-                                                        let response = Self::render_expandable_text_edit(
+                                                        let response = Self::render_variable_text_edit(
                                                             ui,
                                                             &mut step.text_override,
                                                             text_id,
@@ -6573,7 +6596,7 @@ Example: {100 + (A - B) * 2}",
                                                      });
                                                 } else if step.action == MacroAction::TypeText {
                                                      ui.vertical(|ui| {
-                                                         let response = Self::render_expandable_text_edit(
+                                                         let response = Self::render_variable_text_edit(
                                                              ui,
                                                              &mut step.key,
                                                              ui.id().with((step_index, "type-text-key")),
@@ -6711,7 +6734,7 @@ Example: {100 + (A - B) * 2}",
                                                                    }
                                                                    if step.if_condition_type == IfConditionType::Variable {
                                                                     let var_name_id = ui.id().with((step_index, "regular-if-var-name"));
-                                                                    let response = Self::render_expandable_text_edit(
+                                                                    let response = Self::render_variable_text_edit(
                                                                         ui,
                                                                         &mut step.if_variable_name,
                                                                         var_name_id,
@@ -6742,7 +6765,7 @@ Example: {100 + (A - B) * 2}",
                                                                             }
                                                                         });
                                                                     let var_val_id = ui.id().with((step_index, "regular-if-var-val"));
-                                                                    let response2 = Self::render_expandable_text_edit(
+                                                                    let response2 = Self::render_variable_text_edit(
                                                                         ui,
                                                                         &mut step.key,
                                                                         var_val_id,
@@ -6944,7 +6967,7 @@ Example: {100 + (A - B) * 2}",
                                                                                  }
                                                                              });
                                                                          let cond_var_id = ui.id().with((step_index, extra_idx, "extra-if-var"));
-                                                                         let response = Self::render_expandable_text_edit(
+                                                                         let response = Self::render_variable_text_edit(
                                                                              ui,
                                                                              &mut cond.variable_name,
                                                                              cond_var_id,
@@ -6974,7 +6997,7 @@ Example: {100 + (A - B) * 2}",
                                                                              }
                                                                          });
                                                                       let cond_expr_id = ui.id().with((step_index, extra_idx, "extra-if-expr"));
-                                                                      let response2 = Self::render_expandable_text_edit(
+                                                                      let response2 = Self::render_variable_text_edit(
                                                                           ui,
                                                                           &mut cond.expression,
                                                                           cond_expr_id,
@@ -7020,7 +7043,7 @@ Example: {100 + (A - B) * 2}",
                                                         ui.vertical(|ui| {
                                                             ui.horizontal(|ui| {
                                                                   let var_name_id = ui.id().with((step_index, "regular-set-var-name"));
-                                                                  let response = Self::render_expandable_text_edit(
+                                                                  let response = Self::render_variable_text_edit(
                                                                       ui,
                                                                       &mut step.if_variable_name,
                                                                       var_name_id,
@@ -7040,7 +7063,7 @@ Example: {100 + (A - B) * 2}",
                                                                   live_sync |= response.changed();
                                                                   ui.label(" = ");
                                                                   let var_val_id = ui.id().with((step_index, "regular-set-var-val"));
-                                                                  let response2 = Self::render_expandable_text_edit(
+                                                                  let response2 = Self::render_variable_text_edit(
                                                                       ui,
                                                                       &mut step.key,
                                                                       var_val_id,
@@ -8499,6 +8522,124 @@ Example: {100 + (A - B) * 2}",
         }
         suggestion.to_string()
     }
+    fn variable_value_kind(token: &str) -> VariableValueKind {
+        let trimmed = token.trim().trim_matches(|c| c == '{' || c == '}');
+        if trimmed.is_empty() {
+            return VariableValueKind::Neutral;
+        }
+
+        if let Some((base, prop)) = trimmed.split_once('.') {
+            let base = base.trim().replace(' ', "").to_ascii_lowercase();
+            let prop = prop.trim().to_ascii_lowercase();
+            if base.is_empty() || prop.is_empty() {
+                return VariableValueKind::Neutral;
+            }
+
+            return match base.as_str() {
+                "system" => match prop.as_str() {
+                    "date" | "time" => VariableValueKind::Text,
+                    "year" | "month" | "day" | "hour" | "minute" | "second" | "millisecond" | "ms" => VariableValueKind::Number,
+                    _ => VariableValueKind::Neutral,
+                },
+                "screen" => match prop.as_str() {
+                    "width" | "height" | "w" | "h" => VariableValueKind::Number,
+                    _ => VariableValueKind::Neutral,
+                },
+                "mouse" => match prop.as_str() {
+                    "x" | "y" | "sensitivity" => VariableValueKind::Number,
+                    _ => VariableValueKind::Neutral,
+                },
+                "window" => match prop.as_str() {
+                    "title" => VariableValueKind::Text,
+                    "width" | "height" | "w" | "h" => VariableValueKind::Number,
+                    _ => VariableValueKind::Neutral,
+                },
+                "volume" => match prop.as_str() {
+                    "level" | "percent" | "value" => VariableValueKind::Number,
+                    _ => VariableValueKind::Neutral,
+                },
+                "clipboard" => match prop.as_str() {
+                    "text" => VariableValueKind::Text,
+                    _ => VariableValueKind::Neutral,
+                },
+                s if s.starts_with("timer") => match prop.as_str() {
+                    "hour" | "minute" | "second" | "millisecond" | "ms" | "raw" | "total_sec" => VariableValueKind::Number,
+                    _ => VariableValueKind::Neutral,
+                },
+                _ => VariableValueKind::Neutral,
+            };
+        }
+
+        if Self::builtin_variable_suggestions()
+            .iter()
+            .any(|name| name.eq_ignore_ascii_case(trimmed))
+            || Self::timer_ref_index(trimmed).is_some()
+        {
+            return VariableValueKind::Neutral;
+        }
+
+        VariableValueKind::Number
+    }
+    fn variable_highlight_job(
+        ui: &egui::Ui,
+        text: &str,
+        wrap_width: f32,
+    ) -> egui::text::LayoutJob {
+        let mut job = egui::text::LayoutJob::default();
+        job.wrap.max_width = wrap_width;
+        let font_id = egui::TextStyle::Body.resolve(ui.style());
+        let default_color = ui.visuals().text_color();
+
+        let mut segment_start = 0;
+        let mut chars = text.char_indices().peekable();
+        while let Some((idx, ch)) = chars.next() {
+            let is_token_char = ch.is_ascii_alphanumeric() || ch == '_' || ch == '.';
+            if !is_token_char {
+                continue;
+            }
+
+            if segment_start < idx {
+                job.append(
+                    &text[segment_start..idx],
+                    0.0,
+                    egui::text::TextFormat::simple(font_id.clone(), default_color),
+                );
+            }
+
+            let mut end = idx + ch.len_utf8();
+            while let Some(&(next_idx, next_ch)) = chars.peek() {
+                if next_ch.is_ascii_alphanumeric() || next_ch == '_' || next_ch == '.' {
+                    chars.next();
+                    end = next_idx + next_ch.len_utf8();
+                } else {
+                    break;
+                }
+            }
+
+            let token = &text[idx..end];
+            let color = match Self::variable_value_kind(token) {
+                VariableValueKind::Text => Color32::from_rgb(255, 185, 92),
+                VariableValueKind::Number => Color32::from_rgb(86, 198, 255),
+                VariableValueKind::Neutral => default_color,
+            };
+            job.append(
+                token,
+                0.0,
+                egui::text::TextFormat::simple(font_id.clone(), color),
+            );
+            segment_start = end;
+        }
+
+        if segment_start < text.len() {
+            job.append(
+                &text[segment_start..],
+                0.0,
+                egui::text::TextFormat::simple(font_id, default_color),
+            );
+        }
+
+        job
+    }
     fn apply_variable_suggestion(
         ui: &mut egui::Ui,
         response: &egui::Response,
@@ -8691,7 +8832,15 @@ Example: {100 + (A - B) * 2}",
                                 for (idx, sug) in suggestions.iter().enumerate() {
                                     let is_selected = idx == selected_index;
                                     let label = Self::timer_suggestion_label(sug, timer_names);
-                                    let mut resp = ui.selectable_label(is_selected, label);
+                                    let color = match Self::variable_value_kind(sug) {
+                                        VariableValueKind::Text => Color32::from_rgb(255, 185, 92),
+                                        VariableValueKind::Number => Color32::from_rgb(86, 198, 255),
+                                        VariableValueKind::Neutral => ui.visuals().text_color(),
+                                    };
+                                    let mut resp = ui.selectable_label(
+                                        is_selected,
+                                        RichText::new(label).color(color),
+                                    );
                                     if is_selected && selection_changed {
                                         resp.scroll_to_me(None);
                                     }
@@ -8894,7 +9043,15 @@ Example: {100 + (A - B) * 2}",
                                 for (idx, sug) in suggestions.iter().enumerate() {
                                     let is_selected = idx == selected_index;
                                     let label = Self::timer_suggestion_label(sug, timer_names);
-                                    let mut resp = ui.selectable_label(is_selected, label);
+                                    let color = match Self::variable_value_kind(sug) {
+                                        VariableValueKind::Text => Color32::from_rgb(255, 185, 92),
+                                        VariableValueKind::Number => Color32::from_rgb(86, 198, 255),
+                                        VariableValueKind::Neutral => ui.visuals().text_color(),
+                                    };
+                                    let mut resp = ui.selectable_label(
+                                        is_selected,
+                                        RichText::new(label).color(color),
+                                    );
                                     if is_selected && selection_changed {
                                         resp.scroll_to_me(None);
                                     }
@@ -8926,7 +9083,7 @@ Example: {100 + (A - B) * 2}",
         });
     }
 
-    fn render_expandable_text_edit(
+    fn render_expandable_text_edit_impl(
         ui: &mut egui::Ui,
         text: &mut String,
         id: egui::Id,
@@ -8936,6 +9093,7 @@ Example: {100 + (A - B) * 2}",
         expanded_height: f32,
         hint: &str,
         multiline_on_focus: bool,
+        highlight_variables: bool,
     ) -> egui::Response {
         let focus_key = id.with("expand-focus");
         let has_focus = ui.memory(|mem| mem.data.get_temp::<bool>(focus_key)).unwrap_or(false);
@@ -8985,6 +9143,16 @@ Example: {100 + (A - B) * 2}",
                 .id(id)
         };
 
+        let mut layouter = |ui: &egui::Ui, string: &dyn TextBuffer, wrap_width: f32| {
+            let job = Self::variable_highlight_job(ui, string.as_str(), wrap_width);
+            ui.fonts_mut(|fonts| fonts.layout_job(job))
+        };
+        let text_edit = if highlight_variables {
+            text_edit.layouter(&mut layouter)
+        } else {
+            text_edit
+        };
+
         // Temporarily clear override_text_color so hint/placeholder text is properly dimmed.
         // Preset cards set override_text_color for their content, which bleeds into TextEdit
         // and makes hint text appear at full brightness instead of the dimmed weak_text_color.
@@ -8999,6 +9167,54 @@ Example: {100 + (A - B) * 2}",
         }
 
         response
+    }
+    fn render_expandable_text_edit(
+        ui: &mut egui::Ui,
+        text: &mut String,
+        id: egui::Id,
+        normal_width: f32,
+        expanded_width: f32,
+        normal_height: f32,
+        expanded_height: f32,
+        hint: &str,
+        multiline_on_focus: bool,
+    ) -> egui::Response {
+        Self::render_expandable_text_edit_impl(
+            ui,
+            text,
+            id,
+            normal_width,
+            expanded_width,
+            normal_height,
+            expanded_height,
+            hint,
+            multiline_on_focus,
+            false,
+        )
+    }
+    fn render_variable_text_edit(
+        ui: &mut egui::Ui,
+        text: &mut String,
+        id: egui::Id,
+        normal_width: f32,
+        expanded_width: f32,
+        normal_height: f32,
+        expanded_height: f32,
+        hint: &str,
+        multiline_on_focus: bool,
+    ) -> egui::Response {
+        Self::render_expandable_text_edit_impl(
+            ui,
+            text,
+            id,
+            normal_width,
+            expanded_width,
+            normal_height,
+            expanded_height,
+            hint,
+            multiline_on_focus,
+            true,
+        )
     }
 
     fn render_expandable_command_text_edit(
