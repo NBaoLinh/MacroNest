@@ -27,6 +27,8 @@ impl CrosshairApp {
         current: &mut MacroAction,
         candidate: MacroAction,
         live_sync: &mut bool,
+        action_hover_id: egui::Id,
+        is_submenu_item: bool,
     ) {
         let inner = ui.allocate_ui_with_layout(
             vec2(58.0, 42.0),
@@ -42,6 +44,10 @@ impl CrosshairApp {
                     Button::new(Self::macro_action_icon_text(candidate))
                         .selected(*current == candidate),
                 );
+                if !is_submenu_item && (response.hovered() || response.clicked()) {
+                    ui.ctx()
+                        .data_mut(|data| data.insert_temp(action_hover_id, true));
+                }
                 ui.label(
                     RichText::new(Self::macro_action_short_label(candidate, language))
                         .size(9.0)
@@ -101,6 +107,7 @@ impl CrosshairApp {
         id_source: impl std::hash::Hash + Copy,
         current: &mut MacroAction,
         live_sync: &mut bool,
+        action_hover_id: egui::Id,
     ) {
         let selected = Self::macro_action_is_mouse(*current);
         let owner_id = ui.make_persistent_id("macro-action-submenu-owner");
@@ -110,12 +117,22 @@ impl CrosshairApp {
         let active_owner = ui
             .ctx()
             .data(|data| data.get_temp::<MacroActionSubmenuKind>(owner_id));
+        let top_level_hovered = ui
+            .ctx()
+            .data(|data| data.get_temp::<bool>(action_hover_id))
+            .unwrap_or(false);
         let mut open = ui
             .ctx()
             .data(|data| data.get_temp::<bool>(popup_id))
             .unwrap_or(false);
         if active_owner.is_some_and(|kind| kind != MacroActionSubmenuKind::Mouse) {
             open = false;
+        }
+        if top_level_hovered {
+            open = false;
+            ui.ctx()
+                .data_mut(|data| data.insert_temp(owner_id, None::<MacroActionSubmenuKind>));
+            ui.ctx().request_repaint();
         }
         let inner = ui.allocate_ui_with_layout(
             vec2(58.0, 42.0),
@@ -153,7 +170,13 @@ impl CrosshairApp {
                                     Self::mouse_macro_actions().iter().copied().enumerate()
                                 {
                                     Self::render_macro_action_option(
-                                        ui, language, current, action, live_sync,
+                                        ui,
+                                        language,
+                                        current,
+                                        action,
+                                        live_sync,
+                                        action_hover_id,
+                                        true,
                                     );
                                     if (index + 1) % 8 == 0 {
                                         ui.end_row();
@@ -164,9 +187,9 @@ impl CrosshairApp {
                 let popup_rect: Option<egui::Rect> = ui.ctx().data(|data| data.get_temp(popup_rect_id));
                 if open {
                     if let Some(pointer_pos) = ui.ctx().pointer_hover_pos() {
-                        let mut keep_open_rect = response.rect.expand(12.0);
+                        let mut keep_open_rect = response.rect.expand(2.0);
                         if let Some(rect) = popup_rect {
-                            keep_open_rect = keep_open_rect.union(rect.expand(12.0));
+                            keep_open_rect = keep_open_rect.union(rect.expand(2.0));
                             if rect.contains(pointer_pos) {
                                 ui.ctx().data_mut(|data| {
                                     data.insert_temp(owner_id, MacroActionSubmenuKind::Mouse)
@@ -228,6 +251,7 @@ impl CrosshairApp {
         id_source: impl std::hash::Hash + Copy,
         current: &mut MacroAction,
         live_sync: &mut bool,
+        action_hover_id: egui::Id,
     ) {
         let selected = Self::macro_action_is_image_search(*current);
         let owner_id = ui.make_persistent_id("macro-action-submenu-owner");
@@ -237,12 +261,22 @@ impl CrosshairApp {
         let active_owner = ui
             .ctx()
             .data(|data| data.get_temp::<MacroActionSubmenuKind>(owner_id));
+        let top_level_hovered = ui
+            .ctx()
+            .data(|data| data.get_temp::<bool>(action_hover_id))
+            .unwrap_or(false);
         let mut open = ui
             .ctx()
             .data(|data| data.get_temp::<bool>(popup_id))
             .unwrap_or(false);
         if active_owner.is_some_and(|kind| kind != MacroActionSubmenuKind::ImageSearch) {
             open = false;
+        }
+        if top_level_hovered {
+            open = false;
+            ui.ctx()
+                .data_mut(|data| data.insert_temp(owner_id, None::<MacroActionSubmenuKind>));
+            ui.ctx().request_repaint();
         }
         let inner = ui.allocate_ui_with_layout(
             vec2(58.0, 42.0),
@@ -283,7 +317,13 @@ impl CrosshairApp {
                                     .enumerate()
                                 {
                                     Self::render_macro_action_option(
-                                        ui, language, current, action, live_sync,
+                                        ui,
+                                        language,
+                                        current,
+                                        action,
+                                        live_sync,
+                                        action_hover_id,
+                                        true,
                                     );
                                     if (index + 1) % 3 == 0 {
                                         ui.end_row();
@@ -294,9 +334,9 @@ impl CrosshairApp {
                 let popup_rect: Option<egui::Rect> = ui.ctx().data(|data| data.get_temp(popup_rect_id));
                 if open {
                     if let Some(pointer_pos) = ui.ctx().pointer_hover_pos() {
-                        let mut keep_open_rect = response.rect.expand(12.0);
+                        let mut keep_open_rect = response.rect.expand(2.0);
                         if let Some(rect) = popup_rect {
-                            keep_open_rect = keep_open_rect.union(rect.expand(12.0));
+                            keep_open_rect = keep_open_rect.union(rect.expand(2.0));
                             if rect.contains(pointer_pos) {
                                 ui.ctx().data_mut(|data| {
                                     data.insert_temp(owner_id, MacroActionSubmenuKind::ImageSearch)
@@ -357,6 +397,7 @@ impl CrosshairApp {
         id_source: impl std::hash::Hash + Copy,
         current: &mut MacroAction,
         live_sync: &mut bool,
+        action_hover_id: egui::Id,
     ) {
         let selected = Self::macro_action_is_timer(*current);
         let owner_id = ui.make_persistent_id("macro-action-submenu-owner");
@@ -366,12 +407,22 @@ impl CrosshairApp {
         let active_owner = ui
             .ctx()
             .data(|data| data.get_temp::<MacroActionSubmenuKind>(owner_id));
+        let top_level_hovered = ui
+            .ctx()
+            .data(|data| data.get_temp::<bool>(action_hover_id))
+            .unwrap_or(false);
         let mut open = ui
             .ctx()
             .data(|data| data.get_temp::<bool>(popup_id))
             .unwrap_or(false);
         if active_owner.is_some_and(|kind| kind != MacroActionSubmenuKind::Timer) {
             open = false;
+        }
+        if top_level_hovered {
+            open = false;
+            ui.ctx()
+                .data_mut(|data| data.insert_temp(owner_id, None::<MacroActionSubmenuKind>));
+            ui.ctx().request_repaint();
         }
         let inner = ui.allocate_ui_with_layout(
             vec2(58.0, 42.0),
@@ -409,7 +460,13 @@ impl CrosshairApp {
                                     Self::timer_macro_actions().iter().copied().enumerate()
                                 {
                                     Self::render_macro_action_option(
-                                        ui, language, current, action, live_sync,
+                                        ui,
+                                        language,
+                                        current,
+                                        action,
+                                        live_sync,
+                                        action_hover_id,
+                                        true,
                                     );
                                     if (index + 1) % 3 == 0 {
                                         ui.end_row();
@@ -420,9 +477,9 @@ impl CrosshairApp {
                 let popup_rect: Option<egui::Rect> = ui.ctx().data(|data| data.get_temp(popup_rect_id));
                 if open {
                     if let Some(pointer_pos) = ui.ctx().pointer_hover_pos() {
-                        let mut keep_open_rect = response.rect.expand(12.0);
+                        let mut keep_open_rect = response.rect.expand(2.0);
                         if let Some(rect) = popup_rect {
-                            keep_open_rect = keep_open_rect.union(rect.expand(12.0));
+                            keep_open_rect = keep_open_rect.union(rect.expand(2.0));
                             if rect.contains(pointer_pos) {
                                 ui.ctx().data_mut(|data| {
                                     data.insert_temp(owner_id, MacroActionSubmenuKind::Timer)
@@ -2878,6 +2935,14 @@ impl CrosshairApp {
                                                     ""
                                                 )).changed();
                                                 ui.separator();
+                                                let action_hover_id = ui.make_persistent_id((
+                                                    group.id,
+                                                    preset.id,
+                                                    "hold-stop-action-hover",
+                                                ));
+                                                ui.ctx().data_mut(|data| {
+                                                    data.insert_temp(action_hover_id, false);
+                                                });
                                                 egui::Grid::new((group.id, preset.id, "hold-stop-action-grid"))
                                                     .num_columns(8)
                                                     .spacing([6.0, 6.0])
@@ -2923,6 +2988,8 @@ impl CrosshairApp {
                                                                 &mut step.action,
                                                                 action,
                                                                 &mut live_sync,
+                                                                action_hover_id,
+                                                                false,
                                                             );
                                                             if (index + 1) % 8 == 0 {
                                                                 ui.end_row();
@@ -2934,6 +3001,7 @@ impl CrosshairApp {
                                                             (group.id, preset.id, "hold-stop-mouse-group"),
                                                             &mut step.action,
                                                             &mut live_sync,
+                                                            action_hover_id,
                                                         );
                                                         Self::render_image_search_action_group_option(
                                                             ui,
@@ -2941,13 +3009,15 @@ impl CrosshairApp {
                                                             (group.id, preset.id, "hold-stop-image-search-group"),
                                                             &mut step.action,
                                                             &mut live_sync,
-                                );
+                                                            action_hover_id,
+                                                        );
                                                          Self::render_timer_action_group_option(
                                                              ui,
                                                              language,
                                                              (group.id, preset.id, "hold-stop-timer-group"),
                                                              &mut step.action,
                                                              &mut live_sync,
+                                                             action_hover_id,
                                                          );
                                 });
                             });
@@ -5427,6 +5497,15 @@ Example: {100 + (A - B) * 2}",
                                                         ""
                                                     )).changed();
                                                     ui.separator();
+                                                    let action_hover_id = ui.make_persistent_id((
+                                                        group.id,
+                                                        preset.id,
+                                                        step_index,
+                                                        "action-hover",
+                                                    ));
+                                                    ui.ctx().data_mut(|data| {
+                                                        data.insert_temp(action_hover_id, false);
+                                                    });
                                                     egui::Grid::new((group.id, preset.id, step_index, "action-grid"))
                                                         .num_columns(8)
                                                         .spacing([6.0, 6.0])
@@ -5472,6 +5551,8 @@ Example: {100 + (A - B) * 2}",
                                                                     &mut step.action,
                                                                     action,
                                                                     &mut live_sync,
+                                                                    action_hover_id,
+                                                                    false,
                                                                 );
                                                                 if (index + 1) % 8 == 0 {
                                                                     ui.end_row();
@@ -5483,6 +5564,7 @@ Example: {100 + (A - B) * 2}",
                                                                 (group.id, preset.id, step_index, "mouse-group"),
                                                                 &mut step.action,
                                                                 &mut live_sync,
+                                                                action_hover_id,
                                                             );
                                                             Self::render_image_search_action_group_option(
                                                                 ui,
@@ -5490,6 +5572,7 @@ Example: {100 + (A - B) * 2}",
                                                                 (group.id, preset.id, step_index, "image-search-group"),
                                                                 &mut step.action,
                                                                 &mut live_sync,
+                                                                action_hover_id,
                                                             );
                                                             Self::render_timer_action_group_option(
                                                                 ui,
@@ -5497,6 +5580,7 @@ Example: {100 + (A - B) * 2}",
                                                                 (group.id, preset.id, step_index, "timer-group"),
                                                                 &mut step.action,
                                                                 &mut live_sync,
+                                                                action_hover_id,
                                                             );
                                                         });
                                                 });
