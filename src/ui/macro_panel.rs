@@ -712,22 +712,46 @@ impl CrosshairApp {
         }
         let mut suggestion_names: Vec<String> = suggestion_names.into_iter().collect();
         suggestion_names.sort();
+        let mut writable_suggestion_names = std::collections::HashSet::new();
+        {
+            let vars = crate::overlay::RUNTIME_VARIABLES.lock();
+            for name in vars.keys() {
+                writable_suggestion_names.insert(name.clone());
+            }
+        }
+        for (idx, _name) in timer_names.iter().enumerate() {
+            let timer_ref = format!("Timer{}", idx + 1);
+            for prop in ["hour", "minute", "second", "millisecond", "ms", "raw", "total_sec"] {
+                writable_suggestion_names.insert(format!("{}.{}", timer_ref, prop));
+            }
+        }
+        let mut writable_suggestion_names: Vec<String> = writable_suggestion_names.into_iter().collect();
+        writable_suggestion_names.sort();
         ui.memory_mut(|mem| {
             mem.data.insert_temp(egui::Id::new("macro_variable_suggestion_names"), suggestion_names);
+            mem.data.insert_temp(egui::Id::new("macro_variable_writable_suggestion_names"), writable_suggestion_names);
         });
         let any_popup_open = ui.memory(|mem| mem.data.get_temp::<bool>(egui::Id::new("any_popup_open"))).unwrap_or(false);
         let mut enter_pressed = false;
+        let mut arrow_up_pressed = false;
+        let mut arrow_down_pressed = false;
         if any_popup_open {
             ui.input_mut(|i| {
                 if i.consume_key(egui::Modifiers::NONE, egui::Key::Enter) {
                     enter_pressed = true;
                 }
-                let _ = i.consume_key(egui::Modifiers::NONE, egui::Key::ArrowUp);
-                let _ = i.consume_key(egui::Modifiers::NONE, egui::Key::ArrowDown);
+                if i.consume_key(egui::Modifiers::NONE, egui::Key::ArrowUp) {
+                    arrow_up_pressed = true;
+                }
+                if i.consume_key(egui::Modifiers::NONE, egui::Key::ArrowDown) {
+                    arrow_down_pressed = true;
+                }
             });
         }
         ui.memory_mut(|mem| {
             mem.data.insert_temp(egui::Id::new("enter_pressed"), enter_pressed);
+            mem.data.insert_temp(egui::Id::new("arrow_up_pressed"), arrow_up_pressed);
+            mem.data.insert_temp(egui::Id::new("arrow_down_pressed"), arrow_down_pressed);
             mem.data.insert_temp(egui::Id::new("any_popup_open"), false);
         });
         let active_folder_for_controls = if self.macro_folders_panel_open {
@@ -8511,8 +8535,8 @@ Example: {100 + (A - B) * 2}",
         _language: UiLanguage,
     ) {
         let suggestion_names = ui
-            .memory(|mem| mem.data.get_temp::<Vec<String>>(egui::Id::new("macro_variable_suggestion_names")))
-            .unwrap_or_else(|| timer_names.to_vec());
+            .memory(|mem| mem.data.get_temp::<Vec<String>>(egui::Id::new("macro_variable_writable_suggestion_names")))
+            .unwrap_or_default();
         let cursor_index = match egui::widgets::text_edit::TextEditState::load(ui.ctx(), response.id)
             .and_then(|state| state.cursor.char_range().and_then(|range| range.single().map(|c| c.index)))
         {
@@ -8611,6 +8635,7 @@ Example: {100 + (A - B) * 2}",
 
         let mut selected_index = ui.memory(|mem| mem.data.get_temp::<usize>(response.id)).unwrap_or(0);
         let mut confirm_selected = false;
+        let mut selection_changed = false;
         let sug_count = suggestions.len();
         
         if selected_index >= sug_count {
@@ -8622,15 +8647,16 @@ Example: {100 + (A - B) * 2}",
             if enter_pressed {
                 confirm_selected = true;
             }
-            
-            ui.input(|i| {
-                if i.key_pressed(egui::Key::ArrowDown) {
-                    selected_index = (selected_index + 1) % sug_count;
-                }
-                if i.key_pressed(egui::Key::ArrowUp) {
-                    selected_index = if selected_index == 0 { sug_count - 1 } else { selected_index - 1 };
-                }
-            });
+            let arrow_up_pressed = ui.memory(|mem| mem.data.get_temp::<bool>(egui::Id::new("arrow_up_pressed"))).unwrap_or(false);
+            let arrow_down_pressed = ui.memory(|mem| mem.data.get_temp::<bool>(egui::Id::new("arrow_down_pressed"))).unwrap_or(false);
+            if arrow_down_pressed {
+                selected_index = (selected_index + 1) % sug_count;
+                selection_changed = true;
+            }
+            if arrow_up_pressed {
+                selected_index = if selected_index == 0 { sug_count - 1 } else { selected_index - 1 };
+                selection_changed = true;
+            }
             ui.memory_mut(|mem| mem.data.insert_temp(response.id, selected_index));
         }
 
@@ -8663,6 +8689,7 @@ Example: {100 + (A - B) * 2}",
         let popup_id = response.id.with("sug_popup");
         let popup_position = response.rect.left_bottom();
         let mut clicked_choice: Option<String> = None;
+        let popup_max_height = (ui.ctx().content_rect().bottom() - popup_position.y - 8.0).max(120.0);
         
         let area_res = egui::Area::new(popup_id)
             .order(egui::Order::Foreground)
@@ -8671,14 +8698,14 @@ Example: {100 + (A - B) * 2}",
                 let frame_res = egui::Frame::popup(ui.style()).show(ui, |ui| {
                     ui.set_max_width(200.0);
                     egui::ScrollArea::vertical()
-                        .max_height(150.0)
+                        .max_height(popup_max_height)
                         .show(ui, |ui| {
                             ui.vertical(|ui| {
                                 for (idx, sug) in suggestions.iter().enumerate() {
                                     let is_selected = idx == selected_index;
                                     let label = Self::timer_suggestion_label(sug, timer_names);
                                     let mut resp = ui.selectable_label(is_selected, label);
-                                    if is_selected {
+                                    if is_selected && selection_changed {
                                         resp.scroll_to_me(None);
                                     }
                                     if resp.clicked() {
@@ -8761,22 +8788,13 @@ Example: {100 + (A - B) * 2}",
 
         if last_word.contains('.') {
             let parts: Vec<&str> = last_word.split('.').collect();
-            let obj_part = parts[0].to_lowercase();
-            let prop_part = parts[1].to_lowercase();
-
-            let timer_exists = Self::timer_ref_index(&parts[0]).is_some()
-                || timer_names.iter().any(|name| name.replace(" ", "").to_lowercase() == obj_part);
-
-            let props: Vec<&str> = if timer_exists {
-                vec!["hour", "minute", "second", "millisecond", "ms", "raw", "total_sec"]
-            } else {
-                Self::object_property_suggestions(&parts[0]).map_or_else(Vec::new, |props| props.to_vec())
-            };
-
-            for prop in props {
-                let full_prop = format!("{}.{}", parts[0], prop);
-                if prop.starts_with(&prop_part) && full_prop.to_lowercase() != last_word.to_lowercase() {
-                    suggestions.push(full_prop);
+            let prop_part = parts.get(1).map(|s| s.to_lowercase()).unwrap_or_default();
+            if Self::timer_ref_index(parts[0]).is_some() {
+                for prop in ["hour", "minute", "second", "millisecond", "ms", "raw", "total_sec"] {
+                    let full_prop = format!("{}.{}", parts[0], prop);
+                    if prop.starts_with(&prop_part) && full_prop.to_lowercase() != last_word.to_lowercase() {
+                        suggestions.push(full_prop);
+                    }
                 }
             }
         } else {
@@ -8817,6 +8835,7 @@ Example: {100 + (A - B) * 2}",
 
         let mut selected_index = ui.memory(|mem| mem.data.get_temp::<usize>(response.id)).unwrap_or(0);
         let mut confirm_selected = false;
+        let mut selection_changed = false;
         let sug_count = suggestions.len();
         
         if selected_index >= sug_count {
@@ -8828,15 +8847,16 @@ Example: {100 + (A - B) * 2}",
             if enter_pressed {
                 confirm_selected = true;
             }
-            
-            ui.input(|i| {
-                if i.key_pressed(egui::Key::ArrowDown) {
-                    selected_index = (selected_index + 1) % sug_count;
-                }
-                if i.key_pressed(egui::Key::ArrowUp) {
-                    selected_index = if selected_index == 0 { sug_count - 1 } else { selected_index - 1 };
-                }
-            });
+            let arrow_up_pressed = ui.memory(|mem| mem.data.get_temp::<bool>(egui::Id::new("arrow_up_pressed"))).unwrap_or(false);
+            let arrow_down_pressed = ui.memory(|mem| mem.data.get_temp::<bool>(egui::Id::new("arrow_down_pressed"))).unwrap_or(false);
+            if arrow_down_pressed {
+                selected_index = (selected_index + 1) % sug_count;
+                selection_changed = true;
+            }
+            if arrow_up_pressed {
+                selected_index = if selected_index == 0 { sug_count - 1 } else { selected_index - 1 };
+                selection_changed = true;
+            }
             ui.memory_mut(|mem| mem.data.insert_temp(response.id, selected_index));
         }
 
@@ -8869,6 +8889,7 @@ Example: {100 + (A - B) * 2}",
         let popup_id = response.id.with("sug_popup_raw");
         let popup_position = response.rect.left_bottom();
         let mut clicked_choice: Option<String> = None;
+        let popup_max_height = (ui.ctx().content_rect().bottom() - popup_position.y - 8.0).max(120.0);
         
         let area_res = egui::Area::new(popup_id)
             .order(egui::Order::Foreground)
@@ -8877,14 +8898,14 @@ Example: {100 + (A - B) * 2}",
                 let frame_res = egui::Frame::popup(ui.style()).show(ui, |ui| {
                     ui.set_max_width(200.0);
                     egui::ScrollArea::vertical()
-                        .max_height(150.0)
+                        .max_height(popup_max_height)
                         .show(ui, |ui| {
                             ui.vertical(|ui| {
                                 for (idx, sug) in suggestions.iter().enumerate() {
                                     let is_selected = idx == selected_index;
                                     let label = Self::timer_suggestion_label(sug, timer_names);
                                     let mut resp = ui.selectable_label(is_selected, label);
-                                    if is_selected {
+                                    if is_selected && selection_changed {
                                         resp.scroll_to_me(None);
                                     }
                                     if resp.clicked() {
