@@ -56,15 +56,17 @@ impl CrosshairApp {
             },
         );
         let response = inner.inner;
-        Self::show_instant_hover_tooltip(
-            ui,
-            &response,
-            format!(
-                "{}\n{}",
-                Self::macro_action_label(candidate),
-                Self::macro_action_tooltip(candidate, language)
-            ),
-        );
+        if !is_submenu_item {
+            Self::show_instant_hover_tooltip(
+                ui,
+                &response,
+                format!(
+                    "{}\n{}",
+                    Self::macro_action_label(candidate),
+                    Self::macro_action_tooltip(candidate, language)
+                ),
+            );
+        }
         response
     }
     fn render_macro_action_option(
