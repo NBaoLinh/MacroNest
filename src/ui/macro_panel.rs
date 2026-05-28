@@ -4518,6 +4518,7 @@ impl CrosshairApp {
                                                                  MacroAction::EnableStep,
                                                                  MacroAction::DisableStep,
                                                               MacroAction::SetVariable,
+                                                              MacroAction::OcrSearch,
                                                         ]
                                                         .into_iter()
                                                         .enumerate()
@@ -5750,10 +5751,10 @@ impl CrosshairApp {
                                                                     live_sync |= response.changed();
                                                                     Self::render_variable_suggestions(ui, &response, &mut step.if_variable_name, &timer_names, language);
                                                                     egui::ComboBox::from_id_salt((group.id, preset.id, "hold-stop-if-op"))
-                                                                        .width(40.0)
+                                                                        .width(55.0)
                                                                         .selected_text(&step.if_operator)
                                                                         .show_ui(ui, |ui| {
-                                                                            for op in &["==", ">", "<", ">=", "<=", "!="] {
+                                                                            for op in &["==", ">", "<", ">=", "<=", "!=", "contain"] {
                                                                                 if ui.selectable_label(step.if_operator == *op, *op).clicked() {
                                                                                     step.if_operator = op.to_string();
                                                                                     live_sync = true;
@@ -5780,6 +5781,12 @@ impl CrosshairApp {
                                                                     );
                                                                     live_sync |= response2.changed();
                                                                     Self::render_variable_suggestions(ui, &response2, &mut step.key, &timer_names, language);
+                                                                    if step.if_operator.trim().to_lowercase() == "contain" {
+                                                                        ui.add_space(4.0);
+                                                                        live_sync |= ui.checkbox(&mut step.if_contain_case_sensitive, Self::tr_lang(language, "Aa", "Chữ hoa/thường")).on_hover_text(Self::tr_lang(language, "Distinguish uppercase and lowercase", "Phân biệt chữ hoa và chữ thường")).changed();
+                                                                        ui.add_space(4.0);
+                                                                        live_sync |= ui.checkbox(&mut step.if_contain_isolated, Self::tr_lang(language, "1/1", "Từ riêng lẻ")).on_hover_text(Self::tr_lang(language, "Match whole words / isolated digits only (boundaries)", "Chỉ khớp từ hoặc cụm số đứng riêng lẻ, không nằm chung nhóm")).changed();
+                                                                    }
                                                                        let left_expr = step.if_variable_name.trim();
                                                                        if !left_expr.is_empty() {
                                                                            let left_val = crate::overlay::evaluate_math_expression(left_expr);
@@ -7058,6 +7065,7 @@ impl CrosshairApp {
                                                                  MacroAction::EnableStep,
                                                                  MacroAction::DisableStep,
                                                                  MacroAction::SetVariable,
+                                                                 MacroAction::OcrSearch,
                                                             ]
                                                             .into_iter()
                                                             .enumerate()
@@ -8394,10 +8402,10 @@ impl CrosshairApp {
                                                                     live_sync |= response.changed();
                                                                     Self::render_variable_suggestions(ui, &response, &mut step.if_variable_name, &timer_names, language);
                                                                     egui::ComboBox::from_id_salt((group.id, preset.id, step_index, "if-op"))
-                                                                        .width(40.0)
+                                                                        .width(55.0)
                                                                         .selected_text(&step.if_operator)
                                                                         .show_ui(ui, |ui| {
-                                                                            for op in &["==", ">", "<", ">=", "<=", "!="] {
+                                                                            for op in &["==", ">", "<", ">=", "<=", "!=", "contain"] {
                                                                                 if ui.selectable_label(step.if_operator == *op, *op).clicked() {
                                                                                     step.if_operator = op.to_string();
                                                                                     live_sync = true;
@@ -8424,6 +8432,12 @@ impl CrosshairApp {
                                                                     );
                                                                     live_sync |= response2.changed();
                                                                     Self::render_variable_suggestions(ui, &response2, &mut step.key, &timer_names, language);
+                                                                    if step.if_operator.trim().to_lowercase() == "contain" {
+                                                                        ui.add_space(4.0);
+                                                                        live_sync |= ui.checkbox(&mut step.if_contain_case_sensitive, Self::tr_lang(language, "Aa", "Chữ hoa/thường")).on_hover_text(Self::tr_lang(language, "Distinguish uppercase and lowercase", "Phân biệt chữ hoa và chữ thường")).changed();
+                                                                        ui.add_space(4.0);
+                                                                        live_sync |= ui.checkbox(&mut step.if_contain_isolated, Self::tr_lang(language, "1/1", "Từ riêng lẻ")).on_hover_text(Self::tr_lang(language, "Match whole words / isolated digits only (boundaries)", "Chỉ khớp từ hoặc cụm số đứng riêng lẻ, không nằm chung nhóm")).changed();
+                                                                    }
                                                                        let left_expr = step.if_variable_name.trim();
                                                                        if !left_expr.is_empty() {
                                                                            let left_val = crate::overlay::evaluate_math_expression(left_expr);

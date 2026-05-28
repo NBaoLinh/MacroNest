@@ -108,9 +108,10 @@ pub(crate) enum VisionCaptureMode {
     ColorPriorityAnchor,
 }
 
-#[derive(Clone, Copy, PartialEq, Eq)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub(crate) enum VisionCaptureTarget {
     Preset(u32),
+    OcrPreset(u32),
 }
 
 #[derive(Clone, Copy, PartialEq, Eq)]
@@ -3910,6 +3911,7 @@ impl CrosshairApp {
                 MacroAction::Else => "Else",
                 MacroAction::IfEnd => "IfEnd",
                 MacroAction::SetVariable => "SetVar",
+                MacroAction::OcrSearch => "OCR",
                 _ => "Legacy",
             },
         }

@@ -1332,20 +1332,33 @@ impl CrosshairApp {
                         self.status = "No image search preset is active.".to_owned();
                         return;
                     };
-                    let VisionCaptureTarget::Preset(preset_id) = target;
-                    let template_mode = matches!(
-                        self.vision_capture_mode,
-                        Some(VisionCaptureMode::Template)
-                    );
-                    self.finish_image_search_region_capture_command(
-                        ctx,
-                        preset_id,
-                        template_mode,
-                        x,
-                        y,
-                        width,
-                        height,
-                    );
+                    match target {
+                        VisionCaptureTarget::Preset(preset_id) => {
+                            let template_mode = matches!(
+                                self.vision_capture_mode,
+                                Some(VisionCaptureMode::Template)
+                            );
+                            self.finish_image_search_region_capture_command(
+                                ctx,
+                                preset_id,
+                                template_mode,
+                                x,
+                                y,
+                                width,
+                                height,
+                            );
+                        }
+                        VisionCaptureTarget::OcrPreset(preset_id) => {
+                            self.finish_ocr_region_capture_command(
+                                ctx,
+                                preset_id,
+                                x,
+                                y,
+                                width,
+                                height,
+                            );
+                        }
+                    }
                 } else {
                     self.cancel_image_search_capture(ctx);
                     self.status = "Image area capture cancelled.".to_owned();
@@ -1357,18 +1370,25 @@ impl CrosshairApp {
                     self.status = "No image search preset is active.".to_owned();
                     return;
                 };
-                let VisionCaptureTarget::Preset(preset_id) = target;
-                let priority_anchor = matches!(
-                    self.vision_capture_mode,
-                    Some(VisionCaptureMode::ColorPriorityAnchor)
-                );
-                self.finish_image_search_point_capture_command_from_screen(
-                    ctx,
-                    preset_id,
-                    priority_anchor,
-                    screen_x,
-                    screen_y,
-                );
+                match target {
+                    VisionCaptureTarget::Preset(preset_id) => {
+                        let priority_anchor = matches!(
+                            self.vision_capture_mode,
+                            Some(VisionCaptureMode::ColorPriorityAnchor)
+                        );
+                        self.finish_image_search_point_capture_command_from_screen(
+                            ctx,
+                            preset_id,
+                            priority_anchor,
+                            screen_x,
+                            screen_y,
+                        );
+                    }
+                    VisionCaptureTarget::OcrPreset(_) => {
+                        self.cancel_image_search_capture(ctx);
+                        self.status = "OCR presets do not support color picking.".to_owned();
+                    }
+                }
             }
         }
     }
@@ -1379,13 +1399,14 @@ impl CrosshairApp {
         target: VisionCaptureTarget,
         priority_anchor: bool,
     ) {
-        let VisionCaptureTarget::Preset(preset_id) = target;
-        Self::spawn_image_search_point_capture_thread(
-            ui_tx,
-            ctx,
-            preset_id,
-            priority_anchor,
-        );
+        if let VisionCaptureTarget::Preset(preset_id) = target {
+            Self::spawn_image_search_point_capture_thread(
+                ui_tx,
+                ctx,
+                preset_id,
+                priority_anchor,
+            );
+        }
     }
 
     pub(crate) fn spawn_image_search_point_capture_thread(
@@ -1456,13 +1477,14 @@ impl CrosshairApp {
         target: VisionCaptureTarget,
         template_mode: bool,
     ) {
-        let VisionCaptureTarget::Preset(preset_id) = target;
-        Self::spawn_image_search_region_capture_thread(
-            ui_tx,
-            ctx,
-            preset_id,
-            template_mode,
-        );
+        if let VisionCaptureTarget::Preset(preset_id) = target {
+            Self::spawn_image_search_region_capture_thread(
+                ui_tx,
+                ctx,
+                preset_id,
+                template_mode,
+            );
+        }
     }
 
     pub(crate) fn spawn_image_search_region_capture_thread(
@@ -1565,6 +1587,12 @@ impl CrosshairApp {
                 .iter()
                 .find(|preset| preset.id == preset_id)
                 .map(|preset| preset.name.clone()),
+            VisionCaptureTarget::OcrPreset(preset_id) => self
+                .state
+                .ocr_presets
+                .iter()
+                .find(|preset| preset.id == preset_id)
+                .map(|preset| preset.name.clone()),
         }
     }
 
@@ -1576,6 +1604,7 @@ impl CrosshairApp {
                 .iter()
                 .find(|preset| preset.id == preset_id)
                 .is_some_and(|preset| preset.search_region_is_circle),
+            VisionCaptureTarget::OcrPreset(_) => false,
         }
     }
 
@@ -1660,6 +1689,10 @@ impl CrosshairApp {
                             true,
                         )
                     }
+                    VisionCaptureTarget::OcrPreset(_) => (
+                        "OCR presets do not support template captures.".to_owned(),
+                        false,
+                    )
                 };
                 if sync_required {
                     self.sync_vision_presets();
@@ -1690,6 +1723,26 @@ impl CrosshairApp {
                             self.persist();
                             self.status = format!(
                                 "Saved search area {}x{} at {}, {} for preset #{}.",
+                                width, height, screen_x, screen_y, preset_id
+                            );
+                        }
+                        VisionCaptureTarget::OcrPreset(preset_id) => {
+                            if let Some(preset) = self
+                                .state
+                                .ocr_presets
+                                .iter_mut()
+                                .find(|preset| preset.id == preset_id)
+                            {
+                                preset.collapsed = false;
+                                preset.x = screen_x;
+                                preset.y = screen_y;
+                                preset.width = width;
+                                preset.height = height;
+                            }
+                            self.sync_ocr_presets();
+                            self.persist();
+                            self.status = format!(
+                                "Saved OCR area {}x{} at {}, {} for preset #{}.",
                                 width, height, screen_x, screen_y, preset_id
                             );
                         }
@@ -1819,6 +1872,9 @@ impl CrosshairApp {
                     color.r, color.g, color.b, preset_id
                 )
             }
+            VisionCaptureTarget::OcrPreset(_) => {
+                "OCR presets do not support color picking.".to_owned()
+            }
         }
     }
 
@@ -1843,6 +1899,9 @@ impl CrosshairApp {
                 }
                 self.sync_vision_presets();
                 format!("Saved priority point at {screen_x}, {screen_y} for preset #{preset_id}.")
+            }
+            VisionCaptureTarget::OcrPreset(_) => {
+                "OCR presets do not support priority anchors.".to_owned()
             }
         }
     }
@@ -1972,6 +2031,9 @@ impl CrosshairApp {
                     color.r, color.g, color.b, preset_id
                 )
             }
+            VisionCaptureTarget::OcrPreset(_) => {
+                "OCR presets do not support color picking.".to_owned()
+            }
         };
         self.persist();
         self.status = status;
@@ -2085,6 +2147,26 @@ impl CrosshairApp {
                     width, height, screen_x, screen_y, preset_id
                 );
             }
+            VisionCaptureTarget::OcrPreset(preset_id) => {
+                if let Some(preset) = self
+                    .state
+                    .ocr_presets
+                    .iter_mut()
+                    .find(|preset| preset.id == preset_id)
+                {
+                    preset.collapsed = false;
+                    preset.x = screen_x;
+                    preset.y = screen_y;
+                    preset.width = width;
+                    preset.height = height;
+                }
+                self.sync_ocr_presets();
+                self.persist();
+                self.status = format!(
+                    "Saved OCR area {}x{} at {}, {} for preset #{}.",
+                    width, height, screen_x, screen_y, preset_id
+                );
+            }
         }
         ctx.request_repaint();
     }
@@ -2155,6 +2237,9 @@ impl CrosshairApp {
                     color.r, color.g, color.b, preset_id
                 )
             }
+            VisionCaptureTarget::OcrPreset(_) => {
+                "OCR presets do not support color picking.".to_owned()
+            }
         };
         self.persist();
         self.status = status;
@@ -2209,6 +2294,9 @@ impl CrosshairApp {
                     "Saved priority point at {}, {} for preset #{}.",
                     screen_x, screen_y, preset_id
                 );
+            }
+            VisionCaptureTarget::OcrPreset(_) => {
+                self.status = "OCR presets do not support priority anchors.".to_owned();
             }
         }
         ctx.request_repaint();

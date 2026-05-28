@@ -1,5 +1,5 @@
 use eframe::egui::{self, RichText, Sense, Color32, vec2};
-use crate::ui::CrosshairApp;
+use crate::ui::{CrosshairApp, VisionCaptureTarget, VisionCaptureMode};
 use crate::ocr::{perform_ocr, OcrResult};
 use crate::window_list::capture_virtual_screen_region;
 use crate::model::*;
@@ -21,14 +21,7 @@ impl CrosshairApp {
 
         ui.add_space(2.0);
 
-        // Header Title
-        ui.horizontal(|ui| {
-            ui.heading(
-                RichText::new(Self::tr_lang(language, "OCR Presets", "Nhận dạng chữ (OCR)"))
-                    .strong()
-                    .color(Color32::from_rgb(0, 255, 170)),
-            );
-        });
+
 
         ui.add_space(8.0);
 
@@ -56,6 +49,7 @@ impl CrosshairApp {
         let mut live_sync = false;
         let mut run_test_preset_id = None;
         let mut preview_toggled_preset_id = None;
+        let mut start_ocr_capture_preset_id = None;
 
         // Render card-based presets list
         for index in 0..self.state.ocr_presets.len() {
@@ -146,6 +140,14 @@ impl CrosshairApp {
                             ui.label("H:");
                             changed |= ui.add(egui::DragValue::new(&mut preset.height).range(10..=5000)).changed();
                             
+                             ui.add_space(10.0);
+                             if ui
+                                 .button(Self::tr_lang(language, "Pick area", "Chọn khu vực"))
+                                 .clicked()
+                             {
+                                 start_ocr_capture_preset_id = Some(preset.id);
+                             }
+
                             if changed {
                                 live_sync = true;
                             }
@@ -338,6 +340,14 @@ impl CrosshairApp {
         // Live preview sync
         self.sync_ocr_preview();
 
+        if let Some(preset_id) = start_ocr_capture_preset_id {
+            self.begin_image_search_capture(
+                ui.ctx(),
+                VisionCaptureTarget::OcrPreset(preset_id),
+                VisionCaptureMode::SearchRegion,
+            );
+        }
+
         if live_sync {
             self.sync_ocr_presets();
             self.persist();
@@ -420,5 +430,32 @@ impl CrosshairApp {
 
         self.state.ocr_test_running = false;
         self.persist();
+    }
+
+    pub(crate) fn finish_ocr_region_capture_command(
+        &mut self,
+        ctx: &egui::Context,
+        preset_id: u32,
+        screen_x: i32,
+        screen_y: i32,
+        width: i32,
+        height: i32,
+    ) {
+        self.clear_image_search_capture_state();
+        self.restore_image_search_capture_window(ctx);
+        if let Some(preset) = self.state.ocr_presets.iter_mut().find(|p| p.id == preset_id) {
+            preset.x = screen_x;
+            preset.y = screen_y;
+            preset.width = width;
+            preset.height = height;
+            preset.collapsed = false;
+        }
+        self.sync_ocr_presets();
+        self.persist();
+        self.status = format!(
+            "Saved OCR region {}x{} at {}, {} for preset #{}.",
+            width, height, screen_x, screen_y, preset_id
+        );
+        ctx.request_repaint();
     }
 }

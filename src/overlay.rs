@@ -6734,6 +6734,107 @@ mod windows_overlay {
             return false;
         }
 
+        let op = step.if_operator.trim().to_lowercase();
+        if op == "contain" || op == "contains" {
+            let left_str = {
+                let vars = RUNTIME_VARIABLES.lock();
+                let trimmed = step.if_variable_name.trim();
+                if let Some(val) = vars.get(trimmed) {
+                    val.to_string()
+                } else {
+                    interpolate_variables(trimmed)
+                }
+            };
+            let right_str = interpolate_variables(step.key.trim());
+
+            let evaluate_contain = |left: &str, right: &str, case_sensitive: bool, isolated: bool| -> bool {
+                let (l, r) = if case_sensitive {
+                    (left.to_string(), right.to_string())
+                } else {
+                    (left.to_lowercase(), right.to_lowercase())
+                };
+                if r.is_empty() {
+                    return true;
+                }
+                if isolated {
+                    let mut start = 0;
+                    while let Some(pos) = l[start..].find(&r) {
+                        let absolute_pos = start + pos;
+                        let before_char_ok = if absolute_pos == 0 {
+                            true
+                        } else {
+                            let prev_char = l.chars().nth(absolute_pos - 1).unwrap_or(' ');
+                            !prev_char.is_alphanumeric()
+                        };
+                        let after_char_ok = if absolute_pos + r.len() >= l.len() {
+                            true
+                        } else {
+                            let next_char = l.chars().nth(absolute_pos + r.len()).unwrap_or(' ');
+                            !next_char.is_alphanumeric()
+                        };
+                        if before_char_ok && after_char_ok {
+                            return true;
+                        }
+                        start = absolute_pos + 1;
+                    }
+                    false
+                } else {
+                    l.contains(&r)
+                }
+            };
+
+            let mut result = evaluate_contain(
+                &left_str,
+                &right_str,
+                step.if_contain_case_sensitive,
+                step.if_contain_isolated,
+            );
+
+            for cond in &step.extra_conditions {
+                let cond_op = cond.operator.trim().to_lowercase();
+                let cond_ok = if cond_op == "contain" || cond_op == "contains" {
+                    let cond_left_str = {
+                        let vars = RUNTIME_VARIABLES.lock();
+                        let trimmed = cond.variable_name.trim();
+                        if let Some(val) = vars.get(trimmed) {
+                            val.to_string()
+                        } else {
+                            interpolate_variables(trimmed)
+                        }
+                    };
+                    let cond_right_str = interpolate_variables(cond.expression.trim());
+                    evaluate_contain(&cond_left_str, &cond_right_str, false, false)
+                } else {
+                    let evaluate_operand = |expr: &str, fallback: i32| -> i32 {
+                        if expr.trim().is_empty() {
+                            fallback
+                        } else {
+                            evaluate_math_expression(expr)
+                        }
+                    };
+                    let compare_values = |value: i32, operator: &str, comp: i32| match operator {
+                        ">" => value > comp,
+                        "<" => value < comp,
+                        "=" | "==" => value == comp,
+                        ">=" => value >= comp,
+                        "<=" => value <= comp,
+                        "!=" => value != comp,
+                        _ => false,
+                    };
+                    let cond_left = evaluate_operand(&cond.variable_name, cond.compare_value);
+                    let cond_right = evaluate_operand(&cond.expression, cond.compare_value);
+                    compare_values(cond_left, cond.operator.as_str(), cond_right)
+                };
+
+                let join_operator = cond.join_operator.trim().to_ascii_uppercase();
+                result = match join_operator.as_str() {
+                    "OR" => result || cond_ok,
+                    _ => result && cond_ok,
+                };
+            }
+            return result;
+        }
+
         let compare_values = |value: i32, operator: &str, comp: i32| match operator {
             ">" => value > comp,
             "<" => value < comp,
