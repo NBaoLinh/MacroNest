@@ -21,15 +21,14 @@ impl CrosshairApp {
             "infinite" | "inf" | "forever" | "-1"
         )
     }
-    fn render_macro_action_option(
+    fn render_macro_action_button(
         ui: &mut egui::Ui,
         language: UiLanguage,
-        current: &mut MacroAction,
+        current: &MacroAction,
         candidate: MacroAction,
-        live_sync: &mut bool,
         action_hover_id: egui::Id,
         is_submenu_item: bool,
-    ) {
+    ) -> egui::Response {
         let inner = ui.allocate_ui_with_layout(
             vec2(58.0, 42.0),
             egui::Layout::top_down(egui::Align::Center),
@@ -66,6 +65,19 @@ impl CrosshairApp {
                 Self::macro_action_tooltip(candidate, language)
             ),
         );
+        response
+    }
+    fn render_macro_action_option(
+        ui: &mut egui::Ui,
+        language: UiLanguage,
+        current: &mut MacroAction,
+        candidate: MacroAction,
+        live_sync: &mut bool,
+        action_hover_id: egui::Id,
+        is_submenu_item: bool,
+    ) {
+        let response =
+            Self::render_macro_action_button(ui, language, current, candidate, action_hover_id, is_submenu_item);
         if response.clicked() {
             *current = candidate;
             *live_sync = true;
@@ -100,6 +112,257 @@ impl CrosshairApp {
     }
     fn macro_action_is_mouse(action: MacroAction) -> bool {
         Self::mouse_macro_actions().contains(&action)
+    }
+    fn mouse_click_action_groups() -> &'static [(MacroAction, MacroAction, MacroAction, &'static str)] {
+        &[
+            (
+                MacroAction::MouseLeftClick,
+                MacroAction::MouseLeftDown,
+                MacroAction::MouseLeftUp,
+                "mouse-left-click",
+            ),
+            (
+                MacroAction::MouseRightClick,
+                MacroAction::MouseRightDown,
+                MacroAction::MouseRightUp,
+                "mouse-right-click",
+            ),
+            (
+                MacroAction::MouseMiddleClick,
+                MacroAction::MouseMiddleDown,
+                MacroAction::MouseMiddleUp,
+                "mouse-middle-click",
+            ),
+            (
+                MacroAction::MouseX1Click,
+                MacroAction::MouseX1Down,
+                MacroAction::MouseX1Up,
+                "mouse-x1-click",
+            ),
+            (
+                MacroAction::MouseX2Click,
+                MacroAction::MouseX2Down,
+                MacroAction::MouseX2Up,
+                "mouse-x2-click",
+            ),
+        ]
+    }
+    fn mouse_leaf_action_groups() -> &'static [MacroAction] {
+        &[
+            MacroAction::MouseWheelUp,
+            MacroAction::MouseWheelDown,
+            MacroAction::MouseMoveAbsolute,
+            MacroAction::MouseMoveRelative,
+            MacroAction::LockMouse,
+            MacroAction::UnlockMouse,
+            MacroAction::PlayMousePathPreset,
+        ]
+    }
+    fn if_action_groups() -> &'static [MacroAction] {
+        &[MacroAction::IfStart, MacroAction::Else, MacroAction::IfEnd]
+    }
+    fn render_mouse_click_action_group_option(
+        ui: &mut egui::Ui,
+        language: UiLanguage,
+        id_source: impl std::hash::Hash + Copy,
+        current: &mut MacroAction,
+        live_sync: &mut bool,
+        base_action: MacroAction,
+        down_action: MacroAction,
+        up_action: MacroAction,
+        popup_key: &'static str,
+    ) {
+        let selected = matches!(*current, action if action == base_action || action == down_action || action == up_action);
+        let popup_id = ui.make_persistent_id((id_source, popup_key, "popup"));
+        let popup_rect_id = ui.make_persistent_id((id_source, popup_key, "rect"));
+        let mut open = ui
+            .ctx()
+            .data(|data| data.get_temp::<bool>(popup_id))
+            .unwrap_or(false);
+        let inner = ui.allocate_ui_with_layout(
+            vec2(58.0, 42.0),
+            egui::Layout::top_down(egui::Align::Center),
+            |ui| {
+                let label_color = if selected {
+                    ui.visuals().strong_text_color()
+                } else {
+                    ui.visuals().text_color()
+                };
+                let response = ui.add_sized(
+                    [34.0, 24.0],
+                    Button::new(Self::macro_action_icon_text(base_action)).selected(selected),
+                );
+                if response.hovered() || response.clicked() {
+                    open = true;
+                }
+                if response.clicked() {
+                    *current = base_action;
+                    *live_sync = true;
+                    ui.close();
+                }
+                let _popup_response = egui::Popup::from_response(&response)
+                    .id(popup_id)
+                    .open_bool(&mut open)
+                    .align(egui::RectAlign::BOTTOM_START)
+                    .layout(egui::Layout::top_down_justified(egui::Align::Min))
+                    .width(140.0)
+                    .close_behavior(egui::PopupCloseBehavior::IgnoreClicks)
+                    .show(|ui| {
+                        let rect = ui.max_rect();
+                        ui.ctx().data_mut(|data| data.insert_temp(popup_rect_id, rect));
+                        egui::Grid::new((id_source, popup_key, "grid"))
+                            .num_columns(2)
+                            .spacing([6.0, 6.0])
+                            .show(ui, |ui| {
+                                Self::render_macro_action_option(
+                                    ui,
+                                    language,
+                                    current,
+                                    down_action,
+                                    live_sync,
+                                    popup_id,
+                                    true,
+                                );
+                                Self::render_macro_action_option(
+                                    ui,
+                                    language,
+                                    current,
+                                    up_action,
+                                    live_sync,
+                                    popup_id,
+                                    true,
+                                );
+                            });
+                    });
+                let popup_rect: Option<egui::Rect> =
+                    ui.ctx().data(|data| data.get_temp(popup_rect_id));
+                if open {
+                    if let Some(pointer_pos) = ui.ctx().pointer_hover_pos() {
+                        let mut keep_open_rect = response.rect.expand(2.0);
+                        if let Some(rect) = popup_rect {
+                            keep_open_rect = keep_open_rect.union(rect.expand(2.0));
+                        }
+                        if !keep_open_rect.contains(pointer_pos) {
+                            open = false;
+                            ui.ctx().request_repaint();
+                        }
+                    } else {
+                        open = false;
+                        ui.ctx().request_repaint();
+                    }
+                }
+                ui.ctx().data_mut(|data| data.insert_temp(popup_id, open));
+                ui.label(
+                    RichText::new(Self::macro_action_short_label(base_action, language))
+                        .size(9.0)
+                        .color(label_color),
+                );
+                response
+            },
+        );
+        let response = inner.inner;
+        Self::show_instant_hover_tooltip(
+            ui,
+            &response,
+            Self::macro_action_tooltip(base_action, language),
+        );
+    }
+    fn render_if_action_group_option(
+        ui: &mut egui::Ui,
+        language: UiLanguage,
+        id_source: impl std::hash::Hash + Copy,
+        current: &mut MacroAction,
+        live_sync: &mut bool,
+        action_hover_id: egui::Id,
+    ) {
+        let selected = matches!(*current, MacroAction::IfStart | MacroAction::Else | MacroAction::IfEnd);
+        let popup_id = ui.make_persistent_id((id_source, "if-submenu-popup"));
+        let popup_rect_id = ui.make_persistent_id((id_source, "if-submenu-rect"));
+        let mut open = ui
+            .ctx()
+            .data(|data| data.get_temp::<bool>(popup_id))
+            .unwrap_or(false);
+        let inner = ui.allocate_ui_with_layout(
+            vec2(58.0, 42.0),
+            egui::Layout::top_down(egui::Align::Center),
+            |ui| {
+                let label_color = if selected {
+                    ui.visuals().strong_text_color()
+                } else {
+                    ui.visuals().text_color()
+                };
+                let response = ui.add_sized(
+                    [34.0, 24.0],
+                    Button::new(Self::macro_action_icon_text(MacroAction::IfStart)).selected(selected),
+                );
+                if response.hovered() || response.clicked() {
+                    open = true;
+                    ui.ctx().data_mut(|data| data.insert_temp(action_hover_id, true));
+                }
+                if response.clicked() {
+                    *current = MacroAction::IfStart;
+                    *live_sync = true;
+                    ui.close();
+                }
+                let _popup_response = egui::Popup::from_response(&response)
+                    .id(popup_id)
+                    .open_bool(&mut open)
+                    .align(egui::RectAlign::BOTTOM_START)
+                    .layout(egui::Layout::top_down_justified(egui::Align::Min))
+                    .width(176.0)
+                    .close_behavior(egui::PopupCloseBehavior::IgnoreClicks)
+                    .show(|ui| {
+                        let rect = ui.max_rect();
+                        ui.ctx().data_mut(|data| data.insert_temp(popup_rect_id, rect));
+                        egui::Grid::new((id_source, "if-action-grid"))
+                            .num_columns(2)
+                            .spacing([6.0, 6.0])
+                            .show(ui, |ui| {
+                                for action in Self::if_action_groups().iter().copied().skip(1) {
+                                    Self::render_macro_action_option(
+                                        ui,
+                                        language,
+                                        current,
+                                        action,
+                                        live_sync,
+                                        action_hover_id,
+                                        true,
+                                    );
+                                }
+                            });
+                    });
+                let popup_rect: Option<egui::Rect> =
+                    ui.ctx().data(|data| data.get_temp(popup_rect_id));
+                if open {
+                    if let Some(pointer_pos) = ui.ctx().pointer_hover_pos() {
+                        let mut keep_open_rect = response.rect.expand(2.0);
+                        if let Some(rect) = popup_rect {
+                            keep_open_rect = keep_open_rect.union(rect.expand(2.0));
+                        }
+                        if !keep_open_rect.contains(pointer_pos) {
+                            open = false;
+                            ui.ctx().request_repaint();
+                        }
+                    } else {
+                        open = false;
+                        ui.ctx().request_repaint();
+                    }
+                }
+                ui.ctx().data_mut(|data| data.insert_temp(popup_id, open));
+                ui.label(
+                    RichText::new(Self::tr_lang(language, "IF", ""))
+                        .size(9.0)
+                        .color(label_color),
+                );
+                response
+            },
+        );
+        let response = inner.inner;
+        Self::show_instant_hover_tooltip(
+            ui,
+            &response,
+            Self::macro_action_tooltip(MacroAction::IfStart, language),
+        );
     }
     fn render_mouse_action_group_option(
         ui: &mut egui::Ui,
@@ -166,9 +429,27 @@ impl CrosshairApp {
                             .num_columns(6)
                             .spacing([6.0, 6.0])
                             .show(ui, |ui| {
-                                for (index, action) in
-                                    Self::mouse_macro_actions().iter().copied().enumerate()
+                                let mut item_index = 0usize;
+                                for (base_action, down_action, up_action, popup_key) in
+                                    Self::mouse_click_action_groups().iter().copied()
                                 {
+                                    Self::render_mouse_click_action_group_option(
+                                        ui,
+                                        language,
+                                        id_source,
+                                        current,
+                                        live_sync,
+                                        base_action,
+                                        down_action,
+                                        up_action,
+                                        popup_key,
+                                    );
+                                    item_index += 1;
+                                    if item_index % 6 == 0 {
+                                        ui.end_row();
+                                    }
+                                }
+                                for action in Self::mouse_leaf_action_groups().iter().copied() {
                                     Self::render_macro_action_option(
                                         ui,
                                         language,
@@ -178,7 +459,8 @@ impl CrosshairApp {
                                         action_hover_id,
                                         true,
                                     );
-                                    if (index + 1) % 8 == 0 {
+                                    item_index += 1;
+                                    if item_index % 6 == 0 {
                                         ui.end_row();
                                     }
                                 }
@@ -194,6 +476,15 @@ impl CrosshairApp {
                                 ui.ctx().data_mut(|data| {
                                     data.insert_temp(owner_id, MacroActionSubmenuKind::Mouse)
                                 });
+                            }
+                        }
+                        for (_, _, _, popup_key) in Self::mouse_click_action_groups().iter().copied() {
+                            let child_popup_rect_id =
+                                ui.make_persistent_id((id_source, popup_key, "rect"));
+                            if let Some(rect) =
+                                ui.ctx().data(|data| data.get_temp::<egui::Rect>(child_popup_rect_id))
+                            {
+                                keep_open_rect = keep_open_rect.union(rect.expand(2.0));
                             }
                         }
                         if !keep_open_rect.contains(pointer_pos) {
@@ -2974,9 +3265,6 @@ impl CrosshairApp {
                                                              MacroAction::DisableMacroPreset,
                                                                  MacroAction::EnableStep,
                                                                  MacroAction::DisableStep,
-                                                              MacroAction::IfStart,
-                                                              MacroAction::Else,
-                                                              MacroAction::IfEnd,
                                                               MacroAction::SetVariable,
                                                         ]
                                                         .into_iter()
@@ -3011,7 +3299,7 @@ impl CrosshairApp {
                                                             &mut live_sync,
                                                             action_hover_id,
                                                         );
-                                                         Self::render_timer_action_group_option(
+                                                        Self::render_timer_action_group_option(
                                                              ui,
                                                              language,
                                                              (group.id, preset.id, "hold-stop-timer-group"),
@@ -3019,6 +3307,14 @@ impl CrosshairApp {
                                                              &mut live_sync,
                                                              action_hover_id,
                                                          );
+                                                        Self::render_if_action_group_option(
+                                                            ui,
+                                                            language,
+                                                            (group.id, preset.id, "hold-stop-if-group"),
+                                                            &mut step.action,
+                                                            &mut live_sync,
+                                                            action_hover_id,
+                                                        );
                                 });
                             });
                                             Self::show_instant_hover_tooltip(
@@ -5537,9 +5833,6 @@ Example: {100 + (A - B) * 2}",
                                                                  MacroAction::DisableMacroPreset,
                                                                  MacroAction::EnableStep,
                                                                  MacroAction::DisableStep,
-                                                                 MacroAction::IfStart,
-                                                                 MacroAction::Else,
-                                                                 MacroAction::IfEnd,
                                                                  MacroAction::SetVariable,
                                                             ]
                                                             .into_iter()
@@ -5578,6 +5871,14 @@ Example: {100 + (A - B) * 2}",
                                                                 ui,
                                                                 language,
                                                                 (group.id, preset.id, step_index, "timer-group"),
+                                                                &mut step.action,
+                                                                &mut live_sync,
+                                                                action_hover_id,
+                                                            );
+                                                            Self::render_if_action_group_option(
+                                                                ui,
+                                                                language,
+                                                                (group.id, preset.id, step_index, "if-group"),
                                                                 &mut step.action,
                                                                 &mut live_sync,
                                                                 action_hover_id,
