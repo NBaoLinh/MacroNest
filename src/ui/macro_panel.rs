@@ -8400,14 +8400,14 @@ Example: {100 + (A - B) * 2}",
             format!("{} - {}", trimmed, -delta)
         }
     }
-                fn render_variable_suggestions(
+    fn render_variable_suggestions(
         ui: &mut egui::Ui,
         response: &egui::Response,
         text: &mut String,
         timer_names: &[String],
         _language: UiLanguage,
     ) {
-        let (last_word_trimmed, prefix) = {
+        let (last_word_trimmed, prefix, wrap_open, wrap_close) = {
             let text_str = text.as_str();
             let mut last_word_start = 0;
             for (i, c) in text_str.char_indices() {
@@ -8416,7 +8416,12 @@ Example: {100 + (A - B) * 2}",
                 }
             }
             let last_word = &text_str[last_word_start..];
-            (last_word.trim().to_string(), text_str[..last_word_start].to_string())
+            let trimmed = last_word.trim();
+            let wrap_open = trimmed.starts_with('{');
+            let wrap_close = trimmed.ends_with('}');
+            let inner = trimmed.strip_prefix('{').unwrap_or(trimmed);
+            let inner = inner.strip_suffix('}').unwrap_or(inner);
+            (inner.trim().to_string(), text_str[..last_word_start].to_string(), wrap_open, wrap_close)
         };
         
         if last_word_trimmed.is_empty() {
@@ -8506,6 +8511,15 @@ Example: {100 + (A - B) * 2}",
 
         if confirm_selected {
             let chosen = &suggestions[selected_index];
+            let chosen = if wrap_open {
+                if wrap_close {
+                    format!("{{{}}}", chosen)
+                } else {
+                    format!("{{{}", chosen)
+                }
+            } else {
+                chosen.to_string()
+            };
             *text = format!("{}{}", prefix, chosen);
             response.request_focus();
             
@@ -8576,10 +8590,15 @@ Example: {100 + (A - B) * 2}",
         timer_names: &[String],
         _language: UiLanguage,
     ) {
-        let last_word = text.trim().to_string();
-        if last_word.is_empty() {
+        let trimmed = text.trim();
+        if trimmed.is_empty() {
             return;
         }
+        let wrap_open = trimmed.starts_with('{');
+        let wrap_close = trimmed.ends_with('}');
+        let mut last_word = trimmed.strip_prefix('{').unwrap_or(trimmed);
+        last_word = last_word.strip_suffix('}').unwrap_or(last_word);
+        let last_word = last_word.trim().to_string();
 
         let mut suggestions = Vec::new();
 
@@ -8664,7 +8683,16 @@ Example: {100 + (A - B) * 2}",
 
         if confirm_selected {
             let chosen = &suggestions[selected_index];
-            *text = chosen.clone();
+            let chosen = if wrap_open {
+                if wrap_close {
+                    format!("{{{}}}", chosen)
+                } else {
+                    format!("{{{}", chosen)
+                }
+            } else {
+                chosen.clone()
+            };
+            *text = chosen;
             response.request_focus();
             
             let char_count = text.chars().count();
