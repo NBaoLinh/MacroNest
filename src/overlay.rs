@@ -7567,6 +7567,22 @@ fn set_variable_value(target_var: &str, value: i32) {
         trimmed.to_owned()
     }
 
+    fn hud_virtual_screen_bounds() -> (i32, i32, i32, i32) {
+        crate::window_list::virtual_screen_bounds()
+    }
+
+    fn scale_hud_rect_to_screen(x: i32, y: i32, width: i32, height: i32) -> (i32, i32, i32, i32) {
+        let (screen_left, screen_top, screen_width, screen_height) = hud_virtual_screen_bounds();
+        let scale_x = screen_width as f32 / 1920.0;
+        let scale_y = screen_height as f32 / 1080.0;
+        (
+            screen_left + (x as f32 * scale_x).round() as i32,
+            screen_top + (y as f32 * scale_y).round() as i32,
+            ((width.max(1)) as f32 * scale_x).round().max(1.0) as i32,
+            ((height.max(1)) as f32 * scale_y).round().max(1.0) as i32,
+        )
+    }
+
     fn show_hud_preset(owner_preset_id: u32, step: &MacroStep) -> Result<()> {
         let preset_id = step
             .key
@@ -7593,15 +7609,13 @@ fn set_variable_value(target_var: &str, value: i32) {
             return Ok(());
         }
 
-        let screen_width = unsafe { GetSystemMetrics(SM_CXSCREEN) }.max(1);
-        let screen_height = unsafe { GetSystemMetrics(SM_CYSCREEN) }.max(1);
-        let scale_x = screen_width as f32 / 1920.0;
-        let scale_y = screen_height as f32 / 1080.0;
         let expires_at = if step.timed_override && step.duration_override_ms > 0 {
             Some(Instant::now() + Duration::from_millis(step.duration_override_ms))
         } else {
             None
         };
+        let (x, y, width, height) =
+            scale_hud_rect_to_screen(preset.x, preset.y, preset.width, preset.height);
 
         HUD_DISPLAY.lock().insert(preset.id, HudDisplayState {
             owner_preset_id: Some(owner_preset_id),
@@ -7612,10 +7626,10 @@ fn set_variable_value(target_var: &str, value: i32) {
             background_opacity: preset.background_opacity.clamp(0.0, 1.0),
             rounded_background: preset.rounded_background,
             font_size: preset.font_size.max(1.0),
-            x: (preset.x as f32 * scale_x).round() as i32,
-            y: (preset.y as f32 * scale_y).round() as i32,
-            width: ((preset.width.max(1)) as f32 * scale_x).round().max(1.0) as i32,
-            height: ((preset.height.max(1)) as f32 * scale_y).round().max(1.0) as i32,
+            x,
+            y,
+            width,
+            height,
             auto_hide_on_owner_completion: expires_at.is_none(),
             expires_at,
         });
@@ -7623,10 +7637,8 @@ fn set_variable_value(target_var: &str, value: i32) {
     }
 
     fn toolbox_preview_display_from_preset(preset: HudPreset) -> HudDisplayState {
-        let screen_width = unsafe { GetSystemMetrics(SM_CXSCREEN) }.max(1);
-        let screen_height = unsafe { GetSystemMetrics(SM_CYSCREEN) }.max(1);
-        let scale_x = screen_width as f32 / 1920.0;
-        let scale_y = screen_height as f32 / 1080.0;
+        let (x, y, width, height) =
+            scale_hud_rect_to_screen(preset.x, preset.y, preset.width, preset.height);
         HudDisplayState {
             owner_preset_id: None,
             preset_id: Some(preset.id),
@@ -7636,10 +7648,10 @@ fn set_variable_value(target_var: &str, value: i32) {
             background_opacity: preset.background_opacity.clamp(0.0, 1.0),
             rounded_background: preset.rounded_background,
             font_size: preset.font_size.max(1.0),
-            x: (preset.x as f32 * scale_x).round() as i32,
-            y: (preset.y as f32 * scale_y).round() as i32,
-            width: ((preset.width.max(1)) as f32 * scale_x).round().max(1.0) as i32,
-            height: ((preset.height.max(1)) as f32 * scale_y).round().max(1.0) as i32,
+            x,
+            y,
+            width,
+            height,
             auto_hide_on_owner_completion: false,
             expires_at: None,
         }
@@ -7656,6 +7668,7 @@ fn set_variable_value(target_var: &str, value: i32) {
             hide_hud_now();
             return;
         }
+        let (x, y, width, height) = scale_hud_rect_to_screen(660, 36, 600, 80);
         HUD_DISPLAY.lock().insert(owner_preset_id, HudDisplayState {
             owner_preset_id: Some(owner_preset_id),
             preset_id: None,
@@ -7675,10 +7688,10 @@ fn set_variable_value(target_var: &str, value: i32) {
             background_opacity: 0.72,
             rounded_background: true,
             font_size: 28.0,
-            x: 660,
-            y: 36,
-            width: 600,
-            height: 80,
+            x,
+            y,
+            width,
+            height,
             auto_hide_on_owner_completion: true,
             expires_at: if step.timed_override && step.duration_override_ms > 0 {
                 Some(Instant::now() + Duration::from_millis(step.duration_override_ms))
