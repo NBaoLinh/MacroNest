@@ -105,6 +105,7 @@ impl CrosshairApp {
         egui::Popup::close_id(ui.ctx(), if_popup_id);
         for (_, _, _, popup_key) in Self::mouse_click_action_groups().iter().copied() {
             let child_popup_id = ui.make_persistent_id((id_source, popup_key, "popup"));
+            ui.ctx().data_mut(|data| data.insert_temp(child_popup_id, false));
             egui::Popup::close_id(ui.ctx(), child_popup_id);
         }
         ui.ctx().request_repaint();
@@ -112,6 +113,7 @@ impl CrosshairApp {
     fn clear_mouse_click_submenus(ui: &mut egui::Ui, id_source: impl std::hash::Hash + Copy) {
         for (_, _, _, popup_key) in Self::mouse_click_action_groups().iter().copied() {
             let child_popup_id = ui.make_persistent_id((id_source, popup_key, "popup"));
+            ui.ctx().data_mut(|data| data.insert_temp(child_popup_id, false));
             egui::Popup::close_id(ui.ctx(), child_popup_id);
         }
         ui.ctx().request_repaint();
