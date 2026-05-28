@@ -1761,6 +1761,54 @@ impl Default for VideoPreset {
     }
 }
 
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
+#[serde(default)]
+pub struct OcrPreset {
+    pub id: u32,
+    pub name: String,
+    pub enabled: bool,
+    pub collapsed: bool,
+    pub preview_enabled: bool,
+    pub x: i32,
+    pub y: i32,
+    pub width: i32,
+    pub height: i32,
+    pub lang: Option<String>,
+    pub target_text: String,
+    pub success_var: String,
+    pub pos_var_x: String,
+    pub pos_var_y: String,
+    pub numeric_var: String,
+}
+
+impl OcrPreset {
+    pub fn new(id: u32) -> Self {
+        Self {
+            id,
+            name: format!("OCR {id}"),
+            enabled: true,
+            collapsed: true,
+            preview_enabled: false,
+            x: 0,
+            y: 0,
+            width: 320,
+            height: 180,
+            lang: None,
+            target_text: String::new(),
+            success_var: String::new(),
+            pos_var_x: String::new(),
+            pos_var_y: String::new(),
+            numeric_var: String::new(),
+        }
+    }
+}
+
+impl Default for OcrPreset {
+    fn default() -> Self {
+        Self::new(1)
+    }
+}
+
 impl Default for AudioSettings {
     fn default() -> Self {
         Self {
@@ -1847,6 +1895,10 @@ pub struct AppState {
     #[serde(default)]
     pub global_constants: Vec<(String, i32)>,
     #[serde(default)]
+    pub ocr_presets: Vec<OcrPreset>,
+    #[serde(default)]
+    pub next_ocr_preset_id: u32,
+    #[serde(default)]
     pub ocr_test_x: i32,
     #[serde(default)]
     pub ocr_test_y: i32,
@@ -1927,6 +1979,8 @@ impl Default for AppState {
             macro_mouse_click_delay_ms: 16,
             macro_keyboard_key_press_delay_ms: 0,
             global_constants: Vec::new(),
+            ocr_presets: Vec::new(),
+            next_ocr_preset_id: 1,
             ocr_test_x: 0,
             ocr_test_y: 0,
             ocr_test_width: 320,

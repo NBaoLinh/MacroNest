@@ -2,16 +2,29 @@ use eframe::egui::{self, RichText, Sense, Color32, vec2};
 use crate::ui::CrosshairApp;
 use crate::ocr::{perform_ocr, OcrResult};
 use crate::window_list::capture_virtual_screen_region;
+use crate::model::*;
+use crate::overlay::OverlayCommand;
 
 impl CrosshairApp {
     pub(crate) fn render_ocr_panel(&mut self, ui: &mut egui::Ui) {
         let language = self.state.ui_language;
-        ui.add_space(4.0);
+        let vietnamese_input_enabled = self.state.vietnamese_input_enabled;
+        let vietnamese_input_mode = self.state.vietnamese_input_mode;
+        
+        let ocr_test_running = self.state.ocr_test_running;
+        let ocr_test_x = self.state.ocr_test_x;
+        let ocr_test_y = self.state.ocr_test_y;
+        let ocr_test_width = self.state.ocr_test_width;
+        let ocr_test_height = self.state.ocr_test_height;
+        let ocr_test_error = self.state.ocr_test_error.clone();
+        let ocr_test_result = self.state.ocr_test_result.clone();
+
+        ui.add_space(2.0);
 
         // Header Title
         ui.horizontal(|ui| {
             ui.heading(
-                RichText::new(self.tr("Native Windows OCR (Beta)", "Nhận dạng chữ Windows (OCR)"))
+                RichText::new(Self::tr_lang(language, "OCR Presets", "Nhận dạng chữ (OCR)"))
                     .strong()
                     .color(Color32::from_rgb(0, 255, 170)),
             );
@@ -19,81 +32,160 @@ impl CrosshairApp {
 
         ui.add_space(8.0);
 
-        // Description
-        ui.label(
-            self.tr(
-                "Windows OCR uses Microsoft's native OS engine. It's fast, offline, and takes 0 resources.",
-                "Windows OCR sử dụng engine gốc tích hợp sẵn trong hệ điều hành Windows. Xử lý cực nhanh, không tốn tài nguyên và hoạt động offline."
-            )
-        );
+        // Add OCR preset button
+        ui.horizontal(|ui| {
+            if ui
+                .button(Self::tr_lang(language, "+ Add OCR preset", "+ Thêm preset OCR"))
+                .clicked()
+            {
+                let mut id = 1;
+                while self.state.ocr_presets.iter().any(|p| p.id == id) {
+                    id += 1;
+                }
+                self.state.next_ocr_preset_id = (self.state.ocr_presets.iter().map(|p| p.id).max().unwrap_or(0) + 1).max(id + 1);
+                let preset = OcrPreset::new(id);
+                self.state.ocr_presets.push(preset);
+                self.sync_ocr_presets();
+                self.persist();
+            }
+        });
 
-        ui.add_space(12.0);
+        ui.add_space(8.0);
 
-        // Settings Grid
-        Self::show_preset_card(ui, false, |ui| {
-            ui.vertical(|ui| {
-                ui.label(RichText::new(self.tr("Test OCR Engine Configuration", "Cấu hình thử nghiệm OCR")).strong());
-                ui.add_space(6.0);
+        let mut remove_id = None;
+        let mut live_sync = false;
+        let mut run_test_preset_id = None;
+        let mut preview_toggled_preset_id = None;
 
-                egui::Grid::new("ocr-test-settings-grid")
+        // Render card-based presets list
+        for index in 0..self.state.ocr_presets.len() {
+            let preset = &mut self.state.ocr_presets[index];
+            preset.enabled = true; // Always enabled for macros
+            ui.add_space(6.0);
+
+            Self::show_preset_card(ui, preset.enabled, |ui| {
+                ui.horizontal(|ui| {
+                    // Editable Name
+                    let name_width = Self::preset_header_name_width(ui);
+                    let response = ui.add_sized([name_width, 24.0], egui::TextEdit::singleline(&mut preset.name));
+                    Self::apply_vietnamese_input_if_changed(
+                        &response,
+                        vietnamese_input_enabled,
+                        vietnamese_input_mode,
+                        &mut preset.name,
+                    );
+                    live_sync |= response.changed();
+
+                    ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
+                        // Delete Button
+                        if Self::sound_style_remove_button(ui).clicked() {
+                            remove_id = Some(preset.id);
+                        }
+                        // Collapse Button
+                        if Self::sound_style_toggle_button(
+                            ui,
+                            if preset.collapsed {
+                                Self::tr_lang(language, "Show", "Hiện")
+                            } else {
+                                Self::tr_lang(language, "Hide", "Ẩn")
+                            },
+                        )
+                        .clicked()
+                        {
+                            preset.collapsed = !preset.collapsed;
+                            live_sync = true;
+                        }
+                    });
+                });
+
+                if preset.collapsed {
+                    if preset.preview_enabled {
+                        preset.preview_enabled = false;
+                        live_sync = true;
+                    }
+                    return;
+                }
+
+                ui.add_space(4.0);
+
+                egui::Grid::new((preset.id, "ocr-preset-grid"))
                     .num_columns(2)
-                    .spacing([12.0, 8.0])
+                    .spacing([14.0, 8.0])
+                    .min_col_width(110.0)
                     .show(ui, |ui| {
                         // Language Code
-                        ui.label(self.tr("Language Code (e.g. 'en', 'vi')", "Mã ngôn ngữ (ví dụ 'en', 'vi')"));
+                        ui.label(Self::tr_lang(language, "Language Code (e.g. 'en', 'vi')", "Mã ngôn ngữ (ví dụ 'en', 'vi')"));
                         ui.horizontal(|ui| {
-                            let mut lang_str = self.state.ocr_test_lang.clone().unwrap_or_default();
+                            let mut lang_str = preset.lang.clone().unwrap_or_default();
                             let resp = ui.add_sized([180.0, 22.0], egui::TextEdit::singleline(&mut lang_str));
                             if resp.changed() {
-                                self.state.ocr_test_lang = if lang_str.trim().is_empty() {
+                                preset.lang = if lang_str.trim().is_empty() {
                                     None
                                 } else {
                                     Some(lang_str.trim().to_string())
                                 };
-                                self.persist();
+                                live_sync = true;
                             }
-                            ui.label(RichText::new(self.tr("(Leave blank for Auto)", "(Để trống để tự động nhận dạng)")).weak().small());
+                            ui.label(RichText::new(Self::tr_lang(language, "(Leave blank for Auto)", "(Để trống để tự động nhận dạng)")).weak().small());
                         });
                         ui.end_row();
 
-                        // X, Y, Width, Height
-                        ui.label(self.tr("Scan Region (X, Y, W, H)", "Vùng quét OCR (X, Y, W, H)"));
+                        // Scan Region (X, Y, W, H)
+                        ui.label(Self::tr_lang(language, "Scan Region (X, Y, W, H)", "Vùng quét OCR (X, Y, W, H)"));
                         ui.horizontal(|ui| {
                             let mut changed = false;
                             ui.label("X:");
-                            changed |= ui.add(egui::DragValue::new(&mut self.state.ocr_test_x).range(0..=10000)).changed();
+                            changed |= ui.add(egui::DragValue::new(&mut preset.x).range(0..=10000)).changed();
                             ui.add_space(6.0);
                             ui.label("Y:");
-                            changed |= ui.add(egui::DragValue::new(&mut self.state.ocr_test_y).range(0..=10000)).changed();
+                            changed |= ui.add(egui::DragValue::new(&mut preset.y).range(0..=10000)).changed();
                             ui.add_space(6.0);
                             ui.label("W:");
-                            changed |= ui.add(egui::DragValue::new(&mut self.state.ocr_test_width).range(10..=5000)).changed();
+                            changed |= ui.add(egui::DragValue::new(&mut preset.width).range(10..=5000)).changed();
                             ui.add_space(6.0);
                             ui.label("H:");
-                            changed |= ui.add(egui::DragValue::new(&mut self.state.ocr_test_height).range(10..=5000)).changed();
+                            changed |= ui.add(egui::DragValue::new(&mut preset.height).range(10..=5000)).changed();
                             
                             if changed {
-                                self.persist();
+                                live_sync = true;
                             }
                         });
                         ui.end_row();
+
+                        // Preview checkbox
+                        ui.label(Self::tr_lang(language, "Preview", "Preview"));
+                        let prev_resp = ui.checkbox(
+                            &mut preset.preview_enabled,
+                            Self::tr_lang(
+                                language,
+                                "Stream preview in editor",
+                                "Stream preview trong editor",
+                            ),
+                        );
+                        if prev_resp.changed() {
+                            live_sync = true;
+                            if preset.preview_enabled {
+                                preview_toggled_preset_id = Some(preset.id);
+                            }
+                        }
+                        ui.end_row();
                     });
 
-                ui.add_space(10.0);
+                ui.add_space(8.0);
 
                 // Region Editor Preview
-                ui.label(RichText::new(self.tr("Visual Region Adjuster", "Điều chỉnh Vùng quét trực quan")).strong());
+                ui.label(RichText::new(Self::tr_lang(language, "Visual Region Adjuster", "Điều chỉnh Vùng quét trực quan")).strong());
                 ui.add_space(4.0);
 
                 // Re-using the premium rect editor to adjust X, Y, W, H visually
                 let changed = Self::render_zoom_rect_editor(
                     ui,
-                    "ocr-test-rect-editor",
+                    ("ocr-rect-editor", preset.id),
                     "",
-                    &mut self.state.ocr_test_x,
-                    &mut self.state.ocr_test_y,
-                    &mut self.state.ocr_test_width,
-                    &mut self.state.ocr_test_height,
+                    &mut preset.x,
+                    &mut preset.y,
+                    &mut preset.width,
+                    &mut preset.height,
                     Self::screen_size(),
                     None,
                     None,
@@ -101,7 +193,7 @@ impl CrosshairApp {
                 );
 
                 if changed {
-                    self.persist();
+                    live_sync = true;
                 }
 
                 ui.add_space(12.0);
@@ -109,119 +201,196 @@ impl CrosshairApp {
                 // Trigger Button
                 ui.horizontal(|ui| {
                     if ui.button(
-                        RichText::new(self.tr("⚡ Test Capture and OCR Scan", "⚡ Chụp và Quét thử OCR"))
+                        RichText::new(Self::tr_lang(language, "⚡ Test Capture and OCR Scan", "⚡ Chụp và Quét thử OCR"))
                             .strong()
                             .color(Color32::from_rgb(0, 255, 170))
                     ).clicked() {
-                        self.run_ocr_test();
+                        run_test_preset_id = Some(preset.id);
                     }
 
-                    if self.state.ocr_test_running {
+                    if ocr_test_running {
                         ui.spinner();
-                        ui.label(self.tr("Scanning...", "Đang nhận diện..."));
+                        ui.label(Self::tr_lang(language, "Scanning...", "Đang nhận diện..."));
                     }
                 });
-            });
-        });
 
-        ui.add_space(12.0);
+                // Display scan results specifically for this preset
+                let matches_current = ocr_test_x == preset.x
+                    && ocr_test_y == preset.y
+                    && ocr_test_width == preset.width
+                    && ocr_test_height == preset.height;
 
-        // Results Section
-        Self::show_preset_card(ui, false, |ui| {
-            ui.vertical(|ui| {
-                ui.label(RichText::new(self.tr("OCR Scan Results", "Kết quả quét OCR")).strong());
-                ui.add_space(8.0);
+                if matches_current {
+                    if let Some(ref err) = ocr_test_error {
+                        ui.add_space(8.0);
+                        ui.label(
+                            RichText::new(format!("❌ Error: {err}"))
+                                .color(Color32::from_rgb(255, 85, 85))
+                                .strong()
+                        );
+                    } else if let Some(ref res) = ocr_test_result {
+                        ui.add_space(8.0);
+                        ui.group(|ui| {
+                            ui.horizontal(|ui| {
+                                ui.label(RichText::new(Self::tr_lang(language, "Full Extracted Text:", "Toàn bộ đoạn chữ quét được:")).strong());
+                            });
+                            ui.add_space(4.0);
+                            
+                            let mut text_val_str = if res.text.trim().is_empty() {
+                                Self::tr_lang(language, "[No text found in region]", "[Không tìm thấy chữ nào trong vùng quét]").to_string()
+                            } else {
+                                res.text.clone()
+                            };
 
-                if let Some(ref err) = self.state.ocr_test_error {
-                    ui.label(
-                        RichText::new(format!("❌ Error: {err}"))
-                            .color(Color32::from_rgb(255, 85, 85))
-                            .strong()
-                    );
-                } else if let Some(ref res) = self.state.ocr_test_result {
-                    ui.group(|ui| {
-                        ui.horizontal(|ui| {
-                            ui.label(RichText::new(self.tr("Full Extracted Text:", "Toàn bộ đoạn chữ quét được:")).strong());
-                        });
-                        ui.add_space(4.0);
-                        
-                        let text_val = if res.text.trim().is_empty() {
-                            self.tr("[No text found in region]", "[Không tìm thấy chữ nào trong vùng quét]").to_string()
-                        } else {
-                            res.text.clone()
-                        };
+                            ui.text_edit_multiline(&mut text_val_str.as_str());
 
-                        ui.text_edit_multiline(&mut text_val.as_str());
-
-                        // Number parsing test helper
-                        if !res.text.trim().is_empty() {
-                            let mut parsed_numbers = Vec::new();
-                            let mut current_num = String::new();
-                            for c in res.text.chars() {
-                                if c.is_ascii_digit() {
-                                    current_num.push(c);
-                                } else if !current_num.is_empty() {
+                            // Number parsing test helper
+                            if !res.text.trim().is_empty() {
+                                let mut parsed_numbers = Vec::new();
+                                let mut current_num = String::new();
+                                for c in res.text.chars() {
+                                    if c.is_ascii_digit() {
+                                        current_num.push(c);
+                                    } else if !current_num.is_empty() {
+                                        if let Ok(n) = current_num.parse::<i32>() {
+                                            parsed_numbers.push(n);
+                                        }
+                                        current_num.clear();
+                                    }
+                                }
+                                if !current_num.is_empty() {
                                     if let Ok(n) = current_num.parse::<i32>() {
                                         parsed_numbers.push(n);
                                     }
-                                    current_num.clear();
+                                }
+
+                                if !parsed_numbers.is_empty() {
+                                    ui.add_space(6.0);
+                                    ui.horizontal(|ui| {
+                                        ui.label(RichText::new(Self::tr_lang(language, "💡 Extracted Numeric values:", "💡 Các số trích xuất được:")).strong().color(Color32::from_rgb(255, 232, 96)));
+                                        ui.label(format!("{:?}", parsed_numbers));
+                                    });
                                 }
                             }
-                            if !current_num.is_empty() {
-                                if let Ok(n) = current_num.parse::<i32>() {
-                                    parsed_numbers.push(n);
-                                }
-                            }
-
-                            if !parsed_numbers.is_empty() {
-                                ui.add_space(6.0);
-                                ui.horizontal(|ui| {
-                                    ui.label(RichText::new(self.tr("💡 Extracted Numeric values:", "💡 Các số trích xuất được:")).strong().color(Color32::from_rgb(255, 232, 96)));
-                                    ui.label(format!("{:?}", parsed_numbers));
-                                });
-                            }
-                        }
-                    });
-
-                    if !res.words.is_empty() {
-                        ui.add_space(8.0);
-                        ui.label(RichText::new(self.tr("Detailed Words Coordinates:", "Tọa độ chi tiết các từ:")).strong());
-                        ui.add_space(4.0);
-                        
-                        egui::ScrollArea::vertical().max_height(180.0).show(ui, |ui| {
-                            egui::Grid::new("ocr-test-words-grid")
-                                .num_columns(4)
-                                .spacing([16.0, 6.0])
-                                .show(ui, |ui| {
-                                    ui.label(RichText::new("Word").strong());
-                                    ui.label(RichText::new("Pos X, Y (Relative)").strong());
-                                    ui.label(RichText::new("Absolute on Screen").strong());
-                                    ui.label(RichText::new("Size (W x H)").strong());
-                                    ui.end_row();
-
-                                    for word in &res.words {
-                                        ui.label(RichText::new(&word.text).color(Color32::from_rgb(0, 255, 170)));
-                                        ui.label(format!("{:.0}, {:.0}", word.x, word.y));
-                                        
-                                        // Calc absolute screen position
-                                        let abs_x = self.state.ocr_test_x as f32 + word.x;
-                                        let abs_y = self.state.ocr_test_y as f32 + word.y;
-                                        ui.label(format!("{:.0}, {:.0}", abs_x, abs_y));
-                                        
-                                        ui.label(format!("{:.0}x{:.0}", word.width, word.height));
-                                        ui.end_row();
-                                    }
-                                });
                         });
+
+                        if !res.words.is_empty() {
+                            ui.add_space(8.0);
+                            ui.label(RichText::new(Self::tr_lang(language, "Detailed Words Coordinates:", "Tọa độ chi tiết các từ:")).strong());
+                            ui.add_space(4.0);
+                            
+                            egui::ScrollArea::vertical().max_height(180.0).show(ui, |ui| {
+                                egui::Grid::new("ocr-test-words-grid")
+                                    .num_columns(4)
+                                    .spacing([16.0, 6.0])
+                                    .show(ui, |ui| {
+                                        ui.label(RichText::new("Word").strong());
+                                        ui.label(RichText::new("Pos X, Y (Relative)").strong());
+                                        ui.label(RichText::new("Absolute on Screen").strong());
+                                        ui.label(RichText::new("Size (W x H)").strong());
+                                        ui.end_row();
+
+                                        for word in &res.words {
+                                            ui.label(RichText::new(&word.text).color(Color32::from_rgb(0, 255, 170)));
+                                            ui.label(format!("{:.0}, {:.0}", word.x, word.y));
+                                            
+                                            // Calc absolute screen position
+                                            let abs_x = preset.x as f32 + word.x;
+                                            let abs_y = preset.y as f32 + word.y;
+                                            ui.label(format!("{:.0}, {:.0}", abs_x, abs_y));
+                                            
+                                            ui.label(format!("{:.0}x{:.0}", word.width, word.height));
+                                            ui.end_row();
+                                        }
+                                    });
+                            });
+                        }
                     }
-                } else {
-                    ui.label(
-                        RichText::new(self.tr("Click button above to run OCR test scan.", "Nhấn nút phía trên để chạy quét thử OCR."))
-                            .weak()
-                    );
                 }
             });
-        });
+        }
+
+        if let Some(id) = remove_id {
+            self.state.ocr_presets.retain(|preset| preset.id != id);
+            live_sync = true;
+        }
+
+        // Mutual exclusivity of preset previews
+        if let Some(current_id) = preview_toggled_preset_id {
+            for other_preset in &mut self.state.ocr_presets {
+                if other_preset.id != current_id {
+                    other_preset.preview_enabled = false;
+                }
+            }
+        }
+
+        if let Some(preset_id) = run_test_preset_id {
+            if let Some(preset) = self.state.ocr_presets.iter().find(|p| p.id == preset_id) {
+                self.state.ocr_test_x = preset.x;
+                self.state.ocr_test_y = preset.y;
+                self.state.ocr_test_width = preset.width;
+                self.state.ocr_test_height = preset.height;
+                self.state.ocr_test_lang = preset.lang.clone();
+            }
+            self.run_ocr_test();
+        }
+
+        // Live preview sync
+        self.sync_ocr_preview();
+
+        if live_sync {
+            self.sync_ocr_presets();
+            self.persist();
+        }
+    }
+
+    pub(crate) fn sync_ocr_presets(&self) {
+        let _ = self
+            .overlay_tx
+            .send(OverlayCommand::UpdateOcrPresets(
+                self.state.ocr_presets.clone(),
+            ));
+    }
+
+    pub(crate) fn sync_ocr_preview(&mut self) {
+        let preview_preset = self.state.ocr_presets.iter().find(|p| p.preview_enabled);
+        if let Some(preset) = preview_preset {
+            let hud = HudPreset {
+                id: 900_000 + preset.id,
+                name: preset.name.clone(),
+                collapsed: false,
+                preview_enabled: true,
+                text: format!("OCR Zone: {}", preset.name),
+                font_size: 16.0,
+                background_opacity: 0.15,
+                rounded_background: true,
+                text_color: RgbaColor { r: 0, g: 255, b: 170, a: 255 },
+                background_color: RgbaColor { r: 0, g: 255, b: 170, a: 30 },
+                x: preset.x,
+                y: preset.y,
+                width: preset.width,
+                height: preset.height,
+            };
+            let _ = self.overlay_tx.send(OverlayCommand::PreviewHudPreset(vec![hud]));
+        } else {
+            if self.state.active_panel == AppPanel::Ocr {
+                let _ = self.overlay_tx.send(OverlayCommand::PreviewHudPreset(Vec::new()));
+            }
+        }
+    }
+
+    pub(crate) fn disable_ocr_preview_modes(&mut self) -> bool {
+        let mut changed = false;
+        for preset in &mut self.state.ocr_presets {
+            if preset.preview_enabled {
+                preset.preview_enabled = false;
+                changed = true;
+            }
+        }
+        if changed {
+            let _ = self.overlay_tx.send(OverlayCommand::PreviewHudPreset(Vec::new()));
+        }
+        changed
     }
 
     fn run_ocr_test(&mut self) {

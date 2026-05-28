@@ -800,6 +800,7 @@ impl CrosshairApp {
         app.sync_macro_presets();
         app.sync_audio_settings();
         app.sync_vision_presets();
+        app.sync_ocr_presets();
         app.sync_vision_settings();
         app.sync_hud_presets();
         app.sync_timer_presets();
@@ -4027,6 +4028,7 @@ impl CrosshairApp {
                 | MacroAction::StopVision
                 | MacroAction::StopVisionWait
                 | MacroAction::ShowHud
+                | MacroAction::OcrSearch
                 | MacroAction::IfStart
                 | MacroAction::Else
                 | MacroAction::IfEnd
@@ -7799,6 +7801,10 @@ impl eframe::App for CrosshairApp {
         }
         let keep_window_preset_preview = viewport_focused && self.state.active_panel == AppPanel::WindowPresets;
         if !keep_window_preset_preview && self.disable_window_presets_preview_modes() {
+            self.persist();
+        }
+        let keep_ocr_preview = viewport_focused && self.state.active_panel == AppPanel::Ocr;
+        if !keep_ocr_preview && self.disable_ocr_preview_modes() {
             self.persist();
         }
 

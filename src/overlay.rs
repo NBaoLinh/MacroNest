@@ -370,6 +370,7 @@ mod windows_overlay {
         ToggleMacroRecording(u32, u32, String),
         UpdateTimerPresets(Vec<TimerPreset>),
         PreviewTimerPreset(Option<TimerPreset>),
+        UpdateOcrPresets(Vec<crate::model::OcrPreset>),
     }
 
     #[derive(Debug, Clone)]
@@ -521,6 +522,7 @@ mod windows_overlay {
         vision_capture_anchor: Option<(i32, i32)>,
         vision_capture_preview_region: Option<VisionRegion>,
         hud_presets: Vec<HudPreset>,
+        ocr_presets: Vec<crate::model::OcrPreset>,
         command_presets: Vec<CommandPreset>,
         macro_groups: Vec<MacroGroup>,
         macros_master_enabled: bool,
@@ -587,6 +589,7 @@ mod windows_overlay {
                 vision_capture_anchor: None,
                 vision_capture_preview_region: None,
                 hud_presets: Vec::new(),
+                ocr_presets: Vec::new(),
                 command_presets: Vec::new(),
                 macro_groups: Vec::new(),
                 macros_master_enabled: true,
@@ -3372,6 +3375,9 @@ mod windows_overlay {
                     *HUD_PREVIEW_DISPLAY.lock() =
                         presets.into_iter().next().map(toolbox_preview_display_from_preset);
                     let _ = refresh_hud(runtime);
+                }
+                OverlayCommand::UpdateOcrPresets(presets) => {
+                    HOOK_STATE.lock().ocr_presets = presets;
                 }
                 OverlayCommand::UpdateMacroPresets(presets) => {
                     runtime.macro_groups = presets;
@@ -7079,16 +7085,24 @@ fn set_variable_value(target_var: &str, value: i32) {
 }
 
 fn execute_ocr_action_step(step: &crate::model::MacroStep) {
-    let x = step.x;
-    let y = step.y;
-    let w = step.ocr_width.max(10);
-    let h = step.ocr_height.max(10);
-    let lang = &step.ocr_lang;
+    let preset_id = step.key.trim().parse::<u32>().ok().unwrap_or(0);
+    
+    let (x, y, w, h, lang) = {
+        let hook_state = HOOK_STATE.lock();
+        if let Some(preset) = hook_state.ocr_presets.iter().find(|p| p.id == preset_id) {
+            (preset.x, preset.y, preset.width, preset.height, preset.lang.clone())
+        } else {
+            (step.x, step.y, step.ocr_width, step.ocr_height, step.ocr_lang.clone())
+        }
+    };
+    let w = w.max(10);
+    let h = h.max(10);
+    let lang_str = lang.as_deref().unwrap_or("en");
 
     let mut success = 0;
 
     if let Some(frame) = window_list::capture_virtual_screen_region(x, y, w, h) {
-        if let Ok(res) = crate::ocr::perform_ocr(&frame.rgba, frame.width as u32, frame.height as u32, lang.as_deref().unwrap_or("en")) {
+        if let Ok(res) = crate::ocr::perform_ocr(&frame.rgba, frame.width as u32, frame.height as u32, lang_str) {
             let full_text = res.text;
 
             // 1. Parse number if ocr_numeric_var is set
