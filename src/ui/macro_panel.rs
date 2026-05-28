@@ -3493,14 +3493,14 @@ impl CrosshairApp {
                                                     let selected_label = selected_id
                                                         .and_then(|id| {
                                                             self.state
-                                                                .window_focus_presets
+                                                                .window_presets
                                                                 .iter()
                                                                 .find(|preset| preset.id == id)
                                                                 .map(|preset| preset.name.clone())
                                                         })
                                                         .unwrap_or_else(|| {
                                                             if step.key.trim().is_empty() {
-                                                                Self::tr_lang(language, "Select window/focus", "Chọn cửa sổ/focus").to_owned()
+                                                                Self::tr_lang(language, "Select window", "Chọn cửa sổ").to_owned()
                                                             } else {
                                                                 Self::simplify_window_title(&step.key)
                                                             }
@@ -3509,8 +3509,8 @@ impl CrosshairApp {
                                                         .width(160.0)
                                                         .selected_text(selected_label)
                                                         .show_ui(ui, |ui| {
-                                                            ui.strong(Self::tr_lang(language, "Focus Presets", "Preset Focus"));
-                                                            for preset_option in &self.state.window_focus_presets {
+                                                            ui.strong(Self::tr_lang(language, "Window Presets", "Preset cửa sổ"));
+                                                            for preset_option in &self.state.window_presets {
                                                                 if ui
                                                                     .selectable_label(
                                                                         selected_id == Some(preset_option.id),
@@ -6036,14 +6036,14 @@ impl CrosshairApp {
                                                     let selected_label = selected_id
                                                         .and_then(|id| {
                                                             self.state
-                                                                .window_focus_presets
+                                                                .window_presets
                                                                 .iter()
                                                                 .find(|preset| preset.id == id)
                                                                 .map(|preset| preset.name.clone())
                                                         })
                                                         .unwrap_or_else(|| {
                                                             if step.key.trim().is_empty() {
-                                                                Self::tr_lang(language, "Select window/focus", "Chọn cửa sổ/focus").to_owned()
+                                                                Self::tr_lang(language, "Select window", "Chọn cửa sổ").to_owned()
                                                             } else {
                                                                 Self::simplify_window_title(&step.key)
                                                             }
@@ -6052,8 +6052,8 @@ impl CrosshairApp {
                                                         .width(160.0)
                                                         .selected_text(selected_label)
                                                         .show_ui(ui, |ui| {
-                                                            ui.strong(Self::tr_lang(language, "Focus Presets", "Preset Focus"));
-                                                            for preset_option in &self.state.window_focus_presets {
+                                                            ui.strong(Self::tr_lang(language, "Window Presets", "Preset cửa sổ"));
+                                                            for preset_option in &self.state.window_presets {
                                                                 if ui
                                                                     .selectable_label(selected_id == Some(preset_option.id), &preset_option.name)
                                                                     .clicked()
