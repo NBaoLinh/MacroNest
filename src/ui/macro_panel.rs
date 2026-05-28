@@ -733,6 +733,7 @@ impl CrosshairApp {
         ui.memory_mut(|mem| {
             mem.data.insert_temp(egui::Id::new("macro_variable_suggestion_names"), suggestion_names);
             mem.data.insert_temp(egui::Id::new("macro_variable_writable_suggestion_names"), writable_suggestion_names);
+            mem.data.insert_temp(egui::Id::new("macro_variable_suggestion_committed"), false);
         });
         let any_popup_open = ui.memory(|mem| mem.data.get_temp::<bool>(egui::Id::new("any_popup_open"))).unwrap_or(false);
         let mut enter_pressed = false;
@@ -7978,6 +7979,12 @@ Example: {100 + (A - B) * 2}",
                 self.persist_macro_presets();
             }
         }
+        if ui
+            .memory(|mem| mem.data.get_temp::<bool>(egui::Id::new("macro_variable_suggestion_committed")))
+            .unwrap_or(false)
+        {
+            live_sync = true;
+        }
         if live_sync {
             self.persist_macro_presets();
         }
@@ -8655,6 +8662,9 @@ Example: {100 + (A - B) * 2}",
         if confirm_selected {
             let chosen = &suggestions[selected_index];
             Self::apply_variable_suggestion(ui, response, text, &prefix, chosen, wrap_open, &after_cursor);
+            ui.memory_mut(|mem| {
+                mem.data.insert_temp(egui::Id::new("macro_variable_suggestion_committed"), true);
+            });
             popup_open = false;
             ui.memory_mut(|mem| {
                 mem.data.insert_temp(popup_open_key, popup_open);
@@ -8699,6 +8709,9 @@ Example: {100 + (A - B) * 2}",
 
         if let Some(chosen) = clicked_choice {
             Self::apply_variable_suggestion(ui, response, text, &prefix, &chosen, wrap_open, &after_cursor);
+            ui.memory_mut(|mem| {
+                mem.data.insert_temp(egui::Id::new("macro_variable_suggestion_committed"), true);
+            });
             popup_open = false;
             ui.memory_mut(|mem| {
                 mem.data.insert_temp(popup_open_key, popup_open);
