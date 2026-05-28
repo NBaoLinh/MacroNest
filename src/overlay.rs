@@ -62,10 +62,11 @@ mod windows_overlay {
                 Gdi::{
                     AC_SRC_ALPHA, AC_SRC_OVER, ANTIALIASED_QUALITY, BI_RGB, BITMAPINFO,
                     BITMAPINFOHEADER, BLENDFUNCTION, BeginPaint, CLIP_DEFAULT_PRECIS,
-                    CreateCompatibleDC, CreateDIBSection, CreateFontW, CreateRectRgn, HDC,
-                    DEFAULT_CHARSET, DIB_RGB_COLORS, DT_CENTER, DT_SINGLELINE, DT_VCENTER,
-                    DeleteDC, DeleteObject, DrawTextW, EndPaint, FF_DONTCARE, FW_MEDIUM, GetDC,
-                    GetMonitorInfoW, HGDIOBJ, MONITOR_DEFAULTTONEAREST, MONITORINFO,
+                    CreateCompatibleDC, CreateDIBSection, CreateFontW, CreateRectRgn,
+                    GetTextExtentPoint32W, HDC, DEFAULT_CHARSET, DIB_RGB_COLORS, DT_CENTER,
+                    DT_SINGLELINE, DT_VCENTER, DeleteDC, DeleteObject, DrawTextW, EndPaint,
+                    FF_DONTCARE, FW_MEDIUM, GetDC, GetMonitorInfoW, HGDIOBJ,
+                    MONITOR_DEFAULTTONEAREST, MONITORINFO,
                     MonitorFromWindow, OUT_DEFAULT_PRECIS, PAINTSTRUCT, ReleaseDC, SelectObject,
                     SetBkMode, SetTextColor, SetWindowRgn, SRCCOPY, StretchDIBits, TRANSPARENT,
                 },
@@ -7583,6 +7584,58 @@ fn set_variable_value(target_var: &str, value: i32) {
         )
     }
 
+    fn fit_hud_text_rect(width: i32, height: i32, text_width: i32, text_height: i32) -> (i32, i32) {
+        let min_width = text_width.saturating_add(24).max(1);
+        let min_height = text_height.saturating_add(8).max(1);
+        (width.max(min_width), height.max(min_height))
+    }
+
+    unsafe fn measure_hud_text_size(text: &str, font_size: f32) -> (i32, i32) {
+        let trimmed = text.trim();
+        if trimmed.is_empty() {
+            return (0, 0);
+        }
+
+        let screen_dc = GetDC(None);
+        if screen_dc.0.is_null() {
+            return (0, 0);
+        }
+        let font_name = "Segoe UI"
+            .encode_utf16()
+            .chain(std::iter::once(0))
+            .collect::<Vec<_>>();
+        let font = CreateFontW(
+            -(font_size.round() as i32).max(1),
+            0,
+            0,
+            0,
+            FW_MEDIUM.0 as i32,
+            0,
+            0,
+            0,
+            DEFAULT_CHARSET,
+            OUT_DEFAULT_PRECIS,
+            CLIP_DEFAULT_PRECIS,
+            ANTIALIASED_QUALITY,
+            FF_DONTCARE.0 as u32,
+            PCWSTR(font_name.as_ptr()),
+        );
+        let mem_dc = CreateCompatibleDC(Some(screen_dc));
+        if mem_dc.0.is_null() {
+            let _ = ReleaseDC(None, screen_dc);
+            return (0, 0);
+        }
+        let old_font = SelectObject(mem_dc, HGDIOBJ(font.0));
+        let mut size = SIZE::default();
+        let wide = trimmed.encode_utf16().collect::<Vec<_>>();
+        let _ = GetTextExtentPoint32W(mem_dc, &wide, &mut size);
+        let _ = SelectObject(mem_dc, old_font);
+        let _ = DeleteObject(HGDIOBJ(font.0));
+        let _ = DeleteDC(mem_dc);
+        let _ = ReleaseDC(None, screen_dc);
+        (size.cx.max(0), size.cy.max(0))
+    }
+
     fn show_hud_preset(owner_preset_id: u32, step: &MacroStep) -> Result<()> {
         let preset_id = step
             .key
@@ -7614,8 +7667,10 @@ fn set_variable_value(target_var: &str, value: i32) {
         } else {
             None
         };
+        let (text_width, text_height) = unsafe { measure_hud_text_size(&text, preset.font_size.max(1.0)) };
         let (x, y, width, height) =
             scale_hud_rect_to_screen(preset.x, preset.y, preset.width, preset.height);
+        let (width, height) = fit_hud_text_rect(width, height, text_width, text_height);
 
         HUD_DISPLAY.lock().insert(preset.id, HudDisplayState {
             owner_preset_id: Some(owner_preset_id),
@@ -7637,8 +7692,10 @@ fn set_variable_value(target_var: &str, value: i32) {
     }
 
     fn toolbox_preview_display_from_preset(preset: HudPreset) -> HudDisplayState {
+        let (text_width, text_height) = unsafe { measure_hud_text_size(&preset.text, preset.font_size.max(1.0)) };
         let (x, y, width, height) =
             scale_hud_rect_to_screen(preset.x, preset.y, preset.width, preset.height);
+        let (width, height) = fit_hud_text_rect(width, height, text_width, text_height);
         HudDisplayState {
             owner_preset_id: None,
             preset_id: Some(preset.id),
@@ -7668,7 +7725,9 @@ fn set_variable_value(target_var: &str, value: i32) {
             hide_hud_now();
             return;
         }
+        let (text_width, text_height) = unsafe { measure_hud_text_size(&trimmed, 28.0) };
         let (x, y, width, height) = scale_hud_rect_to_screen(660, 36, 600, 80);
+        let (width, height) = fit_hud_text_rect(width, height, text_width, text_height);
         HUD_DISPLAY.lock().insert(owner_preset_id, HudDisplayState {
             owner_preset_id: Some(owner_preset_id),
             preset_id: None,
