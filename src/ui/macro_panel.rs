@@ -702,12 +702,16 @@ impl CrosshairApp {
             suggestion_names.insert(name.to_string());
         }
         for name in self.collect_all_macro_referenced_variables() {
-            suggestion_names.insert(name);
+            if !name.contains('.') {
+                suggestion_names.insert(name);
+            }
         }
         {
             let vars = crate::overlay::RUNTIME_VARIABLES.lock();
             for name in vars.keys() {
-                suggestion_names.insert(name.clone());
+                if !name.contains('.') {
+                    suggestion_names.insert(name.clone());
+                }
             }
         }
         let mut suggestion_names: Vec<String> = suggestion_names.into_iter().collect();
@@ -716,14 +720,13 @@ impl CrosshairApp {
         {
             let vars = crate::overlay::RUNTIME_VARIABLES.lock();
             for name in vars.keys() {
-                writable_suggestion_names.insert(name.clone());
+                if !name.contains('.') {
+                    writable_suggestion_names.insert(name.clone());
+                }
             }
         }
         for (idx, _name) in timer_names.iter().enumerate() {
-            let timer_ref = format!("Timer{}", idx + 1);
-            for prop in ["hour", "minute", "second", "millisecond", "ms", "raw", "total_sec"] {
-                writable_suggestion_names.insert(format!("{}.{}", timer_ref, prop));
-            }
+            writable_suggestion_names.insert(format!("Timer{}", idx + 1));
         }
         let mut writable_suggestion_names: Vec<String> = writable_suggestion_names.into_iter().collect();
         writable_suggestion_names.sort();
@@ -8449,25 +8452,12 @@ Example: {100 + (A - B) * 2}",
     }
     fn builtin_variable_suggestions() -> &'static [&'static str] {
         &[
-            "System.Date",
-            "System.Time",
-            "System.Year",
-            "System.Month",
-            "System.Day",
-            "System.Hour",
-            "System.Minute",
-            "System.Second",
-            "System.Millisecond",
-            "Screen.Width",
-            "Screen.Height",
-            "Mouse.X",
-            "Mouse.Y",
-            "Mouse.Sensitivity",
-            "Window.Title",
-            "Window.Width",
-            "Window.Height",
-            "Volume.Level",
-            "Clipboard.Text",
+            "System",
+            "Screen",
+            "Mouse",
+            "Window",
+            "Volume",
+            "Clipboard",
         ]
     }
     fn object_property_suggestions(base: &str) -> Option<&'static [&'static str]> {
@@ -8535,7 +8525,7 @@ Example: {100 + (A - B) * 2}",
         _language: UiLanguage,
     ) {
         let suggestion_names = ui
-            .memory(|mem| mem.data.get_temp::<Vec<String>>(egui::Id::new("macro_variable_writable_suggestion_names")))
+            .memory(|mem| mem.data.get_temp::<Vec<String>>(egui::Id::new("macro_variable_suggestion_names")))
             .unwrap_or_default();
         let cursor_index = match egui::widgets::text_edit::TextEditState::load(ui.ctx(), response.id)
             .and_then(|state| state.cursor.char_range().and_then(|range| range.single().map(|c| c.index)))
