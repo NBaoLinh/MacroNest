@@ -340,12 +340,22 @@ impl CrosshairApp {
         action_hover_id: egui::Id,
     ) {
         let selected = matches!(*current, MacroAction::IfStart | MacroAction::Else | MacroAction::IfEnd);
+        let owner_id = ui.make_persistent_id("macro-action-submenu-owner");
         let popup_id = ui.make_persistent_id((id_source, "if-submenu-popup"));
         let popup_rect_id = ui.make_persistent_id((id_source, "if-submenu-rect"));
+        let mouse_popup_id = ui.make_persistent_id((id_source, "mouse-submenu-popup"));
+        let image_popup_id = ui.make_persistent_id((id_source, "image-search-submenu-popup"));
+        let timer_popup_id = ui.make_persistent_id((id_source, "timer-submenu-popup"));
+        let active_owner = ui
+            .ctx()
+            .data(|data| data.get_temp::<MacroActionSubmenuKind>(owner_id));
         let mut open = ui
             .ctx()
             .data(|data| data.get_temp::<bool>(popup_id))
             .unwrap_or(false);
+        if active_owner.is_some_and(|kind| kind != MacroActionSubmenuKind::If) {
+            open = false;
+        }
         let inner = ui.allocate_ui_with_layout(
             vec2(58.0, 42.0),
             egui::Layout::top_down(egui::Align::Center),
@@ -362,7 +372,12 @@ impl CrosshairApp {
                 if response.hovered() || response.clicked() {
                     Self::clear_macro_action_submenus(ui, id_source);
                     open = true;
+                    ui.ctx()
+                        .data_mut(|data| data.insert_temp(owner_id, MacroActionSubmenuKind::If));
                     ui.ctx().data_mut(|data| data.insert_temp(action_hover_id, true));
+                    ui.ctx().data_mut(|data| data.insert_temp(mouse_popup_id, false));
+                    ui.ctx().data_mut(|data| data.insert_temp(image_popup_id, false));
+                    ui.ctx().data_mut(|data| data.insert_temp(timer_popup_id, false));
                 }
                 let _popup_response = egui::Popup::from_response(&response)
                     .id(popup_id)
@@ -401,10 +416,14 @@ impl CrosshairApp {
                         }
                         if !keep_open_rect.contains(pointer_pos) {
                             open = false;
+                            ui.ctx()
+                                .data_mut(|data| data.insert_temp(owner_id, None::<MacroActionSubmenuKind>));
                             ui.ctx().request_repaint();
                         }
                     } else {
                         open = false;
+                        ui.ctx()
+                            .data_mut(|data| data.insert_temp(owner_id, None::<MacroActionSubmenuKind>));
                         ui.ctx().request_repaint();
                     }
                 }

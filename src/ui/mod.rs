@@ -464,6 +464,7 @@ pub(crate) enum MacroActionSubmenuKind {
     Mouse,
     ImageSearch,
     Timer,
+    If,
 }
 
 pub struct CrosshairApp {
