@@ -1553,34 +1553,40 @@ impl CrosshairApp {
                         .on_hover_text(tooltip_text);
                     }
                 }
-                let edit_icon = 0xe3c9; // edit icon (bút chì chéo)
-                if ui
-                    .add_sized(
-                        [28.0, 28.0],
-                        Button::new(Self::material_icon_text(edit_icon, 18.0)) // variable edit icon
-                            .fill(if self.variable_inspector_open {
-                                Color32::from_rgba_premultiplied(72, 156, 116, 120)
-                            } else {
-                                ui.visuals().faint_bg_color
-                            })
-                            .stroke(egui::Stroke::new(
-                                1.0,
-                                if self.variable_inspector_open {
-                                    Color32::from_rgb(126, 224, 182)
+                ui.vertical(|ui| {
+                    let edit_icon = 0xe3c9; // edit icon (bút chì chéo)
+                    if ui
+                        .add_sized(
+                            [28.0, 28.0],
+                            Button::new(Self::material_icon_text(edit_icon, 18.0)) // variable edit icon
+                                .fill(if self.variable_inspector_open {
+                                    Color32::from_rgba_premultiplied(72, 156, 116, 120)
                                 } else {
-                                    ui.visuals().widgets.noninteractive.bg_stroke.color
-                                },
-                            )),
-                    )
-                    .on_hover_text(Self::tr_lang(
-                        language,
-                        "Global & Local Variables Manager (Real-time)",
-                        "Trình quản lý biến toàn cục & cục bộ (Real-time)",
-                    ))
-                    .clicked()
-                {
-                    self.variable_inspector_open = !self.variable_inspector_open;
-                }
+                                    ui.visuals().faint_bg_color
+                                })
+                                .stroke(egui::Stroke::new(
+                                    1.0,
+                                    if self.variable_inspector_open {
+                                        Color32::from_rgb(126, 224, 182)
+                                    } else {
+                                        ui.visuals().widgets.noninteractive.bg_stroke.color
+                                    },
+                                )),
+                        )
+                        .on_hover_text(Self::tr_lang(
+                            language,
+                            "Global & Local Variables Manager (Real-time)",
+                            "Trình quản lý biến toàn cục & cục bộ (Real-time)",
+                        ))
+                        .clicked()
+                    {
+                        self.variable_inspector_open = !self.variable_inspector_open;
+                    }
+                    if self.variable_inspector_open {
+                        ui.add_space(4.0);
+                        Self::render_expression_help_box(ui, language);
+                    }
+                });
             });
             if ui
                 .add_sized(
@@ -4839,7 +4845,6 @@ impl CrosshairApp {
                                                         ui.spacing_mut().interact_size.y = 22.0;
                                                         ui.spacing_mut().button_padding.y = 0.0;
                                                         ui.vertical(|ui| {
-                                                            Self::render_expression_help_box(ui, language);
                                                             ui.horizontal(|ui| {
                                                                   let var_name_id = ui.id().with("hold-stop-set-var-name");
                                                                   let response = Self::render_variable_text_edit(
@@ -7442,7 +7447,6 @@ impl CrosshairApp {
                                                         ui.spacing_mut().interact_size.y = 22.0;
                                                         ui.spacing_mut().button_padding.y = 0.0;
                                                         ui.vertical(|ui| {
-                                                            Self::render_expression_help_box(ui, language);
                                                             ui.horizontal(|ui| {
                                                                   let var_name_id = ui.id().with((step_index, "regular-set-var-name"));
                                                                   let response = Self::render_variable_text_edit(
