@@ -8281,10 +8281,11 @@ impl eframe::App for CrosshairApp {
                 "Biến",
             ))
             .open(&mut open)
-            .default_pos(screen_center)
+            .fixed_pos(screen_center)
             .pivot(egui::Align2::CENTER_CENTER)
             .default_size(egui::vec2(280.0, 180.0))
-            .resizable(true)
+            .resizable(false)
+            .movable(false)
             .collapsible(false)
             .show(ctx, |ui| {
                 self.render_variable_inspector(ui);

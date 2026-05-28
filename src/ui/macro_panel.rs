@@ -5585,10 +5585,7 @@ impl CrosshairApp {
                                                     });
                                                 } else if step.action == MacroAction::TypeText {
                                                     ui.vertical(|ui| {
-                                                        let response = Self::render_variable_text_edit(
-                                                            ui,
-                                                            &mut step.key,
-                                                            ui.id().with("hold-stop-type-text-key"),
+                                                        let response = Self::render_expandable_text_edit(ui, &mut step.key, ui.id().with("hold-stop-type-text-key"),
                                                             220.0,
                                                             360.0,
                                                             22.0,
@@ -8174,10 +8171,7 @@ impl CrosshairApp {
                                                      });
                                                 } else if step.action == MacroAction::TypeText {
                                                      ui.vertical(|ui| {
-                                                         let response = Self::render_variable_text_edit(
-                                                             ui,
-                                                             &mut step.key,
-                                                             ui.id().with((step_index, "type-text-key")),
+                                                         let response = Self::render_expandable_text_edit(ui, &mut step.key, ui.id().with((step_index, "type-text-key")),
                                                              146.0,
                                                              260.0,
                                                              18.0,
