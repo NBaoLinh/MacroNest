@@ -895,7 +895,6 @@ impl CrosshairApp {
         ui.spacing_mut().item_spacing = vec2(6.0, 4.0);
         ui.add_space(2.0);
         let mut changed = false;
-        ui.heading(Self::tr_lang(language, "Media", "Media"));
         ui.add_space(6.0);
         let mut import_video_for_new_preset = None;
         ui.horizontal(|ui| {
@@ -1397,7 +1396,6 @@ impl CrosshairApp {
             ui.ctx().request_repaint();
         }
 
-        ui.heading(Self::tr_lang(language, "Media", "Media"));
         ui.label(RichText::new(title).strong());
         ui.add_space(3.0);
 

@@ -2427,7 +2427,6 @@ impl CrosshairApp {
                     let mut move_step_to: Option<(u32, Vec<usize>, usize)> = None;
                     let mut remove_preset = None;
                     let mut pending_step_selection = None;
-                    let mut selection_after_move = None;
                     let mut selection_after_paste = None;
                     let mut clear_step_selection = None;
                     let mut copy_selected_steps = None;
@@ -3176,20 +3175,20 @@ impl CrosshairApp {
                                 if !referenced_vars.is_empty() {
                                     ui.horizontal(|ui| {
                                         ui.add_space(4.0);
-                                        ui.label(RichText::new(Self::tr_lang(language, "Active Variables:", "BiÃ¡ÂºÂ¿n Ä‘ang dÃƒÂ¹ng:")).size(11.0).weak());
+                                        ui.label(RichText::new(Self::tr_lang(language, "Active Variables:", "Active Variables:")).size(11.0).weak());
                                         let vars_map = crate::overlay::RUNTIME_VARIABLES.lock();
                                         for var_name in &referenced_vars {
                                             let val = vars_map.get(var_name).copied();
                                             let val_str = val.map(|v| v.to_string()).unwrap_or_else(|| "?".to_string());
                                             let bg_color = if val.is_some() {
-                                                Color32::from_rgba_premultiplied(0, 191, 255, 20)
+                                                Color32::from_rgba_premultiplied(0, 191, 255, 34)
                                             } else {
-                                                Color32::from_rgba_premultiplied(128, 128, 128, 20)
+                                                Color32::from_rgba_premultiplied(54, 54, 54, 230)
                                             };
                                             let stroke_color = if val.is_some() {
                                                 Color32::from_rgb(0, 191, 255)
                                             } else {
-                                                Color32::from_rgb(128, 128, 128)
+                                                Color32::from_rgb(150, 150, 150)
                                             };
                                             egui::Frame::none()
                                                 .fill(bg_color)
@@ -3201,7 +3200,7 @@ impl CrosshairApp {
                                                         RichText::new(format!("{} = {}", var_name, val_str))
                                                             .size(11.0)
                                                             .strong()
-                                                            .color(if val.is_some() { Color32::from_rgb(0, 191, 255) } else { Color32::from_rgb(160, 160, 160) })
+                                                            .color(if val.is_some() { Color32::from_rgb(0, 191, 255) } else { Color32::from_rgb(245, 245, 245) })
                                                     );
                                                 });
                                         }
@@ -8206,11 +8205,6 @@ impl CrosshairApp {
                                     for (offset, step) in moved_steps.into_iter().enumerate() {
                                         target_preset.steps.insert(insert_at + offset, step);
                                     }
-                                    selection_after_move = Some((
-                                        group.id,
-                                        preset_id,
-                                        (insert_at..insert_at + indices.len()).collect::<Vec<_>>(),
-                                    ));
                                     live_sync = true;
                                 }
                             }
@@ -8435,13 +8429,6 @@ impl CrosshairApp {
                     }
                     if let Some((group_id, preset_id)) = clear_step_selection {
                         self.clear_macro_step_selection_for_preset(group_id, preset_id);
-                    }
-                    if let Some((group_id, preset_id, moved_indices)) = selection_after_move {
-                        self.clear_macro_step_selection_for_preset(group_id, preset_id);
-                        for moved_index in moved_indices {
-                            self.selected_macro_steps
-                                .insert((group_id, preset_id, moved_index));
-                        }
                     }
                     if let Some((group_id, preset_id, pasted_indices)) = selection_after_paste {
                         self.clear_macro_step_selection_for_preset(group_id, preset_id);

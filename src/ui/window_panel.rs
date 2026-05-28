@@ -22,13 +22,6 @@ impl CrosshairApp {
                 self.add_window_preset();
                 self.persist();
             }
-            if ui
-                .button(self.tr("+ Add window focus preset", "+ Thêm preset focus"))
-                .clicked()
-            {
-                self.add_window_focus_preset();
-                self.persist();
-            }
         });
 
         ui.add_space(8.0);
@@ -1054,14 +1047,6 @@ impl CrosshairApp {
                             }
                         }
                     });
-                    ui.label(
-                        RichText::new(Self::tr_lang(
-                            language,
-                            "The cropped source area will be stretched into the pinned window, so this works like a lighter crop + zoom.",
-                            "Vùng nguồn đã cắt sẽ được kéo giãn vào khung ghim, nên nó hoạt động như một kiểu crop + zoom nhẹ hơn.",
-                        ))
-                        .italics(),
-                    );
                 }
             });
             if let Some((target, status)) = next_capture_target.take() {
@@ -1186,19 +1171,6 @@ impl CrosshairApp {
                                     ui.end_row();
                                 }
                             });
-
-                        ui.separator();
-                        ui.label(RichText::new("Window Focus").strong());
-                        for item in &mut preset.window_focus_presets {
-                            let label = self
-                                .state
-                                .window_focus_presets
-                                .iter()
-                                .find(|focus_preset| focus_preset.id == item.id)
-                                .map(|focus_preset| focus_preset.name.as_str())
-                                .unwrap_or("Missing focus preset");
-                            needs_persist |= ui.checkbox(&mut item.enabled, label).changed();
-                        }
 
                         ui.separator();
                         ui.label(RichText::new("Zoom").strong());
