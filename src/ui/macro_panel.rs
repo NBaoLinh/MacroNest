@@ -865,9 +865,9 @@ impl CrosshairApp {
         language: UiLanguage,
         preview: Option<&MacroStepHoverPreview>,
         anchor_pos: egui::Pos2,
-    ) {
+    ) -> bool {
         let Some(preview) = preview else {
-            return;
+            return false;
         };
         let popup_id = egui::Id::new(("macro-hover-preview-popup", preview.source_id));
         let mut pos = anchor_pos + vec2(16.0, 18.0);
@@ -890,13 +890,41 @@ impl CrosshairApp {
         if pos.y + estimated_size.y > content_rect.bottom() {
             pos.y = (anchor_pos.y - estimated_size.y - 16.0).max(content_rect.top() + 6.0);
         }
-        egui::Area::new(popup_id)
+        let area_response = egui::Area::new(popup_id)
             .order(egui::Order::Tooltip)
             .fixed_pos(pos)
-            .interactable(false)
+            .interactable(true)
             .show(ctx, |ui| {
                 Self::render_hover_preview_panel(ui, language, Some(preview));
             });
+        let popup_hovered = area_response.response.hovered();
+        if popup_hovered {
+            if matches!(
+                &preview.kind,
+                MacroStepHoverPreviewKind::MacroPreset { .. }
+                    | MacroStepHoverPreviewKind::StepToggle { .. }
+            ) {
+                let scroll_y = ctx.input(|i| i.raw_scroll_delta.y);
+                if scroll_y.abs() > 0.0 {
+                    let offset_id = preview.source_id.with("macro-hover-preview-offset");
+                    let line_count = match &preview.kind {
+                        MacroStepHoverPreviewKind::MacroPreset { steps, .. } => steps.len() as i32,
+                        MacroStepHoverPreviewKind::StepToggle { steps, .. } => steps.len() as i32,
+                        _ => 0,
+                    };
+                    let visible_lines = 5i32;
+                    let max_offset = (line_count - visible_lines).max(0);
+                    let mut offset = ctx
+                        .data(|data| data.get_temp::<i32>(offset_id))
+                        .unwrap_or(0);
+                    let delta = if scroll_y > 0.0 { -1 } else { 1 };
+                    offset = (offset + delta).clamp(0, max_offset);
+                    ctx.data_mut(|data| data.insert_temp(offset_id, offset));
+                    ctx.request_repaint();
+                }
+            }
+        }
+        popup_hovered
     }
 
     fn build_hover_preview_request(
@@ -2887,6 +2915,7 @@ impl CrosshairApp {
         let mut pending_macro_group_scroll_consumed = false;
         let mut hover_preview: Option<MacroStepHoverPreview> = None;
         let mut hover_preview_request: Option<(u32, HoverPreviewRequest)> = None;
+        let hover_preview_state_id = ui.make_persistent_id("macro-hover-preview-state");
         egui::ScrollArea::vertical()
             .auto_shrink([false, false])
             .max_height(macro_panel_scroll_height)
@@ -4561,11 +4590,19 @@ impl CrosshairApp {
                                                 Self::macro_action_tooltip(step.action, language),
                                             );
                                             if hold_stop_combo.response.hovered() {
-                                                hover_preview_request = Some((group.id, Self::build_hover_preview_request(
+                                                let hover_request = Self::build_hover_preview_request(
                                                     language,
                                                     hover_preview_source_id,
                                                     step,
-                                                )));
+                                                );
+                                                let hover_anchor_pos = ui.ctx().pointer_hover_pos().unwrap_or(hold_stop_combo.response.rect.right_bottom());
+                                                ui.ctx().data_mut(|data| {
+                                                    data.insert_temp(
+                                                        hover_preview_state_id,
+                                                        Some((group.id, hover_request.clone(), hover_anchor_pos)),
+                                                    )
+                                                });
+                                                hover_preview_request = Some((group.id, hover_request));
                                             }
                                             let action_uses_key = Self::macro_action_uses_key(step.action);
                                             let action_supports_capture =
@@ -9153,6 +9190,13 @@ impl CrosshairApp {
                                         hover_preview_source_id,
                                         step,
                                     );
+                                    let hover_anchor_pos = ui.ctx().pointer_hover_pos().unwrap_or(row_response.rect.right_bottom());
+                                    ui.ctx().data_mut(|data| {
+                                        data.insert_temp(
+                                            hover_preview_state_id,
+                                            Some((group.id, hover_request.clone(), hover_anchor_pos)),
+                                        )
+                                    });
                                     if matches!(
                                         &hover_request,
                                         HoverPreviewRequest::MacroPreset { .. }
@@ -9696,15 +9740,33 @@ impl CrosshairApp {
             }
             self.persist();
         }
-        if let Some((group_id, hover_request)) = hover_preview_request.take() {
+        let active_hover_preview_state = ui
+            .ctx()
+            .data(|data| data.get_temp::<Option<(u32, HoverPreviewRequest, egui::Pos2)>>(hover_preview_state_id))
+            .flatten();
+        if let Some((group_id, hover_request, anchor_pos)) = active_hover_preview_state.clone() {
             hover_preview = self.resolve_hover_preview_request(group_id, hover_request);
-        }
-        if let Some(preview) = hover_preview.as_ref() {
-            let anchor_pos = ui
-                .ctx()
-                .pointer_hover_pos()
-                .unwrap_or_else(|| ui.min_rect().left_top());
-            Self::render_hover_preview_popup(ui.ctx(), language, Some(preview), anchor_pos);
+            if let Some(preview) = hover_preview.as_ref() {
+                let popup_hovered =
+                    Self::render_hover_preview_popup(ui.ctx(), language, Some(preview), anchor_pos);
+                if !popup_hovered && hover_preview_request.is_none() {
+                    ui.ctx()
+                        .data_mut(|data| {
+                            data.insert_temp(
+                                hover_preview_state_id,
+                                None::<Option<(u32, HoverPreviewRequest, egui::Pos2)>>,
+                            )
+                        });
+                }
+            }
+        } else {
+            ui.ctx()
+                .data_mut(|data| {
+                    data.insert_temp(
+                        hover_preview_state_id,
+                        None::<Option<(u32, HoverPreviewRequest, egui::Pos2)>>,
+                    )
+                });
         }
         if !pending_macro_group_scroll_consumed {
             self.pending_macro_group_scroll_target = pending_macro_group_scroll_target;
