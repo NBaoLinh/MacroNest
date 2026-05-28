@@ -933,7 +933,10 @@ impl CrosshairApp {
             .show(ctx, |ui| {
                 Self::render_hover_preview_panel(ui, language, Some(preview));
             });
-        let popup_hovered = area_response.response.hovered();
+        let rect = area_response.response.rect;
+        let pointer_pos = ctx.input(|i| i.pointer.hover_pos());
+        let popup_hovered = area_response.response.hovered()
+            && pointer_pos.map_or(false, |p| rect.contains(p));
         if popup_hovered {
             if matches!(
                 &preview.kind,
@@ -9753,7 +9756,8 @@ impl CrosshairApp {
             if let Some(preview) = hover_preview.as_ref() {
                 let popup_hovered =
                     Self::render_hover_preview_popup(ui.ctx(), language, Some(preview), anchor_pos);
-                if !popup_hovered && hover_preview_request.is_none() {
+                let pointer_pos = ui.ctx().input(|i| i.pointer.hover_pos());
+                if pointer_pos.is_none() || (!popup_hovered && hover_preview_request.is_none()) {
                     ui.ctx()
                         .data_mut(|data| {
                             data.insert_temp(
