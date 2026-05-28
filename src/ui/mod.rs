@@ -3357,7 +3357,7 @@ impl CrosshairApp {
             MacroAction::KeyUp => "KeyUp",
             MacroAction::Wait => "Wait",
             MacroAction::TypeText => "TypeText",
-            MacroAction::ApplyWindowPreset => "ApplyWindow",
+            MacroAction::ApplyWindowPreset => "ResizeWindow",
             MacroAction::FocusWindowPreset => "FocusWindow",
             MacroAction::TriggerMacroPreset => "TriggerMacro",
             MacroAction::TriggerCommandPreset => "TriggerCommand",
@@ -3428,7 +3428,7 @@ impl CrosshairApp {
                 MacroAction::KeyUp => "Nhả một phím đang giữ trên bàn phím.",
                 MacroAction::Wait => "Chờ trong khoảng thời gian (Delay - Mili giây), sau đó tiếp tục.",
                 MacroAction::TypeText => "Nhập chuỗi văn bản từ ô nhập liệu.",
-                MacroAction::ApplyWindowPreset => "Áp dụng một preset cửa sổ đã chọn.",
+                MacroAction::ApplyWindowPreset => "Thay đổi kích thước và vị trí cửa sổ bằng preset đã chọn.",
                 MacroAction::FocusWindowPreset => {
                     "Đưa cửa sổ lên phía trước bằng preset focus đã chọn."
                 }
@@ -3526,7 +3526,7 @@ impl CrosshairApp {
                 MacroAction::KeyUp => "Release a held keyboard key.",
                 MacroAction::Wait => "Wait for the number of milliseconds in Delay, then continue.",
                 MacroAction::TypeText => "Type the whole text from the Input field.",
-                MacroAction::ApplyWindowPreset => "Run one Window Preset from the selected preset.",
+                MacroAction::ApplyWindowPreset => "Resize and reposition window using the selected preset.",
                 MacroAction::FocusWindowPreset => {
                     "Bring one window forward with the selected focus preset."
                 }
@@ -3704,7 +3704,7 @@ impl CrosshairApp {
                 MacroAction::KeyUp => "Nhả",
                 MacroAction::Wait => "Chờ",
                 MacroAction::TypeText => "Chữ",
-                MacroAction::ApplyWindowPreset => "Áp cửa sổ",
+                MacroAction::ApplyWindowPreset => "Resize cửa sổ",
                 MacroAction::FocusWindowPreset => "Cửa sổ",
                 MacroAction::TriggerMacroPreset => "Macro",
                 MacroAction::TriggerCommandPreset => "Câu lệnh",
@@ -3771,7 +3771,7 @@ impl CrosshairApp {
                 MacroAction::KeyUp => "KEY Up",
                 MacroAction::Wait => "Wait",
                 MacroAction::TypeText => "Text",
-                MacroAction::ApplyWindowPreset => "Wnd",
+                MacroAction::ApplyWindowPreset => "Resize",
                 MacroAction::FocusWindowPreset => "Focus",
                 MacroAction::TriggerMacroPreset => "Macro",
                 MacroAction::TriggerCommandPreset => "Cmd",
@@ -3838,7 +3838,7 @@ impl CrosshairApp {
                 MacroAction::KeyUp => "KEY Up",
                 MacroAction::Wait => "Wait",
                 MacroAction::TypeText => "Text",
-                MacroAction::ApplyWindowPreset => "Wnd",
+                MacroAction::ApplyWindowPreset => "Resize",
                 MacroAction::FocusWindowPreset => "Focus",
                 MacroAction::TriggerMacroPreset => "Macro",
                 MacroAction::TriggerCommandPreset => "Cmd",

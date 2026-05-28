@@ -4356,7 +4356,6 @@ impl CrosshairApp {
                                 preset.stop_on_retrigger_immediate = false;
                             }
                             if preset.trigger_mode == MacroTriggerMode::Hold {
-                                ui.add_space(8.0);
                                 live_sync |= ui
                                     .checkbox(
                                         &mut preset.hold_stop_step_enabled,
