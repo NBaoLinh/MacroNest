@@ -1,4 +1,4 @@
-﻿use crate::ai;
+use crate::ai;
 use crate::hotkey;
 use crate::model::*;
 use crate::ui::{
@@ -301,9 +301,9 @@ impl CrosshairApp {
     fn macro_step_preview_summary_line(step: &MacroStep, language: UiLanguage) -> String {
         let mut parts = Vec::new();
         if step.enabled {
-            parts.push("✓".to_owned());
+            parts.push("[x]".to_owned());
         } else {
-            parts.push("○".to_owned());
+            parts.push("[ ]".to_owned());
         }
         parts.push(Self::macro_action_short_label(step.action, language).to_owned());
         let key = step.key.trim();
@@ -1020,56 +1020,6 @@ impl CrosshairApp {
                     selected_steps: steps,
                 })
             }
-            MacroAction::ApplyWindowPreset => Some(HoverPreviewRequest::WindowResize {
-                source_id,
-                preset_id: step.key.trim().parse::<u32>().ok().unwrap_or(0),
-            }),
-            MacroAction::EnableCrosshairProfile => Some(HoverPreviewRequest::Crosshair {
-                source_id,
-                profile_name: step.key.trim().to_owned(),
-                disabled: false,
-            }),
-            MacroAction::DisableCrosshair => Some(HoverPreviewRequest::Crosshair {
-                source_id,
-                profile_name: step.key.trim().to_owned(),
-                disabled: true,
-            }),
-            MacroAction::EnablePinPreset => Some(HoverPreviewRequest::Pin {
-                source_id,
-                preset_id: step.key.trim().parse::<u32>().ok().unwrap_or(0),
-                disabled: false,
-                disable_all: false,
-            }),
-            MacroAction::DisablePin => Some(HoverPreviewRequest::Pin {
-                source_id,
-                preset_id: step.key.trim().parse::<u32>().ok().unwrap_or(0),
-                disabled: true,
-                disable_all: step.lock_mouse_left,
-            }),
-            MacroAction::StartVisionSearch
-            | MacroAction::ScanVisionOnce
-            | MacroAction::TriggerVisionMove
-            | MacroAction::StopVision => Some(HoverPreviewRequest::Vision {
-                source_id,
-                preset_id: step.key.trim().parse::<u32>().ok().unwrap_or(0),
-                action_label: Self::macro_action_short_label(step.action, language).to_owned(),
-                move_cursor: step.vision_move_cursor_on_match,
-                wait_until_found: step.vision_wait_until_found,
-                trigger_macro_enabled: step.vision_trigger_macro_enabled,
-                trigger_macro_preset_id: step.vision_trigger_macro_preset_id,
-            }),
-            MacroAction::ShowHud => Some(HoverPreviewRequest::Hud {
-                source_id,
-                preset_id: step.key.trim().parse::<u32>().ok().unwrap_or(0),
-                text_override: step.text_override.clone(),
-                duration_override_ms: step.duration_override_ms,
-                timed_override: step.timed_override,
-            }),
-            MacroAction::MouseMoveAbsolute => Some(HoverPreviewRequest::MouseMoveAbsolute {
-                source_id,
-                x: step.x,
-                y: step.y,
-            }),
             _ => None,
         }
     }
