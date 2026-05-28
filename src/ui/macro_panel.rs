@@ -695,8 +695,8 @@ impl CrosshairApp {
         let language = self.state.ui_language;
         let timer_names: Vec<String> = self.state.timer_presets.iter().map(|t| t.name.clone()).collect();
         let mut suggestion_names = std::collections::HashSet::new();
-        for name in &timer_names {
-            suggestion_names.insert(name.clone());
+        for (idx, _name) in timer_names.iter().enumerate() {
+            suggestion_names.insert(format!("Timer{}", idx + 1));
         }
         for name in Self::builtin_variable_suggestions() {
             suggestion_names.insert(name.to_string());
@@ -8433,25 +8433,28 @@ Example: {100 + (A - B) * 2}",
     }
     fn object_property_suggestions(base: &str) -> Option<&'static [&'static str]> {
         match base.to_ascii_lowercase().as_str() {
-            "timer" => Some(&["hour", "minute", "second", "millisecond", "ms", "raw", "total_sec"]),
+            s if s.starts_with("timer") => Some(&["hour", "minute", "second", "millisecond", "ms", "raw", "total_sec"]),
             "mouse" => Some(&["x", "y"]),
             "window" => Some(&["title", "width", "height"]),
             "clipboard" => Some(&["text"]),
             _ => None,
         }
     }
+    fn timer_ref_index(ref_name: &str) -> Option<usize> {
+        let normalized = ref_name.trim().replace(' ', "").to_lowercase();
+        let idx_str = normalized.strip_prefix("timer")?;
+        let idx = idx_str.parse::<usize>().ok()?;
+        idx.checked_sub(1)
+    }
     fn timer_suggestion_label(suggestion: &str, timer_names: &[String]) -> String {
-        let normalized = |s: &str| s.replace(" ", "").to_lowercase();
         if let Some((base, prop)) = suggestion.split_once('.') {
-            if let Some(timer_name) = timer_names
-                .iter()
-                .find(|name| normalized(name) == normalized(base))
+            if let Some(idx) = Self::timer_ref_index(base)
+                && let Some(timer_name) = timer_names.get(idx)
             {
                 return format!("{}.{} ({})", base, prop, timer_name);
             }
-        } else if let Some(timer_name) = timer_names
-            .iter()
-            .find(|name| normalized(name) == normalized(suggestion))
+        } else if let Some(idx) = Self::timer_ref_index(suggestion)
+            && let Some(timer_name) = timer_names.get(idx)
         {
             return format!("{} ({})", suggestion, timer_name);
         }
@@ -8512,9 +8515,8 @@ Example: {100 + (A - B) * 2}",
             let obj_part = parts[0].to_lowercase();
             let prop_part = parts[1].to_lowercase();
 
-            let timer_exists = timer_names.iter().any(|name| {
-                name.replace(" ", "").to_lowercase() == obj_part
-            });
+            let timer_exists = Self::timer_ref_index(&parts[0]).is_some()
+                || timer_names.iter().any(|name| name.replace(" ", "").to_lowercase() == obj_part);
 
             let props: Vec<&str> = if timer_exists {
                 vec!["hour", "minute", "second", "millisecond", "ms", "raw", "total_sec"]
@@ -8716,9 +8718,8 @@ Example: {100 + (A - B) * 2}",
             let obj_part = parts[0].to_lowercase();
             let prop_part = parts[1].to_lowercase();
 
-            let timer_exists = timer_names.iter().any(|name| {
-                name.replace(" ", "").to_lowercase() == obj_part
-            });
+            let timer_exists = Self::timer_ref_index(&parts[0]).is_some()
+                || timer_names.iter().any(|name| name.replace(" ", "").to_lowercase() == obj_part);
 
             let props: Vec<&str> = if timer_exists {
                 vec!["hour", "minute", "second", "millisecond", "ms", "raw", "total_sec"]

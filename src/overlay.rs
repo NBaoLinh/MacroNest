@@ -6892,11 +6892,7 @@ fn get_object_property_value(token: &str) -> Option<i32> {
     }
 
     let hook_state = HOOK_STATE.lock();
-    let timer_preset = hook_state
-        .timer_presets
-        .iter()
-        .find(|t| t.name.replace(" ", "").to_lowercase() == obj_name.replace(" ", ""))
-        .cloned();
+    let timer_preset = resolve_timer_preset_ref(&hook_state, &obj_name);
 
     if let Some(timer) = timer_preset {
         let ms = if let Some(state) = hook_state.active_timers.get(&timer.id) {
@@ -6931,6 +6927,23 @@ fn get_object_property_value(token: &str) -> Option<i32> {
         return Some(val);
     }
     None
+}
+
+fn resolve_timer_preset_ref(hook_state: &HookState, obj_name: &str) -> Option<TimerPreset> {
+    let normalized = obj_name.trim().replace(' ', "").to_lowercase();
+    if let Some(idx_str) = normalized.strip_prefix("timer")
+        && let Ok(idx) = idx_str.parse::<usize>()
+        && idx > 0
+        && let Some(timer) = hook_state.timer_presets.get(idx - 1)
+    {
+        return Some(timer.clone());
+    }
+
+    hook_state
+        .timer_presets
+        .iter()
+        .find(|t| t.name.replace(" ", "").to_lowercase() == normalized)
+        .cloned()
 }
 
 fn get_object_property_text_value(token: &str) -> Option<String> {
@@ -6995,11 +7008,7 @@ fn set_variable_value(target_var: &str, value: i32) {
             let prop_name = parts[1].trim().to_lowercase();
             
             let mut hook_state = HOOK_STATE.lock();
-            let timer_preset = hook_state
-                .timer_presets
-                .iter()
-                .find(|t| t.name.replace(" ", "").to_lowercase() == obj_name.replace(" ", ""))
-                .cloned();
+            let timer_preset = resolve_timer_preset_ref(&hook_state, &obj_name);
                 
             if let Some(timer) = timer_preset {
                 let state = hook_state.active_timers.entry(timer.id).or_insert_with(|| ActiveTimerState {
