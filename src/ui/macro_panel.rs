@@ -341,17 +341,6 @@ impl CrosshairApp {
             .data(|data| data.get_temp::<i32>(offset_id))
             .unwrap_or(0)
             .clamp(0, max_offset.max(0));
-        ui.horizontal(|ui| {
-            ui.label(
-                RichText::new(Self::tr_lang(
-                    language,
-                    "Use the mouse wheel on the hovered step to scroll.",
-                    "Dùng con lăn chuột ngay trên step đang rê để xem thêm.",
-                ))
-                .weak(),
-            );
-        });
-        ui.add_space(2.0);
         let start = offset as usize;
         let end = (start + visible_lines).min(steps.len());
         if steps.is_empty() {
@@ -387,14 +376,14 @@ impl CrosshairApp {
         language: UiLanguage,
         preview: Option<&MacroStepHoverPreview>,
     ) {
-        let fill = Color32::from_rgba_unmultiplied(20, 24, 26, 235);
-        let stroke = egui::Stroke::new(1.0, Color32::from_rgb(94, 176, 122));
-        egui::Frame::group(ui.style())
-            .fill(fill)
-            .stroke(stroke)
-            .inner_margin(egui::Margin::symmetric(10, 8))
-            .show(ui, |ui| {
-                if let Some(preview) = preview {
+        if let Some(preview) = preview {
+            let fill = Color32::from_rgba_unmultiplied(20, 24, 26, 242);
+            let stroke = egui::Stroke::new(1.0, Color32::from_rgb(94, 176, 122));
+            egui::Frame::popup(ui.style())
+                .fill(fill)
+                .stroke(stroke)
+                .inner_margin(egui::Margin::symmetric(10, 8))
+                .show(ui, |ui| {
                     ui.horizontal(|ui| {
                         ui.label(Self::material_icon_text(0xe8f4, 16.0).color(Color32::from_rgb(124, 240, 164)));
                         ui.label(RichText::new(&preview.title).strong());
@@ -867,16 +856,46 @@ impl CrosshairApp {
                             }
                         }
                     }
-                } else {
-                    ui.label(
-                        RichText::new(Self::tr_lang(
-                            language,
-                            "Hover a step to preview what it will do.",
-                            "Rà chuột vào một step để xem nó sẽ làm gì.",
-                        ))
-                        .weak(),
-                    );
-                }
+                });
+        }
+    }
+
+    fn render_hover_preview_popup(
+        ctx: &egui::Context,
+        language: UiLanguage,
+        preview: Option<&MacroStepHoverPreview>,
+        anchor_pos: egui::Pos2,
+    ) {
+        let Some(preview) = preview else {
+            return;
+        };
+        let popup_id = egui::Id::new(("macro-hover-preview-popup", preview.source_id));
+        let mut pos = anchor_pos + vec2(16.0, 18.0);
+        let content_rect = ctx.content_rect();
+        let estimated_size = match &preview.kind {
+            MacroStepHoverPreviewKind::MacroPreset { .. }
+            | MacroStepHoverPreviewKind::StepToggle { .. } => vec2(360.0, 180.0),
+            MacroStepHoverPreviewKind::Vision { .. } => vec2(260.0, 220.0),
+            MacroStepHoverPreviewKind::Hud { .. } => vec2(320.0, 170.0),
+            MacroStepHoverPreviewKind::Crosshair { .. } => vec2(260.0, 160.0),
+            MacroStepHoverPreviewKind::MouseMoveAbsolute { .. } => vec2(220.0, 120.0),
+            MacroStepHoverPreviewKind::WindowResize { .. } => vec2(240.0, 160.0),
+            MacroStepHoverPreviewKind::Pin { .. } => vec2(260.0, 150.0),
+            MacroStepHoverPreviewKind::FocusWindow { .. } => vec2(240.0, 110.0),
+            MacroStepHoverPreviewKind::Generic { .. } => vec2(240.0, 120.0),
+        };
+        if pos.x + estimated_size.x > content_rect.right() {
+            pos.x = (anchor_pos.x - estimated_size.x - 16.0).max(content_rect.left() + 6.0);
+        }
+        if pos.y + estimated_size.y > content_rect.bottom() {
+            pos.y = (anchor_pos.y - estimated_size.y - 16.0).max(content_rect.top() + 6.0);
+        }
+        egui::Area::new(popup_id)
+            .order(egui::Order::Tooltip)
+            .fixed_pos(pos)
+            .interactable(false)
+            .show(ctx, |ui| {
+                Self::render_hover_preview_panel(ui, language, Some(preview));
             });
     }
 
@@ -2863,8 +2882,7 @@ impl CrosshairApp {
             ui.ctx()
                 .request_repaint_after(std::time::Duration::from_millis(16));
         }
-        let hover_preview_height = 180.0;
-        let macro_panel_scroll_height = (ui.available_height() - hover_preview_height - 10.0).max(0.0);
+        let macro_panel_scroll_height = ui.available_height();
         let pending_macro_group_scroll_target = self.pending_macro_group_scroll_target.take();
         let mut pending_macro_group_scroll_consumed = false;
         let mut hover_preview: Option<MacroStepHoverPreview> = None;
@@ -9261,8 +9279,6 @@ impl CrosshairApp {
                                 }
                             });
                         }
-                        ui.add_space(6.0);
-                        Self::render_hover_preview_panel(ui, language, hover_preview.as_ref());
                         if let Some((preset_id, step_index)) = insert_step_after {
                             if let Some(target_preset) = group
                                 .presets
@@ -9683,7 +9699,13 @@ impl CrosshairApp {
         if let Some((group_id, hover_request)) = hover_preview_request.take() {
             hover_preview = self.resolve_hover_preview_request(group_id, hover_request);
         }
-        ui.add_space((ui.ctx().screen_rect().height() - 250.0).max(0.0));
+        if let Some(preview) = hover_preview.as_ref() {
+            let anchor_pos = ui
+                .ctx()
+                .pointer_hover_pos()
+                .unwrap_or_else(|| ui.min_rect().left_top());
+            Self::render_hover_preview_popup(ui.ctx(), language, Some(preview), anchor_pos);
+        }
         if !pending_macro_group_scroll_consumed {
             self.pending_macro_group_scroll_target = pending_macro_group_scroll_target;
         }
