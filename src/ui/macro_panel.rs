@@ -97,19 +97,21 @@ impl CrosshairApp {
             data.insert_temp(timer_popup_id, false);
             data.insert_temp(if_popup_id, false);
         });
+        egui::Popup::close_id(ui.ctx(), mouse_popup_id);
+        egui::Popup::close_id(ui.ctx(), image_popup_id);
+        egui::Popup::close_id(ui.ctx(), timer_popup_id);
+        egui::Popup::close_id(ui.ctx(), if_popup_id);
         for (_, _, _, popup_key) in Self::mouse_click_action_groups().iter().copied() {
             let child_popup_id = ui.make_persistent_id((id_source, popup_key, "popup"));
-            ui.ctx().data_mut(|data| data.insert_temp(child_popup_id, false));
+            egui::Popup::close_id(ui.ctx(), child_popup_id);
         }
-        ui.ctx().memory_mut(|mem| mem.close_all_popups());
         ui.ctx().request_repaint();
     }
     fn clear_mouse_click_submenus(ui: &mut egui::Ui, id_source: impl std::hash::Hash + Copy) {
         for (_, _, _, popup_key) in Self::mouse_click_action_groups().iter().copied() {
             let child_popup_id = ui.make_persistent_id((id_source, popup_key, "popup"));
-            ui.ctx().data_mut(|data| data.insert_temp(child_popup_id, false));
+            egui::Popup::close_id(ui.ctx(), child_popup_id);
         }
-        ui.ctx().memory_mut(|mem| mem.close_all_popups());
         ui.ctx().request_repaint();
     }
     fn render_expression_help_box(ui: &mut egui::Ui, language: UiLanguage) {
