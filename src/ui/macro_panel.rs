@@ -14,7 +14,134 @@ enum VariableValueKind {
     Text,
 }
 
+#[derive(Clone)]
+struct MacroStepHoverPreview {
+    source_id: egui::Id,
+    title: String,
+    kind: MacroStepHoverPreviewKind,
+}
+
+#[derive(Clone)]
+enum MacroStepHoverPreviewKind {
+    MacroPreset {
+        mode_label: String,
+        preset_name: String,
+        steps: Vec<MacroStep>,
+    },
+    StepToggle {
+        mode_label: String,
+        preset_name: String,
+        steps: Vec<MacroStep>,
+        selected_steps: Vec<u32>,
+    },
+    Vision {
+        action_label: String,
+        preset_name: String,
+        preset: VisionPreset,
+        trigger_macro_name: Option<String>,
+        move_cursor: bool,
+        wait_until_found: bool,
+        trigger_macro_enabled: bool,
+    },
+    Hud {
+        preset_name: String,
+        preset: HudPreset,
+        text: String,
+        duration_override_ms: u64,
+        timed_override: bool,
+    },
+    Crosshair {
+        profile_name: String,
+        style: CrosshairStyle,
+        disabled: bool,
+    },
+    MouseMoveAbsolute {
+        x: i32,
+        y: i32,
+    },
+    WindowResize {
+        preset_name: String,
+        preset: WindowPreset,
+    },
+    Pin {
+        preset_name: String,
+        preset: PinPreset,
+        disabled: bool,
+        disable_all: bool,
+    },
+    FocusWindow {
+        window_title: String,
+    },
+    Generic {
+        lines: Vec<String>,
+    },
+}
+
+#[derive(Clone)]
+enum HoverPreviewRequest {
+    MacroPreset {
+        source_id: egui::Id,
+        preset_id: u32,
+        mode_label: String,
+    },
+    StepToggle {
+        source_id: egui::Id,
+        preset_id: u32,
+        mode_label: String,
+        selected_steps: Vec<u32>,
+    },
+    Vision {
+        source_id: egui::Id,
+        preset_id: u32,
+        action_label: String,
+        move_cursor: bool,
+        wait_until_found: bool,
+        trigger_macro_enabled: bool,
+        trigger_macro_preset_id: Option<u32>,
+    },
+    Hud {
+        source_id: egui::Id,
+        preset_id: u32,
+        text_override: String,
+        duration_override_ms: u64,
+        timed_override: bool,
+    },
+    Crosshair {
+        source_id: egui::Id,
+        profile_name: String,
+        disabled: bool,
+    },
+    MouseMoveAbsolute {
+        source_id: egui::Id,
+        x: i32,
+        y: i32,
+    },
+    WindowResize {
+        source_id: egui::Id,
+        preset_id: u32,
+    },
+    Pin {
+        source_id: egui::Id,
+        preset_id: u32,
+        disabled: bool,
+        disable_all: bool,
+    },
+    FocusWindow {
+        source_id: egui::Id,
+        window_title: String,
+    },
+    Generic {
+        source_id: egui::Id,
+        title: String,
+        lines: Vec<String>,
+    },
+}
+
 impl CrosshairApp {
+    fn rgba_to_color32(color: RgbaColor) -> Color32 {
+        Color32::from_rgba_unmultiplied(color.r, color.g, color.b, color.a)
+    }
+
     fn loop_is_infinite(step: &MacroStep) -> bool {
         matches!(
             step.key.trim().to_ascii_lowercase().as_str(),
@@ -170,6 +297,949 @@ impl CrosshairApp {
                 ui.label(egui::RichText::new("• abs(a)").monospace());
             });
     }
+
+    fn macro_step_preview_summary_line(step: &MacroStep, language: UiLanguage) -> String {
+        let mut parts = Vec::new();
+        if step.enabled {
+            parts.push("✓".to_owned());
+        } else {
+            parts.push("○".to_owned());
+        }
+        parts.push(Self::macro_action_short_label(step.action, language).to_owned());
+        let key = step.key.trim();
+        if !key.is_empty() {
+            parts.push(key.to_owned());
+        }
+        if matches!(step.action, MacroAction::MouseMoveAbsolute | MacroAction::MouseMoveRelative) {
+            parts.push(format!("({}, {})", step.x, step.y));
+        }
+        if step.action == MacroAction::ShowHud && !step.text_override.trim().is_empty() {
+            parts.push(step.text_override.trim().to_owned());
+        }
+        if step.action == MacroAction::ShowHud && step.timed_override && step.duration_override_ms > 0 {
+            parts.push(format!("{} ms", step.duration_override_ms));
+        } else if !step.delay_expr.trim().is_empty() {
+            parts.push(format!("{} ms", step.get_delay_ms()));
+        } else if step.delay_ms > 0 {
+            parts.push(format!("{} ms", step.delay_ms));
+        }
+        parts.join("  ")
+    }
+
+    fn render_macro_step_hover_preview_list(
+        ui: &mut egui::Ui,
+        language: UiLanguage,
+        source_id: egui::Id,
+        steps: &[MacroStep],
+        selected_steps: &[u32],
+    ) {
+        let offset_id = source_id.with("macro-hover-preview-offset");
+        let visible_lines = 5usize;
+        let max_offset = steps.len().saturating_sub(visible_lines) as i32;
+        let mut offset = ui
+            .ctx()
+            .data(|data| data.get_temp::<i32>(offset_id))
+            .unwrap_or(0)
+            .clamp(0, max_offset.max(0));
+        ui.horizontal(|ui| {
+            ui.label(
+                RichText::new(Self::tr_lang(
+                    language,
+                    "Use the mouse wheel on the hovered step to scroll.",
+                    "Dùng con lăn chuột ngay trên step đang rê để xem thêm.",
+                ))
+                .weak(),
+            );
+        });
+        ui.add_space(2.0);
+        let start = offset as usize;
+        let end = (start + visible_lines).min(steps.len());
+        if steps.is_empty() {
+            ui.label(Self::tr_lang(language, "No steps.", "Không có step nào."));
+            return;
+        }
+        for (index, step) in steps[start..end].iter().enumerate() {
+            let step_no = start + index + 1;
+            let is_selected = selected_steps.contains(&(step_no as u32));
+            let line = format!("{}. {}", step_no, Self::macro_step_preview_summary_line(step, language));
+            let text = if is_selected {
+                RichText::new(line)
+                    .strong()
+                    .color(Color32::from_rgb(0, 255, 170))
+            } else {
+                RichText::new(line).monospace()
+            };
+            ui.label(text);
+        }
+        if steps.len() > visible_lines {
+            ui.add_space(2.0);
+            ui.label(
+                RichText::new(format!("{} / {}", start + 1, steps.len()))
+                    .weak()
+                    .monospace(),
+            );
+        }
+        ui.ctx().data_mut(|data| data.insert_temp(offset_id, offset));
+    }
+
+    fn render_hover_preview_panel(
+        ui: &mut egui::Ui,
+        language: UiLanguage,
+        preview: Option<&MacroStepHoverPreview>,
+    ) {
+        let fill = Color32::from_rgba_unmultiplied(20, 24, 26, 235);
+        let stroke = egui::Stroke::new(1.0, Color32::from_rgb(94, 176, 122));
+        egui::Frame::group(ui.style())
+            .fill(fill)
+            .stroke(stroke)
+            .inner_margin(egui::Margin::symmetric(10, 8))
+            .show(ui, |ui| {
+                if let Some(preview) = preview {
+                    ui.horizontal(|ui| {
+                        ui.label(Self::material_icon_text(0xe8f4, 16.0).color(Color32::from_rgb(124, 240, 164)));
+                        ui.label(RichText::new(&preview.title).strong());
+                    });
+                    ui.add_space(4.0);
+                    match &preview.kind {
+                        MacroStepHoverPreviewKind::MacroPreset {
+                            mode_label,
+                            preset_name,
+                            steps,
+                        } => {
+                            ui.horizontal(|ui| {
+                                ui.label(RichText::new(mode_label).strong());
+                                ui.label(RichText::new(preset_name).strong().color(Color32::from_rgb(124, 240, 164)));
+                            });
+                            ui.add_space(4.0);
+                            Self::render_macro_step_hover_preview_list(
+                                ui,
+                                language,
+                                preview.source_id,
+                                steps,
+                                &[],
+                            );
+                        }
+                        MacroStepHoverPreviewKind::StepToggle {
+                            mode_label,
+                            preset_name,
+                            steps,
+                            selected_steps,
+                        } => {
+                            ui.horizontal(|ui| {
+                                ui.label(RichText::new(mode_label).strong());
+                                ui.label(RichText::new(preset_name).strong().color(Color32::from_rgb(124, 240, 164)));
+                            });
+                            ui.add_space(4.0);
+                            Self::render_macro_step_hover_preview_list(
+                                ui,
+                                language,
+                                preview.source_id,
+                                steps,
+                                selected_steps,
+                            );
+                        }
+                        MacroStepHoverPreviewKind::Vision {
+                            action_label,
+                            preset_name,
+                            preset,
+                            trigger_macro_name,
+                            move_cursor,
+                            wait_until_found,
+                            trigger_macro_enabled,
+                        } => {
+                            ui.horizontal(|ui| {
+                                ui.label(RichText::new(action_label).strong());
+                                ui.label(RichText::new(preset_name).strong().color(Color32::from_rgb(124, 240, 164)));
+                            });
+                            ui.add_space(6.0);
+                            ui.horizontal(|ui| {
+                                let canvas_size = vec2(170.0, 98.0);
+                                let (rect, _) = ui.allocate_exact_size(canvas_size, Sense::hover());
+                                ui.painter().rect_filled(rect, 8.0, Color32::from_rgba_unmultiplied(14, 18, 16, 255));
+                                ui.painter().rect_stroke(
+                                    rect,
+                                    8.0,
+                                    egui::Stroke::new(1.0, Color32::from_rgb(72, 108, 82)),
+                                    egui::StrokeKind::Outside,
+                                );
+                                let inner = rect.shrink(10.0);
+                                let target_rect = if let (Some(x), Some(y), Some(w), Some(h)) = (
+                                    preset.search_region_screen_x,
+                                    preset.search_region_screen_y,
+                                    preset.search_region_width,
+                                    preset.search_region_height,
+                                ) {
+                                    let sx = inner.width() / 320.0;
+                                    let sy = inner.height() / 180.0;
+                                    egui::Rect::from_min_size(
+                                        egui::pos2(inner.left() + (x.max(0) as f32 * sx), inner.top() + (y.max(0) as f32 * sy)),
+                                        vec2((w.max(1) as f32 * sx).max(16.0), (h.max(1) as f32 * sy).max(16.0)),
+                                    )
+                                } else {
+                                    inner.shrink2(vec2(8.0, 8.0))
+                                };
+                                ui.painter().rect_stroke(
+                                    target_rect,
+                                    6.0,
+                                    egui::Stroke::new(2.0, Color32::from_rgb(0, 255, 170)),
+                                    egui::StrokeKind::Outside,
+                                );
+                                if let Some(color) = preset.target_color {
+                                    let swatch = egui::Rect::from_min_size(
+                                        target_rect.left_top() + vec2(6.0, 6.0),
+                                        vec2(14.0, 14.0),
+                                    );
+                                    ui.painter().rect_filled(swatch, 3.0, Self::rgba_to_color32(color));
+                                    ui.painter().rect_stroke(
+                                        swatch,
+                                        3.0,
+                                        egui::Stroke::new(1.0, Color32::BLACK),
+                                        egui::StrokeKind::Outside,
+                                    );
+                                }
+                            });
+                            ui.add_space(6.0);
+                            ui.label(format!(
+                                "{} {}",
+                                Self::tr_lang(language, "Tolerance:", "Sai số:"),
+                                preset.color_tolerance
+                            ));
+                            ui.label(format!(
+                                "{} {}",
+                                Self::tr_lang(language, "Scan rate:", "Tốc độ quét:"),
+                                preset.color_scan_rate_hz
+                            ));
+                            ui.label(format!(
+                                "{} {}",
+                                Self::tr_lang(language, "Move offset:", "Độ lệch di chuyển:"),
+                                format!("{}, {}", preset.move_offset_x, preset.move_offset_y)
+                            ));
+                            if preset.is_pixel_counter && !preset.pixel_counter_variable_name.trim().is_empty() {
+                                ui.label(format!(
+                                    "{} {}",
+                                    Self::tr_lang(language, "Pixel variable:", "Biến pixel:"),
+                                    preset.pixel_counter_variable_name
+                                ));
+                            }
+                            if *trigger_macro_enabled {
+                                ui.label(format!(
+                                    "{} {}",
+                                    Self::tr_lang(language, "Trigger macro:", "Kích hoạt macro:"),
+                                    trigger_macro_name.as_deref().unwrap_or("-")
+                                ));
+                            }
+                            if *move_cursor {
+                                ui.label(Self::tr_lang(language, "Move cursor on match", "Di chuột khi tìm thấy"));
+                            }
+                            if *wait_until_found {
+                                ui.label(Self::tr_lang(language, "Wait until found", "Chờ cho tới khi tìm thấy"));
+                            }
+                        }
+                        MacroStepHoverPreviewKind::Hud {
+                            preset_name,
+                            preset,
+                            text,
+                            duration_override_ms,
+                            timed_override,
+                        } => {
+                            ui.horizontal(|ui| {
+                                ui.label(RichText::new(preset_name).strong().color(Color32::from_rgb(124, 240, 164)));
+                                ui.label(format!(
+                                    "{} {}",
+                                    Self::tr_lang(language, "Duration:", "Thời gian:"),
+                                    if *timed_override {
+                                        format!("{} ms", duration_override_ms)
+                                    } else {
+                                        Self::tr_lang(language, "until macro ends", "đến khi macro kết thúc").to_owned()
+                                    }
+                                ));
+                            });
+                            ui.add_space(6.0);
+                            let (rect, _) = ui.allocate_exact_size(vec2(ui.available_width().min(460.0), 82.0), Sense::hover());
+                            ui.painter().rect_filled(
+                                rect,
+                                if preset.rounded_background { 10.0 } else { 4.0 },
+                                Self::rgba_to_color32(preset.background_color).linear_multiply(preset.background_opacity.clamp(0.0, 1.0)),
+                            );
+                            ui.painter().rect_stroke(
+                                rect,
+                                if preset.rounded_background { 10.0 } else { 4.0 },
+                                egui::Stroke::new(1.0, Self::rgba_to_color32(preset.text_color)),
+                                egui::StrokeKind::Outside,
+                            );
+                            let sample = crate::overlay::interpolate_variables(text.trim());
+                            let text = if sample.is_empty() {
+                                Self::tr_lang(language, "No text", "Không có text").to_owned()
+                            } else {
+                                sample
+                            };
+                            ui.painter().text(
+                                rect.center(),
+                                egui::Align2::CENTER_CENTER,
+                                text,
+                                egui::FontId::proportional(preset.font_size.clamp(10.0, 36.0)),
+                                Self::rgba_to_color32(preset.text_color),
+                            );
+                            ui.add_space(4.0);
+                            ui.label(format!(
+                                "{} {}",
+                                Self::tr_lang(language, "Position:", "Vị trí:"),
+                                format!("{}, {}", preset.x, preset.y)
+                            ));
+                            ui.label(format!(
+                                "{} {}x{}",
+                                Self::tr_lang(language, "Size:", "Kích thước:"),
+                                preset.width,
+                                preset.height
+                            ));
+                        }
+                        MacroStepHoverPreviewKind::Crosshair {
+                            profile_name,
+                            style,
+                            disabled,
+                        } => {
+                            ui.horizontal(|ui| {
+                                ui.label(RichText::new(profile_name).strong().color(Color32::from_rgb(124, 240, 164)));
+                                if *disabled {
+                                    ui.label(RichText::new(Self::tr_lang(language, "Disabled", "Đang tắt")).color(Color32::from_rgb(255, 120, 120)).strong());
+                                }
+                            });
+                            ui.add_space(6.0);
+                            let (rect, _) = ui.allocate_exact_size(vec2(180.0, 100.0), Sense::hover());
+                            ui.painter().rect_filled(rect, 8.0, Color32::from_rgba_unmultiplied(14, 18, 16, 255));
+                            ui.painter().rect_stroke(
+                                rect,
+                                8.0,
+                                egui::Stroke::new(1.0, Color32::from_rgb(72, 108, 82)),
+                                egui::StrokeKind::Outside,
+                            );
+                            let center = rect.center() + vec2(style.x_offset as f32 * 0.5, style.y_offset as f32 * 0.5);
+                            let arm_color = Self::rgba_to_color32(style.color);
+                            let outline_color = Self::rgba_to_color32(style.outline_color);
+                            let scale = 0.9_f32.min((rect.width().min(rect.height()) / 80.0).max(0.5));
+                            let thickness = (style.thickness.max(1.0) * scale).max(1.0);
+                            let gap = style.gap.max(0.0) * scale;
+                            let h_len = style.horizontal_length.max(0.0) * scale;
+                            let v_len = style.vertical_length.max(0.0) * scale;
+                            let outline = if style.outline_enabled { style.outline_thickness.max(0.0) * scale } else { 0.0 };
+                            let fill_rect = |painter: &egui::Painter, x: f32, y: f32, w: f32, h: f32, color: Color32| {
+                                painter.rect_filled(
+                                    egui::Rect::from_min_size(egui::pos2(x, y), vec2(w, h)),
+                                    0.0,
+                                    color,
+                                );
+                            };
+                            if outline > 0.0 {
+                                fill_rect(
+                                    ui.painter(),
+                                    center.x - gap - h_len - outline,
+                                    center.y - thickness / 2.0 - outline,
+                                    h_len + outline * 2.0,
+                                    thickness + outline * 2.0,
+                                    outline_color,
+                                );
+                                fill_rect(
+                                    ui.painter(),
+                                    center.x + gap - outline,
+                                    center.y - thickness / 2.0 - outline,
+                                    h_len + outline * 2.0,
+                                    thickness + outline * 2.0,
+                                    outline_color,
+                                );
+                                fill_rect(
+                                    ui.painter(),
+                                    center.x - thickness / 2.0 - outline,
+                                    center.y - gap - v_len - outline,
+                                    thickness + outline * 2.0,
+                                    v_len + outline * 2.0,
+                                    outline_color,
+                                );
+                                fill_rect(
+                                    ui.painter(),
+                                    center.x - thickness / 2.0 - outline,
+                                    center.y + gap - outline,
+                                    thickness + outline * 2.0,
+                                    v_len + outline * 2.0,
+                                    outline_color,
+                                );
+                            }
+                            fill_rect(
+                                ui.painter(),
+                                center.x - gap - h_len,
+                                center.y - thickness / 2.0,
+                                h_len,
+                                thickness,
+                                arm_color,
+                            );
+                            fill_rect(
+                                ui.painter(),
+                                center.x + gap,
+                                center.y - thickness / 2.0,
+                                h_len,
+                                thickness,
+                                arm_color,
+                            );
+                            fill_rect(
+                                ui.painter(),
+                                center.x - thickness / 2.0,
+                                center.y - gap - v_len,
+                                thickness,
+                                v_len,
+                                arm_color,
+                            );
+                            fill_rect(
+                                ui.painter(),
+                                center.x - thickness / 2.0,
+                                center.y + gap,
+                                thickness,
+                                v_len,
+                                arm_color,
+                            );
+                            if style.center_dot {
+                                let dot = style.center_dot_size.max(1.0) * scale;
+                                ui.painter().rect_filled(
+                                    egui::Rect::from_center_size(center, vec2(dot, dot)),
+                                    0.0,
+                                    arm_color,
+                                );
+                            }
+                            ui.add_space(4.0);
+                            ui.label(format!(
+                                "{} {}, {}",
+                                Self::tr_lang(language, "Gap/Thickness:", "Khoảng cách/Độ dày:"),
+                                style.gap,
+                                style.thickness
+                            ));
+                            ui.label(format!(
+                                "{} {}, {}",
+                                Self::tr_lang(language, "Lengths:", "Độ dài:"),
+                                style.horizontal_length,
+                                style.vertical_length
+                            ));
+                        }
+                        MacroStepHoverPreviewKind::MouseMoveAbsolute { x, y } => {
+                            ui.horizontal(|ui| {
+                                ui.label(RichText::new(Self::tr_lang(language, "Mouse move target", "Điểm di chuyển chuột")).strong());
+                            });
+                            ui.add_space(6.0);
+                            let screen = Self::screen_size();
+                            let (rect, _) = ui.allocate_exact_size(vec2(ui.available_width().min(340.0), 118.0), Sense::hover());
+                            ui.painter().rect_filled(rect, 8.0, Color32::from_rgba_unmultiplied(14, 18, 16, 255));
+                            ui.painter().rect_stroke(
+                                rect,
+                                8.0,
+                                egui::Stroke::new(1.0, Color32::from_rgb(72, 108, 82)),
+                                egui::StrokeKind::Outside,
+                            );
+                            let inner = rect.shrink(10.0);
+                            ui.painter().rect_stroke(
+                                inner,
+                                4.0,
+                                egui::Stroke::new(1.2, Color32::from_rgb(124, 240, 164)),
+                                egui::StrokeKind::Outside,
+                            );
+                                let px = if screen.x > 0.0 {
+                                    inner.left() + (*x as f32 / screen.x).clamp(0.0, 1.0) * inner.width()
+                                } else {
+                                    inner.center().x
+                                };
+                                let py = if screen.y > 0.0 {
+                                    inner.top() + (*y as f32 / screen.y).clamp(0.0, 1.0) * inner.height()
+                                } else {
+                                    inner.center().y
+                                };
+                            ui.painter().circle_filled(egui::pos2(px, py), 4.5, Color32::from_rgb(0, 255, 170));
+                            ui.painter().line_segment(
+                                [egui::pos2(px - 8.0, py), egui::pos2(px + 8.0, py)],
+                                egui::Stroke::new(1.0, Color32::from_rgb(0, 255, 170)),
+                            );
+                            ui.painter().line_segment(
+                                [egui::pos2(px, py - 8.0), egui::pos2(px, py + 8.0)],
+                                egui::Stroke::new(1.0, Color32::from_rgb(0, 255, 170)),
+                            );
+                            ui.add_space(4.0);
+                            ui.label(format!("X: {}  Y: {}", x, y));
+                        }
+                        MacroStepHoverPreviewKind::WindowResize {
+                            preset_name,
+                            preset,
+                        } => {
+                            ui.horizontal(|ui| {
+                                ui.label(RichText::new(preset_name).strong().color(Color32::from_rgb(124, 240, 164)));
+                            });
+                            ui.add_space(4.0);
+                            let mut preview_preset = preset.clone();
+                            let mut live_sync = false;
+                            Self::render_window_preset_preview(ui, language, &mut preview_preset, None, &mut live_sync);
+                        }
+                        MacroStepHoverPreviewKind::Pin {
+                            preset_name,
+                            preset,
+                            disabled,
+                            disable_all,
+                        } => {
+                            ui.horizontal(|ui| {
+                                ui.label(RichText::new(preset_name).strong().color(Color32::from_rgb(124, 240, 164)));
+                                if *disabled {
+                                    ui.label(RichText::new(Self::tr_lang(language, "Disabled", "Đang tắt")).color(Color32::from_rgb(255, 120, 120)).strong());
+                                }
+                                if *disable_all {
+                                    ui.label(RichText::new(Self::tr_lang(language, "All", "Tất cả")).weak());
+                                }
+                            });
+                            ui.add_space(6.0);
+                            let (rect, _) = ui.allocate_exact_size(vec2(ui.available_width().min(360.0), 116.0), Sense::hover());
+                            ui.painter().rect_filled(rect, 8.0, Color32::from_rgba_unmultiplied(14, 18, 16, 255));
+                            ui.painter().rect_stroke(
+                                rect,
+                                8.0,
+                                egui::Stroke::new(1.0, Color32::from_rgb(72, 108, 82)),
+                                egui::StrokeKind::Outside,
+                            );
+                            let left = rect.shrink(10.0);
+                            let source_rect = egui::Rect::from_min_size(
+                                left.left_top() + vec2(8.0, 6.0),
+                                vec2((preset.source_width.max(1) as f32).min(left.width() * 0.38), (preset.source_height.max(1) as f32).min(left.height() * 0.7)),
+                            );
+                            let target_rect = egui::Rect::from_min_size(
+                                egui::pos2(left.center().x + 6.0, left.top() + 18.0),
+                                vec2((preset.width.max(1) as f32).min(left.width() * 0.42), (preset.height.max(1) as f32).min(left.height() * 0.72)),
+                            );
+                            ui.painter().rect_stroke(
+                                source_rect,
+                                6.0,
+                                egui::Stroke::new(1.5, Color32::from_rgb(0, 191, 255)),
+                                egui::StrokeKind::Outside,
+                            );
+                            ui.painter().rect_stroke(
+                                target_rect,
+                                6.0,
+                                egui::Stroke::new(1.5, Color32::from_rgb(0, 255, 170)),
+                                egui::StrokeKind::Outside,
+                            );
+                            ui.painter().text(
+                                source_rect.center_top() + vec2(0.0, -12.0),
+                                egui::Align2::CENTER_CENTER,
+                                Self::tr_lang(language, "Source", "Nguồn"),
+                                egui::FontId::proportional(11.0),
+                                Color32::from_rgb(0, 191, 255),
+                            );
+                            ui.painter().text(
+                                target_rect.center_top() + vec2(0.0, -12.0),
+                                egui::Align2::CENTER_CENTER,
+                                Self::tr_lang(language, "Pin box", "Khung ghim"),
+                                egui::FontId::proportional(11.0),
+                                Color32::from_rgb(0, 255, 170),
+                            );
+                            ui.add_space(4.0);
+                            ui.label(format!(
+                                "{} {}, {}",
+                                Self::tr_lang(language, "Target box:", "Khung ghim:"),
+                                preset.width,
+                                preset.height
+                            ));
+                            ui.label(format!(
+                                "{} {}, {}",
+                                Self::tr_lang(language, "Source box:", "Khung nguồn:"),
+                                preset.source_width,
+                                preset.source_height
+                            ));
+                            ui.label(format!(
+                                "{} {}",
+                                Self::tr_lang(language, "Overlay style:", "Kiểu ghim:"),
+                                match preset.overlay_style {
+                                    PinOverlayStyle::Rectangle => Self::tr_lang(language, "Rectangle", "Chữ nhật"),
+                                    PinOverlayStyle::Circle => Self::tr_lang(language, "Circle", "Tròn"),
+                                    PinOverlayStyle::HorizontalBar => Self::tr_lang(language, "Bar", "Thanh ngang"),
+                                }
+                            ));
+                        }
+                        MacroStepHoverPreviewKind::FocusWindow { window_title } => {
+                            ui.label(format!(
+                                "{} {}",
+                                Self::tr_lang(language, "Focused window:", "Cửa sổ focus:"),
+                                window_title
+                            ));
+                        }
+                        MacroStepHoverPreviewKind::Generic { lines } => {
+                            for line in lines {
+                                ui.label(line);
+                            }
+                        }
+                    }
+                } else {
+                    ui.label(
+                        RichText::new(Self::tr_lang(
+                            language,
+                            "Hover a step to preview what it will do.",
+                            "Rà chuột vào một step để xem nó sẽ làm gì.",
+                        ))
+                        .weak(),
+                    );
+                }
+            });
+    }
+
+    fn build_hover_preview_request(
+        language: UiLanguage,
+        source_id: egui::Id,
+        step: &MacroStep,
+    ) -> HoverPreviewRequest {
+        match step.action {
+            MacroAction::TriggerMacroPreset => HoverPreviewRequest::MacroPreset {
+                source_id,
+                preset_id: step.key.trim().parse::<u32>().ok().unwrap_or(0),
+                mode_label: Self::tr_lang(language, "Trigger macro", "Kích hoạt macro").to_owned(),
+            },
+            MacroAction::EnableMacroPreset => HoverPreviewRequest::MacroPreset {
+                source_id,
+                preset_id: step.key.trim().parse::<u32>().ok().unwrap_or(0),
+                mode_label: Self::tr_lang(language, "Enable macro", "Bật macro").to_owned(),
+            },
+            MacroAction::DisableMacroPreset => HoverPreviewRequest::MacroPreset {
+                source_id,
+                preset_id: step.key.trim().parse::<u32>().ok().unwrap_or(0),
+                mode_label: Self::tr_lang(language, "Disable macro", "Tắt macro").to_owned(),
+            },
+            MacroAction::EnableStep | MacroAction::DisableStep => {
+                let (preset_id, steps) = {
+                    let parts: Vec<&str> = step.key.split('|').collect();
+                    if parts.len() == 2 {
+                        (
+                            parts[0].trim().parse::<u32>().ok().unwrap_or(0),
+                            parts[1]
+                                .split(',')
+                                .filter_map(|value| value.trim().parse::<u32>().ok())
+                                .collect::<Vec<_>>(),
+                        )
+                    } else {
+                        (
+                            step.key.trim().parse::<u32>().ok().unwrap_or(0),
+                            step.key
+                                .split(',')
+                                .filter_map(|value| value.trim().parse::<u32>().ok())
+                                .collect::<Vec<_>>(),
+                        )
+                    }
+                };
+                HoverPreviewRequest::StepToggle {
+                    source_id,
+                    preset_id,
+                    mode_label: if step.action == MacroAction::EnableStep {
+                        Self::tr_lang(language, "Enable steps", "Bật step").to_owned()
+                    } else {
+                        Self::tr_lang(language, "Disable steps", "Tắt step").to_owned()
+                    },
+                    selected_steps: steps,
+                }
+            }
+            MacroAction::ApplyWindowPreset => HoverPreviewRequest::WindowResize {
+                source_id,
+                preset_id: step.key.trim().parse::<u32>().ok().unwrap_or(0),
+            },
+            MacroAction::EnableCrosshairProfile => HoverPreviewRequest::Crosshair {
+                source_id,
+                profile_name: step.key.trim().to_owned(),
+                disabled: false,
+            },
+            MacroAction::DisableCrosshair => HoverPreviewRequest::Crosshair {
+                source_id,
+                profile_name: step.key.trim().to_owned(),
+                disabled: true,
+            },
+            MacroAction::EnablePinPreset => HoverPreviewRequest::Pin {
+                source_id,
+                preset_id: step.key.trim().parse::<u32>().ok().unwrap_or(0),
+                disabled: false,
+                disable_all: false,
+            },
+            MacroAction::DisablePin => HoverPreviewRequest::Pin {
+                source_id,
+                preset_id: step.key.trim().parse::<u32>().ok().unwrap_or(0),
+                disabled: true,
+                disable_all: step.lock_mouse_left,
+            },
+            MacroAction::StartVisionSearch
+            | MacroAction::ScanVisionOnce
+            | MacroAction::TriggerVisionMove
+            | MacroAction::StopVision => HoverPreviewRequest::Vision {
+                source_id,
+                preset_id: step.key.trim().parse::<u32>().ok().unwrap_or(0),
+                action_label: Self::macro_action_short_label(step.action, language).to_owned(),
+                move_cursor: step.vision_move_cursor_on_match,
+                wait_until_found: step.vision_wait_until_found,
+                trigger_macro_enabled: step.vision_trigger_macro_enabled,
+                trigger_macro_preset_id: step.vision_trigger_macro_preset_id,
+            },
+            MacroAction::ShowHud => HoverPreviewRequest::Hud {
+                source_id,
+                preset_id: step.key.trim().parse::<u32>().ok().unwrap_or(0),
+                text_override: step.text_override.clone(),
+                duration_override_ms: step.duration_override_ms,
+                timed_override: step.timed_override,
+            },
+            MacroAction::MouseMoveAbsolute => HoverPreviewRequest::MouseMoveAbsolute {
+                source_id,
+                x: step.x,
+                y: step.y,
+            },
+            MacroAction::FocusWindowPreset => HoverPreviewRequest::FocusWindow {
+                source_id,
+                window_title: step.key.clone(),
+            },
+            _ => HoverPreviewRequest::Generic {
+                source_id,
+                title: Self::macro_action_short_label(step.action, language).to_owned(),
+                lines: vec![Self::macro_step_preview_summary_line(step, language)],
+            },
+        }
+    }
+
+    fn resolve_hover_preview_request(
+        &self,
+        group_id: u32,
+        request: HoverPreviewRequest,
+    ) -> Option<MacroStepHoverPreview> {
+        match request {
+            HoverPreviewRequest::MacroPreset {
+                source_id,
+                preset_id,
+                mode_label,
+            } => {
+                let group = self.state.macro_groups.iter().find(|group| group.id == group_id)?;
+                let preset = group.presets.iter().find(|preset| preset.id == preset_id)?.clone();
+                let preset_label = Self::format_macro_trigger_ui(self.state.ui_language, &preset);
+                let title = format!("{}: {}", mode_label, preset_label.clone());
+                Some(MacroStepHoverPreview {
+                    source_id,
+                    title,
+                    kind: MacroStepHoverPreviewKind::MacroPreset {
+                        mode_label,
+                        preset_name: preset_label,
+                        steps: preset.steps,
+                    },
+                })
+            }
+            HoverPreviewRequest::StepToggle {
+                source_id,
+                preset_id,
+                mode_label,
+                selected_steps,
+            } => {
+                let group = self.state.macro_groups.iter().find(|group| group.id == group_id)?;
+                let preset = group.presets.iter().find(|preset| preset.id == preset_id)?.clone();
+                let preset_label = Self::format_macro_trigger_ui(self.state.ui_language, &preset);
+                let title = format!("{}: {}", mode_label, preset_label.clone());
+                Some(MacroStepHoverPreview {
+                    source_id,
+                    title,
+                    kind: MacroStepHoverPreviewKind::StepToggle {
+                        mode_label,
+                        preset_name: preset_label,
+                        steps: preset.steps,
+                        selected_steps,
+                    },
+                })
+            }
+            HoverPreviewRequest::Vision {
+                source_id,
+                preset_id,
+                action_label,
+                move_cursor,
+                wait_until_found,
+                trigger_macro_enabled,
+                trigger_macro_preset_id,
+            } => {
+                let preset = self
+                    .state
+                    .vision_presets
+                    .iter()
+                    .find(|preset| preset.id == preset_id)?
+                    .clone();
+                let trigger_macro_name = if trigger_macro_enabled {
+                    trigger_macro_preset_id.and_then(|macro_id| {
+                        self.state
+                            .macro_groups
+                            .iter()
+                            .find(|group| group.id == group_id)
+                            .and_then(|group| {
+                                group
+                                    .presets
+                                    .iter()
+                                    .find(|macro_preset| macro_preset.id == macro_id)
+                                    .map(|macro_preset| {
+                                        Self::format_macro_trigger_ui(self.state.ui_language, macro_preset)
+                                    })
+                            })
+                    })
+                } else {
+                    None
+                };
+                let preset_name = preset.name.clone();
+                let title = format!("{}: {}", action_label, preset_name.clone());
+                Some(MacroStepHoverPreview {
+                    source_id,
+                    title,
+                    kind: MacroStepHoverPreviewKind::Vision {
+                        action_label,
+                        preset_name,
+                        preset,
+                        trigger_macro_name,
+                        move_cursor,
+                        wait_until_found,
+                        trigger_macro_enabled,
+                    },
+                })
+            }
+            HoverPreviewRequest::Hud {
+                source_id,
+                preset_id,
+                text_override,
+                duration_override_ms,
+                timed_override,
+            } => {
+                let preset = self
+                    .state
+                    .hud_presets
+                    .iter()
+                    .find(|preset| preset.id == preset_id)?
+                    .clone();
+                let text = if text_override.trim().is_empty() {
+                    preset.text.clone()
+                } else {
+                    text_override
+                };
+                let preset_name = preset.name.clone();
+                let title = format!("HUD: {}", preset_name.clone());
+                Some(MacroStepHoverPreview {
+                    source_id,
+                    title,
+                    kind: MacroStepHoverPreviewKind::Hud {
+                        preset_name,
+                        preset,
+                        text,
+                        duration_override_ms,
+                        timed_override,
+                    },
+                })
+            }
+            HoverPreviewRequest::Crosshair {
+                source_id,
+                profile_name,
+                disabled,
+            } => {
+                let profile = self
+                    .state
+                    .profiles
+                    .iter()
+                    .find(|profile| profile.name.eq_ignore_ascii_case(&profile_name))
+                    .cloned()
+                    .unwrap_or_else(|| ProfileRecord {
+                        name: profile_name.clone(),
+                        enabled: true,
+                        collapsed: true,
+                        style: CrosshairStyle::default(),
+                        target_window_title: None,
+                        extra_target_window_titles: Vec::new(),
+                    });
+                let title = format!(
+                    "{}: {}",
+                    Self::tr_lang(
+                        self.state.ui_language,
+                        "Crosshair",
+                        "Tâm ngắm",
+                    ),
+                    profile.name.clone()
+                );
+                Some(MacroStepHoverPreview {
+                    source_id,
+                    title,
+                    kind: MacroStepHoverPreviewKind::Crosshair {
+                        profile_name: profile.name,
+                        style: profile.style,
+                        disabled,
+                    },
+                })
+            }
+            HoverPreviewRequest::MouseMoveAbsolute { source_id, x, y } => Some(MacroStepHoverPreview {
+                source_id,
+                title: Self::tr_lang(self.state.ui_language, "Mouse move absolute", "Di chuyển chuột tuyệt đối").to_owned(),
+                kind: MacroStepHoverPreviewKind::MouseMoveAbsolute { x, y },
+            }),
+            HoverPreviewRequest::WindowResize {
+                source_id,
+                preset_id,
+            } => {
+                let preset = self
+                    .state
+                    .window_presets
+                    .iter()
+                    .find(|preset| preset.id == preset_id)?
+                    .clone();
+                let preset_name = preset.name.clone();
+                let title = format!(
+                    "{}: {}",
+                    Self::tr_lang(self.state.ui_language, "Resize", "Kích thước"),
+                    preset_name.clone()
+                );
+                Some(MacroStepHoverPreview {
+                    source_id,
+                    title,
+                    kind: MacroStepHoverPreviewKind::WindowResize {
+                        preset_name,
+                        preset,
+                    },
+                })
+            }
+            HoverPreviewRequest::Pin {
+                source_id,
+                preset_id,
+                disabled,
+                disable_all,
+            } => {
+                let preset = self
+                    .state
+                    .pin_presets
+                    .iter()
+                    .find(|preset| preset.id == preset_id)?
+                    .clone();
+                let preset_name = preset.name.clone();
+                let title = format!(
+                    "{}: {}",
+                    Self::tr_lang(self.state.ui_language, "Pin", "Ghim"),
+                    preset_name.clone()
+                );
+                Some(MacroStepHoverPreview {
+                    source_id,
+                    title,
+                    kind: MacroStepHoverPreviewKind::Pin {
+                        preset_name,
+                        preset,
+                        disabled,
+                        disable_all,
+                    },
+                })
+            }
+            HoverPreviewRequest::FocusWindow {
+                source_id,
+                window_title,
+            } => Some(MacroStepHoverPreview {
+                source_id,
+                title: Self::tr_lang(self.state.ui_language, "Window focus", "Focus cửa sổ").to_owned(),
+                kind: MacroStepHoverPreviewKind::FocusWindow { window_title },
+            }),
+            HoverPreviewRequest::Generic {
+                source_id,
+                title,
+                lines,
+            } => Some(MacroStepHoverPreview {
+                source_id,
+                title,
+                kind: MacroStepHoverPreviewKind::Generic { lines },
+            }),
+        }
+    }
+
     fn mouse_macro_actions() -> &'static [MacroAction] {
         &[
             MacroAction::MouseLeftClick,
@@ -1793,9 +2863,12 @@ impl CrosshairApp {
             ui.ctx()
                 .request_repaint_after(std::time::Duration::from_millis(16));
         }
-        let macro_panel_scroll_height = ui.available_height() - 10.0;
+        let hover_preview_height = 180.0;
+        let macro_panel_scroll_height = (ui.available_height() - hover_preview_height - 10.0).max(0.0);
         let pending_macro_group_scroll_target = self.pending_macro_group_scroll_target.take();
         let mut pending_macro_group_scroll_consumed = false;
+        let mut hover_preview: Option<MacroStepHoverPreview> = None;
+        let mut hover_preview_request: Option<(u32, HoverPreviewRequest)> = None;
         egui::ScrollArea::vertical()
             .auto_shrink([false, false])
             .max_height(macro_panel_scroll_height)
@@ -2462,6 +3535,12 @@ impl CrosshairApp {
                 }
                 {
                     let all_presets: Vec<(u32, String)> = self.state.macro_groups.iter().flat_map(|g| &g.presets).map(|p| (p.id, Self::format_macro_trigger_ui(language, p))).collect();
+                    let all_preset_step_counts: Vec<(u32, i32)> = self
+                        .state
+                        .macro_groups
+                        .iter()
+                        .flat_map(|g| g.presets.iter().map(|p| (p.id, p.steps.len() as i32)))
+                        .collect();
                     let group = &mut self.state.macro_groups[group_index];
                     let should_scroll_to_group = pending_macro_group_scroll_target == Some(group.id);
                     let folder_enabled = true;
@@ -3335,6 +4414,11 @@ impl CrosshairApp {
                                 .show(ui, |ui| {
                                         let mut clear_hold_stop_step = false;
                                         let step = &mut preset.hold_stop_step;
+                                        let hover_preview_source_id = ui.make_persistent_id((
+                                            group.id,
+                                            preset.id,
+                                            "hold-stop-step-hover-preview",
+                                        ));
                                         let is_dark_theme = self.state.ui_theme == UiThemeMode::Dark;
                                         let hint_color = if is_dark_theme {
                                             Color32::from_rgba_unmultiplied(140, 140, 140, 150)
@@ -3458,6 +4542,13 @@ impl CrosshairApp {
                                                 &hold_stop_combo.response,
                                                 Self::macro_action_tooltip(step.action, language),
                                             );
+                                            if hold_stop_combo.response.hovered() {
+                                                hover_preview_request = Some((group.id, Self::build_hover_preview_request(
+                                                    language,
+                                                    hover_preview_source_id,
+                                                    step,
+                                                )));
+                                            }
                                             let action_uses_key = Self::macro_action_uses_key(step.action);
                                             let action_supports_capture =
                                                 Self::macro_action_supports_capture(step.action);
@@ -5465,6 +6556,12 @@ impl CrosshairApp {
                                 };
                                 let is_active = is_step_executing || is_vision_active || is_timer_active || is_loop_end_active;
                                 let step = &mut preset.steps[step_index];
+                                let hover_preview_source_id = ui.make_persistent_id((
+                                    group.id,
+                                    preset.id,
+                                    step_index,
+                                    "macro-step-hover-preview",
+                                ));
                                 let is_selected = selected_steps_snapshot
                                     .contains(&(group.id, preset.id, step_index));
                                 let drag_indices = if is_selected {
@@ -8032,6 +9129,50 @@ impl CrosshairApp {
                                 if row_response.secondary_clicked() {
                                     remove_step = Some((preset.id, step_index));
                                 }
+                                if row_response.hovered() {
+                                    let hover_request = Self::build_hover_preview_request(
+                                        language,
+                                        hover_preview_source_id,
+                                        step,
+                                    );
+                                    if matches!(
+                                        &hover_request,
+                                        HoverPreviewRequest::MacroPreset { .. }
+                                            | HoverPreviewRequest::StepToggle { .. }
+                                    ) {
+                                        let scroll_y = ui.ctx().input(|i| i.raw_scroll_delta.y);
+                                        if scroll_y.abs() > 0.0 {
+                                            let source_id = match &hover_request {
+                                                HoverPreviewRequest::MacroPreset { source_id, .. }
+                                                | HoverPreviewRequest::StepToggle { source_id, .. } => *source_id,
+                                                _ => hover_preview_source_id,
+                                            };
+                                            let offset_id = source_id.with("macro-hover-preview-offset");
+                                            let line_count = match &hover_request {
+                                                HoverPreviewRequest::MacroPreset { preset_id, .. }
+                                                | HoverPreviewRequest::StepToggle { preset_id, .. } => {
+                                                    all_preset_step_counts
+                                                        .iter()
+                                                        .find(|(id, _)| *id == *preset_id)
+                                                        .map(|(_, count)| *count)
+                                                        .unwrap_or(0)
+                                                }
+                                                _ => 0,
+                                            };
+                                            let visible_lines = 5i32;
+                                            let max_offset = (line_count - visible_lines).max(0);
+                                            let mut offset = ui
+                                                .ctx()
+                                                .data(|data| data.get_temp::<i32>(offset_id))
+                                                .unwrap_or(0);
+                                            let delta = if scroll_y > 0.0 { -1 } else { 1 };
+                                            offset = (offset + delta).clamp(0, max_offset);
+                                            ui.ctx().data_mut(|data| data.insert_temp(offset_id, offset));
+                                            ui.ctx().request_repaint();
+                                        }
+                                    }
+                                    hover_preview_request = Some((group.id, hover_request));
+                                }
                                 step_rects[step_index] = row_response.rect;
                             }
                             if drag_payload.is_some() && !preview_drawn {
@@ -8120,6 +9261,8 @@ impl CrosshairApp {
                                 }
                             });
                         }
+                        ui.add_space(6.0);
+                        Self::render_hover_preview_panel(ui, language, hover_preview.as_ref());
                         if let Some((preset_id, step_index)) = insert_step_after {
                             if let Some(target_preset) = group
                                 .presets
@@ -8536,6 +9679,9 @@ impl CrosshairApp {
                 folder.collapsed = false;
             }
             self.persist();
+        }
+        if let Some((group_id, hover_request)) = hover_preview_request.take() {
+            hover_preview = self.resolve_hover_preview_request(group_id, hover_request);
         }
         ui.add_space((ui.ctx().screen_rect().height() - 250.0).max(0.0));
         if !pending_macro_group_scroll_consumed {
