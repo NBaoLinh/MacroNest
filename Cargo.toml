@@ -52,6 +52,10 @@ windows = { version = "0.61", features = [
     "Win32_UI_WindowsAndMessaging",
     "Win32_System_Variant",
     "UI_Shell",
+    "Media_Ocr",
+    "Graphics_Imaging",
+    "Storage_Streams",
+    "Globalization",
 ] }
 
 [build-dependencies]
@@ -59,3 +63,4 @@ anyhow = "1.0"
 image = { version = "0.25", default-features = false, features = ["bmp", "ico", "jpeg", "png", "webp"] }
 resvg = "0.45"
 tiny-skia = "0.11"
+

@@ -15,6 +15,7 @@ mod render;
 mod storage;
 mod ui;
 mod window_list;
+mod ocr;
 
 use anyhow::Result;
 use crossbeam_channel::unbounded;

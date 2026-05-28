@@ -46,6 +46,7 @@ mod vision_panel;
 mod hud_panel;
 mod command_panel;
 mod settings_panel;
+mod ocr_panel;
 
 
 
@@ -2785,6 +2786,7 @@ impl CrosshairApp {
             AppPanel::Commands => 0xe32a,
             AppPanel::Sound | AppPanel::Media => 0xe050,
             AppPanel::Hud => 0xe8b8,
+            AppPanel::Ocr => 0xe8b6,
         }
     }
 
@@ -2800,8 +2802,13 @@ impl CrosshairApp {
             AppPanel::Sound => "Media",
             AppPanel::Media => "Editor",
             AppPanel::Hud => "HUD",
+            AppPanel::Ocr => "OCR",
         };
-        Self::tr_lang(self.state.ui_language, english, english)
+        if panel == AppPanel::Ocr {
+            Self::tr_lang(self.state.ui_language, "OCR", "Nhận dạng chữ (OCR)")
+        } else {
+            Self::tr_lang(self.state.ui_language, english, english)
+        }
     }
 
     fn language_button_text(&self) -> RichText {
@@ -3416,6 +3423,7 @@ impl CrosshairApp {
             MacroAction::Else => "Else",
             MacroAction::IfEnd => "IfEnd",
             MacroAction::SetVariable => "SetVariable",
+            MacroAction::OcrSearch => "OcrSearch",
             _ => "Legacy (Deprecated)",
         }
     }
@@ -3518,6 +3526,7 @@ impl CrosshairApp {
                 }
                 MacroAction::IfEnd => "Kết thúc khối điều kiện Hiện tại.",
                 MacroAction::SetVariable => "Đặt giá trị cho một biến (số nguyên hoặc sao chép từ biến khác).",
+                MacroAction::OcrSearch => "Quét vùng màn hình qua Windows OCR Native để nhận diện chữ/số.",
                 _ => "Tính năng cũ (Không dùng)",
             },
             _ => match action {
@@ -3616,6 +3625,7 @@ impl CrosshairApp {
                 }
                 MacroAction::IfEnd => "End the current conditional If block.",
                 MacroAction::SetVariable => "Set a variable to a numeric value or copy from another variable.",
+                MacroAction::OcrSearch => "Scan screen region via Windows OCR Native to extract text and numbers.",
                 _ => "Legacy (Deprecated)",
             }
         }
@@ -3687,6 +3697,7 @@ impl CrosshairApp {
             MacroAction::Else => 0xe3ec,
             MacroAction::IfEnd => 0xe040,
             MacroAction::SetVariable => 0xe150,
+            MacroAction::OcrSearch => 0xe8b6,
             _ => 0xe8b5,
         };
         char::from_u32(codepoint).unwrap_or('?')
@@ -3763,6 +3774,7 @@ impl CrosshairApp {
                 MacroAction::Else => "Ngược lại",
                 MacroAction::IfEnd => "Hết Nếu",
                 MacroAction::SetVariable => "Gán biến",
+                MacroAction::OcrSearch => "Quét OCR",
                 _ => "Cũ (Bỏ)",
             }),
             UiLanguage::English => match action {
@@ -3830,6 +3842,7 @@ impl CrosshairApp {
                 MacroAction::Else => "Else",
                 MacroAction::IfEnd => "IfEnd",
                 MacroAction::SetVariable => "SetVar",
+                MacroAction::OcrSearch => "OcrSearch",
                 _ => "Legacy",
             },
             UiLanguage::Icon => match action {
@@ -8137,6 +8150,7 @@ impl eframe::App for CrosshairApp {
                         AppPanel::Pin,
                         AppPanel::Mouse,
                         AppPanel::Vision,
+                        AppPanel::Ocr,
                         AppPanel::Sound,
                     ];
                     for panel in panels {
@@ -8212,6 +8226,7 @@ impl eframe::App for CrosshairApp {
                             AppPanel::Pin => self.render_pin_panel(ui),
                             AppPanel::Mouse => self.render_mouse_panel(ui),
                             AppPanel::Vision => self.render_vision_panel(ui, ctx),
+                            AppPanel::Ocr => self.render_ocr_panel(ui),
                             AppPanel::Zoom => self.render_pin_panel(ui),
                             AppPanel::Modes => unreachable!(),
                             AppPanel::Macros => unreachable!(),

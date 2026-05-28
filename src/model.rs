@@ -183,8 +183,13 @@ fn default_macro_keyboard_key_press_delay_ms() -> u32 {
     0
 }
 
+fn default_ocr_width() -> i32 {
+    320
+}
 
-
+fn default_ocr_height() -> i32 {
+    180
+}
 
 #[derive(Debug, Clone, Copy, Serialize, Deserialize, PartialEq, Eq, Default)]
 pub enum AppPanel {
@@ -205,6 +210,7 @@ pub enum AppPanel {
     Media,
     #[serde(alias = "Toolbox", alias = "Settings")]
     Hud,
+    Ocr,
 }
 
 #[derive(Debug, Clone, Copy, Serialize, Deserialize, PartialEq, Eq, Default)]
@@ -436,6 +442,7 @@ pub enum MacroAction {
     StopTimerPreset,
     EnableStep,
     DisableStep,
+    OcrSearch,
 }
 
 #[derive(Debug, Clone, Copy, Serialize, Deserialize, PartialEq, Eq, Hash, Default)]
@@ -578,6 +585,22 @@ pub struct MacroStep {
     pub set_variable_source: SetVariableSource,
     #[serde(default = "default_false")]
     pub wait_for_completion: bool,
+    #[serde(default = "default_ocr_width")]
+    pub ocr_width: i32,
+    #[serde(default = "default_ocr_height")]
+    pub ocr_height: i32,
+    #[serde(default)]
+    pub ocr_target_text: String,
+    #[serde(default)]
+    pub ocr_success_var: String,
+    #[serde(default)]
+    pub ocr_pos_var_x: String,
+    #[serde(default)]
+    pub ocr_pos_var_y: String,
+    #[serde(default)]
+    pub ocr_numeric_var: String,
+    #[serde(default)]
+    pub ocr_lang: Option<String>,
 }
 
 impl Default for MacroStep {
@@ -632,6 +655,14 @@ impl Default for MacroStep {
             unlock_on_exit: true,
             set_variable_source: SetVariableSource::Expression,
             wait_for_completion: false,
+            ocr_width: 320,
+            ocr_height: 180,
+            ocr_target_text: String::new(),
+            ocr_success_var: String::new(),
+            ocr_pos_var_x: String::new(),
+            ocr_pos_var_y: String::new(),
+            ocr_numeric_var: String::new(),
+            ocr_lang: None,
         }
     }
 }
@@ -1815,6 +1846,22 @@ pub struct AppState {
     pub macro_keyboard_key_press_delay_ms: u32,
     #[serde(default)]
     pub global_constants: Vec<(String, i32)>,
+    #[serde(default)]
+    pub ocr_test_x: i32,
+    #[serde(default)]
+    pub ocr_test_y: i32,
+    #[serde(default)]
+    pub ocr_test_width: i32,
+    #[serde(default)]
+    pub ocr_test_height: i32,
+    #[serde(default)]
+    pub ocr_test_lang: Option<String>,
+    #[serde(skip)]
+    pub ocr_test_running: bool,
+    #[serde(skip)]
+    pub ocr_test_error: Option<String>,
+    #[serde(skip)]
+    pub ocr_test_result: Option<crate::ocr::OcrResult>,
 }
 
 impl Default for AppState {
@@ -1880,6 +1927,14 @@ impl Default for AppState {
             macro_mouse_click_delay_ms: 16,
             macro_keyboard_key_press_delay_ms: 0,
             global_constants: Vec::new(),
+            ocr_test_x: 0,
+            ocr_test_y: 0,
+            ocr_test_width: 320,
+            ocr_test_height: 180,
+            ocr_test_lang: None,
+            ocr_test_running: false,
+            ocr_test_error: None,
+            ocr_test_result: None,
         }
     }
 }

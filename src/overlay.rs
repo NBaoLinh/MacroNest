@@ -5594,6 +5594,9 @@ mod windows_overlay {
             MacroAction::ApplyWindowPreset => {
                 let _ = apply_window_preset_by_id(&step.key);
             }
+            MacroAction::OcrSearch => {
+                execute_ocr_action_step(step);
+            }
             MacroAction::FocusWindowPreset => {
                 let _ = focus_window_by_preset_id(&step.key);
             }
@@ -5988,6 +5991,9 @@ mod windows_overlay {
 
                 MacroAction::ApplyWindowPreset => {
                     let _ = apply_window_preset_by_id(&step.key);
+                }
+                MacroAction::OcrSearch => {
+                    execute_ocr_action_step(step);
                 }
                 MacroAction::FocusWindowPreset => {
                     let _ = focus_window_by_preset_id(&step.key);
@@ -6385,6 +6391,9 @@ mod windows_overlay {
 
                 MacroAction::ApplyWindowPreset => {
                     let _ = apply_window_preset_by_id(&step.key);
+                }
+                MacroAction::OcrSearch => {
+                    execute_ocr_action_step(step);
                 }
                 MacroAction::FocusWindowPreset => {
                     let _ = focus_window_by_preset_id(&step.key);
@@ -7067,6 +7076,76 @@ fn set_variable_value(target_var: &str, value: i32) {
     
     let mut vars = RUNTIME_VARIABLES.lock();
     vars.insert(target_trimmed.to_string(), value);
+}
+
+fn execute_ocr_action_step(step: &crate::model::MacroStep) {
+    let x = step.x;
+    let y = step.y;
+    let w = step.ocr_width.max(10);
+    let h = step.ocr_height.max(10);
+    let lang = &step.ocr_lang;
+
+    let mut success = 0;
+
+    if let Some(frame) = window_list::capture_virtual_screen_region(x, y, w, h) {
+        if let Ok(res) = crate::ocr::perform_ocr(&frame.rgba, frame.width as u32, frame.height as u32, lang.as_deref().unwrap_or("en")) {
+            let full_text = res.text;
+
+            // 1. Parse number if ocr_numeric_var is set
+            let numeric_var = step.ocr_numeric_var.trim();
+            if !numeric_var.is_empty() {
+                let mut number_str = String::new();
+                for c in full_text.chars() {
+                    if c.is_ascii_digit() {
+                        number_str.push(c);
+                    } else if !number_str.is_empty() {
+                        break;
+                    }
+                }
+                if !number_str.is_empty() {
+                    if let Ok(val) = number_str.parse::<i32>() {
+                        set_variable_value(numeric_var, val);
+                    }
+                }
+            }
+
+            // 2. Search for target_text if ocr_target_text is set
+            let target_text = step.ocr_target_text.trim();
+            if !target_text.is_empty() {
+                let mut found_word = None;
+                for word in &res.words {
+                    if word.text.to_lowercase().contains(&target_text.to_lowercase()) {
+                        found_word = Some(word.clone());
+                        break;
+                    }
+                }
+
+                if let Some(word) = found_word {
+                    success = 1;
+                    // Absolute position of the center of the word on screen
+                    let abs_x = x + word.x as i32 + (word.width / 2.0).round() as i32;
+                    let abs_y = y + word.y as i32 + (word.height / 2.0).round() as i32;
+
+                    let pos_x_var = step.ocr_pos_var_x.trim();
+                    let pos_y_var = step.ocr_pos_var_y.trim();
+                    if !pos_x_var.is_empty() {
+                        set_variable_value(pos_x_var, abs_x);
+                    }
+                    if !pos_y_var.is_empty() {
+                        set_variable_value(pos_y_var, abs_y);
+                    }
+                }
+            } else {
+                // If target text is empty, count it as success if we captured successfully and got text
+                success = 1;
+            }
+        }
+    }
+
+    let success_var = step.ocr_success_var.trim();
+    if !success_var.is_empty() {
+        set_variable_value(success_var, success);
+    }
 }
 
 
