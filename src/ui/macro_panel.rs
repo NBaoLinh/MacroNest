@@ -8407,22 +8407,39 @@ Example: {100 + (A - B) * 2}",
         timer_names: &[String],
         _language: UiLanguage,
     ) {
-        let (last_word_trimmed, prefix, wrap_open, wrap_close) = {
-            let text_str = text.as_str();
-            let mut last_word_start = 0;
-            for (i, c) in text_str.char_indices() {
-                if c.is_whitespace() || c == '+' || c == '-' || c == '*' || c == '/' || c == '(' || c == ')' || c == ',' {
-                    last_word_start = i + 1;
-                }
-            }
-            let last_word = &text_str[last_word_start..];
-            let trimmed = last_word.trim();
-            let wrap_open = trimmed.starts_with('{');
-            let wrap_close = trimmed.ends_with('}');
-            let inner = trimmed.strip_prefix('{').unwrap_or(trimmed);
-            let inner = inner.strip_suffix('}').unwrap_or(inner);
-            (inner.trim().to_string(), text_str[..last_word_start].to_string(), wrap_open, wrap_close)
+        let cursor_index = match egui::widgets::text_edit::TextEditState::load(ui.ctx(), response.id)
+            .and_then(|state| state.cursor.char_range().and_then(|range| range.single().map(|c| c.index)))
+        {
+            Some(index) => index,
+            None => return,
         };
+        let cursor_byte = text
+            .char_indices()
+            .nth(cursor_index)
+            .map(|(byte, _)| byte)
+            .unwrap_or(text.len());
+        let before_cursor = &text[..cursor_byte];
+        let after_cursor = text[cursor_byte..].to_string();
+
+        let mut last_word_start = 0;
+        for (i, c) in before_cursor.char_indices() {
+            if c.is_whitespace()
+                || c == '+'
+                || c == '-'
+                || c == '*'
+                || c == '/'
+                || c == '('
+                || c == ')'
+                || c == ','
+                || c == '{'
+                || c == '}'
+            {
+                last_word_start = i + c.len_utf8();
+            }
+        }
+        let prefix = before_cursor[..last_word_start].to_string();
+        let last_word_trimmed = before_cursor[last_word_start..].trim().to_string();
+        let wrap_open = prefix.ends_with('{');
         
         if last_word_trimmed.is_empty() {
             return;
@@ -8511,16 +8528,13 @@ Example: {100 + (A - B) * 2}",
 
         if confirm_selected {
             let chosen = &suggestions[selected_index];
-            let chosen = if wrap_open {
-                if wrap_close {
-                    format!("{{{}}}", chosen)
-                } else {
-                    format!("{{{}", chosen)
-                }
+            let suffix = if wrap_open && after_cursor.starts_with('}') {
+                &after_cursor['}'.len_utf8()..]
             } else {
-                chosen.to_string()
+                after_cursor.as_str()
             };
-            *text = format!("{}{}", prefix, chosen);
+            let closing = if wrap_open { "}" } else { "" };
+            *text = format!("{}{}{}{}", prefix, chosen, closing, suffix);
             response.request_focus();
             
             let char_count = text.chars().count();
@@ -8590,15 +8604,43 @@ Example: {100 + (A - B) * 2}",
         timer_names: &[String],
         _language: UiLanguage,
     ) {
-        let trimmed = text.trim();
-        if trimmed.is_empty() {
+        let cursor_index = match egui::widgets::text_edit::TextEditState::load(ui.ctx(), response.id)
+            .and_then(|state| state.cursor.char_range().and_then(|range| range.single().map(|c| c.index)))
+        {
+            Some(index) => index,
+            None => return,
+        };
+        let cursor_byte = text
+            .char_indices()
+            .nth(cursor_index)
+            .map(|(byte, _)| byte)
+            .unwrap_or(text.len());
+        let before_cursor = &text[..cursor_byte];
+        let after_cursor = text[cursor_byte..].to_string();
+
+        let mut last_word_start = 0;
+        for (i, c) in before_cursor.char_indices() {
+            if c.is_whitespace()
+                || c == '+'
+                || c == '-'
+                || c == '*'
+                || c == '/'
+                || c == '('
+                || c == ')'
+                || c == ','
+                || c == '{'
+                || c == '}'
+            {
+                last_word_start = i + c.len_utf8();
+            }
+        }
+        let prefix = before_cursor[..last_word_start].to_string();
+        let last_word = before_cursor[last_word_start..].trim().to_string();
+        let wrap_open = prefix.ends_with('{');
+
+        if last_word.is_empty() {
             return;
         }
-        let wrap_open = trimmed.starts_with('{');
-        let wrap_close = trimmed.ends_with('}');
-        let mut last_word = trimmed.strip_prefix('{').unwrap_or(trimmed);
-        last_word = last_word.strip_suffix('}').unwrap_or(last_word);
-        let last_word = last_word.trim().to_string();
 
         let mut suggestions = Vec::new();
 
@@ -8683,16 +8725,13 @@ Example: {100 + (A - B) * 2}",
 
         if confirm_selected {
             let chosen = &suggestions[selected_index];
-            let chosen = if wrap_open {
-                if wrap_close {
-                    format!("{{{}}}", chosen)
-                } else {
-                    format!("{{{}", chosen)
-                }
+            let suffix = if wrap_open && after_cursor.starts_with('}') {
+                &after_cursor['}'.len_utf8()..]
             } else {
-                chosen.clone()
+                after_cursor.as_str()
             };
-            *text = chosen;
+            let closing = if wrap_open { "}" } else { "" };
+            *text = format!("{}{}{}{}", prefix, chosen, closing, suffix);
             response.request_focus();
             
             let char_count = text.chars().count();
