@@ -84,6 +84,32 @@ impl CrosshairApp {
             ui.close();
         }
     }
+    fn clear_macro_action_submenus(ui: &mut egui::Ui, id_source: impl std::hash::Hash + Copy) {
+        let owner_id = ui.make_persistent_id("macro-action-submenu-owner");
+        let mouse_popup_id = ui.make_persistent_id((id_source, "mouse-submenu-popup"));
+        let image_popup_id = ui.make_persistent_id((id_source, "image-search-submenu-popup"));
+        let timer_popup_id = ui.make_persistent_id((id_source, "timer-submenu-popup"));
+        let if_popup_id = ui.make_persistent_id((id_source, "if-submenu-popup"));
+        ui.ctx().data_mut(|data| {
+            data.insert_temp(owner_id, None::<MacroActionSubmenuKind>);
+            data.insert_temp(mouse_popup_id, false);
+            data.insert_temp(image_popup_id, false);
+            data.insert_temp(timer_popup_id, false);
+            data.insert_temp(if_popup_id, false);
+        });
+        for (_, _, _, popup_key) in Self::mouse_click_action_groups().iter().copied() {
+            let child_popup_id = ui.make_persistent_id((id_source, popup_key, "popup"));
+            ui.ctx().data_mut(|data| data.insert_temp(child_popup_id, false));
+        }
+        ui.ctx().request_repaint();
+    }
+    fn clear_mouse_click_submenus(ui: &mut egui::Ui, id_source: impl std::hash::Hash + Copy) {
+        for (_, _, _, popup_key) in Self::mouse_click_action_groups().iter().copied() {
+            let child_popup_id = ui.make_persistent_id((id_source, popup_key, "popup"));
+            ui.ctx().data_mut(|data| data.insert_temp(child_popup_id, false));
+        }
+        ui.ctx().request_repaint();
+    }
     fn render_expression_help_box(ui: &mut egui::Ui, language: UiLanguage) {
         let fill = Color32::from_rgba_unmultiplied(0, 170, 255, 18);
         let stroke = egui::Stroke::new(1.0, Color32::from_rgb(0, 170, 255));
@@ -226,6 +252,7 @@ impl CrosshairApp {
                     Button::new(Self::macro_action_icon_text(base_action)).selected(selected),
                 );
                 if response.hovered() || response.clicked() {
+                    Self::clear_mouse_click_submenus(ui, id_source);
                     open = true;
                 }
                 if response.clicked() {
@@ -329,6 +356,7 @@ impl CrosshairApp {
                     Button::new(Self::macro_action_icon_text(MacroAction::IfStart)).selected(selected),
                 );
                 if response.hovered() || response.clicked() {
+                    Self::clear_macro_action_submenus(ui, id_source);
                     open = true;
                     ui.ctx().data_mut(|data| data.insert_temp(action_hover_id, true));
                 }
@@ -421,13 +449,7 @@ impl CrosshairApp {
         }
         if top_level_hovered {
             open = false;
-            for (_, _, _, popup_key) in Self::mouse_click_action_groups().iter().copied() {
-                let child_popup_id = ui.make_persistent_id((id_source, popup_key, "popup"));
-                ui.ctx().data_mut(|data| data.insert_temp(child_popup_id, false));
-            }
-            ui.ctx()
-                .data_mut(|data| data.insert_temp(owner_id, None::<MacroActionSubmenuKind>));
-            ui.ctx().request_repaint();
+            Self::clear_macro_action_submenus(ui, id_source);
         }
         let inner = ui.allocate_ui_with_layout(
             vec2(58.0, 42.0),
@@ -438,13 +460,10 @@ impl CrosshairApp {
                     Button::new(Self::material_icon_text(0xe323, 18.0)).selected(selected),
                 );
                 if response.hovered() || response.clicked() {
+                    Self::clear_macro_action_submenus(ui, id_source);
                     open = true;
                     ui.ctx()
                         .data_mut(|data| data.insert_temp(owner_id, MacroActionSubmenuKind::Mouse));
-                    ui.ctx()
-                        .data_mut(|data| data.insert_temp(image_popup_id, false));
-                    ui.ctx()
-                        .data_mut(|data| data.insert_temp(timer_popup_id, false));
                 }
                 let popup_rect_id = ui.make_persistent_id((id_source, "mouse-submenu-rect"));
                 let mut close_requested = false;
@@ -492,14 +511,7 @@ impl CrosshairApp {
                                         true,
                                     );
                                     if leaf_response.hovered() || leaf_response.clicked() {
-                                        for (_, _, _, popup_key) in Self::mouse_click_action_groups().iter().copied() {
-                                            let child_popup_id =
-                                                ui.make_persistent_id((id_source, popup_key, "popup"));
-                                            ui.ctx().data_mut(|data| data.insert_temp(child_popup_id, false));
-                                        }
-                                        ui.ctx()
-                                            .data_mut(|data| data.insert_temp(owner_id, None::<MacroActionSubmenuKind>));
-                                        ui.ctx().request_repaint();
+                                        Self::clear_mouse_click_submenus(ui, id_source);
                                         close_requested = true;
                                     }
                                     if leaf_response.clicked() {
@@ -540,21 +552,11 @@ impl CrosshairApp {
                         }
                         if !keep_open_rect.contains(pointer_pos) {
                             open = false;
-                            for (_, _, _, popup_key) in Self::mouse_click_action_groups().iter().copied() {
-                                let child_popup_id = ui.make_persistent_id((id_source, popup_key, "popup"));
-                                ui.ctx().data_mut(|data| data.insert_temp(child_popup_id, false));
-                            }
-                            ui.ctx().data_mut(|data| data.insert_temp(owner_id, None::<MacroActionSubmenuKind>));
-                            ui.ctx().request_repaint();
+                            Self::clear_macro_action_submenus(ui, id_source);
                         }
                     } else {
                         open = false;
-                        for (_, _, _, popup_key) in Self::mouse_click_action_groups().iter().copied() {
-                            let child_popup_id = ui.make_persistent_id((id_source, popup_key, "popup"));
-                            ui.ctx().data_mut(|data| data.insert_temp(child_popup_id, false));
-                        }
-                        ui.ctx().data_mut(|data| data.insert_temp(owner_id, None::<MacroActionSubmenuKind>));
-                        ui.ctx().request_repaint();
+                        Self::clear_macro_action_submenus(ui, id_source);
                     }
                 }
                 ui.ctx().data_mut(|data| data.insert_temp(popup_id, open));
@@ -637,14 +639,11 @@ impl CrosshairApp {
                     Button::new(Self::material_icon_text(0xe8b6, 18.0)).selected(selected),
                 );
                 if response.hovered() || response.clicked() {
+                    Self::clear_macro_action_submenus(ui, id_source);
                     open = true;
                     ui.ctx().data_mut(|data| {
                         data.insert_temp(owner_id, MacroActionSubmenuKind::ImageSearch)
                     });
-                    ui.ctx()
-                        .data_mut(|data| data.insert_temp(mouse_popup_id, false));
-                    ui.ctx()
-                        .data_mut(|data| data.insert_temp(timer_popup_id, false));
                 }
                 let popup_rect_id = ui.make_persistent_id((id_source, "image-search-submenu-rect"));
                 let popup_response = egui::Popup::from_response(&response)
@@ -783,13 +782,10 @@ impl CrosshairApp {
                     Button::new(Self::material_icon_text(0xe425, 18.0)).selected(selected),
                 );
                 if response.hovered() || response.clicked() {
+                    Self::clear_macro_action_submenus(ui, id_source);
                     open = true;
                     ui.ctx()
                         .data_mut(|data| data.insert_temp(owner_id, MacroActionSubmenuKind::Timer));
-                    ui.ctx()
-                        .data_mut(|data| data.insert_temp(mouse_popup_id, false));
-                    ui.ctx()
-                        .data_mut(|data| data.insert_temp(image_popup_id, false));
                 }
                 let popup_rect_id = ui.make_persistent_id((id_source, "timer-submenu-rect"));
                 let popup_response = egui::Popup::from_response(&response)
