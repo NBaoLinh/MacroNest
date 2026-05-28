@@ -8508,6 +8508,8 @@ Example: {100 + (A - B) * 2}",
         };
         let closing = if wrap_open { "}" } else { "" };
         *text = format!("{}{}{}{}", prefix, chosen, closing, suffix);
+        let mut response = response.clone();
+        response.mark_changed();
         response.request_focus();
 
         let char_count = text.chars().count();
@@ -8652,22 +8654,7 @@ Example: {100 + (A - B) * 2}",
 
         if confirm_selected {
             let chosen = &suggestions[selected_index];
-            let suffix = if wrap_open && after_cursor.starts_with('}') {
-                &after_cursor['}'.len_utf8()..]
-            } else {
-                after_cursor.as_str()
-            };
-            let closing = if wrap_open { "}" } else { "" };
-            *text = format!("{}{}{}{}", prefix, chosen, closing, suffix);
-            response.request_focus();
-            
-            let char_count = text.chars().count();
-            if let Some(mut state) = egui::widgets::text_edit::TextEditState::load(ui.ctx(), response.id) {
-                let cursor_pos = egui::text::CCursor::new(char_count);
-                state.cursor.set_char_range(Some(egui::text::CCursorRange::two(cursor_pos, cursor_pos)));
-                state.store(ui.ctx(), response.id);
-            }
-
+            Self::apply_variable_suggestion(ui, response, text, &prefix, chosen, wrap_open, &after_cursor);
             popup_open = false;
             ui.memory_mut(|mem| {
                 mem.data.insert_temp(popup_open_key, popup_open);
