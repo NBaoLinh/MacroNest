@@ -317,6 +317,40 @@ mod windows_overlay {
                 result.push(c);
             }
         }
+        replace_bare_variables(&result)
+    }
+
+    fn is_bare_variable_char(c: char) -> bool {
+        c.is_alphanumeric() || c == '_' || c == '.'
+    }
+
+    fn replace_bare_variables(text: &str) -> String {
+        let mut result = String::new();
+        let mut token = String::new();
+
+        let mut flush_token = |result: &mut String, token: &mut String| {
+            if token.is_empty() {
+                return;
+            }
+            if token.chars().all(|c| c.is_ascii_digit()) {
+                result.push_str(token);
+            } else if let Some(text_val) = resolve_text_variable_value(token) {
+                result.push_str(&text_val);
+            } else {
+                result.push_str(token);
+            }
+            token.clear();
+        };
+
+        for c in text.chars() {
+            if is_bare_variable_char(c) {
+                token.push(c);
+            } else {
+                flush_token(&mut result, &mut token);
+                result.push(c);
+            }
+        }
+        flush_token(&mut result, &mut token);
         result
     }
     #[derive(Debug, Clone)]
@@ -7446,6 +7480,11 @@ fn set_variable_value(target_var: &str, value: i32) {
             assert_eq!(interpolate_variables("test {A+A}"), "test 1040");
             assert_eq!(interpolate_variables("test {A + B * 2}"), "test 540");
             assert_eq!(interpolate_variables("test {C}"), "test 0");
+            assert_eq!(interpolate_variables("test A"), "test 520");
+            assert_eq!(interpolate_variables("test system.date"), format!(
+                "test {}",
+                chrono::Local::now().format("%Y-%m-%d")
+            ));
 
             // Clean up
             {
