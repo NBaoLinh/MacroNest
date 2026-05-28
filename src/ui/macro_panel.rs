@@ -364,7 +364,7 @@ impl CrosshairApp {
                     .strong()
                     .color(Color32::from_rgb(0, 255, 170))
             } else {
-                RichText::new(line).monospace()
+                RichText::new(line)
             };
             ui.label(text);
         }
@@ -372,8 +372,7 @@ impl CrosshairApp {
             ui.add_space(2.0);
             ui.label(
                 RichText::new(format!("{} / {}", start + 1, visible_steps.len()))
-                    .weak()
-                    .monospace(),
+                    .weak(),
             );
         }
         ui.ctx().data_mut(|data| data.insert_temp(offset_id, offset));

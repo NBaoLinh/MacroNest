@@ -4528,7 +4528,32 @@ impl CrosshairApp {
         let mut changed = false;
         let screen_size = Self::screen_size();
         let desired = vec2(ui.available_width().max(560.0), 420.0);
-        let (canvas_rect, response) = ui.allocate_exact_size(desired, Sense::drag());
+        let (canvas_rect, response) = ui.allocate_exact_size(desired, Sense::drag().union(Sense::click()));
+
+        let mut arrow_dx = 0;
+        let mut arrow_dy = 0;
+        if response.hovered() || response.has_focus() {
+            ui.input(|i| {
+                if i.key_pressed(egui::Key::ArrowLeft) {
+                    arrow_dx -= 1;
+                }
+                if i.key_pressed(egui::Key::ArrowRight) {
+                    arrow_dx += 1;
+                }
+                if i.key_pressed(egui::Key::ArrowUp) {
+                    arrow_dy -= 1;
+                }
+                if i.key_pressed(egui::Key::ArrowDown) {
+                    arrow_dy += 1;
+                }
+            });
+            if arrow_dx != 0 || arrow_dy != 0 {
+                preset.x = (preset.x + arrow_dx).clamp(0, screen_size.x.round() as i32);
+                preset.y = (preset.y + arrow_dy).clamp(0, screen_size.y.round() as i32);
+                changed = true;
+            }
+        }
+
         let draw_rect = canvas_rect.shrink(8.0);
         let scale = (draw_rect.width() / screen_size.x)
             .min(draw_rect.height() / screen_size.y)
