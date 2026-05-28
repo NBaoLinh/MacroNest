@@ -896,11 +896,6 @@ impl CrosshairApp {
         ui.add_space(2.0);
         let mut changed = false;
         ui.heading(Self::tr_lang(language, "Media", "Media"));
-        ui.label(Self::tr_lang(
-            language,
-            "Manage reusable audio and video presets for macro steps.",
-            "Quản lý preset âm thanh và video dùng lại cho các bước macro.",
-        ));
         ui.add_space(6.0);
         let mut import_video_for_new_preset = None;
         ui.horizontal(|ui| {

@@ -1,4 +1,4 @@
-use crate::ai;
+﻿use crate::ai;
 use crate::hotkey;
 use crate::model::*;
 use crate::ui::{
@@ -83,6 +83,39 @@ impl CrosshairApp {
             *live_sync = true;
             ui.close();
         }
+    }
+    fn render_expression_help_box(ui: &mut egui::Ui, language: UiLanguage) {
+        let fill = Color32::from_rgba_unmultiplied(0, 170, 255, 18);
+        let stroke = egui::Stroke::new(1.0, Color32::from_rgb(0, 170, 255));
+        egui::Frame::group(ui.style())
+            .fill(fill)
+            .stroke(stroke)
+            .inner_margin(egui::Margin::symmetric(8, 6))
+            .show(ui, |ui| {
+                ui.horizontal(|ui| {
+                    ui.label(Self::material_icon_text(0xe88f, 14.0).color(Color32::from_rgb(0, 170, 255)));
+                    ui.label(
+                        egui::RichText::new(Self::tr_lang(
+                            language,
+                            "EXPRESSION HELP",
+                            "HƯỚNG DẪN BIỂU THỨC",
+                        ))
+                        .strong()
+                        .color(Color32::from_rgb(0, 170, 255)),
+                    );
+                });
+                ui.add_space(2.0);
+                ui.label(Self::tr_lang(
+                    language,
+                    "You can write math expressions and use variables in {}. Math operators + - * / and parentheses () are supported.\nExample: {100 + (A - B) * 2}",
+                    "Bạn có thể viết biểu thức toán và dùng biến trong {}. Hỗ trợ các phép toán + - * / và dấu ngoặc ().\nVí dụ: {100 + (A - B) * 2}",
+                ));
+                ui.add_space(4.0);
+                ui.label(egui::RichText::new(Self::tr_lang(language, "Supported Functions:", "Hàm hỗ trợ:")).strong());
+                ui.label(egui::RichText::new("• random(min, max)").monospace());
+                ui.label(egui::RichText::new("• min(a, b)  •  max(a, b)").monospace());
+                ui.label(egui::RichText::new("• abs(a)").monospace());
+            });
     }
     fn mouse_macro_actions() -> &'static [MacroAction] {
         &[
@@ -299,11 +332,6 @@ impl CrosshairApp {
                     open = true;
                     ui.ctx().data_mut(|data| data.insert_temp(action_hover_id, true));
                 }
-                if response.clicked() {
-                    *current = MacroAction::IfStart;
-                    *live_sync = true;
-                    ui.close();
-                }
                 let _popup_response = egui::Popup::from_response(&response)
                     .id(popup_id)
                     .open_bool(&mut open)
@@ -318,7 +346,7 @@ impl CrosshairApp {
                             .num_columns(2)
                             .spacing([6.0, 6.0])
                             .show(ui, |ui| {
-                                for action in Self::if_action_groups().iter().copied().skip(1) {
+                                for action in Self::if_action_groups().iter().copied() {
                                     Self::render_macro_action_option(
                                         ui,
                                         language,
@@ -393,6 +421,10 @@ impl CrosshairApp {
         }
         if top_level_hovered {
             open = false;
+            for (_, _, _, popup_key) in Self::mouse_click_action_groups().iter().copied() {
+                let child_popup_id = ui.make_persistent_id((id_source, popup_key, "popup"));
+                ui.ctx().data_mut(|data| data.insert_temp(child_popup_id, false));
+            }
             ui.ctx()
                 .data_mut(|data| data.insert_temp(owner_id, None::<MacroActionSubmenuKind>));
             ui.ctx().request_repaint();
@@ -489,11 +521,19 @@ impl CrosshairApp {
                         }
                         if !keep_open_rect.contains(pointer_pos) {
                             open = false;
+                            for (_, _, _, popup_key) in Self::mouse_click_action_groups().iter().copied() {
+                                let child_popup_id = ui.make_persistent_id((id_source, popup_key, "popup"));
+                                ui.ctx().data_mut(|data| data.insert_temp(child_popup_id, false));
+                            }
                             ui.ctx().data_mut(|data| data.insert_temp(owner_id, None::<MacroActionSubmenuKind>));
                             ui.ctx().request_repaint();
                         }
                     } else {
                         open = false;
+                        for (_, _, _, popup_key) in Self::mouse_click_action_groups().iter().copied() {
+                            let child_popup_id = ui.make_persistent_id((id_source, popup_key, "popup"));
+                            ui.ctx().data_mut(|data| data.insert_temp(child_popup_id, false));
+                        }
                         ui.ctx().data_mut(|data| data.insert_temp(owner_id, None::<MacroActionSubmenuKind>));
                         ui.ctx().request_repaint();
                     }
@@ -4799,6 +4839,7 @@ impl CrosshairApp {
                                                         ui.spacing_mut().interact_size.y = 22.0;
                                                         ui.spacing_mut().button_padding.y = 0.0;
                                                         ui.vertical(|ui| {
+                                                            Self::render_expression_help_box(ui, language);
                                                             ui.horizontal(|ui| {
                                                                   let var_name_id = ui.id().with("hold-stop-set-var-name");
                                                                   let response = Self::render_variable_text_edit(
@@ -5204,31 +5245,6 @@ impl CrosshairApp {
                                           child_ui.horizontal(|ui| {
                                                ui.add_space(26.0);
                                                ui.label(RichText::new(Self::tr_lang(language, "Delay", "Delay")).strong());
-                                               let info_color = ui.visuals().weak_text_color().linear_multiply(0.7);
-                                               let info_resp = ui.add(egui::Label::new(
-                                                   Self::material_icon_text(0xe88f, 13.0).color(info_color)
-                                               ).sense(egui::Sense::hover()));
-                                               if info_resp.contains_pointer() {
-                                                   egui::show_tooltip_at_pointer(ui.ctx(), ui.layer_id(), info_resp.id.with("delay-math-help-tip-header"), |ui| {
-                                                       ui.set_max_width(280.0);
-                                                       ui.horizontal(|ui| {
-                                                           ui.label(Self::material_icon_text(0xe88f, 14.0).color(egui::Color32::from_rgb(0, 170, 255)));
-                                                           ui.label(egui::RichText::new(Self::tr_lang(language, "EXPRESSION HELP", "")).strong().color(egui::Color32::from_rgb(0, 170, 255)));
-                                                       });
-                                                       ui.add_space(2.0);
-                                                       ui.label(Self::tr_lang(
-                                                           language,
-                                                           "You can write math expressions and use variables in {}. Math operators + - * / and parentheses () are supported.
-Example: {100 + (A - B) * 2}",
-                                                           ""
-                                                       ));
-                                                       ui.add_space(4.0);
-                                                       ui.label(egui::RichText::new(Self::tr_lang(language, "Supported Functions:", "")).strong());
-                                                       ui.label(egui::RichText::new("• random(min, max)").monospace());
-                                                       ui.label(egui::RichText::new("• min(a, b)  •  max(a, b)").monospace());
-                                                       ui.label(egui::RichText::new("• abs(a)").monospace());
-                                                   });
-                                               }
                                            });
                                          ui.add_sized([148.0, 18.0], egui::Label::new(RichText::new(Self::tr_lang(language, "Action", "Action")).strong()));
                                          ui.add_sized([146.0, 18.0], egui::Label::new(""));
@@ -7426,6 +7442,7 @@ Example: {100 + (A - B) * 2}",
                                                         ui.spacing_mut().interact_size.y = 22.0;
                                                         ui.spacing_mut().button_padding.y = 0.0;
                                                         ui.vertical(|ui| {
+                                                            Self::render_expression_help_box(ui, language);
                                                             ui.horizontal(|ui| {
                                                                   let var_name_id = ui.id().with((step_index, "regular-set-var-name"));
                                                                   let response = Self::render_variable_text_edit(
