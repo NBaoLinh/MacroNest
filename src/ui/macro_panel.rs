@@ -101,6 +101,7 @@ impl CrosshairApp {
             let child_popup_id = ui.make_persistent_id((id_source, popup_key, "popup"));
             ui.ctx().data_mut(|data| data.insert_temp(child_popup_id, false));
         }
+        ui.ctx().memory_mut(|mem| mem.close_all_popups());
         ui.ctx().request_repaint();
     }
     fn clear_mouse_click_submenus(ui: &mut egui::Ui, id_source: impl std::hash::Hash + Copy) {
@@ -108,6 +109,7 @@ impl CrosshairApp {
             let child_popup_id = ui.make_persistent_id((id_source, popup_key, "popup"));
             ui.ctx().data_mut(|data| data.insert_temp(child_popup_id, false));
         }
+        ui.ctx().memory_mut(|mem| mem.close_all_popups());
         ui.ctx().request_repaint();
     }
     fn render_expression_help_box(ui: &mut egui::Ui, language: UiLanguage) {
