@@ -107,21 +107,73 @@ impl CrosshairApp {
                     .spacing([14.0, 8.0])
                     .min_col_width(110.0)
                     .show(ui, |ui| {
-                        // Language Code
-                        ui.label(Self::tr_lang(language, "Language Code (e.g. 'en', 'vi')", "Mã ngôn ngữ (ví dụ 'en', 'vi')"));
-                        ui.horizontal(|ui| {
-                            let mut lang_str = preset.lang.clone().unwrap_or_default();
-                            let resp = ui.add_sized([180.0, 22.0], egui::TextEdit::singleline(&mut lang_str));
-                            if resp.changed() {
-                                preset.lang = if lang_str.trim().is_empty() {
-                                    None
-                                } else {
-                                    Some(lang_str.trim().to_string())
-                                };
-                                live_sync = true;
-                            }
-                            ui.label(RichText::new(Self::tr_lang(language, "(Leave blank for Auto)", "(Để trống để tự động nhận dạng)")).weak().small());
-                        });
+                        // Language Code - Dropdown with popular languages
+                        ui.label(Self::tr_lang(language, "Language", "Ngôn ngữ OCR"));
+                        {
+                            // (code, display label)
+                            let popular_langs: &[(&str, &str)] = &[
+                                ("", "🔍 Auto Detect"),
+                                ("en", "🇬🇧 English (en)"),
+                                ("vi", "🇻🇳 Tiếng Việt (vi)"),
+                                ("zh-Hans", "🇨🇳 中文简体 (zh-Hans)"),
+                                ("zh-Hant", "🇹🇼 中文繁體 (zh-Hant)"),
+                                ("ja", "🇯🇵 日本語 (ja)"),
+                                ("ko", "🇰🇷 한국어 (ko)"),
+                                ("fr", "🇫🇷 Français (fr)"),
+                                ("de", "🇩🇪 Deutsch (de)"),
+                                ("es", "🇪🇸 Español (es)"),
+                                ("it", "🇮🇹 Italiano (it)"),
+                                ("pt", "🇵🇹 Português (pt)"),
+                                ("ru", "🇷🇺 Русский (ru)"),
+                                ("ar", "🇸🇦 العربية (ar)"),
+                                ("th", "🇹🇭 ภาษาไทย (th)"),
+                                ("nl", "🇳🇱 Nederlands (nl)"),
+                                ("pl", "🇵🇱 Polski (pl)"),
+                                ("tr", "🇹🇷 Türkçe (tr)"),
+                            ];
+                            let current_code = preset.lang.clone().unwrap_or_default();
+                            let current_label: String = popular_langs.iter()
+                                .find(|(code, _)| *code == current_code.as_str())
+                                .map(|(_, label)| label.to_string())
+                                .unwrap_or_else(|| {
+                                    if current_code.is_empty() {
+                                        "🔍 Auto Detect".to_string()
+                                    } else {
+                                        current_code.clone()
+                                    }
+                                });
+
+                            ui.horizontal(|ui| {
+                                let cb = egui::ComboBox::from_id_salt((preset.id, "ocr-lang-combo"))
+                                    .selected_text(current_label.as_str())
+                                    .width(200.0)
+                                    .show_ui(ui, |ui| {
+                                        for (code, label) in popular_langs {
+                                            let is_selected = current_code.as_str() == *code;
+                                            if ui.selectable_label(is_selected, *label).clicked() {
+                                                preset.lang = if code.is_empty() { None } else { Some(code.to_string()) };
+                                                live_sync = true;
+                                            }
+                                        }
+                                    });
+                                let _ = cb;
+
+                                // Also allow manual text input for unlisted languages
+                                let mut lang_str = preset.lang.clone().unwrap_or_default();
+                                let resp = ui.add_sized([70.0, 22.0], egui::TextEdit::singleline(&mut lang_str).hint_text("custom..."));
+                                if resp.changed() {
+                                    preset.lang = if lang_str.trim().is_empty() {
+                                        None
+                                    } else {
+                                        Some(lang_str.trim().to_string())
+                                    };
+                                    live_sync = true;
+                                }
+                                if resp.hovered() {
+                                    resp.on_hover_text(Self::tr_lang(language, "Type a custom language code (e.g. 'en', 'vi', 'ja')", "Nhập mã ngôn ngữ tùy chỉnh (ví dụ 'en', 'vi', 'ja')"));
+                                }
+                            });
+                        }
                         ui.end_row();
 
                         // Scan Region (X, Y, W, H)

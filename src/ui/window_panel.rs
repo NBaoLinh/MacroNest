@@ -1147,6 +1147,12 @@ impl CrosshairApp {
                 let dist_bl = pointer_pos.distance(window_rect.left_bottom());
                 let dist_br = pointer_pos.distance(window_rect.right_bottom());
                 
+                let nearest_on_box = egui::pos2(
+                    pointer_pos.x.clamp(window_rect.left(), window_rect.right()),
+                    pointer_pos.y.clamp(window_rect.top(), window_rect.bottom()),
+                );
+                let dist_to_box = pointer_pos.distance(nearest_on_box);
+
                 active_handle = if dist_tl < 12.0 {
                     DragHandle::TopLeft
                 } else if dist_tr < 12.0 {
@@ -1165,6 +1171,8 @@ impl CrosshairApp {
                     DragHandle::Bottom
                 } else if window_rect.contains(pointer_pos) {
                     DragHandle::Center
+                } else if dist_to_box < 20.0 {
+                    DragHandle::Center
                 } else {
                     DragHandle::None
                 };
@@ -1172,8 +1180,10 @@ impl CrosshairApp {
             }
         }
 
-        if response.dragged() && active_handle != DragHandle::None {
-            let delta = response.drag_delta();
+        let wp_primary_down = ui.input(|i| i.pointer.primary_down());
+        let wp_delta = ui.input(|i| i.pointer.delta());
+        if wp_primary_down && active_handle != DragHandle::None {
+            let delta = wp_delta;
             let delta_x = delta.x / scale_x;
             let delta_y = delta.y / scale_y;
             let shift_pressed = ui.input(|i| i.modifiers.shift);
@@ -1601,6 +1611,13 @@ impl CrosshairApp {
                 let dist_bl = pointer_pos.distance(rect.left_bottom());
                 let dist_br = pointer_pos.distance(rect.right_bottom());
                 
+                // Also allow drag start from near-but-outside the box (helps with tiny boxes)
+                let nearest_on_box = egui::pos2(
+                    pointer_pos.x.clamp(rect.left(), rect.right()),
+                    pointer_pos.y.clamp(rect.top(), rect.bottom()),
+                );
+                let dist_to_box = pointer_pos.distance(nearest_on_box);
+
                 active_handle = if dist_tl < 14.0 {
                     SelectionDragHandle::TopLeft
                 } else if dist_tr < 14.0 {
@@ -1619,6 +1636,8 @@ impl CrosshairApp {
                     SelectionDragHandle::Bottom
                 } else if rect.contains(pointer_pos) {
                     SelectionDragHandle::Center
+                } else if dist_to_box < 20.0 {
+                    SelectionDragHandle::Center
                 } else {
                     SelectionDragHandle::None
                 };
@@ -1626,8 +1645,12 @@ impl CrosshairApp {
             }
         }
 
-        if response.dragged() && active_handle != SelectionDragHandle::None {
-            let delta = response.drag_delta();
+        // Use pointer.primary_down() + pointer.delta() so dragging continues even when
+        // the mouse moves outside the canvas bounds (important for small boxes).
+        let pointer_primary_down = ui.input(|i| i.pointer.primary_down());
+        let pointer_delta = ui.input(|i| i.pointer.delta());
+        if pointer_primary_down && active_handle != SelectionDragHandle::None {
+            let delta = pointer_delta;
             let shift_pressed = ui.input(|i| i.modifiers.shift);
             let ctrl_pressed = ui.input(|i| i.modifiers.ctrl);
             let aspect = if rect.height() > 0.0 { rect.width() / rect.height() } else { 16.0 / 9.0 };

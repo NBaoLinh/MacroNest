@@ -4634,6 +4634,12 @@ impl CrosshairApp {
                 let dist_bl = pointer_pos.distance(rect.left_bottom());
                 let dist_br = pointer_pos.distance(rect.right_bottom());
 
+                let nearest_on_box = egui::pos2(
+                    pointer_pos.x.clamp(rect.left(), rect.right()),
+                    pointer_pos.y.clamp(rect.top(), rect.bottom()),
+                );
+                let dist_to_box = pointer_pos.distance(nearest_on_box);
+
                 active_handle = if dist_tl < 14.0 {
                     SelectionDragHandle::TopLeft
                 } else if dist_tr < 14.0 {
@@ -4652,6 +4658,8 @@ impl CrosshairApp {
                     SelectionDragHandle::Bottom
                 } else if rect.contains(pointer_pos) {
                     SelectionDragHandle::Center
+                } else if dist_to_box < 20.0 {
+                    SelectionDragHandle::Center
                 } else {
                     SelectionDragHandle::None
                 };
@@ -4659,8 +4667,10 @@ impl CrosshairApp {
             }
         }
 
-        if response.dragged() && active_handle != SelectionDragHandle::None {
-            let delta = response.drag_delta();
+        let tr_primary_down = ui.input(|i| i.pointer.primary_down());
+        let tr_delta = ui.input(|i| i.pointer.delta());
+        if tr_primary_down && active_handle != SelectionDragHandle::None {
+            let delta = tr_delta;
             let shift_pressed = ui.input(|i| i.modifiers.shift);
             let original_aspect = if preset.height > 0 { preset.width as f32 / preset.height as f32 } else { 16.0 / 9.0 };
             let lock_aspect = if shift_pressed { original_aspect } else { 0.0 };
