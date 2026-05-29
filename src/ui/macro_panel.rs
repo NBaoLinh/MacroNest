@@ -8332,8 +8332,6 @@ pub(crate) fn render_macro_panel(&mut self, ui: &mut egui::Ui) {
                                                             .unwrap_or_else(|| Self::tr_lang(language, "Select OCR", "Chọn OCR").to_owned())
                                                     };
                                                     
-                                                    ui.add_space(4.0);
-                                                    
                                                     let ctrl_height = ui.spacing().interact_size.y;
                                                     
                                                     // 1. OCR Preset ComboBox (Width 110.0)
