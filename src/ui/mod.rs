@@ -640,6 +640,7 @@ pub struct CrosshairApp {
     ocr_lang_install_job: Option<std::thread::JoinHandle<Result<()>>>,
     ocr_lang_installing: Option<String>,
     ocr_lang_install_status: Option<(String, bool)>, // (message, is_ok)
+    newly_installed_langs: Vec<String>,
     pub show_share_buttons: bool,
 }
 
@@ -806,6 +807,7 @@ impl CrosshairApp {
             ocr_lang_install_job: None,
             ocr_lang_installing: None,
             ocr_lang_install_status: None,
+            newly_installed_langs: Vec::new(),
             show_share_buttons: false,
         };
         app.interception_installed = app.paths.interception_dll.exists();
@@ -7895,6 +7897,47 @@ impl eframe::App for CrosshairApp {
                 let job = self.ocr_lang_install_job.take().unwrap();
                 match job.join() {
                     Ok(Ok(())) => {
+                        let lang_code = if lang.contains("English") {
+                            "en"
+                        } else if lang.contains("Vietnamese") {
+                            "vi"
+                        } else if lang.contains("Chinese Simplified") {
+                            "zh-Hans"
+                        } else if lang.contains("Chinese Traditional") {
+                            "zh-Hant"
+                        } else if lang.contains("Japanese") {
+                            "ja"
+                        } else if lang.contains("Korean") {
+                            "ko"
+                        } else if lang.contains("French") {
+                            "fr"
+                        } else if lang.contains("German") {
+                            "de"
+                        } else if lang.contains("Spanish") {
+                            "es"
+                        } else if lang.contains("Italian") {
+                            "it"
+                        } else if lang.contains("Portuguese") {
+                            "pt"
+                        } else if lang.contains("Russian") {
+                            "ru"
+                        } else if lang.contains("Arabic") {
+                            "ar"
+                        } else if lang.contains("Thai") {
+                            "th"
+                        } else if lang.contains("Dutch") {
+                            "nl"
+                        } else if lang.contains("Polish") {
+                            "pl"
+                        } else if lang.contains("Turkish") {
+                            "tr"
+                        } else {
+                            ""
+                        };
+                        if !lang_code.is_empty() {
+                            self.newly_installed_langs.push(lang_code.to_owned());
+                        }
+
                         self.ocr_lang_install_status = Some((
                             format!("OCR language '{}' installed successfully. You can now use it.", lang),
                             true,

@@ -1434,6 +1434,8 @@ impl CrosshairApp {
                         for (lang_code, display_name, capability) in lang_catalog {
                             let is_installed = avail_langs.iter().any(|a| {
                                 a.to_lowercase().starts_with(&lang_code.to_lowercase())
+                            }) || self.newly_installed_langs.iter().any(|n| {
+                                n.to_lowercase() == lang_code.to_lowercase()
                             });
 
                             // Status indicator
@@ -1472,33 +1474,43 @@ impl CrosshairApp {
         let lang_label = display_name.to_owned();
         self.ocr_lang_installing = Some(lang_label.clone());
         let job = std::thread::spawn(move || -> anyhow::Result<()> {
-            // Run PowerShell Add-WindowsCapability with elevation
-            // powershell -Command "Add-WindowsCapability -Online -Name '...'" 
-            // This will trigger UAC if not already elevated
-            let output = Command::new("powershell")
+            // Run PowerShell with elevation using Start-Process -Verb RunAs
+            // and hide the console window by using -WindowStyle Hidden.
+            // Under Windows, we also set creation_flags to CREATE_NO_WINDOW (0x08000000)
+            // so the initial process is completely hidden.
+            let cmd_str = format!(
+                "$p = Start-Process powershell -ArgumentList '-NoProfile -NonInteractive -Command Add-WindowsCapability -Online -Name \"{}\"' -Verb RunAs -WindowStyle Hidden -PassThru -Wait; exit $p.ExitCode",
+                cap
+            );
+
+            let mut cmd = Command::new("powershell");
+            #[cfg(windows)]
+            {
+                use std::os::windows::process::CommandExt;
+                cmd.creation_flags(0x08000000); // CREATE_NO_WINDOW
+            }
+
+            let output = cmd
                 .args([
+                    "-NoProfile",
                     "-NonInteractive",
                     "-Command",
-                    &format!("Add-WindowsCapability -Online -Name '{}'", cap),
+                    &cmd_str,
                 ])
                 .output()?;
 
-            if output.status.success() {
+            let code = output.status.code().unwrap_or(-1);
+            if code == 0 || code == 3010 {
                 Ok(())
             } else {
                 let stderr = String::from_utf8_lossy(&output.stderr);
                 let stdout = String::from_utf8_lossy(&output.stdout);
-                // Check if it was already installed (not an error)
-                if stdout.contains("Online : True") || stderr.is_empty() && output.status.code() == Some(0) {
-                    Ok(())
-                } else {
-                    anyhow::bail!(
-                        "PowerShell exited with code {:?}. Output: {}. Error: {}",
-                        output.status.code(),
-                        stdout.trim(),
-                        stderr.trim()
-                    )
-                }
+                anyhow::bail!(
+                    "Installation failed (exit code {}). Command output: {}. Error: {}",
+                    code,
+                    stdout.trim(),
+                    stderr.trim()
+                )
             }
         });
         self.ocr_lang_install_job = Some(job);
