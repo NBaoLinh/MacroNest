@@ -520,16 +520,9 @@ impl CrosshairApp {
             return false;
         }
 
-        let uses_blocked_click = Self::mouse_move_absolute_capture_uses_blocked_click(
-            self.mouse_move_absolute_capture_target.unwrap(),
-        );
         if ctx.input(|input| input.key_pressed(egui::Key::Escape)) || Self::is_vk_down(0x1B) {
             self.cancel_mouse_move_absolute_capture(ctx);
             return true;
-        }
-
-        if uses_blocked_click {
-            return false;
         }
 
         ctx.request_repaint_after(std::time::Duration::from_millis(120));
@@ -653,9 +646,7 @@ impl CrosshairApp {
             let _ = self.overlay_tx.send(OverlayCommand::SetUiVisible(false));
             crate::overlay::wake_command_queue();
         }
-        if !uses_blocked_click {
-            self.show_capture_info_window(ctx);
-        }
+        self.show_capture_info_window(ctx);
         ctx.request_repaint_after(Duration::from_millis(33));
     }
 
