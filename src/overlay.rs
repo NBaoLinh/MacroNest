@@ -418,6 +418,17 @@ mod windows_overlay {
             height: i32,
         },
         VisionPointCaptureCancelled(String),
+        MouseMoveAbsolutePointCaptured {
+            group_id: Option<u32>,
+            preset_id: u32,
+            step_index: usize,
+            is_if_start: bool,
+            extra_cond_index: Option<usize>,
+            screen_x: i32,
+            screen_y: i32,
+            color: Option<RgbaColor>,
+        },
+        MouseMoveAbsoluteCaptureCancelled,
         UpdateCheckStarted,
         UpdateAvailable(String, String, String), // version, body, download_url
         MacroRecordingStarted(u32, String),

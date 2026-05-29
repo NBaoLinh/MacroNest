@@ -1,7 +1,8 @@
 use std::time::Duration;
+use crossbeam_channel::Sender;
 use eframe::egui::{self, Button, RichText, Margin, Slider, DragValue, Sense, TextEdit, Color32, vec2, Frame, TextBuffer};
 use crate::model::*;
-use crate::overlay::OverlayCommand;
+use crate::overlay::{OverlayCommand, UiCommand};
 use crate::hotkey;
 use crate::ui::{
     CrosshairApp,
@@ -11,7 +12,7 @@ use crate::ui::{
 use crate::window_list;
 
 #[cfg(windows)]
-use crate::ui::{POINT, GetCursorPos};
+use crate::ui::{POINT, GetAsyncKeyState, GetCursorPos};
 
 impl CrosshairApp {
     pub(crate) fn render_mouse_panel(&mut self, ui: &mut egui::Ui) {
@@ -621,9 +622,12 @@ impl CrosshairApp {
         ctx: &egui::Context,
         target: MouseMoveAbsoluteCaptureTarget,
     ) {
+        if self.mouse_move_absolute_capture_target.is_some() {
+            return;
+        }
         let uses_blocked_click = Self::mouse_move_absolute_capture_uses_blocked_click(target);
         self.mouse_move_absolute_capture_target = Some(target);
-        self.mouse_move_absolute_capture_wait_for_mouse_release = true;
+        self.mouse_move_absolute_capture_wait_for_mouse_release = !uses_blocked_click;
         let viewport = ctx.input(|input| input.viewport().clone());
         self.mouse_move_absolute_restore_inner_size = viewport
             .inner_rect
@@ -644,6 +648,85 @@ impl CrosshairApp {
             crate::overlay::wake_command_queue();
         }
         self.show_capture_info_window(ctx);
+        if uses_blocked_click {
+            Self::spawn_mouse_move_absolute_point_capture_thread(
+                self.ui_tx.clone(),
+                ctx.clone(),
+                target,
+            );
+        }
+        ctx.request_repaint_after(Duration::from_millis(33));
+    }
+
+    #[cfg(windows)]
+    pub(crate) fn spawn_mouse_move_absolute_point_capture_thread(
+        ui_tx: Sender<UiCommand>,
+        ctx: egui::Context,
+        target: MouseMoveAbsoluteCaptureTarget,
+    ) {
+        std::thread::spawn(move || {
+            let is_down = |vk: i32| unsafe { (GetAsyncKeyState(vk) as u16 & 0x8000) != 0 };
+            while is_down(0x01) {
+                if is_down(0x1B) {
+                    let _ = ui_tx.send(UiCommand::MouseMoveAbsoluteCaptureCancelled);
+                    ctx.request_repaint();
+                    return;
+                }
+                std::thread::sleep(Duration::from_millis(6));
+            }
+            loop {
+                if is_down(0x1B) {
+                    let _ = ui_tx.send(UiCommand::MouseMoveAbsoluteCaptureCancelled);
+                    break;
+                }
+                if is_down(0x01) {
+                    let mut point = POINT::default();
+                    let got_point = unsafe { GetCursorPos(&mut point).is_ok() };
+                    if got_point {
+                        let color = if Self::mouse_move_absolute_capture_uses_blocked_click(target) {
+                            window_list::capture_virtual_screen_region(point.x, point.y, 1, 1)
+                                .and_then(|frame| {
+                                    (frame.rgba.len() >= 4).then(|| RgbaColor {
+                                        r: frame.rgba[0],
+                                        g: frame.rgba[1],
+                                        b: frame.rgba[2],
+                                        a: 255,
+                                    })
+                                })
+                        } else {
+                            None
+                        };
+                        let _ = ui_tx.send(UiCommand::MouseMoveAbsolutePointCaptured {
+                            group_id: target.group_id,
+                            preset_id: target.preset_id,
+                            step_index: target.step_index,
+                            is_if_start: matches!(
+                                target.capture_kind,
+                                MouseCaptureKind::IfStartPixelColor
+                            ),
+                            extra_cond_index: target.extra_cond_index,
+                            screen_x: point.x,
+                            screen_y: point.y,
+                            color,
+                        });
+                    } else {
+                        let _ = ui_tx.send(UiCommand::MouseMoveAbsoluteCaptureCancelled);
+                    }
+                    break;
+                }
+                std::thread::sleep(Duration::from_millis(6));
+            }
+            ctx.request_repaint();
+        });
+    }
+
+    #[cfg(not(windows))]
+    pub(crate) fn spawn_mouse_move_absolute_point_capture_thread(
+        ui_tx: Sender<UiCommand>,
+        ctx: egui::Context,
+        _target: MouseMoveAbsoluteCaptureTarget,
+    ) {
+        let _ = ui_tx.send(UiCommand::MouseMoveAbsoluteCaptureCancelled);
         ctx.request_repaint_after(Duration::from_millis(33));
     }
 
@@ -678,18 +761,29 @@ impl CrosshairApp {
         target: MouseMoveAbsoluteCaptureTarget,
         screen_x: i32,
         screen_y: i32,
+        color: Option<RgbaColor>,
     ) {
         let uses_blocked_click = Self::mouse_move_absolute_capture_uses_blocked_click(target);
+        if uses_blocked_click {
+            self.set_image_search_capture_mouse_blocked(false, false);
+        }
 
         // --- Handle ExtraCondition captures ---
         if matches!(target.capture_kind, MouseCaptureKind::ExtraCondMousePos | MouseCaptureKind::ExtraCondPixelColor) {
             let color = if target.capture_kind == MouseCaptureKind::ExtraCondPixelColor {
-                self.sample_mouse_move_absolute_capture_color(
-                    ctx,
-                    screen_x,
-                    screen_y,
-                    uses_blocked_click,
-                )
+                if let Some(color) = color {
+                    self.mouse_move_absolute_capture_target = None;
+                    self.mouse_move_absolute_capture_wait_for_mouse_release = false;
+                    self.restore_mouse_move_absolute_capture_window(ctx);
+                    Some(color)
+                } else {
+                    self.sample_mouse_move_absolute_capture_color(
+                        ctx,
+                        screen_x,
+                        screen_y,
+                        uses_blocked_click,
+                    )
+                }
             } else {
                 self.mouse_move_absolute_capture_target = None;
                 self.mouse_move_absolute_capture_wait_for_mouse_release = false;
@@ -746,12 +840,19 @@ impl CrosshairApp {
         // --- Handle IfStart captures ---
         if matches!(target.capture_kind, MouseCaptureKind::IfStartMousePos | MouseCaptureKind::IfStartPixelColor) {
             let color = if target.capture_kind == MouseCaptureKind::IfStartPixelColor {
-                self.sample_mouse_move_absolute_capture_color(
-                    ctx,
-                    screen_x,
-                    screen_y,
-                    uses_blocked_click,
-                )
+                if let Some(color) = color {
+                    self.mouse_move_absolute_capture_target = None;
+                    self.mouse_move_absolute_capture_wait_for_mouse_release = false;
+                    self.restore_mouse_move_absolute_capture_window(ctx);
+                    Some(color)
+                } else {
+                    self.sample_mouse_move_absolute_capture_color(
+                        ctx,
+                        screen_x,
+                        screen_y,
+                        uses_blocked_click,
+                    )
+                }
             } else {
                 self.mouse_move_absolute_capture_target = None;
                 self.mouse_move_absolute_capture_wait_for_mouse_release = false;
@@ -914,12 +1015,12 @@ impl CrosshairApp {
         let Some(target) = self.mouse_move_absolute_capture_target else {
             return;
         };
+        if Self::mouse_move_absolute_capture_uses_blocked_click(target) {
+            return;
+        }
         ctx.request_repaint_after(Duration::from_millis(16));
         if Self::is_vk_down(0x1B) {
             self.cancel_mouse_move_absolute_capture(ctx);
-            return;
-        }
-        if Self::mouse_move_absolute_capture_uses_blocked_click(target) {
             return;
         }
         if self.mouse_move_absolute_capture_wait_for_mouse_release {
@@ -935,7 +1036,7 @@ impl CrosshairApp {
         }
         let mut point = POINT::default();
         if unsafe { GetCursorPos(&mut point) }.is_ok() {
-            self.finish_mouse_move_absolute_capture(ctx, target, point.x, point.y);
+            self.finish_mouse_move_absolute_capture(ctx, target, point.x, point.y, None);
         }
     }
 }
