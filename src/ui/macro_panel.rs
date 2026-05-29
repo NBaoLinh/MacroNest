@@ -2355,6 +2355,7 @@ impl CrosshairApp {
         capture_target_snapshot: Option<&CaptureRequest>,
         next_capture_target: &mut Option<CaptureRequest>,
         cancel_active_capture: &mut bool,
+        is_hold_stop: bool,
     ) {
 
         let mut remove_extra_idx = None;
@@ -2576,6 +2577,7 @@ impl CrosshairApp {
                                 step_index,
                                 capture_kind: MouseCaptureKind::ExtraCondPixelColor,
                                 extra_cond_index: Some(extra_idx),
+                                is_hold_stop,
                             });
                         }
                     }
@@ -2711,6 +2713,7 @@ impl CrosshairApp {
                                 step_index,
                                 capture_kind: MouseCaptureKind::ExtraCondMousePos,
                                 extra_cond_index: Some(extra_idx),
+                                is_hold_stop,
                             });
                         }
                     }
@@ -5990,6 +5993,7 @@ pub(crate) fn render_macro_panel(&mut self, ui: &mut egui::Ui) {
                                                                  capture_target_snapshot.as_ref(),
                                                                  &mut next_capture_target,
                                                                  &mut cancel_active_capture,
+                                                                  true,
                                                                  );
 
 
@@ -6338,12 +6342,13 @@ pub(crate) fn render_macro_panel(&mut self, ui: &mut egui::Ui) {
                                                                            egui::Button::new(Self::material_icon_text(0xe3b4, 14.0)),
                                                                        ).on_hover_text(Self::tr_lang(language, "Click on screen to pick color & position", "Bấm vào màn hình để lấy màu và tọa độ"));
                                                                        if pick_btn.clicked() {
-                                                                           self.mouse_move_absolute_capture_target = Some(MouseMoveAbsoluteCaptureTarget {
+                                                                           begin_mouse_move_absolute_capture_target = Some(MouseMoveAbsoluteCaptureTarget {
                                                                                group_id: Some(group.id),
                                                                                preset_id: preset.id,
                                                                                step_index: 0,
                                                                                capture_kind: MouseCaptureKind::IfStartPixelColor,
                                                                                extra_cond_index: None,
+                                                                               is_hold_stop: true,
                                                                            });
                                                                        }
                                                                    } else if step.if_condition_type == IfConditionType::VisionMatch {
@@ -6488,12 +6493,13 @@ pub(crate) fn render_macro_panel(&mut self, ui: &mut egui::Ui) {
                                                                            egui::Button::new(Self::material_icon_text(0xe55c, 14.0)),
                                                                        ).on_hover_text(Self::tr_lang(language, "Click on screen to capture coordinate", "Bấm vào màn hình để lấy tọa độ"));
                                                                        if pick_btn.clicked() {
-                                                                           self.mouse_move_absolute_capture_target = Some(MouseMoveAbsoluteCaptureTarget {
+                                                                           begin_mouse_move_absolute_capture_target = Some(MouseMoveAbsoluteCaptureTarget {
                                                                                group_id: Some(group.id),
                                                                                preset_id: preset.id,
                                                                                step_index: 0,
                                                                                capture_kind: MouseCaptureKind::IfStartMousePos,
                                                                                extra_cond_index: None,
+                                                                               is_hold_stop: true,
                                                                            });
                                                                        }
                                                                    } else if step.if_condition_type == IfConditionType::PresetRunning {
@@ -6618,6 +6624,7 @@ pub(crate) fn render_macro_panel(&mut self, ui: &mut egui::Ui) {
                                                               capture_target_snapshot.as_ref(),
                                                               &mut next_capture_target,
                                                               &mut cancel_active_capture,
+                                                                  true,
                                                               );
 
                                                           });
@@ -8718,6 +8725,7 @@ pub(crate) fn render_macro_panel(&mut self, ui: &mut egui::Ui) {
                                                                  capture_target_snapshot.as_ref(),
                                                                  &mut next_capture_target,
                                                                  &mut cancel_active_capture,
+                                                                  false,
                                                                  );
 
 
@@ -9069,12 +9077,13 @@ pub(crate) fn render_macro_panel(&mut self, ui: &mut egui::Ui) {
                                                                             egui::Button::new(Self::material_icon_text(0xe3b4, 14.0)),
                                                                         ).on_hover_text(Self::tr_lang(language, "Click on screen to pick color & position", "Bấm vào màn hình để lấy màu và tọa độ"));
                                                                         if pick_btn.clicked() {
-                                                                            self.mouse_move_absolute_capture_target = Some(MouseMoveAbsoluteCaptureTarget {
+                                                                            begin_mouse_move_absolute_capture_target = Some(MouseMoveAbsoluteCaptureTarget {
                                                                                 group_id: Some(group.id),
                                                                                 preset_id: preset.id,
                                                                                 step_index,
                                                                                 capture_kind: MouseCaptureKind::IfStartPixelColor,
                                                                                 extra_cond_index: None,
+                                                                                is_hold_stop: false,
                                                                             });
                                                                         }
                                                                     } else if step.if_condition_type == IfConditionType::VisionMatch {
@@ -9219,12 +9228,13 @@ pub(crate) fn render_macro_panel(&mut self, ui: &mut egui::Ui) {
                                                                             egui::Button::new(Self::material_icon_text(0xe55c, 14.0)),
                                                                         ).on_hover_text(Self::tr_lang(language, "Click on screen to capture coordinate", "Bấm vào màn hình để lấy tọa độ"));
                                                                         if pick_btn.clicked() {
-                                                                            self.mouse_move_absolute_capture_target = Some(MouseMoveAbsoluteCaptureTarget {
+                                                                            begin_mouse_move_absolute_capture_target = Some(MouseMoveAbsoluteCaptureTarget {
                                                                                 group_id: Some(group.id),
                                                                                 preset_id: preset.id,
                                                                                 step_index,
                                                                                 capture_kind: MouseCaptureKind::IfStartMousePos,
                                                                                 extra_cond_index: None,
+                                                                                is_hold_stop: false,
                                                                             });
                                                                         }
                                                                     } else if step.if_condition_type == IfConditionType::PresetRunning {
@@ -9349,6 +9359,7 @@ pub(crate) fn render_macro_panel(&mut self, ui: &mut egui::Ui) {
                                                               capture_target_snapshot.as_ref(),
                                                               &mut next_capture_target,
                                                               &mut cancel_active_capture,
+                                                                  false,
                                                               );
 
                                                           });
@@ -9556,6 +9567,7 @@ pub(crate) fn render_macro_panel(&mut self, ui: &mut egui::Ui) {
                                                         step_index,
                                                         capture_kind: MouseCaptureKind::MoveMouseAbsolute,
                                                         extra_cond_index: None,
+                                                        is_hold_stop: false,
                                                     };
                                                     let capture_active = self
                                                         .mouse_move_absolute_capture_target

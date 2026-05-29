@@ -131,6 +131,7 @@ pub(crate) struct MouseMoveAbsoluteCaptureTarget {
     step_index: usize,
     capture_kind: MouseCaptureKind,
     extra_cond_index: Option<usize>,
+    is_hold_stop: bool,
 }
 
 #[derive(Clone)]
