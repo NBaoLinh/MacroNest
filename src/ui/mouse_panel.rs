@@ -1,8 +1,7 @@
 use std::time::Duration;
-use crossbeam_channel::Sender;
 use eframe::egui::{self, Button, RichText, Margin, Slider, DragValue, Sense, TextEdit, Color32, vec2, Frame, TextBuffer};
 use crate::model::*;
-use crate::overlay::{OverlayCommand, UiCommand};
+use crate::overlay::OverlayCommand;
 use crate::hotkey;
 use crate::ui::{
     CrosshairApp,
@@ -12,7 +11,7 @@ use crate::ui::{
 use crate::window_list;
 
 #[cfg(windows)]
-use crate::ui::{POINT, GetAsyncKeyState, GetCursorPos};
+use crate::ui::{POINT, GetCursorPos};
 
 impl CrosshairApp {
     pub(crate) fn render_mouse_panel(&mut self, ui: &mut egui::Ui) {
@@ -650,85 +649,6 @@ impl CrosshairApp {
         if !uses_blocked_click {
             self.show_capture_info_window(ctx);
         }
-        if uses_blocked_click {
-            Self::spawn_mouse_move_absolute_point_capture_thread(
-                self.ui_tx.clone(),
-                ctx.clone(),
-                target,
-            );
-        }
-        ctx.request_repaint_after(Duration::from_millis(33));
-    }
-
-    #[cfg(windows)]
-    pub(crate) fn spawn_mouse_move_absolute_point_capture_thread(
-        ui_tx: Sender<UiCommand>,
-        ctx: egui::Context,
-        target: MouseMoveAbsoluteCaptureTarget,
-    ) {
-        std::thread::spawn(move || {
-            let is_down = |vk: i32| unsafe { (GetAsyncKeyState(vk) as u16 & 0x8000) != 0 };
-            while is_down(0x01) {
-                if is_down(0x1B) {
-                    let _ = ui_tx.send(UiCommand::MouseMoveAbsoluteCaptureCancelled);
-                    ctx.request_repaint();
-                    return;
-                }
-                std::thread::sleep(Duration::from_millis(6));
-            }
-            loop {
-                if is_down(0x1B) {
-                    let _ = ui_tx.send(UiCommand::MouseMoveAbsoluteCaptureCancelled);
-                    break;
-                }
-                if is_down(0x01) {
-                    let mut point = POINT::default();
-                    let got_point = unsafe { GetCursorPos(&mut point).is_ok() };
-                    if got_point {
-                        let color = if Self::mouse_move_absolute_capture_uses_blocked_click(target) {
-                            window_list::capture_virtual_screen_region(point.x, point.y, 1, 1)
-                                .and_then(|frame| {
-                                    (frame.rgba.len() >= 4).then(|| RgbaColor {
-                                        r: frame.rgba[0],
-                                        g: frame.rgba[1],
-                                        b: frame.rgba[2],
-                                        a: 255,
-                                    })
-                                })
-                        } else {
-                            None
-                        };
-                        let _ = ui_tx.send(UiCommand::MouseMoveAbsolutePointCaptured {
-                            group_id: target.group_id,
-                            preset_id: target.preset_id,
-                            step_index: target.step_index,
-                            is_if_start: matches!(
-                                target.capture_kind,
-                                MouseCaptureKind::IfStartPixelColor
-                            ),
-                            extra_cond_index: target.extra_cond_index,
-                            screen_x: point.x,
-                            screen_y: point.y,
-                            color,
-                        });
-                    } else {
-                        let _ = ui_tx.send(UiCommand::MouseMoveAbsoluteCaptureCancelled);
-                    }
-                    break;
-                }
-                std::thread::sleep(Duration::from_millis(6));
-            }
-            ctx.request_repaint();
-        });
-    }
-
-    #[cfg(not(windows))]
-    pub(crate) fn spawn_mouse_move_absolute_point_capture_thread(
-        ui_tx: Sender<UiCommand>,
-        ctx: egui::Context,
-        _target: MouseMoveAbsoluteCaptureTarget,
-    ) {
-        let _ = ui_tx.send(UiCommand::MouseMoveAbsoluteCaptureCancelled);
         ctx.request_repaint_after(Duration::from_millis(33));
     }
 

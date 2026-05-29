@@ -7619,6 +7619,16 @@ impl eframe::App for CrosshairApp {
                 UiCommand::VisionCaptureMouseUp { screen_x, screen_y } => {
                     if self.vision_capture_active {
                         self.handle_image_search_capture_mouse_up(ctx, screen_x, screen_y);
+                    } else if let Some(target) = self.mouse_move_absolute_capture_target
+                        && Self::mouse_move_absolute_capture_uses_blocked_click(target)
+                    {
+                        self.finish_mouse_move_absolute_capture(
+                            ctx,
+                            target,
+                            screen_x,
+                            screen_y,
+                            None,
+                        );
                     }
                 }
                 UiCommand::VisionPointCaptured {
@@ -7673,37 +7683,8 @@ impl eframe::App for CrosshairApp {
                     self.status = status;
                     ctx.request_repaint();
                 }
-                UiCommand::MouseMoveAbsolutePointCaptured {
-                    group_id,
-                    preset_id,
-                    step_index,
-                    is_if_start,
-                    extra_cond_index,
-                    screen_x,
-                    screen_y,
-                    color,
-                } => {
-                    self.finish_mouse_move_absolute_capture(
-                        ctx,
-                        MouseMoveAbsoluteCaptureTarget {
-                            group_id,
-                            preset_id,
-                            step_index,
-                            capture_kind: if is_if_start {
-                                MouseCaptureKind::IfStartPixelColor
-                            } else {
-                                MouseCaptureKind::ExtraCondPixelColor
-                            },
-                            extra_cond_index,
-                        },
-                        screen_x,
-                        screen_y,
-                        color,
-                    );
-                }
-                UiCommand::MouseMoveAbsoluteCaptureCancelled => {
-                    self.cancel_mouse_move_absolute_capture(ctx);
-                }
+                UiCommand::MouseMoveAbsolutePointCaptured { .. } => {}
+                UiCommand::MouseMoveAbsoluteCaptureCancelled => {}
                 UiCommand::UpdateCheckStarted => {
                     self.update_status = UpdateStatus::Checking;
                 }
