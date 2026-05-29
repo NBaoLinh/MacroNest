@@ -194,22 +194,22 @@ impl CrosshairApp {
             );
             if help.hovered() {
                 ui.ctx().set_cursor_icon(egui::CursorIcon::Help);
+                egui::show_tooltip_at_pointer(ui.ctx(), ui.layer_id(), help.id, |ui: &mut egui::Ui| {
+                    ui.set_max_width(280.0);
+                    ui.label(
+                        RichText::new(Self::tr_lang(language, "Trim shortcuts", "Trim shortcuts"))
+                            .size(13.0)
+                            .strong(),
+                    );
+                    ui.add_space(4.0);
+                    ui.label("Space: preview or stop at playhead");
+                    ui.label("S: preview from the trim start");
+                    ui.label("Q: move the left trim to the mouse");
+                    ui.label("W: move the right trim to the mouse");
+                    ui.label("A / D: pan timeline left or right");
+                    ui.label("Ctrl + mouse wheel: zoom around the hover playhead");
+                });
             }
-            help.on_hover_ui_at_pointer(|ui| {
-                ui.set_max_width(280.0);
-                ui.label(
-                    RichText::new(Self::tr_lang(language, "Trim shortcuts", "Trim shortcuts"))
-                        .size(13.0)
-                        .strong(),
-                );
-                ui.add_space(4.0);
-                ui.label("Space: preview or stop at playhead");
-                ui.label("S: preview from the trim start");
-                ui.label("Q: move the left trim to the mouse");
-                ui.label("W: move the right trim to the mouse");
-                ui.label("A / D: pan timeline left or right");
-                ui.label("Ctrl + mouse wheel: zoom around the hover playhead");
-            });
             ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
                 ui.label(
                     RichText::new(format!("{:.1}x", *trim_timeline_zoom))
@@ -642,6 +642,18 @@ impl CrosshairApp {
                     .size(13.0)
                     .color(ui.visuals().weak_text_color()),
             );
+            if total_ms > 0 {
+                ui.separator();
+                ui.label(
+                    RichText::new(format!(
+                        "{} {}",
+                        Self::tr_lang(language, "Total:", "Total:"),
+                        Self::format_ms(total_ms)
+                    ))
+                    .size(13.0)
+                    .color(ui.visuals().weak_text_color()),
+                );
+            }
         });
 
         changed
@@ -1012,14 +1024,17 @@ impl CrosshairApp {
                 if preset.collapsed {
                     return;
                 }
-                let outcome = Self::render_audio_clip_card(
+                let outcome = Self::render_audio_media_editor(
                     ui,
                     language,
-                    Self::tr_lang(language, "Sound Preset", "Sound Preset"),
+                    AudioEditorTarget::Preset(preset.id),
+                    (preset.id, "sound-editor"),
+                    "",
                     &mut preset.clip,
                     &mut duration,
-                    &mut show_editor,
                     waveform.as_deref(),
+                    &mut self.preview_cursor,
+                    &mut self.trim_timeline_zoom,
                 );
                 changed |= outcome.changed;
                 if let Some(status) = outcome.status {
@@ -1027,9 +1042,6 @@ impl CrosshairApp {
                 }
                 if outcome.choose_file {
                     choose_file_for = Some(preset.id);
-                }
-                if outcome.open_editor {
-                    open_editor_target = Some(AudioEditorTarget::Preset(preset.id));
                 }
             });
 
@@ -1396,8 +1408,15 @@ impl CrosshairApp {
             ui.ctx().request_repaint();
         }
 
-        ui.label(RichText::new(title).strong());
-        ui.add_space(3.0);
+        ui.horizontal(|ui| {
+            if ui
+                .button(Self::tr_lang(language, "Choose audio file", "Chọn file âm thanh"))
+                .clicked()
+            {
+                outcome.choose_file = true;
+            }
+        });
+        ui.add_space(2.0);
 
         if !clip.file_path.trim().is_empty() {
             if s_pressed {
@@ -1407,9 +1426,9 @@ impl CrosshairApp {
                     Ok(()) => {
                         outcome.status = Some(match language {
                             UiLanguage::Vietnamese => {
-                                format!("Đang nghe lại {title} từ đầu.")
+                                format!("Đang nghe lại từ đầu.")
                             }
-                            _ => format!("Restarting {title} from the start."),
+                            _ => format!("Restarting preview from the start."),
                         })
                     }
                     Err(error) => {
@@ -1425,8 +1444,8 @@ impl CrosshairApp {
                 if previewing {
                     audio::stop_preview();
                     outcome.status = Some(match language {
-                        UiLanguage::Vietnamese => format!("Đã dừng nghe thử {title}."),
-                        _ => format!("Stopped {title} preview."),
+                        UiLanguage::Vietnamese => format!("Đã dừng nghe thử."),
+                        _ => format!("Stopped preview."),
                     });
                 } else {
                     let preview_start_ms = preview_cursor_ms;
@@ -1435,17 +1454,17 @@ impl CrosshairApp {
                         Ok(true) => {
                             outcome.status = Some(match language {
                                 UiLanguage::Vietnamese => {
-                                    format!("Đang nghe thử {title}.")
+                                    format!("Đang nghe thử.")
                                 }
-                                _ => format!("Previewing {title}."),
+                                _ => format!("Previewing."),
                             })
                         }
                         Ok(false) => {
                             outcome.status = Some(match language {
                                 UiLanguage::Vietnamese => {
-                                    format!("Đã dừng nghe thử {title}.")
+                                    format!("Đã dừng nghe thử.")
                                 }
-                                _ => format!("Stopped {title} preview."),
+                                _ => format!("Stopped preview."),
                             })
                         }
                         Err(error) => {
@@ -1461,15 +1480,6 @@ impl CrosshairApp {
             }
         }
 
-        ui.label(if clip.file_path.is_empty() {
-            Self::tr_lang(
-                language,
-                "No audio file selected.",
-                "Chưa chọn file âm thanh.",
-            )
-        } else {
-            clip.file_path.as_str()
-        });
         ui.add_space(2.0);
 
         if let Some(total_ms) = *duration_ms {
@@ -1483,13 +1493,6 @@ impl CrosshairApp {
                 .corner_radius(16.0)
                 .inner_margin(egui::Margin::same(8))
                 .show(ui, |ui| {
-                    ui.label(format!(
-                        "{} {}  |  {} {}",
-                        Self::tr_lang(language, "Total:", "Total:"),
-                        Self::format_ms(total_ms),
-                        Self::tr_lang(language, "Slice", "Slice"),
-                        Self::format_ms(clip.end_ms.saturating_sub(clip.start_ms))
-                    ));
                     ui.add_space(1.0);
                     outcome.changed |= Self::render_audio_trim_timeline(
                         ui,
