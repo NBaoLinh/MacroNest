@@ -7692,82 +7692,68 @@ impl CrosshairApp {
                                                         })
                                                         .unwrap_or_else(|| Self::tr_lang(language, "Select OCR", "Chọn OCR").to_owned());
                                                     
-                                                    // 1. OCR Preset selection
-                                                    egui::ComboBox::from_id_salt((group.id, preset.id, step_index, "ocr-preset-step"))
-                                                        .width(146.0)
-                                                        .selected_text(selected_label)
-                                                        .show_ui(ui, |ui| {
-                                                            for (preset_option_id, preset_option_label) in &ocr_preset_options {
-                                                                if ui
-                                                                    .selectable_label(
-                                                                        selected_id == Some(*preset_option_id),
-                                                                        preset_option_label,
-                                                                    )
-                                                                    .clicked()
-                                                                {
-                                                                    step.key = preset_option_id.to_string();
-                                                                    live_sync = true;
-                                                                }
-                                                            }
-                                                        });
-                                                    
-                                                    ui.add_space(4.0);
-
-                                                    // 2. Target + Success Var
                                                     ui.horizontal(|ui| {
-                                                        ui.label(Self::tr_lang(language, "Target:", "Từ tìm kiếm:"));
-                                                        let resp = ui.add_sized([110.0, 20.0], egui::TextEdit::singleline(&mut step.ocr_target_text).hint_text("antigravity"));
+                                                        // 1. OCR Preset selection
+                                                        egui::ComboBox::from_id_salt((group.id, preset.id, step_index, "ocr-preset-step"))
+                                                            .width(130.0)
+                                                            .selected_text(selected_label)
+                                                            .show_ui(ui, |ui| {
+                                                                for (preset_option_id, preset_option_label) in &ocr_preset_options {
+                                                                    if ui
+                                                                        .selectable_label(
+                                                                            selected_id == Some(*preset_option_id),
+                                                                            preset_option_label,
+                                                                        )
+                                                                        .clicked()
+                                                                    {
+                                                                        step.key = preset_option_id.to_string();
+                                                                        live_sync = true;
+                                                                    }
+                                                                }
+                                                            });
+                                                        
+                                                        // 2. Target Text (Từ tìm kiếm)
+                                                        ui.label(Self::tr_lang(language, "Target:", "Từ tìm:"));
+                                                        let resp = ui.add_sized([100.0, 20.0], egui::TextEdit::singleline(&mut step.ocr_target_text).hint_text("antigravity"));
                                                         Self::apply_vietnamese_input_if_changed(&resp, self.state.vietnamese_input_enabled, self.state.vietnamese_input_mode, &mut step.ocr_target_text);
                                                         live_sync |= resp.changed();
 
-                                                        ui.label(Self::tr_lang(language, "Success Var:", "Biến Ok:"));
-                                                        live_sync |= Self::render_variable_combobox(
-                                                            ui,
-                                                            &mut step.ocr_success_var,
-                                                            80.0,
-                                                            (group.id, preset.id, step_index, "ocr-success-var"),
-                                                            &all_vars,
-                                                            self.state.vietnamese_input_enabled,
-                                                            self.state.vietnamese_input_mode,
-                                                        );
-                                                    });
-                                                    
-                                                    ui.add_space(4.0);
+                                                        // 3. Output Variables ComboBox containing all outputs with their text boxes
+                                                        let outputs_label = Self::tr_lang(language, "Outputs", "Đầu ra").to_owned();
+                                                        egui::ComboBox::from_id_salt((group.id, preset.id, step_index, "ocr-outputs"))
+                                                            .width(90.0)
+                                                            .selected_text(outputs_label)
+                                                            .show_ui(ui, |ui| {
+                                                                ui.set_min_width(200.0);
+                                                                egui::Grid::new("ocr_outputs_grid")
+                                                                    .num_columns(2)
+                                                                    .spacing([8.0, 6.0])
+                                                                    .show(ui, |ui| {
+                                                                        ui.label(Self::tr_lang(language, "Ok Var:", "Biến Ok:"));
+                                                                        let resp = ui.add(egui::TextEdit::singleline(&mut step.ocr_success_var).hint_text("var_ok"));
+                                                                        Self::apply_vietnamese_input_if_changed(&resp, self.state.vietnamese_input_enabled, self.state.vietnamese_input_mode, &mut step.ocr_success_var);
+                                                                        live_sync |= resp.changed();
+                                                                        ui.end_row();
 
-                                                    // 3. Pos X Var + Pos Y Var + Num Var
-                                                    ui.horizontal(|ui| {
-                                                        ui.label(Self::tr_lang(language, "Pos X Var:", "Biến X:"));
-                                                        live_sync |= Self::render_variable_combobox(
-                                                            ui,
-                                                            &mut step.ocr_pos_var_x,
-                                                            60.0,
-                                                            (group.id, preset.id, step_index, "ocr-pos-x-var"),
-                                                            &all_vars,
-                                                            self.state.vietnamese_input_enabled,
-                                                            self.state.vietnamese_input_mode,
-                                                        );
+                                                                        ui.label("Pos X:");
+                                                                        let resp = ui.add(egui::TextEdit::singleline(&mut step.ocr_pos_var_x).hint_text("var_x"));
+                                                                        Self::apply_vietnamese_input_if_changed(&resp, self.state.vietnamese_input_enabled, self.state.vietnamese_input_mode, &mut step.ocr_pos_var_x);
+                                                                        live_sync |= resp.changed();
+                                                                        ui.end_row();
 
-                                                        ui.label(Self::tr_lang(language, "Pos Y Var:", "Biến Y:"));
-                                                        live_sync |= Self::render_variable_combobox(
-                                                            ui,
-                                                            &mut step.ocr_pos_var_y,
-                                                            60.0,
-                                                            (group.id, preset.id, step_index, "ocr-pos-y-var"),
-                                                            &all_vars,
-                                                            self.state.vietnamese_input_enabled,
-                                                            self.state.vietnamese_input_mode,
-                                                        );
+                                                                        ui.label("Pos Y:");
+                                                                        let resp = ui.add(egui::TextEdit::singleline(&mut step.ocr_pos_var_y).hint_text("var_y"));
+                                                                        Self::apply_vietnamese_input_if_changed(&resp, self.state.vietnamese_input_enabled, self.state.vietnamese_input_mode, &mut step.ocr_pos_var_y);
+                                                                        live_sync |= resp.changed();
+                                                                        ui.end_row();
 
-                                                        ui.label(Self::tr_lang(language, "Num Var:", "Biến Số:"));
-                                                        live_sync |= Self::render_variable_combobox(
-                                                            ui,
-                                                            &mut step.ocr_numeric_var,
-                                                            65.0,
-                                                            (group.id, preset.id, step_index, "ocr-num-var"),
-                                                            &all_vars,
-                                                            self.state.vietnamese_input_enabled,
-                                                            self.state.vietnamese_input_mode,
-                                                        );
+                                                                        ui.label(Self::tr_lang(language, "Num Var:", "Biến Số:"));
+                                                                        let resp = ui.add(egui::TextEdit::singleline(&mut step.ocr_numeric_var).hint_text("var_num"));
+                                                                        Self::apply_vietnamese_input_if_changed(&resp, self.state.vietnamese_input_enabled, self.state.vietnamese_input_mode, &mut step.ocr_numeric_var);
+                                                                        live_sync |= resp.changed();
+                                                                        ui.end_row();
+                                                                    });
+                                                            });
                                                     });
                                                 } else if step.action == MacroAction::PlaySoundPreset {
                                                     let selected_id = step.key.trim().parse::<u32>().ok();
@@ -11013,51 +10999,4 @@ impl CrosshairApp {
         response
     }
 
-    fn render_variable_combobox(
-        ui: &mut egui::Ui,
-        var: &mut String,
-        width: f32,
-        id_source: impl std::hash::Hash,
-        all_variables: &[String],
-        vietnamese_enabled: bool,
-        vietnamese_mode: crate::model::VietnameseInputMode,
-    ) -> bool {
-        let mut changed = false;
-        let display_text = if var.trim().is_empty() {
-            "-"
-        } else {
-            var.as_str()
-        };
-
-        egui::ComboBox::from_id_salt(id_source)
-            .width(width)
-            .selected_text(display_text)
-            .show_ui(ui, |ui| {
-                ui.horizontal(|ui| {
-                    ui.label("✏:");
-                    let resp = ui.add(egui::TextEdit::singleline(var).hint_text("Nhập biến..."));
-                    Self::apply_vietnamese_input_if_changed(&resp, vietnamese_enabled, vietnamese_mode, var);
-                    changed |= resp.changed();
-                });
-                ui.separator();
-                
-                egui::ScrollArea::vertical()
-                    .max_height(200.0)
-                    .show(ui, |ui| {
-                        if all_variables.is_empty() {
-                            ui.label("No variables");
-                        } else {
-                            for v in all_variables {
-                                if ui.selectable_label(var == v, v).clicked() {
-                                    *var = v.clone();
-                                    changed = true;
-                                    ui.close_menu();
-                                }
-                            }
-                        }
-                    });
-            });
-
-        changed
-    }
 }
