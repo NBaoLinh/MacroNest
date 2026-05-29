@@ -382,6 +382,11 @@ pub fn to_windows_registration(
 #[cfg(windows)]
 pub fn key_name_to_vk(name: &str) -> Option<u32> {
     Some(match name.to_ascii_uppercase().as_str() {
+        "MOUSELEFT" | "LEFTBUTTON" | "LBUTTON" | "MOUSE LEFT" => 0x01,
+        "MOUSERIGHT" | "RIGHTBUTTON" | "RBUTTON" | "MOUSE RIGHT" => 0x02,
+        "MOUSEMIDDLE" | "MIDDLEBUTTON" | "MBUTTON" | "MOUSE MIDDLE" => 0x04,
+        "MOUSEX1" | "XBUTTON1" | "MOUSE X1" => 0x05,
+        "MOUSEX2" | "XBUTTON2" | "MOUSE X2" => 0x06,
         "CTRL" | "CONTROL" => 0x11,
         "ALT" => 0x12,
         "SHIFT" => 0x10,

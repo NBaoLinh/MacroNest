@@ -6722,18 +6722,43 @@ impl CrosshairApp {
                     .and_then(|preset| preset.steps.get_mut(step_index))
                 {
                     if step.action == MacroAction::IfStart {
+                        let key_to_add = binding.key.trim().to_owned();
                         if let Some(extra_idx) = extra_cond_index {
                             if let Some(cond) = step.extra_conditions.get_mut(extra_idx) {
                                 if cond.condition_type == crate::model::IfConditionType::KeyHeld {
-                                    cond.key_held_name = binding.key;
+                                    let mut existing = cond.key_held_name.split(',')
+                                        .map(str::trim)
+                                        .filter(|p| !p.is_empty())
+                                        .map(str::to_owned)
+                                        .collect::<Vec<_>>();
+                                    if !existing.contains(&key_to_add) {
+                                        existing.push(key_to_add);
+                                        cond.key_held_name = existing.join(",");
+                                    }
                                 } else if cond.condition_type == crate::model::IfConditionType::MouseHeld {
-                                    cond.mouse_button = binding.key;
+                                    let mut existing = cond.mouse_button.split(',')
+                                        .map(str::trim)
+                                        .filter(|p| !p.is_empty())
+                                        .map(str::to_owned)
+                                        .collect::<Vec<_>>();
+                                    if !existing.contains(&key_to_add) {
+                                        existing.push(key_to_add);
+                                        cond.mouse_button = existing.join(",");
+                                    }
                                 }
                             }
                         } else {
-                            step.key = binding.key;
+                            let mut existing = step.key.split(',')
+                                .map(str::trim)
+                                .filter(|p| !p.is_empty())
+                                .map(str::to_owned)
+                                .collect::<Vec<_>>();
+                            if !existing.contains(&key_to_add) {
+                                existing.push(key_to_add);
+                                step.key = existing.join(",");
+                            }
                         }
-                        self.status = format!("Captured IfStart condition input for preset {preset_id}.");
+                        self.status = format!("Captured Input Held condition input for preset {preset_id}.");
                     } else if matches!(step.action, MacroAction::LockKeys | MacroAction::UnlockKeys) {
                         let key = binding.key;
                         let existing = step

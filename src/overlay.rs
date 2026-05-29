@@ -6901,7 +6901,11 @@ mod windows_overlay {
             IfConditionType::PresetRunning => {
                 if let Some(pid) = running_preset_id {
                     let active = ACTIVE_MACRO_STEPS.lock();
-                    active.contains_key(&pid)
+                    if pid == 0 {
+                        !active.is_empty()
+                    } else {
+                        active.contains_key(&pid)
+                    }
                 } else {
                     false
                 }
@@ -6959,13 +6963,31 @@ mod windows_overlay {
                 false
             }
             IfConditionType::KeyHeld => {
-                if let Some(vk) = crate::hotkey::key_name_to_vk(key) {
-                    #[cfg(windows)]
-                    {
-                        return (unsafe { GetAsyncKeyState(vk as i32) } as u16 & 0x8000) != 0;
-                    }
+                let parts: Vec<&str> = key.split(',')
+                    .map(str::trim)
+                    .filter(|p| !p.is_empty())
+                    .collect();
+                if parts.is_empty() {
+                    return false;
                 }
-                false
+                #[cfg(windows)]
+                {
+                    for part in parts {
+                        let is_down = if let Some(vk) = crate::hotkey::key_name_to_vk(part) {
+                            (unsafe { GetAsyncKeyState(vk as i32) } as u16 & 0x8000) != 0
+                        } else {
+                            false
+                        };
+                        if !is_down {
+                            return false;
+                        }
+                    }
+                    true
+                }
+                #[cfg(not(windows))]
+                {
+                    false
+                }
             }
             IfConditionType::MouseHeld => {
                 let vk = match key.to_ascii_uppercase().as_str() {
