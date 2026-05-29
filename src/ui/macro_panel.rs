@@ -6018,10 +6018,17 @@ impl CrosshairApp {
                                                                                 }
                                                                             });
                                                                         
-                                                                        let response_target = ui.add_sized(
-                                                                            [146.0, 22.0],
-                                                                            TextEdit::singleline(&mut step.ocr_target_text)
-                                                                                .hint_text(RichText::new(Self::tr_lang(language, "Target text", "Từ tìm")).color(hint_color).weak()),
+                                                                        let var_target_id = ui.id().with("hold-stop-ocr-target-text-if");
+                                                                        let response_target = Self::render_variable_text_edit(
+                                                                            ui,
+                                                                            &mut step.ocr_target_text,
+                                                                            var_target_id,
+                                                                            76.0,
+                                                                            180.0,
+                                                                            22.0,
+                                                                            22.0,
+                                                                            Self::tr_lang(language, "Target text", "Từ tìm"),
+                                                                            false,
                                                                         );
                                                                         Self::apply_vietnamese_input_if_changed(
                                                                             &response_target,
@@ -6030,6 +6037,7 @@ impl CrosshairApp {
                                                                             &mut step.ocr_target_text,
                                                                         );
                                                                         live_sync |= response_target.changed();
+                                                                        Self::render_variable_suggestions(ui, &response_target, &mut step.ocr_target_text, &timer_names, language);
                                                                     }
                                                                      if ui.add_sized([24.0, 24.0], Button::new("+")).on_hover_text(Self::tr_lang(language, "Add condition", "Thêm điều kiện")).clicked() {
                                                                        step.extra_conditions.push(ExtraCondition::default());
@@ -8764,10 +8772,17 @@ impl CrosshairApp {
                                                                                 }
                                                                             });
                                                                         
-                                                                        let response_target = ui.add_sized(
-                                                                            [146.0, 22.0],
-                                                                            TextEdit::singleline(&mut step.ocr_target_text)
-                                                                                .hint_text(RichText::new(Self::tr_lang(language, "Target text", "Từ tìm")).color(hint_color).weak()),
+                                                                        let var_target_id = ui.id().with((step_index, "ocr-target-text-if"));
+                                                                        let response_target = Self::render_variable_text_edit(
+                                                                            ui,
+                                                                            &mut step.ocr_target_text,
+                                                                            var_target_id,
+                                                                            76.0,
+                                                                            180.0,
+                                                                            22.0,
+                                                                            22.0,
+                                                                            Self::tr_lang(language, "Target text", "Từ tìm"),
+                                                                            false,
                                                                         );
                                                                         Self::apply_vietnamese_input_if_changed(
                                                                             &response_target,
@@ -8776,6 +8791,7 @@ impl CrosshairApp {
                                                                             &mut step.ocr_target_text,
                                                                         );
                                                                         live_sync |= response_target.changed();
+                                                                        Self::render_variable_suggestions(ui, &response_target, &mut step.ocr_target_text, &timer_names, language);
                                                                     }
                                                                      if ui.add_sized([24.0, 24.0], Button::new("+")).on_hover_text(Self::tr_lang(language, "Add condition", "Thêm điều kiện")).clicked() {
                                                                        step.extra_conditions.push(ExtraCondition::default());
