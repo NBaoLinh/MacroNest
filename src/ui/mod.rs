@@ -112,6 +112,8 @@ pub(crate) enum VisionCaptureMode {
 pub(crate) enum VisionCaptureTarget {
     Preset(u32),
     OcrPreset(u32),
+    /// Custom OCR region directly on a macro step (no separate OcrPreset needed)
+    OcrStepRegion { group_id: u32, preset_id: u32, step_index: usize },
 }
 
 #[derive(Clone, Copy, PartialEq, Eq, Default)]

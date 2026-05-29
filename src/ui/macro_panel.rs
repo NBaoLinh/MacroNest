@@ -3966,6 +3966,7 @@ pub(crate) fn render_macro_panel(&mut self, ui: &mut egui::Ui) {
             bool, // is_ad_hoc
         )> = None;
         let mut pending_open_ai_preset_id: Option<u32> = None;
+        let mut pending_ocr_step_capture: Option<(u32, u32, usize)> = None;
         let command_presets_snapshot = self.state.command_presets.clone();
         for item in render_items {
             match item {
@@ -8271,22 +8272,34 @@ pub(crate) fn render_macro_panel(&mut self, ui: &mut egui::Ui) {
                                                             }
                                                         });
                                                 } else if step.action == MacroAction::OcrSearch {
-                                                    let selected_id = step.key.trim().parse::<u32>().ok();
-                                                    let selected_label = selected_id
-                                                        .and_then(|id| {
-                                                            ocr_preset_options
-                                                                .iter()
-                                                                .find(|(preset_id, _)| *preset_id == id)
-                                                                .map(|(_, label)| label.clone())
-                                                        })
-                                                        .unwrap_or_else(|| Self::tr_lang(language, "Select OCR", "Chọn OCR").to_owned());
+                                                    let is_custom = step.key.trim().is_empty() || step.key.trim() == "0";
+                                                    let selected_id = if is_custom { None } else { step.key.trim().parse::<u32>().ok() };
+                                                    let selected_label = if is_custom {
+                                                        Self::tr_lang(language, "✦ Custom OCR", "✦ OCR tuỳ chỉnh").to_owned()
+                                                    } else {
+                                                        selected_id
+                                                            .and_then(|id| {
+                                                                ocr_preset_options
+                                                                    .iter()
+                                                                    .find(|(preset_id, _)| *preset_id == id)
+                                                                    .map(|(_, label)| label.clone())
+                                                            })
+                                                            .unwrap_or_else(|| Self::tr_lang(language, "Select OCR", "Chọn OCR").to_owned())
+                                                    };
                                                     
                                                     ui.horizontal(|ui| {
-                                                        // 1. OCR Preset selection
+                                                        ui.spacing_mut().item_spacing.x = 6.0;
+                                                        
+                                                        // 1. OCR Preset selection (including Custom OCR option)
                                                         egui::ComboBox::from_id_salt((group.id, preset.id, step_index, "ocr-preset-step"))
                                                             .width(130.0)
                                                             .selected_text(selected_label)
                                                             .show_ui(ui, |ui| {
+                                                                if ui.selectable_label(is_custom, Self::tr_lang(language, "✦ Custom OCR", "✦ OCR tuỳ chỉnh")).clicked() {
+                                                                    step.key = "0".to_string();
+                                                                    live_sync = true;
+                                                                }
+                                                                ui.separator();
                                                                 for (preset_option_id, preset_option_label) in &ocr_preset_options {
                                                                     if ui
                                                                         .selectable_label(
@@ -8301,13 +8314,13 @@ pub(crate) fn render_macro_panel(&mut self, ui: &mut egui::Ui) {
                                                                 }
                                                             });
                                                         
-                                                                                                                 // 2. Output Variables ComboBox containing all outputs with their text boxes
-                                                         let outputs_label = Self::tr_lang(language, "Outputs", "Đầu ra").to_owned();
-                                                         egui::ComboBox::from_id_salt((group.id, preset.id, step_index, "ocr-outputs"))
+                                                        // 2. Outputs selection
+                                                        let outputs_label = Self::tr_lang(language, "Outputs", "Đầu ra").to_owned();
+                                                        egui::ComboBox::from_id_salt((group.id, preset.id, step_index, "ocr-outputs"))
                                                              .close_behavior(egui::PopupCloseBehavior::CloseOnClickOutside)
                                                              .width(110.0)
-                                                            .selected_text(outputs_label)
-                                                            .show_ui(ui, |ui| {
+                                                             .selected_text(outputs_label)
+                                                             .show_ui(ui, |ui| {
                                                                 ui.set_min_width(200.0);
                                                                 egui::Grid::new("ocr_outputs_grid")
                                                                     .num_columns(2)
@@ -8353,9 +8366,76 @@ pub(crate) fn render_macro_panel(&mut self, ui: &mut egui::Ui) {
                                                                         live_sync |= resp.changed();
                                                                         ui.end_row();
                                                                     });
-                                                            });
+                                                             });
                                                     });
-                                                } else if step.action == MacroAction::PlaySoundPreset {
+                                                    
+                                                    // 3. If Custom OCR, show region details, Pick Area button, and Language selection in a new row
+                                                    if is_custom {
+                                                        ui.horizontal(|ui| {
+                                                            ui.spacing_mut().item_spacing.x = 6.0;
+                                                            
+                                                            // Display current area coordinates with custom styling
+                                                            ui.label(
+                                                                egui::RichText::new(format!(
+                                                                    "X:{} Y:{} W:{} H:{}",
+                                                                    step.x, step.y, step.ocr_width, step.ocr_height
+                                                                ))
+                                                                .size(11.0)
+                                                                .color(egui::Color32::from_rgb(148, 200, 255)),
+                                                            );
+                                                            
+                                                            // Pick Area Button
+                                                            let pick_btn = egui::Button::new(
+                                                                egui::RichText::new(Self::tr_lang(language, "Pick area", "Chọn vùng")).size(11.0)
+                                                            );
+                                                            if ui.add_sized([70.0, 18.0], pick_btn)
+                                                                .on_hover_text(Self::tr_lang(
+                                                                    language,
+                                                                    "Drag on screen to select the OCR scan region",
+                                                                    "Kéo trên màn hình để chọn vùng quét OCR"
+                                                                ))
+                                                                .clicked()
+                                                            {
+                                                                pending_ocr_step_capture = Some((group.id, preset.id, step_index));
+                                                            }
+                                                            
+                                                            // Language selector
+                                                            let popular_langs: &[(&str, &str)] = &[
+                                                                ("", "🔍 Auto"),
+                                                                ("en", "🇬🇧 en"),
+                                                                ("vi", "🇻🇳 vi"),
+                                                                ("zh-Hans", "🇨🇳 zh-Hans"),
+                                                                ("zh-Hant", "🇹🇼 zh-Hant"),
+                                                                ("ja", "🇯🇵 ja"),
+                                                                ("ko", "🇰🇷 ko"),
+                                                                ("fr", "🇫🇷 fr"),
+                                                                ("de", "🇩🇪 de"),
+                                                                ("es", "🇪🇸 es"),
+                                                                ("ru", "🇷🇺 ru"),
+                                                                ("th", "🇹🇭 th"),
+                                                            ];
+                                                            
+                                                            let cur_lang = step.ocr_lang.clone().unwrap_or_default();
+                                                            let lang_lbl = popular_langs
+                                                                .iter()
+                                                                .find(|(code, _)| *code == cur_lang.as_str())
+                                                                .map(|(_, lbl)| *lbl)
+                                                                .unwrap_or(if cur_lang.is_empty() { "🔍 Auto" } else { cur_lang.as_str() });
+                                                            
+                                                            egui::ComboBox::from_id_salt((group.id, preset.id, step_index, "ocr-step-lang"))
+                                                                .width(90.0)
+                                                                .selected_text(lang_lbl)
+                                                                .show_ui(ui, |ui| {
+                                                                    for (code, lbl) in popular_langs {
+                                                                        if ui.selectable_label(cur_lang.as_str() == *code, *lbl).clicked() {
+                                                                            step.ocr_lang = if code.is_empty() { None } else { Some(code.to_string()) };
+                                                                            live_sync = true;
+                                                                        }
+                                                                    }
+                                                                });
+                                                        });
+                                                    }
+                                                                                                } else if step.action == MacroAction::PlaySoundPreset {
                                                     let selected_id = step.key.trim().parse::<u32>().ok();
                                                     let selected_label = selected_id
                                                         .and_then(|id| {
@@ -10204,6 +10284,13 @@ pub(crate) fn render_macro_panel(&mut self, ui: &mut egui::Ui) {
                     }
                     if let Some(preset_id) = pending_open_ai_preset_id.take() {
                         self.open_command_ai_dialog_for_preset(preset_id);
+                    }
+                    if let Some((gid, pid, sidx)) = pending_ocr_step_capture {
+                        self.begin_image_search_capture(
+                            ui.ctx(),
+                            crate::ui::VisionCaptureTarget::OcrStepRegion { group_id: gid, preset_id: pid, step_index: sidx },
+                            crate::ui::VisionCaptureMode::SearchRegion,
+                        );
                     }
                     if cancel_active_capture {
                         self.cancel_capture();

@@ -510,4 +510,40 @@ impl CrosshairApp {
         );
         ctx.request_repaint();
     }
+    pub(crate) fn finish_ocr_step_region_capture_command(
+        &mut self,
+        ctx: &egui::Context,
+        group_id: u32,
+        preset_id: u32,
+        step_index: usize,
+        screen_x: i32,
+        screen_y: i32,
+        width: i32,
+        height: i32,
+    ) {
+        self.clear_image_search_capture_state();
+        self.restore_image_search_capture_window(ctx);
+        // Find the matching macro step and update its custom OCR region fields
+        'outer: for group in &mut self.state.macro_groups {
+            if group.id == group_id {
+                for preset in &mut group.presets {
+                    if preset.id == preset_id {
+                        if let Some(step) = preset.steps.get_mut(step_index) {
+                            step.x = screen_x;
+                            step.y = screen_y;
+                            step.ocr_width = width;
+                            step.ocr_height = height;
+                        }
+                        break 'outer;
+                    }
+                }
+            }
+        }
+        self.persist();
+        self.status = format!(
+            "Saved custom OCR region {}x{} at {}, {} for step.",
+            width, height, screen_x, screen_y
+        );
+        ctx.request_repaint();
+    }
 }

@@ -1358,6 +1358,18 @@ impl CrosshairApp {
                                 height,
                             );
                         }
+                        VisionCaptureTarget::OcrStepRegion { group_id, preset_id, step_index } => {
+                            self.finish_ocr_step_region_capture_command(
+                                ctx,
+                                group_id,
+                                preset_id,
+                                step_index,
+                                x,
+                                y,
+                                width,
+                                height,
+                            );
+                        }
                     }
                 } else {
                     self.cancel_image_search_capture(ctx);
@@ -1387,6 +1399,10 @@ impl CrosshairApp {
                     VisionCaptureTarget::OcrPreset(_) => {
                         self.cancel_image_search_capture(ctx);
                         self.status = "OCR presets do not support color picking.".to_owned();
+                    }
+                    VisionCaptureTarget::OcrStepRegion { .. } => {
+                        self.cancel_image_search_capture(ctx);
+                        self.status = "OCR steps do not support color picking.".to_owned();
                     }
                 }
             }
@@ -1593,6 +1609,7 @@ impl CrosshairApp {
                 .iter()
                 .find(|preset| preset.id == preset_id)
                 .map(|preset| preset.name.clone()),
+            VisionCaptureTarget::OcrStepRegion { .. } => Some("Custom OCR".to_owned()),
         }
     }
 
@@ -1605,6 +1622,7 @@ impl CrosshairApp {
                 .find(|preset| preset.id == preset_id)
                 .is_some_and(|preset| preset.search_region_is_circle),
             VisionCaptureTarget::OcrPreset(_) => false,
+            VisionCaptureTarget::OcrStepRegion { .. } => false,
         }
     }
 
@@ -1692,6 +1710,10 @@ impl CrosshairApp {
                     VisionCaptureTarget::OcrPreset(_) => (
                         "OCR presets do not support template captures.".to_owned(),
                         false,
+                    ),
+                    VisionCaptureTarget::OcrStepRegion { .. } => (
+                        "OCR steps do not support template captures.".to_owned(),
+                        false,
                     )
                 };
                 if sync_required {
@@ -1744,6 +1766,18 @@ impl CrosshairApp {
                             self.status = format!(
                                 "Saved OCR area {}x{} at {}, {} for preset #{}.",
                                 width, height, screen_x, screen_y, preset_id
+                            );
+                        }
+                        VisionCaptureTarget::OcrStepRegion { group_id, preset_id, step_index } => {
+                            self.finish_ocr_step_region_capture_command(
+                                ctx,
+                                group_id,
+                                preset_id,
+                                step_index,
+                                screen_x,
+                                screen_y,
+                                width,
+                                height,
                             );
                         }
                     }
@@ -1875,6 +1909,9 @@ impl CrosshairApp {
             VisionCaptureTarget::OcrPreset(_) => {
                 "OCR presets do not support color picking.".to_owned()
             }
+            VisionCaptureTarget::OcrStepRegion { .. } => {
+                "OCR steps do not support color picking.".to_owned()
+            }
         }
     }
 
@@ -1902,6 +1939,9 @@ impl CrosshairApp {
             }
             VisionCaptureTarget::OcrPreset(_) => {
                 "OCR presets do not support priority anchors.".to_owned()
+            }
+            VisionCaptureTarget::OcrStepRegion { .. } => {
+                "OCR steps do not support priority anchors.".to_owned()
             }
         }
     }
@@ -2033,6 +2073,9 @@ impl CrosshairApp {
             }
             VisionCaptureTarget::OcrPreset(_) => {
                 "OCR presets do not support color picking.".to_owned()
+            }
+            VisionCaptureTarget::OcrStepRegion { .. } => {
+                "OCR steps do not support color picking.".to_owned()
             }
         };
         self.persist();
@@ -2167,6 +2210,22 @@ impl CrosshairApp {
                     width, height, screen_x, screen_y, preset_id
                 );
             }
+            VisionCaptureTarget::OcrStepRegion { group_id, preset_id, step_index } => {
+                self.finish_ocr_step_region_capture_command(
+                    ctx,
+                    group_id,
+                    preset_id,
+                    step_index,
+                    screen_x,
+                    screen_y,
+                    width,
+                    height,
+                );
+                self.status = format!(
+                    "Saved Custom OCR area {}x{} at {}, {} for step.",
+                    width, height, screen_x, screen_y
+                );
+            }
         }
         ctx.request_repaint();
     }
@@ -2240,6 +2299,9 @@ impl CrosshairApp {
             VisionCaptureTarget::OcrPreset(_) => {
                 "OCR presets do not support color picking.".to_owned()
             }
+            VisionCaptureTarget::OcrStepRegion { .. } => {
+                "OCR steps do not support color picking.".to_owned()
+            }
         };
         self.persist();
         self.status = status;
@@ -2297,6 +2359,9 @@ impl CrosshairApp {
             }
             VisionCaptureTarget::OcrPreset(_) => {
                 self.status = "OCR presets do not support priority anchors.".to_owned();
+            }
+            VisionCaptureTarget::OcrStepRegion { .. } => {
+                self.status = "OCR steps do not support priority anchors.".to_owned();
             }
         }
         ctx.request_repaint();
