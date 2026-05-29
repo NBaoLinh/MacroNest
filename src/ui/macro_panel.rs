@@ -2361,8 +2361,6 @@ impl CrosshairApp {
         let mut remove_extra_idx = None;
         for (extra_idx, cond) in extra_conditions.iter_mut().enumerate() {
             ui.horizontal(|ui| {
-                ui.add_space(20.0);
-
                 egui::ComboBox::from_id_salt((group_id, preset_id, step_index, extra_idx, "hold-extra-join-cb"))
                     .width(56.0)
                     .selected_text(if cond.join_operator.eq_ignore_ascii_case("OR") {
