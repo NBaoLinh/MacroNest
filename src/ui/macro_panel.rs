@@ -6363,7 +6363,7 @@ pub(crate) fn render_macro_panel(&mut self, ui: &mut egui::Ui) {
                                                                            .width(146.0)
                                                                            .selected_text(selected_label)
                                                                            .show_ui(ui, |ui| {
-                                                                               for vision_preset in &self.state.vision_presets {
+                                                                               for vision_preset in self.state.vision_presets.iter().filter(|p| !p.is_pixel_counter) {
                                                                                    if ui.selectable_label(selected_id == Some(vision_preset.id), &vision_preset.name).clicked() {
                                                                                        step.if_vision_preset_id = Some(vision_preset.id);
                                                                                        live_sync = true;
@@ -9098,7 +9098,7 @@ pub(crate) fn render_macro_panel(&mut self, ui: &mut egui::Ui) {
                                                                             .width(146.0)
                                                                             .selected_text(selected_label)
                                                                             .show_ui(ui, |ui| {
-                                                                                for vision_preset in &self.state.vision_presets {
+                                                                                for vision_preset in self.state.vision_presets.iter().filter(|p| !p.is_pixel_counter) {
                                                                                     if ui.selectable_label(selected_id == Some(vision_preset.id), &vision_preset.name).clicked() {
                                                                                         step.if_vision_preset_id = Some(vision_preset.id);
                                                                                         live_sync = true;
@@ -9455,7 +9455,7 @@ pub(crate) fn render_macro_panel(&mut self, ui: &mut egui::Ui) {
                                                         .width(146.0)
                                                         .selected_text(selected_label)
                                                         .show_ui(ui, |ui| {
-                                                            for vision_preset in &self.state.vision_presets {
+                                                            for vision_preset in self.state.vision_presets.iter().filter(|p| !p.is_pixel_counter) {
                                                                 if ui
                                                                     .selectable_label(
                                                                         selected_id == Some(vision_preset.id),
