@@ -6730,6 +6730,36 @@ mod windows_overlay {
     }
 
     fn evaluate_if_condition(step: &MacroStep) -> bool {
+        if step.if_condition_type == IfConditionType::OcrMatch {
+            let preset_id = step.if_ocr_preset_id.unwrap_or(0);
+            let (x, y, w, h, lang) = {
+                let hook_state = HOOK_STATE.lock();
+                if let Some(preset) = hook_state.ocr_presets.iter().find(|p| p.id == preset_id) {
+                    (preset.x, preset.y, preset.width, preset.height, preset.lang.clone())
+                } else {
+                    return false;
+                }
+            };
+            let w = w.max(10);
+            let h = h.max(10);
+            let lang_str = lang.as_deref().unwrap_or("en");
+
+            if let Some(frame) = window_list::capture_virtual_screen_region(x, y, w, h) {
+                if let Ok(res) = crate::ocr::perform_ocr(&frame.rgba, frame.width as u32, frame.height as u32, lang_str) {
+                    let target_text = step.ocr_target_text.trim();
+                    if target_text.is_empty() {
+                        return !res.text.trim().is_empty();
+                    }
+                    for word in &res.words {
+                        if word.text.to_lowercase().contains(&target_text.to_lowercase()) {
+                            return true;
+                        }
+                    }
+                }
+            }
+            return false;
+        }
+
         if step.if_condition_type != IfConditionType::Variable {
             return false;
         }

@@ -5733,12 +5733,47 @@ impl CrosshairApp {
                                                                        [56.0, 22.0],
                                                                        egui::Label::new(Self::tr_lang(language, "IF", "Náº¾U")),
                                                                    );
-                                                                   if step.if_condition_type != IfConditionType::Variable {
-                                                                       step.if_condition_type = IfConditionType::Variable;
-                                                                       live_sync = true;
-                                                                   }
-                                                                   if step.if_condition_type == IfConditionType::Variable {
-                                                                    let var_name_id = ui.id().with("hold-stop-if-var-name");
+                                                                   let cond_text = match step.if_condition_type {
+                                                                        IfConditionType::Variable => Self::tr_lang(language, "Variable", "Biến"),
+                                                                        IfConditionType::PixelColor => Self::tr_lang(language, "Pixel Color", "Màu điểm"),
+                                                                        IfConditionType::VisionMatch => Self::tr_lang(language, "Vision Match", "Hình ảnh"),
+                                                                        IfConditionType::KeyHeld => Self::tr_lang(language, "Key Held", "Phím giữ"),
+                                                                        IfConditionType::KeyPressed => Self::tr_lang(language, "Key Pressed", "Phím nhấn"),
+                                                                        IfConditionType::MouseHeld => Self::tr_lang(language, "Mouse Held", "Chuột giữ"),
+                                                                        IfConditionType::MouseScroll => Self::tr_lang(language, "Mouse Scroll", "Cuộn chuột"),
+                                                                        IfConditionType::MousePosition => Self::tr_lang(language, "Mouse Position", "Tọa độ chuột"),
+                                                                        IfConditionType::PresetRunning => Self::tr_lang(language, "Preset Running", "Preset đang chạy"),
+                                                                        IfConditionType::TimerRunning => Self::tr_lang(language, "Timer Running", "Timer đang chạy"),
+                                                                        IfConditionType::OcrMatch => Self::tr_lang(language, "OCR Match", "Từ tìm (OCR)"),
+                                                                    };
+                                                                    
+                                                                    egui::ComboBox::from_id_salt((group.id, preset.id, "hold-stop-if-condition-type"))
+                                                                        .width(100.0)
+                                                                        .selected_text(cond_text)
+                                                                        .show_ui(ui, |ui| {
+                                                                            let options = [
+                                                                                (IfConditionType::Variable, Self::tr_lang(language, "Variable", "Biến")),
+                                                                                (IfConditionType::PixelColor, Self::tr_lang(language, "Pixel Color", "Màu điểm")),
+                                                                                (IfConditionType::VisionMatch, Self::tr_lang(language, "Vision Match", "Hình ảnh")),
+                                                                                (IfConditionType::KeyHeld, Self::tr_lang(language, "Key Held", "Phím giữ")),
+                                                                                (IfConditionType::KeyPressed, Self::tr_lang(language, "Key Pressed", "Phím nhấn")),
+                                                                                (IfConditionType::MouseHeld, Self::tr_lang(language, "Mouse Held", "Chuột giữ")),
+                                                                                (IfConditionType::MouseScroll, Self::tr_lang(language, "Mouse Scroll", "Cuộn chuột")),
+                                                                                (IfConditionType::MousePosition, Self::tr_lang(language, "Mouse Position", "Tọa độ chuột")),
+                                                                                (IfConditionType::PresetRunning, Self::tr_lang(language, "Preset Running", "Preset đang chạy")),
+                                                                                (IfConditionType::TimerRunning, Self::tr_lang(language, "Timer Running", "Timer đang chạy")),
+                                                                                (IfConditionType::OcrMatch, Self::tr_lang(language, "OCR Match", "Từ tìm (OCR)")),
+                                                                            ];
+                                                                            for (opt_type, opt_label) in options {
+                                                                                if ui.selectable_label(step.if_condition_type == opt_type, opt_label).clicked() {
+                                                                                    step.if_condition_type = opt_type;
+                                                                                    live_sync = true;
+                                                                                }
+                                                                            }
+                                                                        });
+
+                                                                    if step.if_condition_type == IfConditionType::Variable {
+                                                                     let var_name_id = ui.id().with("hold-stop-if-var-name");
                                                                     let response = Self::render_variable_text_edit(
                                                                         ui,
                                                                         &mut step.if_variable_name,
@@ -5957,7 +5992,45 @@ impl CrosshairApp {
                                                                                    }
                                                                                }
                                                                            });
-                                                                   }
+                                                                   } else if step.if_condition_type == IfConditionType::OcrMatch {
+                                                                        let selected_id = step.if_ocr_preset_id;
+                                                                        let selected_label = selected_id
+                                                                            .and_then(|id| {
+                                                                                ocr_preset_options
+                                                                                    .iter()
+                                                                                    .find(|(preset_id, _)| *preset_id == id)
+                                                                                    .map(|(_, label)| label.clone())
+                                                                            })
+                                                                            .unwrap_or_else(|| Self::tr_lang(language, "Select OCR", "Chọn OCR").to_owned());
+                                                                        
+                                                                        egui::ComboBox::from_id_salt((group.id, preset.id, "hold-stop-if-ocr-preset"))
+                                                                            .width(146.0)
+                                                                            .selected_text(selected_label)
+                                                                            .show_ui(ui, |ui| {
+                                                                                for (preset_option_id, preset_option_label) in &ocr_preset_options {
+                                                                                    if ui
+                                                                                        .selectable_label(selected_id == Some(*preset_option_id), preset_option_label)
+                                                                                        .clicked()
+                                                                                    {
+                                                                                        step.if_ocr_preset_id = Some(*preset_option_id);
+                                                                                        live_sync = true;
+                                                                                    }
+                                                                                }
+                                                                            });
+                                                                        
+                                                                        let response_target = ui.add_sized(
+                                                                            [146.0, 22.0],
+                                                                            TextEdit::singleline(&mut step.ocr_target_text)
+                                                                                .hint_text(RichText::new(Self::tr_lang(language, "Target text", "Từ tìm")).color(hint_color).weak()),
+                                                                        );
+                                                                        Self::apply_vietnamese_input_if_changed(
+                                                                            &response_target,
+                                                                            self.state.vietnamese_input_enabled,
+                                                                            self.state.vietnamese_input_mode,
+                                                                            &mut step.ocr_target_text,
+                                                                        );
+                                                                        live_sync |= response_target.changed();
+                                                                    }
                                                                      if ui.add_sized([24.0, 24.0], Button::new("+")).on_hover_text(Self::tr_lang(language, "Add condition", "Thêm điều kiện")).clicked() {
                                                                        step.extra_conditions.push(ExtraCondition::default());
                                                                        live_sync = true;
@@ -7712,16 +7785,10 @@ impl CrosshairApp {
                                                                 }
                                                             });
                                                         
-                                                        // 2. Target Text (Từ tìm kiếm)
-                                                        ui.label(Self::tr_lang(language, "Target:", "Từ tìm:"));
-                                                        let resp = ui.add_sized([100.0, 20.0], egui::TextEdit::singleline(&mut step.ocr_target_text).hint_text("antigravity"));
-                                                        Self::apply_vietnamese_input_if_changed(&resp, self.state.vietnamese_input_enabled, self.state.vietnamese_input_mode, &mut step.ocr_target_text);
-                                                        live_sync |= resp.changed();
-
-                                                        // 3. Output Variables ComboBox containing all outputs with their text boxes
-                                                        let outputs_label = Self::tr_lang(language, "Outputs", "Đầu ra").to_owned();
-                                                        egui::ComboBox::from_id_salt((group.id, preset.id, step_index, "ocr-outputs"))
-                                                            .width(90.0)
+                                                                                                                 // 2. Output Variables ComboBox containing all outputs with their text boxes
+                                                         let outputs_label = Self::tr_lang(language, "Outputs", "Đầu ra").to_owned();
+                                                         egui::ComboBox::from_id_salt((group.id, preset.id, step_index, "ocr-outputs"))
+                                                             .width(110.0)
                                                             .selected_text(outputs_label)
                                                             .show_ui(ui, |ui| {
                                                                 ui.set_min_width(200.0);
@@ -8400,12 +8467,47 @@ impl CrosshairApp {
                                                                        [56.0, 22.0],
                                                                        egui::Label::new(Self::tr_lang(language, "IF", "Náº¾U")),
                                                                    );
-                                                                   if step.if_condition_type != IfConditionType::Variable {
-                                                                       step.if_condition_type = IfConditionType::Variable;
-                                                                       live_sync = true;
-                                                                   }
-                                                                   if step.if_condition_type == IfConditionType::Variable {
-                                                                    let var_name_id = ui.id().with((step_index, "regular-if-var-name"));
+                                                                   let cond_text = match step.if_condition_type {
+                                                                        IfConditionType::Variable => Self::tr_lang(language, "Variable", "Biến"),
+                                                                        IfConditionType::PixelColor => Self::tr_lang(language, "Pixel Color", "Màu điểm"),
+                                                                        IfConditionType::VisionMatch => Self::tr_lang(language, "Vision Match", "Hình ảnh"),
+                                                                        IfConditionType::KeyHeld => Self::tr_lang(language, "Key Held", "Phím giữ"),
+                                                                        IfConditionType::KeyPressed => Self::tr_lang(language, "Key Pressed", "Phím nhấn"),
+                                                                        IfConditionType::MouseHeld => Self::tr_lang(language, "Mouse Held", "Chuột giữ"),
+                                                                        IfConditionType::MouseScroll => Self::tr_lang(language, "Mouse Scroll", "Cuộn chuột"),
+                                                                        IfConditionType::MousePosition => Self::tr_lang(language, "Mouse Position", "Tọa độ chuột"),
+                                                                        IfConditionType::PresetRunning => Self::tr_lang(language, "Preset Running", "Preset đang chạy"),
+                                                                        IfConditionType::TimerRunning => Self::tr_lang(language, "Timer Running", "Timer đang chạy"),
+                                                                        IfConditionType::OcrMatch => Self::tr_lang(language, "OCR Match", "Từ tìm (OCR)"),
+                                                                    };
+                                                                    
+                                                                    egui::ComboBox::from_id_salt((group.id, preset.id, step_index, "if-condition-type"))
+                                                                        .width(100.0)
+                                                                        .selected_text(cond_text)
+                                                                        .show_ui(ui, |ui| {
+                                                                            let options = [
+                                                                                (IfConditionType::Variable, Self::tr_lang(language, "Variable", "Biến")),
+                                                                                (IfConditionType::PixelColor, Self::tr_lang(language, "Pixel Color", "Màu điểm")),
+                                                                                (IfConditionType::VisionMatch, Self::tr_lang(language, "Vision Match", "Hình ảnh")),
+                                                                                (IfConditionType::KeyHeld, Self::tr_lang(language, "Key Held", "Phím giữ")),
+                                                                                (IfConditionType::KeyPressed, Self::tr_lang(language, "Key Pressed", "Phím nhấn")),
+                                                                                (IfConditionType::MouseHeld, Self::tr_lang(language, "Mouse Held", "Chuột giữ")),
+                                                                                (IfConditionType::MouseScroll, Self::tr_lang(language, "Mouse Scroll", "Cuộn chuột")),
+                                                                                (IfConditionType::MousePosition, Self::tr_lang(language, "Mouse Position", "Tọa độ chuột")),
+                                                                                (IfConditionType::PresetRunning, Self::tr_lang(language, "Preset Running", "Preset đang chạy")),
+                                                                                (IfConditionType::TimerRunning, Self::tr_lang(language, "Timer Running", "Timer đang chạy")),
+                                                                                (IfConditionType::OcrMatch, Self::tr_lang(language, "OCR Match", "Từ tìm (OCR)")),
+                                                                            ];
+                                                                            for (opt_type, opt_label) in options {
+                                                                                if ui.selectable_label(step.if_condition_type == opt_type, opt_label).clicked() {
+                                                                                    step.if_condition_type = opt_type;
+                                                                                    live_sync = true;
+                                                                                }
+                                                                            }
+                                                                        });
+
+                                                                    if step.if_condition_type == IfConditionType::Variable {
+                                                                     let var_name_id = ui.id().with((step_index, "regular-if-var-name"));
                                                                     let response = Self::render_variable_text_edit(
                                                                         ui,
                                                                         &mut step.if_variable_name,
@@ -8619,7 +8721,45 @@ impl CrosshairApp {
                                                                                    }
                                                                                }
                                                                            });
-                                                                   }
+                                                                   } else if step.if_condition_type == IfConditionType::OcrMatch {
+                                                                        let selected_id = step.if_ocr_preset_id;
+                                                                        let selected_label = selected_id
+                                                                            .and_then(|id| {
+                                                                                ocr_preset_options
+                                                                                    .iter()
+                                                                                    .find(|(preset_id, _)| *preset_id == id)
+                                                                                    .map(|(_, label)| label.clone())
+                                                                            })
+                                                                            .unwrap_or_else(|| Self::tr_lang(language, "Select OCR", "Chọn OCR").to_owned());
+                                                                        
+                                                                        egui::ComboBox::from_id_salt((group.id, preset.id, step_index, "if-ocr-preset"))
+                                                                            .width(146.0)
+                                                                            .selected_text(selected_label)
+                                                                            .show_ui(ui, |ui| {
+                                                                                for (preset_option_id, preset_option_label) in &ocr_preset_options {
+                                                                                    if ui
+                                                                                        .selectable_label(selected_id == Some(*preset_option_id), preset_option_label)
+                                                                                        .clicked()
+                                                                                    {
+                                                                                        step.if_ocr_preset_id = Some(*preset_option_id);
+                                                                                        live_sync = true;
+                                                                                    }
+                                                                                }
+                                                                            });
+                                                                        
+                                                                        let response_target = ui.add_sized(
+                                                                            [146.0, 22.0],
+                                                                            TextEdit::singleline(&mut step.ocr_target_text)
+                                                                                .hint_text(RichText::new(Self::tr_lang(language, "Target text", "Từ tìm")).color(hint_color).weak()),
+                                                                        );
+                                                                        Self::apply_vietnamese_input_if_changed(
+                                                                            &response_target,
+                                                                            self.state.vietnamese_input_enabled,
+                                                                            self.state.vietnamese_input_mode,
+                                                                            &mut step.ocr_target_text,
+                                                                        );
+                                                                        live_sync |= response_target.changed();
+                                                                    }
                                                                      if ui.add_sized([24.0, 24.0], Button::new("+")).on_hover_text(Self::tr_lang(language, "Add condition", "Thêm điều kiện")).clicked() {
                                                                        step.extra_conditions.push(ExtraCondition::default());
                                                                        live_sync = true;

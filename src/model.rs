@@ -468,6 +468,7 @@ pub enum IfConditionType {
     MousePosition,
     PresetRunning,
     TimerRunning,
+    OcrMatch,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
@@ -531,6 +532,8 @@ pub struct MacroStep {
     pub if_color_tolerance: u8,
     #[serde(default)]
     pub if_vision_preset_id: Option<u32>,
+    #[serde(default)]
+    pub if_ocr_preset_id: Option<u32>,
     #[serde(default)]
     pub if_key_held_name: String,
     #[serde(default)]
@@ -632,6 +635,7 @@ impl Default for MacroStep {
             if_target_color: String::new(),
             if_color_tolerance: 10,
             if_vision_preset_id: None,
+            if_ocr_preset_id: None,
             if_key_held_name: String::new(),
             if_mouse_button: "MouseLeft".to_string(),
             if_scroll_direction: "Up".to_string(),
