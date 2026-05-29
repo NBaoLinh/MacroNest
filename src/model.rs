@@ -144,7 +144,7 @@ fn default_if_color_tolerance() -> u8 {
 }
 
 fn default_image_search_confidence_threshold() -> f32 {
-    0.58
+    0.99
 }
 
 fn default_image_search_color_tolerance() -> u8 {
