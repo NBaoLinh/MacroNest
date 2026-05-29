@@ -2282,6 +2282,58 @@ impl CrosshairApp {
         )
     }
 
+    fn render_multi_key_capture_chips(
+        ui: &mut egui::Ui,
+        language: UiLanguage,
+        keys_str: &mut String,
+        active: bool,
+        mut on_capture_click: impl FnMut(),
+        mut on_clear_click: impl FnMut(),
+    ) {
+        ui.horizontal(|ui| {
+            // Nút bấm hình bàn phím để capture
+            let keyboard_btn = ui.add_sized(
+                [22.0, 22.0],
+                egui::Button::new(Self::material_icon_text(0xe312, 14.0)) // icon bàn phím ⌨️
+                    .fill(if active { egui::Color32::from_rgba_premultiplied(72, 156, 116, 120) } else { ui.visuals().widgets.noninteractive.bg_fill })
+                    .stroke(egui::Stroke::new(1.0, if active { egui::Color32::from_rgb(126, 224, 182) } else { ui.visuals().widgets.noninteractive.bg_stroke.color }))
+            ).on_hover_text(Self::tr_lang(language, "Click to capture keys/mouse (Multi-key supported)", "Bấm để bắt phím/chuột (Hỗ trợ gán nhiều phím)"));
+            
+            if keyboard_btn.clicked() {
+                on_capture_click();
+            }
+
+            // Hiển thị các phím tắt dạng chip
+            let keys: Vec<String> = keys_str.split(',')
+                .map(str::trim)
+                .filter(|p| !p.is_empty())
+                .map(str::to_owned)
+                .collect();
+
+            if keys.is_empty() {
+                if active {
+                    ui.label(egui::RichText::new(Self::tr_lang(language, "Capturing...", "Đang bắt...")).color(egui::Color32::from_rgb(255, 232, 96)).strong());
+                } else {
+                    ui.label(egui::RichText::new(Self::tr_lang(language, "No key assigned", "Chưa gán phím")).weak().italics());
+                }
+            } else {
+                let mut remove_key = None;
+                for key in &keys {
+                    let chip_btn = ui.add(
+                        egui::Button::new(egui::RichText::new(key).monospace()).min_size(egui::vec2(0.0, 22.0))
+                    ).on_hover_text(Self::tr_lang(language, "Click to remove this key", "Bấm để xóa phím này"));
+                    if chip_btn.clicked() {
+                        remove_key = Some(key.clone());
+                    }
+                }
+                if let Some(rk) = remove_key {
+                    let remaining: Vec<String> = keys.into_iter().filter(|k| k != &rk).collect();
+                    *keys_str = remaining.join(",");
+                    on_clear_click();
+                }
+            }
+        });
+    }
 
     fn render_extra_conditions(
         ui: &mut egui::Ui,
@@ -2556,35 +2608,22 @@ impl CrosshairApp {
                             extra_cond_index: Some(extra_idx),
                         };
                         let active = capture_target_snapshot == Some(&capture_target);
-                        let display_text = if active {
-                            Self::tr_lang(language, "Capturing...", "Đang bắt...").to_owned()
-                        } else if cond.key_held_name.is_empty() {
-                            Self::tr_lang(language, "Click to Capture", "Click để Capture").to_owned()
-                        } else {
-                            cond.key_held_name.clone()
-                        };
-
-                        let btn = ui.add_sized(
-                            [120.0, 22.0],
-                            egui::Button::new(
-                                egui::RichText::new(&display_text)
-                                    .color(if active { egui::Color32::from_rgb(255, 232, 96) } else { ui.visuals().widgets.active.text_color() })
-                                    .strong()
-                            )
-                            .sense(egui::Sense::click())
-                        ).on_hover_text(Self::tr_lang(language, "Left click to capture, Right click to clear", "Click trái để capture, Click phải để xóa"));
-
-                        if btn.clicked() {
-                            if active {
-                                *cancel_active_capture = true;
-                            } else {
-                                *next_capture_target = Some(capture_target);
+                        Self::render_multi_key_capture_chips(
+                            ui,
+                            language,
+                            &mut cond.key_held_name,
+                            active,
+                            || {
+                                if active {
+                                    *cancel_active_capture = true;
+                                } else {
+                                    *next_capture_target = Some(capture_target.clone());
+                                }
+                            },
+                            || {
+                                *live_sync = true;
                             }
-                        }
-                        if btn.secondary_clicked() {
-                            cond.key_held_name.clear();
-                            *live_sync = true;
-                        }
+                        );
                     }
 
 
@@ -2596,35 +2635,22 @@ impl CrosshairApp {
                             extra_cond_index: Some(extra_idx),
                         };
                         let active = capture_target_snapshot == Some(&capture_target);
-                        let display_text = if active {
-                            Self::tr_lang(language, "Capturing...", "Đang bắt...").to_owned()
-                        } else if cond.mouse_button.is_empty() {
-                            Self::tr_lang(language, "Click to Capture", "Click để Capture").to_owned()
-                        } else {
-                            cond.mouse_button.clone()
-                        };
-
-                        let btn = ui.add_sized(
-                            [100.0, 22.0],
-                            egui::Button::new(
-                                egui::RichText::new(&display_text)
-                                    .color(if active { egui::Color32::from_rgb(255, 232, 96) } else { ui.visuals().widgets.active.text_color() })
-                                    .strong()
-                            )
-                            .sense(egui::Sense::click())
-                        ).on_hover_text(Self::tr_lang(language, "Left click to capture, Right click to clear", "Click trái để capture, Click phải để xóa"));
-
-                        if btn.clicked() {
-                            if active {
-                                *cancel_active_capture = true;
-                            } else {
-                                *next_capture_target = Some(capture_target);
+                        Self::render_multi_key_capture_chips(
+                            ui,
+                            language,
+                            &mut cond.mouse_button,
+                            active,
+                            || {
+                                if active {
+                                    *cancel_active_capture = true;
+                                } else {
+                                    *next_capture_target = Some(capture_target.clone());
+                                }
+                            },
+                            || {
+                                *live_sync = true;
                             }
-                        }
-                        if btn.secondary_clicked() {
-                            cond.mouse_button.clear();
-                            *live_sync = true;
-                        }
+                        );
                     }
 
                     IfConditionType::MousePosition => {
@@ -5960,7 +5986,7 @@ pub(crate) fn render_macro_panel(&mut self, ui: &mut egui::Ui) {
                                                                  &self.state.timer_presets,
                                                                  self.state.vietnamese_input_enabled,
                                                                  self.state.vietnamese_input_mode,
-                                                                 &mut self.mouse_move_absolute_capture_target,
+                                                                 &mut begin_mouse_move_absolute_capture_target,
                                                                  capture_target_snapshot.as_ref(),
                                                                  &mut next_capture_target,
                                                                  &mut cancel_active_capture,
@@ -6588,7 +6614,7 @@ pub(crate) fn render_macro_panel(&mut self, ui: &mut egui::Ui) {
                                                               &self.state.timer_presets,
                                                               self.state.vietnamese_input_enabled,
                                                               self.state.vietnamese_input_mode,
-                                                              &mut self.mouse_move_absolute_capture_target,
+                                                              &mut begin_mouse_move_absolute_capture_target,
                                                               capture_target_snapshot.as_ref(),
                                                               &mut next_capture_target,
                                                               &mut cancel_active_capture,
@@ -8688,7 +8714,7 @@ pub(crate) fn render_macro_panel(&mut self, ui: &mut egui::Ui) {
                                                                  &self.state.timer_presets,
                                                                  self.state.vietnamese_input_enabled,
                                                                  self.state.vietnamese_input_mode,
-                                                                 &mut self.mouse_move_absolute_capture_target,
+                                                                 &mut begin_mouse_move_absolute_capture_target,
                                                                  capture_target_snapshot.as_ref(),
                                                                  &mut next_capture_target,
                                                                  &mut cancel_active_capture,
@@ -9319,7 +9345,7 @@ pub(crate) fn render_macro_panel(&mut self, ui: &mut egui::Ui) {
                                                               &self.state.timer_presets,
                                                               self.state.vietnamese_input_enabled,
                                                               self.state.vietnamese_input_mode,
-                                                              &mut self.mouse_move_absolute_capture_target,
+                                                              &mut begin_mouse_move_absolute_capture_target,
                                                               capture_target_snapshot.as_ref(),
                                                               &mut next_capture_target,
                                                               &mut cancel_active_capture,

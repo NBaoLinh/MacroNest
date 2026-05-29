@@ -520,45 +520,34 @@ impl CrosshairApp {
             return false;
         }
 
-        ctx.request_repaint();
+        if ctx.input(|input| input.key_pressed(egui::Key::Escape)) || Self::is_vk_down(0x1B) {
+            self.cancel_mouse_move_absolute_capture(ctx);
+            return true;
+        }
+
+        ctx.request_repaint_after(std::time::Duration::from_millis(120));
         egui::CentralPanel::default()
             .frame(
                 Frame::new()
-                    .fill(Color32::from_rgba_premultiplied(14, 19, 26, 238))
-                    .stroke(egui::Stroke::new(1.0, Color32::from_rgb(82, 112, 150)))
-                    .inner_margin(Margin::same(12)),
+                    .fill(Color32::TRANSPARENT)
+                    .stroke(egui::Stroke::NONE)
+                    .inner_margin(Margin::same(8)),
             )
             .show(ctx, |ui| {
-                let instruction = self.tr(
-                    "Click a point to capture the mouse X/Y. Press Esc to cancel.",
-                    "Bấm vào điểm muốn lấy tọa độ chuột X/Y. Nhấn Esc để hủy.",
-                );
                 let rect = ui.max_rect();
-                let painter = ui.painter_at(rect);
-                painter.text(
-                    rect.left_top() + vec2(18.0, 18.0),
-                    egui::Align2::LEFT_TOP,
-                    instruction,
-                    egui::FontId::proportional(18.0),
-                    Color32::WHITE,
-                );
+                let painter = ui.painter();
                 let pointer = self.precise_image_search_capture_pointer(ctx);
                 if pointer.is_some() {
                     if let Some((x, y)) = Self::current_screen_cursor_pos() {
-                        let sampled_color = self.update_image_search_cursor_preview(ctx, x, y, 21);
+                        let sampled_color = self.update_image_search_cursor_preview(ctx, x, y, 17);
                         self.render_image_search_cursor_preview_panel(
-                            &painter,
+                            painter,
                             rect,
                             pointer,
                             sampled_color,
                             Some((x, y)),
                         );
                     }
-                }
-                if self.capture_target.is_none()
-                    && ctx.input(|input| input.key_pressed(egui::Key::Escape))
-                {
-                    self.cancel_mouse_move_absolute_capture(ctx);
                 }
                 self.refresh_capture_info_window(ctx);
             });

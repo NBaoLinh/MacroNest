@@ -446,6 +446,20 @@ impl AppPaths {
                 }
             }
         }
+
+        // Dọn dẹp triệt để các group bị lỗi deserialize cũ (chứa IfConditionType::Unknown) khỏi database
+        state.macro_groups.retain(|group| {
+            let has_unknown = group.presets.iter().any(|preset| {
+                preset.hold_stop_step.if_condition_type == crate::model::IfConditionType::Unknown
+                    || preset.hold_stop_step.extra_conditions.iter().any(|c| c.condition_type == crate::model::IfConditionType::Unknown)
+                    || preset.steps.iter().any(|step| {
+                        step.if_condition_type == crate::model::IfConditionType::Unknown
+                            || step.extra_conditions.iter().any(|c| c.condition_type == crate::model::IfConditionType::Unknown)
+                    })
+            });
+            !has_unknown
+        });
+
         for preset in &mut state.audio_settings.presets {
             preset.collapsed = true;
         }

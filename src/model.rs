@@ -466,10 +466,8 @@ pub enum IfConditionType {
     MousePosition,
     PresetRunning,
     OcrMatch,
-    // Deprecated variants kept for backward compatibility
-    TimerRunning,
-    MouseScroll,
-    KeyPressed,
+    #[serde(other)]
+    Unknown,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
