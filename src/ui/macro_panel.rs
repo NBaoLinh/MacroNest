@@ -11023,22 +11023,32 @@ impl CrosshairApp {
         vietnamese_mode: crate::model::VietnameseInputMode,
     ) -> bool {
         let mut changed = false;
-        ui.horizontal(|ui| {
-            ui.spacing_mut().item_spacing.x = 2.0;
-            let resp = ui.add_sized([width, 20.0], egui::TextEdit::singleline(var));
-            Self::apply_vietnamese_input_if_changed(&resp, vietnamese_enabled, vietnamese_mode, var);
-            changed |= resp.changed();
+        let display_text = if var.trim().is_empty() {
+            "-"
+        } else {
+            var.as_str()
+        };
 
-            ui.scope(|ui| {
-                ui.spacing_mut().button_padding = egui::vec2(2.0, 2.0);
-                ui.menu_button("▼", |ui| {
-                    ui.set_max_width(200.0);
-                    egui::ScrollArea::vertical().max_height(200.0).show(ui, |ui| {
+        egui::ComboBox::from_id_salt(id_source)
+            .width(width)
+            .selected_text(display_text)
+            .show_ui(ui, |ui| {
+                ui.horizontal(|ui| {
+                    ui.label("✏:");
+                    let resp = ui.add(egui::TextEdit::singleline(var).hint_text("Nhập biến..."));
+                    Self::apply_vietnamese_input_if_changed(&resp, vietnamese_enabled, vietnamese_mode, var);
+                    changed |= resp.changed();
+                });
+                ui.separator();
+                
+                egui::ScrollArea::vertical()
+                    .max_height(200.0)
+                    .show(ui, |ui| {
                         if all_variables.is_empty() {
                             ui.label("No variables");
                         } else {
                             for v in all_variables {
-                                if ui.button(v).clicked() {
+                                if ui.selectable_label(var == v, v).clicked() {
                                     *var = v.clone();
                                     changed = true;
                                     ui.close_menu();
@@ -11046,9 +11056,8 @@ impl CrosshairApp {
                             }
                         }
                     });
-                });
             });
-        });
+
         changed
     }
 }
