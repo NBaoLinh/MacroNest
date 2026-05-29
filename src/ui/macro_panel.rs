@@ -138,9 +138,23 @@ enum HoverPreviewRequest {
 }
 
 impl CrosshairApp {
+
     fn rgba_to_color32(color: RgbaColor) -> Color32 {
         Color32::from_rgba_unmultiplied(color.r, color.g, color.b, color.a)
     }
+
+    fn parse_rgb_color(s: &str) -> Option<Color32> {
+        let parts: Vec<&str> = s.split(',').collect();
+        if parts.len() >= 3 {
+            let r = parts[0].trim().parse::<u8>().ok()?;
+            let g = parts[1].trim().parse::<u8>().ok()?;
+            let b = parts[2].trim().parse::<u8>().ok()?;
+            Some(Color32::from_rgb(r, g, b))
+        } else {
+            None
+        }
+    }
+
 
     fn loop_is_infinite(step: &MacroStep) -> bool {
         matches!(
@@ -2268,6 +2282,7 @@ impl CrosshairApp {
         )
     }
 
+
     fn render_extra_conditions(
         ui: &mut egui::Ui,
         extra_conditions: &mut Vec<ExtraCondition>,
@@ -2285,7 +2300,11 @@ impl CrosshairApp {
         vietnamese_input_enabled: bool,
         vietnamese_input_mode: crate::model::VietnameseInputMode,
         pending_pick_target: &mut Option<MouseMoveAbsoluteCaptureTarget>,
+        capture_target_snapshot: Option<&CaptureRequest>,
+        next_capture_target: &mut Option<CaptureRequest>,
+        cancel_active_capture: &mut bool,
     ) {
+
         let mut remove_extra_idx = None;
         for (extra_idx, cond) in extra_conditions.iter_mut().enumerate() {
             ui.horizontal(|ui| {
@@ -2312,6 +2331,7 @@ impl CrosshairApp {
                         }
                     });
 
+
                 let cond_text = match cond.condition_type {
                     IfConditionType::Variable => Self::tr_lang(language, "Variable", "Biến"),
                     IfConditionType::PixelColor => Self::tr_lang(language, "Pixel Color", "Màu điểm"),
@@ -2321,7 +2341,9 @@ impl CrosshairApp {
                     IfConditionType::MousePosition => Self::tr_lang(language, "Mouse Position", "Tọa độ chuột"),
                     IfConditionType::PresetRunning => Self::tr_lang(language, "Preset Running", "Preset đang chạy"),
                     IfConditionType::OcrMatch => Self::tr_lang(language, "OCR Match", "Từ tìm (OCR)"),
+                    _ => "-",
                 };
+
                 
                 egui::ComboBox::from_id_salt((group_id, preset_id, step_index, extra_idx, "hold-extra-cond-type-cb"))
                     .width(100.0)
@@ -2368,17 +2390,19 @@ impl CrosshairApp {
                         *live_sync |= response.changed();
                         Self::render_variable_suggestions(ui, &response, &mut cond.variable_name, timer_names, language);
 
+
                         egui::ComboBox::from_id_salt((group_id, preset_id, step_index, extra_idx, "hold-extra-op-cb"))
                             .width(55.0)
                             .selected_text(&cond.operator)
                             .show_ui(ui, |ui| {
-                                for op in &["==", ">", "<", ">=", "<=", "!=", "contain"] {
+                                for op in &["==", ">", "<", ">=", "<=", "!="] {
                                     if ui.selectable_label(cond.operator == *op, *op).clicked() {
                                         cond.operator = op.to_string();
                                         *live_sync = true;
                                     }
                                 }
                             });
+
 
                         let cond_expr_id = ui.id().with((step_index, extra_idx, "extra-expr-input"));
                         let response2 = Self::render_variable_text_edit(
@@ -2401,12 +2425,7 @@ impl CrosshairApp {
                         *live_sync |= response2.changed();
                         Self::render_variable_suggestions(ui, &response2, &mut cond.expression, timer_names, language);
 
-                        if cond.operator.trim().to_lowercase() == "contain" {
-                            ui.add_space(4.0);
-                            *live_sync |= ui.checkbox(&mut cond.if_contain_case_sensitive, Self::tr_lang(language, "Aa", "Chữ hoa/thường")).on_hover_text(Self::tr_lang(language, "Distinguish uppercase and lowercase", "Phân biệt chữ hoa và chữ thường")).changed();
-                            ui.add_space(4.0);
-                            *live_sync |= ui.checkbox(&mut cond.if_contain_isolated, Self::tr_lang(language, "1/1", "Từ riêng lẻ")).on_hover_text(Self::tr_lang(language, "Match whole words / isolated digits only (boundaries)", "Chỉ khớp từ hoặc cụm số đứng riêng lẻ, không nằm chung nhóm")).changed();
-                        }
+
 
                         let left_expr = cond.variable_name.trim();
                         if !left_expr.is_empty() {
@@ -2471,13 +2490,25 @@ impl CrosshairApp {
                         let resp_y = ui.add(egui::DragValue::new(&mut cond.y));
                         *live_sync |= resp_y.changed();
                         
+
                         let resp_col = ui.add_sized(
                             [76.0, 22.0],
                             egui::TextEdit::singleline(&mut cond.target_color)
                                 .hint_text("R,G,B")
                         );
                         *live_sync |= resp_col.changed();
+
+
+
+                        // Swatch màu trực quan
+                        let swatch_color = Self::parse_rgb_color(&cond.target_color).unwrap_or(egui::Color32::TRANSPARENT);
+                        let (rect, _response) = ui.allocate_exact_size(egui::vec2(16.0, 16.0), egui::Sense::hover());
+                        ui.painter().rect_filled(rect, 3.0, swatch_color);
+
+
+
                         ui.label(Self::tr_lang(language, "Tol:", "Sai số:"));
+
                         let resp_tol = ui.add(egui::DragValue::new(&mut cond.color_tolerance).range(0..=255));
                         *live_sync |= resp_tol.changed();
 
@@ -2516,27 +2547,86 @@ impl CrosshairApp {
                                 }
                             });
                     }
+
                     IfConditionType::KeyHeld => {
-                        let resp_key = ui.add_sized(
+                        let capture_target = CaptureRequest::MacroStepInput {
+                            group_id,
+                            preset_id,
+                            step_index,
+                            extra_cond_index: Some(extra_idx),
+                        };
+                        let active = capture_target_snapshot == Some(&capture_target);
+                        let display_text = if active {
+                            Self::tr_lang(language, "Capturing...", "Đang bắt...").to_owned()
+                        } else if cond.key_held_name.is_empty() {
+                            Self::tr_lang(language, "Click to Capture", "Click để Capture").to_owned()
+                        } else {
+                            cond.key_held_name.clone()
+                        };
+
+                        let btn = ui.add_sized(
                             [120.0, 22.0],
-                            egui::TextEdit::singleline(&mut cond.key_held_name)
-                                .hint_text(Self::tr_lang(language, "Key name", "Tên phím"))
-                        );
-                        *live_sync |= resp_key.changed();
+                            egui::Button::new(
+                                egui::RichText::new(&display_text)
+                                    .color(if active { egui::Color32::from_rgb(255, 232, 96) } else { ui.visuals().widgets.active.text_color() })
+                                    .strong()
+                            )
+                            .sense(egui::Sense::click())
+                        ).on_hover_text(Self::tr_lang(language, "Left click to capture, Right click to clear", "Click trái để capture, Click phải để xóa"));
+
+                        if btn.clicked() {
+                            if active {
+                                *cancel_active_capture = true;
+                            } else {
+                                *next_capture_target = Some(capture_target);
+                            }
+                        }
+                        if btn.secondary_clicked() {
+                            cond.key_held_name.clear();
+                            *live_sync = true;
+                        }
                     }
+
+
                     IfConditionType::MouseHeld => {
-                        egui::ComboBox::from_id_salt((group_id, preset_id, step_index, extra_idx, "hold-extra-mouse-held-cb"))
-                            .width(100.0)
-                            .selected_text(&cond.mouse_button)
-                            .show_ui(ui, |ui| {
-                                for btn in &["Left", "Right", "Middle", "X1", "X2"] {
-                                    if ui.selectable_label(cond.mouse_button == *btn, *btn).clicked() {
-                                        cond.mouse_button = btn.to_string();
-                                        *live_sync = true;
-                                    }
-                                }
-                            });
+                        let capture_target = CaptureRequest::MacroStepInput {
+                            group_id,
+                            preset_id,
+                            step_index,
+                            extra_cond_index: Some(extra_idx),
+                        };
+                        let active = capture_target_snapshot == Some(&capture_target);
+                        let display_text = if active {
+                            Self::tr_lang(language, "Capturing...", "Đang bắt...").to_owned()
+                        } else if cond.mouse_button.is_empty() {
+                            Self::tr_lang(language, "Click to Capture", "Click để Capture").to_owned()
+                        } else {
+                            cond.mouse_button.clone()
+                        };
+
+                        let btn = ui.add_sized(
+                            [100.0, 22.0],
+                            egui::Button::new(
+                                egui::RichText::new(&display_text)
+                                    .color(if active { egui::Color32::from_rgb(255, 232, 96) } else { ui.visuals().widgets.active.text_color() })
+                                    .strong()
+                            )
+                            .sense(egui::Sense::click())
+                        ).on_hover_text(Self::tr_lang(language, "Left click to capture, Right click to clear", "Click trái để capture, Click phải để xóa"));
+
+                        if btn.clicked() {
+                            if active {
+                                *cancel_active_capture = true;
+                            } else {
+                                *next_capture_target = Some(capture_target);
+                            }
+                        }
+                        if btn.secondary_clicked() {
+                            cond.mouse_button.clear();
+                            *live_sync = true;
+                        }
                     }
+
                     IfConditionType::MousePosition => {
                         egui::ComboBox::from_id_salt((group_id, preset_id, step_index, extra_idx, "hold-extra-mouse-pos-axis-cb"))
                             .width(55.0)
@@ -2630,6 +2720,7 @@ impl CrosshairApp {
                         let selected_label = selected_id
                             .and_then(|id| group_presets.iter().find(|(pid, _)| *pid == id).map(|(_, name)| name.clone()))
                             .unwrap_or_else(|| Self::tr_lang(language, "Preset", "Preset").to_owned());
+
                         egui::ComboBox::from_id_salt((group_id, preset_id, step_index, extra_idx, "hold-extra-running-preset-cb"))
                             .width(120.0)
                             .selected_text(selected_label)
@@ -2641,8 +2732,10 @@ impl CrosshairApp {
                                     }
                                 }
                             });
-                    }
-                }
+                        }
+                        _ => {}
+                        }
+
 
                 let btn_minus = egui::Button::new(egui::RichText::new("-").size(14.0).strong());
                 let btn_minus_clicked = ui.scope(|ui| {
@@ -5850,6 +5943,7 @@ pub(crate) fn render_macro_panel(&mut self, ui: &mut egui::Ui) {
                                                              });
                                                              if step.get_break_loop_mode() == "VarCompare" {
 
+
                                                                  Self::render_extra_conditions(
                                                                  ui,
                                                                  &mut step.extra_conditions,
@@ -5867,7 +5961,11 @@ pub(crate) fn render_macro_panel(&mut self, ui: &mut egui::Ui) {
                                                                  self.state.vietnamese_input_enabled,
                                                                  self.state.vietnamese_input_mode,
                                                                  &mut self.mouse_move_absolute_capture_target,
-                                                             );
+                                                                 capture_target_snapshot.as_ref(),
+                                                                 &mut next_capture_target,
+                                                                 &mut cancel_active_capture,
+                                                                 );
+
 
                                                              }
                                                          });
@@ -6078,6 +6176,7 @@ pub(crate) fn render_macro_panel(&mut self, ui: &mut egui::Ui) {
                                                                        [56.0, 22.0],
                                                                        egui::Label::new(Self::tr_lang(language, "IF", "NẾU")),
                                                                    );
+
                                                                    let cond_text = match step.if_condition_type {
                                                                         IfConditionType::Variable => Self::tr_lang(language, "Variable", "Biến"),
                                                                         IfConditionType::PixelColor => Self::tr_lang(language, "Pixel Color", "Màu điểm"),
@@ -6087,7 +6186,9 @@ pub(crate) fn render_macro_panel(&mut self, ui: &mut egui::Ui) {
                                                                         IfConditionType::MousePosition => Self::tr_lang(language, "Mouse Position", "Tọa độ chuột"),
                                                                         IfConditionType::PresetRunning => Self::tr_lang(language, "Preset Running", "Preset đang chạy"),
                                                                         IfConditionType::OcrMatch => Self::tr_lang(language, "OCR Match", "Từ tìm (OCR)"),
+                                                                        _ => "-",
                                                                     };
+
                                                                    
                                                                    egui::ComboBox::from_id_salt((group.id, preset.id, 0, "hold-stop-if-condition-type"))
                                                                        .width(100.0)
@@ -6136,12 +6237,14 @@ pub(crate) fn render_macro_panel(&mut self, ui: &mut egui::Ui) {
                                                                        .width(55.0)
                                                                        .selected_text(&step.if_operator)
                                                                        .show_ui(ui, |ui| {
-                                                                           for op in &["==", ">", "<", ">=", "<=", "!=", "contain"] {
+
+                                                                           for op in &["==", ">", "<", ">=", "<=", "!="] {
                                                                                if ui.selectable_label(step.if_operator == *op, *op).clicked() {
                                                                                    step.if_operator = op.to_string();
                                                                                    live_sync = true;
                                                                                }
                                                                            }
+
                                                                        });
                                                                    let var_val_id = ui.id().with("hold-stop-if-var-val");
                                                                    let response2 = Self::render_variable_text_edit(
@@ -6163,12 +6266,7 @@ pub(crate) fn render_macro_panel(&mut self, ui: &mut egui::Ui) {
                                                                    );
                                                                    live_sync |= response2.changed();
                                                                    Self::render_variable_suggestions(ui, &response2, &mut step.key, &timer_names, language);
-                                                                   if step.if_operator.trim().to_lowercase() == "contain" {
-                                                                       ui.add_space(4.0);
-                                                                       live_sync |= ui.checkbox(&mut step.if_contain_case_sensitive, Self::tr_lang(language, "Aa", "Chữ hoa/thường")).on_hover_text(Self::tr_lang(language, "Distinguish uppercase and lowercase", "Phân biệt chữ hoa và chữ thường")).changed();
-                                                                       ui.add_space(4.0);
-                                                                       live_sync |= ui.checkbox(&mut step.if_contain_isolated, Self::tr_lang(language, "1/1", "Từ riêng lẻ")).on_hover_text(Self::tr_lang(language, "Match whole words / isolated digits only (boundaries)", "Chỉ khớp từ hoặc cụm số đứng riêng lẻ, không nằm chung nhóm")).changed();
-                                                                   }
+
                                                                       let left_expr = step.if_variable_name.trim();
                                                                       if !left_expr.is_empty() {
                                                                           let left_val = crate::overlay::evaluate_math_expression(left_expr);
@@ -6186,13 +6284,25 @@ pub(crate) fn render_macro_panel(&mut self, ui: &mut egui::Ui) {
                                                                        ui.label("Y:");
                                                                        let resp_y = ui.add(egui::DragValue::new(&mut step.y));
                                                                        live_sync |= resp_y.changed();
+
                                                                        let resp_col = ui.add_sized(
                                                                            [64.0, 22.0],
                                                                            TextEdit::singleline(&mut step.if_target_color)
                                                                                .hint_text(RichText::new("#RRGGBB").color(hint_color).weak()),
                                                                        );
                                                                        live_sync |= resp_col.changed();
+
+
+
+                                                                       // Swatch màu trực quan
+                                                                       let swatch_color = Self::parse_rgb_color(&step.if_target_color).unwrap_or(egui::Color32::TRANSPARENT);
+                                                                       let (rect, _response) = ui.allocate_exact_size(egui::vec2(16.0, 16.0), egui::Sense::hover());
+                                                                       ui.painter().rect_filled(rect, 3.0, swatch_color);
+
+
+
                                                                        ui.label(Self::tr_lang(language, "Tol:", "Sai số:"));
+
                                                                        let resp_tol = ui.add(egui::DragValue::new(&mut step.if_color_tolerance).range(0..=255));
                                                                        live_sync |= resp_tol.changed();
 
@@ -6228,31 +6338,82 @@ pub(crate) fn render_macro_panel(&mut self, ui: &mut egui::Ui) {
                                                                                    }
                                                                                }
                                                                            });
+
                                                                    } else if step.if_condition_type == IfConditionType::KeyHeld {
-                                                                       let resp_key = ui.add_sized(
-                                                                           [80.0, 22.0],
-                                                                           TextEdit::singleline(&mut step.if_key_held_name)
-                                                                               .hint_text(RichText::new(Self::tr_lang(language, "Key", "Phím")).color(hint_color).weak()),
-                                                                       );
-                                                                       Self::apply_vietnamese_input_if_changed(
-                                                                           &resp_key,
-                                                                           self.state.vietnamese_input_enabled,
-                                                                           self.state.vietnamese_input_mode,
-                                                                           &mut step.if_key_held_name,
-                                                                       );
-                                                                       live_sync |= resp_key.changed();
+                                                                       let capture_target = CaptureRequest::MacroStepInput {
+                                                                           group_id: group.id,
+                                                                           preset_id: preset.id,
+                                                                           step_index: 0,
+                                                                           extra_cond_index: None,
+                                                                       };
+                                                                       let active = capture_target_snapshot.as_ref() == Some(&capture_target);
+                                                                       let display_text = if active {
+                                                                           Self::tr_lang(language, "Capturing...", "Đang bắt...").to_owned()
+                                                                       } else if step.key.is_empty() {
+                                                                           Self::tr_lang(language, "Click to Capture", "Click để Capture").to_owned()
+                                                                       } else {
+                                                                           step.key.clone()
+                                                                       };
+
+                                                                       let btn = ui.add_sized(
+                                                                           [100.0, 22.0],
+                                                                           egui::Button::new(
+                                                                               egui::RichText::new(&display_text)
+                                                                                   .color(if active { egui::Color32::from_rgb(255, 232, 96) } else { ui.visuals().widgets.active.text_color() })
+                                                                                   .strong()
+                                                                           )
+                                                                           .sense(egui::Sense::click())
+                                                                       ).on_hover_text(Self::tr_lang(language, "Left click to capture, Right click to clear", "Click trái để capture, Click phải để xóa"));
+
+                                                                       if btn.clicked() {
+                                                                           if active {
+                                                                               cancel_active_capture = true;
+                                                                           } else {
+                                                                               next_capture_target = Some(capture_target);
+                                                                           }
+                                                                       }
+                                                                       if btn.secondary_clicked() {
+                                                                           step.key.clear();
+                                                                           live_sync = true;
+                                                                       }
                                                                    } else if step.if_condition_type == IfConditionType::MouseHeld {
-                                                                       egui::ComboBox::from_id_salt((group.id, preset.id, 0, "hold-stop-if-mouse-button"))
-                                                                           .width(90.0)
-                                                                           .selected_text(&step.if_mouse_button)
-                                                                           .show_ui(ui, |ui| {
-                                                                               for btn in &["MouseLeft", "MouseRight", "MouseMiddle", "MouseX1", "MouseX2"] {
-                                                                                   if ui.selectable_label(step.if_mouse_button == *btn, *btn).clicked() {
-                                                                                       step.if_mouse_button = btn.to_string();
-                                                                                       live_sync = true;
-                                                                                   }
-                                                                               }
-                                                                           });
+                                                                       let capture_target = CaptureRequest::MacroStepInput {
+                                                                           group_id: group.id,
+                                                                           preset_id: preset.id,
+                                                                           step_index: 0,
+                                                                           extra_cond_index: None,
+                                                                       };
+                                                                       let active = capture_target_snapshot.as_ref() == Some(&capture_target);
+                                                                       let display_text = if active {
+                                                                           Self::tr_lang(language, "Capturing...", "Đang bắt...").to_owned()
+                                                                       } else if step.key.is_empty() {
+                                                                           Self::tr_lang(language, "Click to Capture", "Click để Capture").to_owned()
+                                                                       } else {
+                                                                           step.key.clone()
+                                                                       };
+
+                                                                       let btn = ui.add_sized(
+                                                                           [100.0, 22.0],
+                                                                           egui::Button::new(
+                                                                               egui::RichText::new(&display_text)
+                                                                                   .color(if active { egui::Color32::from_rgb(255, 232, 96) } else { ui.visuals().widgets.active.text_color() })
+                                                                                   .strong()
+                                                                           )
+                                                                           .sense(egui::Sense::click())
+                                                                       ).on_hover_text(Self::tr_lang(language, "Left click to capture, Right click to clear", "Click trái để capture, Click phải để xóa"));
+
+                                                                       if btn.clicked() {
+                                                                           if active {
+                                                                               cancel_active_capture = true;
+                                                                           } else {
+                                                                               next_capture_target = Some(capture_target);
+                                                                           }
+                                                                       }
+                                                                       if btn.secondary_clicked() {
+                                                                           step.key.clear();
+                                                                           live_sync = true;
+                                                                       }
+
                                                                    } else if step.if_condition_type == IfConditionType::MousePosition {
                                                                        egui::ComboBox::from_id_salt((group.id, preset.id, 0, "hold-stop-if-mouse-axis"))
                                                                            .width(50.0)
@@ -6410,24 +6571,29 @@ pub(crate) fn render_macro_panel(&mut self, ui: &mut egui::Ui) {
                                                                          live_sync = true;
                                                                      }
                                                                 });
+
                                                               Self::render_extra_conditions(
-                                                                  ui,
-                                                                  &mut step.extra_conditions,
-                                                                  group.id,
-                                                                  preset.id,
-                                                                  0,
-                                                                  &timer_names,
-                                                                  &ocr_preset_options,
-                                                                  &image_search_preset_options,
-                                                                  &all_presets,
-                                                                  &all_groups,
-                                                                  language,
-                                                                  &mut live_sync,
-                                                                  &self.state.timer_presets,
-                                                                  self.state.vietnamese_input_enabled,
-                                                                  self.state.vietnamese_input_mode,
-                                                                  &mut self.mouse_move_absolute_capture_target,
+                                                              ui,
+                                                              &mut step.extra_conditions,
+                                                              group.id,
+                                                              preset.id,
+                                                              0,
+                                                              &timer_names,
+                                                              &ocr_preset_options,
+                                                              &image_search_preset_options,
+                                                              &all_presets,
+                                                              &all_groups,
+                                                              language,
+                                                              &mut live_sync,
+                                                              &self.state.timer_presets,
+                                                              self.state.vietnamese_input_enabled,
+                                                              self.state.vietnamese_input_mode,
+                                                              &mut self.mouse_move_absolute_capture_target,
+                                                              capture_target_snapshot.as_ref(),
+                                                              &mut next_capture_target,
+                                                              &mut cancel_active_capture,
                                                               );
+
                                                           });
                                                       });} else if step.action == MacroAction::SetVariable {
                                                     ui.scope(|ui| {
@@ -8505,6 +8671,7 @@ pub(crate) fn render_macro_panel(&mut self, ui: &mut egui::Ui) {
                                                              });
                                                              if step.get_break_loop_mode() == "VarCompare" {
 
+
                                                                  Self::render_extra_conditions(
                                                                  ui,
                                                                  &mut step.extra_conditions,
@@ -8522,7 +8689,11 @@ pub(crate) fn render_macro_panel(&mut self, ui: &mut egui::Ui) {
                                                                  self.state.vietnamese_input_enabled,
                                                                  self.state.vietnamese_input_mode,
                                                                  &mut self.mouse_move_absolute_capture_target,
-                                                             );
+                                                                 capture_target_snapshot.as_ref(),
+                                                                 &mut next_capture_target,
+                                                                 &mut cancel_active_capture,
+                                                                 );
+
 
                                                              }
                                                          });
@@ -8736,6 +8907,7 @@ pub(crate) fn render_macro_panel(&mut self, ui: &mut egui::Ui) {
                                                                         [56.0, 22.0],
                                                                         egui::Label::new(Self::tr_lang(language, "IF", "NẾU")),
                                                                     );
+
                                                                     let cond_text = match step.if_condition_type {
                                                                          IfConditionType::Variable => Self::tr_lang(language, "Variable", "Biến"),
                                                                          IfConditionType::PixelColor => Self::tr_lang(language, "Pixel Color", "Màu điểm"),
@@ -8745,7 +8917,9 @@ pub(crate) fn render_macro_panel(&mut self, ui: &mut egui::Ui) {
                                                                          IfConditionType::MousePosition => Self::tr_lang(language, "Mouse Position", "Tọa độ chuột"),
                                                                          IfConditionType::PresetRunning => Self::tr_lang(language, "Preset Running", "Preset đang chạy"),
                                                                          IfConditionType::OcrMatch => Self::tr_lang(language, "OCR Match", "Từ tìm (OCR)"),
+                                                                         _ => "-",
                                                                      };
+
                                                                     
                                                                     egui::ComboBox::from_id_salt((group.id, preset.id, step_index, "if-condition-type"))
                                                                         .width(100.0)
@@ -8794,12 +8968,14 @@ pub(crate) fn render_macro_panel(&mut self, ui: &mut egui::Ui) {
                                                                         .width(55.0)
                                                                         .selected_text(&step.if_operator)
                                                                         .show_ui(ui, |ui| {
-                                                                            for op in &["==", ">", "<", ">=", "<=", "!=", "contain"] {
+
+                                                                            for op in &["==", ">", "<", ">=", "<=", "!="] {
                                                                                 if ui.selectable_label(step.if_operator == *op, *op).clicked() {
                                                                                     step.if_operator = op.to_string();
                                                                                     live_sync = true;
                                                                                 }
                                                                             }
+
                                                                         });
                                                                     let var_val_id = ui.id().with((step_index, "regular-if-var-val"));
                                                                     let response2 = Self::render_variable_text_edit(
@@ -8821,12 +8997,7 @@ pub(crate) fn render_macro_panel(&mut self, ui: &mut egui::Ui) {
                                                                     );
                                                                     live_sync |= response2.changed();
                                                                     Self::render_variable_suggestions(ui, &response2, &mut step.key, &timer_names, language);
-                                                                    if step.if_operator.trim().to_lowercase() == "contain" {
-                                                                        ui.add_space(4.0);
-                                                                        live_sync |= ui.checkbox(&mut step.if_contain_case_sensitive, Self::tr_lang(language, "Aa", "Chữ hoa/thường")).on_hover_text(Self::tr_lang(language, "Distinguish uppercase and lowercase", "Phân biệt chữ hoa và chữ thường")).changed();
-                                                                        ui.add_space(4.0);
-                                                                        live_sync |= ui.checkbox(&mut step.if_contain_isolated, Self::tr_lang(language, "1/1", "Từ riêng lẻ")).on_hover_text(Self::tr_lang(language, "Match whole words / isolated digits only (boundaries)", "Chỉ khớp từ hoặc cụm số đứng riêng lẻ, không nằm chung nhóm")).changed();
-                                                                    }
+
                                                                        let left_expr = step.if_variable_name.trim();
                                                                        if !left_expr.is_empty() {
                                                                            let left_val = crate::overlay::evaluate_math_expression(left_expr);
@@ -8844,13 +9015,25 @@ pub(crate) fn render_macro_panel(&mut self, ui: &mut egui::Ui) {
                                                                         ui.label("Y:");
                                                                         let resp_y = ui.add(egui::DragValue::new(&mut step.y));
                                                                         live_sync |= resp_y.changed();
+
                                                                         let resp_col = ui.add_sized(
                                                                             [64.0, 22.0],
                                                                             TextEdit::singleline(&mut step.if_target_color)
                                                                                 .hint_text(RichText::new("#RRGGBB").color(hint_color).weak()),
                                                                         );
                                                                         live_sync |= resp_col.changed();
+
+
+
+                                                                        // Swatch màu trực quan
+                                                                        let swatch_color = Self::parse_rgb_color(&step.if_target_color).unwrap_or(egui::Color32::TRANSPARENT);
+                                                                        let (rect, _response) = ui.allocate_exact_size(egui::vec2(16.0, 16.0), egui::Sense::hover());
+                                                                        ui.painter().rect_filled(rect, 3.0, swatch_color);
+
+
+
                                                                         ui.label(Self::tr_lang(language, "Tol:", "Sai số:"));
+
                                                                         let resp_tol = ui.add(egui::DragValue::new(&mut step.if_color_tolerance).range(0..=255));
                                                                         live_sync |= resp_tol.changed();
 
@@ -8886,31 +9069,82 @@ pub(crate) fn render_macro_panel(&mut self, ui: &mut egui::Ui) {
                                                                                     }
                                                                                 }
                                                                             });
+
                                                                     } else if step.if_condition_type == IfConditionType::KeyHeld {
-                                                                        let resp_key = ui.add_sized(
-                                                                            [80.0, 22.0],
-                                                                            TextEdit::singleline(&mut step.if_key_held_name)
-                                                                                .hint_text(RichText::new(Self::tr_lang(language, "Key", "Phím")).color(hint_color).weak()),
-                                                                        );
-                                                                        Self::apply_vietnamese_input_if_changed(
-                                                                            &resp_key,
-                                                                            self.state.vietnamese_input_enabled,
-                                                                            self.state.vietnamese_input_mode,
-                                                                            &mut step.if_key_held_name,
-                                                                        );
-                                                                        live_sync |= resp_key.changed();
+                                                                        let capture_target = CaptureRequest::MacroStepInput {
+                                                                            group_id: group.id,
+                                                                            preset_id: preset.id,
+                                                                            step_index,
+                                                                            extra_cond_index: None,
+                                                                        };
+                                                                        let active = capture_target_snapshot.as_ref() == Some(&capture_target);
+                                                                        let display_text = if active {
+                                                                            Self::tr_lang(language, "Capturing...", "Đang bắt...").to_owned()
+                                                                        } else if step.key.is_empty() {
+                                                                            Self::tr_lang(language, "Click to Capture", "Click để Capture").to_owned()
+                                                                        } else {
+                                                                            step.key.clone()
+                                                                        };
+
+                                                                        let btn = ui.add_sized(
+                                                                            [100.0, 22.0],
+                                                                            egui::Button::new(
+                                                                                egui::RichText::new(&display_text)
+                                                                                    .color(if active { egui::Color32::from_rgb(255, 232, 96) } else { ui.visuals().widgets.active.text_color() })
+                                                                                    .strong()
+                                                                            )
+                                                                            .sense(egui::Sense::click())
+                                                                        ).on_hover_text(Self::tr_lang(language, "Left click to capture, Right click to clear", "Click trái để capture, Click phải để xóa"));
+
+                                                                        if btn.clicked() {
+                                                                            if active {
+                                                                                cancel_active_capture = true;
+                                                                            } else {
+                                                                                next_capture_target = Some(capture_target);
+                                                                            }
+                                                                        }
+                                                                        if btn.secondary_clicked() {
+                                                                            step.key.clear();
+                                                                            live_sync = true;
+                                                                        }
                                                                     } else if step.if_condition_type == IfConditionType::MouseHeld {
-                                                                        egui::ComboBox::from_id_salt((group.id, preset.id, step_index, "if-mouse-button"))
-                                                                            .width(90.0)
-                                                                            .selected_text(&step.if_mouse_button)
-                                                                            .show_ui(ui, |ui| {
-                                                                                for btn in &["MouseLeft", "MouseRight", "MouseMiddle", "MouseX1", "MouseX2"] {
-                                                                                    if ui.selectable_label(step.if_mouse_button == *btn, *btn).clicked() {
-                                                                                        step.if_mouse_button = btn.to_string();
-                                                                                        live_sync = true;
-                                                                                    }
-                                                                                }
-                                                                            });
+                                                                        let capture_target = CaptureRequest::MacroStepInput {
+                                                                            group_id: group.id,
+                                                                            preset_id: preset.id,
+                                                                            step_index,
+                                                                            extra_cond_index: None,
+                                                                        };
+                                                                        let active = capture_target_snapshot.as_ref() == Some(&capture_target);
+                                                                        let display_text = if active {
+                                                                            Self::tr_lang(language, "Capturing...", "Đang bắt...").to_owned()
+                                                                        } else if step.key.is_empty() {
+                                                                            Self::tr_lang(language, "Click to Capture", "Click để Capture").to_owned()
+                                                                        } else {
+                                                                            step.key.clone()
+                                                                        };
+
+                                                                        let btn = ui.add_sized(
+                                                                            [100.0, 22.0],
+                                                                            egui::Button::new(
+                                                                                egui::RichText::new(&display_text)
+                                                                                    .color(if active { egui::Color32::from_rgb(255, 232, 96) } else { ui.visuals().widgets.active.text_color() })
+                                                                                    .strong()
+                                                                            )
+                                                                            .sense(egui::Sense::click())
+                                                                        ).on_hover_text(Self::tr_lang(language, "Left click to capture, Right click to clear", "Click trái để capture, Click phải để xóa"));
+
+                                                                        if btn.clicked() {
+                                                                            if active {
+                                                                                cancel_active_capture = true;
+                                                                            } else {
+                                                                                next_capture_target = Some(capture_target);
+                                                                            }
+                                                                        }
+                                                                        if btn.secondary_clicked() {
+                                                                            step.key.clear();
+                                                                            live_sync = true;
+                                                                        }
+
                                                                     } else if step.if_condition_type == IfConditionType::MousePosition {
                                                                         egui::ComboBox::from_id_salt((group.id, preset.id, step_index, "if-mouse-axis"))
                                                                             .width(50.0)
@@ -9068,24 +9302,29 @@ pub(crate) fn render_macro_panel(&mut self, ui: &mut egui::Ui) {
                                                                          live_sync = true;
                                                                      }
                                                                 });
+
                                                               Self::render_extra_conditions(
-                                                                  ui,
-                                                                  &mut step.extra_conditions,
-                                                                  group.id,
-                                                                  preset.id,
-                                                                  step_index,
-                                                                  &timer_names,
-                                                                  &ocr_preset_options,
-                                                                  &image_search_preset_options,
-                                                                  &all_presets,
-                                                                  &all_groups,
-                                                                  language,
-                                                                  &mut live_sync,
-                                                                  &self.state.timer_presets,
-                                                                  self.state.vietnamese_input_enabled,
-                                                                  self.state.vietnamese_input_mode,
-                                                                  &mut self.mouse_move_absolute_capture_target,
+                                                              ui,
+                                                              &mut step.extra_conditions,
+                                                              group.id,
+                                                              preset.id,
+                                                              step_index,
+                                                              &timer_names,
+                                                              &ocr_preset_options,
+                                                              &image_search_preset_options,
+                                                              &all_presets,
+                                                              &all_groups,
+                                                              language,
+                                                              &mut live_sync,
+                                                              &self.state.timer_presets,
+                                                              self.state.vietnamese_input_enabled,
+                                                              self.state.vietnamese_input_mode,
+                                                              &mut self.mouse_move_absolute_capture_target,
+                                                              capture_target_snapshot.as_ref(),
+                                                              &mut next_capture_target,
+                                                              &mut cancel_active_capture,
                                                               );
+
                                                           });
                                                       });} else if step.action == MacroAction::SetVariable {
                                                     ui.scope(|ui| {
@@ -9213,11 +9452,14 @@ pub(crate) fn render_macro_panel(&mut self, ui: &mut egui::Ui) {
                                                          });
                                                      }
                                                 } else {
+
                                                     let step_capture_target = CaptureRequest::MacroStepInput {
                                                         group_id: group.id,
                                                         preset_id: preset.id,
                                                         step_index,
+                                                        extra_cond_index: None,
                                                     };
+
                                                     let step_capture_active =
                                                         capture_target_snapshot.as_ref() == Some(&step_capture_target);
                                                     let mut display_key = if step_capture_active {
@@ -9350,11 +9592,14 @@ pub(crate) fn render_macro_panel(&mut self, ui: &mut egui::Ui) {
                                                     live_sync = true;
                                                 }
                                             } else if action_supports_capture && !(step.action == MacroAction::StopIfKeyPressed && step.get_break_loop_mode() != "StopKey") {
+
                                                 let step_capture_target = CaptureRequest::MacroStepInput {
                                                     group_id: group.id,
                                                     preset_id: preset.id,
                                                     step_index,
+                                                    extra_cond_index: None,
                                                 };
+
                                                 let step_capture_active =
                                                     capture_target_snapshot.as_ref() == Some(&step_capture_target);
                                                 let step_capture_width = if step_capture_active { 84.0 } else { 22.0 };

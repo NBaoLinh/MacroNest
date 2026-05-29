@@ -8,6 +8,7 @@ use crate::ui::{
     MouseMoveAbsoluteCaptureTarget,
     MouseCaptureKind,
 };
+use crate::window_list;
 
 #[cfg(windows)]
 use crate::ui::{POINT, GetCursorPos};
@@ -682,6 +683,33 @@ impl CrosshairApp {
     ) {
         // --- Handle ExtraCondition captures ---
         if matches!(target.capture_kind, MouseCaptureKind::ExtraCondMousePos | MouseCaptureKind::ExtraCondPixelColor) {
+            let color = if target.capture_kind == MouseCaptureKind::ExtraCondPixelColor {
+                ctx.send_viewport_cmd(egui::ViewportCommand::Visible(false));
+                let _ = self.overlay_tx.send(OverlayCommand::SetUiVisible(false));
+                std::thread::sleep(std::time::Duration::from_millis(70));
+                let capture = window_list::capture_virtual_screen_region(screen_x, screen_y, 1, 1);
+                
+                self.restore_mouse_move_absolute_viewport(ctx);
+                ctx.send_viewport_cmd(egui::ViewportCommand::Visible(true));
+                ctx.send_viewport_cmd(egui::ViewportCommand::Minimized(false));
+                ctx.send_viewport_cmd(egui::ViewportCommand::Focus);
+                let _ = self.overlay_tx.send(OverlayCommand::SetUiVisible(true));
+                
+                capture.and_then(|f| {
+                    (f.rgba.len() >= 4).then(|| RgbaColor {
+                        r: f.rgba[0],
+                        g: f.rgba[1],
+                        b: f.rgba[2],
+                        a: 255,
+                    })
+                })
+            } else {
+                self.restore_mouse_move_absolute_viewport(ctx);
+                ctx.send_viewport_cmd(egui::ViewportCommand::Visible(true));
+                ctx.send_viewport_cmd(egui::ViewportCommand::Focus);
+                None
+            };
+
             let extra_idx = target.extra_cond_index.unwrap_or(0);
             let step_result = if let Some(group_id) = target.group_id {
                 self.state
@@ -704,6 +732,10 @@ impl CrosshairApp {
                         MouseCaptureKind::ExtraCondPixelColor => {
                             cond.x = screen_x;
                             cond.y = screen_y;
+                            if let Some(c) = color {
+                                cond.target_color = format!("{},{},{}", c.r, c.g, c.b);
+                                cond.color_tolerance = 1;
+                            }
                         }
                         _ => {}
                     }
@@ -711,7 +743,6 @@ impl CrosshairApp {
             }
             self.mouse_move_absolute_capture_target = None;
             self.mouse_move_absolute_capture_wait_for_mouse_release = false;
-            self.restore_mouse_move_absolute_viewport(ctx);
             self.mouse_move_absolute_capture_raise_window = true;
             self.status = match self.state.ui_language {
                 crate::model::UiLanguage::Vietnamese => {
@@ -719,8 +750,6 @@ impl CrosshairApp {
                 }
                 _ => format!("Captured position {}, {}.", screen_x, screen_y),
             };
-            ctx.send_viewport_cmd(egui::ViewportCommand::Visible(true));
-            ctx.send_viewport_cmd(egui::ViewportCommand::Focus);
             ctx.request_repaint_after(std::time::Duration::from_millis(33));
             self.persist();
             if target.group_id.is_some() {
@@ -731,6 +760,33 @@ impl CrosshairApp {
 
         // --- Handle IfStart captures ---
         if matches!(target.capture_kind, MouseCaptureKind::IfStartMousePos | MouseCaptureKind::IfStartPixelColor) {
+            let color = if target.capture_kind == MouseCaptureKind::IfStartPixelColor {
+                ctx.send_viewport_cmd(egui::ViewportCommand::Visible(false));
+                let _ = self.overlay_tx.send(OverlayCommand::SetUiVisible(false));
+                std::thread::sleep(std::time::Duration::from_millis(70));
+                let capture = window_list::capture_virtual_screen_region(screen_x, screen_y, 1, 1);
+                
+                self.restore_mouse_move_absolute_viewport(ctx);
+                ctx.send_viewport_cmd(egui::ViewportCommand::Visible(true));
+                ctx.send_viewport_cmd(egui::ViewportCommand::Minimized(false));
+                ctx.send_viewport_cmd(egui::ViewportCommand::Focus);
+                let _ = self.overlay_tx.send(OverlayCommand::SetUiVisible(true));
+                
+                capture.and_then(|f| {
+                    (f.rgba.len() >= 4).then(|| RgbaColor {
+                        r: f.rgba[0],
+                        g: f.rgba[1],
+                        b: f.rgba[2],
+                        a: 255,
+                    })
+                })
+            } else {
+                self.restore_mouse_move_absolute_viewport(ctx);
+                ctx.send_viewport_cmd(egui::ViewportCommand::Visible(true));
+                ctx.send_viewport_cmd(egui::ViewportCommand::Focus);
+                None
+            };
+
             let step_result = if let Some(group_id) = target.group_id {
                 self.state
                     .macro_groups
@@ -751,13 +807,16 @@ impl CrosshairApp {
                     MouseCaptureKind::IfStartPixelColor => {
                         step.x = screen_x;
                         step.y = screen_y;
+                        if let Some(c) = color {
+                            step.if_target_color = format!("{},{},{}", c.r, c.g, c.b);
+                            step.if_color_tolerance = 1;
+                        }
                     }
                     _ => {}
                 }
             }
             self.mouse_move_absolute_capture_target = None;
             self.mouse_move_absolute_capture_wait_for_mouse_release = false;
-            self.restore_mouse_move_absolute_viewport(ctx);
             self.mouse_move_absolute_capture_raise_window = true;
             self.status = match self.state.ui_language {
                 crate::model::UiLanguage::Vietnamese => {
@@ -765,8 +824,6 @@ impl CrosshairApp {
                 }
                 _ => format!("Captured position {}, {}.", screen_x, screen_y),
             };
-            ctx.send_viewport_cmd(egui::ViewportCommand::Visible(true));
-            ctx.send_viewport_cmd(egui::ViewportCommand::Focus);
             ctx.request_repaint_after(std::time::Duration::from_millis(33));
             self.persist();
             if target.group_id.is_some() {

@@ -466,6 +466,10 @@ pub enum IfConditionType {
     MousePosition,
     PresetRunning,
     OcrMatch,
+    // Deprecated variants kept for backward compatibility
+    TimerRunning,
+    MouseScroll,
+    KeyPressed,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
@@ -802,6 +806,7 @@ pub enum CaptureRequest {
         group_id: u32,
         preset_id: u32,
         step_index: usize,
+        extra_cond_index: Option<usize>,
     },
 }
 

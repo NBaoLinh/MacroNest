@@ -6180,6 +6180,7 @@ impl CrosshairApp {
                 group_id,
                 preset_id,
                 step_index,
+                ..
             } => self
                 .state
                 .macro_groups
@@ -6212,6 +6213,7 @@ impl CrosshairApp {
                 | CaptureRequest::ZoomPresetHotkey(_)
                 | CaptureRequest::VisionPresetHotkey(_)
                 | CaptureRequest::MacrosMasterHotkey
+                | CaptureRequest::MacroStepInput { .. }
         )
     }
 
@@ -6701,6 +6703,7 @@ impl CrosshairApp {
                     group_id,
                     preset_id,
                     step_index,
+                    extra_cond_index,
                 },
                 CapturedInput::Binding(binding),
             ) => {
@@ -6717,7 +6720,20 @@ impl CrosshairApp {
                     })
                     .and_then(|preset| preset.steps.get_mut(step_index))
                 {
-                    if matches!(step.action, MacroAction::LockKeys | MacroAction::UnlockKeys) {
+                    if step.action == MacroAction::IfStart {
+                        if let Some(extra_idx) = extra_cond_index {
+                            if let Some(cond) = step.extra_conditions.get_mut(extra_idx) {
+                                if cond.condition_type == crate::model::IfConditionType::KeyHeld {
+                                    cond.key_held_name = binding.key;
+                                } else if cond.condition_type == crate::model::IfConditionType::MouseHeld {
+                                    cond.mouse_button = binding.key;
+                                }
+                            }
+                        } else {
+                            step.key = binding.key;
+                        }
+                        self.status = format!("Captured IfStart condition input for preset {preset_id}.");
+                    } else if matches!(step.action, MacroAction::LockKeys | MacroAction::UnlockKeys) {
                         let key = binding.key;
                         let existing = step
                             .key
@@ -6753,6 +6769,7 @@ impl CrosshairApp {
                     group_id,
                     preset_id,
                     step_index,
+                    extra_cond_index: _,
                 },
                 CapturedInput::Step(mut captured_step),
             ) => {

@@ -7010,7 +7010,13 @@ mod windows_overlay {
                 &cond.ocr_target_text,
                 cond.if_contain_case_sensitive,
                 cond.if_contain_isolated,
-                "",
+                if cond.condition_type == IfConditionType::KeyHeld {
+                    &cond.key_held_name
+                } else if cond.condition_type == IfConditionType::MouseHeld {
+                    &cond.mouse_button
+                } else {
+                    ""
+                },
                 cond.x,
                 cond.y,
                 &cond.target_color,
