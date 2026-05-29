@@ -8499,22 +8499,7 @@ pub(crate) fn render_macro_panel(&mut self, ui: &mut egui::Ui) {
                                                                     }
                                                                 }
 
-                                                                if is_hovered {
-                                                                    let hover_request = HoverPreviewRequest::OcrStepRegion {
-                                                                        source_id: help_resp.id,
-                                                                        x: step.x,
-                                                                        y: step.y,
-                                                                        w: step.ocr_width,
-                                                                        h: step.ocr_height,
-                                                                    };
-                                                                    let hover_anchor_pos = ui.ctx().pointer_hover_pos().unwrap_or(help_resp.rect.right_bottom());
-                                                                    ui.ctx().data_mut(|data| {
-                                                                        data.insert_temp(
-                                                                            hover_preview_state_id,
-                                                                            Some((group.id, hover_request, hover_anchor_pos)),
-                                                                        )
-                                                                    });
-                                                                }
+                                                                
                                                             }
                                                         });
                                                     });
