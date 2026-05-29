@@ -7607,13 +7607,33 @@ impl eframe::App for CrosshairApp {
                     self.status = status;
                 }
                 UiCommand::VisionCaptureMouseDown { screen_x, screen_y } => {
-                    self.handle_image_search_capture_mouse_down(ctx, screen_x, screen_y);
+                    if self.vision_capture_active {
+                        self.handle_image_search_capture_mouse_down(ctx, screen_x, screen_y);
+                    }
                 }
                 UiCommand::VisionCaptureMouseMove { screen_x, screen_y } => {
-                    self.handle_image_search_capture_mouse_move(ctx, screen_x, screen_y);
+                    if self.vision_capture_active {
+                        self.handle_image_search_capture_mouse_move(ctx, screen_x, screen_y);
+                    }
                 }
                 UiCommand::VisionCaptureMouseUp { screen_x, screen_y } => {
-                    self.handle_image_search_capture_mouse_up(ctx, screen_x, screen_y);
+                    if self.vision_capture_active {
+                        self.handle_image_search_capture_mouse_up(ctx, screen_x, screen_y);
+                    } else if let Some(target) = self.mouse_move_absolute_capture_target
+                        && Self::mouse_move_absolute_capture_uses_blocked_click(target)
+                    {
+                        if self.mouse_move_absolute_capture_wait_for_mouse_release {
+                            self.mouse_move_absolute_capture_wait_for_mouse_release = false;
+                            ctx.request_repaint();
+                        } else {
+                            self.finish_mouse_move_absolute_capture(
+                                ctx,
+                                target,
+                                screen_x,
+                                screen_y,
+                            );
+                        }
+                    }
                 }
                 UiCommand::VisionPointCaptured {
                     preset_id,
