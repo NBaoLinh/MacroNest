@@ -7268,6 +7268,13 @@ fn resolve_text_variable_value(token: &str) -> Option<String> {
         return Some(value.to_string());
     }
 
+    {
+        let text_vars = TEXT_VARIABLES.lock();
+        if let Some(val) = text_vars.get(trimmed) {
+            return Some(val.clone());
+        }
+    }
+
     let vars = RUNTIME_VARIABLES.lock();
     vars.get(trimmed).map(|v| v.to_string())
 }
