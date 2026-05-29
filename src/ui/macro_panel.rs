@@ -8294,9 +8294,12 @@ pub(crate) fn render_macro_panel(&mut self, ui: &mut egui::Ui) {
                                                         ui.horizontal(|ui| {
                                                             ui.spacing_mut().item_spacing.x = 6.0;
                                                             
-                                                            // 1. OCR Preset ComboBox (Width 110.0)
+                                                            // Determine standard interaction height to guarantee identical vertical size
+                                                            let ctrl_height = ui.spacing().interact_size.y;
+                                                            
+                                                            // 1. OCR Preset ComboBox (Width 120.0)
                                                             egui::ComboBox::from_id_salt((group.id, preset.id, step_index, "ocr-preset-step"))
-                                                                .width(110.0)
+                                                                .width(120.0)
                                                                 .selected_text(selected_label)
                                                                 .show_ui(ui, |ui| {
                                                                     if ui.selectable_label(is_custom, Self::tr_lang(language, "Custom OCR", "OCR tuỳ chỉnh")).clicked() {
@@ -8318,11 +8321,11 @@ pub(crate) fn render_macro_panel(&mut self, ui: &mut egui::Ui) {
                                                                     }
                                                                 });
                                                             
-                                                            // 2. Outputs ComboBox (Width 110.0)
+                                                            // 2. Outputs ComboBox (Width 120.0)
                                                             let outputs_label = Self::tr_lang(language, "Outputs", "Đầu ra").to_owned();
                                                             egui::ComboBox::from_id_salt((group.id, preset.id, step_index, "ocr-outputs"))
                                                                  .close_behavior(egui::PopupCloseBehavior::CloseOnClickOutside)
-                                                                 .width(110.0)
+                                                                 .width(120.0)
                                                                  .selected_text(outputs_label)
                                                                  .show_ui(ui, |ui| {
                                                                     ui.set_min_width(200.0);
@@ -8373,11 +8376,9 @@ pub(crate) fn render_macro_panel(&mut self, ui: &mut egui::Ui) {
                                                                  });
 
                                                             if is_custom {
-                                                                // 3. Pick Area Button (Width 110.0, Height 22.0)
-                                                                let pick_btn = egui::Button::new(
-                                                                    egui::RichText::new(Self::tr_lang(language, "Pick area", "Chọn vùng")).size(12.0)
-                                                                );
-                                                                if ui.add_sized([110.0, 22.0], pick_btn)
+                                                                // 3. Pick Area Button (Width 120.0, Height matched to interact height)
+                                                                let pick_btn = egui::Button::new(Self::tr_lang(language, "Pick area", "Chọn vùng"));
+                                                                if ui.add_sized([120.0, ctrl_height], pick_btn)
                                                                     .on_hover_text(Self::tr_lang(
                                                                         language,
                                                                         "Drag on screen to select the OCR scan region",
@@ -8388,7 +8389,7 @@ pub(crate) fn render_macro_panel(&mut self, ui: &mut egui::Ui) {
                                                                     pending_ocr_step_capture = Some((group.id, preset.id, step_index));
                                                                 }
                                                                 
-                                                                // 4. Language selector (Width 110.0)
+                                                                // 4. Language selector (Width 120.0)
                                                                 let popular_langs: &[(&str, &str)] = &[
                                                                     ("", "Auto"),
                                                                     ("en", "English (en)"),
@@ -8412,7 +8413,7 @@ pub(crate) fn render_macro_panel(&mut self, ui: &mut egui::Ui) {
                                                                     .unwrap_or(if cur_lang.is_empty() { "Auto" } else { cur_lang.as_str() });
                                                                 
                                                                 egui::ComboBox::from_id_salt((group.id, preset.id, step_index, "ocr-step-lang"))
-                                                                    .width(110.0)
+                                                                    .width(120.0)
                                                                     .selected_text(lang_lbl)
                                                                     .show_ui(ui, |ui| {
                                                                         for (code, lbl) in popular_langs {
