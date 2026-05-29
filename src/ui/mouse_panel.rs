@@ -647,7 +647,9 @@ impl CrosshairApp {
             let _ = self.overlay_tx.send(OverlayCommand::SetUiVisible(false));
             crate::overlay::wake_command_queue();
         }
-        self.show_capture_info_window(ctx);
+        if !uses_blocked_click {
+            self.show_capture_info_window(ctx);
+        }
         if uses_blocked_click {
             Self::spawn_mouse_move_absolute_point_capture_thread(
                 self.ui_tx.clone(),
