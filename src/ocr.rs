@@ -27,11 +27,30 @@ pub fn perform_ocr(rgba_bytes: &[u8], width: u32, height: u32, lang: &str) -> Re
         bail!("Empty image or invalid dimensions");
     }
 
+    let mut w = width;
+    let mut h = height;
+    let mut rgba_vec = rgba_bytes.to_vec();
+    let mut scale_factor = 1;
+
+    // Windows OCR requires width and height of the image to be at least 40 pixels.
+    // If the captured region is too small, we upscale it to improve detection accuracy.
+    if w < 120 || h < 120 {
+        scale_factor = if w < 40 || h < 40 { 4 } else { 2 };
+        let new_w = w * scale_factor;
+        let new_h = h * scale_factor;
+        if let Some(img) = image::ImageBuffer::<image::Rgba<u8>, _>::from_raw(w, h, rgba_vec.clone()) {
+            let resized_img = image::imageops::resize(&img, new_w, new_h, image::imageops::FilterType::Triangle);
+            rgba_vec = resized_img.into_raw();
+            w = new_w;
+            h = new_h;
+        }
+    }
+
     // Convert RGBA to PNG in memory
     let mut png_bytes = Vec::new();
     {
         let mut cursor = std::io::Cursor::new(&mut png_bytes);
-        let img = image::ImageBuffer::<image::Rgba<u8>, _>::from_raw(width, height, rgba_bytes.to_vec())
+        let img = image::ImageBuffer::<image::Rgba<u8>, _>::from_raw(w, h, rgba_vec)
             .ok_or_else(|| anyhow::anyhow!("Failed to create ImageBuffer from raw pixels"))?;
         img.write_to(&mut cursor, image::ImageFormat::Png)?;
     }
@@ -81,10 +100,10 @@ pub fn perform_ocr(rgba_bytes: &[u8], width: u32, height: u32, lang: &str) -> Re
             let rect = word.BoundingRect()?;
             words.push(OcrWord {
                 text: word_text,
-                x: rect.X,
-                y: rect.Y,
-                width: rect.Width,
-                height: rect.Height,
+                x: rect.X / scale_factor as f32,
+                y: rect.Y / scale_factor as f32,
+                width: rect.Width / scale_factor as f32,
+                height: rect.Height / scale_factor as f32,
             });
         }
     }

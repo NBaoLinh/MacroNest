@@ -7788,6 +7788,7 @@ impl CrosshairApp {
                                                                                                                  // 2. Output Variables ComboBox containing all outputs with their text boxes
                                                          let outputs_label = Self::tr_lang(language, "Outputs", "Đầu ra").to_owned();
                                                          egui::ComboBox::from_id_salt((group.id, preset.id, step_index, "ocr-outputs"))
+                                                             .close_behavior(egui::PopupCloseBehavior::CloseOnClickOutside)
                                                              .width(110.0)
                                                             .selected_text(outputs_label)
                                                             .show_ui(ui, |ui| {
