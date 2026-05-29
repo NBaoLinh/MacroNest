@@ -2267,6 +2267,383 @@ impl CrosshairApp {
             open_ai_preset_id,
         )
     }
+
+    fn render_extra_conditions(
+        ui: &mut egui::Ui,
+        extra_conditions: &mut Vec<ExtraCondition>,
+        group_id: u32,
+        preset_id: u32,
+        step_index: usize,
+        timer_names: &[String],
+        ocr_preset_options: &[(u32, String)],
+        image_search_preset_options: &[(u32, String)],
+        all_presets: &[(u32, String)],
+        language: UiLanguage,
+        live_sync: &mut bool,
+        timer_presets: &[crate::model::TimerPreset],
+        vietnamese_input_enabled: bool,
+        vietnamese_input_mode: crate::model::VietnameseInputMode,
+    ) {
+        let mut remove_extra_idx = None;
+        for (extra_idx, cond) in extra_conditions.iter_mut().enumerate() {
+            ui.horizontal(|ui| {
+                ui.add_space(20.0);
+
+                egui::ComboBox::from_id_salt((group_id, preset_id, step_index, extra_idx, "hold-extra-join-cb"))
+                    .width(56.0)
+                    .selected_text(if cond.join_operator.eq_ignore_ascii_case("OR") {
+                        Self::tr_lang(language, "OR", "HOẶC")
+                    } else {
+                        Self::tr_lang(language, "AND", "VÀ")
+                    })
+                    .show_ui(ui, |ui| {
+                        for op in &["AND", "OR"] {
+                            let label = if *op == "AND" {
+                                Self::tr_lang(language, "AND", "VÀ")
+                            } else {
+                                Self::tr_lang(language, "OR", "HOẶC")
+                            };
+                            if ui.selectable_label(cond.join_operator.eq_ignore_ascii_case(op), label).clicked() {
+                                cond.join_operator = op.to_string();
+                                *live_sync = true;
+                            }
+                        }
+                    });
+
+                let cond_text = match cond.condition_type {
+                    IfConditionType::Variable => Self::tr_lang(language, "Variable", "Biến"),
+                    IfConditionType::PixelColor => Self::tr_lang(language, "Pixel Color", "Màu điểm"),
+                    IfConditionType::VisionMatch => Self::tr_lang(language, "Vision Match", "Hình ảnh"),
+                    IfConditionType::KeyHeld => Self::tr_lang(language, "Key Held", "Phím giữ"),
+                    IfConditionType::KeyPressed => Self::tr_lang(language, "Key Pressed", "Phím nhấn"),
+                    IfConditionType::MouseHeld => Self::tr_lang(language, "Mouse Held", "Chuột giữ"),
+                    IfConditionType::MouseScroll => Self::tr_lang(language, "Mouse Scroll", "Cuộn chuột"),
+                    IfConditionType::MousePosition => Self::tr_lang(language, "Mouse Position", "Tọa độ chuột"),
+                    IfConditionType::PresetRunning => Self::tr_lang(language, "Preset Running", "Preset đang chạy"),
+                    IfConditionType::TimerRunning => Self::tr_lang(language, "Timer Running", "Timer đang chạy"),
+                    IfConditionType::OcrMatch => Self::tr_lang(language, "OCR Match", "Từ tìm (OCR)"),
+                };
+                
+                egui::ComboBox::from_id_salt((group_id, preset_id, step_index, extra_idx, "hold-extra-cond-type-cb"))
+                    .width(100.0)
+                    .selected_text(cond_text)
+                    .show_ui(ui, |ui| {
+                        let options = [
+                            (IfConditionType::Variable, Self::tr_lang(language, "Variable", "Biến")),
+                            (IfConditionType::PixelColor, Self::tr_lang(language, "Pixel Color", "Màu điểm")),
+                            (IfConditionType::VisionMatch, Self::tr_lang(language, "Vision Match", "Hình ảnh")),
+                            (IfConditionType::KeyHeld, Self::tr_lang(language, "Key Held", "Phím giữ")),
+                            (IfConditionType::KeyPressed, Self::tr_lang(language, "Key Pressed", "Phím nhấn")),
+                            (IfConditionType::MouseHeld, Self::tr_lang(language, "Mouse Held", "Chuột giữ")),
+                            (IfConditionType::MouseScroll, Self::tr_lang(language, "Mouse Scroll", "Cuộn chuột")),
+                            (IfConditionType::MousePosition, Self::tr_lang(language, "Mouse Position", "Tọa độ chuột")),
+                            (IfConditionType::PresetRunning, Self::tr_lang(language, "Preset Running", "Preset đang chạy")),
+                            (IfConditionType::TimerRunning, Self::tr_lang(language, "Timer Running", "Timer đang chạy")),
+                            (IfConditionType::OcrMatch, Self::tr_lang(language, "OCR Match", "Từ tìm (OCR)")),
+                        ];
+                        for (opt_type, opt_label) in options {
+                            if ui.selectable_label(cond.condition_type == opt_type, opt_label).clicked() {
+                                cond.condition_type = opt_type;
+                                *live_sync = true;
+                            }
+                        }
+                    });
+
+                match cond.condition_type {
+                    IfConditionType::Variable => {
+                        let cond_var_id = ui.id().with((step_index, extra_idx, "extra-var-input"));
+                        let response = Self::render_variable_text_edit(
+                            ui,
+                            &mut cond.variable_name,
+                            cond_var_id,
+                            76.0,
+                            140.0,
+                            22.0,
+                            22.0,
+                            Self::tr_lang(language, "value/expr", "biến/expr"),
+                            false,
+                        );
+                        Self::apply_vietnamese_input_if_changed(
+                            &response,
+                            vietnamese_input_enabled,
+                            vietnamese_input_mode,
+                            &mut cond.variable_name,
+                        );
+                        *live_sync |= response.changed();
+                        Self::render_variable_suggestions(ui, &response, &mut cond.variable_name, timer_names, language);
+
+                        egui::ComboBox::from_id_salt((group_id, preset_id, step_index, extra_idx, "hold-extra-op-cb"))
+                            .width(55.0)
+                            .selected_text(&cond.operator)
+                            .show_ui(ui, |ui| {
+                                for op in &["==", ">", "<", ">=", "<=", "!=", "contain"] {
+                                    if ui.selectable_label(cond.operator == *op, *op).clicked() {
+                                        cond.operator = op.to_string();
+                                        *live_sync = true;
+                                    }
+                                }
+                            });
+
+                        let cond_expr_id = ui.id().with((step_index, extra_idx, "extra-expr-input"));
+                        let response2 = Self::render_variable_text_edit(
+                            ui,
+                            &mut cond.expression,
+                            cond_expr_id,
+                            76.0,
+                            180.0,
+                            22.0,
+                            22.0,
+                            Self::tr_lang(language, "value/expr", "giá trị/expr"),
+                            false,
+                        );
+                        Self::apply_vietnamese_input_if_changed(
+                            &response2,
+                            vietnamese_input_enabled,
+                            vietnamese_input_mode,
+                            &mut cond.expression,
+                        );
+                        *live_sync |= response2.changed();
+                        Self::render_variable_suggestions(ui, &response2, &mut cond.expression, timer_names, language);
+
+                        if cond.operator.trim().to_lowercase() == "contain" {
+                            ui.add_space(4.0);
+                            *live_sync |= ui.checkbox(&mut cond.if_contain_case_sensitive, Self::tr_lang(language, "Aa", "Chữ hoa/thường")).on_hover_text(Self::tr_lang(language, "Distinguish uppercase and lowercase", "Phân biệt chữ hoa và chữ thường")).changed();
+                            ui.add_space(4.0);
+                            *live_sync |= ui.checkbox(&mut cond.if_contain_isolated, Self::tr_lang(language, "1/1", "Từ riêng lẻ")).on_hover_text(Self::tr_lang(language, "Match whole words / isolated digits only (boundaries)", "Chỉ khớp từ hoặc cụm số đứng riêng lẻ, không nằm chung nhóm")).changed();
+                        }
+
+                        let left_expr = cond.variable_name.trim();
+                        if !left_expr.is_empty() {
+                            let left_val = crate::overlay::evaluate_math_expression(left_expr);
+                            ui.add_space(2.0);
+                            ui.label(
+                                egui::RichText::new(format!("({})", left_val))
+                                    .size(10.0)
+                                    .color(egui::Color32::from_rgb(0, 191, 255))
+                            ).on_hover_text(Self::tr_lang(language, "Evaluated left expression", "Giá trị biểu thức bên trái"));
+                        }
+                    }
+                    IfConditionType::OcrMatch => {
+                        let selected_id = cond.ocr_preset_id;
+                        let selected_label = selected_id
+                            .and_then(|id| {
+                                ocr_preset_options
+                                    .iter()
+                                    .find(|(preset_id, _)| *preset_id == id)
+                                    .map(|(_, label)| label.clone())
+                            })
+                            .unwrap_or_else(|| Self::tr_lang(language, "Select OCR", "Chọn OCR").to_owned());
+                        
+                        egui::ComboBox::from_id_salt((group_id, preset_id, step_index, extra_idx, "hold-extra-ocr-preset-cb"))
+                            .width(146.0)
+                            .selected_text(selected_label)
+                            .show_ui(ui, |ui| {
+                                for (preset_option_id, preset_option_label) in ocr_preset_options {
+                                    if ui.selectable_label(selected_id == Some(*preset_option_id), preset_option_label).clicked() {
+                                        cond.ocr_preset_id = Some(*preset_option_id);
+                                        *live_sync = true;
+                                    }
+                                }
+                            });
+                        
+                        let var_target_id = ui.id().with((step_index, extra_idx, "hold-stop-ocr-target-text-if-extra"));
+                        let response_target = Self::render_variable_text_edit(
+                            ui,
+                            &mut cond.ocr_target_text,
+                            var_target_id,
+                            76.0,
+                            180.0,
+                            22.0,
+                            22.0,
+                            Self::tr_lang(language, "Target text", "Từ tìm"),
+                            false,
+                        );
+                        Self::apply_vietnamese_input_if_changed(
+                            &response_target,
+                            vietnamese_input_enabled,
+                            vietnamese_input_mode,
+                            &mut cond.ocr_target_text,
+                        );
+                        *live_sync |= response_target.changed();
+                        Self::render_variable_suggestions(ui, &response_target, &mut cond.ocr_target_text, timer_names, language);
+                    }
+                    IfConditionType::PixelColor => {
+                        ui.label("X:");
+                        let resp_x = ui.add(egui::DragValue::new(&mut cond.x));
+                        *live_sync |= resp_x.changed();
+                        ui.label("Y:");
+                        let resp_y = ui.add(egui::DragValue::new(&mut cond.y));
+                        *live_sync |= resp_y.changed();
+                        
+                        let resp_col = ui.add_sized(
+                            [76.0, 22.0],
+                            egui::TextEdit::singleline(&mut cond.target_color)
+                                .hint_text("R,G,B")
+                        );
+                        *live_sync |= resp_col.changed();
+                        ui.label(Self::tr_lang(language, "Tol:", "Sai số:"));
+                        let resp_tol = ui.add(egui::DragValue::new(&mut cond.color_tolerance).range(0..=255));
+                        *live_sync |= resp_tol.changed();
+                    }
+                    IfConditionType::VisionMatch => {
+                        let selected_id = cond.vision_preset_id;
+                        let selected_label = selected_id
+                            .and_then(|id| {
+                                image_search_preset_options.iter().find(|(pid, _)| *pid == id).map(|(_, name)| name.clone())
+                            })
+                            .unwrap_or_else(|| Self::tr_lang(language, "Select Image", "Chọn Ảnh").to_owned());
+                        
+                        egui::ComboBox::from_id_salt((group_id, preset_id, step_index, extra_idx, "hold-extra-vision-preset-cb"))
+                            .width(146.0)
+                            .selected_text(selected_label)
+                            .show_ui(ui, |ui| {
+                                for (pid, pname) in image_search_preset_options {
+                                    if ui.selectable_label(selected_id == Some(*pid), pname).clicked() {
+                                        cond.vision_preset_id = Some(*pid);
+                                        *live_sync = true;
+                                    }
+                                }
+                            });
+                    }
+                    IfConditionType::KeyHeld | IfConditionType::KeyPressed => {
+                        let resp_key = ui.add_sized(
+                            [120.0, 22.0],
+                            egui::TextEdit::singleline(&mut cond.key_held_name)
+                                .hint_text(Self::tr_lang(language, "Key name", "Tên phím"))
+                        );
+                        *live_sync |= resp_key.changed();
+                    }
+                    IfConditionType::MouseHeld => {
+                        egui::ComboBox::from_id_salt((group_id, preset_id, step_index, extra_idx, "hold-extra-mouse-held-cb"))
+                            .width(100.0)
+                            .selected_text(&cond.mouse_button)
+                            .show_ui(ui, |ui| {
+                                for btn in &["Left", "Right", "Middle", "X1", "X2"] {
+                                    if ui.selectable_label(cond.mouse_button == *btn, *btn).clicked() {
+                                        cond.mouse_button = btn.to_string();
+                                        *live_sync = true;
+                                    }
+                                }
+                            });
+                    }
+                    IfConditionType::MouseScroll => {
+                        egui::ComboBox::from_id_salt((group_id, preset_id, step_index, extra_idx, "hold-extra-mouse-scroll-cb"))
+                            .width(100.0)
+                            .selected_text(&cond.scroll_direction)
+                            .show_ui(ui, |ui| {
+                                for dir in &["Up", "Down"] {
+                                    if ui.selectable_label(cond.scroll_direction == *dir, *dir).clicked() {
+                                        cond.scroll_direction = dir.to_string();
+                                        *live_sync = true;
+                                    }
+                                }
+                            });
+                    }
+                    IfConditionType::MousePosition => {
+                        egui::ComboBox::from_id_salt((group_id, preset_id, step_index, extra_idx, "hold-extra-mouse-pos-axis-cb"))
+                            .width(55.0)
+                            .selected_text(&cond.mouse_axis)
+                            .show_ui(ui, |ui| {
+                                for axis in &["X", "Y"] {
+                                    if ui.selectable_label(cond.mouse_axis == *axis, *axis).clicked() {
+                                        cond.mouse_axis = axis.to_string();
+                                        *live_sync = true;
+                                    }
+                                }
+                            });
+
+                        egui::ComboBox::from_id_salt((group_id, preset_id, step_index, extra_idx, "hold-extra-mouse-pos-op-cb"))
+                            .width(55.0)
+                            .selected_text(&cond.operator)
+                            .show_ui(ui, |ui| {
+                                for op in &["==", ">", "<", ">=", "<=", "!="] {
+                                    if ui.selectable_label(cond.operator == *op, *op).clicked() {
+                                        cond.operator = op.to_string();
+                                        *live_sync = true;
+                                    }
+                                }
+                            });
+
+                        let cond_expr_id = ui.id().with((step_index, extra_idx, "hold-extra-mouse-pos-val-input"));
+                        let response2 = Self::render_variable_text_edit(
+                            ui,
+                            &mut cond.expression,
+                            cond_expr_id,
+                            76.0,
+                            120.0,
+                            22.0,
+                            22.0,
+                            Self::tr_lang(language, "value/expr", "giá trị/expr"),
+                            false,
+                        );
+                        Self::apply_vietnamese_input_if_changed(
+                            &response2,
+                            vietnamese_input_enabled,
+                            vietnamese_input_mode,
+                            &mut cond.expression,
+                        );
+                        *live_sync |= response2.changed();
+                        Self::render_variable_suggestions(ui, &response2, &mut cond.expression, timer_names, language);
+                    }
+                    IfConditionType::PresetRunning => {
+                        let selected_id = cond.running_preset_id;
+                        let selected_label = selected_id
+                            .and_then(|id| {
+                                all_presets.iter().find(|(pid, _)| *pid == id).map(|(_, name)| name.clone())
+                            })
+                            .unwrap_or_else(|| Self::tr_lang(language, "Select preset", "Chọn preset").to_owned());
+                        
+                        egui::ComboBox::from_id_salt((group_id, preset_id, step_index, extra_idx, "hold-extra-running-preset-cb"))
+                            .width(120.0)
+                            .selected_text(selected_label)
+                            .show_ui(ui, |ui| {
+                                for (pid, pname) in all_presets {
+                                    if ui.selectable_label(selected_id == Some(*pid), pname).clicked() {
+                                        cond.running_preset_id = Some(*pid);
+                                        *live_sync = true;
+                                    }
+                                }
+                            });
+                    }
+                    IfConditionType::TimerRunning => {
+                        let selected_id = cond.timer_preset_id;
+                        let selected_label = selected_id
+                            .and_then(|id| {
+                                timer_presets.iter().find(|t| t.id == id).map(|t| t.name.clone())
+                            })
+                            .unwrap_or_else(|| Self::tr_lang(language, "Select timer", "Chọn timer").to_owned());
+                        
+                        egui::ComboBox::from_id_salt((group_id, preset_id, step_index, extra_idx, "hold-extra-timer-preset-cb"))
+                            .width(120.0)
+                            .selected_text(selected_label)
+                            .show_ui(ui, |ui| {
+                                for timer in timer_presets {
+                                    if ui.selectable_label(selected_id == Some(timer.id), &timer.name).clicked() {
+                                        cond.timer_preset_id = Some(timer.id);
+                                        *live_sync = true;
+                                    }
+                                }
+                            });
+                    }
+                }
+
+                let btn_minus = egui::Button::new(egui::RichText::new("-").size(14.0).strong());
+                let btn_minus_clicked = ui.scope(|ui| {
+                    ui.spacing_mut().button_padding = egui::vec2(0.0, 0.0);
+                    ui.add_sized([24.0, 24.0], btn_minus)
+                        .on_hover_text(Self::tr_lang(language, "Remove condition", "Xóa điều kiện"))
+                        .clicked()
+                });
+                if btn_minus_clicked.inner {
+                    remove_extra_idx = Some(extra_idx);
+                }
+            });
+        }
+        if let Some(remove_idx) = remove_extra_idx {
+            extra_conditions.remove(remove_idx);
+            *live_sync = true;
+        }
+    }
     pub(crate) fn render_macro_panel(&mut self, ui: &mut egui::Ui) {
         let language = self.state.ui_language;
         let timer_names: Vec<String> = self.state.timer_presets.iter().map(|t| t.name.clone()).collect();
@@ -5408,9 +5785,24 @@ impl CrosshairApp {
                                                                                  .color(Color32::from_rgb(0, 191, 255))
                                                                          ).on_hover_text(Self::tr_lang(language, "Current runtime value", "Giá trị chạy hiện tại"));
                                                                      }
-                                                                     if ui.add_sized([24.0, 24.0], Button::new("+")).on_hover_text(Self::tr_lang(language, "Add condition", "Thêm điều kiện")).clicked() {
+                                                                     let btn_plus_clicked = ui.scope(|ui| {
+
+                                                                         ui.spacing_mut().button_padding = egui::vec2(0.0, 0.0);
+
+                                                                         ui.add_sized([24.0, 24.0], egui::Button::new(egui::RichText::new("+").size(14.0).strong()))
+
+                                                                             .on_hover_text(Self::tr_lang(language, "Add condition", "Thêm điều kiện"))
+
+                                                                             .clicked()
+
+                                                                     });
+
+                                                                     if btn_plus_clicked.inner {
+
                                                                          step.extra_conditions.push(ExtraCondition::default());
+
                                                                          live_sync = true;
+
                                                                      }
                                                                  } else if mode == "StopKey" {
                                                                      let response = ui.add_sized(
@@ -5436,94 +5828,39 @@ impl CrosshairApp {
                                                                  }
                                                              });
                                                              if step.get_break_loop_mode() == "VarCompare" {
-                                                                 let mut remove_extra_idx = None;
-                                                                 for (extra_idx, cond) in step.extra_conditions.iter_mut().enumerate() {
-                                                                      ui.horizontal(|ui| {
-                                                                          ui.add_space(100.0);
-                                                                                                                                                  egui::ComboBox::from_id_salt((group.id, preset.id, extra_idx, "hold-stop-loop-extra-join"))
-                                                                              .width(56.0)
-                                                                              .selected_text(if cond.join_operator.eq_ignore_ascii_case("OR") { Self::tr_lang(language, "OR", "HO?C") } else { Self::tr_lang(language, "AND", "VÀ") })
-                                                                              .show_ui(ui, |ui| {
-                                                                                 for op in &["AND", "OR"] {
-                                                                                     let label = if *op == "AND" {
-                                                                                         Self::tr_lang(language, "AND", "VÀ")
-                                                                                     } else {
-                                                                                         Self::tr_lang(language, "OR", "HO?C")
-                                                                                     };
-                                                                                     if ui.selectable_label(cond.join_operator.eq_ignore_ascii_case(op), label).clicked() {
-                                                                                         cond.join_operator = op.to_string();
-                                                                                         live_sync = true;
-                                                                                     }
-                                                                                 }
-                                                                             });
-                                                                         let cond_var_id = ui.id().with((extra_idx, "hold-stop-loop-extra-var"));
-                                                                         let response = Self::render_variable_text_edit(
-                                                                             ui,
-                                                                             &mut cond.variable_name,
-                                                                             cond_var_id,
-                                                                             76.0,
-                                                                             140.0,
-                                                                             22.0,
-                                                                             22.0,
-                                                                             Self::tr_lang(language, "variable", "biáº¿n"),
-                                                                             false,
-                                                                         );
-                                                                         Self::apply_vietnamese_input_if_changed(
-                                                                             &response,
-                                                                             self.state.vietnamese_input_enabled,
-                                                                             self.state.vietnamese_input_mode,
-                                                                             &mut cond.variable_name,
-                                                                         );
-                                                                         live_sync |= response.changed();
-                                                                         egui::ComboBox::from_id_salt((group.id, preset.id, extra_idx, "hold-stop-loop-extra-op"))
-                                                                             .width(40.0)
-                                                                             .selected_text(&cond.operator)
-                                                                             .show_ui(ui, |ui| {
-                                                                                 for op in &["==", ">", "<", ">=", "<=", "!="] {
-                                                                                     if ui.selectable_label(cond.operator == *op, *op).clicked() {
-                                                                                         cond.operator = op.to_string();
-                                                                                         live_sync = true;
-                                                                                     }
-                                                                                 }
-                                                                             });
-                                                                          let cond_expr_id = ui.id().with((extra_idx, "hold-stop-loop-extra-expr"));
-                                                                          let response2 = Self::render_variable_text_edit(
-                                                                              ui,
-                                                                              &mut cond.expression,
-                                                                              cond_expr_id,
-                                                                              76.0,
-                                                                              160.0,
-                                                                              22.0,
-                                                                              22.0,
-                                                                              Self::tr_lang(language, "value/expr", "giá trị/expr"),
-                                                                              false,
-                                                                          );
-                                                                         Self::apply_vietnamese_input_if_changed(
-                                                                             &response2,
-                                                                             self.state.vietnamese_input_enabled,
-                                                                             self.state.vietnamese_input_mode,
-                                                                             &mut cond.expression,
-                                                                         );
-                                                                         live_sync |= response2.changed();
-                                                                         let var_name = cond.variable_name.trim();
-                                                                         if !var_name.is_empty() {
-                                                                             let current_val = crate::overlay::RUNTIME_VARIABLES.lock().get(var_name).copied();
-                                                                             let val_str = current_val.map(|v| v.to_string()).unwrap_or_else(|| "?".to_string());
-                                                                             ui.label(
-                                                                                 RichText::new(format!("({})", val_str))
-                                                                                     .size(10.0)
-                                                                                     .color(Color32::from_rgb(0, 191, 255))
-                                                                             );
-                                                                         }
-                                                                         if ui.add_sized([24.0, 24.0], Button::new("-")).on_hover_text(Self::tr_lang(language, "Remove condition", "Xóa điều kiện")).clicked() {
-                                                                             remove_extra_idx = Some(extra_idx);
-                                                                         }
-                                                                     });
-                                                                 }
-                                                                 if let Some(remove_idx) = remove_extra_idx {
-                                                                     step.extra_conditions.remove(remove_idx);
-                                                                     live_sync = true;
-                                                                 }
+
+                                                                 Self::render_extra_conditions(
+
+                                                                     ui,
+
+                                                                     &mut step.extra_conditions,
+
+                                                                     group.id,
+
+                                                                     preset.id,
+
+                                                                     0,
+
+                                                                     &timer_names,
+
+                                                                     &ocr_preset_options,
+
+                                                                     &image_search_preset_options,
+
+                                                                     &all_presets,
+
+                                                                     language,
+
+                                                                     &mut live_sync,
+
+                                                                     &self.state.timer_presets,
+
+                                                                     self.state.vietnamese_input_enabled,
+
+                                                                     self.state.vietnamese_input_mode,
+
+                                                                 );
+
                                                              }
                                                          });
                                                      });
@@ -6039,97 +6376,57 @@ impl CrosshairApp {
                                                                         live_sync |= response_target.changed();
                                                                         Self::render_variable_suggestions(ui, &response_target, &mut step.ocr_target_text, &timer_names, language);
                                                                     }
-                                                                     if ui.add_sized([24.0, 24.0], Button::new("+")).on_hover_text(Self::tr_lang(language, "Add condition", "Thêm điều kiện")).clicked() {
-                                                                       step.extra_conditions.push(ExtraCondition::default());
-                                                                       live_sync = true;
-                                                                   }
+                                                                     let btn_plus_clicked = ui.scope(|ui| {
+
+                                                                         ui.spacing_mut().button_padding = egui::vec2(0.0, 0.0);
+
+                                                                         ui.add_sized([24.0, 24.0], egui::Button::new(egui::RichText::new("+").size(14.0).strong()))
+
+                                                                             .on_hover_text(Self::tr_lang(language, "Add condition", "Thêm điều kiện"))
+
+                                                                             .clicked()
+
+                                                                     });
+
+                                                                     if btn_plus_clicked.inner {
+
+                                                                         step.extra_conditions.push(ExtraCondition::default());
+
+                                                                         live_sync = true;
+
+                                                                     }
                                                                });
-                                                             let mut remove_extra_idx = None;
-                                                             for (extra_idx, cond) in step.extra_conditions.iter_mut().enumerate() {
-                                                                  ui.horizontal(|ui| {
-                                                                          egui::ComboBox::from_id_salt((group.id, preset.id, extra_idx, "hold-stop-if-extra-join"))
-                                                                              .width(56.0)
-                                                                              .selected_text(if cond.join_operator.eq_ignore_ascii_case("OR") { Self::tr_lang(language, "OR", "HO?C") } else { Self::tr_lang(language, "AND", "VÀ") })
-                                                                              .show_ui(ui, |ui| {
-                                                                                 for op in &["AND", "OR"] {
-                                                                                     let label = if *op == "AND" {
-                                                                                         Self::tr_lang(language, "AND", "VÀ")
-                                                                                     } else {
-                                                                                         Self::tr_lang(language, "OR", "HO?C")
-                                                                                     };
-                                                                                     if ui.selectable_label(cond.join_operator.eq_ignore_ascii_case(op), label).clicked() {
-                                                                                         cond.join_operator = op.to_string();
-                                                                                         live_sync = true;
-                                                                                     }
-                                                                                 }
-                                                                             });
-                                                                         let cond_var_id = ui.id().with((extra_idx, "hold-stop-extra-if-var"));
-                                                                         let response = Self::render_variable_text_edit(
-                                                                             ui,
-                                                                             &mut cond.variable_name,
-                                                                             cond_var_id,
-                                                                             76.0,
-                                                                             140.0,
-                                                                             22.0,
-                                                                             22.0,
-                                                                             Self::tr_lang(language, "value/expr", "giÃƒÂ¡ trÃ¡Â»â€¹/expr"),
-                                                                             false,
-                                                                         );
-                                                                     Self::apply_vietnamese_input_if_changed(
-                                                                         &response,
-                                                                         self.state.vietnamese_input_enabled,
-                                                                         self.state.vietnamese_input_mode,
-                                                                         &mut cond.variable_name,
-                                                                     );
-                                                                     live_sync |= response.changed();
-                                                                     egui::ComboBox::from_id_salt((group.id, preset.id, extra_idx, "hold-stop-extra-if-op"))
-                                                                         .width(40.0)
-                                                                         .selected_text(&cond.operator)
-                                                                         .show_ui(ui, |ui| {
-                                                                             for op in &["==", ">", "<", ">=", "<=", "!="] {
-                                                                                 if ui.selectable_label(cond.operator == *op, *op).clicked() {
-                                                                                     cond.operator = op.to_string();
-                                                                                     live_sync = true;
-                                                                                 }
-                                                                             }
-                                                                         });
-                                                                      let cond_expr_id = ui.id().with((extra_idx, "hold-stop-extra-if-expr"));
-                                                                      let response2 = Self::render_variable_text_edit(
-                                                                          ui,
-                                                                          &mut cond.expression,
-                                                                          cond_expr_id,
-                                                                          76.0,
-                                                                          160.0,
-                                                                          22.0,
-                                                                          22.0,
-                                                                          Self::tr_lang(language, "value/expr", "giá trị/expr"),
-                                                                          false,
-                                                                      );
-                                                                     Self::apply_vietnamese_input_if_changed(
-                                                                         &response2,
-                                                                         self.state.vietnamese_input_enabled,
-                                                                         self.state.vietnamese_input_mode,
-                                                                         &mut cond.expression,
-                                                                     );
-                                                                     live_sync |= response2.changed();
-                                                                     let left_expr = cond.variable_name.trim();
-                                                                     if !left_expr.is_empty() {
-                                                                         let left_val = crate::overlay::evaluate_math_expression(left_expr);
-                                                                         ui.label(
-                                                                             RichText::new(format!("({})", left_val))
-                                                                                 .size(10.0)
-                                                                                 .color(Color32::from_rgb(0, 191, 255))
-                                                                         );
-                                                                     }
-                                                                         if ui.add_sized([24.0, 24.0], Button::new("-")).on_hover_text(Self::tr_lang(language, "Remove condition", "Xóa điều kiện")).clicked() {
-                                                                         remove_extra_idx = Some(extra_idx);
-                                                                     }
-                                                                 });
-                                                             }
-                                                             if let Some(remove_idx) = remove_extra_idx {
-                                                                 step.extra_conditions.remove(remove_idx);
-                                                                 live_sync = true;
-                                                             }
+                                                             Self::render_extra_conditions(
+
+                                                                 ui,
+
+                                                                 &mut step.extra_conditions,
+
+                                                                 group.id,
+
+                                                                 preset.id,
+
+                                                                 0,
+
+                                                                 &timer_names,
+
+                                                                 &ocr_preset_options,
+
+                                                                 &image_search_preset_options,
+
+                                                                 &all_presets,
+
+                                                                 language,
+
+                                                                 &mut live_sync,
+
+                                                                 &self.state.timer_presets,
+
+                                                                 self.state.vietnamese_input_enabled,
+
+                                                                 self.state.vietnamese_input_mode,
+
+                                                             );
                                                          });
                                                      });
                                                                                                 } else if step.action == MacroAction::SetVariable {
@@ -8171,9 +8468,24 @@ impl CrosshairApp {
                                                                                  .color(Color32::from_rgb(0, 191, 255))
                                                                          ).on_hover_text(Self::tr_lang(language, "Current runtime value", "Giá trị chạy hiện tại"));
                                                                      }
-                                                                     if ui.add_sized([24.0, 24.0], Button::new("+")).on_hover_text(Self::tr_lang(language, "Add condition", "Thêm điều kiện")).clicked() {
+                                                                     let btn_plus_clicked = ui.scope(|ui| {
+
+                                                                         ui.spacing_mut().button_padding = egui::vec2(0.0, 0.0);
+
+                                                                         ui.add_sized([24.0, 24.0], egui::Button::new(egui::RichText::new("+").size(14.0).strong()))
+
+                                                                             .on_hover_text(Self::tr_lang(language, "Add condition", "Thêm điều kiện"))
+
+                                                                             .clicked()
+
+                                                                     });
+
+                                                                     if btn_plus_clicked.inner {
+
                                                                          step.extra_conditions.push(ExtraCondition::default());
+
                                                                          live_sync = true;
+
                                                                      }
                                                                  } else if mode == "StopKey" {
                                                                      let response = ui.add_sized(
@@ -8192,94 +8504,39 @@ impl CrosshairApp {
                                                                  }
                                                              });
                                                              if step.get_break_loop_mode() == "VarCompare" {
-                                                                 let mut remove_extra_idx = None;
-                                                                 for (extra_idx, cond) in step.extra_conditions.iter_mut().enumerate() {
-                                                                      ui.horizontal(|ui| {
-                                                                          ui.add_space(100.0);
-                                                                                                                                                  egui::ComboBox::from_id_salt((group.id, preset.id, extra_idx, "stop-loop-extra-join"))
-                                                                              .width(56.0)
-                                                                              .selected_text(if cond.join_operator.eq_ignore_ascii_case("OR") { Self::tr_lang(language, "OR", "HO?C") } else { Self::tr_lang(language, "AND", "VÀ") })
-                                                                              .show_ui(ui, |ui| {
-                                                                                 for op in &["AND", "OR"] {
-                                                                                     let label = if *op == "AND" {
-                                                                                         Self::tr_lang(language, "AND", "VÀ")
-                                                                                     } else {
-                                                                                         Self::tr_lang(language, "OR", "HO?C")
-                                                                                     };
-                                                                                     if ui.selectable_label(cond.join_operator.eq_ignore_ascii_case(op), label).clicked() {
-                                                                                         cond.join_operator = op.to_string();
-                                                                                         live_sync = true;
-                                                                                     }
-                                                                                 }
-                                                                             });
-                                                                        let cond_var_id = ui.id().with((step_index, extra_idx, "extra-stop-var"));
-                                                                        let response = Self::render_variable_text_edit(
-                                                                            ui,
-                                                                            &mut cond.variable_name,
-                                                                            cond_var_id,
-                                                                            64.0,
-                                                                            140.0,
-                                                                            18.0,
-                                                                            18.0,
-                                                                            Self::tr_lang(language, "variable", "biáº¿n"),
-                                                                            false,
-                                                                        );
-                                                                         Self::apply_vietnamese_input_if_changed(
-                                                                             &response,
-                                                                             self.state.vietnamese_input_enabled,
-                                                                             self.state.vietnamese_input_mode,
-                                                                             &mut cond.variable_name,
-                                                                         );
-                                                                         live_sync |= response.changed();
-                                                                         egui::ComboBox::from_id_salt((group.id, preset.id, step_index, extra_idx, "extra-stop-op"))
-                                                                             .width(40.0)
-                                                                             .selected_text(&cond.operator)
-                                                                             .show_ui(ui, |ui| {
-                                                                                 for op in &["==", ">", "<", ">=", "<=", "!="] {
-                                                                                     if ui.selectable_label(cond.operator == *op, *op).clicked() {
-                                                                                         cond.operator = op.to_string();
-                                                                                         live_sync = true;
-                                                                                     }
-                                                                                 }
-                                                                             });
-                                                                          let cond_expr_id = ui.id().with((step_index, extra_idx, "extra-stop-expr"));
-                                                                          let response2 = Self::render_variable_text_edit(
-                                                                              ui,
-                                                                              &mut cond.expression,
-                                                                              cond_expr_id,
-                                                                              64.0,
-                                                                              160.0,
-                                                                              18.0,
-                                                                              18.0,
-                                                                              Self::tr_lang(language, "value/expr", "giá trị/expr"),
-                                                                              false,
-                                                                          );
-                                                                         Self::apply_vietnamese_input_if_changed(
-                                                                             &response2,
-                                                                             self.state.vietnamese_input_enabled,
-                                                                             self.state.vietnamese_input_mode,
-                                                                             &mut cond.expression,
-                                                                         );
-                                                                         live_sync |= response2.changed();
-                                                                         let var_name = cond.variable_name.trim();
-                                                                         if !var_name.is_empty() {
-                                                                             let current_val = crate::overlay::RUNTIME_VARIABLES.lock().get(var_name).copied();
-                                                                             let val_str = current_val.map(|v| v.to_string()).unwrap_or_else(|| "?".to_string());
-                                                                             ui.label(
-                                                                                 RichText::new(format!("({})", val_str))
-                                                                                     .size(10.0)
-                                                                                     .color(Color32::from_rgb(0, 191, 255))
-                                                                             );
-                                                                         }
-                                                                         if ui.add_sized([24.0, 24.0], Button::new("-")).on_hover_text(Self::tr_lang(language, "Remove condition", "Xóa điều kiện")).clicked() {
-                                                                             remove_extra_idx = Some(extra_idx);
-                                                                         }
-                                                                     });
-                                                                 }
-                                                                 if let Some(remove_idx) = remove_extra_idx {
-                                                                     step.extra_conditions.remove(remove_idx);
-                                                                     live_sync = true;
-                                                                 }
+
+                                                                 Self::render_extra_conditions(
+
+                                                                     ui,
+
+                                                                     &mut step.extra_conditions,
+
+                                                                     group.id,
+
+                                                                     preset.id,
+
+                                                                     step_index,
+
+                                                                     &timer_names,
+
+                                                                     &ocr_preset_options,
+
+                                                                     &image_search_preset_options,
+
+                                                                     &all_presets,
+
+                                                                     language,
+
+                                                                     &mut live_sync,
+
+                                                                     &self.state.timer_presets,
+
+                                                                     self.state.vietnamese_input_enabled,
+
+                                                                     self.state.vietnamese_input_mode,
+
+                                                                 );
+
                                                              }
                                                          });
                                                      });
@@ -8793,97 +9050,57 @@ impl CrosshairApp {
                                                                         live_sync |= response_target.changed();
                                                                         Self::render_variable_suggestions(ui, &response_target, &mut step.ocr_target_text, &timer_names, language);
                                                                     }
-                                                                     if ui.add_sized([24.0, 24.0], Button::new("+")).on_hover_text(Self::tr_lang(language, "Add condition", "Thêm điều kiện")).clicked() {
-                                                                       step.extra_conditions.push(ExtraCondition::default());
-                                                                       live_sync = true;
-                                                                   }
+                                                                     let btn_plus_clicked = ui.scope(|ui| {
+
+                                                                         ui.spacing_mut().button_padding = egui::vec2(0.0, 0.0);
+
+                                                                         ui.add_sized([24.0, 24.0], egui::Button::new(egui::RichText::new("+").size(14.0).strong()))
+
+                                                                             .on_hover_text(Self::tr_lang(language, "Add condition", "Thêm điều kiện"))
+
+                                                                             .clicked()
+
+                                                                     });
+
+                                                                     if btn_plus_clicked.inner {
+
+                                                                         step.extra_conditions.push(ExtraCondition::default());
+
+                                                                         live_sync = true;
+
+                                                                     }
                                                                });
-                                                             let mut remove_extra_idx = None;
-                                                             for (extra_idx, cond) in step.extra_conditions.iter_mut().enumerate() {
-                                                                  ui.horizontal(|ui| {
-                                                                          egui::ComboBox::from_id_salt((group.id, preset.id, extra_idx, "if-extra-join"))
-                                                                              .width(56.0)
-                                                                              .selected_text(if cond.join_operator.eq_ignore_ascii_case("OR") { Self::tr_lang(language, "OR", "HO?C") } else { Self::tr_lang(language, "AND", "VÀ") })
-                                                                              .show_ui(ui, |ui| {
-                                                                                 for op in &["AND", "OR"] {
-                                                                                     let label = if *op == "AND" {
-                                                                                         Self::tr_lang(language, "AND", "VÀ")
-                                                                                     } else {
-                                                                                         Self::tr_lang(language, "OR", "HO?C")
-                                                                                     };
-                                                                                     if ui.selectable_label(cond.join_operator.eq_ignore_ascii_case(op), label).clicked() {
-                                                                                         cond.join_operator = op.to_string();
-                                                                                         live_sync = true;
-                                                                                     }
-                                                                                 }
-                                                                             });
-                                                                         let cond_var_id = ui.id().with((step_index, extra_idx, "extra-if-var"));
-                                                                         let response = Self::render_variable_text_edit(
-                                                                             ui,
-                                                                             &mut cond.variable_name,
-                                                                             cond_var_id,
-                                                                             76.0,
-                                                                             140.0,
-                                                                             22.0,
-                                                                             22.0,
-                                                                             Self::tr_lang(language, "value/expr", "giÃƒÂ¡ trÃ¡Â»â€¹/expr"),
-                                                                             false,
-                                                                         );
-                                                                     Self::apply_vietnamese_input_if_changed(
-                                                                         &response,
-                                                                         self.state.vietnamese_input_enabled,
-                                                                         self.state.vietnamese_input_mode,
-                                                                         &mut cond.variable_name,
-                                                                     );
-                                                                     live_sync |= response.changed();
-                                                                     egui::ComboBox::from_id_salt((group.id, preset.id, step_index, extra_idx, "extra-if-op"))
-                                                                         .width(40.0)
-                                                                         .selected_text(&cond.operator)
-                                                                         .show_ui(ui, |ui| {
-                                                                             for op in &["==", ">", "<", ">=", "<=", "!="] {
-                                                                                 if ui.selectable_label(cond.operator == *op, *op).clicked() {
-                                                                                     cond.operator = op.to_string();
-                                                                                     live_sync = true;
-                                                                                 }
-                                                                             }
-                                                                         });
-                                                                      let cond_expr_id = ui.id().with((step_index, extra_idx, "extra-if-expr"));
-                                                                      let response2 = Self::render_variable_text_edit(
-                                                                          ui,
-                                                                          &mut cond.expression,
-                                                                          cond_expr_id,
-                                                                          76.0,
-                                                                          160.0,
-                                                                          22.0,
-                                                                          22.0,
-                                                                          Self::tr_lang(language, "value/expr", "giá trị/expr"),
-                                                                          false,
-                                                                      );
-                                                                     Self::apply_vietnamese_input_if_changed(
-                                                                         &response2,
-                                                                         self.state.vietnamese_input_enabled,
-                                                                         self.state.vietnamese_input_mode,
-                                                                         &mut cond.expression,
-                                                                     );
-                                                                     live_sync |= response2.changed();
-                                                                     let left_expr = cond.variable_name.trim();
-                                                                     if !left_expr.is_empty() {
-                                                                         let left_val = crate::overlay::evaluate_math_expression(left_expr);
-                                                                         ui.label(
-                                                                             RichText::new(format!("({})", left_val))
-                                                                                 .size(10.0)
-                                                                                 .color(Color32::from_rgb(0, 191, 255))
-                                                                         );
-                                                                     }
-                                                                         if ui.add_sized([24.0, 24.0], Button::new("-")).on_hover_text(Self::tr_lang(language, "Remove condition", "Xóa điều kiện")).clicked() {
-                                                                         remove_extra_idx = Some(extra_idx);
-                                                                     }
-                                                                 });
-                                                             }
-                                                             if let Some(remove_idx) = remove_extra_idx {
-                                                                 step.extra_conditions.remove(remove_idx);
-                                                                 live_sync = true;
-                                                             }
+                                                             Self::render_extra_conditions(
+
+                                                                 ui,
+
+                                                                 &mut step.extra_conditions,
+
+                                                                 group.id,
+
+                                                                 preset.id,
+
+                                                                 step_index,
+
+                                                                 &timer_names,
+
+                                                                 &ocr_preset_options,
+
+                                                                 &image_search_preset_options,
+
+                                                                 &all_presets,
+
+                                                                 language,
+
+                                                                 &mut live_sync,
+
+                                                                 &self.state.timer_presets,
+
+                                                                 self.state.vietnamese_input_enabled,
+
+                                                                 self.state.vietnamese_input_mode,
+
+                                                             );
                                                          });
                                                      });
                                                                                                  } else if step.action == MacroAction::SetVariable {
