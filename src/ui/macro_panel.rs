@@ -8290,12 +8290,9 @@ pub(crate) fn render_macro_panel(&mut self, ui: &mut egui::Ui) {
                                                     ui.vertical(|ui| {
                                                         ui.spacing_mut().item_spacing.y = 4.0;
                                                         
-                                                        // Single row for all components
+                                                        // Row 1: OCR Preset & Outputs ComboBoxes
                                                         ui.horizontal(|ui| {
                                                             ui.spacing_mut().item_spacing.x = 6.0;
-                                                            
-                                                            // Determine standard interaction height to guarantee identical vertical size
-                                                            let ctrl_height = ui.spacing().interact_size.y;
                                                             
                                                             // 1. OCR Preset ComboBox (Width 120.0)
                                                             egui::ComboBox::from_id_salt((group.id, preset.id, step_index, "ocr-preset-step"))
@@ -8374,8 +8371,15 @@ pub(crate) fn render_macro_panel(&mut self, ui: &mut egui::Ui) {
                                                                             ui.end_row();
                                                                         });
                                                                  });
-
-                                                            if is_custom {
+                                                        });
+                                                        
+                                                        // Row 2: Pick Area Button & Language selector (Only for Custom OCR)
+                                                        if is_custom {
+                                                            ui.horizontal(|ui| {
+                                                                ui.spacing_mut().item_spacing.x = 6.0;
+                                                                
+                                                                let ctrl_height = ui.spacing().interact_size.y;
+                                                                
                                                                 // 3. Pick Area Button (Width 120.0, Height matched to interact height)
                                                                 let pick_btn = egui::Button::new(Self::tr_lang(language, "Pick area", "Chọn vùng"));
                                                                 if ui.add_sized([120.0, ctrl_height], pick_btn)
@@ -8423,10 +8427,8 @@ pub(crate) fn render_macro_panel(&mut self, ui: &mut egui::Ui) {
                                                                             }
                                                                         }
                                                                     });
-                                                            }
-                                                        });
-                                                        
-                                                        if is_custom {
+                                                            });
+                                                            
                                                             // Display current area coordinates with custom styling
                                                             ui.label(
                                                                 egui::RichText::new(format!(
