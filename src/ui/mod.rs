@@ -252,6 +252,15 @@ pub fn configure_fonts(ctx: &egui::Context) {
             "../../assets/MaterialIcons-Regular.ttf"
         ))),
     );
+    #[cfg(windows)]
+    {
+        if let Ok(font_bytes) = std::fs::read("C:\\Windows\\Fonts\\msyh.ttc") {
+            fonts.font_data.insert(
+                "cjk_fallback".to_owned(),
+                Arc::new(FontData::from_owned(font_bytes)),
+            );
+        }
+    }
     let ui_family = FontFamily::Name(UI_SANS_FONT.into());
     fonts
         .families
@@ -279,6 +288,21 @@ pub fn configure_fonts(ctx: &egui::Context) {
         .entry(FontFamily::Proportional)
         .or_default()
         .push(MATERIAL_ICONS_FONT.to_owned());
+    #[cfg(windows)]
+    {
+        if fonts.font_data.contains_key("cjk_fallback") {
+            fonts
+                .families
+                .entry(FontFamily::Proportional)
+                .or_default()
+                .push("cjk_fallback".to_owned());
+            fonts
+                .families
+                .entry(FontFamily::Monospace)
+                .or_default()
+                .push("cjk_fallback".to_owned());
+        }
+    }
     ctx.set_fonts(fonts);
     ctx.style_mut(|style| {
         style.interaction.show_tooltips_only_when_still = false;

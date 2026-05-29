@@ -16,6 +16,47 @@ pub struct OcrResult {
 }
 
 #[cfg(windows)]
+pub fn available_ocr_languages() -> Vec<String> {
+    use windows::Media::Ocr::OcrEngine;
+    match OcrEngine::AvailableRecognizerLanguages() {
+        Ok(langs) => langs
+            .into_iter()
+            .filter_map(|l| l.LanguageTag().ok().map(|t| t.to_string()))
+            .collect(),
+        Err(_) => vec![],
+    }
+}
+
+#[cfg(not(windows))]
+pub fn available_ocr_languages() -> Vec<String> {
+    vec![]
+}
+
+#[cfg(windows)]
+fn friendly_lang_not_installed_msg(language_code: &str) -> String {
+    let lang_name = match language_code {
+        "en" | "en-US" => "English",
+        "vi"           => "Tiếng Việt",
+        "zh-Hans"      => "简体中文 (Simplified Chinese)",
+        "zh-Hant"      => "繁體中文 (Traditional Chinese)",
+        "ja"           => "日本語 (Japanese)",
+        "ko"           => "한국어 (Korean)",
+        "fr"           => "Français (French)",
+        "de"           => "Deutsch (German)",
+        "es"           => "Español (Spanish)",
+        "ru"           => "Русский (Russian)",
+        "th"           => "ไทย (Thai)",
+        other          => other,
+    };
+    format!(
+        "Ngôn ngữ OCR '{}' chưa được cài đặt trên Windows.\n\
+        Vui lòng vào Settings → Time & Language → Language & Region → Add a language\n\
+        và cài thêm gói Optional features → Basic Typing / OCR cho ngôn ngữ đó.",
+        lang_name
+    )
+}
+
+#[cfg(windows)]
 pub fn perform_ocr(rgba_bytes: &[u8], width: u32, height: u32, lang: &str) -> Result<OcrResult> {
     use windows::core::HSTRING;
     use windows::Storage::Streams::{InMemoryRandomAccessStream, DataWriter};
@@ -75,14 +116,33 @@ pub fn perform_ocr(rgba_bytes: &[u8], width: u32, height: u32, lang: &str) -> Re
         match OcrEngine::TryCreateFromUserProfileLanguages() {
             Ok(engine) => engine,
             Err(_) => {
-                // Fallback to default engine
+                // Fallback to English
                 let language = Language::CreateLanguage(&HSTRING::from("en-US"))?;
-                OcrEngine::TryCreateFromLanguage(&language)?
+                // Check if English is supported before trying
+                if !OcrEngine::IsLanguageSupported(&language).unwrap_or(false) {
+                    bail!("No OCR language pack is installed on this Windows system. Please go to Settings → Time & Language → Language & Region to install a language with OCR support.");
+                }
+                match OcrEngine::TryCreateFromLanguage(&language) {
+                    Ok(engine) => engine,
+                    Err(e) => bail!("Failed to create OCR engine for English: {}", e),
+                }
             }
         }
     } else {
-        let language = Language::CreateLanguage(&HSTRING::from(lang.trim()))?;
-        OcrEngine::TryCreateFromLanguage(&language)?
+        let language_code = lang.trim();
+        let language = Language::CreateLanguage(&HSTRING::from(language_code))?;
+
+        // Check if language pack is installed before trying to create engine
+        if !OcrEngine::IsLanguageSupported(&language).unwrap_or(false) {
+            bail!("{}", friendly_lang_not_installed_msg(language_code));
+        }
+
+        match OcrEngine::TryCreateFromLanguage(&language) {
+            Ok(engine) => engine,
+            Err(e) => {
+                bail!("{}\n(Details: {})", friendly_lang_not_installed_msg(language_code), e);
+            }
+        }
     };
 
     // Recognize text

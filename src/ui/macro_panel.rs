@@ -8358,8 +8358,6 @@ pub(crate) fn render_macro_panel(&mut self, ui: &mut egui::Ui) {
                                                             }
                                                         });
                                                     
-                                                    ui.add_space(4.0);
-                                                    
                                                     // 2. Outputs ComboBox (Width 110.0)
                                                     let outputs_label = Self::tr_lang(language, "Outputs", "Đầu ra").to_owned();
                                                     egui::ComboBox::from_id_salt((group.id, preset.id, step_index, "ocr-outputs"))
@@ -8432,41 +8430,58 @@ pub(crate) fn render_macro_panel(&mut self, ui: &mut egui::Ui) {
                                                         
                                                         ui.add_space(4.0);
                                                         
-                                                        // 4. Language selector (Width 110.0)
-                                                        let popular_langs: &[(&str, &str)] = &[
-                                                            ("", "Auto"),
-                                                            ("en", "English (en)"),
-                                                            ("vi", "Tiếng Việt (vi)"),
-                                                            ("zh-Hans", "简体中文 (zh)"),
-                                                            ("zh-Hant", "繁體中文 (zht)"),
-                                                            ("ja", "日本語 (ja)"),
-                                                            ("ko", "한국어 (ko)"),
-                                                            ("fr", "Français (fr)"),
-                                                            ("de", "Deutsch (de)"),
-                                                            ("es", "Español (es)"),
-                                                            ("ru", "Русский (ru)"),
-                                                            ("th", "ไทย (th)"),
+                                                        // 4. Language selector - ASCII labels to avoid font rendering issues
+                                                        // [?] means this language pack is not installed on this Windows system
+                                                        let popular_langs: &[(&str, &str, &str)] = &[
+                                                            ("", "Auto",                    "Detect language from Windows profile. No install needed."),
+                                                            ("en",      "English (en)",              "English - usually installed by default"),
+                                                            ("vi",      "Vietnamese (vi)",           "Tieng Viet - install via Windows Settings > Language"),
+                                                            ("zh-Hans", "Chinese Simp (zh)",         "Simplified Chinese - install via Windows Settings > Language"),
+                                                            ("zh-Hant", "Chinese Trad (zht)",        "Traditional Chinese - install via Windows Settings > Language"),
+                                                            ("ja",      "Japanese (ja)",             "install via Windows Settings > Language"),
+                                                            ("ko",      "Korean (ko)",               "install via Windows Settings > Language"),
+                                                            ("fr",      "French (fr)",               "Francais - install via Windows Settings > Language"),
+                                                            ("de",      "German (de)",               "Deutsch - install via Windows Settings > Language"),
+                                                            ("es",      "Spanish (es)",              "Espanol - install via Windows Settings > Language"),
+                                                            ("ru",      "Russian (ru)",              "install via Windows Settings > Language"),
+                                                            ("th",      "Thai (th)",                 "install via Windows Settings > Language"),
                                                         ];
+                                                        
+                                                        let avail_langs = crate::ocr::available_ocr_languages();
                                                         
                                                         let cur_lang = step.ocr_lang.clone().unwrap_or_default();
                                                         let lang_lbl = popular_langs
                                                             .iter()
-                                                            .find(|(code, _)| *code == cur_lang.as_str())
-                                                            .map(|(_, lbl)| *lbl)
+                                                            .find(|(code, _, _)| *code == cur_lang.as_str())
+                                                            .map(|(_, lbl, _)| *lbl)
                                                             .unwrap_or(if cur_lang.is_empty() { "Auto" } else { cur_lang.as_str() });
                                                         
                                                         egui::ComboBox::from_id_salt((group.id, preset.id, step_index, "ocr-step-lang"))
-                                                            .width(110.0)
+                                                            .width(130.0)
                                                             .selected_text(lang_lbl)
                                                             .show_ui(ui, |ui| {
-                                                                for (code, lbl) in popular_langs {
-                                                                    if ui.selectable_label(cur_lang.as_str() == *code, *lbl).clicked() {
+                                                                for (code, lbl, hint) in popular_langs {
+                                                                    let is_selected = cur_lang.as_str() == *code;
+                                                                    let is_installed = code.is_empty() || avail_langs.iter().any(|a| {
+                                                                        a.to_lowercase().starts_with(&code.to_lowercase())
+                                                                    });
+                                                                    let display = if is_installed {
+                                                                        lbl.to_string()
+                                                                    } else {
+                                                                        format!("{} [not installed]", lbl)
+                                                                    };
+                                                                    let resp = ui.selectable_label(is_selected, &display);
+                                                                    let hover_msg = if is_installed {
+                                                                        hint.to_string()
+                                                                    } else {
+                                                                        format!("{} - Language pack NOT installed. Go to Windows Settings > Time & Language > Language & Region > Add a language", hint)
+                                                                    };
+                                                                    if resp.on_hover_text(hover_msg).clicked() {
                                                                         step.ocr_lang = if code.is_empty() { None } else { Some(code.to_string()) };
                                                                         live_sync = true;
                                                                     }
                                                                 }
-                                                            });
-                                                    }
+                                                            });                                                    }
                                                                                                 } else if step.action == MacroAction::PlaySoundPreset {
                                                     let selected_id = step.key.trim().parse::<u32>().ok();
                                                     let selected_label = selected_id
