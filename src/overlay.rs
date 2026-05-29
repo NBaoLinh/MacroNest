@@ -285,6 +285,7 @@ mod windows_overlay {
     pub static FOREGROUND_WINDOW_HWND: std::sync::atomic::AtomicIsize = std::sync::atomic::AtomicIsize::new(0);
     pub static FOREGROUND_WINDOW_TITLE: Lazy<Mutex<Option<String>>> = Lazy::new(|| Mutex::new(None));
     pub static RUNTIME_VARIABLES: Lazy<Mutex<std::collections::HashMap<String, i32>>> = Lazy::new(|| Mutex::new(std::collections::HashMap::new()));
+    pub static TEXT_VARIABLES: Lazy<Mutex<std::collections::HashMap<String, String>>> = Lazy::new(|| Mutex::new(std::collections::HashMap::new()));
 
     pub fn interpolate_variables(text: &str) -> String {
         let mut result = String::new();
@@ -7271,6 +7272,15 @@ fn resolve_text_variable_value(token: &str) -> Option<String> {
     vars.get(trimmed).map(|v| v.to_string())
 }
 
+fn set_text_variable_value(target_var: &str, value: &str) {
+    let target_trimmed = target_var.trim();
+    if target_trimmed.is_empty() {
+        return;
+    }
+    let mut vars = TEXT_VARIABLES.lock();
+    vars.insert(target_trimmed.to_string(), value.to_string());
+}
+
 fn set_variable_value(target_var: &str, value: i32) {
     let target_trimmed = target_var.trim();
     if target_trimmed.is_empty() {
@@ -7401,7 +7411,13 @@ fn execute_ocr_action_step(step: &crate::model::MacroStep) {
 
     if let Some(frame) = window_list::capture_virtual_screen_region(x, y, w, h) {
         if let Ok(res) = crate::ocr::perform_ocr(&frame.rgba, frame.width as u32, frame.height as u32, lang_str) {
-            let full_text = res.text;
+            let full_text = res.text.clone();
+
+            // 0. Store full raw text regardless of target_text
+            let text_var = step.ocr_text_var.trim();
+            if !text_var.is_empty() {
+                set_text_variable_value(text_var, &full_text);
+            }
 
             // 1. Parse number if ocr_numeric_var is set
             let numeric_var = step.ocr_numeric_var.trim();

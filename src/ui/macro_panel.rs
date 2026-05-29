@@ -8408,7 +8408,17 @@ pub(crate) fn render_macro_panel(&mut self, ui: &mut egui::Ui) {
                                                                     let resp = ui.add(egui::TextEdit::singleline(&mut step.ocr_numeric_var).hint_text("var_num"));
                                                                     Self::apply_vietnamese_input_if_changed(&resp, self.state.vietnamese_input_enabled, self.state.vietnamese_input_mode, &mut step.ocr_numeric_var);
                                                                     live_sync |= resp.changed();
-                                                                    ui.end_row();
+                                                                     ui.end_row();
+
+                                                                     let resp_label = ui.label(Self::tr_lang(language, "Text Var:", "Text Var:"));
+                                                                     resp_label.on_hover_text(Self::tr_lang(language, 
+                                                                         "Stores ALL recognized text into this variable, regardless of the Target Text filter", 
+                                                                         "Stores all OCR text into this variable regardless of Target Text filter"
+                                                                     ));
+                                                                     let resp = ui.add(egui::TextEdit::singleline(&mut step.ocr_text_var).hint_text("var_text"));
+                                                                     Self::apply_vietnamese_input_if_changed(&resp, self.state.vietnamese_input_enabled, self.state.vietnamese_input_mode, &mut step.ocr_text_var);
+                                                                     live_sync |= resp.changed();
+                                                                     ui.end_row();
                                                                 });
                                                          });
  
