@@ -156,6 +156,8 @@ impl CrosshairApp {
                                             let is_selected = current_code.as_str() == *code;
                                             let is_installed = code.is_empty() || avail_langs.iter().any(|a| {
                                                 a.to_lowercase().starts_with(&code.to_lowercase())
+                                            }) || self.newly_installed_langs.iter().any(|n| {
+                                                n.to_lowercase() == code.to_lowercase()
                                             });
                                             let display = if is_installed {
                                                 label.to_string()
@@ -177,21 +179,6 @@ impl CrosshairApp {
                                         }
                                     });
                                 let _ = cb;
-
-                                // Also allow manual text input for unlisted languages
-                                let mut lang_str = preset.lang.clone().unwrap_or_default();
-                                let resp = ui.add_sized([70.0, 22.0], egui::TextEdit::singleline(&mut lang_str).hint_text("custom..."));
-                                if resp.changed() {
-                                    preset.lang = if lang_str.trim().is_empty() {
-                                        None
-                                    } else {
-                                        Some(lang_str.trim().to_string())
-                                    };
-                                    live_sync = true;
-                                }
-                                if resp.hovered() {
-                                    resp.on_hover_text(Self::tr_lang(language, "Type a custom language code (e.g. 'en', 'vi', 'ja')", "Nhap ma ngon ngu tuy chinh (vi du 'en', 'vi', 'ja')"));
-                                }
                             });
                         }
                         ui.end_row();

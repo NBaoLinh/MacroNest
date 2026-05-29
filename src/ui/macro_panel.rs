@@ -8464,6 +8464,8 @@ pub(crate) fn render_macro_panel(&mut self, ui: &mut egui::Ui) {
                                                                     let is_selected = cur_lang.as_str() == *code;
                                                                     let is_installed = code.is_empty() || avail_langs.iter().any(|a| {
                                                                         a.to_lowercase().starts_with(&code.to_lowercase())
+                                                                    }) || self.newly_installed_langs.iter().any(|n| {
+                                                                        n.to_lowercase() == code.to_lowercase()
                                                                     });
                                                                     let display = if is_installed {
                                                                         lbl.to_string()

@@ -1442,7 +1442,7 @@ impl CrosshairApp {
                             if is_installed {
                                 ui.label(RichText::new("✓").color(Color32::from_rgb(126, 224, 182)));
                             } else {
-                                ui.label(RichText::new("✗").color(Color32::from_rgb(180, 180, 180)));
+                                ui.label(RichText::new("x").color(Color32::from_rgb(220, 100, 100)));
                             }
 
                             // Language name
