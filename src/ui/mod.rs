@@ -636,6 +636,10 @@ pub struct CrosshairApp {
     vision_manual_color: RgbaColor,
     vision_manual_color_hex: String,
     variable_inspector_open: bool,
+    ocr_lang_pack_open: bool,
+    ocr_lang_install_job: Option<std::thread::JoinHandle<Result<()>>>,
+    ocr_lang_installing: Option<String>,
+    ocr_lang_install_status: Option<(String, bool)>, // (message, is_ok)
     pub show_share_buttons: bool,
 }
 
@@ -798,6 +802,10 @@ impl CrosshairApp {
             vision_manual_color: RgbaColor { r: 0, g: 255, b: 170, a: 255 },
             vision_manual_color_hex: "00FFAA".to_owned(),
             variable_inspector_open: false,
+            ocr_lang_pack_open: false,
+            ocr_lang_install_job: None,
+            ocr_lang_installing: None,
+            ocr_lang_install_status: None,
             show_share_buttons: false,
         };
         app.interception_installed = app.paths.interception_dll.exists();
@@ -7881,7 +7889,36 @@ impl eframe::App for CrosshairApp {
         }
 
 
+        if let Some(job) = &self.ocr_lang_install_job {
+            if job.is_finished() {
+                let lang = self.ocr_lang_installing.take().unwrap_or_default();
+                let job = self.ocr_lang_install_job.take().unwrap();
+                match job.join() {
+                    Ok(Ok(())) => {
+                        self.ocr_lang_install_status = Some((
+                            format!("OCR language '{}' installed successfully. You can now use it.", lang),
+                            true,
+                        ));
+                    }
+                    Ok(Err(error)) => {
+                        self.ocr_lang_install_status = Some((
+                            format!("Failed to install OCR language '{}': {}", lang, error),
+                            false,
+                        ));
+                    }
+                    Err(_) => {
+                        self.ocr_lang_install_status = Some((
+                            format!("Install thread panicked for language '{}'.", lang),
+                            false,
+                        ));
+                    }
+                }
+                ctx.request_repaint();
+            }
+        }
+
         self.poll_custom_ai_generation(ctx);
+
         if self.command_ai_job.is_some() {
             ctx.request_repaint_after(Duration::from_millis(33));
         }
