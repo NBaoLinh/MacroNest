@@ -196,7 +196,7 @@ mod windows_overlay {
         Lazy::new(|| Mutex::new(None));
     static MACRO_RECORDING: Lazy<Mutex<Option<MacroRecordingSession>>> =
         Lazy::new(|| Mutex::new(None));
-    static HOOK_STATE: Lazy<Mutex<HookState>> = Lazy::new(|| Mutex::new(HookState::default()));
+    pub(crate) static HOOK_STATE: Lazy<Mutex<HookState>> = Lazy::new(|| Mutex::new(HookState::default()));
     static ACTIVE_VIDEO_STOP: Lazy<Mutex<Option<Arc<AtomicBool>>>> =
         Lazy::new(|| Mutex::new(None));
     static SYNTHETIC_MOUSE_TRIGGER_SUPPRESSION: Lazy<Mutex<HashMap<String, usize>>> =
@@ -502,7 +502,7 @@ mod windows_overlay {
         }
     }
 
-    struct HookState {
+    pub(crate) struct HookState {
         ui_tx: Option<Sender<UiCommand>>,
         window_presets: Vec<WindowPreset>,
         window_focus_presets: Vec<WindowFocusPreset>,
@@ -531,7 +531,7 @@ mod windows_overlay {
         vision_capture_mouse_blocked: bool,
         vision_capture_is_region_mode: bool,
         vision_capture_anchor: Option<(i32, i32)>,
-        vision_capture_preview_region: Option<VisionRegion>,
+        pub(crate) vision_capture_preview_region: Option<VisionRegion>,
         hud_presets: Vec<HudPreset>,
         ocr_presets: Vec<crate::model::OcrPreset>,
         command_presets: Vec<CommandPreset>,
@@ -8896,14 +8896,14 @@ fn execute_ocr_action_step(step: &crate::model::MacroStep) {
     }
 
     #[derive(Clone, Copy, Debug, PartialEq)]
-    struct VisionRegion {
-        left: i32,
-        top: i32,
-        width: i32,
-        height: i32,
-        is_circle: bool,
-        angle_offset_deg: Option<f32>,
-        angle_span_deg: Option<f32>,
+    pub(crate) struct VisionRegion {
+        pub(crate) left: i32,
+        pub(crate) top: i32,
+        pub(crate) width: i32,
+        pub(crate) height: i32,
+        pub(crate) is_circle: bool,
+        pub(crate) angle_offset_deg: Option<f32>,
+        pub(crate) angle_span_deg: Option<f32>,
     }
 
     fn rgba_to_color_mat(rgba: &[u8], width: usize, height: usize) -> Result<Mat> {

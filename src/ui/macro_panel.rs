@@ -75,6 +75,12 @@ enum MacroStepHoverPreviewKind {
     Generic {
         lines: Vec<String>,
     },
+    OcrStepRegion {
+        x: i32,
+        y: i32,
+        w: i32,
+        h: i32,
+    },
 }
 
 #[derive(Clone)]
@@ -134,6 +140,13 @@ enum HoverPreviewRequest {
         source_id: egui::Id,
         title: String,
         lines: Vec<String>,
+    },
+    OcrStepRegion {
+        source_id: egui::Id,
+        x: i32,
+        y: i32,
+        w: i32,
+        h: i32,
     },
 }
 
@@ -892,6 +905,32 @@ impl CrosshairApp {
                                 ui.label(line);
                             }
                         }
+                        MacroStepHoverPreviewKind::OcrStepRegion { x, y, w, h } => {
+                            ui.horizontal(|ui| {
+                                ui.label(RichText::new(Self::tr_lang(language, "Custom OCR Region", "Vùng quét OCR tuỳ chỉnh")).strong());
+                            });
+                            ui.add_space(6.0);
+                            let (_, preview_rect, scale) = Self::render_hover_preview_screen_canvas(ui, 360.0);
+                            
+                            let region_rect = egui::Rect::from_min_size(
+                                egui::pos2(
+                                    preview_rect.left() + ((*x).max(0) as f32 * scale),
+                                    preview_rect.top() + ((*y).max(0) as f32 * scale),
+                                ),
+                                vec2(
+                                    ((*w).max(1) as f32 * scale).max(10.0),
+                                    ((*h).max(1) as f32 * scale).max(10.0),
+                                ),
+                            );
+                            
+                            ui.painter().rect_filled(region_rect, 6.0, Color32::from_rgba_unmultiplied(0, 255, 170, 28));
+                            ui.painter().rect_stroke(
+                                region_rect,
+                                6.0,
+                                egui::Stroke::new(2.0, Color32::from_rgb(0, 255, 170)),
+                                egui::StrokeKind::Outside,
+                            );
+                        }
                     }
                 });
         }
@@ -920,6 +959,7 @@ impl CrosshairApp {
             MacroStepHoverPreviewKind::Pin { .. } => vec2(560.0, 420.0),
             MacroStepHoverPreviewKind::FocusWindow { .. } => vec2(240.0, 110.0),
             MacroStepHoverPreviewKind::Generic { .. } => vec2(240.0, 120.0),
+            MacroStepHoverPreviewKind::OcrStepRegion { .. } => vec2(560.0, 440.0),
         };
         if pos.x + estimated_size.x > content_rect.right() {
             pos.x = (anchor_pos.x - estimated_size.x - 16.0).max(content_rect.left() + 6.0);
@@ -1269,6 +1309,11 @@ impl CrosshairApp {
                 source_id,
                 title,
                 kind: MacroStepHoverPreviewKind::Generic { lines },
+            }),
+            HoverPreviewRequest::OcrStepRegion { source_id, x, y, w, h } => Some(MacroStepHoverPreview {
+                source_id,
+                title: Self::tr_lang(self.state.ui_language, "Custom OCR Region", "Vùng quét OCR tuỳ chỉnh").to_owned(),
+                kind: MacroStepHoverPreviewKind::OcrStepRegion { x, y, w, h },
             }),
         }
     }
@@ -8290,7 +8335,7 @@ pub(crate) fn render_macro_panel(&mut self, ui: &mut egui::Ui) {
                                                     ui.vertical(|ui| {
                                                         ui.spacing_mut().item_spacing.y = 4.0;
                                                         
-                                                        // ALL 4 CONTROLS IN 1 SINGLE ROW
+                                                        // ALL CONTROLS (dropdowns, button, help button) IN 1 SINGLE ROW
                                                         ui.horizontal(|ui| {
                                                             ui.spacing_mut().item_spacing.x = 6.0;
                                                             
@@ -8375,7 +8420,7 @@ pub(crate) fn render_macro_panel(&mut self, ui: &mut egui::Ui) {
                                                                  });
 
                                                             if is_custom {
-                                                                // 3. Pick Area Button (Width 110.0, Height matched to interact height)
+                                                                // 3. Pick Area Button (Width 110.0, Height 18.0)
                                                                 let pick_btn = egui::Button::new(Self::tr_lang(language, "Pick area", "Chọn vùng"));
                                                                 if ui.add_sized([110.0, ctrl_height], pick_btn)
                                                                     .on_hover_text(Self::tr_lang(
@@ -8422,20 +8467,56 @@ pub(crate) fn render_macro_panel(&mut self, ui: &mut egui::Ui) {
                                                                             }
                                                                         }
                                                                     });
+                                                                
+                                                                // 5. Help Button (?) (Width 110.0, matches all other elements)
+                                                                let help_btn = egui::Button::new("?");
+                                                                let help_resp = ui.add_sized([110.0, ctrl_height], help_btn)
+                                                                    .on_hover_text(Self::tr_lang(
+                                                                        language,
+                                                                        "Hover to preview the selected OCR region on screen",
+                                                                        "Rê chuột vào để xem trước vùng quét OCR trên màn hình"
+                                                                    ));
+                                                                
+                                                                let is_hovered = help_resp.hovered();
+                                                                {
+                                                                    let mut hook_state = crate::overlay::HOOK_STATE.lock();
+                                                                    if is_hovered {
+                                                                        hook_state.vision_capture_preview_region = Some(crate::overlay::VisionRegion {
+                                                                            left: step.x,
+                                                                            top: step.y,
+                                                                            width: step.ocr_width.max(10),
+                                                                            height: step.ocr_height.max(10),
+                                                                            is_circle: false,
+                                                                            angle_offset_deg: None,
+                                                                            angle_span_deg: None,
+                                                                        });
+                                                                    } else {
+                                                                        if let Some(r) = hook_state.vision_capture_preview_region {
+                                                                            if r.left == step.x && r.top == step.y && r.width == step.ocr_width.max(10) && r.height == step.ocr_height.max(10) {
+                                                                                hook_state.vision_capture_preview_region = None;
+                                                                            }
+                                                                        }
+                                                                    }
+                                                                }
+
+                                                                if is_hovered {
+                                                                    let hover_request = HoverPreviewRequest::OcrStepRegion {
+                                                                        source_id: help_resp.id,
+                                                                        x: step.x,
+                                                                        y: step.y,
+                                                                        w: step.ocr_width,
+                                                                        h: step.ocr_height,
+                                                                    };
+                                                                    let hover_anchor_pos = ui.ctx().pointer_hover_pos().unwrap_or(help_resp.rect.right_bottom());
+                                                                    ui.ctx().data_mut(|data| {
+                                                                        data.insert_temp(
+                                                                            hover_preview_state_id,
+                                                                            Some((group.id, hover_request, hover_anchor_pos)),
+                                                                        )
+                                                                    });
+                                                                }
                                                             }
                                                         });
-                                                        
-                                                        if is_custom {
-                                                            // Display current area coordinates with custom styling
-                                                            ui.label(
-                                                                egui::RichText::new(format!(
-                                                                    "Area: X:{} Y:{} W:{} H:{}",
-                                                                    step.x, step.y, step.ocr_width, step.ocr_height
-                                                                ))
-                                                                .size(10.5)
-                                                                .color(egui::Color32::from_rgb(148, 200, 255)),
-                                                            );
-                                                        }
                                                     });
                                                 } else if step.action == MacroAction::PlaySoundPreset {
                                                     let selected_id = step.key.trim().parse::<u32>().ok();
