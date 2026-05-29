@@ -6,6 +6,7 @@ use crate::hotkey;
 use crate::ui::{
     CrosshairApp,
     MouseMoveAbsoluteCaptureTarget,
+    MouseCaptureKind,
 };
 
 #[cfg(windows)]
@@ -679,6 +680,102 @@ impl CrosshairApp {
         screen_x: i32,
         screen_y: i32,
     ) {
+        // --- Handle ExtraCondition captures ---
+        if matches!(target.capture_kind, MouseCaptureKind::ExtraCondMousePos | MouseCaptureKind::ExtraCondPixelColor) {
+            let extra_idx = target.extra_cond_index.unwrap_or(0);
+            let step_result = if let Some(group_id) = target.group_id {
+                self.state
+                    .macro_groups
+                    .iter_mut()
+                    .find(|group| group.id == group_id)
+                    .and_then(|group| {
+                        group.presets.iter_mut().find(|preset| preset.id == target.preset_id)
+                    })
+                    .and_then(|preset| preset.steps.get_mut(target.step_index))
+            } else {
+                None
+            };
+            if let Some(step) = step_result {
+                if let Some(cond) = step.extra_conditions.get_mut(extra_idx) {
+                    match target.capture_kind {
+                        MouseCaptureKind::ExtraCondMousePos => {
+                            cond.expression = screen_x.to_string();
+                        }
+                        MouseCaptureKind::ExtraCondPixelColor => {
+                            cond.x = screen_x;
+                            cond.y = screen_y;
+                        }
+                        _ => {}
+                    }
+                }
+            }
+            self.mouse_move_absolute_capture_target = None;
+            self.mouse_move_absolute_capture_wait_for_mouse_release = false;
+            self.restore_mouse_move_absolute_viewport(ctx);
+            self.mouse_move_absolute_capture_raise_window = true;
+            self.status = match self.state.ui_language {
+                crate::model::UiLanguage::Vietnamese => {
+                    format!("Đã lấy tọa độ {}, {}.", screen_x, screen_y)
+                }
+                _ => format!("Captured position {}, {}.", screen_x, screen_y),
+            };
+            ctx.send_viewport_cmd(egui::ViewportCommand::Visible(true));
+            ctx.send_viewport_cmd(egui::ViewportCommand::Focus);
+            ctx.request_repaint_after(std::time::Duration::from_millis(33));
+            self.persist();
+            if target.group_id.is_some() {
+                self.sync_macro_presets();
+            }
+            return;
+        }
+
+        // --- Handle IfStart captures ---
+        if matches!(target.capture_kind, MouseCaptureKind::IfStartMousePos | MouseCaptureKind::IfStartPixelColor) {
+            let step_result = if let Some(group_id) = target.group_id {
+                self.state
+                    .macro_groups
+                    .iter_mut()
+                    .find(|group| group.id == group_id)
+                    .and_then(|group| {
+                        group.presets.iter_mut().find(|preset| preset.id == target.preset_id)
+                    })
+                    .and_then(|preset| preset.steps.get_mut(target.step_index))
+            } else {
+                None
+            };
+            if let Some(step) = step_result {
+                match target.capture_kind {
+                    MouseCaptureKind::IfStartMousePos => {
+                        step.key = screen_x.to_string();
+                    }
+                    MouseCaptureKind::IfStartPixelColor => {
+                        step.x = screen_x;
+                        step.y = screen_y;
+                    }
+                    _ => {}
+                }
+            }
+            self.mouse_move_absolute_capture_target = None;
+            self.mouse_move_absolute_capture_wait_for_mouse_release = false;
+            self.restore_mouse_move_absolute_viewport(ctx);
+            self.mouse_move_absolute_capture_raise_window = true;
+            self.status = match self.state.ui_language {
+                crate::model::UiLanguage::Vietnamese => {
+                    format!("Đã lấy tọa độ {}, {}.", screen_x, screen_y)
+                }
+                _ => format!("Captured position {}, {}.", screen_x, screen_y),
+            };
+            ctx.send_viewport_cmd(egui::ViewportCommand::Visible(true));
+            ctx.send_viewport_cmd(egui::ViewportCommand::Focus);
+            ctx.request_repaint_after(std::time::Duration::from_millis(33));
+            self.persist();
+            if target.group_id.is_some() {
+                self.sync_macro_presets();
+            }
+            return;
+        }
+
+        // --- Original: MoveMouseAbsolute ---
         let step_result = if let Some(group_id) = target.group_id {
             self.state
                 .macro_groups

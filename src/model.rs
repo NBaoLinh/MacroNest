@@ -462,35 +462,91 @@ pub enum IfConditionType {
     PixelColor,
     VisionMatch,
     KeyHeld,
-    KeyPressed,
     MouseHeld,
-    MouseScroll,
     MousePosition,
     PresetRunning,
-    TimerRunning,
     OcrMatch,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
 #[serde(default)]
 pub struct ExtraCondition {
-    pub variable_name: String,
     #[serde(default = "default_condition_join_operator")]
     pub join_operator: String,
+    #[serde(default)]
+    pub condition_type: IfConditionType,
+    pub variable_name: String,
     #[serde(default = "default_if_operator")]
     pub operator: String,
     pub compare_value: i32,
     pub expression: String,
+    #[serde(default)]
+    pub if_contain_case_sensitive: bool,
+    #[serde(default)]
+    pub if_contain_isolated: bool,
+
+    // OCR Match
+    #[serde(default)]
+    pub ocr_preset_id: Option<u32>,
+    #[serde(default)]
+    pub ocr_target_text: String,
+
+    // Pixel Color
+    #[serde(default)]
+    pub x: i32,
+    #[serde(default)]
+    pub y: i32,
+    #[serde(default)]
+    pub target_color: String,
+    #[serde(default = "default_if_color_tolerance")]
+    pub color_tolerance: u8,
+
+    // Vision Match
+    #[serde(default)]
+    pub vision_preset_id: Option<u32>,
+
+    // Key Held / Key Pressed
+    #[serde(default)]
+    pub key_held_name: String,
+
+    // Mouse Held
+    #[serde(default)]
+    pub mouse_button: String,
+
+    // Mouse Position
+    #[serde(default)]
+    pub mouse_axis: String,
+
+    // Preset Running
+    #[serde(default)]
+    pub running_preset_id: Option<u32>,
+    #[serde(skip)]
+    pub running_preset_group_id: Option<u32>,
 }
 
 impl Default for ExtraCondition {
     fn default() -> Self {
         Self {
-            variable_name: String::new(),
             join_operator: "AND".to_string(),
+            condition_type: IfConditionType::Variable,
+            variable_name: String::new(),
             operator: "==".to_string(),
             compare_value: 0,
             expression: String::new(),
+            if_contain_case_sensitive: false,
+            if_contain_isolated: false,
+            ocr_preset_id: None,
+            ocr_target_text: String::new(),
+            x: 0,
+            y: 0,
+            target_color: String::new(),
+            color_tolerance: 5,
+            vision_preset_id: None,
+            key_held_name: String::new(),
+            mouse_button: "Left".to_string(),
+            mouse_axis: "X".to_string(),
+            running_preset_id: None,
+            running_preset_group_id: None,
         }
     }
 }
@@ -539,11 +595,11 @@ pub struct MacroStep {
     #[serde(default)]
     pub if_mouse_button: String,
     #[serde(default)]
-    pub if_scroll_direction: String,
-    #[serde(default)]
     pub if_mouse_axis: String,
     #[serde(default)]
     pub if_running_preset_id: Option<u32>,
+    #[serde(skip)]
+    pub if_running_preset_group_id: Option<u32>,
     #[serde(default)]
     pub timer_preset_id: Option<u32>,
     #[serde(default)]
@@ -638,9 +694,9 @@ impl Default for MacroStep {
             if_ocr_preset_id: None,
             if_key_held_name: String::new(),
             if_mouse_button: "MouseLeft".to_string(),
-            if_scroll_direction: "Up".to_string(),
             if_mouse_axis: "X".to_string(),
             if_running_preset_id: None,
+            if_running_preset_group_id: None,
             timer_preset_id: None,
             timer_on_complete_macro_preset_id: None,
             lock_mouse_left: true,

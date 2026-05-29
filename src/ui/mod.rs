@@ -114,11 +114,23 @@ pub(crate) enum VisionCaptureTarget {
     OcrPreset(u32),
 }
 
+#[derive(Clone, Copy, PartialEq, Eq, Default)]
+pub(crate) enum MouseCaptureKind {
+    #[default]
+    MoveMouseAbsolute,
+    IfStartMousePos,
+    IfStartPixelColor,
+    ExtraCondMousePos,
+    ExtraCondPixelColor,
+}
+
 #[derive(Clone, Copy, PartialEq, Eq)]
 pub(crate) struct MouseMoveAbsoluteCaptureTarget {
     group_id: Option<u32>,
     preset_id: u32,
     step_index: usize,
+    capture_kind: MouseCaptureKind,
+    extra_cond_index: Option<usize>,
 }
 
 #[derive(Clone)]

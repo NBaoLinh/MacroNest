@@ -6729,111 +6729,111 @@ mod windows_overlay {
         None
     }
 
-    fn evaluate_if_condition(step: &MacroStep) -> bool {
-        if step.if_condition_type == IfConditionType::OcrMatch {
-            let preset_id = step.if_ocr_preset_id.unwrap_or(0);
-            let (x, y, w, h, lang) = {
-                let hook_state = HOOK_STATE.lock();
-                if let Some(preset) = hook_state.ocr_presets.iter().find(|p| p.id == preset_id) {
-                    (preset.x, preset.y, preset.width, preset.height, preset.lang.clone())
-                } else {
-                    return false;
-                }
-            };
-            let w = w.max(10);
-            let h = h.max(10);
-            let lang_str = lang.as_deref().unwrap_or("en");
-
-            if let Some(frame) = window_list::capture_virtual_screen_region(x, y, w, h) {
-                if let Ok(res) = crate::ocr::perform_ocr(&frame.rgba, frame.width as u32, frame.height as u32, lang_str) {
-                    let target_text = step.ocr_target_text.trim();
-                    if target_text.is_empty() {
-                        return !res.text.trim().is_empty();
+    fn evaluate_single_condition(
+        condition_type: IfConditionType,
+        variable_name: &str,
+        operator: &str,
+        compare_value: i32,
+        expression: &str,
+        ocr_preset_id: Option<u32>,
+        ocr_target_text: &str,
+        if_contain_case_sensitive: bool,
+        if_contain_isolated: bool,
+        key: &str,
+        x: i32,
+        y: i32,
+        target_color: &str,
+        tolerance: u8,
+        mouse_axis: &str,
+        running_preset_id: Option<u32>,
+        vision_preset_id: Option<u32>,
+    ) -> bool {
+        match condition_type {
+            IfConditionType::OcrMatch => {
+                let preset_id = ocr_preset_id.unwrap_or(0);
+                let (x, y, w, h, lang) = {
+                    let hook_state = HOOK_STATE.lock();
+                    if let Some(preset) = hook_state.ocr_presets.iter().find(|p| p.id == preset_id) {
+                        (preset.x, preset.y, preset.width, preset.height, preset.lang.clone())
+                    } else {
+                        return false;
                     }
-                    for word in &res.words {
-                        if word.text.to_lowercase().contains(&target_text.to_lowercase()) {
-                            return true;
-                        }
-                    }
-                }
-            }
-            return false;
-        }
-
-        if step.if_condition_type != IfConditionType::Variable {
-            return false;
-        }
-
-        let op = step.if_operator.trim().to_lowercase();
-        if op == "contain" || op == "contains" {
-            let left_str = {
-                let vars = RUNTIME_VARIABLES.lock();
-                let trimmed = step.if_variable_name.trim();
-                if let Some(val) = vars.get(trimmed) {
-                    val.to_string()
-                } else {
-                    interpolate_variables(trimmed)
-                }
-            };
-            let right_str = interpolate_variables(step.key.trim());
-
-            let evaluate_contain = |left: &str, right: &str, case_sensitive: bool, isolated: bool| -> bool {
-                let (l, r) = if case_sensitive {
-                    (left.to_string(), right.to_string())
-                } else {
-                    (left.to_lowercase(), right.to_lowercase())
                 };
-                if r.is_empty() {
-                    return true;
-                }
-                if isolated {
-                    let mut start = 0;
-                    while let Some(pos) = l[start..].find(&r) {
-                        let absolute_pos = start + pos;
-                        let before_char_ok = if absolute_pos == 0 {
-                            true
-                        } else {
-                            let prev_char = l.chars().nth(absolute_pos - 1).unwrap_or(' ');
-                            !prev_char.is_alphanumeric()
-                        };
-                        let after_char_ok = if absolute_pos + r.len() >= l.len() {
-                            true
-                        } else {
-                            let next_char = l.chars().nth(absolute_pos + r.len()).unwrap_or(' ');
-                            !next_char.is_alphanumeric()
-                        };
-                        if before_char_ok && after_char_ok {
-                            return true;
+                let w = w.max(10);
+                let h = h.max(10);
+                let lang_str = lang.as_deref().unwrap_or("en");
+
+                if let Some(frame) = window_list::capture_virtual_screen_region(x, y, w, h) {
+                    if let Ok(res) = crate::ocr::perform_ocr(&frame.rgba, frame.width as u32, frame.height as u32, lang_str) {
+                        let target_text = ocr_target_text.trim();
+                        if target_text.is_empty() {
+                            return !res.text.trim().is_empty();
                         }
-                        start = absolute_pos + 1;
+                        for word in &res.words {
+                            if word.text.to_lowercase().contains(&target_text.to_lowercase()) {
+                                return true;
+                            }
+                        }
                     }
-                    false
-                } else {
-                    l.contains(&r)
                 }
-            };
+                false
+            }
+            IfConditionType::Variable => {
+                let op = operator.trim().to_lowercase();
+                let evaluate_contain = |left: &str, right: &str, case_sensitive: bool, isolated: bool| -> bool {
+                    let (l, r) = if case_sensitive {
+                        (left.to_string(), right.to_string())
+                    } else {
+                        (left.to_lowercase(), right.to_lowercase())
+                    };
+                    if r.is_empty() {
+                        return true;
+                    }
+                    if isolated {
+                        let mut start = 0;
+                        while let Some(pos) = l[start..].find(&r) {
+                            let absolute_pos = start + pos;
+                            let before_char_ok = if absolute_pos == 0 {
+                                true
+                            } else {
+                                let prev_char = l.chars().nth(absolute_pos - 1).unwrap_or(' ');
+                                !prev_char.is_alphanumeric()
+                            };
+                            let after_char_ok = if absolute_pos + r.len() >= l.len() {
+                                true
+                            } else {
+                                let next_char = l.chars().nth(absolute_pos + r.len()).unwrap_or(' ');
+                                !next_char.is_alphanumeric()
+                            };
+                            if before_char_ok && after_char_ok {
+                                return true;
+                            }
+                            start = absolute_pos + 1;
+                        }
+                        false
+                    } else {
+                        l.contains(&r)
+                    }
+                };
 
-            let mut result = evaluate_contain(
-                &left_str,
-                &right_str,
-                step.if_contain_case_sensitive,
-                step.if_contain_isolated,
-            );
-
-            for cond in &step.extra_conditions {
-                let cond_op = cond.operator.trim().to_lowercase();
-                let cond_ok = if cond_op == "contain" || cond_op == "contains" {
-                    let cond_left_str = {
+                if op == "contain" || op == "contains" {
+                    let left_str = {
                         let vars = RUNTIME_VARIABLES.lock();
-                        let trimmed = cond.variable_name.trim();
+                        let trimmed = variable_name.trim();
                         if let Some(val) = vars.get(trimmed) {
                             val.to_string()
                         } else {
                             interpolate_variables(trimmed)
                         }
                     };
-                    let cond_right_str = interpolate_variables(cond.expression.trim());
-                    evaluate_contain(&cond_left_str, &cond_right_str, false, false)
+                    let right_expr = if expression.is_empty() && !key.is_empty() {
+                        key
+                    } else {
+                        expression
+                    };
+                    let right_str = interpolate_variables(right_expr.trim());
+
+                    evaluate_contain(&left_str, &right_str, if_contain_case_sensitive, if_contain_isolated)
                 } else {
                     let evaluate_operand = |expr: &str, fallback: i32| -> i32 {
                         if expr.trim().is_empty() {
@@ -6851,46 +6851,175 @@ mod windows_overlay {
                         "!=" => value != comp,
                         _ => false,
                     };
-                    let cond_left = evaluate_operand(&cond.variable_name, cond.compare_value);
-                    let cond_right = evaluate_operand(&cond.expression, cond.compare_value);
-                    compare_values(cond_left, cond.operator.as_str(), cond_right)
-                };
-
-                let join_operator = cond.join_operator.trim().to_ascii_uppercase();
-                result = match join_operator.as_str() {
-                    "OR" => result || cond_ok,
-                    _ => result && cond_ok,
-                };
+                    let cond_left = evaluate_operand(variable_name, compare_value);
+                    let right_expr = if expression.is_empty() && !key.is_empty() {
+                        key
+                    } else {
+                        expression
+                    };
+                    let cond_right = evaluate_operand(right_expr, compare_value);
+                    compare_values(cond_left, operator, cond_right)
+                }
             }
-            return result;
-        }
-
-        let compare_values = |value: i32, operator: &str, comp: i32| match operator {
-            ">" => value > comp,
-            "<" => value < comp,
-            "=" | "==" => value == comp,
-            ">=" => value >= comp,
-            "<=" => value <= comp,
-            "!=" => value != comp,
+            IfConditionType::PixelColor => {
+                let parse_color = |s: &str| -> Option<(u8, u8, u8)> {
+                    let parts: Vec<&str> = s.split(',').collect();
+                    if parts.len() >= 3 {
+                        let r = parts[0].trim().parse::<u8>().ok()?;
+                        let g = parts[1].trim().parse::<u8>().ok()?;
+                        let b = parts[2].trim().parse::<u8>().ok()?;
+                        Some((r, g, b))
+                    } else {
+                        None
+                    }
+                };
+                if let Some((tr, tg, tb)) = parse_color(target_color) {
+                    if let Some(frame) = window_list::capture_virtual_screen_region(x, y, 1, 1) {
+                        if frame.rgba.len() >= 4 {
+                            let r = frame.rgba[0];
+                            let g = frame.rgba[1];
+                            let b = frame.rgba[2];
+                            let diff_r = (r as i32 - tr as i32).abs();
+                            let diff_g = (g as i32 - tg as i32).abs();
+                            let diff_b = (b as i32 - tb as i32).abs();
+                            return diff_r <= tolerance as i32 && diff_g <= tolerance as i32 && diff_b <= tolerance as i32;
+                        }
+                    }
+                }
+                false
+            }
+            IfConditionType::PresetRunning => {
+                if let Some(pid) = running_preset_id {
+                    let active = ACTIVE_MACRO_STEPS.lock();
+                    active.contains_key(&pid)
+                } else {
+                    false
+                }
+            }
+            IfConditionType::MousePosition => {
+                #[cfg(windows)]
+                {
+                    use windows::Win32::UI::WindowsAndMessaging::GetCursorPos;
+                    let mut pt = windows::Win32::Foundation::POINT::default();
+                    if unsafe { GetCursorPos(&mut pt) }.is_ok() {
+                        let val = if mouse_axis.eq_ignore_ascii_case("Y") {
+                            pt.y
+                        } else {
+                            pt.x
+                        };
+                        let evaluate_operand = |expr: &str, fallback: i32| -> i32 {
+                            if expr.trim().is_empty() {
+                                fallback
+                            } else {
+                                evaluate_math_expression(expr)
+                            }
+                        };
+                        let compare_values = |value: i32, operator: &str, comp: i32| match operator {
+                            ">" => value > comp,
+                            "<" => value < comp,
+                            "=" | "==" => value == comp,
+                            ">=" => value >= comp,
+                            "<=" => value <= comp,
+                            "!=" => value != comp,
+                            _ => false,
+                        };
+                        let right_expr = if expression.is_empty() && !key.is_empty() {
+                            key
+                        } else {
+                            expression
+                        };
+                        let right_val = evaluate_operand(right_expr, compare_value);
+                        return compare_values(val, operator, right_val);
+                    }
+                }
+                false
+            }
+            IfConditionType::VisionMatch => {
+                if let Some(pid) = vision_preset_id {
+                    let preset = {
+                        let hook_state = HOOK_STATE.lock();
+                        hook_state.vision_presets.iter().find(|p| p.id == pid).cloned()
+                    };
+                    if let Some(preset) = preset {
+                        if let Ok(outcome) = run_vision_once_with_options(&preset, false, false, None) {
+                            return outcome.matched;
+                        }
+                    }
+                }
+                false
+            }
+            IfConditionType::KeyHeld => {
+                if let Some(vk) = crate::hotkey::key_name_to_vk(key) {
+                    #[cfg(windows)]
+                    {
+                        return (unsafe { GetAsyncKeyState(vk as i32) } as u16 & 0x8000) != 0;
+                    }
+                }
+                false
+            }
+            IfConditionType::MouseHeld => {
+                let vk = match key.to_ascii_uppercase().as_str() {
+                    "MOUSELEFT" | "LEFT" | "LBUTTON" | "MOUSE LEFT" => Some(0x01),
+                    "MOUSERIGHT" | "RIGHT" | "RBUTTON" | "MOUSE RIGHT" => Some(0x02),
+                    "MOUSEMIDDLE" | "MIDDLE" | "MBUTTON" | "MOUSE MIDDLE" => Some(0x04),
+                    "MOUSEX1" | "X1" | "XBUTTON1" | "MOUSE X1" => Some(0x05),
+                    "MOUSEX2" | "X2" | "XBUTTON2" | "MOUSE X2" => Some(0x06),
+                    _ => None,
+                };
+                if let Some(vk_code) = vk {
+                    #[cfg(windows)]
+                    {
+                        return (unsafe { GetAsyncKeyState(vk_code as i32) } as u16 & 0x8000) != 0;
+                    }
+                }
+                false
+            }
             _ => false,
-        };
+        }
+    }
 
-        let evaluate_operand = |expr: &str, fallback: i32| -> i32 {
-            if expr.trim().is_empty() {
-                fallback
-            } else {
-                evaluate_math_expression(expr)
-            }
-        };
-
-        let left_value = evaluate_operand(&step.if_variable_name, step.if_compare_value);
-        let right_value = evaluate_operand(&step.key, step.if_compare_value);
-        let mut result = compare_values(left_value, step.if_operator.as_str(), right_value);
+    fn evaluate_if_condition(step: &MacroStep) -> bool {
+        let mut result = evaluate_single_condition(
+            step.if_condition_type,
+            &step.if_variable_name,
+            &step.if_operator,
+            step.if_compare_value,
+            "",
+            step.if_ocr_preset_id,
+            &step.ocr_target_text,
+            step.if_contain_case_sensitive,
+            step.if_contain_isolated,
+            &step.key,
+            step.x,
+            step.y,
+            &step.if_target_color,
+            step.if_color_tolerance,
+            &step.if_mouse_axis,
+            step.if_running_preset_id,
+            step.if_vision_preset_id,
+        );
 
         for cond in &step.extra_conditions {
-            let cond_left = evaluate_operand(&cond.variable_name, cond.compare_value);
-            let cond_right = evaluate_operand(&cond.expression, cond.compare_value);
-            let cond_ok = compare_values(cond_left, cond.operator.as_str(), cond_right);
+            let cond_ok = evaluate_single_condition(
+                cond.condition_type,
+                &cond.variable_name,
+                &cond.operator,
+                cond.compare_value,
+                &cond.expression,
+                cond.ocr_preset_id,
+                &cond.ocr_target_text,
+                cond.if_contain_case_sensitive,
+                cond.if_contain_isolated,
+                "",
+                cond.x,
+                cond.y,
+                &cond.target_color,
+                cond.color_tolerance,
+                &cond.mouse_axis,
+                cond.running_preset_id,
+                cond.vision_preset_id,
+            );
+
             let join_operator = cond.join_operator.trim().to_ascii_uppercase();
             result = match join_operator.as_str() {
                 "OR" => result || cond_ok,
