@@ -7797,25 +7797,41 @@ impl CrosshairApp {
                                                                     .num_columns(2)
                                                                     .spacing([8.0, 6.0])
                                                                     .show(ui, |ui| {
-                                                                        ui.label(Self::tr_lang(language, "Ok Var:", "Biến Ok:"));
+                                                                        let resp_label = ui.label(Self::tr_lang(language, "Found Var:", "Biến kết quả:"));
+                                                                        resp_label.on_hover_text(Self::tr_lang(language, 
+                                                                            "Assigns 1 if the target text was found (or if OCR succeeded when no target is set), 0 otherwise", 
+                                                                            "Gán 1 nếu tìm thấy từ khóa (hoặc nếu quét OCR thành công khi không đặt từ tìm), ngược lại là 0"
+                                                                        ));
                                                                         let resp = ui.add(egui::TextEdit::singleline(&mut step.ocr_success_var).hint_text("var_ok"));
                                                                         Self::apply_vietnamese_input_if_changed(&resp, self.state.vietnamese_input_enabled, self.state.vietnamese_input_mode, &mut step.ocr_success_var);
                                                                         live_sync |= resp.changed();
                                                                         ui.end_row();
 
-                                                                        ui.label("Pos X:");
+                                                                        let resp_label = ui.label("Pos X:");
+                                                                        resp_label.on_hover_text(Self::tr_lang(language, 
+                                                                            "Assigns the absolute X coordinate of the center of found text", 
+                                                                            "Gán tọa độ X tuyệt đối ở chính giữa từ tìm thấy"
+                                                                        ));
                                                                         let resp = ui.add(egui::TextEdit::singleline(&mut step.ocr_pos_var_x).hint_text("var_x"));
                                                                         Self::apply_vietnamese_input_if_changed(&resp, self.state.vietnamese_input_enabled, self.state.vietnamese_input_mode, &mut step.ocr_pos_var_x);
                                                                         live_sync |= resp.changed();
                                                                         ui.end_row();
 
-                                                                        ui.label("Pos Y:");
+                                                                        let resp_label = ui.label("Pos Y:");
+                                                                        resp_label.on_hover_text(Self::tr_lang(language, 
+                                                                            "Assigns the absolute Y coordinate of the center of found text", 
+                                                                            "Gán tọa độ Y tuyệt đối ở chính giữa từ tìm thấy"
+                                                                        ));
                                                                         let resp = ui.add(egui::TextEdit::singleline(&mut step.ocr_pos_var_y).hint_text("var_y"));
                                                                         Self::apply_vietnamese_input_if_changed(&resp, self.state.vietnamese_input_enabled, self.state.vietnamese_input_mode, &mut step.ocr_pos_var_y);
                                                                         live_sync |= resp.changed();
                                                                         ui.end_row();
 
-                                                                        ui.label(Self::tr_lang(language, "Num Var:", "Biến Số:"));
+                                                                        let resp_label = ui.label(Self::tr_lang(language, "Number Var:", "Biến lấy số:"));
+                                                                        resp_label.on_hover_text(Self::tr_lang(language, 
+                                                                            "Extracts and assigns the first integer found in the recognized text (e.g. extracts 45 from 'Level 45')", 
+                                                                            "Trích xuất và gán số nguyên đầu tiên tìm thấy trong văn bản nhận dạng được (ví dụ: lấy 45 từ chữ 'Level 45')"
+                                                                        ));
                                                                         let resp = ui.add(egui::TextEdit::singleline(&mut step.ocr_numeric_var).hint_text("var_num"));
                                                                         Self::apply_vietnamese_input_if_changed(&resp, self.state.vietnamese_input_enabled, self.state.vietnamese_input_mode, &mut step.ocr_numeric_var);
                                                                         live_sync |= resp.changed();
