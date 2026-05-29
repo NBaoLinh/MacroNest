@@ -4443,6 +4443,7 @@ pub(crate) fn render_macro_panel(&mut self, ui: &mut egui::Ui) {
                             .state
                             .vision_presets
                             .iter()
+                            .filter(|preset_option| !preset_option.is_pixel_counter)
                             .map(|preset_option| (preset_option.id, preset_option.name.clone()))
                             .collect::<Vec<_>>();
                         let ocr_preset_options = self
