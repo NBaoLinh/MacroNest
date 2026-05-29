@@ -7683,51 +7683,47 @@ impl CrosshairApp {
                                                                 .map(|(_, label)| label.clone())
                                                         })
                                                         .unwrap_or_else(|| Self::tr_lang(language, "Select OCR", "Chọn OCR").to_owned());
-                                                    egui::ComboBox::from_id_salt((group.id, preset.id, step_index, "ocr-preset-step"))
-                                                        .width(146.0)
-                                                        .selected_text(selected_label)
-                                                        .show_ui(ui, |ui| {
-                                                            for (preset_option_id, preset_option_label) in &ocr_preset_options {
-                                                                if ui
-                                                                    .selectable_label(
-                                                                        selected_id == Some(*preset_option_id),
-                                                                        preset_option_label,
-                                                                    )
-                                                                    .clicked()
-                                                                {
-                                                                    step.key = preset_option_id.to_string();
-                                                                    live_sync = true;
-                                                                }
-                                                            }
-                                                        });
-                                                    
-                                                    ui.add_space(4.0);
                                                     ui.horizontal(|ui| {
-                                                        ui.label(Self::tr_lang(language, "Target:", "Từ tìm kiếm:"));
-                                                        let resp = ui.add_sized([110.0, 20.0], egui::TextEdit::singleline(&mut step.ocr_target_text).hint_text("antigravity"));
+                                                        egui::ComboBox::from_id_salt((group.id, preset.id, step_index, "ocr-preset-step"))
+                                                            .width(110.0)
+                                                            .selected_text(selected_label)
+                                                            .show_ui(ui, |ui| {
+                                                                for (preset_option_id, preset_option_label) in &ocr_preset_options {
+                                                                    if ui
+                                                                        .selectable_label(
+                                                                            selected_id == Some(*preset_option_id),
+                                                                            preset_option_label,
+                                                                        )
+                                                                        .clicked()
+                                                                    {
+                                                                        step.key = preset_option_id.to_string();
+                                                                        live_sync = true;
+                                                                    }
+                                                                }
+                                                            });
+
+                                                        ui.label(Self::tr_lang(language, "Target:", "Từ tìm:"));
+                                                        let resp = ui.add_sized([100.0, 20.0], egui::TextEdit::singleline(&mut step.ocr_target_text).hint_text("antigravity"));
                                                         Self::apply_vietnamese_input_if_changed(&resp, self.state.vietnamese_input_enabled, self.state.vietnamese_input_mode, &mut step.ocr_target_text);
                                                         live_sync |= resp.changed();
 
-                                                        ui.label(Self::tr_lang(language, "Success Var:", "Biến Ok:"));
-                                                        let resp = ui.add_sized([80.0, 20.0], egui::TextEdit::singleline(&mut step.ocr_success_var));
+                                                        ui.label(Self::tr_lang(language, "Ok Var:", "Biến Ok:"));
+                                                        let resp = ui.add_sized([70.0, 20.0], egui::TextEdit::singleline(&mut step.ocr_success_var));
                                                         Self::apply_vietnamese_input_if_changed(&resp, self.state.vietnamese_input_enabled, self.state.vietnamese_input_mode, &mut step.ocr_success_var);
                                                         live_sync |= resp.changed();
-                                                    });
-                                                    
-                                                    ui.add_space(4.0);
-                                                    ui.horizontal(|ui| {
-                                                        ui.label(Self::tr_lang(language, "Pos X Var:", "Biến X:"));
-                                                        let resp = ui.add_sized([60.0, 20.0], egui::TextEdit::singleline(&mut step.ocr_pos_var_x));
+
+                                                        ui.label("X:");
+                                                        let resp = ui.add_sized([55.0, 20.0], egui::TextEdit::singleline(&mut step.ocr_pos_var_x));
                                                         Self::apply_vietnamese_input_if_changed(&resp, self.state.vietnamese_input_enabled, self.state.vietnamese_input_mode, &mut step.ocr_pos_var_x);
                                                         live_sync |= resp.changed();
 
-                                                        ui.label(Self::tr_lang(language, "Pos Y Var:", "Biến Y:"));
-                                                        let resp = ui.add_sized([60.0, 20.0], egui::TextEdit::singleline(&mut step.ocr_pos_var_y));
+                                                        ui.label("Y:");
+                                                        let resp = ui.add_sized([55.0, 20.0], egui::TextEdit::singleline(&mut step.ocr_pos_var_y));
                                                         Self::apply_vietnamese_input_if_changed(&resp, self.state.vietnamese_input_enabled, self.state.vietnamese_input_mode, &mut step.ocr_pos_var_y);
                                                         live_sync |= resp.changed();
 
-                                                        ui.label(Self::tr_lang(language, "Num Var:", "Biến Số:"));
-                                                        let resp = ui.add_sized([65.0, 20.0], egui::TextEdit::singleline(&mut step.ocr_numeric_var));
+                                                        ui.label(Self::tr_lang(language, "Num:", "Số:"));
+                                                        let resp = ui.add_sized([55.0, 20.0], egui::TextEdit::singleline(&mut step.ocr_numeric_var));
                                                         Self::apply_vietnamese_input_if_changed(&resp, self.state.vietnamese_input_enabled, self.state.vietnamese_input_mode, &mut step.ocr_numeric_var);
                                                         live_sync |= resp.changed();
                                                     });
