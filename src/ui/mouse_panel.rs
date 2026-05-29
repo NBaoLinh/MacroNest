@@ -520,9 +520,16 @@ impl CrosshairApp {
             return false;
         }
 
+        let uses_blocked_click = Self::mouse_move_absolute_capture_uses_blocked_click(
+            self.mouse_move_absolute_capture_target.unwrap(),
+        );
         if ctx.input(|input| input.key_pressed(egui::Key::Escape)) || Self::is_vk_down(0x1B) {
             self.cancel_mouse_move_absolute_capture(ctx);
             return true;
+        }
+
+        if uses_blocked_click {
+            return false;
         }
 
         ctx.request_repaint_after(std::time::Duration::from_millis(120));
@@ -937,12 +944,12 @@ impl CrosshairApp {
         let Some(target) = self.mouse_move_absolute_capture_target else {
             return;
         };
-        if Self::mouse_move_absolute_capture_uses_blocked_click(target) {
-            return;
-        }
         ctx.request_repaint_after(Duration::from_millis(16));
         if Self::is_vk_down(0x1B) {
             self.cancel_mouse_move_absolute_capture(ctx);
+            return;
+        }
+        if Self::mouse_move_absolute_capture_uses_blocked_click(target) {
             return;
         }
         if self.mouse_move_absolute_capture_wait_for_mouse_release {
