@@ -112,24 +112,24 @@ impl CrosshairApp {
                         {
                             // (code, display label)
                             let popular_langs: &[(&str, &str)] = &[
-                                ("", "🔍 Auto Detect"),
-                                ("en", "🇬🇧 English (en)"),
-                                ("vi", "🇻🇳 Tiếng Việt (vi)"),
-                                ("zh-Hans", "🇨🇳 中文简体 (zh-Hans)"),
-                                ("zh-Hant", "🇹🇼 中文繁體 (zh-Hant)"),
-                                ("ja", "🇯🇵 日本語 (ja)"),
-                                ("ko", "🇰🇷 한국어 (ko)"),
-                                ("fr", "🇫🇷 Français (fr)"),
-                                ("de", "🇩🇪 Deutsch (de)"),
-                                ("es", "🇪🇸 Español (es)"),
-                                ("it", "🇮🇹 Italiano (it)"),
-                                ("pt", "🇵🇹 Português (pt)"),
-                                ("ru", "🇷🇺 Русский (ru)"),
-                                ("ar", "🇸🇦 العربية (ar)"),
-                                ("th", "🇹🇭 ภาษาไทย (th)"),
-                                ("nl", "🇳🇱 Nederlands (nl)"),
-                                ("pl", "🇵🇱 Polski (pl)"),
-                                ("tr", "🇹🇷 Türkçe (tr)"),
+                                ("", "Auto Detect"),
+                                ("en", "English (en)"),
+                                ("vi", "Tiếng Việt (vi)"),
+                                ("zh-Hans", "简体中文 (zh-Hans)"),
+                                ("zh-Hant", "繁體中文 (zh-Hant)"),
+                                ("ja", "日本語 (ja)"),
+                                ("ko", "한국어 (ko)"),
+                                ("fr", "Français (fr)"),
+                                ("de", "Deutsch (de)"),
+                                ("es", "Español (es)"),
+                                ("it", "Italiano (it)"),
+                                ("pt", "Português (pt)"),
+                                ("ru", "Русский (ru)"),
+                                ("ar", "العربية (ar)"),
+                                ("th", "ภาษาไทย (th)"),
+                                ("nl", "Nederlands (nl)"),
+                                ("pl", "Polski (pl)"),
+                                ("tr", "Türkçe (tr)"),
                             ];
                             let current_code = preset.lang.clone().unwrap_or_default();
                             let current_label: String = popular_langs.iter()
@@ -137,7 +137,7 @@ impl CrosshairApp {
                                 .map(|(_, label)| label.to_string())
                                 .unwrap_or_else(|| {
                                     if current_code.is_empty() {
-                                        "🔍 Auto Detect".to_string()
+                                        "Auto Detect".to_string()
                                     } else {
                                         current_code.clone()
                                     }

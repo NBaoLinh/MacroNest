@@ -8275,7 +8275,7 @@ pub(crate) fn render_macro_panel(&mut self, ui: &mut egui::Ui) {
                                                     let is_custom = step.key.trim().is_empty() || step.key.trim() == "0";
                                                     let selected_id = if is_custom { None } else { step.key.trim().parse::<u32>().ok() };
                                                     let selected_label = if is_custom {
-                                                        Self::tr_lang(language, "✦ Custom OCR", "✦ OCR tuỳ chỉnh").to_owned()
+                                                        Self::tr_lang(language, "Custom OCR", "OCR tuỳ chỉnh").to_owned()
                                                     } else {
                                                         selected_id
                                                             .and_then(|id| {
@@ -8287,155 +8287,160 @@ pub(crate) fn render_macro_panel(&mut self, ui: &mut egui::Ui) {
                                                             .unwrap_or_else(|| Self::tr_lang(language, "Select OCR", "Chọn OCR").to_owned())
                                                     };
                                                     
-                                                    ui.horizontal(|ui| {
-                                                        ui.spacing_mut().item_spacing.x = 6.0;
+                                                    ui.vertical(|ui| {
+                                                        ui.spacing_mut().item_spacing.y = 4.0;
                                                         
-                                                        // 1. OCR Preset selection (including Custom OCR option)
-                                                        egui::ComboBox::from_id_salt((group.id, preset.id, step_index, "ocr-preset-step"))
-                                                            .width(130.0)
-                                                            .selected_text(selected_label)
-                                                            .show_ui(ui, |ui| {
-                                                                if ui.selectable_label(is_custom, Self::tr_lang(language, "✦ Custom OCR", "✦ OCR tuỳ chỉnh")).clicked() {
-                                                                    step.key = "0".to_string();
-                                                                    live_sync = true;
-                                                                }
-                                                                ui.separator();
-                                                                for (preset_option_id, preset_option_label) in &ocr_preset_options {
-                                                                    if ui
-                                                                        .selectable_label(
-                                                                            selected_id == Some(*preset_option_id),
-                                                                            preset_option_label,
-                                                                        )
-                                                                        .clicked()
-                                                                    {
-                                                                        step.key = preset_option_id.to_string();
-                                                                        live_sync = true;
-                                                                    }
-                                                                }
-                                                            });
-                                                        
-                                                        // 2. Outputs selection
-                                                        let outputs_label = Self::tr_lang(language, "Outputs", "Đầu ra").to_owned();
-                                                        egui::ComboBox::from_id_salt((group.id, preset.id, step_index, "ocr-outputs"))
-                                                             .close_behavior(egui::PopupCloseBehavior::CloseOnClickOutside)
-                                                             .width(110.0)
-                                                             .selected_text(outputs_label)
-                                                             .show_ui(ui, |ui| {
-                                                                ui.set_min_width(200.0);
-                                                                egui::Grid::new("ocr_outputs_grid")
-                                                                    .num_columns(2)
-                                                                    .spacing([8.0, 6.0])
-                                                                    .show(ui, |ui| {
-                                                                        let resp_label = ui.label(Self::tr_lang(language, "Found Var:", "Biến kết quả:"));
-                                                                        resp_label.on_hover_text(Self::tr_lang(language, 
-                                                                            "Assigns 1 if the target text was found (or if OCR succeeded when no target is set), 0 otherwise", 
-                                                                            "Gán 1 nếu tìm thấy từ khóa (hoặc nếu quét OCR thành công khi không đặt từ tìm), ngược lại là 0"
-                                                                        ));
-                                                                        let resp = ui.add(egui::TextEdit::singleline(&mut step.ocr_success_var).hint_text("var_ok"));
-                                                                        Self::apply_vietnamese_input_if_changed(&resp, self.state.vietnamese_input_enabled, self.state.vietnamese_input_mode, &mut step.ocr_success_var);
-                                                                        live_sync |= resp.changed();
-                                                                        ui.end_row();
-
-                                                                        let resp_label = ui.label("Pos X:");
-                                                                        resp_label.on_hover_text(Self::tr_lang(language, 
-                                                                            "Assigns the absolute X coordinate of the center of found text", 
-                                                                            "Gán tọa độ X tuyệt đối ở chính giữa từ tìm thấy"
-                                                                        ));
-                                                                        let resp = ui.add(egui::TextEdit::singleline(&mut step.ocr_pos_var_x).hint_text("var_x"));
-                                                                        Self::apply_vietnamese_input_if_changed(&resp, self.state.vietnamese_input_enabled, self.state.vietnamese_input_mode, &mut step.ocr_pos_var_x);
-                                                                        live_sync |= resp.changed();
-                                                                        ui.end_row();
-
-                                                                        let resp_label = ui.label("Pos Y:");
-                                                                        resp_label.on_hover_text(Self::tr_lang(language, 
-                                                                            "Assigns the absolute Y coordinate of the center of found text", 
-                                                                            "Gán tọa độ Y tuyệt đối ở chính giữa từ tìm thấy"
-                                                                        ));
-                                                                        let resp = ui.add(egui::TextEdit::singleline(&mut step.ocr_pos_var_y).hint_text("var_y"));
-                                                                        Self::apply_vietnamese_input_if_changed(&resp, self.state.vietnamese_input_enabled, self.state.vietnamese_input_mode, &mut step.ocr_pos_var_y);
-                                                                        live_sync |= resp.changed();
-                                                                        ui.end_row();
-
-                                                                        let resp_label = ui.label(Self::tr_lang(language, "Number Var:", "Biến lấy số:"));
-                                                                        resp_label.on_hover_text(Self::tr_lang(language, 
-                                                                            "Extracts and assigns the first integer found in the recognized text (e.g. extracts 45 from 'Level 45')", 
-                                                                            "Trích xuất và gán số nguyên đầu tiên tìm thấy trong văn bản nhận dạng được (ví dụ: lấy 45 từ chữ 'Level 45')"
-                                                                        ));
-                                                                        let resp = ui.add(egui::TextEdit::singleline(&mut step.ocr_numeric_var).hint_text("var_num"));
-                                                                        Self::apply_vietnamese_input_if_changed(&resp, self.state.vietnamese_input_enabled, self.state.vietnamese_input_mode, &mut step.ocr_numeric_var);
-                                                                        live_sync |= resp.changed();
-                                                                        ui.end_row();
-                                                                    });
-                                                             });
-                                                    });
-                                                    
-                                                    // 3. If Custom OCR, show region details, Pick Area button, and Language selection in a new row
-                                                    if is_custom {
+                                                        // Row 1: OCR Preset & Outputs ComboBoxes
                                                         ui.horizontal(|ui| {
                                                             ui.spacing_mut().item_spacing.x = 6.0;
                                                             
-                                                            // Display current area coordinates with custom styling
-                                                            ui.label(
-                                                                egui::RichText::new(format!(
-                                                                    "X:{} Y:{} W:{} H:{}",
-                                                                    step.x, step.y, step.ocr_width, step.ocr_height
-                                                                ))
-                                                                .size(11.0)
-                                                                .color(egui::Color32::from_rgb(148, 200, 255)),
-                                                            );
-                                                            
-                                                            // Pick Area Button
-                                                            let pick_btn = egui::Button::new(
-                                                                egui::RichText::new(Self::tr_lang(language, "Pick area", "Chọn vùng")).size(11.0)
-                                                            );
-                                                            if ui.add_sized([70.0, 18.0], pick_btn)
-                                                                .on_hover_text(Self::tr_lang(
-                                                                    language,
-                                                                    "Drag on screen to select the OCR scan region",
-                                                                    "Kéo trên màn hình để chọn vùng quét OCR"
-                                                                ))
-                                                                .clicked()
-                                                            {
-                                                                pending_ocr_step_capture = Some((group.id, preset.id, step_index));
-                                                            }
-                                                            
-                                                            // Language selector
-                                                            let popular_langs: &[(&str, &str)] = &[
-                                                                ("", "🔍 Auto"),
-                                                                ("en", "🇬🇧 en"),
-                                                                ("vi", "🇻🇳 vi"),
-                                                                ("zh-Hans", "🇨🇳 zh-Hans"),
-                                                                ("zh-Hant", "🇹🇼 zh-Hant"),
-                                                                ("ja", "🇯🇵 ja"),
-                                                                ("ko", "🇰🇷 ko"),
-                                                                ("fr", "🇫🇷 fr"),
-                                                                ("de", "🇩🇪 de"),
-                                                                ("es", "🇪🇸 es"),
-                                                                ("ru", "🇷🇺 ru"),
-                                                                ("th", "🇹🇭 th"),
-                                                            ];
-                                                            
-                                                            let cur_lang = step.ocr_lang.clone().unwrap_or_default();
-                                                            let lang_lbl = popular_langs
-                                                                .iter()
-                                                                .find(|(code, _)| *code == cur_lang.as_str())
-                                                                .map(|(_, lbl)| *lbl)
-                                                                .unwrap_or(if cur_lang.is_empty() { "🔍 Auto" } else { cur_lang.as_str() });
-                                                            
-                                                            egui::ComboBox::from_id_salt((group.id, preset.id, step_index, "ocr-step-lang"))
-                                                                .width(90.0)
-                                                                .selected_text(lang_lbl)
+                                                            // 1. OCR Preset ComboBox (Width 120.0)
+                                                            egui::ComboBox::from_id_salt((group.id, preset.id, step_index, "ocr-preset-step"))
+                                                                .width(120.0)
+                                                                .selected_text(selected_label)
                                                                 .show_ui(ui, |ui| {
-                                                                    for (code, lbl) in popular_langs {
-                                                                        if ui.selectable_label(cur_lang.as_str() == *code, *lbl).clicked() {
-                                                                            step.ocr_lang = if code.is_empty() { None } else { Some(code.to_string()) };
+                                                                    if ui.selectable_label(is_custom, Self::tr_lang(language, "Custom OCR", "OCR tuỳ chỉnh")).clicked() {
+                                                                        step.key = "0".to_string();
+                                                                        live_sync = true;
+                                                                    }
+                                                                    ui.separator();
+                                                                    for (preset_option_id, preset_option_label) in &ocr_preset_options {
+                                                                        if ui
+                                                                            .selectable_label(
+                                                                                selected_id == Some(*preset_option_id),
+                                                                                preset_option_label,
+                                                                            )
+                                                                            .clicked()
+                                                                        {
+                                                                            step.key = preset_option_id.to_string();
                                                                             live_sync = true;
                                                                         }
                                                                     }
                                                                 });
+                                                            
+                                                            // 2. Outputs ComboBox (Width 120.0)
+                                                            let outputs_label = Self::tr_lang(language, "Outputs", "Đầu ra").to_owned();
+                                                            egui::ComboBox::from_id_salt((group.id, preset.id, step_index, "ocr-outputs"))
+                                                                 .close_behavior(egui::PopupCloseBehavior::CloseOnClickOutside)
+                                                                 .width(120.0)
+                                                                 .selected_text(outputs_label)
+                                                                 .show_ui(ui, |ui| {
+                                                                    ui.set_min_width(200.0);
+                                                                    egui::Grid::new("ocr_outputs_grid")
+                                                                        .num_columns(2)
+                                                                        .spacing([8.0, 6.0])
+                                                                        .show(ui, |ui| {
+                                                                            let resp_label = ui.label(Self::tr_lang(language, "Found Var:", "Biến kết quả:"));
+                                                                            resp_label.on_hover_text(Self::tr_lang(language, 
+                                                                                "Assigns 1 if the target text was found (or if OCR succeeded when no target is set), 0 otherwise", 
+                                                                                "Gán 1 nếu tìm thấy từ khóa (hoặc nếu quét OCR thành công khi không đặt từ tìm), ngược lại là 0"
+                                                                            ));
+                                                                            let resp = ui.add(egui::TextEdit::singleline(&mut step.ocr_success_var).hint_text("var_ok"));
+                                                                            Self::apply_vietnamese_input_if_changed(&resp, self.state.vietnamese_input_enabled, self.state.vietnamese_input_mode, &mut step.ocr_success_var);
+                                                                            live_sync |= resp.changed();
+                                                                            ui.end_row();
+
+                                                                            let resp_label = ui.label("Pos X:");
+                                                                            resp_label.on_hover_text(Self::tr_lang(language, 
+                                                                                "Assigns the absolute X coordinate of the center of found text", 
+                                                                                "Gán tọa độ X tuyệt đối ở chính giữa từ tìm thấy"
+                                                                            ));
+                                                                            let resp = ui.add(egui::TextEdit::singleline(&mut step.ocr_pos_var_x).hint_text("var_x"));
+                                                                            Self::apply_vietnamese_input_if_changed(&resp, self.state.vietnamese_input_enabled, self.state.vietnamese_input_mode, &mut step.ocr_pos_var_x);
+                                                                            live_sync |= resp.changed();
+                                                                            ui.end_row();
+
+                                                                            let resp_label = ui.label("Pos Y:");
+                                                                            resp_label.on_hover_text(Self::tr_lang(language, 
+                                                                                "Assigns the absolute Y coordinate of the center of found text", 
+                                                                                "Gán tọa độ Y tuyệt đối ở chính giữa từ tìm thấy"
+                                                                            ));
+                                                                            let resp = ui.add(egui::TextEdit::singleline(&mut step.ocr_pos_var_y).hint_text("var_y"));
+                                                                            Self::apply_vietnamese_input_if_changed(&resp, self.state.vietnamese_input_enabled, self.state.vietnamese_input_mode, &mut step.ocr_pos_var_y);
+                                                                            live_sync |= resp.changed();
+                                                                            ui.end_row();
+
+                                                                            let resp_label = ui.label(Self::tr_lang(language, "Number Var:", "Biến lấy số:"));
+                                                                            resp_label.on_hover_text(Self::tr_lang(language, 
+                                                                                "Extracts and assigns the first integer found in the recognized text (e.g. extracts 45 from 'Level 45')", 
+                                                                                "Trích xuất và gán số nguyên đầu tiên tìm thấy trong văn bản nhận dạng được (ví dụ: lấy 45 từ chữ 'Level 45')"
+                                                                            ));
+                                                                            let resp = ui.add(egui::TextEdit::singleline(&mut step.ocr_numeric_var).hint_text("var_num"));
+                                                                            Self::apply_vietnamese_input_if_changed(&resp, self.state.vietnamese_input_enabled, self.state.vietnamese_input_mode, &mut step.ocr_numeric_var);
+                                                                            live_sync |= resp.changed();
+                                                                            ui.end_row();
+                                                                        });
+                                                                 });
                                                         });
-                                                    }
-                                                                                                } else if step.action == MacroAction::PlaySoundPreset {
+                                                        
+                                                        // Row 2: Pick Area Button & Language selector (Only for Custom OCR)
+                                                        if is_custom {
+                                                            ui.horizontal(|ui| {
+                                                                ui.spacing_mut().item_spacing.x = 6.0;
+                                                                
+                                                                // 3. Pick Area Button (Width 120.0, Height 22.0)
+                                                                let pick_btn = egui::Button::new(
+                                                                    egui::RichText::new(Self::tr_lang(language, "Pick area", "Chọn vùng")).size(12.0)
+                                                                );
+                                                                if ui.add_sized([120.0, 22.0], pick_btn)
+                                                                    .on_hover_text(Self::tr_lang(
+                                                                        language,
+                                                                        "Drag on screen to select the OCR scan region",
+                                                                        "Kéo trên màn hình để chọn vùng quét OCR"
+                                                                    ))
+                                                                    .clicked()
+                                                                {
+                                                                    pending_ocr_step_capture = Some((group.id, preset.id, step_index));
+                                                                }
+                                                                
+                                                                // 4. Language selector (Width 120.0)
+                                                                let popular_langs: &[(&str, &str)] = &[
+                                                                    ("", "Auto"),
+                                                                    ("en", "English (en)"),
+                                                                    ("vi", "Tiếng Việt (vi)"),
+                                                                    ("zh-Hans", "简体中文 (zh)"),
+                                                                    ("zh-Hant", "繁體中文 (zht)"),
+                                                                    ("ja", "日本語 (ja)"),
+                                                                    ("ko", "한국어 (ko)"),
+                                                                    ("fr", "Français (fr)"),
+                                                                    ("de", "Deutsch (de)"),
+                                                                    ("es", "Español (es)"),
+                                                                    ("ru", "Русский (ru)"),
+                                                                    ("th", "ไทย (th)"),
+                                                                ];
+                                                                
+                                                                let cur_lang = step.ocr_lang.clone().unwrap_or_default();
+                                                                let lang_lbl = popular_langs
+                                                                    .iter()
+                                                                    .find(|(code, _)| *code == cur_lang.as_str())
+                                                                    .map(|(_, lbl)| *lbl)
+                                                                    .unwrap_or(if cur_lang.is_empty() { "Auto" } else { cur_lang.as_str() });
+                                                                
+                                                                egui::ComboBox::from_id_salt((group.id, preset.id, step_index, "ocr-step-lang"))
+                                                                    .width(120.0)
+                                                                    .selected_text(lang_lbl)
+                                                                    .show_ui(ui, |ui| {
+                                                                        for (code, lbl) in popular_langs {
+                                                                            if ui.selectable_label(cur_lang.as_str() == *code, *lbl).clicked() {
+                                                                                step.ocr_lang = if code.is_empty() { None } else { Some(code.to_string()) };
+                                                                                live_sync = true;
+                                                                            }
+                                                                        }
+                                                                    });
+                                                            });
+                                                            
+                                                            // Display current area coordinates with custom styling
+                                                            ui.label(
+                                                                egui::RichText::new(format!(
+                                                                    "Area: X:{} Y:{} W:{} H:{}",
+                                                                    step.x, step.y, step.ocr_width, step.ocr_height
+                                                                ))
+                                                                .size(10.5)
+                                                                .color(egui::Color32::from_rgb(148, 200, 255)),
+                                                            );
+                                                        }
+                                                    });
+                                                } else if step.action == MacroAction::PlaySoundPreset {
                                                     let selected_id = step.key.trim().parse::<u32>().ok();
                                                     let selected_label = selected_id
                                                         .and_then(|id| {
