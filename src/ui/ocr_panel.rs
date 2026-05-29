@@ -108,33 +108,37 @@ impl CrosshairApp {
                     .min_col_width(110.0)
                     .show(ui, |ui| {
                         // Language Code - Dropdown with popular languages
-                        ui.label(Self::tr_lang(language, "Language", "Ngôn ngữ OCR"));
+                        ui.label(Self::tr_lang(language, "Language", "Ngon ngu OCR"));
                         {
-                            // (code, display label)
-                            let popular_langs: &[(&str, &str)] = &[
-                                ("", "Auto Detect"),
-                                ("en", "English (en)"),
-                                ("vi", "Tiếng Việt (vi)"),
-                                ("zh-Hans", "简体中文 (zh-Hans)"),
-                                ("zh-Hant", "繁體中文 (zh-Hant)"),
-                                ("ja", "日本語 (ja)"),
-                                ("ko", "한국어 (ko)"),
-                                ("fr", "Français (fr)"),
-                                ("de", "Deutsch (de)"),
-                                ("es", "Español (es)"),
-                                ("it", "Italiano (it)"),
-                                ("pt", "Português (pt)"),
-                                ("ru", "Русский (ru)"),
-                                ("ar", "العربية (ar)"),
-                                ("th", "ภาษาไทย (th)"),
-                                ("nl", "Nederlands (nl)"),
-                                ("pl", "Polski (pl)"),
-                                ("tr", "Türkçe (tr)"),
+                            // ASCII-only labels to avoid font rendering issues with CJK/Arabic/Thai
+                            // [not installed] = language pack not found on this Windows system
+                            let popular_langs: &[(&str, &str, &str)] = &[
+                                ("",        "Auto Detect",              "Use Windows profile languages. No extra install needed."),
+                                ("en",      "English (en)",             "Usually pre-installed on Windows"),
+                                ("vi",      "Vietnamese (vi)",          "Tieng Viet - install via Settings > Language"),
+                                ("zh-Hans", "Chinese Simp (zh-Hans)",   "Simplified Chinese - install via Settings > Language"),
+                                ("zh-Hant", "Chinese Trad (zh-Hant)",   "Traditional Chinese - install via Settings > Language"),
+                                ("ja",      "Japanese (ja)",            "install via Settings > Language"),
+                                ("ko",      "Korean (ko)",              "install via Settings > Language"),
+                                ("fr",      "French (fr)",              "Francais - install via Settings > Language"),
+                                ("de",      "German (de)",              "Deutsch - install via Settings > Language"),
+                                ("es",      "Spanish (es)",             "Espanol - install via Settings > Language"),
+                                ("it",      "Italian (it)",             "Italiano - install via Settings > Language"),
+                                ("pt",      "Portuguese (pt)",          "Portugues - install via Settings > Language"),
+                                ("ru",      "Russian (ru)",             "install via Settings > Language"),
+                                ("ar",      "Arabic (ar)",              "install via Settings > Language"),
+                                ("th",      "Thai (th)",                "install via Settings > Language"),
+                                ("nl",      "Dutch (nl)",               "Nederlands - install via Settings > Language"),
+                                ("pl",      "Polish (pl)",              "Polski - install via Settings > Language"),
+                                ("tr",      "Turkish (tr)",             "Turkce - install via Settings > Language"),
                             ];
+
+                            let avail_langs = crate::ocr::available_ocr_languages();
+
                             let current_code = preset.lang.clone().unwrap_or_default();
                             let current_label: String = popular_langs.iter()
-                                .find(|(code, _)| *code == current_code.as_str())
-                                .map(|(_, label)| label.to_string())
+                                .find(|(code, _, _)| *code == current_code.as_str())
+                                .map(|(_, label, _)| label.to_string())
                                 .unwrap_or_else(|| {
                                     if current_code.is_empty() {
                                         "Auto Detect".to_string()
@@ -148,9 +152,25 @@ impl CrosshairApp {
                                     .selected_text(current_label.as_str())
                                     .width(200.0)
                                     .show_ui(ui, |ui| {
-                                        for (code, label) in popular_langs {
+                                        for (code, label, hint) in popular_langs {
                                             let is_selected = current_code.as_str() == *code;
-                                            if ui.selectable_label(is_selected, *label).clicked() {
+                                            let is_installed = code.is_empty() || avail_langs.iter().any(|a| {
+                                                a.to_lowercase().starts_with(&code.to_lowercase())
+                                            });
+                                            let display = if is_installed {
+                                                label.to_string()
+                                            } else {
+                                                format!("{} [not installed]", label)
+                                            };
+                                            let hover_msg = if is_installed {
+                                                hint.to_string()
+                                            } else {
+                                                format!("{} - Language pack NOT installed. Go to Windows Settings > Time & Language > Language & Region > Add a language", hint)
+                                            };
+                                            if ui.selectable_label(is_selected, &display)
+                                                .on_hover_text(hover_msg)
+                                                .clicked()
+                                            {
                                                 preset.lang = if code.is_empty() { None } else { Some(code.to_string()) };
                                                 live_sync = true;
                                             }
@@ -170,7 +190,7 @@ impl CrosshairApp {
                                     live_sync = true;
                                 }
                                 if resp.hovered() {
-                                    resp.on_hover_text(Self::tr_lang(language, "Type a custom language code (e.g. 'en', 'vi', 'ja')", "Nhập mã ngôn ngữ tùy chỉnh (ví dụ 'en', 'vi', 'ja')"));
+                                    resp.on_hover_text(Self::tr_lang(language, "Type a custom language code (e.g. 'en', 'vi', 'ja')", "Nhap ma ngon ngu tuy chinh (vi du 'en', 'vi', 'ja')"));
                                 }
                             });
                         }
