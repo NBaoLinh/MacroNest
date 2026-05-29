@@ -152,15 +152,10 @@ impl PreviewState {
         let clip_start_ms = clip.start_ms;
         let clip_end_ms = clip.end_ms.max(clip_start_ms + 1);
         let start_position_ms = start_position_ms.clamp(clip_start_ms, clip_end_ms);
-        let start_frame = (((start_position_ms - clip_start_ms) as f32 / 1000.0)
-            * sample_rate as f32)
-            .floor() as usize;
+        let start_frame = ((start_position_ms as f32 / 1000.0) * sample_rate as f32).floor() as usize;
         let start_sample = start_frame.saturating_mul(channels as usize);
-        let end_frame = ((((clip_end_ms - clip_start_ms) as f32 / 1000.0) * sample_rate as f32)
-            .ceil() as usize)
-            .saturating_mul(channels as usize)
-            .min(cached.samples.len());
-        let end_sample = end_frame;
+        let end_frame = ((clip_end_ms as f32 / 1000.0) * sample_rate as f32).ceil() as usize;
+        let end_sample = (end_frame.saturating_mul(channels as usize)).min(cached.samples.len());
         let total_duration_ms = ((end_sample.saturating_sub(start_sample)) as f32
             / channels as f32
             / sample_rate as f32
