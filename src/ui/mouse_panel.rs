@@ -684,7 +684,11 @@ impl CrosshairApp {
         color: Option<RgbaColor>,
     ) {
         let uses_blocked_click = Self::mouse_move_absolute_capture_uses_blocked_click(target);
-        if uses_blocked_click {
+        let is_pixel_color = matches!(
+            target.capture_kind,
+            MouseCaptureKind::IfStartPixelColor | MouseCaptureKind::ExtraCondPixelColor
+        );
+        if uses_blocked_click && (!is_pixel_color || color.is_some()) {
             self.set_image_search_capture_mouse_blocked(false, false);
         }
 
@@ -892,17 +896,16 @@ impl CrosshairApp {
         screen_y: i32,
         used_blocked_click: bool,
     ) -> Option<RgbaColor> {
+        // Chụp màn hình vùng 1x1 tại tọa độ (screen_x, screen_y) trước khi khôi phục cửa sổ và nhả chặn chuột.
+        let capture = window_list::capture_virtual_screen_region(screen_x, screen_y, 1, 1);
+
         if used_blocked_click {
             self.set_image_search_capture_mouse_blocked(false, false);
         }
-        ctx.send_viewport_cmd(egui::ViewportCommand::Visible(false));
-        let _ = self.overlay_tx.send(OverlayCommand::SetUiVisible(false));
-        crate::overlay::wake_command_queue();
-        std::thread::sleep(std::time::Duration::from_millis(70));
-        let capture = window_list::capture_virtual_screen_region(screen_x, screen_y, 1, 1);
         self.mouse_move_absolute_capture_target = None;
         self.mouse_move_absolute_capture_wait_for_mouse_release = false;
         self.restore_mouse_move_absolute_capture_window(ctx);
+
         capture.and_then(|frame| {
             (frame.rgba.len() >= 4).then(|| RgbaColor {
                 r: frame.rgba[0],
