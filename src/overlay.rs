@@ -3116,7 +3116,6 @@ mod windows_overlay {
         hook_state.shift = false;
         hook_state.win = false;
         hook_state.keyboard_arrow_mouse_enabled = false;
-        hook_state.vision_capture_mouse_blocked = false;
     }
 
     fn clear_transient_input_state() {
