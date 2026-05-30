@@ -671,6 +671,9 @@ pub struct MacroStep {
     pub if_contain_case_sensitive: bool,
     #[serde(default)]
     pub if_contain_isolated: bool,
+    /// Which macro group to target for TriggerMacroPreset action
+    #[serde(default)]
+    pub trigger_macro_group_id: Option<u32>,
 }
 
 impl Default for MacroStep {
@@ -739,6 +742,7 @@ impl Default for MacroStep {
             vision_pos_var_y: String::new(),
             if_contain_case_sensitive: false,
             if_contain_isolated: false,
+            trigger_macro_group_id: None,
         }
     }
 }

@@ -16606,6 +16606,17 @@ pub(crate) fn render_macro_panel(&mut self, ui: &mut egui::Ui) {
 
 
 
+                    // Pre-compute group list for TriggerMacroPreset (avoids borrow conflict)
+                    let all_groups_for_trigger: Vec<(u32, String, Vec<(u32, String)>)> = self.state.macro_groups
+                        .iter()
+                        .map(|g| (
+                            g.id,
+                            g.name.clone(),
+                            g.presets.iter()
+                                .map(|p| (p.id, Self::format_macro_trigger_ui(language, p)))
+                                .collect::<Vec<_>>(),
+                        ))
+                        .collect();
                     let group = &mut self.state.macro_groups[group_index];
 
 
@@ -21150,125 +21161,129 @@ pub(crate) fn render_macro_panel(&mut self, ui: &mut egui::Ui) {
 
 
 
-                                                    let selected_id = step.key.trim().parse::<u32>().ok();
+                                                    // Auto-init group if None
+
+                                                    if step.trigger_macro_group_id.is_none() {
+
+                                                        step.trigger_macro_group_id = Some(group.id);
+
+                                                        live_sync = true;
+
+                                                    }
 
 
 
-                                                    let selected_label = selected_id
+                                                    let trig_group_id = step.trigger_macro_group_id.unwrap_or(group.id);
+
+                                                    let trig_group_name = all_groups_for_trigger
+
+                                                        .iter()
+
+                                                        .find(|(gid, _, _)| *gid == trig_group_id)
+
+                                                        .map(|(_, gname, _)| gname.clone())
+
+                                                        .unwrap_or_else(|| Self::tr_lang(language, "Select group", "Chọn group").to_owned());
 
 
 
-                                                        .and_then(|id| {
+                                                    // ComboBox 1: Select group
 
+                                                    egui::ComboBox::from_id_salt((group.id, preset.id, "hold-stop-trigger-macro-group"))
 
+                                                        .width(110.0)
 
-                                                            group_preset_options
+                                                        .selected_text(&trig_group_name)
 
+                                                        .show_ui(ui, |ui| {
 
+                                                            for (gid, gname, _) in &all_groups_for_trigger {
 
-                                                                .iter()
+                                                                if ui
 
+                                                                    .selectable_label(*gid == trig_group_id, gname.as_str())
 
+                                                                    .clicked()
 
-                                                                .find(|(preset_id, _)| *preset_id == id)
+                                                                {
 
+                                                                    step.trigger_macro_group_id = Some(*gid);
 
+                                                                    if *gid != trig_group_id {
 
-                                                                .map(|(_, label)| label.clone())
+                                                                        step.key = String::new();
 
+                                                                    }
 
+                                                                    live_sync = true;
 
-                                                        })
+                                                                }
 
-
-
-                                                        .unwrap_or_else(|| {
-
-
-
-                                                            Self::tr_lang(language, "Select macro", "Chá»n macro").to_owned()
-
-
+                                                            }
 
                                                         });
 
 
 
+                                                    // ComboBox 2: Select preset from chosen group
+
+                                                    let trig_presets: Vec<(u32, String)> = all_groups_for_trigger
+
+                                                        .iter()
+
+                                                        .find(|(gid, _, _)| *gid == trig_group_id)
+
+                                                        .map(|(gid, _, gpresets)| {
+
+                                                            gpresets.iter()
+
+                                                                .filter(|(pid, _)| !(*gid == group.id && *pid == preset.id))
+
+                                                                .cloned()
+
+                                                                .collect()
+
+                                                        })
+
+                                                        .unwrap_or_default();
+
+
+
+                                                    let selected_id = step.key.trim().parse::<u32>().ok();
+
+                                                    let selected_label = selected_id
+
+                                                        .and_then(|id| trig_presets.iter().find(|(pid, _)| *pid == id).map(|(_, lbl)| lbl.clone()))
+
+                                                        .unwrap_or_else(|| Self::tr_lang(language, "Select macro", "Chọn macro").to_owned());
+
+
+
                                                     egui::ComboBox::from_id_salt((group.id, preset.id, "hold-stop-trigger-macro"))
 
-
-
-                                                        .width(160.0)
-
-
+                                                        .width(146.0)
 
                                                         .selected_text(selected_label)
 
-
-
                                                         .show_ui(ui, |ui| {
 
-
-
-                                                            for (preset_option_id, preset_option_label) in &group_preset_options {
-
-
-
-                                                                if *preset_option_id == preset.id {
-
-
-
-                                                                    continue;
-
-
-
-                                                                }
-
-
+                                                            for (preset_option_id, preset_option_label) in &trig_presets {
 
                                                                 if ui
 
-
-
-                                                                    .selectable_label(
-
-
-
-                                                                        selected_id == Some(*preset_option_id),
-
-
-
-                                                                        preset_option_label,
-
-
-
-                                                                    )
-
-
+                                                                    .selectable_label(selected_id == Some(*preset_option_id), preset_option_label)
 
                                                                     .clicked()
 
-
-
                                                                 {
-
-
 
                                                                     step.key = preset_option_id.to_string();
 
-
-
                                                                     live_sync = true;
-
-
 
                                                                 }
 
-
-
                                                             }
-
-
 
                                                         });
 
@@ -31324,125 +31339,129 @@ pub(crate) fn render_macro_panel(&mut self, ui: &mut egui::Ui) {
 
 
 
-                                                    let selected_id = step.key.trim().parse::<u32>().ok();
+                                                    // Auto-init group if None
+
+                                                    if step.trigger_macro_group_id.is_none() {
+
+                                                        step.trigger_macro_group_id = Some(group.id);
+
+                                                        live_sync = true;
+
+                                                    }
 
 
 
-                                                    let selected_label = selected_id
+                                                    let trig_group_id = step.trigger_macro_group_id.unwrap_or(group.id);
+
+                                                    let trig_group_name = all_groups_for_trigger
+
+                                                        .iter()
+
+                                                        .find(|(gid, _, _)| *gid == trig_group_id)
+
+                                                        .map(|(_, gname, _)| gname.clone())
+
+                                                        .unwrap_or_else(|| Self::tr_lang(language, "Select group", "Chọn group").to_owned());
 
 
 
-                                                        .and_then(|id| {
+                                                    // ComboBox 1: Select group
 
+                                                    egui::ComboBox::from_id_salt((group.id, preset.id, step_index, "trigger-macro-group-step"))
 
+                                                        .width(110.0)
 
-                                                            group_preset_options
+                                                        .selected_text(&trig_group_name)
 
+                                                        .show_ui(ui, |ui| {
 
+                                                            for (gid, gname, _) in &all_groups_for_trigger {
 
-                                                                .iter()
+                                                                if ui
 
+                                                                    .selectable_label(*gid == trig_group_id, gname.as_str())
 
+                                                                    .clicked()
 
-                                                                .find(|(preset_id, _)| *preset_id == id)
+                                                                {
 
+                                                                    step.trigger_macro_group_id = Some(*gid);
 
+                                                                    if *gid != trig_group_id {
 
-                                                                .map(|(_, label)| label.clone())
+                                                                        step.key = String::new();
 
+                                                                    }
 
+                                                                    live_sync = true;
 
-                                                        })
+                                                                }
 
-
-
-                                                        .unwrap_or_else(|| {
-
-
-
-                                                            Self::tr_lang(language, "Select macro", "Chá»n macro").to_owned()
-
-
+                                                            }
 
                                                         });
 
 
 
+                                                    // ComboBox 2: Select preset from chosen group
+
+                                                    let trig_presets: Vec<(u32, String)> = all_groups_for_trigger
+
+                                                        .iter()
+
+                                                        .find(|(gid, _, _)| *gid == trig_group_id)
+
+                                                        .map(|(gid, _, gpresets)| {
+
+                                                            gpresets.iter()
+
+                                                                .filter(|(pid, _)| !(*gid == group.id && *pid == preset.id))
+
+                                                                .cloned()
+
+                                                                .collect()
+
+                                                        })
+
+                                                        .unwrap_or_default();
+
+
+
+                                                    let selected_id = step.key.trim().parse::<u32>().ok();
+
+                                                    let selected_label = selected_id
+
+                                                        .and_then(|id| trig_presets.iter().find(|(pid, _)| *pid == id).map(|(_, lbl)| lbl.clone()))
+
+                                                        .unwrap_or_else(|| Self::tr_lang(language, "Select macro", "Chọn macro").to_owned());
+
+
+
                                                     egui::ComboBox::from_id_salt((group.id, preset.id, step_index, "trigger-macro-preset-step"))
-
-
 
                                                         .width(146.0)
 
-
-
                                                         .selected_text(selected_label)
-
-
 
                                                         .show_ui(ui, |ui| {
 
-
-
-                                                            for (preset_option_id, preset_option_label) in &group_preset_options {
-
-
-
-                                                                if *preset_option_id == preset.id {
-
-
-
-                                                                    continue;
-
-
-
-                                                                }
-
-
+                                                            for (preset_option_id, preset_option_label) in &trig_presets {
 
                                                                 if ui
 
-
-
-                                                                    .selectable_label(
-
-
-
-                                                                        selected_id == Some(*preset_option_id),
-
-
-
-                                                                        preset_option_label,
-
-
-
-                                                                    )
-
-
+                                                                    .selectable_label(selected_id == Some(*preset_option_id), preset_option_label)
 
                                                                     .clicked()
 
-
-
                                                                 {
-
-
 
                                                                     step.key = preset_option_id.to_string();
 
-
-
                                                                     live_sync = true;
-
-
 
                                                                 }
 
-
-
                                                             }
-
-
 
                                                         });
 
