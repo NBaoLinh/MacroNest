@@ -7583,7 +7583,7 @@ mod windows_overlay {
 
         if toolbox_active {
 
-            return 100;
+            return 16;
 
         }
 
