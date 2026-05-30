@@ -1926,7 +1926,7 @@ mod windows_overlay {
 
                 ui_visible: true,
 
-                ui_foreground: is_ui_in_foreground(),
+                ui_foreground: true,
 
             });
 
@@ -2098,7 +2098,7 @@ mod windows_overlay {
 
                     let _ = SetTimer(Some(hwnd), TIMER_ID, 500, None);
 
-                    let _ = set_input_hooks_enabled(runtime, desired_hooks_enabled(runtime));
+                    let _ = set_input_hooks_enabled(runtime, false);
 
                     let _ = refresh_overlay(runtime);
 
@@ -2113,18 +2113,6 @@ mod windows_overlay {
                 if let Some(runtime) = runtime_mut(hwnd) {
 
                     process_pending_commands(hwnd, runtime);
-
-                    let hud_active = HUD_DISPLAY.lock().is_some()
-
-                        || HUD_PREVIEW_DISPLAY.lock().is_some()
-
-                        || runtime.hud_display.is_some();
-
-                    if hud_active {
-
-                        let _ = refresh_hud(runtime);
-
-                    }
 
                     let ui_foreground = is_ui_in_foreground();
 
@@ -2141,6 +2129,8 @@ mod windows_overlay {
                             reset_all_input_and_locks();
 
                             let _ = ShowWindow(runtime.pin_hwnd, SW_HIDE);
+
+                            let _ = ShowWindow(runtime.hud_hwnd, SW_HIDE);
 
                             let _ = ShowWindow(runtime.mouse_trail_hwnd, SW_HIDE);
 
@@ -2220,16 +2210,6 @@ mod windows_overlay {
 
                     let _ = refresh_timer_overlays(runtime);
 
-                    let hud_active = HUD_DISPLAY.lock().is_some()
-                        || HUD_PREVIEW_DISPLAY.lock().is_some()
-                        || runtime.hud_display.is_some();
-
-                    if hud_active {
-                        let _ = refresh_hud(runtime);
-                    }
-
-
-
                     refresh_overlay_timer(hwnd, runtime);
 
                 }
@@ -2244,29 +2224,9 @@ mod windows_overlay {
 
                     process_pending_commands(hwnd, runtime);
 
-                    let hud_active = HUD_DISPLAY.lock().is_some()
-
-                        || HUD_PREVIEW_DISPLAY.lock().is_some()
-
-                        || runtime.hud_display.is_some();
-
-                    if hud_active {
-
-                        let _ = refresh_hud(runtime);
-
-                    }
-
                     let _ = refresh_search_area_overlay(runtime);
 
                     let _ = refresh_timer_overlays(runtime);
-
-                    let hud_active = HUD_DISPLAY.lock().is_some()
-                        || HUD_PREVIEW_DISPLAY.lock().is_some()
-                        || runtime.hud_display.is_some();
-
-                    if hud_active {
-                        let _ = refresh_hud(runtime);
-                    }
 
                     refresh_overlay_timer(hwnd, runtime);
 
@@ -7370,7 +7330,12 @@ mod windows_overlay {
 
         display.text = resolve_variables_in_text(&display.text);
 
+        if runtime.hud_display.as_ref() == Some(&display) {
+            return Ok(());
+        }
+
         runtime.hud_display = Some(display.clone());
+
         unsafe { paint_hud(runtime.hud_hwnd, &display) }
 
     }
@@ -8928,16 +8893,6 @@ mod windows_overlay {
         let _ = DeleteDC(mem_dc);
 
         let _ = ReleaseDC(None, screen_dc);
-
-        let _ = SetWindowPos(
-            hwnd,
-            Some(HWND_TOPMOST),
-            0,
-            0,
-            0,
-            0,
-            SWP_NOMOVE | SWP_NOSIZE | SWP_NOACTIVATE | SWP_SHOWWINDOW,
-        );
 
         let _ = ShowWindow(hwnd, SW_SHOWNA);
 
