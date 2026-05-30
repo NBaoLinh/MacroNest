@@ -16620,6 +16620,26 @@ pub(crate) fn render_macro_panel(&mut self, ui: &mut egui::Ui) {
                                 .collect::<Vec<_>>(),
                         ))
                         .collect();
+                    let all_trigger_macro_warnings: Vec<(u32, bool)> = self.state.macro_groups
+                        .iter()
+                        .flat_map(|g| g.presets.iter())
+                        .map(|preset| {
+                            let has_infinite_loop = self.state.macro_infinite_loop_warning_enabled
+                                && preset.enabled
+                                && preset.steps.iter().any(|s| {
+                                    s.action == MacroAction::LoopStart && s.is_infinite_loop()
+                                });
+                            let has_vision_leak = preset.enabled
+                                && preset.steps.iter().any(|s| {
+                                    s.action == MacroAction::StartVisionSearch && s.enabled
+                                })
+                                && !preset
+                                    .steps
+                                    .iter()
+                                    .any(|s| s.action == MacroAction::StopVision && s.enabled);
+                            (preset.id, has_infinite_loop || has_vision_leak)
+                        })
+                        .collect();
 
                     let group = &mut self.state.macro_groups[group_index];
 
@@ -21213,6 +21233,34 @@ pub(crate) fn render_macro_panel(&mut self, ui: &mut egui::Ui) {
 
 
                                                         ui.add_space(4.0);
+                                                        let selected_trigger_warning = selected_id
+                                                            .and_then(|id| {
+                                                                all_trigger_macro_warnings
+                                                                    .iter()
+                                                                    .find(|(preset_id, _)| *preset_id == id)
+                                                                    .map(|(_, warning)| *warning)
+                                                            })
+                                                            .unwrap_or(false);
+
+                                                        if selected_trigger_warning {
+                                                            let warn_color = Color32::from_rgb(255, 90, 0);
+                                                            let response = ui.add_sized([20.0, 20.0], egui::Button::new(
+                                                                Self::material_icon_text(0xe002, 16.0).color(warn_color)
+                                                            ).frame(false));
+                                                            if response.contains_pointer() {
+                                                                egui::show_tooltip_at_pointer(ui.ctx(), ui.layer_id(), response.id.with("trigger-macro-warning-tip"), |ui| {
+                                                                    ui.horizontal(|ui| {
+                                                                        ui.label(Self::material_icon_text(0xe002, 14.0).color(warn_color));
+                                                                        ui.label(RichText::new(Self::tr_lang(language, "TRIGGER WARNING", "C?NH B?O K?CH HO?T")).strong().color(warn_color));
+                                                                    });
+                                                                    ui.label(Self::tr_lang(
+                                                                        language,
+                                                                        "This macro preset can run continuously or keep working in the background. Triggering it from another macro can make it run immediately without a hold key.",
+                                                                        "Macro n?y c? th? ch?y li?n t?c ho?c ti?p t?c ch?y n?n. K?ch ho?t n? t? macro kh?c c? th? l?m n? ch?y ngay m? kh?ng c?n gi? ph?m.",
+                                                                    ));
+                                                                });
+                                                            }
+                                                        }
 
 
 
@@ -31310,6 +31358,34 @@ pub(crate) fn render_macro_panel(&mut self, ui: &mut egui::Ui) {
 
 
                                                         ui.add_space(4.0);
+                                                        let selected_trigger_warning = selected_id
+                                                            .and_then(|id| {
+                                                                all_trigger_macro_warnings
+                                                                    .iter()
+                                                                    .find(|(preset_id, _)| *preset_id == id)
+                                                                    .map(|(_, warning)| *warning)
+                                                            })
+                                                            .unwrap_or(false);
+
+                                                        if selected_trigger_warning {
+                                                            let warn_color = Color32::from_rgb(255, 90, 0);
+                                                            let response = ui.add_sized([20.0, 20.0], egui::Button::new(
+                                                                Self::material_icon_text(0xe002, 16.0).color(warn_color)
+                                                            ).frame(false));
+                                                            if response.contains_pointer() {
+                                                                egui::show_tooltip_at_pointer(ui.ctx(), ui.layer_id(), response.id.with("trigger-macro-warning-tip"), |ui| {
+                                                                    ui.horizontal(|ui| {
+                                                                        ui.label(Self::material_icon_text(0xe002, 14.0).color(warn_color));
+                                                                        ui.label(RichText::new(Self::tr_lang(language, "TRIGGER WARNING", "C?NH B?O K?CH HO?T")).strong().color(warn_color));
+                                                                    });
+                                                                    ui.label(Self::tr_lang(
+                                                                        language,
+                                                                        "This macro preset can run continuously or keep working in the background. Triggering it from another macro can make it run immediately without a hold key.",
+                                                                        "Macro n?y c? th? ch?y li?n t?c ho?c ti?p t?c ch?y n?n. K?ch ho?t n? t? macro kh?c c? th? l?m n? ch?y ngay m? kh?ng c?n gi? ph?m.",
+                                                                    ));
+                                                                });
+                                                            }
+                                                        }
 
 
 
