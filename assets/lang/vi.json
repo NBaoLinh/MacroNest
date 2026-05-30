@@ -417,5 +417,5 @@
   "Wait for completion": "Đợi chạy xong",
   "TRIGGER WARNING": "CẢNH BÁO KÍCH HOẠT",
   "This macro preset can run continuously or keep working in the background. Triggering it from another macro can make it run immediately without a hold key.": "Preset macro này có thể chạy liên tục hoặc chạy nền. Kích hoạt nó từ macro khác có thể làm nó chạy ngay mà không cần giữ phím.",
-  "Timer": "H?n gi?"
+  "Timer": "Hẹn giờ"
 }
