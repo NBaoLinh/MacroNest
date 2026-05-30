@@ -200,7 +200,7 @@ mod windows_overlay {
 
                     CreateWindowExW, DefWindowProcW, DestroyIcon, DestroyMenu, DestroyWindow, DispatchMessageW,
 
-                    GA_ROOT, GW_OWNER, GWLP_USERDATA, GWLP_HWNDPARENT, GetAncestor, GetClassNameW, GetClientRect,
+                    GA_ROOT, GW_OWNER, GWLP_USERDATA, GetAncestor, GetClassNameW, GetClientRect,
 
                     GetCursorPos, GetForegroundWindow, GetMessageW, GetSystemMetrics, GetWindow,
 
@@ -7346,33 +7346,6 @@ mod windows_overlay {
 
         if runtime.hud_display.as_ref() == Some(&display) {
 
-            unsafe {
-
-                let foreground = HWND(FOREGROUND_WINDOW_HWND.load(Ordering::Relaxed) as *mut std::ffi::c_void);
-                if !foreground.0.is_null() && !window_belongs_to_current_process(foreground) {
-                    let _ = SetWindowLongPtrW(runtime.hud_hwnd, WINDOW_LONG_PTR_INDEX(GWLP_HWNDPARENT.0), foreground.0 as isize);
-                }
-
-                let _ = SetWindowPos(
-
-                    runtime.hud_hwnd,
-
-                    Some(HWND_TOPMOST),
-
-                    0,
-
-                    0,
-
-                    0,
-
-                    0,
-
-                    SWP_NOMOVE | SWP_NOSIZE | SWP_NOACTIVATE | SWP_SHOWWINDOW,
-
-                );
-
-            }
-
             return Ok(());
 
         }
@@ -8938,11 +8911,6 @@ mod windows_overlay {
         let _ = DeleteDC(mem_dc);
 
         let _ = ReleaseDC(None, screen_dc);
-
-        let foreground = HWND(FOREGROUND_WINDOW_HWND.load(Ordering::Relaxed) as *mut std::ffi::c_void);
-        if !foreground.0.is_null() && !window_belongs_to_current_process(foreground) {
-            let _ = SetWindowLongPtrW(hwnd, WINDOW_LONG_PTR_INDEX(GWLP_HWNDPARENT.0), foreground.0 as isize);
-        }
 
         let _ = SetWindowPos(
             hwnd,
