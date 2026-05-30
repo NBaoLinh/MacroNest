@@ -7346,6 +7346,28 @@ mod windows_overlay {
 
         if runtime.hud_display.as_ref() == Some(&display) {
 
+            unsafe {
+
+                let _ = SetWindowPos(
+
+                    runtime.hud_hwnd,
+
+                    Some(HWND_TOPMOST),
+
+                    0,
+
+                    0,
+
+                    0,
+
+                    0,
+
+                    SWP_NOMOVE | SWP_NOSIZE | SWP_NOACTIVATE | SWP_SHOWWINDOW,
+
+                );
+
+            }
+
             return Ok(());
 
         }
