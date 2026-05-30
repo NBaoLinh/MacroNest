@@ -28682,7 +28682,7 @@ pub(crate) fn render_macro_panel(&mut self, ui: &mut egui::Ui) {
 
 
 
-                                    "Drop here",
+                                    Self::tr_lang(language, "Drop here", "Drop here"),
 
 
 

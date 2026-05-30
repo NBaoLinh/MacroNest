@@ -41,7 +41,7 @@
   "Title Match": "Khớp tiêu đề",
   "Treat same window titles as a match too": "Coi các cửa sổ trùng tiêu đề cũng là khớp",
   "Custom Bounds": "Khung tùy chỉnh",
-  "Preview": "Xem trước",
+  "Preview": "Xem thử",
   "Source Crop": "Cắt vùng nguồn",
   "Pinned Region": "Vùng ghim",
   "Center Pinned Region": "Căn giữa vùng ghim",
@@ -281,7 +281,6 @@
   "Delete video preset": "Xóa preset video",
   "Import video": "Import video",
   "Choose video file": "Chọn file video",
-  "Preview": "Xem thử",
   "Preview fullscreen": "Xem thử fullscreen",
   "No video file selected.": "Chưa chọn file video.",
   "Import a video first to unlock preview, trim, and chroma key picking.": "Import video trước để mở preview, trim và chọn màu xóa phông.",
@@ -411,5 +410,11 @@
   "Warning: Keeping mouse locked after the macro ends can make your mouse unresponsive until manually unlocked!": "Cảnh báo: Việc giữ khóa di chuyển và các nút chuột sau khi chạy xong macro có thể khiến chuột không phản hồi cho đến khi được mở khóa thủ công!",
   "Folder containing this group is disabled": "Thư mục chứa nhóm này đang bị tắt",
   "Folder containing this preset is disabled": "Thư mục chứa preset này đang bị tắt",
-  "Group containing this preset is disabled": "Nhóm chứa preset này đang bị tắt"
+  "Group containing this preset is disabled": "Nhóm chứa preset này đang bị tắt",
+  "Drop here": "Thả vào đây",
+  "Add": "Thêm",
+  "Set": "Gán",
+  "Wait for completion": "Đợi chạy xong",
+  "TRIGGER WARNING": "CẢNH BÁO KÍCH HOẠT",
+  "This macro preset can run continuously or keep working in the background. Triggering it from another macro can make it run immediately without a hold key.": "Preset macro này có thể chạy liên tục hoặc chạy nền. Kích hoạt nó từ macro khác có thể làm nó chạy ngay mà không cần giữ phím."
 }
