@@ -7346,6 +7346,10 @@ mod windows_overlay {
 
         if runtime.hud_display.as_ref() == Some(&display) {
 
+            unsafe {
+                let _ = keep_window_topmost(runtime.hud_hwnd);
+            }
+
             return Ok(());
 
         }
@@ -7355,6 +7359,32 @@ mod windows_overlay {
 
 
         unsafe { paint_hud(runtime.hud_hwnd, &display) }
+
+    }
+
+
+
+    unsafe fn keep_window_topmost(hwnd: HWND) -> Result<()> {
+
+        let _ = SetWindowPos(
+
+            hwnd,
+
+            Some(HWND_TOPMOST),
+
+            0,
+
+            0,
+
+            0,
+
+            0,
+
+            SWP_NOMOVE | SWP_NOSIZE | SWP_NOACTIVATE | SWP_SHOWWINDOW,
+
+        );
+
+        Ok(())
 
     }
 
