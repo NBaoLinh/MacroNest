@@ -1066,7 +1066,8 @@ mod windows_overlay {
 
         vision_capture_anchor: Option<(i32, i32)>,
 
-        pub(crate) vision_capture_preview_region: Option<VisionRegion>,
+        pub(crate) vision_capture_preview_regions: Vec<VisionRegion>,
+
 
         hud_presets: Vec<HudPreset>,
 
@@ -1200,7 +1201,8 @@ mod windows_overlay {
 
                 vision_capture_anchor: None,
 
-                vision_capture_preview_region: None,
+                vision_capture_preview_regions: Vec::new(),
+
 
                 hud_presets: Vec::new(),
 
@@ -3112,11 +3114,12 @@ mod windows_overlay {
 
                                 };
 
-                                if hook_state.vision_capture_preview_region != Some(region) {
+                                if hook_state.vision_capture_preview_regions.get(0) != Some(&region) {
 
-                                    hook_state.vision_capture_preview_region = Some(region);
-
+                                    hook_state.vision_capture_preview_regions = vec![region];
+                                    
                                 }
+                                
 
                             }
 
@@ -3154,23 +3157,24 @@ mod windows_overlay {
 
                             hook_state.vision_capture_anchor = Some((info.pt.x, info.pt.y));
 
-                            hook_state.vision_capture_preview_region = Some(VisionRegion {
+                            hook_state.vision_capture_preview_regions = vec![VisionRegion {
 
                                 left: info.pt.x,
-
+                                
                                 top: info.pt.y,
-
+                                
                                 width: 1,
-
+                                
                                 height: 1,
-
+                                
                                 is_circle: false,
-
+                                
                                 angle_offset_deg: None,
-
+                                
                                 angle_span_deg: None,
-
-                            });
+                                
+                            }];
+                            
 
                         }
 
@@ -3204,7 +3208,8 @@ mod windows_overlay {
 
                         hook_state.vision_capture_anchor = None;
 
-                        hook_state.vision_capture_preview_region = None;
+                        hook_state.vision_capture_preview_regions = Vec::new();
+
 
                         let ui_tx = hook_state.ui_tx.clone();
 
@@ -6882,7 +6887,8 @@ mod windows_overlay {
 
                         hook_state.vision_capture_anchor = None;
 
-                        hook_state.vision_capture_preview_region = None;
+                        hook_state.vision_capture_preview_regions = Vec::new();
+
 
                     }
 
@@ -7428,7 +7434,7 @@ mod windows_overlay {
 
     fn refresh_search_area_overlay(runtime: &mut Runtime) -> Result<()> {
 
-        let (regions, preview_region) = {
+        let (regions, preview_regions) = {
 
             let hook_state = HOOK_STATE.lock();
 
@@ -7444,13 +7450,13 @@ mod windows_overlay {
 
                 .collect::<Vec<_>>();
 
-            (regions, hook_state.vision_capture_preview_region)
+            (regions, hook_state.vision_capture_preview_regions.clone())
 
         };
 
 
 
-        if regions.is_empty() && preview_region.is_none() {
+        if regions.is_empty() && preview_regions.is_empty() {
 
             unsafe {
 
@@ -7464,7 +7470,7 @@ mod windows_overlay {
 
 
 
-        unsafe { paint_search_area_overlay(runtime.search_area_hwnd, &regions, preview_region) }
+        unsafe { paint_search_area_overlay(runtime.search_area_hwnd, &regions, &preview_regions) }
 
     }
 
@@ -7476,7 +7482,7 @@ mod windows_overlay {
 
             let hook_state = HOOK_STATE.lock();
 
-            hook_state.vision_capture_preview_region.is_some()
+            !hook_state.vision_capture_preview_regions.is_empty()
 
                 || hook_state.vision_capture_mouse_blocked
 
@@ -22492,12 +22498,13 @@ fn execute_ocr_action_step(step: &crate::model::MacroStep) {
     unsafe fn paint_search_area_overlay(
 
         hwnd: HWND,
-
+        
         regions: &[VisionRegion],
-
-        preview_region: Option<VisionRegion>,
-
+        
+        preview_regions: &[VisionRegion],
+        
     ) -> Result<()> {
+    
 
         let mut min_x = i32::MAX;
 
@@ -22531,25 +22538,26 @@ fn execute_ocr_action_step(step: &crate::model::MacroStep) {
 
 
 
-        if let Some(region) = preview_region {
+        for region in preview_regions {
 
             let r_left = region.left - 2;
-
+            
             let r_top = region.top - 2;
-
+            
             let r_right = region.left + region.width + 2;
-
+            
             let r_bottom = region.top + region.height + 2;
-
+            
             min_x = min_x.min(r_left);
-
+            
             min_y = min_y.min(r_top);
-
+            
             max_x = max_x.max(r_right);
-
+            
             max_y = max_y.max(r_bottom);
-
+            
         }
+        
 
 
 
@@ -22811,35 +22819,116 @@ fn execute_ocr_action_step(step: &crate::model::MacroStep) {
 
 
 
-        if let Some(region) = preview_region {
+        use windows::Win32::Graphics::Gdi::{SetTextColor, SetBkMode, TRANSPARENT, DrawTextW, DT_LEFT, DT_VCENTER, DT_SINGLELINE};
 
-            let rel_left = region.left - min_x;
-
-            let rel_top = region.top - min_y;
-
-            let outline = [255, 216, 96, 230];
-
-            draw_rect_outline_rgba(
-
-                pixels,
-
-                width as usize,
-
-                height as usize,
-
-                rel_left,
-
-                rel_top,
-
-                region.width,
-
-                region.height,
-
-                outline,
-
-            );
-
+        use windows::Win32::Foundation::RECT;
+        
+        unsafe {
+        
+            let _ = SetTextColor(mem_dc, COLORREF(0xFFFFFF));
+            
+            let _ = SetBkMode(mem_dc, TRANSPARENT);
+            
         }
+        
+        for region in preview_regions {
+        
+            let rel_left = region.left - min_x;
+            
+            let rel_top = region.top - min_y;
+            
+            let outline = [255, 216, 96, 230];
+            
+            draw_rect_outline_rgba(
+            
+                pixels,
+                
+                width as usize,
+                
+                height as usize,
+                
+                rel_left,
+                
+                rel_top,
+                
+                region.width,
+                
+                region.height,
+                
+                outline,
+                
+            );
+            
+            let mut text_rect = RECT {
+            
+                left: rel_left,
+                
+                top: rel_top - 18,
+                
+                right: rel_left + 300,
+                
+                bottom: rel_top,
+                
+            };
+            
+            if text_rect.top < 0 {
+            
+                text_rect.top = rel_top + region.height + 2;
+                
+                text_rect.bottom = text_rect.top + 18;
+                
+            }
+            
+            let text_str = format!("{}x{} @ {},{}", region.width, region.height, region.left, region.top);
+            
+            let mut wide_text = text_str
+            
+                .encode_utf16()
+                
+                .chain(std::iter::once(0))
+                
+                .collect::<Vec<_>>();
+                
+            unsafe {
+            
+                let _ = DrawTextW(
+                
+                    mem_dc,
+                    
+                    &mut wide_text,
+                    
+                    &mut text_rect,
+                    
+                    DT_LEFT | DT_VCENTER | DT_SINGLELINE,
+                    
+                );
+                
+            }
+            
+        }
+        
+        for py in 0..height {
+        
+            for px in 0..width {
+            
+                let index = ((py as usize) * (width as usize) + (px as usize)) * 4;
+                
+                if index + 3 < pixels.len() {
+                
+                    let chunk = &mut pixels[index..index+4];
+                    
+                    if chunk[0] == 255 && chunk[1] == 255 && chunk[2] == 255 && chunk[3] == 0 {
+                    
+                        chunk[3] = 255;
+                        
+                    }
+                    
+                }
+                
+            }
+            
+        }
+        
 
 
 

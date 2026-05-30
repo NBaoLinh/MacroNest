@@ -22539,22 +22539,113 @@ pub(crate) fn render_macro_panel(&mut self, ui: &mut egui::Ui) {
 
 
                                                 egui::ComboBox::from_id_salt((group.id, preset.id, "hold-stop-image-search"))
-                                                    .width(160.0)
-                                                    .selected_text(selected_label)
-                                                    .show_ui(ui, |ui| {
-                                                        for (preset_option_id, preset_option_label) in &image_search_preset_options {
-                                                            if ui
-                                                                .selectable_label(
-                                                                    selected_id == Some(*preset_option_id),
-                                                                    preset_option_label,
-                                                                )
-                                                                .clicked()
-                                                            {
-                                                                step.key = preset_option_id.to_string();
-                                                                live_sync = true;
-                                                            }
-                                                        }
-                                                    });
+
+    .width(160.0)
+    
+    .selected_text(selected_label)
+    
+    .show_ui(ui, |ui| {
+    
+                    let (image_presets, color_presets, pixel_presets): (Vec<_>, Vec<_>, Vec<_>) = self.state.vision_presets.iter().fold(
+                    
+                        (Vec::new(), Vec::new(), Vec::new()),
+                        
+                        |(mut img, mut col, mut pix), p| {
+                        
+                            if p.is_pixel_counter {
+                            
+                                pix.push(p);
+                                
+                            } else if p.use_color_matching {
+                            
+                                col.push(p);
+                                
+                            } else {
+                            
+                                img.push(p);
+                                
+                            }
+                            
+                            (img, col, pix)
+                            
+                        }
+                        
+                    );
+                    
+                    if !image_presets.is_empty() {
+                    
+                        ui.colored_label(egui::Color32::from_rgb(0, 191, 255), "🖼 Image Detect");
+                        
+                        ui.separator();
+                        
+                        for p in &image_presets {
+                        
+                            if ui.selectable_label(selected_id == Some(p.id), &p.name).clicked() {
+                            
+                                step.key = p.id.to_string();
+                                
+                                live_sync = true;
+                                
+                            }
+                            
+                        }
+                        
+                    }
+                    
+                    if !color_presets.is_empty() {
+                    
+                        if !image_presets.is_empty() {
+                        
+                            ui.add_space(4.0);
+                            
+                        }
+                        
+                        ui.colored_label(egui::Color32::from_rgb(0, 250, 154), "🎨 Color Detect");
+                        
+                        ui.separator();
+                        
+                        for p in &color_presets {
+                        
+                            if ui.selectable_label(selected_id == Some(p.id), &p.name).clicked() {
+                            
+                                step.key = p.id.to_string();
+                                
+                                live_sync = true;
+                                
+                            }
+                            
+                        }
+                        
+                    }
+                    
+                    if !pixel_presets.is_empty() {
+                    
+                        if !image_presets.is_empty() || !color_presets.is_empty() {
+                        
+                            ui.add_space(4.0);
+                            
+                        }
+                        
+                        ui.colored_label(egui::Color32::from_rgb(255, 165, 0), "🔢 Pixel Counter");
+                        
+                        ui.separator();
+                        
+                        for p in &pixel_presets {
+                        
+                            if ui.selectable_label(selected_id == Some(p.id), &p.name).clicked() {
+                            
+                                step.key = p.id.to_string();
+                                
+                                live_sync = true;
+                                
+                            }
+                            
+                        }
+                        
+                    }
+                    
+    });
+    
                                                  let is_pixel = selected_id.and_then(|id| {
                                                      self.state.vision_presets.iter().find(|p| p.id == id)
                                                  }).map(|p| p.is_pixel_counter).unwrap_or(false);
@@ -25772,45 +25863,82 @@ pub(crate) fn render_macro_panel(&mut self, ui: &mut egui::Ui) {
 
                                                                        egui::ComboBox::from_id_salt((group.id, preset.id, 0, "hold-stop-if-vision-preset"))
 
-
-
-                                                                           .width(146.0)
-
-
-
-                                                                           .selected_text(selected_label)
-
-
-
-                                                                           .show_ui(ui, |ui| {
-
-
-
-                                                                               for vision_preset in self.state.vision_presets.iter().filter(|p| !p.is_pixel_counter) {
-
-
-
-                                                                                   if ui.selectable_label(selected_id == Some(vision_preset.id), &vision_preset.name).clicked() {
-
-
-
-                                                                                       step.if_vision_preset_id = Some(vision_preset.id);
-
-
-
-                                                                                       live_sync = true;
-
-
-
-                                                                                   }
-
-
-
-                                                                               }
-
-
-
-                                                                           });
+    .width(146.0)
+    
+    .selected_text(selected_label)
+    
+    .show_ui(ui, |ui| {
+    
+                    let (image_presets, color_presets): (Vec<_>, Vec<_>) = self.state.vision_presets.iter().filter(|p| !p.is_pixel_counter).fold(
+                    
+                        (Vec::new(), Vec::new()),
+                        
+                        |(mut img, mut col), p| {
+                        
+                            if p.use_color_matching {
+                            
+                                col.push(p);
+                                
+                            } else {
+                            
+                                img.push(p);
+                                
+                            }
+                            
+                            (img, col)
+                            
+                        }
+                        
+                    );
+                    
+                    if !image_presets.is_empty() {
+                    
+                        ui.colored_label(egui::Color32::from_rgb(0, 191, 255), "🖼 Image Detect");
+                        
+                        ui.separator();
+                        
+                        for p in &image_presets {
+                        
+                            if ui.selectable_label(selected_id == Some(p.id), &p.name).clicked() {
+                            
+                                step.if_vision_preset_id = Some(p.id);
+                                
+                                live_sync = true;
+                                
+                            }
+                            
+                        }
+                        
+                    }
+                    
+                    if !color_presets.is_empty() {
+                    
+                        if !image_presets.is_empty() {
+                        
+                            ui.add_space(4.0);
+                            
+                        }
+                        
+                        ui.colored_label(egui::Color32::from_rgb(0, 250, 154), "🎨 Color Detect");
+                        
+                        ui.separator();
+                        
+                        for p in &color_presets {
+                        
+                            if ui.selectable_label(selected_id == Some(p.id), &p.name).clicked() {
+                            
+                                step.if_vision_preset_id = Some(p.id);
+                                
+                                live_sync = true;
+                                
+                            }
+                            
+                        }
+                        
+                    }
+                    
+    });
+    
 
 
 
@@ -32551,22 +32679,113 @@ pub(crate) fn render_macro_panel(&mut self, ui: &mut egui::Ui) {
 
 
                                                     egui::ComboBox::from_id_salt((group.id, preset.id, step_index, "image-search-preset-step"))
-                                                        .width(146.0)
-                                                        .selected_text(selected_label)
-                                                        .show_ui(ui, |ui| {
-                                                            for (preset_option_id, preset_option_label) in &image_search_preset_options {
-                                                                if ui
-                                                                    .selectable_label(
-                                                                        selected_id == Some(*preset_option_id),
-                                                                        preset_option_label,
-                                                                    )
-                                                                    .clicked()
-                                                                {
-                                                                    step.key = preset_option_id.to_string();
-                                                                    live_sync = true;
-                                                                }
-                                                            }
-                                                        });
+
+    .width(146.0)
+    
+    .selected_text(selected_label)
+    
+    .show_ui(ui, |ui| {
+    
+                    let (image_presets, color_presets, pixel_presets): (Vec<_>, Vec<_>, Vec<_>) = self.state.vision_presets.iter().fold(
+                    
+                        (Vec::new(), Vec::new(), Vec::new()),
+                        
+                        |(mut img, mut col, mut pix), p| {
+                        
+                            if p.is_pixel_counter {
+                            
+                                pix.push(p);
+                                
+                            } else if p.use_color_matching {
+                            
+                                col.push(p);
+                                
+                            } else {
+                            
+                                img.push(p);
+                                
+                            }
+                            
+                            (img, col, pix)
+                            
+                        }
+                        
+                    );
+                    
+                    if !image_presets.is_empty() {
+                    
+                        ui.colored_label(egui::Color32::from_rgb(0, 191, 255), "🖼 Image Detect");
+                        
+                        ui.separator();
+                        
+                        for p in &image_presets {
+                        
+                            if ui.selectable_label(selected_id == Some(p.id), &p.name).clicked() {
+                            
+                                step.key = p.id.to_string();
+                                
+                                live_sync = true;
+                                
+                            }
+                            
+                        }
+                        
+                    }
+                    
+                    if !color_presets.is_empty() {
+                    
+                        if !image_presets.is_empty() {
+                        
+                            ui.add_space(4.0);
+                            
+                        }
+                        
+                        ui.colored_label(egui::Color32::from_rgb(0, 250, 154), "🎨 Color Detect");
+                        
+                        ui.separator();
+                        
+                        for p in &color_presets {
+                        
+                            if ui.selectable_label(selected_id == Some(p.id), &p.name).clicked() {
+                            
+                                step.key = p.id.to_string();
+                                
+                                live_sync = true;
+                                
+                            }
+                            
+                        }
+                        
+                    }
+                    
+                    if !pixel_presets.is_empty() {
+                    
+                        if !image_presets.is_empty() || !color_presets.is_empty() {
+                        
+                            ui.add_space(4.0);
+                            
+                        }
+                        
+                        ui.colored_label(egui::Color32::from_rgb(255, 165, 0), "🔢 Pixel Counter");
+                        
+                        ui.separator();
+                        
+                        for p in &pixel_presets {
+                        
+                            if ui.selectable_label(selected_id == Some(p.id), &p.name).clicked() {
+                            
+                                step.key = p.id.to_string();
+                                
+                                live_sync = true;
+                                
+                            }
+                            
+                        }
+                        
+                    }
+                    
+    });
+    
                                                      let is_pixel = selected_id.and_then(|id| {
                                                          self.state.vision_presets.iter().find(|p| p.id == id)
                                                      }).map(|p| p.is_pixel_counter).unwrap_or(false);
@@ -36350,45 +36569,82 @@ pub(crate) fn render_macro_panel(&mut self, ui: &mut egui::Ui) {
 
                                                                         egui::ComboBox::from_id_salt((group.id, preset.id, step_index, "if-vision-preset"))
 
-
-
-                                                                            .width(146.0)
-
-
-
-                                                                            .selected_text(selected_label)
-
-
-
-                                                                            .show_ui(ui, |ui| {
-
-
-
-                                                                                for vision_preset in self.state.vision_presets.iter().filter(|p| !p.is_pixel_counter) {
-
-
-
-                                                                                    if ui.selectable_label(selected_id == Some(vision_preset.id), &vision_preset.name).clicked() {
-
-
-
-                                                                                        step.if_vision_preset_id = Some(vision_preset.id);
-
-
-
-                                                                                        live_sync = true;
-
-
-
-                                                                                    }
-
-
-
-                                                                                }
-
-
-
-                                                                            });
+    .width(146.0)
+    
+    .selected_text(selected_label)
+    
+    .show_ui(ui, |ui| {
+    
+                    let (image_presets, color_presets): (Vec<_>, Vec<_>) = self.state.vision_presets.iter().filter(|p| !p.is_pixel_counter).fold(
+                    
+                        (Vec::new(), Vec::new()),
+                        
+                        |(mut img, mut col), p| {
+                        
+                            if p.use_color_matching {
+                            
+                                col.push(p);
+                                
+                            } else {
+                            
+                                img.push(p);
+                                
+                            }
+                            
+                            (img, col)
+                            
+                        }
+                        
+                    );
+                    
+                    if !image_presets.is_empty() {
+                    
+                        ui.colored_label(egui::Color32::from_rgb(0, 191, 255), "🖼 Image Detect");
+                        
+                        ui.separator();
+                        
+                        for p in &image_presets {
+                        
+                            if ui.selectable_label(selected_id == Some(p.id), &p.name).clicked() {
+                            
+                                step.if_vision_preset_id = Some(p.id);
+                                
+                                live_sync = true;
+                                
+                            }
+                            
+                        }
+                        
+                    }
+                    
+                    if !color_presets.is_empty() {
+                    
+                        if !image_presets.is_empty() {
+                        
+                            ui.add_space(4.0);
+                            
+                        }
+                        
+                        ui.colored_label(egui::Color32::from_rgb(0, 250, 154), "🎨 Color Detect");
+                        
+                        ui.separator();
+                        
+                        for p in &color_presets {
+                        
+                            if ui.selectable_label(selected_id == Some(p.id), &p.name).clicked() {
+                            
+                                step.if_vision_preset_id = Some(p.id);
+                                
+                                live_sync = true;
+                                
+                            }
+                            
+                        }
+                        
+                    }
+                    
+    });
+    
 
 
 
@@ -37613,22 +37869,113 @@ pub(crate) fn render_macro_panel(&mut self, ui: &mut egui::Ui) {
 
 
                                                     egui::ComboBox::from_id_salt((group.id, preset.id, step_index, "vision-preset-step"))
-                                                        .width(146.0)
-                                                        .selected_text(selected_label)
-                                                        .show_ui(ui, |ui| {
-                                                            for vision_preset in self.state.vision_presets.iter() {
-                                                                if ui
-                                                                    .selectable_label(
-                                                                        selected_id == Some(vision_preset.id),
-                                                                        &vision_preset.name,
-                                                                    )
-                                                                    .clicked()
-                                                                {
-                                                                    step.key = vision_preset.id.to_string();
-                                                                    live_sync = true;
-                                                                }
-                                                            }
-                                                        });
+
+    .width(146.0)
+    
+    .selected_text(selected_label)
+    
+    .show_ui(ui, |ui| {
+    
+                    let (image_presets, color_presets, pixel_presets): (Vec<_>, Vec<_>, Vec<_>) = self.state.vision_presets.iter().fold(
+                    
+                        (Vec::new(), Vec::new(), Vec::new()),
+                        
+                        |(mut img, mut col, mut pix), p| {
+                        
+                            if p.is_pixel_counter {
+                            
+                                pix.push(p);
+                                
+                            } else if p.use_color_matching {
+                            
+                                col.push(p);
+                                
+                            } else {
+                            
+                                img.push(p);
+                                
+                            }
+                            
+                            (img, col, pix)
+                            
+                        }
+                        
+                    );
+                    
+                    if !image_presets.is_empty() {
+                    
+                        ui.colored_label(egui::Color32::from_rgb(0, 191, 255), "🖼 Image Detect");
+                        
+                        ui.separator();
+                        
+                        for p in &image_presets {
+                        
+                            if ui.selectable_label(selected_id == Some(p.id), &p.name).clicked() {
+                            
+                                step.key = p.id.to_string();
+                                
+                                live_sync = true;
+                                
+                            }
+                            
+                        }
+                        
+                    }
+                    
+                    if !color_presets.is_empty() {
+                    
+                        if !image_presets.is_empty() {
+                        
+                            ui.add_space(4.0);
+                            
+                        }
+                        
+                        ui.colored_label(egui::Color32::from_rgb(0, 250, 154), "🎨 Color Detect");
+                        
+                        ui.separator();
+                        
+                        for p in &color_presets {
+                        
+                            if ui.selectable_label(selected_id == Some(p.id), &p.name).clicked() {
+                            
+                                step.key = p.id.to_string();
+                                
+                                live_sync = true;
+                                
+                            }
+                            
+                        }
+                        
+                    }
+                    
+                    if !pixel_presets.is_empty() {
+                    
+                        if !image_presets.is_empty() || !color_presets.is_empty() {
+                        
+                            ui.add_space(4.0);
+                            
+                        }
+                        
+                        ui.colored_label(egui::Color32::from_rgb(255, 165, 0), "🔢 Pixel Counter");
+                        
+                        ui.separator();
+                        
+                        for p in &pixel_presets {
+                        
+                            if ui.selectable_label(selected_id == Some(p.id), &p.name).clicked() {
+                            
+                                step.key = p.id.to_string();
+                                
+                                live_sync = true;
+                                
+                            }
+                            
+                        }
+                        
+                    }
+                    
+    });
+    
                                                      let selected_preset = selected_id.and_then(|id| {
                                                          self.state.vision_presets.iter().find(|p| p.id == id)
                                                      });
@@ -39261,83 +39608,290 @@ pub(crate) fn render_macro_panel(&mut self, ui: &mut egui::Ui) {
 
 
 
-                                if step.action == MacroAction::OcrSearch {
+                                let mut hover_regions = Vec::new();
 
-
-
-                                    let mut hook_state = crate::overlay::HOOK_STATE.lock();
-
-
-
-                                    if is_row_hovered {
-
-
-
-                                        hook_state.vision_capture_preview_region = Some(crate::overlay::VisionRegion {
-
-
-
-                                            left: step.x,
-
-
-
-                                            top: step.y,
-
-
-
-                                            width: step.ocr_width.max(10),
-
-
-
-                                            height: step.ocr_height.max(10),
-
-
-
-                                            is_circle: false,
-
-
-
-                                            angle_offset_deg: None,
-
-
-
-                                            angle_span_deg: None,
-
-
-
-                                        });
-
-
-
-                                    } else {
-
-
-
-                                        if let Some(r) = hook_state.vision_capture_preview_region {
-
-
-
-                                            if r.left == step.x && r.top == step.y && r.width == step.ocr_width.max(10) && r.height == step.ocr_height.max(10) {
-
-
-
-                                                hook_state.vision_capture_preview_region = None;
-
-
-
-                                            }
-
-
-
-                                        }
-
-
-
-                                    }
-
-
-
-                                }
+                                 let mut has_hover_support = false;
+                                 
+                                 match step.action {
+                                 
+                                     MacroAction::OcrSearch => {
+                                     
+                                         has_hover_support = true;
+                                         
+                                         hover_regions.push(crate::overlay::VisionRegion {
+                                         
+                                             left: step.x,
+                                             
+                                             top: step.y,
+                                             
+                                             width: step.ocr_width.max(10),
+                                             
+                                             height: step.ocr_height.max(10),
+                                             
+                                             is_circle: false,
+                                             
+                                             angle_offset_deg: None,
+                                             
+                                             angle_span_deg: None,
+                                             
+                                         });
+                                         
+                                     }
+                                     
+                                     MacroAction::StartVisionSearch | MacroAction::ScanVisionOnce | MacroAction::StopVision => {
+                                     
+                                         has_hover_support = true;
+                                         
+                                         if let Some(preset) = self.state.vision_presets.iter().find(|p| p.id.to_string() == step.key.trim()) {
+                                         
+                                             if let (Some(rx), Some(ry), Some(rw), Some(rh)) = (preset.search_region_screen_x, preset.search_region_screen_y, preset.search_region_width, preset.search_region_height) {
+                                             
+                                                 let bounds = crate::window_list::virtual_screen_bounds();
+                                                 
+                                                 let left = rx.max(bounds.0);
+                                                 
+                                                 let top = ry.max(bounds.1);
+                                                 
+                                                 let right = (rx + rw).min(bounds.0 + bounds.2);
+                                                 
+                                                 let bottom = (ry + rh).min(bounds.1 + bounds.3);
+                                                 
+                                                 let width = right - left;
+                                                 
+                                                 let height = bottom - top;
+                                                 
+                                                 if width > 0 && height > 0 {
+                                                 
+                                                     hover_regions.push(crate::overlay::VisionRegion {
+                                                     
+                                                         left,
+                                                         
+                                                         top,
+                                                         
+                                                         width,
+                                                         
+                                                         height,
+                                                         
+                                                         is_circle: preset.search_region_is_circle,
+                                                         
+                                                         angle_offset_deg: None,
+                                                         
+                                                         angle_span_deg: None,
+                                                         
+                                                     });
+                                                     
+                                                 }
+                                                 
+                                             }
+                                             
+                                         }
+                                         
+                                     }
+                                     
+                                     MacroAction::EnablePinPreset | MacroAction::DisablePin => {
+                                     
+                                         has_hover_support = true;
+                                         
+                                         if let Some(preset) = step.key.trim().parse::<u32>().ok().and_then(|pid| self.state.pin_presets.iter().find(|p| p.id == pid)) {
+                                         
+                                             if preset.use_source_crop {
+                                             
+                                                 hover_regions.push(crate::overlay::VisionRegion {
+                                                 
+                                                     left: preset.source_x,
+                                                     
+                                                     top: preset.source_y,
+                                                     
+                                                     width: preset.source_width.max(10),
+                                                     
+                                                     height: preset.source_height.max(10),
+                                                     
+                                                     is_circle: false,
+                                                     
+                                                     angle_offset_deg: None,
+                                                     
+                                                     angle_span_deg: None,
+                                                     
+                                                 });
+                                                 
+                                             }
+                                             
+                                             if preset.use_custom_bounds {
+                                             
+                                                 hover_regions.push(crate::overlay::VisionRegion {
+                                                 
+                                                     left: preset.x,
+                                                     
+                                                     top: preset.y,
+                                                     
+                                                     width: preset.width.max(10),
+                                                     
+                                                     height: preset.height.max(10),
+                                                     
+                                                     is_circle: false,
+                                                     
+                                                     angle_offset_deg: None,
+                                                     
+                                                     angle_span_deg: None,
+                                                     
+                                                 });
+                                                 
+                                             }
+                                             
+                                         }
+                                         
+                                     }
+                                     
+                                     MacroAction::ApplyWindowPreset => {
+                                     
+                                         has_hover_support = true;
+                                         
+                                         if let Some(preset) = step.key.trim().parse::<u32>().ok().and_then(|pid| self.state.window_presets.iter().find(|p| p.id == pid)) {
+                                         
+                                             let (screen_width, screen_height) = {
+                                             
+                                                 let bounds = crate::window_list::virtual_screen_bounds();
+                                                 
+                                                 (bounds.2, bounds.3)
+                                                 
+                                             };
+                                             
+                                             let width = preset.width;
+                                             
+                                             let height = preset.height;
+                                             
+                                             let (wx, wy) = match preset.anchor {
+                                             
+                                                 crate::model::WindowAnchor::Manual => (preset.x, preset.y),
+                                                 
+                                                 crate::model::WindowAnchor::Center => ((screen_width - width) / 2, (screen_height - height) / 2),
+                                                 
+                                                 crate::model::WindowAnchor::TopLeft => (0, 0),
+                                                 
+                                                 crate::model::WindowAnchor::Top => (((screen_width - width) / 2), 0),
+                                                 
+                                                 crate::model::WindowAnchor::TopRight => ((screen_width - width), 0),
+                                                 
+                                                 crate::model::WindowAnchor::Left => (0, ((screen_height - height) / 2)),
+                                                 
+                                                 crate::model::WindowAnchor::Right => ((screen_width - width), ((screen_height - height) / 2)),
+                                                 
+                                                 crate::model::WindowAnchor::BottomLeft => (0, (screen_height - height)),
+                                                 
+                                                 crate::model::WindowAnchor::Bottom => (((screen_width - width) / 2), (screen_height - height)),
+                                                 
+                                                 crate::model::WindowAnchor::BottomRight => ((screen_width - width), (screen_height - height)),
+                                                 
+                                             };
+                                             
+                                             hover_regions.push(crate::overlay::VisionRegion {
+                                             
+                                                 left: wx,
+                                                 
+                                                 top: wy,
+                                                 
+                                                 width: width.max(10),
+                                                 
+                                                 height: height.max(10),
+                                                 
+                                                 is_circle: false,
+                                                 
+                                                 angle_offset_deg: None,
+                                                 
+                                                 angle_span_deg: None,
+                                                 
+                                             });
+                                             
+                                         }
+                                         
+                                     }
+                                     
+                                     _ => {}
+                                     
+                                 }
+                                 
+                                 if has_hover_support {
+                                 
+                                     let mut hook_state = crate::overlay::HOOK_STATE.lock();
+                                     
+                                     if is_row_hovered {
+                                     
+                                         if !hover_regions.is_empty() {
+                                         
+                                             hook_state.vision_capture_preview_regions = hover_regions;
+                                             
+                                         }
+                                         
+                                     } else {
+                                     
+                                         if !hook_state.vision_capture_preview_regions.is_empty() {
+                                         
+                                             let matches_this_step = match step.action {
+                                             
+                                                 MacroAction::OcrSearch => {
+                                                 
+                                                     hook_state.vision_capture_preview_regions.iter().any(|r| r.left == step.x && r.top == step.y)
+                                                     
+                                                 }
+                                                 
+                                                 MacroAction::StartVisionSearch | MacroAction::ScanVisionOnce | MacroAction::StopVision => {
+                                                 
+                                                     if let Some(preset) = self.state.vision_presets.iter().find(|p| p.id.to_string() == step.key.trim()) {
+                                                     
+                                                         hook_state.vision_capture_preview_regions.iter().any(|r| r.left == preset.search_region_screen_x.unwrap_or(0))
+                                                         
+                                                     } else {
+                                                     
+                                                         false
+                                                         
+                                                     }
+                                                     
+                                                 }
+                                                 
+                                                 MacroAction::EnablePinPreset | MacroAction::DisablePin => {
+                                                 
+                                                     if let Some(preset) = step.key.trim().parse::<u32>().ok().and_then(|pid| self.state.pin_presets.iter().find(|p| p.id == pid)) {
+                                                     
+                                                         hook_state.vision_capture_preview_regions.iter().any(|r| r.left == preset.x || r.left == preset.source_x)
+                                                         
+                                                     } else {
+                                                     
+                                                         false
+                                                         
+                                                     }
+                                                     
+                                                 }
+                                                 
+                                                 MacroAction::ApplyWindowPreset => {
+                                                 
+                                                     if let Some(preset) = step.key.trim().parse::<u32>().ok().and_then(|pid| self.state.window_presets.iter().find(|p| p.id == pid)) {
+                                                     
+                                                         hook_state.vision_capture_preview_regions.iter().any(|r| r.width == preset.width.max(10))
+                                                         
+                                                     } else {
+                                                     
+                                                         false
+                                                         
+                                                     }
+                                                     
+                                                 }
+                                                 
+                                                 _ => false,
+                                                 
+                                             };
+                                             
+                                             if matches_this_step {
+                                             
+                                                 hook_state.vision_capture_preview_regions.clear();
+                                                 
+                                             }
+                                             
+                                         }
+                                         
+                                     }
+                                     
+                                 }
+                                 
 
 
 
