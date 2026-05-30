@@ -3194,7 +3194,7 @@ impl CrosshairApp {
     fn grouped_window_selectors(open_windows: &[String]) -> Vec<(String, Vec<String>)> {
         let mut groups: Vec<(String, Vec<String>)> = Vec::new();
         for selector in open_windows {
-            let title = Self::selector_base_title(selector).to_owned();
+            let title = Self::simplify_window_title(selector);
             if let Some((_, selectors)) = groups
                 .iter_mut()
                 .find(|(existing_title, _)| existing_title == &title)
@@ -3224,15 +3224,15 @@ impl CrosshairApp {
         let selected_text = target
             .as_deref()
             .map(|current| {
-                let base_title = Self::selector_base_title(current);
+                let base_title = Self::simplify_window_title(current);
                 let selected_specific_duplicate = !*match_duplicate_window_titles
                     && window_groups
                         .iter()
-                        .any(|(title, selectors)| title == base_title && selectors.len() > 1);
+                        .any(|(title, selectors)| *title == base_title && selectors.len() > 1);
                 if selected_specific_duplicate {
-                    Self::simplify_window_title(current)
+                    current.to_owned()
                 } else {
-                    Self::simplify_window_title(base_title)
+                    base_title
                 }
             })
             .unwrap_or(label_when_none.to_owned());
@@ -3263,13 +3263,12 @@ impl CrosshairApp {
                     let first_selector = selectors.first().cloned().unwrap_or_default();
                     let main_selected = target
                         .as_deref()
-                        .is_some_and(|current| Self::selector_base_title(current) == title)
+                        .is_some_and(|current| Self::simplify_window_title(current) == title)
                         && *match_duplicate_window_titles;
-                    let display_title = Self::simplify_window_title(&title);
                     let row_label = if has_duplicates {
-                        format!("{display_title}  >")
+                        format!("{title}  >")
                     } else {
-                        display_title
+                        title.clone()
                     };
                     let truncated_row_label = Self::truncate_window_title(&row_label, 50);
                     let row_response = ui
@@ -3295,8 +3294,7 @@ impl CrosshairApp {
                                     let child_selected = target.as_deref()
                                         == Some(selector.as_str())
                                         && !*match_duplicate_window_titles;
-                                    let display_selector = Self::simplify_window_title(selector);
-                                    let truncated_selector = Self::truncate_window_title(&display_selector, 50);
+                                    let truncated_selector = Self::truncate_window_title(selector, 50);
                                     let child_response = ui
                                         .selectable_label(child_selected, truncated_selector)
                                         .on_hover_text(selector);
