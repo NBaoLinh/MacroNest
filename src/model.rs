@@ -391,8 +391,7 @@ pub enum MacroAction {
     StartVisionSearch,
     #[serde(alias = "ScanImageOnce", alias = "ScanVisionOnce")]
     ScanVisionOnce,
-    #[serde(alias = "TriggerImageSearchMove", alias = "TriggerImageAction")]
-    TriggerVisionMove,
+
     #[serde(alias = "StopImageSearchWait")]
     StopVisionWait,
     #[serde(alias = "StopImageSearch")]

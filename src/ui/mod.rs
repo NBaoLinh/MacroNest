@@ -3431,7 +3431,7 @@ impl CrosshairApp {
             MacroAction::PlayVideoPreset => "PlayVideo",
             MacroAction::StartVisionSearch => "StartImageSearch",
             MacroAction::ScanVisionOnce => "ScanImageOnce",
-            MacroAction::TriggerVisionMove => "TriggerImageAction",
+            
             MacroAction::StopVisionWait => "StopImageSearchWait",
             MacroAction::StopVision => "StopImageSearch",
             MacroAction::LoopStart => "LoopStart",
@@ -3517,9 +3517,7 @@ impl CrosshairApp {
                 MacroAction::ScanVisionOnce => {
                     "Quét tìm hình ảnh hoặc màu hoặc đếm pixel một lần duy nhất bằng preset đã chọn."
                 }
-                MacroAction::TriggerVisionMove => {
-                    "Tìm ảnh ngay lập tức và thực hiện các tương tác đã cấu hình (di chuột, click, chạy macro)."
-                }
+                
                 MacroAction::StopVisionWait => {
                     "Dừng chờ kết quả tìm kiếm hình ảnh."
                 }
@@ -3616,9 +3614,7 @@ impl CrosshairApp {
                 MacroAction::ScanVisionOnce => {
                     "Scan for the selected image, color, or pixel counter preset exactly once."
                 }
-                MacroAction::TriggerVisionMove => {
-                    "Run one image search scan now and perform configured interactions (move mouse, click, trigger macro)."
-                }
+                
                 MacroAction::StopVisionWait => {
                     "Stop waiting for one image-search preset to match."
                 }
@@ -3705,7 +3701,7 @@ impl CrosshairApp {
             MacroAction::PlayVideoPreset => 0xe04b,
             MacroAction::StartVisionSearch => 0xe8b6,
             MacroAction::ScanVisionOnce => 0xe8b6,
-            MacroAction::TriggerVisionMove => 0xe8f9,
+            
             MacroAction::StopVisionWait => 0xe047,
             MacroAction::StopVision => 0xe047,
             MacroAction::LoopStart => 0xe028,
@@ -3782,7 +3778,7 @@ impl CrosshairApp {
                 MacroAction::PlayVideoPreset => "Video",
                 MacroAction::StartVisionSearch => "Tìm ảnh",
                 MacroAction::ScanVisionOnce => "Quét 1 lần",
-                MacroAction::TriggerVisionMove => "Tương tác",
+                
                 MacroAction::StopVisionWait => "Chờ",
                 MacroAction::StopVision => "Dừng",
                 MacroAction::LoopStart => "Lặp",
@@ -3850,7 +3846,7 @@ impl CrosshairApp {
                 MacroAction::PlayVideoPreset => "Video",
                 MacroAction::StartVisionSearch => "Start",
                 MacroAction::ScanVisionOnce => "Scan Once",
-                MacroAction::TriggerVisionMove => "Interact",
+                
                 MacroAction::StopVisionWait => "Wait",
                 MacroAction::StopVision => "Stop",
                 MacroAction::LoopStart => "Loop",
@@ -3917,7 +3913,7 @@ impl CrosshairApp {
                 MacroAction::PlaySoundPreset => "Sound",
                 MacroAction::StartVisionSearch => "Start",
                 MacroAction::ScanVisionOnce => "Scan Once",
-                MacroAction::TriggerVisionMove => "Interact",
+                
                 MacroAction::StopVisionWait => "Wait",
                 MacroAction::StopVision => "Stop",
                 MacroAction::LoopStart => "Loop",
@@ -4075,7 +4071,7 @@ impl CrosshairApp {
                 | MacroAction::UnlockKeys
                 | MacroAction::StartVisionSearch
                 | MacroAction::ScanVisionOnce
-                | MacroAction::TriggerVisionMove
+                
                 | MacroAction::StopVision
                 | MacroAction::StopVisionWait
                 | MacroAction::ShowHud

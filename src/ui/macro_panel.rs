@@ -7262,7 +7262,7 @@ impl CrosshairApp {
 
 
 
-            MacroAction::TriggerVisionMove,
+            
 
 
 
@@ -22462,7 +22462,7 @@ pub(crate) fn render_macro_panel(&mut self, ui: &mut egui::Ui) {
 
 
 
-                                                         | MacroAction::TriggerVisionMove
+                                                         
 
 
 
@@ -32502,7 +32502,7 @@ pub(crate) fn render_macro_panel(&mut self, ui: &mut egui::Ui) {
 
 
 
-                                                         | MacroAction::TriggerVisionMove
+                                                         
 
 
 
@@ -32622,355 +32622,7 @@ pub(crate) fn render_macro_panel(&mut self, ui: &mut egui::Ui) {
 
 
 
-                                                    if step.action == MacroAction::TriggerVisionMove {
-
-
-
-                                                        ui.add_space(4.0);
-
-
-
-                                                        ui.horizontal(|ui| {
-
-
-
-                                                            live_sync |= ui
-
-
-
-                                                                .checkbox(
-
-
-
-                                                                    &mut step.vision_move_cursor_on_match,
-
-
-
-                                                                    Self::tr_lang(language, "Move", "Move"),
-
-
-
-                                                                )
-
-
-
-                                                                .on_hover_text(Self::tr_lang(
-
-
-
-                                                                    language,
-
-
-
-                                                                    "Move the cursor to the matched image before continuing.",
-
-
-
-                                                                    "Di chuyÃ¡Â»Æ’n chuá»™t tÃ¡Â»â€ºi áº£nhh tÃƒÂ¬m thÃ¡ÂºÂ¥y rÃ¡Â»â€œi mÃ¡Â»â€ºi tiÃ¡ÂºÂ¿p tÃ¡Â»Â¥c.",
-
-
-
-                                                                ))
-
-
-
-                                                                .changed();
-
-
-
-                                                            live_sync |= ui
-
-
-
-                                                                .checkbox(
-
-
-
-                                                                    &mut step.vision_wait_until_found,
-
-
-
-                                                                    Self::tr_lang(language, "Wait", "Wait"),
-
-
-
-                                                                )
-
-
-
-                                                                .on_hover_text(Self::tr_lang(
-
-
-
-                                                                    language,
-
-
-
-                                                                    "Keep scanning until the image is found.",
-
-
-
-                                                                    "TiÃ¡ÂºÂ¿p tÃ¡Â»Â¥c dÃƒÂ² cho tÃ¡Â»â€ºi khi thÃ¡ÂºÂ¥y áº£nhh.",
-
-
-
-                                                                ))
-
-
-
-                                                                .changed();
-
-
-
-                                                            let mut trigger_macro_enabled = step.vision_trigger_macro_enabled;
-
-
-
-                                                            if ui
-
-
-
-                                                                .checkbox(
-
-
-
-                                                                    &mut trigger_macro_enabled,
-
-
-
-                                                                    Self::tr_lang(language, "Macro", "Macro"),
-
-
-
-                                                                )
-
-
-
-                                                                .on_hover_text(Self::tr_lang(
-
-
-
-                                                                    language,
-
-
-
-                                                                    "Trigger another macro preset from the same macro group.",
-
-
-
-                                                                    "KÃƒÂ­ch hoáº¡t mÃ¡Â»â„¢t preset macro khÃ¡c trong cÃƒÂ¹ng group.",
-
-
-
-                                                                ))
-
-
-
-                                                                .changed()
-
-
-
-                                                            {
-
-
-
-                                                                step.vision_trigger_macro_enabled = trigger_macro_enabled;
-
-
-
-                                                                if trigger_macro_enabled {
-
-
-
-                                                                    if step
-
-
-
-                                                                        .vision_trigger_macro_preset_id
-
-
-
-                                                                        .is_none()
-
-
-
-                                                                    {
-
-
-
-                                                                        step.vision_trigger_macro_preset_id = group_preset_options
-
-
-
-                                                                            .iter()
-
-
-
-                                                                            .find(|(preset_option_id, _)| *preset_option_id != preset.id)
-
-
-
-                                                                            .map(|(preset_option_id, _)| *preset_option_id);
-
-
-
-                                                                    }
-
-
-
-                                                                }
-
-
-
-                                                                live_sync = true;
-
-
-
-                                                            }
-
-
-
-                                                            if step.vision_trigger_macro_enabled {
-
-
-
-                                                                let selected_id = step.vision_trigger_macro_preset_id;
-
-
-
-                                                                let selected_label = group_preset_options
-
-
-
-                                                                    .iter()
-
-
-
-                                                                    .find(|(preset_option_id, _)| Some(*preset_option_id) == selected_id)
-
-
-
-                                                                    .map(|(_, label)| label.clone())
-
-
-
-                                                                    .unwrap_or_else(|| "Select macro".to_owned());
-
-
-
-                                                                egui::ComboBox::from_id_salt((
-
-
-
-                                                                    group.id,
-
-
-
-                                                                    preset.id,
-
-
-
-                                                                    step_index,
-
-
-
-                                                                    "image-search-trigger-macro-preset",
-
-
-
-                                                                    ))
-
-
-
-                                                                .width(146.0)
-
-
-
-                                                                .selected_text(selected_label)
-
-
-
-                                                                .show_ui(ui, |ui| {
-
-
-
-                                                                    for (preset_option_id, preset_option_label) in &group_preset_options {
-
-
-
-                                                                        if *preset_option_id == preset.id {
-
-
-
-                                                                            continue;
-
-
-
-                                                                        }
-
-
-
-                                                                        if ui
-
-
-
-                                                                            .selectable_label(
-
-
-
-                                                                                selected_id == Some(*preset_option_id),
-
-
-
-                                                                                preset_option_label,
-
-
-
-                                                                            )
-
-
-
-                                                                            .clicked()
-
-
-
-                                                                        {
-
-
-
-                                                                            step.vision_trigger_macro_preset_id =
-
-
-
-                                                                                Some(*preset_option_id);
-
-
-
-                                                                            live_sync = true;
-
-
-
-                                                                }
-
-
-
-                                                            }
-
-
-
-                                                        });
-
-
-
-                                                    }
-
-
-
-                                                        });
-
-
-
-                                                    }
+                                                    
 
 
 
@@ -37868,7 +37520,7 @@ pub(crate) fn render_macro_panel(&mut self, ui: &mut egui::Ui) {
 
 
 
-                                                         | MacroAction::TriggerVisionMove
+                                                         
 
 
 
