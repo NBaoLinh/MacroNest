@@ -16606,17 +16606,28 @@ pub(crate) fn render_macro_panel(&mut self, ui: &mut egui::Ui) {
 
 
 
-                    // Pre-compute group list for TriggerMacroPreset (avoids borrow conflict)
-                    let all_groups_for_trigger: Vec<(u32, String, Vec<(u32, String)>)> = self.state.macro_groups
-                        .iter()
-                        .map(|g| (
-                            g.id,
-                            g.name.clone(),
-                            g.presets.iter()
-                                .map(|p| (p.id, Self::format_macro_trigger_ui(language, p)))
-                                .collect::<Vec<_>>(),
-                        ))
-                        .collect();
+                    // Pre-compute group list for TriggerMacroPreset (avoids borrow conflict)
+
+                    let all_groups_for_trigger: Vec<(u32, String, Vec<(u32, String)>)> = self.state.macro_groups
+
+                        .iter()
+
+                        .map(|g| (
+
+                            g.id,
+
+                            g.name.clone(),
+
+                            g.presets.iter()
+
+                                .map(|p| (p.id, Self::format_macro_trigger_ui(language, p)))
+
+                                .collect::<Vec<_>>(),
+
+                        ))
+
+                        .collect();
+
                     let group = &mut self.state.macro_groups[group_index];
 
 
@@ -21197,11 +21208,18 @@ pub(crate) fn render_macro_panel(&mut self, ui: &mut egui::Ui) {
 
                                                         .show_ui(ui, |ui| {
 
-                                                            for (gid, gname, _) in &all_groups_for_trigger {
+                                                            for (gid, gname, gpresets) in &all_groups_for_trigger {
 
                                                                 if ui
 
-                                                                    .selectable_label(*gid == trig_group_id, gname.as_str())
+                                                                    .selectable_label(*gid == trig_group_id, &{
+                                                                    if gname.starts_with("Macro Group") && !gpresets.is_empty() {
+                                                                        let preset_labels: Vec<String> = gpresets.iter().map(|(_, lbl)| lbl.clone()).collect();
+                                                                        format!("{} [{}]", gname, preset_labels.join(", "))
+                                                                    } else {
+                                                                        gname.clone()
+                                                                    }
+                                                                })
 
                                                                     .clicked()
 
@@ -31375,11 +31393,18 @@ pub(crate) fn render_macro_panel(&mut self, ui: &mut egui::Ui) {
 
                                                         .show_ui(ui, |ui| {
 
-                                                            for (gid, gname, _) in &all_groups_for_trigger {
+                                                            for (gid, gname, gpresets) in &all_groups_for_trigger {
 
                                                                 if ui
 
-                                                                    .selectable_label(*gid == trig_group_id, gname.as_str())
+                                                                    .selectable_label(*gid == trig_group_id, &{
+                                                                    if gname.starts_with("Macro Group") && !gpresets.is_empty() {
+                                                                        let preset_labels: Vec<String> = gpresets.iter().map(|(_, lbl)| lbl.clone()).collect();
+                                                                        format!("{} [{}]", gname, preset_labels.join(", "))
+                                                                    } else {
+                                                                        gname.clone()
+                                                                    }
+                                                                })
 
                                                                     .clicked()
 
