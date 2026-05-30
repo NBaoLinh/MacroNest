@@ -22618,7 +22618,9 @@ pub(crate) fn render_macro_panel(&mut self, ui: &mut egui::Ui) {
                         
                     }
                     
-                    if !pixel_presets.is_empty() {
+                    let show_pixel_counter = step.action == MacroAction::ScanVisionOnce;
+
+                    if show_pixel_counter && !pixel_presets.is_empty() {
                     
                         if !image_presets.is_empty() || !color_presets.is_empty() {
                         
@@ -22644,11 +22646,23 @@ pub(crate) fn render_macro_panel(&mut self, ui: &mut egui::Ui) {
                         
                     }
                     
+                    
     });
     
                                                  let is_pixel = selected_id.and_then(|id| {
-                                                     self.state.vision_presets.iter().find(|p| p.id == id)
-                                                 }).map(|p| p.is_pixel_counter).unwrap_or(false);
+
+                                                        self.state.vision_presets.iter().find(|p| p.id == id)
+                                                        
+                                                    }).map(|p| p.is_pixel_counter).unwrap_or(false);
+                                                    
+                                                    if matches!(step.action, MacroAction::StartVisionSearch | MacroAction::StopVision) {
+                                                    
+                                                        ui.add_space(4.0);
+                                                        
+                                                        ui.weak(Self::tr_lang(language, "(Mouse move only)", "(Chức năng di chuột)"));
+                                                        
+                                                    }
+                                                    
 
                                                  if step.action == MacroAction::ScanVisionOnce {
                                                      ui.add_space(4.0);
@@ -32758,7 +32772,9 @@ pub(crate) fn render_macro_panel(&mut self, ui: &mut egui::Ui) {
                         
                     }
                     
-                    if !pixel_presets.is_empty() {
+                    let show_pixel_counter = step.action == MacroAction::ScanVisionOnce;
+
+                    if show_pixel_counter && !pixel_presets.is_empty() {
                     
                         if !image_presets.is_empty() || !color_presets.is_empty() {
                         
@@ -32784,11 +32800,23 @@ pub(crate) fn render_macro_panel(&mut self, ui: &mut egui::Ui) {
                         
                     }
                     
+                    
     });
     
                                                      let is_pixel = selected_id.and_then(|id| {
-                                                         self.state.vision_presets.iter().find(|p| p.id == id)
-                                                     }).map(|p| p.is_pixel_counter).unwrap_or(false);
+
+                                                        self.state.vision_presets.iter().find(|p| p.id == id)
+                                                        
+                                                    }).map(|p| p.is_pixel_counter).unwrap_or(false);
+                                                    
+                                                    if matches!(step.action, MacroAction::StartVisionSearch | MacroAction::StopVision) {
+                                                    
+                                                        ui.add_space(4.0);
+                                                        
+                                                        ui.weak(Self::tr_lang(language, "(Mouse move only)", "(Chức năng di chuột)"));
+                                                        
+                                                    }
+                                                    
 
                                                      if step.action == MacroAction::ScanVisionOnce {
                                                          ui.add_space(4.0);
@@ -37948,7 +37976,9 @@ pub(crate) fn render_macro_panel(&mut self, ui: &mut egui::Ui) {
                         
                     }
                     
-                    if !pixel_presets.is_empty() {
+                    let show_pixel_counter = step.action == MacroAction::ScanVisionOnce;
+
+                    if show_pixel_counter && !pixel_presets.is_empty() {
                     
                         if !image_presets.is_empty() || !color_presets.is_empty() {
                         
@@ -37974,12 +38004,25 @@ pub(crate) fn render_macro_panel(&mut self, ui: &mut egui::Ui) {
                         
                     }
                     
+                    
     });
     
                                                      let selected_preset = selected_id.and_then(|id| {
+
                                                          self.state.vision_presets.iter().find(|p| p.id == id)
+                                                         
                                                      });
+                                                     
                                                      let is_pixel = selected_preset.map(|p| p.is_pixel_counter).unwrap_or(false);
+                                                     
+                                                     if matches!(step.action, MacroAction::StartVisionSearch | MacroAction::StopVision) {
+                                                     
+                                                         ui.add_space(4.0);
+                                                         
+                                                         ui.weak(Self::tr_lang(language, "(Mouse move only)", "(Chức năng di chuột)"));
+                                                         
+                                                     }
+                                                     
 
                                                      if step.action == MacroAction::ScanVisionOnce {
                                                          ui.add_space(4.0);
