@@ -3016,6 +3016,12 @@ mod windows_overlay {
 
             if message == WM_MOUSEMOVE && !is_vision_capture_mouse_blocked() {
 
+                let hud_active = HUD_DISPLAY.lock().is_some() || HUD_PREVIEW_DISPLAY.lock().is_some();
+
+                if hud_active {
+                    wake_command_queue();
+                }
+
                 return CallNextHookEx(None, code, wparam, lparam);
 
             }
