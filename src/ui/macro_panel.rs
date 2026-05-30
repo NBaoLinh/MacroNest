@@ -21050,116 +21050,28 @@ pub(crate) fn render_macro_panel(&mut self, ui: &mut egui::Ui) {
 
 
                                                         });
-
-
-
                                                 } else if step.action == MacroAction::FocusWindowPreset {
 
-
-
-                                                    let selected_label = if step.key.trim().is_empty() {
-
-
-
-                                                        Self::tr_lang(language, "Select window", "Chọn cửa sổ").to_owned()
-
-
-
+                                                    let mut selected_window = if step.key.trim().is_empty() {
+                                                        None
                                                     } else {
-
-
-
-                                                        Self::simplify_window_title(&step.key)
-
-
-
+                                                        Some(step.key.clone())
                                                     };
-
-
-
-                                                    egui::ComboBox::from_id_salt((group.id, preset.id, "hold-stop-focus-window-preset"))
-
-
-
-                                                        .width(160.0)
-
-
-
-                                                        .selected_text(selected_label)
-
-
-
-                                                        .show_ui(ui, |ui| {
-
-
-
-                                                            ui.strong(Self::tr_lang(language, "Open Windows", "Cửa sổ đang mở"));
-
-
-
-                                                            if self.open_windows.is_empty() {
-
-
-
-                                                                ui.weak(Self::tr_lang(language, "No open windows found", "Không tìm thấy cửa sổ nào"));
-
-
-
-                                                            } else {
-
-
-
-                                                                for win in self.open_windows.iter().take(30) {
-
-
-
-                                                                    let label = Self::simplify_window_title(win);
-
-
-
-                                                                    if ui
-
-
-
-                                                                        .selectable_label(step.key == *win, label)
-
-
-
-                                                                        .on_hover_text(win)
-
-
-
-                                                                        .clicked()
-
-
-
-                                                                    {
-
-
-
-                                                                        step.key = win.clone();
-
-
-
-                                                                        live_sync = true;
-
-
-
-                                                                    }
-
-
-
-                                                                }
-
-
-
-                                                            }
-
-
-
-                                                        });
-
-
+                                                    let mut duplicate_mode = false;
+
+                                                    if Self::render_window_target_combo_with_duplicate_mode(
+                                                        ui,
+                                                        (group.id, preset.id, "hold-stop-focus-window-preset"),
+                                                        &Self::tr_lang(language, "Select window", "Ch?n c?a s?"),
+                                                        &mut selected_window,
+                                                        &mut duplicate_mode,
+                                                        &self.open_windows,
+                                                        160.0,
+                                                        false,
+                                                    ) {
+                                                        step.key = selected_window.unwrap_or_default();
+                                                        live_sync = true;
+                                                    }
 
                                                 } else if step.action == MacroAction::TriggerMacroPreset {
 
@@ -31235,116 +31147,28 @@ pub(crate) fn render_macro_panel(&mut self, ui: &mut egui::Ui) {
 
 
                                                         });
-
-
-
                                                 } else if step.action == MacroAction::FocusWindowPreset {
 
-
-
-                                                    let selected_label = if step.key.trim().is_empty() {
-
-
-
-                                                        Self::tr_lang(language, "Select window", "Chọn cửa sổ").to_owned()
-
-
-
+                                                    let mut selected_window = if step.key.trim().is_empty() {
+                                                        None
                                                     } else {
-
-
-
-                                                        Self::simplify_window_title(&step.key)
-
-
-
+                                                        Some(step.key.clone())
                                                     };
-
-
-
-                                                    egui::ComboBox::from_id_salt((group.id, preset.id, step_index, "focus-window-preset-step"))
-
-
-
-                                                        .width(160.0)
-
-
-
-                                                        .selected_text(selected_label)
-
-
-
-                                                        .show_ui(ui, |ui| {
-
-
-
-                                                            ui.strong(Self::tr_lang(language, "Open Windows", "Cửa sổ đang mở"));
-
-
-
-                                                            if self.open_windows.is_empty() {
-
-
-
-                                                                ui.weak(Self::tr_lang(language, "No open windows found", "Không tìm thấy cửa sổ nào"));
-
-
-
-                                                            } else {
-
-
-
-                                                                for win in self.open_windows.iter().take(30) {
-
-
-
-                                                                    let label = Self::simplify_window_title(win);
-
-
-
-                                                                    if ui
-
-
-
-                                                                        .selectable_label(step.key == *win, label)
-
-
-
-                                                                        .on_hover_text(win)
-
-
-
-                                                                        .clicked()
-
-
-
-                                                                    {
-
-
-
-                                                                        step.key = win.clone();
-
-
-
-                                                                        live_sync = true;
-
-
-
-                                                                    }
-
-
-
-                                                                }
-
-
-
-                                                            }
-
-
-
-                                                        });
-
-
+                                                    let mut duplicate_mode = false;
+
+                                                    if Self::render_window_target_combo_with_duplicate_mode(
+                                                        ui,
+                                                        (group.id, preset.id, "hold-stop-focus-window-preset"),
+                                                        &Self::tr_lang(language, "Select window", "Ch?n c?a s?"),
+                                                        &mut selected_window,
+                                                        &mut duplicate_mode,
+                                                        &self.open_windows,
+                                                        160.0,
+                                                        false,
+                                                    ) {
+                                                        step.key = selected_window.unwrap_or_default();
+                                                        live_sync = true;
+                                                    }
 
                                                 } else if step.action == MacroAction::TriggerMacroPreset {
 
@@ -47112,6 +46936,7 @@ pub(crate) fn render_macro_panel(&mut self, ui: &mut egui::Ui) {
 
 
 }
+
 
 
 
