@@ -2700,6 +2700,18 @@ mod windows_overlay {
 
         match msg {
 
+            WM_NCHITTEST => {
+
+                return LRESULT(HTTRANSPARENT as isize);
+
+            }
+
+            WM_MOUSEACTIVATE => {
+
+                return LRESULT(MA_NOACTIVATE as isize);
+
+            }
+
             windows::Win32::UI::WindowsAndMessaging::WM_PAINT => {
 
                 let mut paint = PAINTSTRUCT::default();
@@ -3015,12 +3027,6 @@ mod windows_overlay {
             // 1. Immediately bypass WM_MOUSEMOVE to keep mouse movement extremely smooth and lock-free!
 
             if message == WM_MOUSEMOVE && !is_vision_capture_mouse_blocked() {
-
-                let hud_active = HUD_DISPLAY.lock().is_some() || HUD_PREVIEW_DISPLAY.lock().is_some();
-
-                if hud_active {
-                    wake_command_queue();
-                }
 
                 return CallNextHookEx(None, code, wparam, lparam);
 
@@ -7583,7 +7589,7 @@ mod windows_overlay {
 
         if toolbox_active {
 
-            return 16;
+            return 100;
 
         }
 
@@ -8932,6 +8938,8 @@ mod windows_overlay {
             0,
             SWP_NOMOVE | SWP_NOSIZE | SWP_NOACTIVATE | SWP_SHOWWINDOW,
         );
+
+        let _ = ShowWindow(hwnd, SW_SHOWNA);
 
         Ok(())
 
