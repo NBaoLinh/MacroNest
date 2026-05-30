@@ -665,6 +665,10 @@ pub struct MacroStep {
     #[serde(default)]
     pub ocr_text_var: String,
     #[serde(default)]
+    pub vision_pos_var_x: String,
+    #[serde(default)]
+    pub vision_pos_var_y: String,
+    #[serde(default)]
     pub if_contain_case_sensitive: bool,
     #[serde(default)]
     pub if_contain_isolated: bool,
@@ -732,6 +736,8 @@ impl Default for MacroStep {
             ocr_numeric_var: String::new(),
             ocr_lang: None,
             ocr_text_var: String::new(),
+            vision_pos_var_x: String::new(),
+            vision_pos_var_y: String::new(),
             if_contain_case_sensitive: false,
             if_contain_isolated: false,
         }
