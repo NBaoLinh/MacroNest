@@ -11867,49 +11867,34 @@ mod windows_overlay {
 
                     if !target_var.is_empty() {
 
-                        let value = match step.set_variable_source {
-
+                        match step.set_variable_source {
                             crate::model::SetVariableSource::Expression => {
-
-                                evaluate_math_expression(&step.key)
-
+                                smart_set_variable_from_expression(&target_var, &step.key);
                             }
-
-                            crate::model::SetVariableSource::TimeHour => {
-
-                                use chrono::Timelike;
-
-                                chrono::Local::now().hour() as i32
-
+                            _ => {
+                                let value = match step.set_variable_source {
+                                    crate::model::SetVariableSource::TimeHour => {
+                                        use chrono::Timelike;
+                                        chrono::Local::now().hour() as i32
+                                    }
+                                    crate::model::SetVariableSource::TimeMinute => {
+                                        use chrono::Timelike;
+                                        chrono::Local::now().minute() as i32
+                                    }
+                                    crate::model::SetVariableSource::TimeSecond => {
+                                        use chrono::Timelike;
+                                        chrono::Local::now().second() as i32
+                                    }
+                                    crate::model::SetVariableSource::TimeMillisecond => {
+                                        use chrono::Timelike;
+                                        chrono::Local::now().nanosecond() as i32 / 1_000_000
+                                    }
+                                    _ => 0,
+                                };
+                                set_variable_value(&target_var, value);
+                                TEXT_VARIABLES.lock().remove(&target_var);
                             }
-
-                            crate::model::SetVariableSource::TimeMinute => {
-
-                                use chrono::Timelike;
-
-                                chrono::Local::now().minute() as i32
-
-                            }
-
-                            crate::model::SetVariableSource::TimeSecond => {
-
-                                use chrono::Timelike;
-
-                                chrono::Local::now().second() as i32
-
-                            }
-
-                            crate::model::SetVariableSource::TimeMillisecond => {
-
-                                use chrono::Timelike;
-
-                                chrono::Local::now().nanosecond() as i32 / 1_000_000
-
-                            }
-
-                        };
-
-                        set_variable_value(&target_var, value);
+                        }
 
                     }
 
@@ -12637,49 +12622,34 @@ mod windows_overlay {
 
                     if !target_var.is_empty() {
 
-                        let value = match step.set_variable_source {
-
+                        match step.set_variable_source {
                             crate::model::SetVariableSource::Expression => {
-
-                                evaluate_math_expression(&step.key)
-
+                                smart_set_variable_from_expression(&target_var, &step.key);
                             }
-
-                            crate::model::SetVariableSource::TimeHour => {
-
-                                use chrono::Timelike;
-
-                                chrono::Local::now().hour() as i32
-
+                            _ => {
+                                let value = match step.set_variable_source {
+                                    crate::model::SetVariableSource::TimeHour => {
+                                        use chrono::Timelike;
+                                        chrono::Local::now().hour() as i32
+                                    }
+                                    crate::model::SetVariableSource::TimeMinute => {
+                                        use chrono::Timelike;
+                                        chrono::Local::now().minute() as i32
+                                    }
+                                    crate::model::SetVariableSource::TimeSecond => {
+                                        use chrono::Timelike;
+                                        chrono::Local::now().second() as i32
+                                    }
+                                    crate::model::SetVariableSource::TimeMillisecond => {
+                                        use chrono::Timelike;
+                                        chrono::Local::now().nanosecond() as i32 / 1_000_000
+                                    }
+                                    _ => 0,
+                                };
+                                set_variable_value(&target_var, value);
+                                TEXT_VARIABLES.lock().remove(&target_var);
                             }
-
-                            crate::model::SetVariableSource::TimeMinute => {
-
-                                use chrono::Timelike;
-
-                                chrono::Local::now().minute() as i32
-
-                            }
-
-                            crate::model::SetVariableSource::TimeSecond => {
-
-                                use chrono::Timelike;
-
-                                chrono::Local::now().second() as i32
-
-                            }
-
-                            crate::model::SetVariableSource::TimeMillisecond => {
-
-                                use chrono::Timelike;
-
-                                chrono::Local::now().nanosecond() as i32 / 1_000_000
-
-                            }
-
-                        };
-
-                        set_variable_value(&target_var, value);
+                        }
 
                     }
 
@@ -14081,7 +14051,9 @@ fn get_object_property_value(token: &str) -> Option<i32> {
 
     }
 
-    let obj_name = parts[0].trim().to_lowercase();
+    let obj_name_raw = parts[0].trim();
+
+    let obj_name = obj_name_raw.to_lowercase();
 
     let prop_name = parts[1].trim().to_lowercase();
 
@@ -14283,6 +14255,78 @@ fn get_object_property_value(token: &str) -> Option<i32> {
 
     }
 
+
+
+    if prop_name == "tonumber" {
+
+        let mut found_str = None;
+
+        let mut is_text_var = false;
+
+
+
+        {
+
+            let text_vars = TEXT_VARIABLES.lock();
+
+            if let Some(val) = text_vars.get(obj_name_raw) {
+
+                found_str = Some(val.clone());
+
+                is_text_var = true;
+
+            }
+
+        }
+
+
+
+        if found_str.is_none() {
+
+            let vars = RUNTIME_VARIABLES.lock();
+
+            if let Some(val) = vars.get(obj_name_raw) {
+
+                found_str = Some(val.to_string());
+
+            }
+
+        }
+
+
+
+        if let Some(s) = found_str {
+
+            let digit_str: String = s.chars().filter(|c| c.is_ascii_digit()).collect();
+
+            let parsed_val = digit_str.parse::<i32>().unwrap_or(0);
+
+
+
+            if is_text_var {
+
+                let mut text_vars = TEXT_VARIABLES.lock();
+
+                text_vars.remove(obj_name_raw);
+
+            }
+
+
+
+            let mut vars = RUNTIME_VARIABLES.lock();
+
+            vars.insert(obj_name_raw.to_string(), parsed_val);
+
+
+
+            return Some(parsed_val);
+
+        }
+
+    }
+
+
+
     None
 
 }
@@ -14465,6 +14509,36 @@ fn set_text_variable_value(target_var: &str, value: &str) {
 
     vars.insert(target_trimmed.to_string(), value.to_string());
 
+}
+
+
+
+fn smart_set_variable_from_expression(target_var: &str, expr_raw: &str) {
+    let target_trimmed = target_var.trim();
+    if target_trimmed.is_empty() {
+        return;
+    }
+
+    let expr_trimmed = expr_raw.trim().to_string();
+    let interpolated = interpolate_variables(&expr_trimmed);
+
+    if let Ok(val) = interpolated.parse::<i32>() {
+        set_variable_value(target_trimmed, val);
+        TEXT_VARIABLES.lock().remove(target_trimmed);
+    } else {
+        let has_math_op = interpolated.chars().any(|c| c == '+' || c == '-' || c == '*' || c == '/' || c == '(' || c == ')');
+        let lower = interpolated.to_lowercase();
+        let has_math_func = lower.contains("min(") || lower.contains("max(") || lower.contains("abs(") || lower.contains("random(") || lower.contains(".tonumber");
+
+        if has_math_op || has_math_func {
+            let val = evaluate_math_expression(&interpolated);
+            set_variable_value(target_trimmed, val);
+            TEXT_VARIABLES.lock().remove(target_trimmed);
+        } else {
+            set_text_variable_value(target_trimmed, &interpolated);
+            RUNTIME_VARIABLES.lock().remove(target_trimmed);
+        }
+    }
 }
 
 
@@ -15107,24 +15181,14 @@ fn execute_ocr_action_step(step: &crate::model::MacroStep) {
 
 
 
-        let vars = RUNTIME_VARIABLES.lock();
-
         let get_value = |token: &str| -> i32 {
-
             if let Ok(num) = token.parse::<i32>() {
-
                 num
-
             } else if let Some(obj_val) = get_object_property_value(token) {
-
                 obj_val
-
             } else {
-
-                *vars.get(token).unwrap_or(&0)
-
+                *RUNTIME_VARIABLES.lock().get(token).unwrap_or(&0)
             }
-
         };
 
 
@@ -15412,6 +15476,38 @@ fn execute_ocr_action_step(step: &crate::model::MacroStep) {
             assert_eq!(interpolate_variables("test {A + B * 2}"), "test 540");
 
             assert_eq!(interpolate_variables("test {C}"), "test 0");
+
+        }
+
+        #[test]
+        fn test_tonumber_property() {
+            {
+                let mut text_vars = TEXT_VARIABLES.lock();
+                text_vars.insert("A".to_string(), "hello123".to_string());
+                text_vars.insert("B".to_string(), "hel123lo45".to_string());
+            }
+
+            assert_eq!(evaluate_math_expression("A.toNumber"), 123);
+            assert_eq!(evaluate_math_expression("B.toNumber + 5"), 12350);
+
+            {
+                let text_vars = TEXT_VARIABLES.lock();
+                assert!(!text_vars.contains_key("A"));
+                assert!(!text_vars.contains_key("B"));
+            }
+
+            {
+                let vars = RUNTIME_VARIABLES.lock();
+                assert_eq!(*vars.get("A").unwrap_or(&0), 123);
+                assert_eq!(*vars.get("B").unwrap_or(&0), 12345);
+            }
+
+            {
+                let mut text_vars = TEXT_VARIABLES.lock();
+                text_vars.clear();
+                let mut vars = RUNTIME_VARIABLES.lock();
+                vars.clear();
+            }
 
 
 

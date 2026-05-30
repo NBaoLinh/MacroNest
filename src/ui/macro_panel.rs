@@ -1291,6 +1291,7 @@ impl CrosshairApp {
 
 
                 ui.label(egui::RichText::new("• abs(a)").monospace());
+                ui.label(egui::RichText::new("• var.toNumber").monospace());
 
 
 
@@ -44027,7 +44028,7 @@ pub(crate) fn render_macro_panel(&mut self, ui: &mut egui::Ui) {
 
 
 
-            _ => None,
+            _ => Some(&["toNumber"]),
 
 
 
