@@ -16608,24 +16608,17 @@ pub(crate) fn render_macro_panel(&mut self, ui: &mut egui::Ui) {
 
                     // Pre-compute group list for TriggerMacroPreset (avoids borrow conflict)
 
+                    let current_folder_id = self.state.macro_groups[group_index].folder_id;
                     let all_groups_for_trigger: Vec<(u32, String, Vec<(u32, String)>)> = self.state.macro_groups
-
                         .iter()
-
+                        .filter(|g| g.folder_id == current_folder_id)
                         .map(|g| (
-
                             g.id,
-
                             g.name.clone(),
-
                             g.presets.iter()
-
                                 .map(|p| (p.id, Self::format_macro_trigger_ui(language, p)))
-
                                 .collect::<Vec<_>>(),
-
                         ))
-
                         .collect();
 
                     let group = &mut self.state.macro_groups[group_index];
