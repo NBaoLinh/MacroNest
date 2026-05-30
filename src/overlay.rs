@@ -1926,7 +1926,7 @@ mod windows_overlay {
 
                 ui_visible: true,
 
-                ui_foreground: true,
+                ui_foreground: is_ui_in_foreground(),
 
             });
 
@@ -2098,7 +2098,7 @@ mod windows_overlay {
 
                     let _ = SetTimer(Some(hwnd), TIMER_ID, 500, None);
 
-                    let _ = set_input_hooks_enabled(runtime, false);
+                    let _ = set_input_hooks_enabled(runtime, desired_hooks_enabled(runtime));
 
                     let _ = refresh_overlay(runtime);
 
@@ -2141,8 +2141,6 @@ mod windows_overlay {
                             reset_all_input_and_locks();
 
                             let _ = ShowWindow(runtime.pin_hwnd, SW_HIDE);
-
-                            let _ = ShowWindow(runtime.hud_hwnd, SW_HIDE);
 
                             let _ = ShowWindow(runtime.mouse_trail_hwnd, SW_HIDE);
 
@@ -6905,8 +6903,6 @@ mod windows_overlay {
                         let _ = set_input_hooks_enabled(runtime, desired_hooks_enabled(runtime));
 
                         let _ = ShowWindow(runtime.pin_hwnd, SW_HIDE);
-
-                        let _ = ShowWindow(runtime.hud_hwnd, SW_HIDE);
 
                         let _ = ShowWindow(runtime.mouse_trail_hwnd, SW_HIDE);
 
