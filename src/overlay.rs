@@ -8916,7 +8916,15 @@ mod windows_overlay {
 
         let _ = ReleaseDC(None, screen_dc);
 
-        let _ = ShowWindow(hwnd, SW_SHOWNA);
+        let _ = SetWindowPos(
+            hwnd,
+            Some(HWND_TOPMOST),
+            0,
+            0,
+            0,
+            0,
+            SWP_NOMOVE | SWP_NOSIZE | SWP_NOACTIVATE | SWP_SHOWWINDOW,
+        );
 
         Ok(())
 
