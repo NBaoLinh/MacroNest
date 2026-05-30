@@ -8302,7 +8302,7 @@ impl CrosshairApp {
 
 
 
-                    RichText::new(Self::tr_lang(language, "Timer", "Háº¹n giá»"))
+                    RichText::new(Self::tr_lang(language, "Timer", "H?n gi?"))
 
 
 
