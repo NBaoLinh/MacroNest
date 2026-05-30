@@ -2220,6 +2220,14 @@ mod windows_overlay {
 
                     let _ = refresh_timer_overlays(runtime);
 
+                    let hud_active = HUD_DISPLAY.lock().is_some()
+                        || HUD_PREVIEW_DISPLAY.lock().is_some()
+                        || runtime.hud_display.is_some();
+
+                    if hud_active {
+                        let _ = refresh_hud(runtime);
+                    }
+
 
 
                     refresh_overlay_timer(hwnd, runtime);
@@ -2251,6 +2259,14 @@ mod windows_overlay {
                     let _ = refresh_search_area_overlay(runtime);
 
                     let _ = refresh_timer_overlays(runtime);
+
+                    let hud_active = HUD_DISPLAY.lock().is_some()
+                        || HUD_PREVIEW_DISPLAY.lock().is_some()
+                        || runtime.hud_display.is_some();
+
+                    if hud_active {
+                        let _ = refresh_hud(runtime);
+                    }
 
                     refresh_overlay_timer(hwnd, runtime);
 
