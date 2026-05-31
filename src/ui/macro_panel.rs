@@ -11878,7 +11878,13 @@ impl CrosshairApp {
 
                                             }
 
-                                            if action_supports_capture && !(step.action == MacroAction::StopIfKeyPressed && step.get_break_loop_mode() != "StopKey") {
+                                            if action_supports_capture
+                                                && !matches!(
+                                                    step.action,
+                                                    MacroAction::LockKeys | MacroAction::UnlockKeys
+                                                )
+                                                && !(step.action == MacroAction::StopIfKeyPressed && step.get_break_loop_mode() != "StopKey")
+                                            {
 
                                                 let hold_stop_capture_target =
 
@@ -17809,7 +17815,13 @@ impl CrosshairApp {
 
                                                 }
 
-                                            } else if action_supports_capture && !(step.action == MacroAction::StopIfKeyPressed && step.get_break_loop_mode() != "StopKey") {
+                                            } else if action_supports_capture
+                                                && !matches!(
+                                                    step.action,
+                                                    MacroAction::LockKeys | MacroAction::UnlockKeys
+                                                )
+                                                && !(step.action == MacroAction::StopIfKeyPressed && step.get_break_loop_mode() != "StopKey")
+                                            {
 
                                                 let step_capture_target = CaptureRequest::MacroStepInput {
 
