@@ -16,8 +16,7 @@ impl CrosshairApp {
         step: &mut MacroStep,
         live_sync: &mut bool,
     ) {
-        let outputs_label =
-            Self::tr_lang(language, "Outputs", "ÃƒÆ’Ã¢â‚¬Å¾Ãƒâ€šÃ‚ÂÃƒÆ’Ã‚Â¡Ãƒâ€šÃ‚ÂºÃƒâ€šÃ‚Â§u ra").to_owned();
+        let outputs_label = Self::tr_lang(language, "Outputs", "Đầu ra").to_owned();
 
         egui::ComboBox::from_id_salt((group_id, preset_id, step_index, "ocr-outputs"))
             .close_behavior(egui::PopupCloseBehavior::CloseOnClickOutside)
@@ -33,12 +32,12 @@ impl CrosshairApp {
                         let found_label = ui.label(Self::tr_lang(
                             language,
                             "Found Var:",
-                            "BiÃƒÆ’Ã‚Â¡Ãƒâ€šÃ‚ÂºÃƒâ€šÃ‚Â¿n kÃƒÆ’Ã‚Â¡Ãƒâ€šÃ‚ÂºÃƒâ€šÃ‚Â¿t quÃƒÆ’Ã‚Â¡Ãƒâ€šÃ‚ÂºÃƒâ€šÃ‚Â£:",
+                            "Biến kết quả:",
                         ));
                         found_label.on_hover_text(Self::tr_lang(
                             language,
                             "Assigns 1 if the target text was found (or if OCR succeeded when no target is set), 0 otherwise",
-                            "GÃƒÆ’Ã†â€™Ãƒâ€šÃ‚Â¡n 1 nÃƒÆ’Ã‚Â¡Ãƒâ€šÃ‚ÂºÃƒâ€šÃ‚Â¿u tÃƒÆ’Ã†â€™Ãƒâ€šÃ‚Â¬m thÃƒÆ’Ã‚Â¡Ãƒâ€šÃ‚ÂºÃƒâ€šÃ‚Â¥y tÃƒÆ’Ã‚Â¡Ãƒâ€šÃ‚Â»Ãƒâ€šÃ‚Â« khÃƒÆ’Ã†â€™Ãƒâ€šÃ‚Â³a (hoÃƒÆ’Ã‚Â¡Ãƒâ€šÃ‚ÂºÃƒâ€šÃ‚Â·c nÃƒÆ’Ã‚Â¡Ãƒâ€šÃ‚ÂºÃƒâ€šÃ‚Â¿u quÃƒÆ’Ã†â€™Ãƒâ€šÃ‚Â©t OCR thÃƒÆ’Ã†â€™Ãƒâ€šÃ‚Â nh cÃƒÆ’Ã†â€™Ãƒâ€šÃ‚Â´ng khi khÃƒÆ’Ã†â€™Ãƒâ€šÃ‚Â´ng ÃƒÆ’Ã¢â‚¬Å¾ÃƒÂ¢Ã¢â€šÂ¬Ã‹Å“ÃƒÆ’Ã‚Â¡Ãƒâ€šÃ‚ÂºÃƒâ€šÃ‚Â·t tÃƒÆ’Ã‚Â¡Ãƒâ€šÃ‚Â»Ãƒâ€šÃ‚Â« tÃƒÆ’Ã†â€™Ãƒâ€šÃ‚Â¬m), ngÃƒÆ’Ã¢â‚¬Â Ãƒâ€šÃ‚Â°ÃƒÆ’Ã‚Â¡Ãƒâ€šÃ‚Â»Ãƒâ€šÃ‚Â£c lÃƒÆ’Ã‚Â¡Ãƒâ€šÃ‚ÂºÃƒâ€šÃ‚Â¡i lÃƒÆ’Ã†â€™Ãƒâ€šÃ‚Â  0",
+                            "Gán 1 nếu tìm thấy từ khóa (hoặc nếu quét OCR thành công khi không đặt từ tìm), ngược lại là 0",
                         ));
                         let found_resp = ui.add(
                             egui::TextEdit::singleline(&mut step.ocr_success_var).hint_text("var_ok"),
@@ -56,7 +55,7 @@ impl CrosshairApp {
                         pos_x_label.on_hover_text(Self::tr_lang(
                             language,
                             "Assigns the absolute X coordinate of the center of found text",
-                            "GÃƒÆ’Ã†â€™Ãƒâ€šÃ‚Â¡n tÃƒÆ’Ã‚Â¡Ãƒâ€šÃ‚Â»Ãƒâ€šÃ‚Âa ÃƒÆ’Ã¢â‚¬Å¾ÃƒÂ¢Ã¢â€šÂ¬Ã‹Å“ÃƒÆ’Ã‚Â¡Ãƒâ€šÃ‚Â»ÃƒÂ¢Ã¢â‚¬Å¾Ã‚Â¢ X tuyÃƒÆ’Ã‚Â¡Ãƒâ€šÃ‚Â»ÃƒÂ¢Ã¢â€šÂ¬Ã‚Â¡t ÃƒÆ’Ã¢â‚¬Å¾ÃƒÂ¢Ã¢â€šÂ¬Ã‹Å“ÃƒÆ’Ã‚Â¡Ãƒâ€šÃ‚Â»ÃƒÂ¢Ã¢â€šÂ¬Ã‹Å“i ÃƒÆ’Ã‚Â¡Ãƒâ€šÃ‚Â»Ãƒâ€¦Ã‚Â¸ chÃƒÆ’Ã†â€™Ãƒâ€šÃ‚Â­nh giÃƒÆ’Ã‚Â¡Ãƒâ€šÃ‚Â»Ãƒâ€šÃ‚Â¯a tÃƒÆ’Ã‚Â¡Ãƒâ€šÃ‚Â»Ãƒâ€šÃ‚Â« tÃƒÆ’Ã†â€™Ãƒâ€šÃ‚Â¬m thÃƒÆ’Ã‚Â¡Ãƒâ€šÃ‚ÂºÃƒâ€šÃ‚Â¥y",
+                            "Gán tọa độ X tuyệt đối ở chính giữa từ tìm thấy",
                         ));
                         let pos_x_resp =
                             ui.add(egui::TextEdit::singleline(&mut step.ocr_pos_var_x).hint_text("var_x"));
@@ -73,7 +72,7 @@ impl CrosshairApp {
                         pos_y_label.on_hover_text(Self::tr_lang(
                             language,
                             "Assigns the absolute Y coordinate of the center of found text",
-                            "GÃƒÆ’Ã†â€™Ãƒâ€šÃ‚Â¡n tÃƒÆ’Ã‚Â¡Ãƒâ€šÃ‚Â»Ãƒâ€šÃ‚Âa ÃƒÆ’Ã¢â‚¬Å¾ÃƒÂ¢Ã¢â€šÂ¬Ã‹Å“ÃƒÆ’Ã‚Â¡Ãƒâ€šÃ‚Â»ÃƒÂ¢Ã¢â‚¬Å¾Ã‚Â¢ Y tuyÃƒÆ’Ã‚Â¡Ãƒâ€šÃ‚Â»ÃƒÂ¢Ã¢â€šÂ¬Ã‚Â¡t ÃƒÆ’Ã¢â‚¬Å¾ÃƒÂ¢Ã¢â€šÂ¬Ã‹Å“ÃƒÆ’Ã‚Â¡Ãƒâ€šÃ‚Â»ÃƒÂ¢Ã¢â€šÂ¬Ã‹Å“i ÃƒÆ’Ã‚Â¡Ãƒâ€šÃ‚Â»Ãƒâ€¦Ã‚Â¸ chÃƒÆ’Ã†â€™Ãƒâ€šÃ‚Â­nh giÃƒÆ’Ã‚Â¡Ãƒâ€šÃ‚Â»Ãƒâ€šÃ‚Â¯a tÃƒÆ’Ã‚Â¡Ãƒâ€šÃ‚Â»Ãƒâ€šÃ‚Â« tÃƒÆ’Ã†â€™Ãƒâ€šÃ‚Â¬m thÃƒÆ’Ã‚Â¡Ãƒâ€šÃ‚ÂºÃƒâ€šÃ‚Â¥y",
+                            "Gán tọa độ Y tuyệt đối ở chính giữa từ tìm thấy",
                         ));
                         let pos_y_resp =
                             ui.add(egui::TextEdit::singleline(&mut step.ocr_pos_var_y).hint_text("var_y"));
@@ -131,7 +130,7 @@ impl CrosshairApp {
             .on_hover_text(Self::tr_lang(
                 language,
                 "Pick area - Drag on screen to select the OCR scan region",
-                "ChÃƒÆ’Ã‚Â¡Ãƒâ€šÃ‚Â»Ãƒâ€šÃ‚Ân vÃƒÆ’Ã†â€™Ãƒâ€šÃ‚Â¹ng - KÃƒÆ’Ã†â€™Ãƒâ€šÃ‚Â©o trÃƒÆ’Ã†â€™Ãƒâ€šÃ‚Âªn mÃƒÆ’Ã†â€™Ãƒâ€šÃ‚Â n hÃƒÆ’Ã†â€™Ãƒâ€šÃ‚Â¬nh ÃƒÆ’Ã¢â‚¬Å¾ÃƒÂ¢Ã¢â€šÂ¬Ã‹Å“ÃƒÆ’Ã‚Â¡Ãƒâ€šÃ‚Â»Ãƒâ€ Ã¢â‚¬â„¢ chÃƒÆ’Ã‚Â¡Ãƒâ€šÃ‚Â»Ãƒâ€šÃ‚Ân vÃƒÆ’Ã†â€™Ãƒâ€šÃ‚Â¹ng quÃƒÆ’Ã†â€™Ãƒâ€šÃ‚Â©t OCR",
+                "Chọn vùng - Kéo trên màn hình để chọn vùng quét OCR",
             ))
             .clicked()
         {
@@ -141,9 +140,21 @@ impl CrosshairApp {
         ui.add_space(4.0);
 
         let popular_langs: &[(&str, &str, &str)] = &[
-            ("", "Auto", "Detect language from Windows profile. No install needed."),
-            ("en", "English (en)", "English - usually installed by default"),
-            ("vi", "Vietnamese (vi)", "Tieng Viet - install via Windows Settings > Language"),
+            (
+                "",
+                "Auto",
+                "Detect language from Windows profile. No install needed.",
+            ),
+            (
+                "en",
+                "English (en)",
+                "English - usually installed by default",
+            ),
+            (
+                "vi",
+                "Vietnamese (vi)",
+                "Tieng Viet - install via Windows Settings > Language",
+            ),
             (
                 "zh-Hans",
                 "Chinese Simp (zh)",
@@ -154,12 +165,36 @@ impl CrosshairApp {
                 "Chinese Trad (zht)",
                 "Traditional Chinese - install via Windows Settings > Language",
             ),
-            ("ja", "Japanese (ja)", "install via Windows Settings > Language"),
-            ("ko", "Korean (ko)", "install via Windows Settings > Language"),
-            ("fr", "French (fr)", "Francais - install via Windows Settings > Language"),
-            ("de", "German (de)", "Deutsch - install via Windows Settings > Language"),
-            ("es", "Spanish (es)", "Espanol - install via Windows Settings > Language"),
-            ("ru", "Russian (ru)", "install via Windows Settings > Language"),
+            (
+                "ja",
+                "Japanese (ja)",
+                "install via Windows Settings > Language",
+            ),
+            (
+                "ko",
+                "Korean (ko)",
+                "install via Windows Settings > Language",
+            ),
+            (
+                "fr",
+                "French (fr)",
+                "Francais - install via Windows Settings > Language",
+            ),
+            (
+                "de",
+                "German (de)",
+                "Deutsch - install via Windows Settings > Language",
+            ),
+            (
+                "es",
+                "Spanish (es)",
+                "Espanol - install via Windows Settings > Language",
+            ),
+            (
+                "ru",
+                "Russian (ru)",
+                "install via Windows Settings > Language",
+            ),
             ("th", "Thai (th)", "install via Windows Settings > Language"),
         ];
 
@@ -242,7 +277,7 @@ impl CrosshairApp {
 
         combo_resp.response.on_hover_text(format!(
             "{}: {}",
-            Self::tr_lang(language, "Language", "NgÃƒÆ’Ã†â€™Ãƒâ€šÃ‚Â´n ngÃƒÆ’Ã‚Â¡Ãƒâ€šÃ‚Â»Ãƒâ€šÃ‚Â¯"),
+            Self::tr_lang(language, "Language", "Ngôn ngữ"),
             language_label
         ));
 

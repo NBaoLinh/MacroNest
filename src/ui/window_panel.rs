@@ -27,7 +27,7 @@ impl CrosshairApp {
 
         let mut remove_id = None;
         let mut live_sync = false;
-        ui.label(RichText::new(Self::tr_lang(language, "Resize", "KÃ­ch thÆ°á»›c")).strong());
+        ui.label(RichText::new(Self::tr_lang(language, "Resize", "Kích thước")).strong());
         for index in 0..self.state.window_presets.len() {
             let mut next_capture_target = None;
             let mut cancel_active_capture = false;
@@ -120,7 +120,7 @@ impl CrosshairApp {
                                         Self::tr_lang(
                                             language,
                                             "Capturing... Press any key.",
-                                            "Äang ghi... Nhấn má»™t phím bất kỳ.",
+                                            "Đang ghi... Nhấn một phím bất kỳ.",
                                         )
                                         .to_string()
                                     } else if has_keys {
@@ -139,14 +139,14 @@ impl CrosshairApp {
                                             Self::tr_lang(
                                                 language,
                                                 "Left click: rebind | Right click: clear",
-                                                "Chuột trái: Ä‘ổi phím | Chuột phải: xóa phím"
+                                                "Chuột trái: đổi phím | Chuột phải: xóa phím"
                                             )
                                         )
                                     } else {
                                         Self::tr_lang(
                                             language,
                                             "Left click: bind hotkey",
-                                            "Chuột trái: gÃ¡n phím tắt",
+                                            "Chuột trái: gán phím tắt",
                                         )
                                         .to_string()
                                     };
@@ -273,7 +273,7 @@ impl CrosshairApp {
                                     Self::tr_lang(
                                         language,
                                         "Remove title bar before apply. Off restores it.",
-                                        "Náº¿u báº­t, preset sáº½ xóa thanh tiêu đề trước khi Ã¡p dụng kích thước vÃ  vá»‹ trÃ­. Náº¿u tắt, thanh tiêu đề sáº½ được giữ hoặc khôi phục.",
+                                        "Nếu bật, preset sẽ xóa thanh tiêu đề trước khi áp dụng kích thước và vị trí. Nếu tắt, thanh tiêu đề sẽ được giữ hoặc khôi phục.",
                                     ),
                                 )
                                 .changed();
@@ -672,7 +672,7 @@ impl CrosshairApp {
                             Self::tr_lang(
                                 language,
                                 "Capturing... Press any key.",
-                                "Äang ghi... Nhấn má»™t phím bất kỳ.",
+                                "Đang ghi... Nhấn một phím bất kỳ.",
                             )
                             .to_string()
                         } else if has_keys {
@@ -688,14 +688,14 @@ impl CrosshairApp {
                                 Self::tr_lang(
                                     language,
                                     "Left click: rebind | Right click: clear",
-                                    "Chuột trái: Ä‘ổi phím | Chuột phải: xóa phím"
+                                    "Chuột trái: đổi phím | Chuột phải: xóa phím"
                                 )
                             )
                         } else {
                             Self::tr_lang(
                                 language,
                                 "Left click: bind hotkey",
-                                "Chuột trái: gÃ¡n phím tắt",
+                                "Chuột trái: gán phím tắt",
                             )
                             .to_string()
                         };
@@ -791,7 +791,7 @@ impl CrosshairApp {
                                 Self::tr_lang(
                                     language,
                                     "Stream preview in editor",
-                                    "PhÃ¡t xem trước trong trình chỉnh",
+                                    "Phát xem trước trong trình chỉnh",
                                 ),
                             )
                             .changed();

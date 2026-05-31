@@ -875,7 +875,7 @@ impl CrosshairApp {
                                             egui::RichText::new(Self::tr_lang(
                                                 self.state.ui_language,
                                                 "Example: Open Excel, write text to cell A1, then save...",
-                                                "VÃ­ dá»¥: Mở Excel, ghi ná»™i dung vÃ o Ã´ A1, sau Ä‘Ã³ lÆ°u láº¡i...",
+                                                "Ví dụ: Mở Excel, ghi nội dung vào ô A1, sau đó lưu lại...",
                                             ))
                                             .color(if dark_theme {
                                                 Color32::from_rgba_unmultiplied(120, 120, 120, 140)

@@ -11605,7 +11605,7 @@ mod windows_overlay {
             }
 
             MacroAction::MouseMoveRelative => {
-                return send_mouse_move_relative(step.x, step.y);
+                return send_mouse_move_relative(step.get_x(), step.get_y());
             }
 
             MacroAction::MouseLeftClick => {
