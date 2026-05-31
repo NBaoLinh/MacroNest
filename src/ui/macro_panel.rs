@@ -3475,6 +3475,104 @@ impl CrosshairApp {
         ];
 
         ui.horizontal_wrapped(|ui| {
+            let capture_btn = ui
+                .add_sized(
+                    [22.0, 22.0],
+                    egui::Button::new(Self::material_icon_text(0xe312, 14.0))
+                        .fill(if active {
+                            egui::Color32::from_rgba_premultiplied(72, 156, 116, 120)
+                        } else {
+                            ui.visuals().widgets.noninteractive.bg_fill
+                        })
+                        .stroke(egui::Stroke::new(
+                            1.0,
+                            if active {
+                                egui::Color32::from_rgb(126, 224, 182)
+                            } else {
+                                ui.visuals().widgets.noninteractive.bg_stroke.color
+                            },
+                        )),
+                )
+                .on_hover_text(Self::tr_lang(
+                    language,
+                    "Click to capture one key",
+                    "Bấm để bắt 1 phím",
+                ));
+            if capture_btn.clicked() {
+                on_capture_click();
+            }
+
+            let add_menu = ui.menu_button(Self::material_icon_text(0xe5d2, 14.0), |ui| {
+                ui.set_min_width(260.0);
+                ui.set_max_width(320.0);
+                let mut add_key = |ui: &mut egui::Ui, key: &str| {
+                    if ui.button(key).clicked() {
+                        if Self::append_key_list_value(keys_str, key) {
+                            on_change();
+                        }
+                        ui.close_menu();
+                    }
+                };
+                egui::ScrollArea::vertical()
+                    .max_height(280.0)
+                    .show(ui, |ui| {
+                        ui.label(Self::tr_lang(language, "Letters (A-Z)", "Chữ cái (A-Z)"));
+                        ui.horizontal_wrapped(|ui| {
+                            for key in LETTERS {
+                                add_key(ui, key);
+                            }
+                        });
+                        ui.separator();
+                        ui.label(Self::tr_lang(language, "Numbers & Symbols", "Số & ký tự"));
+                        ui.horizontal_wrapped(|ui| {
+                            for key in NUMBERS {
+                                add_key(ui, key);
+                            }
+                            for key in SYMBOLS {
+                                add_key(ui, key);
+                            }
+                        });
+                        ui.separator();
+                        ui.label(Self::tr_lang(language, "Navigation", "Điều hướng"));
+                        ui.horizontal_wrapped(|ui| {
+                            for key in NAVIGATION {
+                                add_key(ui, key);
+                            }
+                        });
+                        ui.separator();
+                        ui.label(Self::tr_lang(language, "Function", "Phím chức năng"));
+                        ui.horizontal_wrapped(|ui| {
+                            for num in 1..=24 {
+                                let key = format!("F{}", num);
+                                add_key(ui, &key);
+                            }
+                        });
+                        ui.separator();
+                        ui.label(Self::tr_lang(language, "Numpad", "Bàn phím số"));
+                        ui.horizontal_wrapped(|ui| {
+                            for key in NUMPAD {
+                                add_key(ui, key);
+                            }
+                        });
+                        ui.separator();
+                        ui.label(Self::tr_lang(
+                            language,
+                            "Modifiers & Locks",
+                            "Phím khóa & bổ trợ",
+                        ));
+                        ui.horizontal_wrapped(|ui| {
+                            for key in MODIFIERS {
+                                add_key(ui, key);
+                            }
+                        });
+                    });
+            });
+            add_menu.response.on_hover_text(Self::tr_lang(
+                language,
+                "Manually add a key",
+                "Thêm phím thủ công",
+            ));
+
             let keys = Self::split_key_list(keys_str);
             if keys.is_empty() {
                 if active {
@@ -9992,41 +10090,7 @@ impl CrosshairApp {
 
                                                     }
 
-                                                    if !step.unlock_on_exit {
-
-                                                        let warn_color = Color32::from_rgb(255, 90, 0);
-
-                                                        let response = ui.add(egui::Label::new(Self::material_icon_text(0xe002, 14.0).color(warn_color)).sense(egui::Sense::hover()));
-
-                                                        if response.contains_pointer() {
-
-                                                            egui::show_tooltip_at_pointer(ui.ctx(), ui.layer_id(), response.id.with("lockkeys-warning-tip"), |ui| {
-
-                                                                ui.horizontal(|ui| {
-
-                                                                    ui.label(Self::material_icon_text(0xe002, 14.0).color(warn_color));
-
-                                                                    ui.label(RichText::new(Self::tr_lang(language, "STEP WARNING", "CẢNH BÁO BƯỚC")).strong().color(warn_color));
-
-                                                                });
-
-                                                                ui.label(Self::tr_lang(
-
-                                                                    language,
-
-                                                                    "Warning: Keeping keys locked after the macro ends can make your keyboard unresponsive until manually unlocked!",
-
-                                                                    ""
-
-                                                                ));
-
-                                                            });
-
-                                                        }
-
-                                                    }
-
-                                                } else if step.action == MacroAction::LoopStart {
+                                                 } else if step.action == MacroAction::LoopStart {
 
                                                     let mut infinite = Self::loop_is_infinite(step);
 
@@ -15538,41 +15602,7 @@ impl CrosshairApp {
 
                                                     }
 
-                                                    if !step.unlock_on_exit {
-
-                                                        let warn_color = Color32::from_rgb(255, 90, 0);
-
-                                                        let response = ui.add(egui::Label::new(Self::material_icon_text(0xe002, 14.0).color(warn_color)).sense(egui::Sense::hover()));
-
-                                                        if response.contains_pointer() {
-
-                                                            egui::show_tooltip_at_pointer(ui.ctx(), ui.layer_id(), response.id.with("lockkeys-compact-warning-tip"), |ui| {
-
-                                                                ui.horizontal(|ui| {
-
-                                                                    ui.label(Self::material_icon_text(0xe002, 14.0).color(warn_color));
-
-                                                                    ui.label(RichText::new(Self::tr_lang(language, "STEP WARNING", "CẢNH BÁO BƯỚC")).strong().color(warn_color));
-
-                                                                });
-
-                                                                ui.label(Self::tr_lang(
-
-                                                                    language,
-
-                                                                    "Warning: Keeping keys locked after the macro ends can make your keyboard unresponsive until manually unlocked!",
-
-                                                                    ""
-
-                                                                ));
-
-                                                            });
-
-                                                        }
-
-                                                    }
-
-                                                 } else if step.action == MacroAction::LoopStart {
+                                                } else if step.action == MacroAction::LoopStart {
 
                                                      let mut infinite = Self::loop_is_infinite(step);
 
