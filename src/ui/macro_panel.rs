@@ -44040,6 +44040,24 @@ pub(crate) fn render_macro_panel(&mut self, ui: &mut egui::Ui) {
 
 
 
+    fn variable_base_exists(base: &str, suggestion_names: &[String]) -> bool {
+
+        let normalized = base.trim().replace(' ', "").to_lowercase();
+
+        if normalized.is_empty() {
+
+            return false;
+
+        }
+
+        suggestion_names
+            .iter()
+            .any(|name| name.replace(' ', "").to_lowercase() == normalized)
+
+    }
+
+
+
     fn timer_ref_index(ref_name: &str) -> Option<usize> {
 
 
@@ -44902,59 +44920,26 @@ pub(crate) fn render_macro_panel(&mut self, ui: &mut egui::Ui) {
 
         if last_word_trimmed.contains('.') {
 
-
-
             let parts: Vec<&str> = last_word_trimmed.split('.').collect();
 
-
-
-            let obj_part = parts[0].to_lowercase();
-
-
+            let base = parts[0].trim();
 
             let prop_part = parts[1].to_lowercase();
 
+            let timer_exists = Self::timer_ref_index(base).is_some()
+                || timer_names
+                    .iter()
+                    .any(|name| name.replace(' ', "").to_lowercase() == base.replace(' ', "").to_lowercase());
 
-
-
-
-
-
-            let timer_exists = Self::timer_ref_index(&parts[0]).is_some()
-
-
-
-                || timer_names.iter().any(|name| name.replace(" ", "").to_lowercase() == obj_part);
-
-
-
-
-
-
+            if !timer_exists && !Self::variable_base_exists(base, &suggestion_names) {
+                return;
+            }
 
             let props: Vec<&str> = if timer_exists {
-
-
-
                 vec!["hour", "minute", "second", "millisecond", "ms", "raw", "total_sec"]
-
-
-
             } else {
-
-
-
-                Self::object_property_suggestions(&parts[0]).map_or_else(Vec::new, |props| props.to_vec())
-
-
-
+                Self::object_property_suggestions(base).map_or_else(Vec::new, |props| props.to_vec())
             };
-
-
-
-
-
-
 
             for prop in props {
 
