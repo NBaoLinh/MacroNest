@@ -3475,123 +3475,27 @@ impl CrosshairApp {
         ];
 
         ui.horizontal_wrapped(|ui| {
-            let capture_btn = ui
-                .add_sized(
-                    [22.0, 22.0],
-                    egui::Button::new(Self::material_icon_text(0xe312, 14.0))
-                        .fill(if active {
-                            egui::Color32::from_rgba_premultiplied(72, 156, 116, 120)
-                        } else {
-                            ui.visuals().widgets.noninteractive.bg_fill
-                        })
-                        .stroke(egui::Stroke::new(
-                            1.0,
-                            if active {
-                                egui::Color32::from_rgb(126, 224, 182)
-                            } else {
-                                ui.visuals().widgets.noninteractive.bg_stroke.color
-                            },
-                        )),
-                )
-                .on_hover_text(Self::tr_lang(
+            let keys = Self::split_key_list(keys_str);
+            if keys.is_empty() {
+                let empty_text = if active {
+                    egui::RichText::new(Self::tr_lang(language, "Capturing...", "Đang bắt..."))
+                        .color(egui::Color32::from_rgb(255, 232, 96))
+                        .strong()
+                } else {
+                    egui::RichText::new(Self::tr_lang(language, "No key assigned", "Chưa gán phím"))
+                        .weak()
+                        .italics()
+                };
+
+                let empty_resp = ui.add(egui::Label::new(empty_text).sense(egui::Sense::click()));
+                if !active && empty_resp.clicked() {
+                    on_capture_click();
+                }
+                empty_resp.on_hover_text(Self::tr_lang(
                     language,
                     "Click to capture one key",
                     "Bấm để bắt 1 phím",
                 ));
-            if capture_btn.clicked() {
-                on_capture_click();
-            }
-
-            let add_menu = ui.menu_button(Self::material_icon_text(0xe5d2, 14.0), |ui| {
-                ui.set_min_width(260.0);
-                ui.set_max_width(320.0);
-                let mut add_key = |ui: &mut egui::Ui, key: &str| {
-                    if ui.button(key).clicked() {
-                        if Self::append_key_list_value(keys_str, key) {
-                            on_change();
-                        }
-                        ui.close_menu();
-                    }
-                };
-                egui::ScrollArea::vertical()
-                    .max_height(280.0)
-                    .show(ui, |ui| {
-                        ui.label(Self::tr_lang(language, "Letters (A-Z)", "Chữ cái (A-Z)"));
-                        ui.horizontal_wrapped(|ui| {
-                            for key in LETTERS {
-                                add_key(ui, key);
-                            }
-                        });
-                        ui.separator();
-                        ui.label(Self::tr_lang(language, "Numbers & Symbols", "Số & ký tự"));
-                        ui.horizontal_wrapped(|ui| {
-                            for key in NUMBERS {
-                                add_key(ui, key);
-                            }
-                            for key in SYMBOLS {
-                                add_key(ui, key);
-                            }
-                        });
-                        ui.separator();
-                        ui.label(Self::tr_lang(language, "Navigation", "Điều hướng"));
-                        ui.horizontal_wrapped(|ui| {
-                            for key in NAVIGATION {
-                                add_key(ui, key);
-                            }
-                        });
-                        ui.separator();
-                        ui.label(Self::tr_lang(language, "Function", "Phím chức năng"));
-                        ui.horizontal_wrapped(|ui| {
-                            for num in 1..=24 {
-                                let key = format!("F{}", num);
-                                add_key(ui, &key);
-                            }
-                        });
-                        ui.separator();
-                        ui.label(Self::tr_lang(language, "Numpad", "Bàn phím số"));
-                        ui.horizontal_wrapped(|ui| {
-                            for key in NUMPAD {
-                                add_key(ui, key);
-                            }
-                        });
-                        ui.separator();
-                        ui.label(Self::tr_lang(
-                            language,
-                            "Modifiers & Locks",
-                            "Phím khóa & bổ trợ",
-                        ));
-                        ui.horizontal_wrapped(|ui| {
-                            for key in MODIFIERS {
-                                add_key(ui, key);
-                            }
-                        });
-                    });
-            });
-            add_menu.response.on_hover_text(Self::tr_lang(
-                language,
-                "Manually add a key",
-                "Thêm phím thủ công",
-            ));
-
-            let keys = Self::split_key_list(keys_str);
-            if keys.is_empty() {
-                if active {
-                    ui.label(
-                        egui::RichText::new(Self::tr_lang(language, "Capturing...", "Đang bắt..."))
-                            .color(egui::Color32::from_rgb(255, 232, 96))
-                            .strong(),
-                    );
-                } else {
-                    ui.label(
-                        egui::RichText::new(Self::tr_lang(
-                            language,
-                            "No key assigned",
-                            "Chưa gán phím",
-                        ))
-                        .weak()
-                        .italics(),
-                    );
-                }
             } else {
                 for key in &keys {
                     let chip_btn = ui
