@@ -3463,11 +3463,14 @@ impl CrosshairApp {
             "NumpadDivide",
         ];
 
-        ui.horizontal(|ui| {
+        let row_height = ui.spacing().interact_size.y.max(18.0);
+        let icon_size = (row_height - 6.0).max(12.0);
+
+        ui.horizontal_wrapped(|ui| {
             let capture_btn = ui
                 .add_sized(
-                    [22.0, 22.0],
-                    egui::Button::new(Self::material_icon_text(0xe312, 14.0))
+                    [row_height, row_height],
+                    egui::Button::new(Self::material_icon_text(0xe312, icon_size))
                         .fill(if active {
                             egui::Color32::from_rgba_premultiplied(72, 156, 116, 120)
                         } else {
@@ -3491,79 +3494,80 @@ impl CrosshairApp {
                 on_capture_click();
             }
 
-            let add_menu = ui.menu_button(Self::material_icon_text(0xe5d2, 14.0), |ui| {
-                ui.set_min_width(260.0);
-                ui.set_max_width(320.0);
-                let mut add_key = |ui: &mut egui::Ui, key: &str| {
-                    if ui.button(key).clicked() {
-                        if Self::append_key_list_value(keys_str, key) {
-                            on_change();
+            let add_menu = ui.scope(|ui| {
+                ui.spacing_mut().interact_size = egui::vec2(row_height, row_height);
+                ui.menu_button(Self::material_icon_text(0xe5d2, icon_size), |ui| {
+                    ui.set_min_width(260.0);
+                    ui.set_max_width(320.0);
+                    let mut add_key = |ui: &mut egui::Ui, key: &str| {
+                        if ui.button(key).clicked() {
+                            if Self::append_key_list_value(keys_str, key) {
+                                on_change();
+                            }
+                            ui.close_menu();
                         }
-                        ui.close_menu();
-                    }
-                };
-                egui::ScrollArea::vertical()
-                    .max_height(280.0)
-                    .show(ui, |ui| {
-                        ui.label(Self::tr_lang(language, "Letters (A-Z)", "ChÃƒÆ’Ã‚Â¡Ãƒâ€šÃ‚Â»Ãƒâ€šÃ‚Â¯ cÃƒÆ’Ã†â€™Ãƒâ€šÃ‚Â¡i (A-Z)"));
-                        ui.horizontal_wrapped(|ui| {
-                            for key in LETTERS {
-                                add_key(ui, key);
-                            }
+                    };
+                    egui::ScrollArea::vertical()
+                        .max_height(280.0)
+                        .show(ui, |ui| {
+                            ui.label(Self::tr_lang(language, "Letters (A-Z)", "ChÃƒÆ’Ã‚Â¡Ãƒâ€šÃ‚Â»Ãƒâ€šÃ‚Â¯ cÃƒÆ’Ã†â€™Ãƒâ€šÃ‚Â¡i (A-Z)"));
+                            ui.horizontal_wrapped(|ui| {
+                                for key in LETTERS {
+                                    add_key(ui, key);
+                                }
+                            });
+                            ui.separator();
+                            ui.label(Self::tr_lang(language, "Numbers & Symbols", "SÃƒÆ’Ã‚Â¡Ãƒâ€šÃ‚Â»ÃƒÂ¢Ã¢â€šÂ¬Ã‹Å“ & kÃƒÆ’Ã†â€™Ãƒâ€šÃ‚Â½ tÃƒÆ’Ã‚Â¡Ãƒâ€šÃ‚Â»Ãƒâ€šÃ‚Â±"));
+                            ui.horizontal_wrapped(|ui| {
+                                for key in NUMBERS {
+                                    add_key(ui, key);
+                                }
+                                for key in SYMBOLS {
+                                    add_key(ui, key);
+                                }
+                            });
+                            ui.separator();
+                            ui.label(Self::tr_lang(language, "Navigation", "ÃƒÆ’Ã¢â‚¬Å¾Ãƒâ€šÃ‚ÂiÃƒÆ’Ã‚Â¡Ãƒâ€šÃ‚Â»Ãƒâ€šÃ‚Âu hÃƒÆ’Ã¢â‚¬Â Ãƒâ€šÃ‚Â°ÃƒÆ’Ã‚Â¡Ãƒâ€šÃ‚Â»ÃƒÂ¢Ã¢â€šÂ¬Ã‚Âºng"));
+                            ui.horizontal_wrapped(|ui| {
+                                for key in NAVIGATION {
+                                    add_key(ui, key);
+                                }
+                            });
+                            ui.separator();
+                            ui.label(Self::tr_lang(language, "Function", "PhÃƒÆ’Ã†â€™Ãƒâ€šÃ‚Â­m chÃƒÆ’Ã‚Â¡Ãƒâ€šÃ‚Â»Ãƒâ€šÃ‚Â©c nÃƒÆ’Ã¢â‚¬Å¾Ãƒâ€ Ã¢â‚¬â„¢ng"));
+                            ui.horizontal_wrapped(|ui| {
+                                for num in 1..=24 {
+                                    let key = format!("F{}", num);
+                                    add_key(ui, &key);
+                                }
+                            });
+                            ui.separator();
+                            ui.label(Self::tr_lang(language, "Numpad", "BÃƒÆ’Ã†â€™Ãƒâ€šÃ‚Â n phÃƒÆ’Ã†â€™Ãƒâ€šÃ‚Â­m sÃƒÆ’Ã‚Â¡Ãƒâ€šÃ‚Â»ÃƒÂ¢Ã¢â€šÂ¬Ã‹Å“"));
+                            ui.horizontal_wrapped(|ui| {
+                                for key in NUMPAD {
+                                    add_key(ui, key);
+                                }
+                            });
+                            ui.separator();
+                            ui.label(Self::tr_lang(
+                                language,
+                                "Modifiers & Locks",
+                                "PhÃƒÆ’Ã†â€™Ãƒâ€šÃ‚Â­m khÃƒÆ’Ã†â€™Ãƒâ€šÃ‚Â³a & bÃƒÆ’Ã‚Â¡Ãƒâ€šÃ‚Â»ÃƒÂ¢Ã¢â€šÂ¬Ã‚Â¢ trÃƒÆ’Ã‚Â¡Ãƒâ€šÃ‚Â»Ãƒâ€šÃ‚Â£",
+                            ));
+                            ui.horizontal_wrapped(|ui| {
+                                for key in MODIFIERS {
+                                    add_key(ui, key);
+                                }
+                            });
                         });
-                        ui.separator();
-                        ui.label(Self::tr_lang(language, "Numbers & Symbols", "SÃƒÆ’Ã‚Â¡Ãƒâ€šÃ‚Â»ÃƒÂ¢Ã¢â€šÂ¬Ã‹Å“ & kÃƒÆ’Ã†â€™Ãƒâ€šÃ‚Â½ tÃƒÆ’Ã‚Â¡Ãƒâ€šÃ‚Â»Ãƒâ€šÃ‚Â±"));
-                        ui.horizontal_wrapped(|ui| {
-                            for key in NUMBERS {
-                                add_key(ui, key);
-                            }
-                            for key in SYMBOLS {
-                                add_key(ui, key);
-                            }
-                        });
-                        ui.separator();
-                        ui.label(Self::tr_lang(language, "Navigation", "ÃƒÆ’Ã¢â‚¬Å¾Ãƒâ€šÃ‚ÂiÃƒÆ’Ã‚Â¡Ãƒâ€šÃ‚Â»Ãƒâ€šÃ‚Âu hÃƒÆ’Ã¢â‚¬Â Ãƒâ€šÃ‚Â°ÃƒÆ’Ã‚Â¡Ãƒâ€šÃ‚Â»ÃƒÂ¢Ã¢â€šÂ¬Ã‚Âºng"));
-                        ui.horizontal_wrapped(|ui| {
-                            for key in NAVIGATION {
-                                add_key(ui, key);
-                            }
-                        });
-                        ui.separator();
-                        ui.label(Self::tr_lang(language, "Function", "PhÃƒÆ’Ã†â€™Ãƒâ€šÃ‚Â­m chÃƒÆ’Ã‚Â¡Ãƒâ€šÃ‚Â»Ãƒâ€šÃ‚Â©c nÃƒÆ’Ã¢â‚¬Å¾Ãƒâ€ Ã¢â‚¬â„¢ng"));
-                        ui.horizontal_wrapped(|ui| {
-                            for num in 1..=24 {
-                                let key = format!("F{}", num);
-                                add_key(ui, &key);
-                            }
-                        });
-                        ui.separator();
-                        ui.label(Self::tr_lang(language, "Numpad", "BÃƒÆ’Ã†â€™Ãƒâ€šÃ‚Â n phÃƒÆ’Ã†â€™Ãƒâ€šÃ‚Â­m sÃƒÆ’Ã‚Â¡Ãƒâ€šÃ‚Â»ÃƒÂ¢Ã¢â€šÂ¬Ã‹Å“"));
-                        ui.horizontal_wrapped(|ui| {
-                            for key in NUMPAD {
-                                add_key(ui, key);
-                            }
-                        });
-                        ui.separator();
-                        ui.label(Self::tr_lang(
-                            language,
-                            "Modifiers & Locks",
-                            "PhÃƒÆ’Ã†â€™Ãƒâ€šÃ‚Â­m khÃƒÆ’Ã†â€™Ãƒâ€šÃ‚Â³a & bÃƒÆ’Ã‚Â¡Ãƒâ€šÃ‚Â»ÃƒÂ¢Ã¢â€šÂ¬Ã‚Â¢ trÃƒÆ’Ã‚Â¡Ãƒâ€šÃ‚Â»Ãƒâ€šÃ‚Â£",
-                        ));
-                        ui.horizontal_wrapped(|ui| {
-                            for key in MODIFIERS {
-                                add_key(ui, key);
-                            }
-                        });
-                    });
+                })
             });
             add_menu.response.on_hover_text(Self::tr_lang(
                 language,
                 "Manually add a key",
                 "ThÃƒÆ’Ã†â€™Ãƒâ€šÃ‚Âªm phÃƒÆ’Ã†â€™Ãƒâ€šÃ‚Â­m thÃƒÆ’Ã‚Â¡Ãƒâ€šÃ‚Â»Ãƒâ€šÃ‚Â§ cÃƒÆ’Ã†â€™Ãƒâ€šÃ‚Â´ng",
             ));
-        });
 
-        ui.horizontal_wrapped(|ui| {
             let keys = Self::split_key_list(keys_str);
             if keys.is_empty() {
                 if active {
@@ -3588,7 +3592,7 @@ impl CrosshairApp {
                     let chip_btn = ui
                         .add(
                             egui::Button::new(egui::RichText::new(key).monospace())
-                                .min_size(egui::vec2(0.0, 22.0)),
+                                .min_size(egui::vec2(0.0, row_height)),
                         )
                         .on_hover_text(Self::tr_lang(
                             language,
