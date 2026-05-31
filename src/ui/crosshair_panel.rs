@@ -366,8 +366,6 @@ impl CrosshairApp {
         }
     }
 
-
-
     fn render_crosshair_style_editor<H: std::hash::Hash>(
         ui: &mut egui::Ui,
         language: UiLanguage,
@@ -475,7 +473,9 @@ impl CrosshairApp {
                 ui.label(Self::tr_lang(language, "Opacity", "Opacity"));
                 let response = ui.add_sized(
                     [340.0, 20.0],
-                    DragValue::new(&mut style.opacity).range(0.0..=1.0).speed(0.01),
+                    DragValue::new(&mut style.opacity)
+                        .range(0.0..=1.0)
+                        .speed(0.01),
                 );
                 changed |= response.changed();
                 dragging |= response.dragged();
@@ -533,11 +533,7 @@ impl CrosshairApp {
                     ui.end_row();
                 }
 
-                ui.label(Self::tr_lang(
-                    language,
-                    "Crosshair color",
-                    "Màu tâm ngắm",
-                ));
+                ui.label(Self::tr_lang(language, "Crosshair color", "Màu tâm ngắm"));
                 let response = Self::edit_rgba_color(ui, &mut style.color);
                 changed |= response.changed();
                 dragging |= response.dragged();
@@ -554,15 +550,17 @@ impl CrosshairApp {
         (changed, dragging)
     }
 
-
-
     fn render_crosshair_presets_panel(&mut self, ui: &mut egui::Ui) {
         let language = self.state.ui_language;
         ui.spacing_mut().slider_width = 260.0;
         ui.add_space(2.0);
         ui.horizontal(|ui| {
             if ui
-                .button(Self::tr_lang(language, "+ Add crosshair preset", "+ Thêm preset tâm ngắm"))
+                .button(Self::tr_lang(
+                    language,
+                    "+ Add crosshair preset",
+                    "+ Thêm preset tâm ngắm",
+                ))
                 .clicked()
             {
                 self.add_profile();
@@ -570,7 +568,6 @@ impl CrosshairApp {
         });
 
         ui.add_space(8.0);
-
 
         let mut any_dragging = false;
         let mut remove_index = None;
@@ -591,8 +588,8 @@ impl CrosshairApp {
                 Self::show_preset_card(ui, preset.enabled, |ui| {
                     ui.horizontal(|ui| {
                         let name_width = Self::preset_header_name_width(ui);
-                        let response =
-                            ui.add_sized([name_width, 24.0], TextEdit::singleline(&mut preset.name));
+                        let response = ui
+                            .add_sized([name_width, 24.0], TextEdit::singleline(&mut preset.name));
                         Self::apply_vietnamese_input_if_changed(
                             &response,
                             self.state.vietnamese_input_enabled,
@@ -619,23 +616,26 @@ impl CrosshairApp {
                             preset_changed = true;
                         }
                         ui.add_space(6.0);
-                            ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
-                                if ui
-                                    .add_enabled(
-                                        can_paste_crosshair,
-                                        Button::new(Self::tr_lang(language, "Paste", "Paste"))
-                                            .min_size(vec2(84.0, 24.0)),
-                                    )
-                                    .clicked()
-                                {
-                                    paste_crosshair_profile_after = Some(index);
-                                }
-                                if ui
-                                    .add_sized([84.0, 24.0], Button::new(Self::tr_lang(language, "Copy", "Copy")))
-                                    .clicked()
-                                {
-                                    copy_crosshair_profile = Some(preset_snapshot.clone());
-                                }
+                        ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
+                            if ui
+                                .add_enabled(
+                                    can_paste_crosshair,
+                                    Button::new(Self::tr_lang(language, "Paste", "Paste"))
+                                        .min_size(vec2(84.0, 24.0)),
+                                )
+                                .clicked()
+                            {
+                                paste_crosshair_profile_after = Some(index);
+                            }
+                            if ui
+                                .add_sized(
+                                    [84.0, 24.0],
+                                    Button::new(Self::tr_lang(language, "Copy", "Copy")),
+                                )
+                                .clicked()
+                            {
+                                copy_crosshair_profile = Some(preset_snapshot.clone());
+                            }
 
                             if Self::sound_style_remove_button(ui).clicked() {
                                 remove = true;
@@ -720,9 +720,5 @@ impl CrosshairApp {
                 ui.ctx().request_repaint_after(Duration::from_millis(16));
             }
         }
-
-
     }
-
-
 }

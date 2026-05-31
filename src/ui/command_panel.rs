@@ -1,9 +1,8 @@
-use eframe::egui::{self, Button, RichText, TextEdit, Color32};
+use crate::ai;
 use crate::model::*;
 use crate::overlay::OverlayCommand;
-use crate::ai;
 use crate::ui::CrosshairApp;
-
+use eframe::egui::{self, Button, Color32, RichText, TextEdit};
 
 impl CrosshairApp {
     pub(crate) fn render_commands_panel(&mut self, ui: &mut egui::Ui) {
@@ -45,37 +44,49 @@ impl CrosshairApp {
                         &mut preset.name,
                     );
                     changed |= response.changed();
-                    if Self::sound_style_toggle_button(
-                        ui,
-                        Self::tr_lang(language, "Run", "Chạy"),
-                    )
-                    .on_hover_text(Self::tr_lang(
-                        language,
-                        "Execute this custom preset immediately",
-                        "Chạy câu lệnh này ngay lập tức",
-                    ))
-                    .clicked()
+                    if Self::sound_style_toggle_button(ui, Self::tr_lang(language, "Run", "Chạy"))
+                        .on_hover_text(Self::tr_lang(
+                            language,
+                            "Execute this custom preset immediately",
+                            "Chạy câu lệnh này ngay lập tức",
+                        ))
+                        .clicked()
                     {
                         let command_text = ai::normalize_command_text(&preset.command);
                         if !command_text.is_empty() {
-                            preset.run_output = Some(Self::tr_lang(language, "Running command...", "Đang chạy câu lệnh...").to_string());
-                            crate::overlay::spawn_custom_command(Some(preset.id), preset.use_powershell, command_text);
+                            preset.run_output = Some(
+                                Self::tr_lang(
+                                    language,
+                                    "Running command...",
+                                    "Đang chạy câu lệnh...",
+                                )
+                                .to_string(),
+                            );
+                            crate::overlay::spawn_custom_command(
+                                Some(preset.id),
+                                preset.use_powershell,
+                                command_text,
+                            );
                         }
                     }
                     ui.add_space(6.0);
-                    changed |= ui.radio_value(&mut preset.use_powershell, false, "CMD").changed();
+                    changed |= ui
+                        .radio_value(&mut preset.use_powershell, false, "CMD")
+                        .changed();
                     ui.add_space(4.0);
-                    changed |= ui.radio_value(&mut preset.use_powershell, true, "PowerShell").changed();
+                    changed |= ui
+                        .radio_value(&mut preset.use_powershell, true, "PowerShell")
+                        .changed();
                     ui.add_space(6.0);
                     ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
-                        let is_generating = self.command_ai_job.as_ref()
+                        let is_generating = self
+                            .command_ai_job
+                            .as_ref()
                             .map(|job| job.preset_id == preset.id)
                             .unwrap_or(false);
                         if is_generating {
-                            let (rect, _response) = ui.allocate_exact_size(
-                                egui::vec2(40.0, 24.0),
-                                egui::Sense::hover(),
-                            );
+                            let (rect, _response) = ui
+                                .allocate_exact_size(egui::vec2(40.0, 24.0), egui::Sense::hover());
                             Self::draw_spinning_wand(ui, rect, Color32::from_rgb(255, 220, 100));
                         } else {
                             if ui
@@ -83,7 +94,7 @@ impl CrosshairApp {
                                     [40.0, 24.0],
                                     Button::new(Self::ai_badge_text(false))
                                         .fill(Self::ai_badge_fill())
-                                        .stroke(Self::ai_badge_stroke())
+                                        .stroke(Self::ai_badge_stroke()),
                                 )
                                 .clicked()
                             {
@@ -117,7 +128,6 @@ impl CrosshairApp {
                     .num_columns(2)
                     .spacing([14.0, 8.0])
                     .show(ui, |ui| {
-
                         ui.label(Self::tr_lang(language, "Command", "Câu lệnh"));
                         let command_hint = RichText::new(Self::tr_lang(
                             language,
@@ -141,7 +151,9 @@ impl CrosshairApp {
                 if let Some(ref output) = preset.run_output {
                     ui.add_space(8.0);
                     ui.horizontal(|ui| {
-                        ui.label(RichText::new(Self::tr_lang(language, "Output:", "Kết quả:")).strong());
+                        ui.label(
+                            RichText::new(Self::tr_lang(language, "Output:", "Kết quả:")).strong(),
+                        );
                         if ui.button(Self::tr_lang(language, "Clear", "Xóa")).clicked() {
                             clear_output = true;
                         }
@@ -160,9 +172,9 @@ impl CrosshairApp {
                                         egui::Label::new(
                                             RichText::new(output)
                                                 .monospace()
-                                                .color(Color32::from_rgb(220, 220, 220))
+                                                .color(Color32::from_rgb(220, 220, 220)),
                                         )
-                                        .wrap()
+                                        .wrap(),
                                     );
                                 });
                         });
@@ -192,7 +204,15 @@ impl CrosshairApp {
         while self.state.command_presets.iter().any(|p| p.id == id) {
             id += 1;
         }
-        self.state.next_command_preset_id = (self.state.command_presets.iter().map(|p| p.id).max().unwrap_or(0) + 1).max(id + 1);
+        self.state.next_command_preset_id = (self
+            .state
+            .command_presets
+            .iter()
+            .map(|p| p.id)
+            .max()
+            .unwrap_or(0)
+            + 1)
+        .max(id + 1);
         self.state.command_presets.push(CommandPreset::new(id));
         self.sync_command_presets();
         self.status = format!("Added custom preset {id}.");
@@ -233,8 +253,7 @@ impl CrosshairApp {
                 ui.set_min_width(ui.available_width());
                 let previous = ui.visuals().override_text_color;
                 if ui.visuals().dark_mode {
-                    ui.visuals_mut().override_text_color =
-                        Some(Color32::from_rgb(220, 220, 220));
+                    ui.visuals_mut().override_text_color = Some(Color32::from_rgb(220, 220, 220));
                 }
                 let output = add_contents(ui);
                 ui.visuals_mut().override_text_color = previous;
@@ -251,10 +270,7 @@ impl CrosshairApp {
 
         let rotate_point = |x: f32, y: f32| -> egui::Pos2 {
             let (sin, cos) = angle.sin_cos();
-            egui::Pos2::new(
-                center.x + x * cos - y * sin,
-                center.y + x * sin + y * cos,
-            )
+            egui::Pos2::new(center.x + x * cos - y * sin, center.y + x * sin + y * cos)
         };
 
         let p_handle_start = rotate_point(-8.0, 8.0);
@@ -287,7 +303,11 @@ impl CrosshairApp {
             for (px, py) in star_pts {
                 points.push(rotate_point(cx + px, cy + py));
             }
-            painter.add(egui::Shape::convex_polygon(points, color, egui::Stroke::NONE));
+            painter.add(egui::Shape::convex_polygon(
+                points,
+                color,
+                egui::Stroke::NONE,
+            ));
         };
 
         draw_star(5.0, -5.0, 5.0);

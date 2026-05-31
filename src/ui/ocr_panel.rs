@@ -1,16 +1,16 @@
-use eframe::egui::{self, RichText, Sense, Color32, vec2};
-use crate::ui::{CrosshairApp, VisionCaptureTarget, VisionCaptureMode};
-use crate::ocr::{perform_ocr, OcrResult};
-use crate::window_list::capture_virtual_screen_region;
 use crate::model::*;
+use crate::ocr::{OcrResult, perform_ocr};
 use crate::overlay::OverlayCommand;
+use crate::ui::{CrosshairApp, VisionCaptureMode, VisionCaptureTarget};
+use crate::window_list::capture_virtual_screen_region;
+use eframe::egui::{self, Color32, RichText, Sense, vec2};
 
 impl CrosshairApp {
     pub(crate) fn render_ocr_panel(&mut self, ui: &mut egui::Ui) {
         let language = self.state.ui_language;
         let vietnamese_input_enabled = self.state.vietnamese_input_enabled;
         let vietnamese_input_mode = self.state.vietnamese_input_mode;
-        
+
         let ocr_test_running = self.state.ocr_test_running;
         let ocr_test_x = self.state.ocr_test_x;
         let ocr_test_y = self.state.ocr_test_y;
@@ -21,21 +21,31 @@ impl CrosshairApp {
 
         ui.add_space(2.0);
 
-
-
         ui.add_space(8.0);
 
         // Add OCR preset button
         ui.horizontal(|ui| {
             if ui
-                .button(Self::tr_lang(language, "+ Add OCR preset", "+ Thêm preset OCR"))
+                .button(Self::tr_lang(
+                    language,
+                    "+ Add OCR preset",
+                    "+ Thêm preset OCR",
+                ))
                 .clicked()
             {
                 let mut id = 1;
                 while self.state.ocr_presets.iter().any(|p| p.id == id) {
                     id += 1;
                 }
-                self.state.next_ocr_preset_id = (self.state.ocr_presets.iter().map(|p| p.id).max().unwrap_or(0) + 1).max(id + 1);
+                self.state.next_ocr_preset_id = (self
+                    .state
+                    .ocr_presets
+                    .iter()
+                    .map(|p| p.id)
+                    .max()
+                    .unwrap_or(0)
+                    + 1)
+                .max(id + 1);
                 let preset = OcrPreset::new(id);
                 self.state.ocr_presets.push(preset);
                 self.sync_ocr_presets();
@@ -61,7 +71,10 @@ impl CrosshairApp {
                 ui.horizontal(|ui| {
                     // Editable Name
                     let name_width = Self::preset_header_name_width(ui);
-                    let response = ui.add_sized([name_width, 24.0], egui::TextEdit::singleline(&mut preset.name));
+                    let response = ui.add_sized(
+                        [name_width, 24.0],
+                        egui::TextEdit::singleline(&mut preset.name),
+                    );
                     Self::apply_vietnamese_input_if_changed(
                         &response,
                         vietnamese_input_enabled,
@@ -198,7 +211,7 @@ impl CrosshairApp {
                             ui.add_space(6.0);
                             ui.label("H:");
                             changed |= ui.add(egui::DragValue::new(&mut preset.height).range(10..=5000)).changed();
-                            
+
                              ui.add_space(10.0);
                              if ui
                                  .button(Self::tr_lang(language, "Pick area", "Chọn khu vực"))
@@ -235,7 +248,14 @@ impl CrosshairApp {
                 ui.add_space(8.0);
 
                 // Region Editor Preview
-                ui.label(RichText::new(Self::tr_lang(language, "Visual Region Adjuster", "Điều chỉnh Vùng quét trực quan")).strong());
+                ui.label(
+                    RichText::new(Self::tr_lang(
+                        language,
+                        "Visual Region Adjuster",
+                        "Điều chỉnh Vùng quét trực quan",
+                    ))
+                    .strong(),
+                );
                 ui.add_space(4.0);
 
                 // Re-using the premium rect editor to adjust X, Y, W, H visually
@@ -261,11 +281,18 @@ impl CrosshairApp {
 
                 // Trigger Button
                 ui.horizontal(|ui| {
-                    if ui.button(
-                        RichText::new(Self::tr_lang(language, "⚡ Test Capture and OCR Scan", "⚡ Chụp và Quét thử OCR"))
+                    if ui
+                        .button(
+                            RichText::new(Self::tr_lang(
+                                language,
+                                "⚡ Test Capture and OCR Scan",
+                                "⚡ Chụp và Quét thử OCR",
+                            ))
                             .strong()
-                            .color(Color32::from_rgb(0, 255, 170))
-                    ).clicked() {
+                            .color(Color32::from_rgb(0, 255, 170)),
+                        )
+                        .clicked()
+                    {
                         run_test_preset_id = Some(preset.id);
                     }
 
@@ -287,18 +314,30 @@ impl CrosshairApp {
                         ui.label(
                             RichText::new(format!("❌ Error: {err}"))
                                 .color(Color32::from_rgb(255, 85, 85))
-                                .strong()
+                                .strong(),
                         );
                     } else if let Some(ref res) = ocr_test_result {
                         ui.add_space(8.0);
                         ui.group(|ui| {
                             ui.horizontal(|ui| {
-                                ui.label(RichText::new(Self::tr_lang(language, "Full Extracted Text:", "Toàn bộ đoạn chữ quét được:")).strong());
+                                ui.label(
+                                    RichText::new(Self::tr_lang(
+                                        language,
+                                        "Full Extracted Text:",
+                                        "Toàn bộ đoạn chữ quét được:",
+                                    ))
+                                    .strong(),
+                                );
                             });
                             ui.add_space(4.0);
-                            
+
                             let mut text_val_str = if res.text.trim().is_empty() {
-                                Self::tr_lang(language, "[No text found in region]", "[Không tìm thấy chữ nào trong vùng quét]").to_string()
+                                Self::tr_lang(
+                                    language,
+                                    "[No text found in region]",
+                                    "[Không tìm thấy chữ nào trong vùng quét]",
+                                )
+                                .to_string()
                             } else {
                                 res.text.clone()
                             };
@@ -328,7 +367,15 @@ impl CrosshairApp {
                                 if !parsed_numbers.is_empty() {
                                     ui.add_space(6.0);
                                     ui.horizontal(|ui| {
-                                        ui.label(RichText::new(Self::tr_lang(language, "💡 Extracted Numeric values:", "💡 Các số trích xuất được:")).strong().color(Color32::from_rgb(255, 232, 96)));
+                                        ui.label(
+                                            RichText::new(Self::tr_lang(
+                                                language,
+                                                "💡 Extracted Numeric values:",
+                                                "💡 Các số trích xuất được:",
+                                            ))
+                                            .strong()
+                                            .color(Color32::from_rgb(255, 232, 96)),
+                                        );
                                         ui.label(format!("{:?}", parsed_numbers));
                                     });
                                 }
@@ -337,34 +384,49 @@ impl CrosshairApp {
 
                         if !res.words.is_empty() {
                             ui.add_space(8.0);
-                            ui.label(RichText::new(Self::tr_lang(language, "Detailed Words Coordinates:", "Tọa độ chi tiết các từ:")).strong());
+                            ui.label(
+                                RichText::new(Self::tr_lang(
+                                    language,
+                                    "Detailed Words Coordinates:",
+                                    "Tọa độ chi tiết các từ:",
+                                ))
+                                .strong(),
+                            );
                             ui.add_space(4.0);
-                            
-                            egui::ScrollArea::vertical().max_height(180.0).show(ui, |ui| {
-                                egui::Grid::new("ocr-test-words-grid")
-                                    .num_columns(4)
-                                    .spacing([16.0, 6.0])
-                                    .show(ui, |ui| {
-                                        ui.label(RichText::new("Word").strong());
-                                        ui.label(RichText::new("Pos X, Y (Relative)").strong());
-                                        ui.label(RichText::new("Absolute on Screen").strong());
-                                        ui.label(RichText::new("Size (W x H)").strong());
-                                        ui.end_row();
 
-                                        for word in &res.words {
-                                            ui.label(RichText::new(&word.text).color(Color32::from_rgb(0, 255, 170)));
-                                            ui.label(format!("{:.0}, {:.0}", word.x, word.y));
-                                            
-                                            // Calc absolute screen position
-                                            let abs_x = preset.x as f32 + word.x;
-                                            let abs_y = preset.y as f32 + word.y;
-                                            ui.label(format!("{:.0}, {:.0}", abs_x, abs_y));
-                                            
-                                            ui.label(format!("{:.0}x{:.0}", word.width, word.height));
+                            egui::ScrollArea::vertical()
+                                .max_height(180.0)
+                                .show(ui, |ui| {
+                                    egui::Grid::new("ocr-test-words-grid")
+                                        .num_columns(4)
+                                        .spacing([16.0, 6.0])
+                                        .show(ui, |ui| {
+                                            ui.label(RichText::new("Word").strong());
+                                            ui.label(RichText::new("Pos X, Y (Relative)").strong());
+                                            ui.label(RichText::new("Absolute on Screen").strong());
+                                            ui.label(RichText::new("Size (W x H)").strong());
                                             ui.end_row();
-                                        }
-                                    });
-                            });
+
+                                            for word in &res.words {
+                                                ui.label(
+                                                    RichText::new(&word.text)
+                                                        .color(Color32::from_rgb(0, 255, 170)),
+                                                );
+                                                ui.label(format!("{:.0}, {:.0}", word.x, word.y));
+
+                                                // Calc absolute screen position
+                                                let abs_x = preset.x as f32 + word.x;
+                                                let abs_y = preset.y as f32 + word.y;
+                                                ui.label(format!("{:.0}, {:.0}", abs_x, abs_y));
+
+                                                ui.label(format!(
+                                                    "{:.0}x{:.0}",
+                                                    word.width, word.height
+                                                ));
+                                                ui.end_row();
+                                            }
+                                        });
+                                });
                         }
                     }
                 }
@@ -414,11 +476,9 @@ impl CrosshairApp {
     }
 
     pub(crate) fn sync_ocr_presets(&self) {
-        let _ = self
-            .overlay_tx
-            .send(OverlayCommand::UpdateOcrPresets(
-                self.state.ocr_presets.clone(),
-            ));
+        let _ = self.overlay_tx.send(OverlayCommand::UpdateOcrPresets(
+            self.state.ocr_presets.clone(),
+        ));
     }
 
     pub(crate) fn sync_ocr_preview(&mut self) {
@@ -433,17 +493,31 @@ impl CrosshairApp {
                 font_size: 16.0,
                 background_opacity: 0.15,
                 rounded_background: true,
-                text_color: RgbaColor { r: 0, g: 255, b: 170, a: 255 },
-                background_color: RgbaColor { r: 0, g: 255, b: 170, a: 30 },
+                text_color: RgbaColor {
+                    r: 0,
+                    g: 255,
+                    b: 170,
+                    a: 255,
+                },
+                background_color: RgbaColor {
+                    r: 0,
+                    g: 255,
+                    b: 170,
+                    a: 30,
+                },
                 x: preset.x,
                 y: preset.y,
                 width: preset.width,
                 height: preset.height,
             };
-            let _ = self.overlay_tx.send(OverlayCommand::PreviewHudPreset(vec![hud]));
+            let _ = self
+                .overlay_tx
+                .send(OverlayCommand::PreviewHudPreset(vec![hud]));
         } else {
             if self.state.active_panel == AppPanel::Ocr {
-                let _ = self.overlay_tx.send(OverlayCommand::PreviewHudPreset(Vec::new()));
+                let _ = self
+                    .overlay_tx
+                    .send(OverlayCommand::PreviewHudPreset(Vec::new()));
             }
         }
     }
@@ -457,7 +531,9 @@ impl CrosshairApp {
             }
         }
         if changed {
-            let _ = self.overlay_tx.send(OverlayCommand::PreviewHudPreset(Vec::new()));
+            let _ = self
+                .overlay_tx
+                .send(OverlayCommand::PreviewHudPreset(Vec::new()));
         }
         changed
     }
@@ -502,7 +578,12 @@ impl CrosshairApp {
     ) {
         self.clear_image_search_capture_state();
         self.restore_image_search_capture_window(ctx);
-        if let Some(preset) = self.state.ocr_presets.iter_mut().find(|p| p.id == preset_id) {
+        if let Some(preset) = self
+            .state
+            .ocr_presets
+            .iter_mut()
+            .find(|p| p.id == preset_id)
+        {
             preset.x = screen_x;
             preset.y = screen_y;
             preset.width = width;

@@ -779,10 +779,11 @@ impl MacroStep {
     }
 
     pub fn is_infinite_loop(&self) -> bool {
-        self.action == MacroAction::LoopStart && matches!(
-            self.key.trim().to_ascii_lowercase().as_str(),
-            "infinite" | "inf" | "forever" | "-1"
-        )
+        self.action == MacroAction::LoopStart
+            && matches!(
+                self.key.trim().to_ascii_lowercase().as_str(),
+                "infinite" | "inf" | "forever" | "-1"
+            )
     }
 }
 
@@ -2073,8 +2074,3 @@ impl Default for AppState {
         }
     }
 }
-
-
-
-
-

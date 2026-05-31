@@ -1,7 +1,7 @@
+use crate::audio;
 use crate::model::*;
 use crate::overlay::OverlayCommand;
-use crate::ui::{CrosshairApp, AudioCardOutcome, AudioEditorTarget, video_duration};
-use crate::audio;
+use crate::ui::{AudioCardOutcome, AudioEditorTarget, CrosshairApp, video_duration};
 use eframe::egui::{self, *};
 
 impl CrosshairApp {
@@ -151,8 +151,6 @@ impl CrosshairApp {
         changed
     }
 
-
-
     fn render_audio_trim_timeline(
         ui: &mut egui::Ui,
         language: UiLanguage,
@@ -194,21 +192,30 @@ impl CrosshairApp {
             );
             if help.hovered() {
                 ui.ctx().set_cursor_icon(egui::CursorIcon::Help);
-                egui::show_tooltip_at_pointer(ui.ctx(), ui.layer_id(), help.id, |ui: &mut egui::Ui| {
-                    ui.set_max_width(280.0);
-                    ui.label(
-                        RichText::new(Self::tr_lang(language, "Trim shortcuts", "Trim shortcuts"))
+                egui::show_tooltip_at_pointer(
+                    ui.ctx(),
+                    ui.layer_id(),
+                    help.id,
+                    |ui: &mut egui::Ui| {
+                        ui.set_max_width(280.0);
+                        ui.label(
+                            RichText::new(Self::tr_lang(
+                                language,
+                                "Trim shortcuts",
+                                "Trim shortcuts",
+                            ))
                             .size(13.0)
                             .strong(),
-                    );
-                    ui.add_space(4.0);
-                    ui.label("Space: preview or stop at playhead");
-                    ui.label("S: preview from the trim start");
-                    ui.label("Q: move the left trim to the mouse");
-                    ui.label("W: move the right trim to the mouse");
-                    ui.label("A / D: pan timeline left or right");
-                    ui.label("Ctrl + mouse wheel: zoom around the hover playhead");
-                });
+                        );
+                        ui.add_space(4.0);
+                        ui.label("Space: preview or stop at playhead");
+                        ui.label("S: preview from the trim start");
+                        ui.label("Q: move the left trim to the mouse");
+                        ui.label("W: move the right trim to the mouse");
+                        ui.label("A / D: pan timeline left or right");
+                        ui.label("Ctrl + mouse wheel: zoom around the hover playhead");
+                    },
+                );
             }
             ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
                 ui.label(
@@ -659,7 +666,6 @@ impl CrosshairApp {
         changed
     }
 
-
     fn render_audio_clip_card(
         ui: &mut egui::Ui,
         language: UiLanguage,
@@ -823,11 +829,17 @@ impl CrosshairApp {
             Color32::from_rgba_premultiplied(72, 198, 120, 70),
         );
         painter.line_segment(
-            [egui::pos2(start_x, rect.top()), egui::pos2(start_x, rect.bottom())],
+            [
+                egui::pos2(start_x, rect.top()),
+                egui::pos2(start_x, rect.bottom()),
+            ],
             egui::Stroke::new(2.0, Color32::from_rgb(255, 232, 96)),
         );
         painter.line_segment(
-            [egui::pos2(end_x, rect.top()), egui::pos2(end_x, rect.bottom())],
+            [
+                egui::pos2(end_x, rect.top()),
+                egui::pos2(end_x, rect.bottom()),
+            ],
             egui::Stroke::new(2.0, Color32::from_rgb(255, 232, 96)),
         );
 
@@ -875,7 +887,10 @@ impl CrosshairApp {
         // Draw Playhead
         let playhead_x = rect.left() + rect.width() * (*preview_cursor_ms as f32 / total_ms_f32);
         painter.line_segment(
-            [egui::pos2(playhead_x, rect.top()), egui::pos2(playhead_x, rect.bottom())],
+            [
+                egui::pos2(playhead_x, rect.top()),
+                egui::pos2(playhead_x, rect.bottom()),
+            ],
             egui::Stroke::new(2.5, Color32::from_rgb(255, 60, 60)),
         );
         painter.circle_filled(
@@ -899,8 +914,6 @@ impl CrosshairApp {
         changed
     }
 
-
-
     pub(crate) fn render_sound_panel(&mut self, ui: &mut egui::Ui) {
         let language = self.state.ui_language;
         let previous_item_spacing = ui.spacing().item_spacing;
@@ -910,7 +923,6 @@ impl CrosshairApp {
         ui.add_space(6.0);
         let mut import_video_for_new_preset = None;
         ui.horizontal(|ui| {
-
             if ui
                 .button(self.tr("+ Add sound preset", "+ Thêm preset âm thanh"))
                 .clicked()
@@ -919,17 +931,36 @@ impl CrosshairApp {
                 while self.state.audio_settings.presets.iter().any(|p| p.id == id) {
                     id += 1;
                 }
-                self.state.audio_settings.next_preset_id = (self.state.audio_settings.presets.iter().map(|p| p.id).max().unwrap_or(0) + 1).max(id + 1);
+                self.state.audio_settings.next_preset_id = (self
+                    .state
+                    .audio_settings
+                    .presets
+                    .iter()
+                    .map(|p| p.id)
+                    .max()
+                    .unwrap_or(0)
+                    + 1)
+                .max(id + 1);
                 self.state.audio_settings.presets.push(SoundPreset::new(id));
                 self.show_sound_preset_audio_editor.insert(id);
                 changed = true;
             }
             if ui
-                .button(Self::tr_lang(language, "+ Add Video Preset", "+ Thêm preset video"))
+                .button(Self::tr_lang(
+                    language,
+                    "+ Add Video Preset",
+                    "+ Thêm preset video",
+                ))
                 .clicked()
             {
                 let mut id = 1;
-                while self.state.audio_settings.video_presets.iter().any(|p| p.id == id) {
+                while self
+                    .state
+                    .audio_settings
+                    .video_presets
+                    .iter()
+                    .any(|p| p.id == id)
+                {
                     id += 1;
                 }
                 self.state.audio_settings.next_video_preset_id = (self
@@ -941,15 +972,20 @@ impl CrosshairApp {
                     .max()
                     .unwrap_or(0)
                     + 1)
-                    .max(id + 1);
-                self.state.audio_settings.video_presets.push(VideoPreset::new(id));
+                .max(id + 1);
+                self.state
+                    .audio_settings
+                    .video_presets
+                    .push(VideoPreset::new(id));
                 import_video_for_new_preset = Some(id);
                 changed = true;
             }
         });
 
         ui.add_space(8.0);
-        ui.label(RichText::new(Self::tr_lang(language, "Sound Presets", "Preset âm thanh")).strong());
+        ui.label(
+            RichText::new(Self::tr_lang(language, "Sound Presets", "Preset âm thanh")).strong(),
+        );
 
         let mut remove_sound_preset = None;
         for index in 0..self.state.audio_settings.presets.len() {
@@ -980,10 +1016,8 @@ impl CrosshairApp {
                 ui.set_min_width(ui.available_width());
                 ui.horizontal(|ui| {
                     let name_width = Self::preset_header_name_width(ui);
-                    let response = ui.add_sized(
-                        [name_width, 24.0],
-                        TextEdit::singleline(&mut preset.name),
-                    );
+                    let response =
+                        ui.add_sized([name_width, 24.0], TextEdit::singleline(&mut preset.name));
                     Self::apply_vietnamese_input_if_changed(
                         &response,
                         self.state.vietnamese_input_enabled,
@@ -1119,7 +1153,8 @@ impl CrosshairApp {
                 ui.set_min_width(ui.available_width());
                 ui.horizontal(|ui| {
                     let name_width = Self::preset_header_name_width(ui);
-                    let response = ui.add_sized([name_width, 24.0], TextEdit::singleline(&mut preset.name));
+                    let response =
+                        ui.add_sized([name_width, 24.0], TextEdit::singleline(&mut preset.name));
                     Self::apply_vietnamese_input_if_changed(
                         &response,
                         self.state.vietnamese_input_enabled,
@@ -1129,8 +1164,15 @@ impl CrosshairApp {
                     changed |= response.changed();
                     ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
                         if ui
-                            .add_sized([36.0, 24.0], Button::new(Self::material_icon_text(0xe872, 18.0)))
-                            .on_hover_text(Self::tr_lang(language, "Delete video preset", "Xóa preset video"))
+                            .add_sized(
+                                [36.0, 24.0],
+                                Button::new(Self::material_icon_text(0xe872, 18.0)),
+                            )
+                            .on_hover_text(Self::tr_lang(
+                                language,
+                                "Delete video preset",
+                                "Xóa preset video",
+                            ))
                             .clicked()
                         {
                             remove_video_preset = Some(preset.id);
@@ -1160,7 +1202,11 @@ impl CrosshairApp {
                             [118.0, 26.0],
                             Button::new(Self::tr_lang(language, "Import video", "Import video")),
                         )
-                        .on_hover_text(Self::tr_lang(language, "Choose video file", "Chọn file video"))
+                        .on_hover_text(Self::tr_lang(
+                            language,
+                            "Choose video file",
+                            "Chọn file video",
+                        ))
                         .clicked()
                     {
                         choose_video_for = Some(preset.id);
@@ -1170,7 +1216,11 @@ impl CrosshairApp {
                             !preset.clip.file_path.trim().is_empty(),
                             Button::new(Self::tr_lang(language, "Preview", "Xem thử")),
                         )
-                        .on_hover_text(Self::tr_lang(language, "Preview fullscreen", "Xem thử fullscreen"))
+                        .on_hover_text(Self::tr_lang(
+                            language,
+                            "Preview fullscreen",
+                            "Xem thử fullscreen",
+                        ))
                         .clicked()
                     {
                         preview_now = true;
@@ -1195,11 +1245,8 @@ impl CrosshairApp {
                         )
                         .clicked()
                     {
-                        self.video_chroma_pick_preset_id = if pick_active {
-                            None
-                        } else {
-                            Some(preset.id)
-                        };
+                        self.video_chroma_pick_preset_id =
+                            if pick_active { None } else { Some(preset.id) };
                     }
                 });
 
@@ -1231,10 +1278,9 @@ impl CrosshairApp {
                         "Khung xem trước: bấm để lấy màu xóa phông",
                     ));
                     let pick_active = self.video_chroma_pick_preset_id == Some(preset.id);
-                    let scale = (ui.available_width().min(720.0) / preview.width as f32)
-                        .clamp(0.5, 1.0);
-                    let size =
-                        vec2(preview.width as f32 * scale, preview.height as f32 * scale);
+                    let scale =
+                        (ui.available_width().min(720.0) / preview.width as f32).clamp(0.5, 1.0);
+                    let size = vec2(preview.width as f32 * scale, preview.height as f32 * scale);
                     let response = ui.add(
                         Image::new((preview.texture.id(), size))
                             .sense(Sense::click())
@@ -1294,13 +1340,21 @@ impl CrosshairApp {
 
                     ui.add_space(2.0);
                     ui.horizontal(|ui| {
-                        ui.label(Self::tr_lang(language, "Render Resolution:", "Độ phân giải dựng:"));
+                        ui.label(Self::tr_lang(
+                            language,
+                            "Render Resolution:",
+                            "Độ phân giải dựng:",
+                        ));
                         egui::ComboBox::from_id_source(("video-res", preset.id))
                             .selected_text(preset.clip.resolution.as_str())
                             .show_ui(ui, |ui| {
                                 for res in &["Auto", "1080p", "720p", "360p"] {
                                     changed |= ui
-                                        .selectable_value(&mut preset.clip.resolution, res.to_string(), *res)
+                                        .selectable_value(
+                                            &mut preset.clip.resolution,
+                                            res.to_string(),
+                                            *res,
+                                        )
                                         .changed();
                                 }
                             });
@@ -1322,7 +1376,10 @@ impl CrosshairApp {
                         preset.clip.chroma_key_color.b,
                         255,
                     ];
-                    if ui.color_edit_button_srgba_unmultiplied(&mut key_rgba).changed() {
+                    if ui
+                        .color_edit_button_srgba_unmultiplied(&mut key_rgba)
+                        .changed()
+                    {
                         preset.clip.chroma_key_color = RgbaColor {
                             r: key_rgba[0],
                             g: key_rgba[1],
@@ -1338,7 +1395,8 @@ impl CrosshairApp {
                 });
             });
 
-            self.video_preset_clip_duration_ms.insert(preset.id, duration);
+            self.video_preset_clip_duration_ms
+                .insert(preset.id, duration);
             self.video_preview_cursor_ms
                 .insert(preset.id, preview_cursor_ms);
             if let Some(preset_id) = choose_video_for {
@@ -1367,7 +1425,9 @@ impl CrosshairApp {
         }
 
         if let Some(preset_id) = preview_video_preset {
-            let _ = self.overlay_tx.send(OverlayCommand::PlayVideoPreset(preset_id));
+            let _ = self
+                .overlay_tx
+                .send(OverlayCommand::PlayVideoPreset(preset_id));
             self.status = Self::tr_lang(
                 language,
                 "Playing video preset fullscreen.",
@@ -1382,7 +1442,6 @@ impl CrosshairApp {
         }
         ui.spacing_mut().item_spacing = previous_item_spacing;
     }
-
 
     fn render_audio_media_editor(
         ui: &mut egui::Ui,
@@ -1410,7 +1469,11 @@ impl CrosshairApp {
 
         ui.horizontal(|ui| {
             if ui
-                .button(Self::tr_lang(language, "Choose audio file", "Chọn file âm thanh"))
+                .button(Self::tr_lang(
+                    language,
+                    "Choose audio file",
+                    "Chọn file âm thanh",
+                ))
                 .clicked()
             {
                 outcome.choose_file = true;
@@ -1591,7 +1654,6 @@ impl CrosshairApp {
         outcome
     }
 
-
     pub(crate) fn render_media_panel(&mut self, ui: &mut egui::Ui) {
         let language = self.state.ui_language;
         let Some(target) = self.active_audio_editor else {
@@ -1691,5 +1753,4 @@ impl CrosshairApp {
         self.preview_cursor = preview_cursor;
         self.trim_timeline_zoom = trim_timeline_zoom;
     }
-
 }

@@ -1,16 +1,16 @@
-use std::time::{Duration, Instant};
-use std::fs;
-use std::process::Command;
-use std::path::Path;
-use std::sync::atomic::Ordering;
-use eframe::egui::{self, Button, RichText, Stroke, Margin, TextEdit, Color32, vec2, Frame, Order, Shadow, WidgetText};
-use anyhow::{Result, bail};
 use crate::model::*;
 use crate::overlay::UiCommand;
-use crate::ui::{
-    CrosshairApp, UpdateStatus,
+use crate::ui::{CrosshairApp, UpdateStatus};
+use anyhow::{Result, bail};
+use eframe::egui::{
+    self, Button, Color32, Frame, Margin, Order, RichText, Shadow, Stroke, TextEdit, WidgetText,
+    vec2,
 };
-
+use std::fs;
+use std::path::Path;
+use std::process::Command;
+use std::sync::atomic::Ordering;
+use std::time::{Duration, Instant};
 
 impl CrosshairApp {
     pub(crate) fn render_settings_popup(&mut self, ui: &mut egui::Ui) {
@@ -88,8 +88,12 @@ impl CrosshairApp {
                                         .width(280.0)
                                         .show_ui(ui, |ui| {
                                             for (label, model_id) in Self::groq_model_catalog() {
-                                                let selected =
-                                                    self.state.groq_settings.model.trim().eq(*model_id);
+                                                let selected = self
+                                                    .state
+                                                    .groq_settings
+                                                    .model
+                                                    .trim()
+                                                    .eq(*model_id);
                                                 if ui
                                                     .selectable_label(
                                                         selected,
@@ -131,19 +135,15 @@ impl CrosshairApp {
                     if groq_changed {
                         self.persist();
                     }
-                    
+
                     ui.add_space(12.0);
                     Self::settings_card_frame(ui).show(ui, |ui| {
                         ui.set_min_width(ui.available_width());
                         ui.vertical(|ui| {
                             ui.label(
-                                RichText::new(Self::tr_lang(
-                                    language,
-                                    "Vietnamese input",
-                                    "",
-                                ))
-                                .strong()
-                                .size(14.0),
+                                RichText::new(Self::tr_lang(language, "Vietnamese input", ""))
+                                    .strong()
+                                    .size(14.0),
                             );
                             ui.add_space(8.0);
                             let mut vietnamese_input_changed = false;
@@ -182,18 +182,15 @@ impl CrosshairApp {
                             ui.horizontal(|ui| {
                                 if Self::settings_action_button(
                                     ui,
-                                    Self::tr_lang(
-                                        language,
-                                        "Open data folder",
-                                        "",
-                                    ),
+                                    Self::tr_lang(language, "Open data folder", ""),
                                 )
                                 .clicked()
                                 {
                                     self.open_app_data_folder();
                                 }
                                 ui.add_space(6.0);
-                                let is_copied = self.copy_folder_feedback_until
+                                let is_copied = self
+                                    .copy_folder_feedback_until
                                     .map(|until| Instant::now() < until)
                                     .unwrap_or(false);
 
@@ -208,11 +205,19 @@ impl CrosshairApp {
                                 }
 
                                 if Self::settings_action_button(ui, btn_label).clicked() {
-                                    if let Err(e) = crate::platform::copy_folder_to_clipboard(&self.paths.root) {
+                                    if let Err(e) =
+                                        crate::platform::copy_folder_to_clipboard(&self.paths.root)
+                                    {
                                         self.status = format!("Failed to copy folder: {e}");
                                     } else {
-                                        self.status = Self::tr_lang(language, "Folder copied to clipboard.", "").to_owned();
-                                        self.copy_folder_feedback_until = Some(Instant::now() + Duration::from_secs(2));
+                                        self.status = Self::tr_lang(
+                                            language,
+                                            "Folder copied to clipboard.",
+                                            "",
+                                        )
+                                        .to_owned();
+                                        self.copy_folder_feedback_until =
+                                            Some(Instant::now() + Duration::from_secs(2));
                                     }
                                 }
                             });
@@ -354,13 +359,9 @@ impl CrosshairApp {
             ui.vertical(|ui| {
                 if Self::settings_section_button(
                     ui,
-                    RichText::new(Self::tr_lang(
-                        language,
-                        "Downloaded Tools",
-                        "",
-                    ))
-                    .strong()
-                    .size(14.0),
+                    RichText::new(Self::tr_lang(language, "Downloaded Tools", ""))
+                        .strong()
+                        .size(14.0),
                     self.downloaded_tools_open,
                 )
                 .clicked()
@@ -379,16 +380,8 @@ impl CrosshairApp {
                         opencv_progress,
                         60 * 1024 * 1024,
                         Self::tr_lang(language, "Download OpenCV", ""),
-                        Self::tr_lang(
-                            language,
-                            "Vision features require OpenCV.",
-                            "",
-                        ),
-                        Self::tr_lang(
-                            language,
-                            "OpenCV DLL deleted.",
-                            "",
-                        ),
+                        Self::tr_lang(language, "Vision features require OpenCV.", ""),
+                        Self::tr_lang(language, "OpenCV DLL deleted.", ""),
                         Self::start_opencv_download,
                         Self::delete_opencv_tool,
                     );
@@ -402,7 +395,6 @@ impl CrosshairApp {
             });
         });
     }
-
 
     fn render_interception_driver_entry(
         &mut self,
@@ -437,11 +429,7 @@ impl CrosshairApp {
             if self.interception_install_job.is_some() {
                 ui.horizontal(|ui| {
                     ui.spinner();
-                    ui.label(Self::tr_lang(
-                        language,
-                        "Installing driver...",
-                        "",
-                    ));
+                    ui.label(Self::tr_lang(language, "Installing driver...", ""));
                 });
                 ui.ctx().request_repaint();
                 return;
@@ -450,11 +438,7 @@ impl CrosshairApp {
             if self.interception_uninstall_job.is_some() {
                 ui.horizontal(|ui| {
                     ui.spinner();
-                    ui.label(Self::tr_lang(
-                        language,
-                        "Uninstalling driver...",
-                        "",
-                    ));
+                    ui.label(Self::tr_lang(language, "Uninstalling driver...", ""));
                 });
                 ui.ctx().request_repaint();
                 return;
@@ -462,22 +446,22 @@ impl CrosshairApp {
 
             if !package_ready {
                 ui.horizontal(|ui| {
-                    ui.label(RichText::new(Self::tr_lang(
-                        language,
-                        "Download the Interception package to enable driver setup.",
-                        "",
-                    )).weak());
+                    ui.label(
+                        RichText::new(Self::tr_lang(
+                            language,
+                            "Download the Interception package to enable driver setup.",
+                            "",
+                        ))
+                        .weak(),
+                    );
                     ui.add_space(8.0);
                     ui.label(
                         RichText::new(Self::tool_size_label(&self.paths.interception_zip, 389_119))
                             .small()
                             .weak(),
                     );
-                    if Self::settings_action_button(
-                        ui,
-                        Self::tr_lang(language, "Download", ""),
-                    )
-                    .clicked()
+                    if Self::settings_action_button(ui, Self::tr_lang(language, "Download", ""))
+                        .clicked()
                     {
                         self.start_interception_download();
                     }
@@ -486,11 +470,7 @@ impl CrosshairApp {
             }
 
             ui.horizontal(|ui| {
-                ui.label(RichText::new(Self::tr_lang(
-                    language,
-                    "Package downloaded.",
-                    "",
-                )).weak());
+                ui.label(RichText::new(Self::tr_lang(language, "Package downloaded.", "")).weak());
                 ui.add_space(8.0);
                 ui.label(
                     RichText::new(Self::tool_size_label(&self.paths.interception_zip, 389_119))
@@ -503,11 +483,14 @@ impl CrosshairApp {
 
             if driver_installed {
                 ui.horizontal(|ui| {
-                    ui.label(RichText::new(Self::tr_lang(
-                        language,
-                        "Driver installed. Restart your PC to take effect.",
-                        "",
-                    )).color(Color32::from_rgb(126, 224, 182)));
+                    ui.label(
+                        RichText::new(Self::tr_lang(
+                            language,
+                            "Driver installed. Restart your PC to take effect.",
+                            "",
+                        ))
+                        .color(Color32::from_rgb(126, 224, 182)),
+                    );
                 });
                 ui.add_space(4.0);
                 ui.horizontal(|ui| {
@@ -519,20 +502,13 @@ impl CrosshairApp {
                     {
                         self.start_interception_driver_uninstall();
                     }
-                    if Self::settings_action_button(
-                        ui,
-                        Self::tr_lang(language, "Restart PC", ""),
-                    )
-                    .clicked()
+                    if Self::settings_action_button(ui, Self::tr_lang(language, "Restart PC", ""))
+                        .clicked()
                     {
                         match crate::platform::restart_windows() {
                             Ok(()) => {
-                                self.status = Self::tr_lang(
-                                    language,
-                                    "Restarting Windows...",
-                                    "",
-                                )
-                                .to_owned();
+                                self.status =
+                                    Self::tr_lang(language, "Restarting Windows...", "").to_owned();
                             }
                             Err(error) => {
                                 self.status = format!("Failed to restart Windows: {error}");
@@ -545,30 +521,30 @@ impl CrosshairApp {
 
             ui.horizontal(|ui| {
                 if restart_required {
-                    ui.label(RichText::new(Self::tr_lang(
-                        language,
-                        "Driver installed. Restart your PC to finish setup.",
-                        "",
-                    )).color(Color32::from_rgb(248, 214, 102)));
+                    ui.label(
+                        RichText::new(Self::tr_lang(
+                            language,
+                            "Driver installed. Restart your PC to finish setup.",
+                            "",
+                        ))
+                        .color(Color32::from_rgb(248, 214, 102)),
+                    );
                 } else {
-                    ui.label(RichText::new(Self::tr_lang(
-                        language,
-                        "Ready to install the driver.",
-                        "",
-                    )).weak());
+                    ui.label(
+                        RichText::new(Self::tr_lang(language, "Ready to install the driver.", ""))
+                            .weak(),
+                    );
                 }
             });
             ui.add_space(4.0);
             ui.horizontal(|ui| {
-                if Self::settings_action_button(
-                    ui,
-                    Self::tr_lang(language, "Install Driver", ""),
-                )
-                .clicked()
+                if Self::settings_action_button(ui, Self::tr_lang(language, "Install Driver", ""))
+                    .clicked()
                 {
                     self.start_interception_driver_install();
                 }
-                if Self::settings_action_button(ui, Self::tr_lang(language, "Delete", "")).clicked() {
+                if Self::settings_action_button(ui, Self::tr_lang(language, "Delete", "")).clicked()
+                {
                     self.delete_interception_package();
                 }
             });
@@ -586,7 +562,6 @@ impl CrosshairApp {
             }
         });
     }
-
 
     fn render_downloaded_tool_entry(
         &mut self,
@@ -615,7 +590,9 @@ impl CrosshairApp {
                             .small()
                             .weak(),
                     );
-                    if Self::settings_action_button(ui, Self::tr_lang(language, "Delete", "")).clicked() {
+                    if Self::settings_action_button(ui, Self::tr_lang(language, "Delete", ""))
+                        .clicked()
+                    {
                         delete_action(self);
                         self.status = delete_status_text.to_owned();
                     }
@@ -640,7 +617,12 @@ impl CrosshairApp {
                             .small()
                             .weak(),
                     );
-                    if Self::settings_action_button(ui, RichText::new(download_button_text).strong()).clicked() {
+                    if Self::settings_action_button(
+                        ui,
+                        RichText::new(download_button_text).strong(),
+                    )
+                    .clicked()
+                    {
                         download_action(self);
                     }
                 });
@@ -663,11 +645,7 @@ impl CrosshairApp {
                     UpdateStatus::Idle => {
                         if Self::settings_action_button(
                             ui,
-                            Self::tr_lang(
-                                language,
-                                "Check for update",
-                                "",
-                            ),
+                            Self::tr_lang(language, "Check for update", ""),
                         )
                         .clicked()
                         {
@@ -677,11 +655,7 @@ impl CrosshairApp {
                     UpdateStatus::Checking => {
                         ui.horizontal(|ui| {
                             ui.spinner();
-                            ui.label(Self::tr_lang(
-                                language,
-                                "Checking for updates...",
-                                "",
-                            ));
+                            ui.label(Self::tr_lang(language, "Checking for updates...", ""));
                         });
                     }
                     UpdateStatus::Available(version, body, url) => {
@@ -694,11 +668,7 @@ impl CrosshairApp {
                         }
                         if Self::settings_action_button(
                             ui,
-                            Self::tr_lang(
-                                language,
-                                "Download and Update",
-                                "",
-                            ),
+                            Self::tr_lang(language, "Download and Update", ""),
                         )
                         .clicked()
                         {
@@ -708,11 +678,7 @@ impl CrosshairApp {
                     UpdateStatus::Downloading => {
                         ui.horizontal(|ui| {
                             ui.spinner();
-                            ui.label(Self::tr_lang(
-                                language,
-                                "Downloading update...",
-                                "",
-                            ));
+                            ui.label(Self::tr_lang(language, "Downloading update...", ""));
                         });
                     }
                     UpdateStatus::ReadyToRestart(path) => {
@@ -720,12 +686,7 @@ impl CrosshairApp {
                         let path = path.clone();
                         if Self::settings_action_button(
                             ui,
-                            RichText::new(Self::tr_lang(
-                                language,
-                                "Restart App",
-                                "",
-                            ))
-                            .strong(),
+                            RichText::new(Self::tr_lang(language, "Restart App", "")).strong(),
                         )
                         .clicked()
                         {
@@ -733,11 +694,7 @@ impl CrosshairApp {
                         }
                     }
                     UpdateStatus::UpToDate => {
-                        ui.label(Self::tr_lang(
-                            language,
-                            "App is up to date.",
-                            "",
-                        ));
+                        ui.label(Self::tr_lang(language, "App is up to date.", ""));
                         ui.add_space(4.0);
                         if Self::settings_action_button(
                             ui,
@@ -790,10 +747,7 @@ impl CrosshairApp {
         )
     }
 
-    fn settings_action_button(
-        ui: &mut egui::Ui,
-        label: impl Into<WidgetText>,
-    ) -> egui::Response {
+    fn settings_action_button(ui: &mut egui::Ui, label: impl Into<WidgetText>) -> egui::Response {
         let visuals = ui.visuals();
         ui.add(
             Button::new(label)
@@ -824,8 +778,7 @@ impl CrosshairApp {
             return;
         };
 
-        if self.capture_target.is_none()
-            && ctx.input(|input| input.key_pressed(egui::Key::Escape))
+        if self.capture_target.is_none() && ctx.input(|input| input.key_pressed(egui::Key::Escape))
         {
             self.command_ai_dialog = None;
             return;
@@ -1000,7 +953,9 @@ impl CrosshairApp {
         if self.command_ai_dialog.is_none() {
             if self.command_ai_job.is_none() {
                 self.command_ai_step_target = None;
-                self.state.command_presets.retain(|preset| preset.id != 999999);
+                self.state
+                    .command_presets
+                    .retain(|preset| preset.id != 999999);
             }
         }
         if self.command_ai_dialog.is_some() {
@@ -1029,7 +984,9 @@ impl CrosshairApp {
             use std::io::{Read, Write};
             loop {
                 let n = response.read(&mut buffer)?;
-                if n == 0 { break; }
+                if n == 0 {
+                    break;
+                }
                 file.write_all(&buffer[..n])?;
                 downloaded += n as u64;
                 let p = (downloaded as f32 / total_size as f32 * 1000.0) as u32;
@@ -1052,7 +1009,8 @@ impl CrosshairApp {
         progress.store(0, Ordering::SeqCst);
 
         let job = std::thread::spawn(move || -> Result<()> {
-            let url = "https://github.com/Baolinh0305/MacroNest/releases/download/tools/Interception.zip";
+            let url =
+                "https://github.com/Baolinh0305/MacroNest/releases/download/tools/Interception.zip";
             let mut response = reqwest::blocking::get(url)?.error_for_status()?;
             let total_size = response.content_length().unwrap_or(389_119);
 
@@ -1063,7 +1021,9 @@ impl CrosshairApp {
             use std::io::{Read, Write};
             loop {
                 let n = response.read(&mut buffer)?;
-                if n == 0 { break; }
+                if n == 0 {
+                    break;
+                }
                 file.write_all(&buffer[..n])?;
                 downloaded += n as u64;
                 let p = (downloaded as f32 / total_size as f32 * 1000.0) as u32;
@@ -1120,7 +1080,8 @@ impl CrosshairApp {
             return;
         }
         if !self.paths.interception_installer_exe.exists() {
-            self.status = "Interception installer was not found. Download the package first.".to_owned();
+            self.status =
+                "Interception installer was not found. Download the package first.".to_owned();
             return;
         }
 
@@ -1131,7 +1092,8 @@ impl CrosshairApp {
             .map(|path| path.to_path_buf())
             .unwrap_or_else(|| self.paths.bin_dir.clone());
         let job = std::thread::spawn(move || -> Result<()> {
-            let cmd = std::env::var("ComSpec").unwrap_or_else(|_| "C:\\Windows\\System32\\cmd.exe".to_owned());
+            let cmd = std::env::var("ComSpec")
+                .unwrap_or_else(|_| "C:\\Windows\\System32\\cmd.exe".to_owned());
             let cmd_args = format!(
                 "/K cd /d \"{}\" && install-interception.exe /install",
                 installer_dir.display()
@@ -1156,7 +1118,8 @@ impl CrosshairApp {
             return;
         }
         if !self.paths.interception_installer_exe.exists() {
-            self.status = "Interception installer was not found. Download the package first.".to_owned();
+            self.status =
+                "Interception installer was not found. Download the package first.".to_owned();
             return;
         }
 
@@ -1167,7 +1130,8 @@ impl CrosshairApp {
             .map(|path| path.to_path_buf())
             .unwrap_or_else(|| self.paths.bin_dir.clone());
         let job = std::thread::spawn(move || -> Result<()> {
-            let cmd = std::env::var("ComSpec").unwrap_or_else(|_| "C:\\Windows\\System32\\cmd.exe".to_owned());
+            let cmd = std::env::var("ComSpec")
+                .unwrap_or_else(|_| "C:\\Windows\\System32\\cmd.exe".to_owned());
             let cmd_args = format!(
                 "/K cd /d \"{}\" && install-interception.exe /uninstall",
                 installer_dir.display()
@@ -1190,7 +1154,10 @@ impl CrosshairApp {
     fn tool_size_label(path: &Path, expected_size_bytes: u64) -> String {
         match fs::metadata(path) {
             Ok(metadata) => format!("Size: {}", Self::format_file_size(metadata.len())),
-            Err(_) => format!("Expected size: ~{}", Self::format_file_size(expected_size_bytes)),
+            Err(_) => format!(
+                "Expected size: ~{}",
+                Self::format_file_size(expected_size_bytes)
+            ),
         }
     }
 
@@ -1211,7 +1178,10 @@ impl CrosshairApp {
     }
 
     pub(crate) fn check_for_update(&mut self, ctx: &egui::Context) {
-        if matches!(self.update_status, UpdateStatus::Checking | UpdateStatus::Downloading) {
+        if matches!(
+            self.update_status,
+            UpdateStatus::Checking | UpdateStatus::Downloading
+        ) {
             return;
         }
         self.update_status = UpdateStatus::Checking;
@@ -1224,10 +1194,11 @@ impl CrosshairApp {
                 .build()
                 .map_err(|e| e.to_string());
             let result = client.and_then(|c| {
-                let resp = c.get("https://api.github.com/repos/Baolinh0305/MacroNest/releases/latest")
+                let resp = c
+                    .get("https://api.github.com/repos/Baolinh0305/MacroNest/releases/latest")
                     .send()
                     .map_err(|e| e.to_string())?;
-                
+
                 if resp.status() == reqwest::StatusCode::NOT_FOUND {
                     return Err("No releases found on GitHub.".to_owned());
                 }
@@ -1237,7 +1208,8 @@ impl CrosshairApp {
                 }
 
                 let json: serde_json::Value = resp.json().map_err(|e| e.to_string())?;
-                let latest_version = json["tag_name"].as_str()
+                let latest_version = json["tag_name"]
+                    .as_str()
                     .unwrap_or("")
                     .trim_start_matches('v')
                     .to_owned();
@@ -1249,10 +1221,14 @@ impl CrosshairApp {
                     return Ok(());
                 }
                 let body = json["body"].as_str().unwrap_or("").to_owned();
-                let download_url = json["assets"].as_array()
+                let download_url = json["assets"]
+                    .as_array()
                     .and_then(|assets| {
                         assets.iter().find(|a| {
-                            a["name"].as_str().map(|n| n.ends_with(".exe")).unwrap_or(false)
+                            a["name"]
+                                .as_str()
+                                .map(|n| n.ends_with(".exe"))
+                                .unwrap_or(false)
                         })
                     })
                     .and_then(|a| a["browser_download_url"].as_str())
@@ -1260,7 +1236,9 @@ impl CrosshairApp {
                 if let Some(url) = download_url {
                     let _ = ui_tx.send(UiCommand::UpdateAvailable(latest_version, body, url));
                 } else {
-                    let _ = ui_tx.send(UiCommand::UpdateError("No executable found in the latest release".to_owned()));
+                    let _ = ui_tx.send(UiCommand::UpdateError(
+                        "No executable found in the latest release".to_owned(),
+                    ));
                 }
                 Ok(())
             });
@@ -1280,14 +1258,14 @@ impl CrosshairApp {
                 .user_agent("MacroNest")
                 .build();
             let result = client.map_err(|e| e.to_string()).and_then(|c| {
-                let mut resp = c.get(download_url)
-                    .send()
-                    .map_err(|e| e.to_string())?;
+                let mut resp = c.get(download_url).send().map_err(|e| e.to_string())?;
                 let temp_dir = std::env::temp_dir();
                 let temp_path = temp_dir.join("macronest_update.exe");
                 let mut file = fs::File::create(&temp_path).map_err(|e| e.to_string())?;
                 std::io::copy(&mut resp, &mut file).map_err(|e| e.to_string())?;
-                let _ = ui_tx.send(UiCommand::UpdateDownloadFinished(temp_path.to_string_lossy().to_string()));
+                let _ = ui_tx.send(UiCommand::UpdateDownloadFinished(
+                    temp_path.to_string_lossy().to_string(),
+                ));
                 Ok(())
             });
             if let Err(e) = result {
@@ -1332,23 +1310,31 @@ impl CrosshairApp {
         // OCR language packs that can be installed via Add-WindowsCapability
         // Format: (lang_code, display_name, windows_capability_name)
         let lang_catalog: &[(&str, &str, &str)] = &[
-            ("en",      "English (en)",             "Language.OCR~~~en-US~0.0.1.0"),
-            ("vi",      "Vietnamese (vi)",           "Language.OCR~~~vi-VN~0.0.1.0"),
-            ("zh-Hans", "Chinese Simplified (zh)",  "Language.OCR~~~zh-CN~0.0.1.0"),
-            ("zh-Hant", "Chinese Traditional (zht)","Language.OCR~~~zh-TW~0.0.1.0"),
-            ("ja",      "Japanese (ja)",            "Language.OCR~~~ja-JP~0.0.1.0"),
-            ("ko",      "Korean (ko)",              "Language.OCR~~~ko-KR~0.0.1.0"),
-            ("fr",      "French (fr)",              "Language.OCR~~~fr-FR~0.0.1.0"),
-            ("de",      "German (de)",              "Language.OCR~~~de-DE~0.0.1.0"),
-            ("es",      "Spanish (es)",             "Language.OCR~~~es-ES~0.0.1.0"),
-            ("it",      "Italian (it)",             "Language.OCR~~~it-IT~0.0.1.0"),
-            ("pt",      "Portuguese (pt)",          "Language.OCR~~~pt-PT~0.0.1.0"),
-            ("ru",      "Russian (ru)",             "Language.OCR~~~ru-RU~0.0.1.0"),
-            ("ar",      "Arabic (ar)",              "Language.OCR~~~ar-SA~0.0.1.0"),
-            ("th",      "Thai (th)",                "Language.OCR~~~th-TH~0.0.1.0"),
-            ("nl",      "Dutch (nl)",               "Language.OCR~~~nl-NL~0.0.1.0"),
-            ("pl",      "Polish (pl)",              "Language.OCR~~~pl-PL~0.0.1.0"),
-            ("tr",      "Turkish (tr)",             "Language.OCR~~~tr-TR~0.0.1.0"),
+            ("en", "English (en)", "Language.OCR~~~en-US~0.0.1.0"),
+            ("vi", "Vietnamese (vi)", "Language.OCR~~~vi-VN~0.0.1.0"),
+            (
+                "zh-Hans",
+                "Chinese Simplified (zh)",
+                "Language.OCR~~~zh-CN~0.0.1.0",
+            ),
+            (
+                "zh-Hant",
+                "Chinese Traditional (zht)",
+                "Language.OCR~~~zh-TW~0.0.1.0",
+            ),
+            ("ja", "Japanese (ja)", "Language.OCR~~~ja-JP~0.0.1.0"),
+            ("ko", "Korean (ko)", "Language.OCR~~~ko-KR~0.0.1.0"),
+            ("fr", "French (fr)", "Language.OCR~~~fr-FR~0.0.1.0"),
+            ("de", "German (de)", "Language.OCR~~~de-DE~0.0.1.0"),
+            ("es", "Spanish (es)", "Language.OCR~~~es-ES~0.0.1.0"),
+            ("it", "Italian (it)", "Language.OCR~~~it-IT~0.0.1.0"),
+            ("pt", "Portuguese (pt)", "Language.OCR~~~pt-PT~0.0.1.0"),
+            ("ru", "Russian (ru)", "Language.OCR~~~ru-RU~0.0.1.0"),
+            ("ar", "Arabic (ar)", "Language.OCR~~~ar-SA~0.0.1.0"),
+            ("th", "Thai (th)", "Language.OCR~~~th-TH~0.0.1.0"),
+            ("nl", "Dutch (nl)", "Language.OCR~~~nl-NL~0.0.1.0"),
+            ("pl", "Polish (pl)", "Language.OCR~~~pl-PL~0.0.1.0"),
+            ("tr", "Turkish (tr)", "Language.OCR~~~tr-TR~0.0.1.0"),
         ];
 
         let avail_langs = crate::ocr::available_ocr_languages();
@@ -1491,12 +1477,7 @@ impl CrosshairApp {
             }
 
             let output = cmd
-                .args([
-                    "-NoProfile",
-                    "-NonInteractive",
-                    "-Command",
-                    &cmd_str,
-                ])
+                .args(["-NoProfile", "-NonInteractive", "-Command", &cmd_str])
                 .output()?;
 
             let code = output.status.code().unwrap_or(-1);
@@ -1516,5 +1497,3 @@ impl CrosshairApp {
         self.ocr_lang_install_job = Some(job);
     }
 }
-
-

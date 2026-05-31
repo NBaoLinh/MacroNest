@@ -1,8 +1,7 @@
-use eframe::egui::{self, RichText, Slider, Sense, TextEdit, Color32, vec2, TextBuffer};
 use crate::model::*;
 use crate::overlay::OverlayCommand;
 use crate::ui::CrosshairApp;
-
+use eframe::egui::{self, Color32, RichText, Sense, Slider, TextBuffer, TextEdit, vec2};
 
 impl CrosshairApp {
     pub(crate) fn render_hud_panel(&mut self, ui: &mut egui::Ui) {
@@ -28,8 +27,16 @@ impl CrosshairApp {
                 while self.state.timer_presets.iter().any(|p| p.id == id) {
                     id += 1;
                 }
-                self.state.next_timer_preset_id = (self.state.timer_presets.iter().map(|p| p.id).max().unwrap_or(0) + 1).max(id + 1);
-                
+                self.state.next_timer_preset_id = (self
+                    .state
+                    .timer_presets
+                    .iter()
+                    .map(|p| p.id)
+                    .max()
+                    .unwrap_or(0)
+                    + 1)
+                .max(id + 1);
+
                 let mut new_preset = TimerPreset::new(id);
                 new_preset.name = format!("Timer {id}");
                 self.state.timer_presets.push(new_preset);
@@ -121,11 +128,7 @@ impl CrosshairApp {
                             Self::edit_rgba_color(ui, &mut preset.background_color).changed();
                         ui.end_row();
 
-                        ui.label(Self::tr_lang(
-                            language,
-                            "Background Opacity",
-                            "Độ mờ nền",
-                        ));
+                        ui.label(Self::tr_lang(language, "Background Opacity", "Độ mờ nền"));
                         changed |= ui
                             .add(
                                 Slider::new(&mut preset.background_opacity, 0.0..=1.0)
@@ -135,11 +138,7 @@ impl CrosshairApp {
                             .changed();
                         ui.end_row();
 
-                        ui.label(Self::tr_lang(
-                            language,
-                            "Rounded Background",
-                            "Nền bo góc",
-                        ));
+                        ui.label(Self::tr_lang(language, "Rounded Background", "Nền bo góc"));
                         changed |= ui
                             .checkbox(
                                 &mut preset.rounded_background,
@@ -171,15 +170,22 @@ impl CrosshairApp {
                     ))
                     .strong(),
                 );
-                changed |=
-                    Self::render_hud_rect_editor(ui, (preset.id, "toolbox-editor"), preset);
+                changed |= Self::render_hud_rect_editor(ui, (preset.id, "toolbox-editor"), preset);
                 ui.horizontal_wrapped(|ui| {
-                    if ui.button(Self::tr_lang(language, "Center X", "Center X")).clicked() {
-                        preset.x = ((Self::screen_size().x as i32 - preset.width.max(1)) / 2).max(0);
+                    if ui
+                        .button(Self::tr_lang(language, "Center X", "Center X"))
+                        .clicked()
+                    {
+                        preset.x =
+                            ((Self::screen_size().x as i32 - preset.width.max(1)) / 2).max(0);
                         changed = true;
                     }
-                    if ui.button(Self::tr_lang(language, "Center Y", "Center Y")).clicked() {
-                        preset.y = ((Self::screen_size().y as i32 - preset.height.max(1)) / 2).max(0);
+                    if ui
+                        .button(Self::tr_lang(language, "Center Y", "Center Y"))
+                        .clicked()
+                    {
+                        preset.y =
+                            ((Self::screen_size().y as i32 - preset.height.max(1)) / 2).max(0);
                         changed = true;
                     }
                 });
@@ -266,8 +272,28 @@ impl CrosshairApp {
                                 })
                                 .show_ui(ui, |ui| {
                                     let mut changed = false;
-                                    changed |= ui.selectable_value(&mut selected_type, 0, Self::tr_lang(language, "Stopwatch", "Đếm xuôi (Bấm giờ)")).clicked();
-                                    changed |= ui.selectable_value(&mut selected_type, 1, Self::tr_lang(language, "Countdown", "Đếm ngược (Hẹn giờ)")).clicked();
+                                    changed |= ui
+                                        .selectable_value(
+                                            &mut selected_type,
+                                            0,
+                                            Self::tr_lang(
+                                                language,
+                                                "Stopwatch",
+                                                "Đếm xuôi (Bấm giờ)",
+                                            ),
+                                        )
+                                        .clicked();
+                                    changed |= ui
+                                        .selectable_value(
+                                            &mut selected_type,
+                                            1,
+                                            Self::tr_lang(
+                                                language,
+                                                "Countdown",
+                                                "Đếm ngược (Hẹn giờ)",
+                                            ),
+                                        )
+                                        .clicked();
                                     changed
                                 });
                             if resp.inner.unwrap_or(false) {
@@ -292,9 +318,24 @@ impl CrosshairApp {
                         if preset.show_text {
                             ui.label(Self::tr_lang(language, "Format", "Định dạng"));
                             ui.horizontal(|ui| {
-                                timer_changed |= ui.checkbox(&mut preset.show_minutes, Self::tr_lang(language, "Min", "Phút")).changed();
-                                timer_changed |= ui.checkbox(&mut preset.show_seconds, Self::tr_lang(language, "Sec", "Giây")).changed();
-                                timer_changed |= ui.checkbox(&mut preset.show_ms, Self::tr_lang(language, "Ms/Ticks", "Khắc (Ms)")).changed();
+                                timer_changed |= ui
+                                    .checkbox(
+                                        &mut preset.show_minutes,
+                                        Self::tr_lang(language, "Min", "Phút"),
+                                    )
+                                    .changed();
+                                timer_changed |= ui
+                                    .checkbox(
+                                        &mut preset.show_seconds,
+                                        Self::tr_lang(language, "Sec", "Giây"),
+                                    )
+                                    .changed();
+                                timer_changed |= ui
+                                    .checkbox(
+                                        &mut preset.show_ms,
+                                        Self::tr_lang(language, "Ms/Ticks", "Khắc (Ms)"),
+                                    )
+                                    .changed();
                             });
                             ui.end_row();
                         }
@@ -311,7 +352,8 @@ impl CrosshairApp {
                             ui.end_row();
 
                             ui.label(Self::tr_lang(language, "Text Color", "Màu chữ"));
-                            timer_changed |= Self::edit_rgba_color(ui, &mut preset.text_color).changed();
+                            timer_changed |=
+                                Self::edit_rgba_color(ui, &mut preset.text_color).changed();
                             ui.end_row();
                         }
 
@@ -320,11 +362,7 @@ impl CrosshairApp {
                             Self::edit_rgba_color(ui, &mut preset.background_color).changed();
                         ui.end_row();
 
-                        ui.label(Self::tr_lang(
-                            language,
-                            "Background Opacity",
-                            "Độ mờ nền",
-                        ));
+                        ui.label(Self::tr_lang(language, "Background Opacity", "Độ mờ nền"));
                         timer_changed |= ui
                             .add(
                                 Slider::new(&mut preset.background_opacity, 0.0..=1.0)
@@ -334,11 +372,7 @@ impl CrosshairApp {
                             .changed();
                         ui.end_row();
 
-                        ui.label(Self::tr_lang(
-                            language,
-                            "Rounded Background",
-                            "Nền bo góc",
-                        ));
+                        ui.label(Self::tr_lang(language, "Rounded Background", "Nền bo góc"));
                         timer_changed |= ui
                             .checkbox(
                                 &mut preset.rounded_background,
@@ -373,12 +407,20 @@ impl CrosshairApp {
                 timer_changed |=
                     Self::render_timer_rect_editor(ui, (preset.id, "timer-editor"), preset);
                 ui.horizontal_wrapped(|ui| {
-                    if ui.button(Self::tr_lang(language, "Center X", "Center X")).clicked() {
-                        preset.x = ((Self::screen_size().x as i32 - preset.width.max(1)) / 2).max(0);
+                    if ui
+                        .button(Self::tr_lang(language, "Center X", "Center X"))
+                        .clicked()
+                    {
+                        preset.x =
+                            ((Self::screen_size().x as i32 - preset.width.max(1)) / 2).max(0);
                         timer_changed = true;
                     }
-                    if ui.button(Self::tr_lang(language, "Center Y", "Center Y")).clicked() {
-                        preset.y = ((Self::screen_size().y as i32 - preset.height.max(1)) / 2).max(0);
+                    if ui
+                        .button(Self::tr_lang(language, "Center Y", "Center Y"))
+                        .clicked()
+                    {
+                        preset.y =
+                            ((Self::screen_size().y as i32 - preset.height.max(1)) / 2).max(0);
                         timer_changed = true;
                     }
                 });
@@ -409,7 +451,8 @@ impl CrosshairApp {
         let mut changed = false;
         let screen_size = Self::screen_size();
         let desired = vec2(ui.available_width().max(560.0), 420.0);
-        let (canvas_rect, response) = ui.allocate_exact_size(desired, Sense::drag().union(Sense::click()));
+        let (canvas_rect, response) =
+            ui.allocate_exact_size(desired, Sense::drag().union(Sense::click()));
 
         let mut arrow_dx = 0;
         let mut arrow_dy = 0;
@@ -489,7 +532,8 @@ impl CrosshairApp {
             Bottom,
         }
 
-        let mut active_handle: SelectionDragHandle = ui.data_mut(|d| d.get_temp(drag_id).unwrap_or(SelectionDragHandle::None));
+        let mut active_handle: SelectionDragHandle =
+            ui.data_mut(|d| d.get_temp(drag_id).unwrap_or(SelectionDragHandle::None));
 
         if response.drag_started() {
             if let Some(pointer_pos) = response.interact_pointer_pos() {
@@ -506,13 +550,25 @@ impl CrosshairApp {
                     SelectionDragHandle::BottomLeft
                 } else if dist_br < 14.0 {
                     SelectionDragHandle::BottomRight
-                } else if (pointer_pos.x - rect.left()).abs() < 10.0 && pointer_pos.y >= rect.top() && pointer_pos.y <= rect.bottom() {
+                } else if (pointer_pos.x - rect.left()).abs() < 10.0
+                    && pointer_pos.y >= rect.top()
+                    && pointer_pos.y <= rect.bottom()
+                {
                     SelectionDragHandle::Left
-                } else if (pointer_pos.x - rect.right()).abs() < 10.0 && pointer_pos.y >= rect.top() && pointer_pos.y <= rect.bottom() {
+                } else if (pointer_pos.x - rect.right()).abs() < 10.0
+                    && pointer_pos.y >= rect.top()
+                    && pointer_pos.y <= rect.bottom()
+                {
                     SelectionDragHandle::Right
-                } else if (pointer_pos.y - rect.top()).abs() < 10.0 && pointer_pos.x >= rect.left() && pointer_pos.x <= rect.right() {
+                } else if (pointer_pos.y - rect.top()).abs() < 10.0
+                    && pointer_pos.x >= rect.left()
+                    && pointer_pos.x <= rect.right()
+                {
                     SelectionDragHandle::Top
-                } else if (pointer_pos.y - rect.bottom()).abs() < 10.0 && pointer_pos.x >= rect.left() && pointer_pos.x <= rect.right() {
+                } else if (pointer_pos.y - rect.bottom()).abs() < 10.0
+                    && pointer_pos.x >= rect.left()
+                    && pointer_pos.x <= rect.right()
+                {
                     SelectionDragHandle::Bottom
                 } else if rect.contains(pointer_pos) {
                     SelectionDragHandle::Center
@@ -526,7 +582,11 @@ impl CrosshairApp {
         if response.dragged() && active_handle != SelectionDragHandle::None {
             let delta = response.drag_delta();
             let shift_pressed = ui.input(|i| i.modifiers.shift);
-            let original_aspect = if preset.height > 0 { preset.width as f32 / preset.height as f32 } else { 16.0 / 9.0 };
+            let original_aspect = if preset.height > 0 {
+                preset.width as f32 / preset.height as f32
+            } else {
+                16.0 / 9.0
+            };
             let lock_aspect = if shift_pressed { original_aspect } else { 0.0 };
 
             changed = true;
@@ -639,14 +699,14 @@ impl CrosshairApp {
                 rect = rect.translate(vec2(0.0, preview_rect.bottom() - rect.bottom()));
             }
 
-            rect.min.x = rect.min.x.clamp(
-                preview_rect.left(),
-                preview_rect.right() - min_size.x,
-            );
-            rect.min.y = rect.min.y.clamp(
-                preview_rect.top(),
-                preview_rect.bottom() - min_size.y,
-            );
+            rect.min.x = rect
+                .min
+                .x
+                .clamp(preview_rect.left(), preview_rect.right() - min_size.x);
+            rect.min.y = rect
+                .min
+                .y
+                .clamp(preview_rect.top(), preview_rect.bottom() - min_size.y);
             rect.max.x = rect
                 .max
                 .x
@@ -679,13 +739,25 @@ impl CrosshairApp {
                     SelectionDragHandle::BottomLeft
                 } else if dist_br < 14.0 {
                     SelectionDragHandle::BottomRight
-                } else if (pointer_pos.x - rect.left()).abs() < 10.0 && pointer_pos.y >= rect.top() && pointer_pos.y <= rect.bottom() {
+                } else if (pointer_pos.x - rect.left()).abs() < 10.0
+                    && pointer_pos.y >= rect.top()
+                    && pointer_pos.y <= rect.bottom()
+                {
                     SelectionDragHandle::Left
-                } else if (pointer_pos.x - rect.right()).abs() < 10.0 && pointer_pos.y >= rect.top() && pointer_pos.y <= rect.bottom() {
+                } else if (pointer_pos.x - rect.right()).abs() < 10.0
+                    && pointer_pos.y >= rect.top()
+                    && pointer_pos.y <= rect.bottom()
+                {
                     SelectionDragHandle::Right
-                } else if (pointer_pos.y - rect.top()).abs() < 10.0 && pointer_pos.x >= rect.left() && pointer_pos.x <= rect.right() {
+                } else if (pointer_pos.y - rect.top()).abs() < 10.0
+                    && pointer_pos.x >= rect.left()
+                    && pointer_pos.x <= rect.right()
+                {
                     SelectionDragHandle::Top
-                } else if (pointer_pos.y - rect.bottom()).abs() < 10.0 && pointer_pos.x >= rect.left() && pointer_pos.x <= rect.right() {
+                } else if (pointer_pos.y - rect.bottom()).abs() < 10.0
+                    && pointer_pos.x >= rect.left()
+                    && pointer_pos.x <= rect.right()
+                {
                     SelectionDragHandle::Bottom
                 } else if rect.contains(pointer_pos) {
                     SelectionDragHandle::Center
@@ -784,7 +856,15 @@ impl CrosshairApp {
         while self.state.hud_presets.iter().any(|p| p.id == id) {
             id += 1;
         }
-        self.state.next_hud_preset_id = (self.state.hud_presets.iter().map(|p| p.id).max().unwrap_or(0) + 1).max(id + 1);
+        self.state.next_hud_preset_id = (self
+            .state
+            .hud_presets
+            .iter()
+            .map(|p| p.id)
+            .max()
+            .unwrap_or(0)
+            + 1)
+        .max(id + 1);
         self.state.hud_presets.push(HudPreset::new(id));
         self.sync_hud_presets();
         self.status = format!("Added HUD preset {id}.");

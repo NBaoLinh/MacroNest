@@ -1,1186 +1,453 @@
 use crate::ai;
 
-
-
 use crate::hotkey;
-
-
 
 use crate::model::*;
 
-
-
 use crate::ui::{
-
-
-
     CrosshairApp, MATERIAL_ICONS_FONT, MacroActionSubmenuKind, MacroGroupFavoriteFilter,
-
-
-
-    MacroStepDragPayload, MouseMoveAbsoluteCaptureTarget, MouseCaptureKind,
-
-
-
+    MacroStepDragPayload, MouseCaptureKind, MouseMoveAbsoluteCaptureTarget,
 };
-
-
 
 use eframe::egui::{self, *};
 
-
-
-
-
-
-
 #[derive(Clone, Copy, PartialEq, Eq)]
 
-
-
 enum VariableValueKind {
-
-
-
     Neutral,
-
-
 
     Number,
 
-
-
     Text,
-
-
-
 }
-
-
-
-
-
-
 
 #[derive(Clone)]
 
-
-
 struct MacroStepHoverPreview {
-
-
-
     source_id: egui::Id,
-
-
 
     title: String,
 
-
-
     kind: MacroStepHoverPreviewKind,
-
-
-
 }
-
-
-
-
-
-
 
 #[derive(Clone)]
 
-
-
 enum MacroStepHoverPreviewKind {
-
-
-
     MacroPreset {
-
-
-
         mode_label: String,
-
-
 
         preset_name: String,
 
-
-
         steps: Vec<MacroStep>,
-
-
-
     },
-
-
 
     StepToggle {
-
-
-
         mode_label: String,
 
-
-
         preset_name: String,
-
-
 
         steps: Vec<MacroStep>,
 
-
-
         selected_steps: Vec<u32>,
-
-
-
     },
 
-
-
     Vision {
-
-
-
         action_label: String,
 
-
-
         preset_name: String,
-
-
 
         preset: VisionPreset,
 
-
-
         trigger_macro_name: Option<String>,
-
-
 
         move_cursor: bool,
 
-
-
         wait_until_found: bool,
 
-
-
         trigger_macro_enabled: bool,
-
-
-
     },
 
-
-
     Hud {
-
-
-
         preset_name: String,
-
-
 
         preset: HudPreset,
 
-
-
         text: String,
-
-
 
         duration_override_ms: u64,
 
-
-
         timed_override: bool,
-
-
-
     },
 
-
-
     Crosshair {
-
-
-
         profile_name: String,
-
-
 
         style: CrosshairStyle,
 
-
-
         disabled: bool,
-
-
-
     },
-
-
 
     MouseMoveAbsolute {
-
-
-
         x: i32,
 
-
-
         y: i32,
-
-
-
     },
-
-
 
     WindowResize {
-
-
-
         preset_name: String,
-
-
 
         preset: WindowPreset,
-
-
-
     },
 
-
-
     Pin {
-
-
-
         preset_name: String,
-
-
 
         preset: PinPreset,
 
-
-
         disabled: bool,
 
-
-
         disable_all: bool,
-
-
-
     },
-
-
 
     FocusWindow {
-
-
-
         window_title: String,
-
-
-
     },
-
-
 
     Generic {
-
-
-
         lines: Vec<String>,
-
-
-
     },
 
-
-
     OcrStepRegion {
-
-
-
         x: i32,
-
-
 
         y: i32,
 
-
-
         w: i32,
 
-
-
         h: i32,
-
-
-
     },
-
-
-
 }
-
-
-
-
-
-
 
 #[derive(Clone)]
 
-
-
 enum HoverPreviewRequest {
-
-
-
     MacroPreset {
-
-
-
         source_id: egui::Id,
-
-
 
         preset_id: u32,
 
-
-
         mode_label: String,
-
-
-
     },
-
-
 
     StepToggle {
-
-
-
         source_id: egui::Id,
 
-
-
         preset_id: u32,
-
-
 
         mode_label: String,
 
-
-
         selected_steps: Vec<u32>,
-
-
-
     },
 
-
-
     Vision {
-
-
-
         source_id: egui::Id,
 
-
-
         preset_id: u32,
-
-
 
         action_label: String,
 
-
-
         move_cursor: bool,
-
-
 
         wait_until_found: bool,
 
-
-
         trigger_macro_enabled: bool,
 
-
-
         trigger_macro_preset_id: Option<u32>,
-
-
-
     },
 
-
-
     Hud {
-
-
-
         source_id: egui::Id,
 
-
-
         preset_id: u32,
-
-
 
         text_override: String,
 
-
-
         duration_override_ms: u64,
 
-
-
         timed_override: bool,
-
-
-
     },
 
-
-
     Crosshair {
-
-
-
         source_id: egui::Id,
-
-
 
         profile_name: String,
 
-
-
         disabled: bool,
-
-
-
     },
 
-
-
     MouseMoveAbsolute {
-
-
-
         source_id: egui::Id,
-
-
 
         x: i32,
 
-
-
         y: i32,
-
-
-
     },
-
-
 
     WindowResize {
-
-
-
         source_id: egui::Id,
 
-
-
         preset_id: u32,
-
-
-
     },
 
-
-
     Pin {
-
-
-
         source_id: egui::Id,
 
-
-
         preset_id: u32,
-
-
 
         disabled: bool,
 
-
-
         disable_all: bool,
-
-
-
     },
-
-
 
     FocusWindow {
-
-
-
         source_id: egui::Id,
-
-
 
         window_title: String,
-
-
-
     },
 
-
-
     Generic {
-
-
-
         source_id: egui::Id,
-
-
 
         title: String,
 
-
-
         lines: Vec<String>,
-
-
-
     },
 
-
-
     OcrStepRegion {
-
-
-
         source_id: egui::Id,
-
-
 
         x: i32,
 
-
-
         y: i32,
-
-
 
         w: i32,
 
-
-
         h: i32,
-
-
-
     },
-
-
-
 }
 
-
-
-
-
-
-
 impl CrosshairApp {
-
-
-
-
-
-
-
     fn rgba_to_color32(color: RgbaColor) -> Color32 {
-
-
-
         Color32::from_rgba_unmultiplied(color.r, color.g, color.b, color.a)
-
-
-
     }
 
-
-
-
-
-
-
     fn parse_rgb_color(s: &str) -> Option<Color32> {
-
-
-
         let parts: Vec<&str> = s.split(',').collect();
 
-
-
         if parts.len() >= 3 {
-
-
-
             let r = parts[0].trim().parse::<u8>().ok()?;
-
-
 
             let g = parts[1].trim().parse::<u8>().ok()?;
 
-
-
             let b = parts[2].trim().parse::<u8>().ok()?;
 
-
-
             Some(Color32::from_rgb(r, g, b))
-
-
-
         } else {
-
-
-
             None
-
-
-
         }
-
-
-
     }
-
-
-
-
-
-
-
-
-
-
 
     fn loop_is_infinite(step: &MacroStep) -> bool {
-
-
-
         matches!(
-
-
-
             step.key.trim().to_ascii_lowercase().as_str(),
-
-
-
             "infinite" | "inf" | "forever" | "-1"
-
-
-
         )
-
-
-
     }
 
-
-
     fn render_macro_action_button(
-
-
-
         ui: &mut egui::Ui,
 
-
-
         language: UiLanguage,
-
-
 
         current: &MacroAction,
 
-
-
         candidate: MacroAction,
-
-
 
         action_hover_id: egui::Id,
 
-
-
         is_submenu_item: bool,
-
-
-
     ) -> egui::Response {
-
-
-
         let inner = ui.allocate_ui_with_layout(
-
-
-
             vec2(58.0, 42.0),
-
-
-
             egui::Layout::top_down(egui::Align::Center),
-
-
-
             |ui| {
-
-
-
                 let label_color = if *current == candidate {
-
-
-
                     ui.visuals().strong_text_color()
-
-
-
                 } else {
-
-
-
                     ui.visuals().text_color()
-
-
-
                 };
 
-
-
                 let response = ui.add_sized(
-
-
-
                     [34.0, 24.0],
-
-
-
                     Button::new(Self::macro_action_icon_text(candidate))
-
-
-
                         .selected(*current == candidate),
-
-
-
                 );
-
-
 
                 if !is_submenu_item && (response.hovered() || response.clicked()) {
-
-
-
                     ui.ctx()
-
-
-
                         .data_mut(|data| data.insert_temp(action_hover_id, true));
-
-
-
                 }
 
-
-
                 ui.label(
-
-
-
                     RichText::new(Self::macro_action_short_label(candidate, language))
-
-
-
                         .size(9.0)
-
-
-
                         .color(label_color),
-
-
-
                 );
 
-
-
                 response
-
-
-
             },
-
-
-
         );
-
-
 
         let response = inner.inner;
 
-
-
         if !is_submenu_item {
-
-
-
             Self::show_instant_hover_tooltip(
-
-
-
                 ui,
-
-
-
                 &response,
-
-
-
                 format!(
-
-
-
                     "{}\n{}",
-
-
-
                     Self::macro_action_label(candidate),
-
-
-
                     Self::macro_action_tooltip(candidate, language)
-
-
-
                 ),
-
-
-
             );
-
-
-
         }
 
-
-
         response
-
-
-
     }
 
-
-
     fn render_macro_action_option(
-
-
-
         ui: &mut egui::Ui,
-
-
 
         language: UiLanguage,
 
-
-
         current: &mut MacroAction,
-
-
 
         candidate: MacroAction,
 
-
-
         live_sync: &mut bool,
-
-
 
         action_hover_id: egui::Id,
 
-
-
         is_submenu_item: bool,
-
-
-
     ) {
-
-
-
-        let response =
-
-
-
-            Self::render_macro_action_button(ui, language, current, candidate, action_hover_id, is_submenu_item);
-
-
+        let response = Self::render_macro_action_button(
+            ui,
+            language,
+            current,
+            candidate,
+            action_hover_id,
+            is_submenu_item,
+        );
 
         if response.clicked() {
-
-
-
             *current = candidate;
-
-
 
             *live_sync = true;
 
-
-
             ui.close();
-
-
-
         }
-
-
-
     }
 
-
-
     fn clear_macro_action_submenus(ui: &mut egui::Ui, id_source: impl std::hash::Hash + Copy) {
-
-
-
         let owner_id = ui.make_persistent_id("macro-action-submenu-owner");
 
-
-
         let active_mouse_click_popup_key_id =
-
-
-
             ui.make_persistent_id((id_source, "mouse-click-active-submenu-key"));
-
-
 
         let mouse_popup_id = ui.make_persistent_id((id_source, "mouse-submenu-popup"));
 
-
-
         let image_popup_id = ui.make_persistent_id((id_source, "image-search-submenu-popup"));
-
-
 
         let timer_popup_id = ui.make_persistent_id((id_source, "timer-submenu-popup"));
 
-
-
         let if_popup_id = ui.make_persistent_id((id_source, "if-submenu-popup"));
 
-
-
         ui.ctx().data_mut(|data| {
-
-
-
             data.insert_temp(owner_id, None::<MacroActionSubmenuKind>);
-
-
 
             data.insert_temp(active_mouse_click_popup_key_id, None::<&'static str>);
 
-
-
             data.insert_temp(mouse_popup_id, false);
-
-
 
             data.insert_temp(image_popup_id, false);
 
-
-
             data.insert_temp(timer_popup_id, false);
 
-
-
             data.insert_temp(if_popup_id, false);
-
-
-
         });
-
-
 
         egui::Popup::close_id(ui.ctx(), mouse_popup_id);
 
-
-
         egui::Popup::close_id(ui.ctx(), image_popup_id);
-
-
 
         egui::Popup::close_id(ui.ctx(), timer_popup_id);
 
-
-
         egui::Popup::close_id(ui.ctx(), if_popup_id);
 
-
-
         for (_, _, _, popup_key) in Self::mouse_click_action_groups().iter().copied() {
-
-
-
             let child_popup_id = ui.make_persistent_id((id_source, popup_key, "popup"));
 
-
-
-            ui.ctx().data_mut(|data| data.insert_temp(child_popup_id, false));
-
-
+            ui.ctx()
+                .data_mut(|data| data.insert_temp(child_popup_id, false));
 
             egui::Popup::close_id(ui.ctx(), child_popup_id);
-
-
-
         }
 
-
-
         ui.ctx().request_repaint();
-
-
-
     }
-
-
 
     fn clear_mouse_click_submenus(ui: &mut egui::Ui, id_source: impl std::hash::Hash + Copy) {
-
-
-
         let active_mouse_click_popup_key_id =
-
-
-
             ui.make_persistent_id((id_source, "mouse-click-active-submenu-key"));
 
-
-
-        ui.ctx()
-
-
-
-            .data_mut(|data| data.insert_temp(active_mouse_click_popup_key_id, None::<&'static str>));
-
-
+        ui.ctx().data_mut(|data| {
+            data.insert_temp(active_mouse_click_popup_key_id, None::<&'static str>)
+        });
 
         for (_, _, _, popup_key) in Self::mouse_click_action_groups().iter().copied() {
-
-
-
             let child_popup_id = ui.make_persistent_id((id_source, popup_key, "popup"));
 
-
-
-            ui.ctx().data_mut(|data| data.insert_temp(child_popup_id, false));
-
-
+            ui.ctx()
+                .data_mut(|data| data.insert_temp(child_popup_id, false));
 
             egui::Popup::close_id(ui.ctx(), child_popup_id);
-
-
-
         }
 
-
-
         ui.ctx().request_repaint();
-
-
-
     }
 
-
-
     fn close_inactive_mouse_click_submenus(
-
-
-
         ui: &mut egui::Ui,
-
-
 
         id_source: impl std::hash::Hash + Copy,
 
-
-
         active_popup_key: Option<&'static str>,
-
-
-
     ) {
-
-
-
         for (_, _, _, popup_key) in Self::mouse_click_action_groups().iter().copied() {
-
-
-
             if Some(popup_key) != active_popup_key {
-
-
-
                 let child_popup_id = ui.make_persistent_id((id_source, popup_key, "popup"));
 
-
-
-                ui.ctx().data_mut(|data| data.insert_temp(child_popup_id, false));
-
-
-
+                ui.ctx()
+                    .data_mut(|data| data.insert_temp(child_popup_id, false));
             }
-
-
-
         }
-
-
-
     }
 
-
-
     fn render_expression_help_box(ui: &mut egui::Ui, language: UiLanguage) {
-
-
-
         let fill = Color32::from_rgba_unmultiplied(0, 170, 255, 18);
 
-
-
         let stroke = egui::Stroke::new(1.0, Color32::from_rgb(0, 170, 255));
-
-
 
         egui::Frame::group(ui.style())
 
@@ -1296,8236 +563,2911 @@ impl CrosshairApp {
 
 
             });
-
-
-
     }
 
-
-
-
-
-
-
     fn macro_step_preview_summary_line(step: &MacroStep, language: UiLanguage) -> String {
-
-
-
         let mut parts = Vec::new();
 
-
-
         if step.enabled {
-
-
-
             parts.push("[x]".to_owned());
-
-
-
         } else {
-
-
-
             parts.push("[ ]".to_owned());
-
-
-
         }
-
-
 
         parts.push(Self::macro_action_short_label(step.action, language).to_owned());
 
-
-
         let key = step.key.trim();
 
-
-
         if !key.is_empty() {
-
-
-
             parts.push(key.to_owned());
-
-
-
         }
 
-
-
-        if matches!(step.action, MacroAction::MouseMoveAbsolute | MacroAction::MouseMoveRelative) {
-
-
-
+        if matches!(
+            step.action,
+            MacroAction::MouseMoveAbsolute | MacroAction::MouseMoveRelative
+        ) {
             parts.push(format!("({}, {})", step.x, step.y));
-
-
-
         }
-
-
 
         if step.action == MacroAction::ShowHud && !step.text_override.trim().is_empty() {
-
-
-
             parts.push(step.text_override.trim().to_owned());
-
-
-
         }
 
-
-
-        if step.action == MacroAction::ShowHud && step.timed_override && step.duration_override_ms > 0 {
-
-
-
+        if step.action == MacroAction::ShowHud
+            && step.timed_override
+            && step.duration_override_ms > 0
+        {
             parts.push(format!("{} ms", step.duration_override_ms));
-
-
-
         } else if !step.delay_expr.trim().is_empty() {
-
-
-
             parts.push(format!("{} ms", step.get_delay_ms()));
-
-
-
         } else if step.delay_ms > 0 {
-
-
-
             parts.push(format!("{} ms", step.delay_ms));
-
-
-
         }
-
-
 
         parts.join("  ")
-
-
-
     }
-
-
-
-
-
-
 
     fn macro_step_preview_visible_entries(steps: &[MacroStep]) -> Vec<(usize, &MacroStep)> {
-
-
-
         steps
-
-
-
             .iter()
-
-
-
             .enumerate()
-
-
-
-            .filter(|(_, step)| !matches!(step.action, MacroAction::LoopStart | MacroAction::LoopEnd))
-
-
-
+            .filter(|(_, step)| {
+                !matches!(step.action, MacroAction::LoopStart | MacroAction::LoopEnd)
+            })
             .collect()
-
-
-
     }
 
-
-
-
-
-
-
     fn render_macro_step_hover_preview_list(
-
-
-
         ui: &mut egui::Ui,
-
-
 
         language: UiLanguage,
 
-
-
         source_id: egui::Id,
-
-
 
         steps: &[MacroStep],
 
-
-
         selected_steps: &[u32],
-
-
-
     ) {
-
-
-
         let offset_id = source_id.with("macro-hover-preview-offset");
-
-
 
         let visible_lines = 5usize;
 
-
-
         let visible_steps = Self::macro_step_preview_visible_entries(steps);
-
-
 
         let max_offset = visible_steps.len().saturating_sub(visible_lines) as i32;
 
-
-
         let mut offset = ui
-
-
-
             .ctx()
-
-
-
             .data(|data| data.get_temp::<i32>(offset_id))
-
-
-
             .unwrap_or(0)
-
-
-
             .clamp(0, max_offset.max(0));
-
-
 
         let start = offset as usize;
 
-
-
         let end = (start + visible_lines).min(visible_steps.len());
 
-
-
         if visible_steps.is_empty() {
-
-
-
             ui.label(Self::tr_lang(language, "No steps.", "Không có step nào."));
 
-
-
             return;
-
-
-
         }
-
-
 
         for (step_no, step) in visible_steps[start..end].iter() {
-
-
-
             let is_selected = selected_steps.contains(&(*step_no as u32));
 
-
-
-            let line = format!("{}. {}", step_no, Self::macro_step_preview_summary_line(step, language));
-
-
-
-            let text = if is_selected {
-
-
-
-                RichText::new(line)
-
-
-
-                    .strong()
-
-
-
-                    .color(Color32::from_rgb(0, 255, 170))
-
-
-
-            } else {
-
-
-
-                RichText::new(line)
-
-
-
-            };
-
-
-
-            ui.label(text);
-
-
-
-        }
-
-
-
-        if visible_steps.len() > visible_lines {
-
-
-
-            ui.add_space(2.0);
-
-
-
-            ui.label(
-
-
-
-                RichText::new(format!("{} / {}", start + 1, visible_steps.len()))
-
-
-
-                    .weak(),
-
-
-
+            let line = format!(
+                "{}. {}",
+                step_no,
+                Self::macro_step_preview_summary_line(step, language)
             );
 
+            let text = if is_selected {
+                RichText::new(line)
+                    .strong()
+                    .color(Color32::from_rgb(0, 255, 170))
+            } else {
+                RichText::new(line)
+            };
 
-
+            ui.label(text);
         }
 
+        if visible_steps.len() > visible_lines {
+            ui.add_space(2.0);
 
+            ui.label(RichText::new(format!("{} / {}", start + 1, visible_steps.len())).weak());
+        }
 
-        ui.ctx().data_mut(|data| data.insert_temp(offset_id, offset));
-
-
-
+        ui.ctx()
+            .data_mut(|data| data.insert_temp(offset_id, offset));
     }
 
-
-
-
-
-
-
     fn render_hover_preview_screen_canvas(
-
-
-
         ui: &mut egui::Ui,
 
-
-
         max_height: f32,
-
-
-
     ) -> (egui::Rect, egui::Rect, f32) {
-
-
-
         let screen_size = Self::screen_size();
-
-
 
         let available_width = ui.available_width().clamp(320.0, 720.0);
 
-
-
         let aspect = if screen_size.y > 0.0 {
-
-
-
             screen_size.x / screen_size.y
-
-
-
         } else {
-
-
-
             16.0 / 9.0
-
-
-
         };
-
-
 
         let mut desired_width = available_width;
 
-
-
         let mut desired_height = desired_width / aspect;
 
-
-
         if desired_height > max_height {
-
-
-
             desired_height = max_height;
 
-
-
             desired_width = desired_height * aspect;
-
-
-
         }
 
-
-
-        let (canvas_rect, _) = ui.allocate_exact_size(vec2(desired_width, desired_height), Sense::hover());
-
-
+        let (canvas_rect, _) =
+            ui.allocate_exact_size(vec2(desired_width, desired_height), Sense::hover());
 
         let draw_rect = canvas_rect.shrink(4.0);
 
-
-
         let scale = (draw_rect.width() / screen_size.x.max(1.0))
-
-
-
             .min(draw_rect.height() / screen_size.y.max(1.0))
-
-
-
             .max(0.0001);
-
-
 
         let preview_size = vec2(screen_size.x * scale, screen_size.y * scale);
 
-
-
         let preview_rect = egui::Rect::from_center_size(draw_rect.center(), preview_size);
 
-
-
         ui.painter().rect_filled(
-
-
-
             preview_rect,
-
-
-
             8.0,
-
-
-
             Color32::from_rgba_premultiplied(18, 24, 22, 220),
-
-
-
         );
-
-
 
         ui.painter().rect_stroke(
-
-
-
             preview_rect,
-
-
-
             8.0,
-
-
-
             egui::Stroke::new(1.0, Color32::from_rgb(104, 148, 124)),
-
-
-
             egui::StrokeKind::Outside,
-
-
-
         );
 
-
-
         (canvas_rect, preview_rect, scale)
-
-
-
     }
 
-
-
-
-
-
-
     fn render_hover_preview_panel(
-
-
-
         ui: &mut egui::Ui,
-
-
 
         language: UiLanguage,
 
-
-
         preview: Option<&MacroStepHoverPreview>,
-
-
-
     ) {
-
-
-
         if let Some(preview) = preview {
-
-
-
             let fill = Color32::from_rgba_unmultiplied(20, 24, 26, 242);
-
-
 
             let stroke = egui::Stroke::new(1.0, Color32::from_rgb(94, 176, 122));
 
-
-
             egui::Frame::popup(ui.style())
-
-
-
                 .fill(fill)
-
-
-
                 .stroke(stroke)
-
-
-
                 .inner_margin(egui::Margin::symmetric(10, 8))
-
-
-
                 .show(ui, |ui| {
-
-
-
                     ui.label(RichText::new(&preview.title).strong());
-
-
 
                     ui.add_space(4.0);
 
-
-
                     match &preview.kind {
-
-
-
-                        MacroStepHoverPreviewKind::MacroPreset {
-
-
-
-                            steps,
-
-
-
-                            ..
-
-
-
-                        } => {
-
-
-
+                        MacroStepHoverPreviewKind::MacroPreset { steps, .. } => {
                             Self::render_macro_step_hover_preview_list(
-
-
-
                                 ui,
-
-
-
                                 language,
-
-
-
                                 preview.source_id,
-
-
-
                                 steps,
-
-
-
                                 &[],
-
-
-
                             );
-
-
-
                         }
-
-
 
                         MacroStepHoverPreviewKind::StepToggle {
-
-
-
                             steps,
 
-
-
                             selected_steps,
-
-
-
                             ..
-
-
-
                         } => {
-
-
-
                             Self::render_macro_step_hover_preview_list(
-
-
-
                                 ui,
-
-
-
                                 language,
-
-
-
                                 preview.source_id,
-
-
-
                                 steps,
-
-
-
                                 selected_steps,
-
-
-
                             );
-
-
-
                         }
 
-
-
                         MacroStepHoverPreviewKind::Vision {
-
-
-
                             action_label,
-
-
 
                             preset_name,
 
-
-
                             preset,
-
-
 
                             trigger_macro_name,
 
-
-
                             move_cursor,
-
-
 
                             wait_until_found,
 
-
-
                             trigger_macro_enabled,
-
-
-
                         } => {
-
-
-
                             ui.horizontal(|ui| {
-
-
-
                                 ui.label(RichText::new(action_label).strong());
 
-
-
-                                ui.label(RichText::new(preset_name).strong().color(Color32::from_rgb(124, 240, 164)));
-
-
-
+                                ui.label(
+                                    RichText::new(preset_name)
+                                        .strong()
+                                        .color(Color32::from_rgb(124, 240, 164)),
+                                );
                             });
-
-
 
                             ui.add_space(6.0);
 
-
-
-                            let (_, preview_rect, scale) = Self::render_hover_preview_screen_canvas(ui, 360.0);
-
-
+                            let (_, preview_rect, scale) =
+                                Self::render_hover_preview_screen_canvas(ui, 360.0);
 
                             let colors = Self::image_search_target_colors(preset);
 
-
-
                             let mut swatch_pos = preview_rect.left_top() + vec2(10.0, 10.0);
 
-
-
                             for color in colors.iter().take(6) {
+                                let swatch =
+                                    egui::Rect::from_min_size(swatch_pos, vec2(14.0, 14.0));
 
-
-
-                                let swatch = egui::Rect::from_min_size(swatch_pos, vec2(14.0, 14.0));
-
-
-
-                                ui.painter().rect_filled(swatch, 3.0, Self::rgba_to_color32(*color));
-
-
-
-                                ui.painter().rect_stroke(
-
-
-
+                                ui.painter().rect_filled(
                                     swatch,
-
-
-
                                     3.0,
-
-
-
-                                    egui::Stroke::new(1.0, Color32::BLACK),
-
-
-
-                                    egui::StrokeKind::Outside,
-
-
-
+                                    Self::rgba_to_color32(*color),
                                 );
 
-
+                                ui.painter().rect_stroke(
+                                    swatch,
+                                    3.0,
+                                    egui::Stroke::new(1.0, Color32::BLACK),
+                                    egui::StrokeKind::Outside,
+                                );
 
                                 swatch_pos.x += 18.0;
-
-
-
                             }
-
-
 
                             let region_rect = if let (Some(x), Some(y), Some(w), Some(h)) = (
-
-
-
                                 preset.search_region_screen_x,
-
-
-
                                 preset.search_region_screen_y,
-
-
-
                                 preset.search_region_width,
-
-
-
                                 preset.search_region_height,
-
-
-
                             ) {
-
-
-
                                 egui::Rect::from_min_size(
-
-
-
                                     egui::pos2(
-
-
-
                                         preview_rect.left() + (x.max(0) as f32 * scale),
-
-
-
                                         preview_rect.top() + (y.max(0) as f32 * scale),
-
-
-
                                     ),
-
-
-
                                     vec2(
-
-
-
                                         (w.max(1) as f32 * scale).max(10.0),
-
-
-
                                         (h.max(1) as f32 * scale).max(10.0),
-
-
-
                                     ),
-
-
-
                                 )
-
-
-
                             } else {
-
-
-
-                                preview_rect.shrink2(vec2(preview_rect.width() * 0.18, preview_rect.height() * 0.18))
-
-
-
+                                preview_rect.shrink2(vec2(
+                                    preview_rect.width() * 0.18,
+                                    preview_rect.height() * 0.18,
+                                ))
                             };
-
-
 
                             let region_fill = if preset.show_search_region_overlay {
-
-
-
                                 Color32::from_rgba_unmultiplied(0, 255, 170, 28)
-
-
-
                             } else {
-
-
-
                                 Color32::TRANSPARENT
-
-
-
                             };
 
-
-
                             if region_fill != Color32::TRANSPARENT {
-
-
-
                                 if preset.search_region_is_circle {
+                                    let radius =
+                                        0.5 * region_rect.width().min(region_rect.height());
 
-
-
-                                    let radius = 0.5 * region_rect.width().min(region_rect.height());
-
-
-
-                                    ui.painter().circle_filled(region_rect.center(), radius, region_fill);
-
-
-
+                                    ui.painter().circle_filled(
+                                        region_rect.center(),
+                                        radius,
+                                        region_fill,
+                                    );
                                 } else {
-
-
-
                                     ui.painter().rect_filled(region_rect, 6.0, region_fill);
-
-
-
                                 }
-
-
-
                             }
-
-
 
                             if preset.search_region_is_circle {
-
-
-
                                 let radius = 0.5 * region_rect.width().min(region_rect.height());
 
-
-
                                 ui.painter().circle_stroke(
-
-
-
                                     region_rect.center(),
-
-
-
                                     radius,
-
-
-
                                     egui::Stroke::new(2.0, Color32::from_rgb(0, 255, 170)),
-
-
-
                                 );
-
-
-
                             } else {
-
-
-
                                 ui.painter().rect_stroke(
-
-
-
                                     region_rect,
-
-
-
                                     6.0,
-
-
-
                                     egui::Stroke::new(2.0, Color32::from_rgb(0, 255, 170)),
-
-
-
                                     egui::StrokeKind::Outside,
-
-
-
                                 );
-
-
-
                             }
-
-
 
                             if let Some(color) = preset.target_color {
-
-
-
                                 let swatch = egui::Rect::from_min_size(
-
-
-
                                     region_rect.left_top() + vec2(6.0, 6.0),
-
-
-
                                     vec2(14.0, 14.0),
-
-
-
                                 );
 
-
-
-                                ui.painter().rect_filled(swatch, 3.0, Self::rgba_to_color32(color));
-
-
+                                ui.painter()
+                                    .rect_filled(swatch, 3.0, Self::rgba_to_color32(color));
 
                                 ui.painter().rect_stroke(
-
-
-
                                     swatch,
-
-
-
                                     3.0,
-
-
-
                                     egui::Stroke::new(1.0, Color32::BLACK),
-
-
-
                                     egui::StrokeKind::Outside,
-
-
-
                                 );
-
-
-
                             }
-
-
 
                             ui.add_space(6.0);
 
-
-
                             ui.label(format!(
-
-
-
                                 "{} {}",
-
-
-
                                 Self::tr_lang(language, "Tolerance:", "Sai số:"),
-
-
-
                                 preset.color_tolerance
-
-
-
                             ));
 
-
-
                             ui.label(format!(
-
-
-
                                 "{} {}",
-
-
-
                                 Self::tr_lang(language, "Scan rate:", "Tốc độ quét:"),
-
-
-
                                 preset.color_scan_rate_hz
-
-
-
                             ));
-
-
 
                             ui.label(format!(
-
-
-
                                 "{} {}",
-
-
-
                                 Self::tr_lang(language, "Move offset:", "Độ lệch di chuyển:"),
-
-
-
                                 format!("{}, {}", preset.move_offset_x, preset.move_offset_y)
-
-
-
                             ));
 
-
-
-                            if preset.is_pixel_counter && !preset.pixel_counter_variable_name.trim().is_empty() {
-
-
-
+                            if preset.is_pixel_counter
+                                && !preset.pixel_counter_variable_name.trim().is_empty()
+                            {
                                 ui.label(format!(
-
-
-
                                     "{} {}",
-
-
-
                                     Self::tr_lang(language, "Pixel variable:", "Biến pixel:"),
-
-
-
                                     preset.pixel_counter_variable_name
-
-
-
                                 ));
-
-
-
                             }
-
-
 
                             if *trigger_macro_enabled {
-
-
-
                                 ui.label(format!(
-
-
-
                                     "{} {}",
-
-
-
                                     Self::tr_lang(language, "Trigger macro:", "Kích hoạt macro:"),
-
-
-
                                     trigger_macro_name.as_deref().unwrap_or("-")
-
-
-
                                 ));
-
-
-
                             }
-
-
 
                             if *move_cursor {
-
-
-
-                                ui.label(Self::tr_lang(language, "Move cursor on match", "Di chuột khi tìm thấy"));
-
-
-
+                                ui.label(Self::tr_lang(
+                                    language,
+                                    "Move cursor on match",
+                                    "Di chuột khi tìm thấy",
+                                ));
                             }
-
-
 
                             if *wait_until_found {
-
-
-
-                                ui.label(Self::tr_lang(language, "Wait until found", "Chờ cho tới khi tìm thấy"));
-
-
-
+                                ui.label(Self::tr_lang(
+                                    language,
+                                    "Wait until found",
+                                    "Chờ cho tới khi tìm thấy",
+                                ));
                             }
-
-
-
                         }
 
-
-
                         MacroStepHoverPreviewKind::Hud {
-
-
-
                             preset_name,
 
-
-
                             preset,
-
-
 
                             text,
 
-
-
                             duration_override_ms,
 
-
-
                             timed_override,
-
-
-
                         } => {
-
-
-
                             ui.horizontal(|ui| {
-
-
-
-                                ui.label(RichText::new(preset_name).strong().color(Color32::from_rgb(124, 240, 164)));
-
-
+                                ui.label(
+                                    RichText::new(preset_name)
+                                        .strong()
+                                        .color(Color32::from_rgb(124, 240, 164)),
+                                );
 
                                 ui.label(format!(
-
-
-
                                     "{} {}",
-
-
-
                                     Self::tr_lang(language, "Duration:", "Thời gian:"),
-
-
-
                                     if *timed_override {
-
-
-
                                         format!("{} ms", duration_override_ms)
-
-
-
                                     } else {
-
-
-
-                                        Self::tr_lang(language, "until macro ends", "đến khi macro kết thúc").to_owned()
-
-
-
+                                        Self::tr_lang(
+                                            language,
+                                            "until macro ends",
+                                            "đến khi macro kết thúc",
+                                        )
+                                        .to_owned()
                                     }
-
-
-
                                 ));
-
-
-
                             });
-
-
 
                             ui.add_space(6.0);
 
-
-
                             let mut preview_preset = preset.clone();
-
-
 
                             let resolved_text = crate::overlay::interpolate_variables(text.trim());
 
-
-
                             preview_preset.text = if resolved_text.is_empty() {
-
-
-
                                 Self::tr_lang(language, "No text", "Không có text").to_owned()
-
-
-
                             } else {
-
-
-
                                 resolved_text
-
-
-
                             };
 
-
-
                             Self::render_hud_rect_editor(
-
-
-
                                 ui,
-
-
-
                                 (preview.source_id, "hover-hud-preview"),
-
-
-
                                 &mut preview_preset,
-
-
-
                             );
-
-
 
                             ui.add_space(4.0);
 
-
-
                             ui.label(format!(
-
-
-
                                 "{} {}",
-
-
-
                                 Self::tr_lang(language, "Position:", "Vị trí:"),
-
-
-
                                 format!("{}, {}", preset.x, preset.y)
-
-
-
                             ));
-
-
 
                             ui.label(format!(
-
-
-
                                 "{} {}x{}",
-
-
-
                                 Self::tr_lang(language, "Size:", "Kích thước:"),
-
-
-
                                 preset.width,
-
-
-
                                 preset.height
-
-
-
                             ));
-
-
-
                         }
 
-
-
                         MacroStepHoverPreviewKind::Crosshair {
-
-
-
                             profile_name,
-
-
 
                             style,
 
-
-
                             disabled,
-
-
-
                         } => {
-
-
-
                             ui.horizontal(|ui| {
-
-
-
-                                ui.label(RichText::new(profile_name).strong().color(Color32::from_rgb(124, 240, 164)));
-
-
+                                ui.label(
+                                    RichText::new(profile_name)
+                                        .strong()
+                                        .color(Color32::from_rgb(124, 240, 164)),
+                                );
 
                                 if *disabled {
-
-
-
-                                    ui.label(RichText::new(Self::tr_lang(language, "Disabled", "Đang tắt")).color(Color32::from_rgb(255, 120, 120)).strong());
-
-
-
+                                    ui.label(
+                                        RichText::new(Self::tr_lang(
+                                            language,
+                                            "Disabled",
+                                            "Đang tắt",
+                                        ))
+                                        .color(Color32::from_rgb(255, 120, 120))
+                                        .strong(),
+                                    );
                                 }
-
-
-
                             });
-
-
 
                             ui.add_space(6.0);
 
-
-
-                            let (_, preview_rect, scale) = Self::render_hover_preview_screen_canvas(ui, 340.0);
-
-
+                            let (_, preview_rect, scale) =
+                                Self::render_hover_preview_screen_canvas(ui, 340.0);
 
                             let center = egui::pos2(
-
-
-
                                 preview_rect.left() + style.x_offset as f32 * scale,
-
-
-
                                 preview_rect.top() + style.y_offset as f32 * scale,
-
-
-
                             );
-
-
 
                             let arm_color = Self::rgba_to_color32(style.color);
 
-
-
                             let outline_color = Self::rgba_to_color32(style.outline_color);
-
-
 
                             let thickness = (style.thickness.max(1.0) * scale).max(1.0);
 
-
-
                             let gap = style.gap.max(0.0) * scale;
-
-
 
                             let h_len = style.horizontal_length.max(0.0) * scale;
 
-
-
                             let v_len = style.vertical_length.max(0.0) * scale;
 
-
-
                             let outline = if style.outline_enabled {
-
-
-
                                 style.outline_thickness.max(0.0) * scale
-
-
-
                             } else {
-
-
-
                                 0.0
-
-
-
                             };
 
-
-
-                            let fill_rect = |painter: &egui::Painter, x: f32, y: f32, w: f32, h: f32, color: Color32| {
-
-
-
-                                painter.rect_filled(
-
-
-
-                                    egui::Rect::from_min_size(egui::pos2(x, y), vec2(w, h)),
-
-
-
-                                    0.0,
-
-
-
-                                    color,
-
-
-
-                                );
-
-
-
-                            };
-
-
+                            let fill_rect =
+                                |painter: &egui::Painter,
+                                 x: f32,
+                                 y: f32,
+                                 w: f32,
+                                 h: f32,
+                                 color: Color32| {
+                                    painter.rect_filled(
+                                        egui::Rect::from_min_size(egui::pos2(x, y), vec2(w, h)),
+                                        0.0,
+                                        color,
+                                    );
+                                };
 
                             if outline > 0.0 {
-
-
-
                                 fill_rect(
-
-
-
                                     ui.painter(),
-
-
-
                                     center.x - gap - h_len - outline,
-
-
-
                                     center.y - thickness / 2.0 - outline,
-
-
-
                                     h_len + outline * 2.0,
-
-
-
                                     thickness + outline * 2.0,
-
-
-
                                     outline_color,
-
-
-
                                 );
 
-
-
                                 fill_rect(
-
-
-
                                     ui.painter(),
-
-
-
                                     center.x + gap - outline,
-
-
-
                                     center.y - thickness / 2.0 - outline,
-
-
-
                                     h_len + outline * 2.0,
-
-
-
                                     thickness + outline * 2.0,
-
-
-
                                     outline_color,
-
-
-
                                 );
 
-
-
                                 fill_rect(
-
-
-
                                     ui.painter(),
-
-
-
                                     center.x - thickness / 2.0 - outline,
-
-
-
                                     center.y - gap - v_len - outline,
-
-
-
                                     thickness + outline * 2.0,
-
-
-
                                     v_len + outline * 2.0,
-
-
-
                                     outline_color,
-
-
-
                                 );
-
-
 
                                 fill_rect(
-
-
-
                                     ui.painter(),
-
-
-
                                     center.x - thickness / 2.0 - outline,
-
-
-
                                     center.y + gap - outline,
-
-
-
                                     thickness + outline * 2.0,
-
-
-
                                     v_len + outline * 2.0,
-
-
-
                                     outline_color,
-
-
-
                                 );
-
-
-
                             }
 
-
-
                             fill_rect(
-
-
-
                                 ui.painter(),
-
-
-
                                 center.x - gap - h_len,
-
-
-
                                 center.y - thickness / 2.0,
-
-
-
                                 h_len,
-
-
-
                                 thickness,
-
-
-
                                 arm_color,
-
-
-
                             );
 
-
-
                             fill_rect(
-
-
-
                                 ui.painter(),
-
-
-
                                 center.x + gap,
-
-
-
                                 center.y - thickness / 2.0,
-
-
-
                                 h_len,
-
-
-
                                 thickness,
-
-
-
                                 arm_color,
-
-
-
                             );
 
-
-
                             fill_rect(
-
-
-
                                 ui.painter(),
-
-
-
                                 center.x - thickness / 2.0,
-
-
-
                                 center.y - gap - v_len,
-
-
-
                                 thickness,
-
-
-
                                 v_len,
-
-
-
                                 arm_color,
-
-
-
                             );
-
-
 
                             fill_rect(
-
-
-
                                 ui.painter(),
-
-
-
                                 center.x - thickness / 2.0,
-
-
-
                                 center.y + gap,
-
-
-
                                 thickness,
-
-
-
                                 v_len,
-
-
-
                                 arm_color,
-
-
-
                             );
-
-
 
                             if style.center_dot {
-
-
-
                                 let dot = style.center_dot_size.max(1.0) * scale;
 
-
-
                                 ui.painter().rect_filled(
-
-
-
                                     egui::Rect::from_center_size(center, vec2(dot, dot)),
-
-
-
                                     0.0,
-
-
-
                                     arm_color,
-
-
-
                                 );
-
-
-
                             }
-
-
 
                             ui.add_space(4.0);
 
-
-
                             ui.label(format!(
-
-
-
                                 "{} {}, {}",
-
-
-
                                 Self::tr_lang(language, "Gap/Thickness:", "Khoảng cách/Độ dày:"),
-
-
-
                                 style.gap,
-
-
-
                                 style.thickness
-
-
-
                             ));
-
-
 
                             ui.label(format!(
-
-
-
                                 "{} {}, {}",
-
-
-
                                 Self::tr_lang(language, "Lengths:", "Độ dài:"),
-
-
-
                                 style.horizontal_length,
-
-
-
                                 style.vertical_length
-
-
-
                             ));
-
-
-
                         }
 
-
-
                         MacroStepHoverPreviewKind::MouseMoveAbsolute { x, y } => {
-
-
-
                             ui.horizontal(|ui| {
-
-
-
-                                ui.label(RichText::new(Self::tr_lang(language, "Mouse move target", "Điểm di chuyển chuột")).strong());
-
-
-
+                                ui.label(
+                                    RichText::new(Self::tr_lang(
+                                        language,
+                                        "Mouse move target",
+                                        "Điểm di chuyển chuột",
+                                    ))
+                                    .strong(),
+                                );
                             });
-
-
 
                             ui.add_space(6.0);
 
-
-
-                            let (_, preview_rect, scale) = Self::render_hover_preview_screen_canvas(ui, 320.0);
-
-
+                            let (_, preview_rect, scale) =
+                                Self::render_hover_preview_screen_canvas(ui, 320.0);
 
                             let px = preview_rect.left() + (*x as f32 * scale);
 
-
-
                             let py = preview_rect.top() + (*y as f32 * scale);
 
-
-
-                            ui.painter().circle_filled(egui::pos2(px, py), 4.5, Color32::from_rgb(0, 255, 170));
-
-
+                            ui.painter().circle_filled(
+                                egui::pos2(px, py),
+                                4.5,
+                                Color32::from_rgb(0, 255, 170),
+                            );
 
                             ui.painter().line_segment(
-
-
-
                                 [egui::pos2(px - 8.0, py), egui::pos2(px + 8.0, py)],
-
-
-
                                 egui::Stroke::new(1.0, Color32::from_rgb(0, 255, 170)),
-
-
-
                             );
-
-
 
                             ui.painter().line_segment(
-
-
-
                                 [egui::pos2(px, py - 8.0), egui::pos2(px, py + 8.0)],
-
-
-
                                 egui::Stroke::new(1.0, Color32::from_rgb(0, 255, 170)),
-
-
-
                             );
-
-
 
                             ui.add_space(4.0);
-
-
 
                             ui.label(format!("X: {}  Y: {}", x, y));
-
-
-
                         }
 
-
-
                         MacroStepHoverPreviewKind::WindowResize {
-
-
-
                             preset_name,
 
-
-
                             preset,
-
-
-
                         } => {
-
-
-
                             ui.horizontal(|ui| {
-
-
-
-                                ui.label(RichText::new(preset_name).strong().color(Color32::from_rgb(124, 240, 164)));
-
-
-
+                                ui.label(
+                                    RichText::new(preset_name)
+                                        .strong()
+                                        .color(Color32::from_rgb(124, 240, 164)),
+                                );
                             });
 
-
-
                             ui.add_space(4.0);
-
-
 
                             let mut preview_preset = preset.clone();
 
-
-
                             let mut live_sync = false;
 
-
-
-                            Self::render_window_preset_preview(ui, language, &mut preview_preset, None, &mut live_sync);
-
-
-
+                            Self::render_window_preset_preview(
+                                ui,
+                                language,
+                                &mut preview_preset,
+                                None,
+                                &mut live_sync,
+                            );
                         }
 
-
-
                         MacroStepHoverPreviewKind::Pin {
-
-
-
                             preset_name,
-
-
 
                             preset,
 
-
-
                             disabled,
 
-
-
                             disable_all,
-
-
-
                         } => {
-
-
-
                             ui.horizontal(|ui| {
-
-
-
-                                ui.label(RichText::new(preset_name).strong().color(Color32::from_rgb(124, 240, 164)));
-
-
+                                ui.label(
+                                    RichText::new(preset_name)
+                                        .strong()
+                                        .color(Color32::from_rgb(124, 240, 164)),
+                                );
 
                                 if *disabled {
-
-
-
-                                    ui.label(RichText::new(Self::tr_lang(language, "Disabled", "Đang tắt")).color(Color32::from_rgb(255, 120, 120)).strong());
-
-
-
+                                    ui.label(
+                                        RichText::new(Self::tr_lang(
+                                            language,
+                                            "Disabled",
+                                            "Đang tắt",
+                                        ))
+                                        .color(Color32::from_rgb(255, 120, 120))
+                                        .strong(),
+                                    );
                                 }
-
-
 
                                 if *disable_all {
-
-
-
-                                    ui.label(RichText::new(Self::tr_lang(language, "All", "Tất cả")).weak());
-
-
-
+                                    ui.label(
+                                        RichText::new(Self::tr_lang(language, "All", "Tất cả"))
+                                            .weak(),
+                                    );
                                 }
-
-
-
                             });
-
-
 
                             ui.add_space(6.0);
 
-
-
-                            let (_, preview_rect, scale) = Self::render_hover_preview_screen_canvas(ui, 320.0);
-
-
+                            let (_, preview_rect, scale) =
+                                Self::render_hover_preview_screen_canvas(ui, 320.0);
 
                             let target_rect = egui::Rect::from_min_size(
-
-
-
                                 egui::pos2(
-
-
-
                                     preview_rect.left() + preset.x.max(0) as f32 * scale,
-
-
-
                                     preview_rect.top() + preset.y.max(0) as f32 * scale,
-
-
-
                                 ),
-
-
-
                                 vec2(
-
-
-
                                     preset.width.max(1) as f32 * scale,
-
-
-
                                     preset.height.max(1) as f32 * scale,
-
-
-
                                 ),
-
-
-
                             );
-
-
 
                             let source_preview_size = vec2(
-
-
-
-                                (preset.source_width.max(1) as f32 * scale).min(preview_rect.width() * 0.36),
-
-
-
-                                (preset.source_height.max(1) as f32 * scale).min(preview_rect.height() * 0.36),
-
-
-
+                                (preset.source_width.max(1) as f32 * scale)
+                                    .min(preview_rect.width() * 0.36),
+                                (preset.source_height.max(1) as f32 * scale)
+                                    .min(preview_rect.height() * 0.36),
                             );
-
-
 
                             let source_rect = egui::Rect::from_min_size(
-
-
-
                                 preview_rect.left_top() + vec2(10.0, 10.0),
-
-
-
-                                vec2(source_preview_size.x.max(44.0), source_preview_size.y.max(28.0)),
-
-
-
+                                vec2(
+                                    source_preview_size.x.max(44.0),
+                                    source_preview_size.y.max(28.0),
+                                ),
                             );
 
-
-
                             ui.painter().rect_stroke(
-
-
-
                                 source_rect,
-
-
-
                                 6.0,
-
-
-
                                 egui::Stroke::new(1.5, Color32::from_rgb(0, 191, 255)),
-
-
-
                                 egui::StrokeKind::Outside,
-
-
-
                             );
-
-
 
                             ui.painter().rect_stroke(
-
-
-
                                 target_rect,
-
-
-
                                 6.0,
-
-
-
                                 egui::Stroke::new(1.5, Color32::from_rgb(0, 255, 170)),
-
-
-
                                 egui::StrokeKind::Outside,
-
-
-
                             );
 
-
-
                             ui.painter().text(
-
-
-
                                 source_rect.center_top() + vec2(0.0, -12.0),
-
-
-
                                 egui::Align2::CENTER_CENTER,
-
-
-
                                 Self::tr_lang(language, "Source", "Nguồn"),
-
-
-
                                 egui::FontId::proportional(11.0),
-
-
-
                                 Color32::from_rgb(0, 191, 255),
-
-
-
                             );
-
-
 
                             ui.painter().text(
-
-
-
                                 target_rect.center_top() + vec2(0.0, -12.0),
-
-
-
                                 egui::Align2::CENTER_CENTER,
-
-
-
                                 Self::tr_lang(language, "Pin box", "Khung ghim"),
-
-
-
                                 egui::FontId::proportional(11.0),
-
-
-
                                 Color32::from_rgb(0, 255, 170),
-
-
-
                             );
-
-
 
                             ui.add_space(4.0);
 
-
-
                             ui.label(format!(
-
-
-
                                 "{} {}, {}",
-
-
-
                                 Self::tr_lang(language, "Target box:", "Khung ghim:"),
-
-
-
                                 preset.width,
-
-
-
                                 preset.height
-
-
-
                             ));
 
-
-
                             ui.label(format!(
-
-
-
                                 "{} {}, {}",
-
-
-
                                 Self::tr_lang(language, "Source box:", "Khung nguồn:"),
-
-
-
                                 preset.source_width,
-
-
-
                                 preset.source_height
-
-
-
                             ));
-
-
 
                             ui.label(format!(
-
-
-
                                 "{} {}",
-
-
-
                                 Self::tr_lang(language, "Overlay style:", "Kiểu ghim:"),
-
-
-
                                 match preset.overlay_style {
+                                    PinOverlayStyle::Rectangle =>
+                                        Self::tr_lang(language, "Rectangle", "Chữ nhật"),
 
+                                    PinOverlayStyle::Circle =>
+                                        Self::tr_lang(language, "Circle", "Tròn"),
 
-
-                                    PinOverlayStyle::Rectangle => Self::tr_lang(language, "Rectangle", "Chữ nhật"),
-
-
-
-                                    PinOverlayStyle::Circle => Self::tr_lang(language, "Circle", "Tròn"),
-
-
-
-                                    PinOverlayStyle::HorizontalBar => Self::tr_lang(language, "Bar", "Thanh ngang"),
-
-
-
+                                    PinOverlayStyle::HorizontalBar =>
+                                        Self::tr_lang(language, "Bar", "Thanh ngang"),
                                 }
-
-
-
                             ));
-
-
-
                         }
-
-
 
                         MacroStepHoverPreviewKind::FocusWindow { window_title } => {
-
-
-
                             ui.label(format!(
-
-
-
                                 "{} {}",
-
-
-
                                 Self::tr_lang(language, "Focused window:", "Cửa sổ focus:"),
-
-
-
                                 window_title
-
-
-
                             ));
-
-
-
                         }
-
-
 
                         MacroStepHoverPreviewKind::Generic { lines } => {
-
-
-
                             for line in lines {
-
-
-
                                 ui.label(line);
-
-
-
                             }
-
-
-
                         }
 
-
-
                         MacroStepHoverPreviewKind::OcrStepRegion { x, y, w, h } => {
-
-
-
                             ui.horizontal(|ui| {
-
-
-
-                                ui.label(RichText::new(Self::tr_lang(language, "Custom OCR Region", "Vùng quét OCR tuỳ chỉnh")).strong());
-
-
-
+                                ui.label(
+                                    RichText::new(Self::tr_lang(
+                                        language,
+                                        "Custom OCR Region",
+                                        "Vùng quét OCR tuỳ chỉnh",
+                                    ))
+                                    .strong(),
+                                );
                             });
-
-
 
                             ui.add_space(6.0);
 
-
-
-                            let (_, preview_rect, scale) = Self::render_hover_preview_screen_canvas(ui, 360.0);
-
-
-
-                            
-
-
+                            let (_, preview_rect, scale) =
+                                Self::render_hover_preview_screen_canvas(ui, 360.0);
 
                             let region_rect = egui::Rect::from_min_size(
-
-
-
                                 egui::pos2(
-
-
-
                                     preview_rect.left() + ((*x).max(0) as f32 * scale),
-
-
-
                                     preview_rect.top() + ((*y).max(0) as f32 * scale),
-
-
-
                                 ),
-
-
-
                                 vec2(
-
-
-
                                     ((*w).max(1) as f32 * scale).max(10.0),
-
-
-
                                     ((*h).max(1) as f32 * scale).max(10.0),
-
-
-
                                 ),
-
-
-
                             );
 
-
-
-                            
-
-
-
-                            ui.painter().rect_filled(region_rect, 6.0, Color32::from_rgba_unmultiplied(0, 255, 170, 28));
-
-
+                            ui.painter().rect_filled(
+                                region_rect,
+                                6.0,
+                                Color32::from_rgba_unmultiplied(0, 255, 170, 28),
+                            );
 
                             ui.painter().rect_stroke(
-
-
-
                                 region_rect,
-
-
-
                                 6.0,
-
-
-
                                 egui::Stroke::new(2.0, Color32::from_rgb(0, 255, 170)),
-
-
-
                                 egui::StrokeKind::Outside,
-
-
-
                             );
-
-
-
                         }
-
-
-
                     }
-
-
-
                 });
-
-
-
         }
-
-
-
     }
 
-
-
-
-
-
-
     fn render_hover_preview_popup(
-
-
-
         ctx: &egui::Context,
 
-
-
         language: UiLanguage,
-
-
 
         preview: Option<&MacroStepHoverPreview>,
 
-
-
         anchor_pos: egui::Pos2,
-
-
-
     ) -> bool {
-
-
-
         let Some(preview) = preview else {
-
-
-
             return false;
-
-
-
         };
-
-
 
         let popup_id = egui::Id::new(("macro-hover-preview-popup", preview.source_id));
 
-
-
         let mut pos = anchor_pos + vec2(16.0, 18.0);
-
-
 
         let content_rect = ctx.content_rect();
 
-
-
         let estimated_size = match &preview.kind {
-
-
-
             MacroStepHoverPreviewKind::MacroPreset { .. }
-
-
-
             | MacroStepHoverPreviewKind::StepToggle { .. } => vec2(360.0, 180.0),
-
-
 
             MacroStepHoverPreviewKind::Vision { .. } => vec2(560.0, 440.0),
 
-
-
             MacroStepHoverPreviewKind::Hud { .. } => vec2(600.0, 520.0),
-
-
 
             MacroStepHoverPreviewKind::Crosshair { .. } => vec2(560.0, 420.0),
 
-
-
             MacroStepHoverPreviewKind::MouseMoveAbsolute { .. } => vec2(560.0, 380.0),
-
-
 
             MacroStepHoverPreviewKind::WindowResize { .. } => vec2(560.0, 440.0),
 
-
-
             MacroStepHoverPreviewKind::Pin { .. } => vec2(560.0, 420.0),
-
-
 
             MacroStepHoverPreviewKind::FocusWindow { .. } => vec2(240.0, 110.0),
 
-
-
             MacroStepHoverPreviewKind::Generic { .. } => vec2(240.0, 120.0),
 
-
-
             MacroStepHoverPreviewKind::OcrStepRegion { .. } => vec2(560.0, 440.0),
-
-
-
         };
 
-
-
         if pos.x + estimated_size.x > content_rect.right() {
-
-
-
             pos.x = (anchor_pos.x - estimated_size.x - 16.0).max(content_rect.left() + 6.0);
-
-
-
         }
-
-
 
         if pos.y + estimated_size.y > content_rect.bottom() {
-
-
-
             pos.y = (anchor_pos.y - estimated_size.y - 16.0).max(content_rect.top() + 6.0);
-
-
-
         }
 
-
-
         let area_response = egui::Area::new(popup_id)
-
-
-
             .order(egui::Order::Tooltip)
-
-
-
             .fixed_pos(pos)
-
-
-
             .interactable(true)
-
-
-
             .show(ctx, |ui| {
-
-
-
                 Self::render_hover_preview_panel(ui, language, Some(preview));
-
-
-
             });
-
-
 
         let rect = area_response.response.rect;
 
-
-
         let pointer_pos = ctx.input(|i| i.pointer.hover_pos());
 
-
-
-        let popup_hovered = area_response.response.hovered()
-
-
-
-            && pointer_pos.map_or(false, |p| rect.contains(p));
-
-
+        let popup_hovered =
+            area_response.response.hovered() && pointer_pos.map_or(false, |p| rect.contains(p));
 
         if popup_hovered {
-
-
-
             if matches!(
-
-
-
                 &preview.kind,
-
-
-
                 MacroStepHoverPreviewKind::MacroPreset { .. }
-
-
-
                     | MacroStepHoverPreviewKind::StepToggle { .. }
-
-
-
             ) {
-
-
-
                 let scroll_y = ctx.input(|i| i.raw_scroll_delta.y);
 
-
-
                 if scroll_y.abs() > 0.0 {
-
-
-
                     let offset_id = preview.source_id.with("macro-hover-preview-offset");
 
-
-
                     let line_count = match &preview.kind {
-
-
-
                         MacroStepHoverPreviewKind::MacroPreset { steps, .. } => {
-
-
-
                             Self::macro_step_preview_visible_entries(steps).len() as i32
-
-
-
                         }
-
-
 
                         MacroStepHoverPreviewKind::StepToggle { steps, .. } => {
-
-
-
                             Self::macro_step_preview_visible_entries(steps).len() as i32
-
-
-
                         }
 
-
-
                         _ => 0,
-
-
-
                     };
-
-
 
                     let visible_lines = 5i32;
 
-
-
                     let max_offset = (line_count - visible_lines).max(0);
 
-
-
                     let mut offset = ctx
-
-
-
                         .data(|data| data.get_temp::<i32>(offset_id))
-
-
-
                         .unwrap_or(0);
-
-
 
                     let delta = if scroll_y > 0.0 { -1 } else { 1 };
 
-
-
                     offset = (offset + delta).clamp(0, max_offset);
-
-
 
                     ctx.data_mut(|data| data.insert_temp(offset_id, offset));
 
-
-
                     ctx.request_repaint();
-
-
-
                 }
-
-
-
             }
-
-
-
         }
 
-
-
         popup_hovered
-
-
-
     }
 
-
-
-
-
-
-
     fn build_hover_preview_request(
-
-
-
         language: UiLanguage,
-
-
 
         source_id: egui::Id,
 
-
-
         step: &MacroStep,
-
-
-
     ) -> Option<HoverPreviewRequest> {
-
-
-
         match step.action {
-
-
-
             MacroAction::TriggerMacroPreset => Some(HoverPreviewRequest::MacroPreset {
-
-
-
                 source_id,
 
-
-
                 preset_id: step.key.trim().parse::<u32>().ok().unwrap_or(0),
-
-
 
                 mode_label: Self::tr_lang(language, "Trigger macro", "Kích hoạt macro").to_owned(),
-
-
-
             }),
-
-
 
             MacroAction::EnableMacroPreset => Some(HoverPreviewRequest::MacroPreset {
-
-
-
                 source_id,
 
-
-
                 preset_id: step.key.trim().parse::<u32>().ok().unwrap_or(0),
-
-
 
                 mode_label: Self::tr_lang(language, "Enable macro", "Bật macro").to_owned(),
-
-
-
             }),
 
-
-
             MacroAction::DisableMacroPreset => Some(HoverPreviewRequest::MacroPreset {
-
-
-
                 source_id,
-
-
 
                 preset_id: step.key.trim().parse::<u32>().ok().unwrap_or(0),
 
-
-
                 mode_label: Self::tr_lang(language, "Disable macro", "Tắt macro").to_owned(),
-
-
-
             }),
 
-
-
             MacroAction::EnableStep | MacroAction::DisableStep => {
-
-
-
                 let (preset_id, steps) = {
-
-
-
                     let parts: Vec<&str> = step.key.split('|').collect();
 
-
-
                     if parts.len() == 2 {
-
-
-
                         (
-
-
-
                             parts[0].trim().parse::<u32>().ok().unwrap_or(0),
-
-
-
                             parts[1]
-
-
-
                                 .split(',')
-
-
-
                                 .filter_map(|value| value.trim().parse::<u32>().ok())
-
-
-
                                 .collect::<Vec<_>>(),
-
-
-
                         )
-
-
-
                     } else {
-
-
-
                         (
-
-
-
                             step.key.trim().parse::<u32>().ok().unwrap_or(0),
-
-
-
                             step.key
-
-
-
                                 .split(',')
-
-
-
                                 .filter_map(|value| value.trim().parse::<u32>().ok())
-
-
-
                                 .collect::<Vec<_>>(),
-
-
-
                         )
-
-
-
                     }
-
-
-
                 };
 
-
-
                 Some(HoverPreviewRequest::StepToggle {
-
-
-
                     source_id,
-
-
 
                     preset_id,
 
-
-
                     mode_label: if step.action == MacroAction::EnableStep {
-
-
-
                         Self::tr_lang(language, "Enable steps", "Bật step").to_owned()
-
-
-
                     } else {
-
-
-
                         Self::tr_lang(language, "Disable steps", "Tắt step").to_owned()
-
-
-
                     },
 
-
-
                     selected_steps: steps,
-
-
-
                 })
-
-
-
             }
 
-
-
             _ => None,
-
-
-
         }
-
-
-
     }
 
-
-
-
-
-
-
     fn resolve_hover_preview_request(
-
-
-
         &self,
-
-
 
         group_id: u32,
 
-
-
         request: HoverPreviewRequest,
-
-
-
     ) -> Option<MacroStepHoverPreview> {
-
-
-
         match request {
-
-
-
             HoverPreviewRequest::MacroPreset {
-
-
-
                 source_id,
-
-
 
                 preset_id,
 
-
-
                 mode_label,
-
-
-
             } => {
+                let group = self
+                    .state
+                    .macro_groups
+                    .iter()
+                    .find(|group| group.id == group_id)?;
 
-
-
-                let group = self.state.macro_groups.iter().find(|group| group.id == group_id)?;
-
-
-
-                let preset = group.presets.iter().find(|preset| preset.id == preset_id)?.clone();
-
-
+                let preset = group
+                    .presets
+                    .iter()
+                    .find(|preset| preset.id == preset_id)?
+                    .clone();
 
                 let preset_label = Self::format_macro_trigger_ui(self.state.ui_language, &preset);
 
-
-
                 let title = format!("{}: {}", mode_label, preset_label.clone());
 
-
-
                 Some(MacroStepHoverPreview {
-
-
-
                     source_id,
 
-
-
                     title,
-
-
 
                     kind: MacroStepHoverPreviewKind::MacroPreset {
-
-
-
                         mode_label,
-
-
 
                         preset_name: preset_label,
 
-
-
                         steps: preset.steps,
-
-
-
                     },
-
-
-
                 })
-
-
-
             }
 
-
-
             HoverPreviewRequest::StepToggle {
-
-
-
                 source_id,
 
-
-
                 preset_id,
-
-
 
                 mode_label,
 
-
-
                 selected_steps,
-
-
-
             } => {
+                let group = self
+                    .state
+                    .macro_groups
+                    .iter()
+                    .find(|group| group.id == group_id)?;
 
-
-
-                let group = self.state.macro_groups.iter().find(|group| group.id == group_id)?;
-
-
-
-                let preset = group.presets.iter().find(|preset| preset.id == preset_id)?.clone();
-
-
+                let preset = group
+                    .presets
+                    .iter()
+                    .find(|preset| preset.id == preset_id)?
+                    .clone();
 
                 let preset_label = Self::format_macro_trigger_ui(self.state.ui_language, &preset);
 
-
-
                 let title = format!("{}: {}", mode_label, preset_label.clone());
 
-
-
                 Some(MacroStepHoverPreview {
-
-
-
                     source_id,
-
-
 
                     title,
 
-
-
                     kind: MacroStepHoverPreviewKind::StepToggle {
-
-
-
                         mode_label,
-
-
 
                         preset_name: preset_label,
 
-
-
                         steps: preset.steps,
 
-
-
                         selected_steps,
-
-
-
                     },
-
-
-
                 })
-
-
-
             }
 
-
-
             HoverPreviewRequest::Vision {
-
-
-
                 source_id,
 
-
-
                 preset_id,
-
-
 
                 action_label,
 
-
-
                 move_cursor,
-
-
 
                 wait_until_found,
 
-
-
                 trigger_macro_enabled,
 
-
-
                 trigger_macro_preset_id,
-
-
-
             } => {
-
-
-
                 let preset = self
-
-
-
                     .state
-
-
-
                     .vision_presets
-
-
-
                     .iter()
-
-
-
                     .find(|preset| preset.id == preset_id)?
-
-
-
                     .clone();
 
-
-
                 let trigger_macro_name = if trigger_macro_enabled {
-
-
-
                     trigger_macro_preset_id.and_then(|macro_id| {
-
-
-
                         self.state
-
-
-
                             .macro_groups
-
-
-
                             .iter()
-
-
-
                             .find(|group| group.id == group_id)
-
-
-
                             .and_then(|group| {
-
-
-
                                 group
-
-
-
                                     .presets
-
-
-
                                     .iter()
-
-
-
                                     .find(|macro_preset| macro_preset.id == macro_id)
-
-
-
                                     .map(|macro_preset| {
-
-
-
-                                        Self::format_macro_trigger_ui(self.state.ui_language, macro_preset)
-
-
-
+                                        Self::format_macro_trigger_ui(
+                                            self.state.ui_language,
+                                            macro_preset,
+                                        )
                                     })
-
-
-
                             })
-
-
-
                     })
-
-
-
                 } else {
-
-
-
                     None
-
-
-
                 };
 
-
-
                 let preset_name = preset.name.clone();
-
-
 
                 let title = format!("{}: {}", action_label, preset_name.clone());
 
-
-
                 Some(MacroStepHoverPreview {
-
-
-
                     source_id,
-
-
 
                     title,
 
-
-
                     kind: MacroStepHoverPreviewKind::Vision {
-
-
-
                         action_label,
-
-
 
                         preset_name,
 
-
-
                         preset,
-
-
 
                         trigger_macro_name,
 
-
-
                         move_cursor,
-
-
 
                         wait_until_found,
 
-
-
                         trigger_macro_enabled,
-
-
-
                     },
-
-
-
                 })
-
-
-
             }
 
-
-
             HoverPreviewRequest::Hud {
-
-
-
                 source_id,
 
-
-
                 preset_id,
-
-
 
                 text_override,
 
-
-
                 duration_override_ms,
 
-
-
                 timed_override,
-
-
-
             } => {
-
-
-
                 let preset = self
-
-
-
                     .state
-
-
-
                     .hud_presets
-
-
-
                     .iter()
-
-
-
                     .find(|preset| preset.id == preset_id)?
-
-
-
                     .clone();
 
-
-
                 let text = if text_override.trim().is_empty() {
-
-
-
                     preset.text.clone()
-
-
-
                 } else {
-
-
-
                     text_override
-
-
-
                 };
 
-
-
                 let preset_name = preset.name.clone();
-
-
 
                 let title = format!("HUD: {}", preset_name.clone());
 
-
-
                 Some(MacroStepHoverPreview {
-
-
-
                     source_id,
-
-
 
                     title,
 
-
-
                     kind: MacroStepHoverPreviewKind::Hud {
-
-
-
                         preset_name,
 
-
-
                         preset,
-
-
 
                         text,
 
-
-
                         duration_override_ms,
 
-
-
                         timed_override,
-
-
-
                     },
-
-
-
                 })
-
-
-
             }
 
-
-
             HoverPreviewRequest::Crosshair {
-
-
-
                 source_id,
-
-
 
                 profile_name,
 
-
-
                 disabled,
-
-
-
             } => {
-
-
-
                 let profile = self
-
-
-
                     .state
-
-
-
                     .profiles
-
-
-
                     .iter()
-
-
-
                     .find(|profile| profile.name.eq_ignore_ascii_case(&profile_name))
-
-
-
                     .cloned()
-
-
-
                     .unwrap_or_else(|| ProfileRecord {
-
-
-
                         name: profile_name.clone(),
-
-
 
                         enabled: true,
 
-
-
                         collapsed: true,
-
-
 
                         style: CrosshairStyle::default(),
 
-
-
                         target_window_title: None,
 
-
-
                         extra_target_window_titles: Vec::new(),
-
-
-
                     });
 
-
-
                 let title = format!(
-
-
-
                     "{}: {}",
-
-
-
-                    Self::tr_lang(
-
-
-
-                        self.state.ui_language,
-
-
-
-                        "Crosshair",
-
-
-
-                        "Tâm ngắm",
-
-
-
-                    ),
-
-
-
+                    Self::tr_lang(self.state.ui_language, "Crosshair", "Tâm ngắm",),
                     profile.name.clone()
-
-
-
                 );
 
-
-
                 Some(MacroStepHoverPreview {
-
-
-
                     source_id,
-
-
 
                     title,
 
-
-
                     kind: MacroStepHoverPreviewKind::Crosshair {
-
-
-
                         profile_name: profile.name,
-
-
 
                         style: profile.style,
 
-
-
                         disabled,
-
-
-
                     },
-
-
-
                 })
-
-
-
             }
 
+            HoverPreviewRequest::MouseMoveAbsolute { source_id, x, y } => {
+                Some(MacroStepHoverPreview {
+                    source_id,
 
+                    title: Self::tr_lang(
+                        self.state.ui_language,
+                        "Mouse move absolute",
+                        "Di chuyển chuột tuyệt đối",
+                    )
+                    .to_owned(),
 
-            HoverPreviewRequest::MouseMoveAbsolute { source_id, x, y } => Some(MacroStepHoverPreview {
-
-
-
-                source_id,
-
-
-
-                title: Self::tr_lang(self.state.ui_language, "Mouse move absolute", "Di chuyển chuột tuyệt đối").to_owned(),
-
-
-
-                kind: MacroStepHoverPreviewKind::MouseMoveAbsolute { x, y },
-
-
-
-            }),
-
-
+                    kind: MacroStepHoverPreviewKind::MouseMoveAbsolute { x, y },
+                })
+            }
 
             HoverPreviewRequest::WindowResize {
-
-
-
                 source_id,
 
-
-
                 preset_id,
-
-
-
             } => {
-
-
-
                 let preset = self
-
-
-
                     .state
-
-
-
                     .window_presets
-
-
-
                     .iter()
-
-
-
                     .find(|preset| preset.id == preset_id)?
-
-
-
                     .clone();
-
-
 
                 let preset_name = preset.name.clone();
 
-
-
                 let title = format!(
-
-
-
                     "{}: {}",
-
-
-
                     Self::tr_lang(self.state.ui_language, "Resize", "Kích thước"),
-
-
-
                     preset_name.clone()
-
-
-
                 );
 
-
-
                 Some(MacroStepHoverPreview {
-
-
-
                     source_id,
-
-
 
                     title,
 
-
-
                     kind: MacroStepHoverPreviewKind::WindowResize {
-
-
-
                         preset_name,
 
-
-
                         preset,
-
-
-
                     },
-
-
-
                 })
-
-
-
             }
 
-
-
             HoverPreviewRequest::Pin {
-
-
-
                 source_id,
 
-
-
                 preset_id,
-
-
 
                 disabled,
 
-
-
                 disable_all,
-
-
-
             } => {
-
-
-
                 let preset = self
-
-
-
                     .state
-
-
-
                     .pin_presets
-
-
-
                     .iter()
-
-
-
                     .find(|preset| preset.id == preset_id)?
-
-
-
                     .clone();
-
-
 
                 let preset_name = preset.name.clone();
 
-
-
                 let title = format!(
-
-
-
                     "{}: {}",
-
-
-
                     Self::tr_lang(self.state.ui_language, "Pin", "Ghim"),
-
-
-
                     preset_name.clone()
-
-
-
                 );
 
-
-
                 Some(MacroStepHoverPreview {
-
-
-
                     source_id,
-
-
 
                     title,
 
-
-
                     kind: MacroStepHoverPreviewKind::Pin {
-
-
-
                         preset_name,
-
-
 
                         preset,
 
-
-
                         disabled,
 
-
-
                         disable_all,
-
-
-
                     },
-
-
-
                 })
-
-
-
             }
 
-
-
             HoverPreviewRequest::FocusWindow {
-
-
-
                 source_id,
-
-
 
                 window_title,
-
-
-
             } => Some(MacroStepHoverPreview {
-
-
-
                 source_id,
 
-
-
-                title: Self::tr_lang(self.state.ui_language, "Window focus", "Focus cửa sổ").to_owned(),
-
-
+                title: Self::tr_lang(self.state.ui_language, "Window focus", "Focus cửa sổ")
+                    .to_owned(),
 
                 kind: MacroStepHoverPreviewKind::FocusWindow { window_title },
-
-
-
             }),
-
-
 
             HoverPreviewRequest::Generic {
-
-
-
                 source_id,
 
-
-
                 title,
-
-
 
                 lines,
-
-
-
             } => Some(MacroStepHoverPreview {
-
-
-
                 source_id,
-
-
 
                 title,
 
-
-
                 kind: MacroStepHoverPreviewKind::Generic { lines },
-
-
-
             }),
 
-
-
-            HoverPreviewRequest::OcrStepRegion { source_id, x, y, w, h } => Some(MacroStepHoverPreview {
-
-
-
+            HoverPreviewRequest::OcrStepRegion {
+                source_id,
+                x,
+                y,
+                w,
+                h,
+            } => Some(MacroStepHoverPreview {
                 source_id,
 
-
-
-                title: Self::tr_lang(self.state.ui_language, "Custom OCR Region", "Vùng quét OCR tuỳ chỉnh").to_owned(),
-
-
+                title: Self::tr_lang(
+                    self.state.ui_language,
+                    "Custom OCR Region",
+                    "Vùng quét OCR tuỳ chỉnh",
+                )
+                .to_owned(),
 
                 kind: MacroStepHoverPreviewKind::OcrStepRegion { x, y, w, h },
-
-
-
             }),
-
-
-
         }
-
-
-
     }
-
-
-
-
-
-
 
     fn mouse_macro_actions() -> &'static [MacroAction] {
-
-
-
         &[
-
-
-
             MacroAction::MouseLeftClick,
-
-
-
             MacroAction::MouseLeftDown,
-
-
-
             MacroAction::MouseLeftUp,
-
-
-
             MacroAction::MouseRightClick,
-
-
-
             MacroAction::MouseRightDown,
-
-
-
             MacroAction::MouseRightUp,
-
-
-
             MacroAction::MouseMiddleClick,
-
-
-
             MacroAction::MouseMiddleDown,
-
-
-
             MacroAction::MouseMiddleUp,
-
-
-
             MacroAction::MouseX1Click,
-
-
-
             MacroAction::MouseX1Down,
-
-
-
             MacroAction::MouseX1Up,
-
-
-
             MacroAction::MouseX2Click,
-
-
-
             MacroAction::MouseX2Down,
-
-
-
             MacroAction::MouseX2Up,
-
-
-
             MacroAction::MouseWheelUp,
-
-
-
             MacroAction::MouseWheelDown,
-
-
-
             MacroAction::MouseMoveAbsolute,
-
-
-
             MacroAction::MouseMoveRelative,
-
-
-
             MacroAction::LockMouse,
-
-
-
             MacroAction::UnlockMouse,
-
-
-
             MacroAction::PlayMousePathPreset,
-
-
-
         ]
-
-
-
     }
-
-
 
     fn macro_action_is_mouse(action: MacroAction) -> bool {
-
-
-
         Self::mouse_macro_actions().contains(&action)
-
-
-
     }
 
-
-
-    fn mouse_click_action_groups() -> &'static [(MacroAction, MacroAction, MacroAction, &'static str)] {
-
-
-
+    fn mouse_click_action_groups()
+    -> &'static [(MacroAction, MacroAction, MacroAction, &'static str)] {
         &[
-
-
-
             (
-
-
-
                 MacroAction::MouseLeftClick,
-
-
-
                 MacroAction::MouseLeftDown,
-
-
-
                 MacroAction::MouseLeftUp,
-
-
-
                 "mouse-left-click",
-
-
-
             ),
-
-
-
             (
-
-
-
                 MacroAction::MouseRightClick,
-
-
-
                 MacroAction::MouseRightDown,
-
-
-
                 MacroAction::MouseRightUp,
-
-
-
                 "mouse-right-click",
-
-
-
             ),
-
-
-
             (
-
-
-
                 MacroAction::MouseMiddleClick,
-
-
-
                 MacroAction::MouseMiddleDown,
-
-
-
                 MacroAction::MouseMiddleUp,
-
-
-
                 "mouse-middle-click",
-
-
-
             ),
-
-
-
             (
-
-
-
                 MacroAction::MouseX1Click,
-
-
-
                 MacroAction::MouseX1Down,
-
-
-
                 MacroAction::MouseX1Up,
-
-
-
                 "mouse-x1-click",
-
-
-
             ),
-
-
-
             (
-
-
-
                 MacroAction::MouseX2Click,
-
-
-
                 MacroAction::MouseX2Down,
-
-
-
                 MacroAction::MouseX2Up,
-
-
-
                 "mouse-x2-click",
-
-
-
             ),
-
-
-
         ]
-
-
-
     }
-
-
 
     fn mouse_leaf_action_groups() -> &'static [MacroAction] {
-
-
-
         &[
-
-
-
             MacroAction::MouseWheelUp,
-
-
-
             MacroAction::MouseWheelDown,
-
-
-
             MacroAction::MouseMoveAbsolute,
-
-
-
             MacroAction::MouseMoveRelative,
-
-
-
             MacroAction::LockMouse,
-
-
-
             MacroAction::UnlockMouse,
-
-
-
             MacroAction::PlayMousePathPreset,
-
-
-
         ]
-
-
-
     }
-
-
 
     fn if_action_groups() -> &'static [MacroAction] {
-
-
-
         &[MacroAction::IfStart, MacroAction::Else, MacroAction::IfEnd]
-
-
-
     }
 
-
-
     fn render_mouse_click_action_group_option(
-
-
-
         ui: &mut egui::Ui,
-
-
 
         language: UiLanguage,
 
-
-
         id_source: impl std::hash::Hash + Copy,
-
-
 
         current: &mut MacroAction,
 
-
-
         live_sync: &mut bool,
-
-
 
         base_action: MacroAction,
 
-
-
         down_action: MacroAction,
-
-
 
         up_action: MacroAction,
 
-
-
         popup_key: &'static str,
-
-
-
     ) {
-
-
-
         let selected = matches!(*current, action if action == base_action || action == down_action || action == up_action);
-
-
 
         let popup_id = ui.make_persistent_id((id_source, popup_key, "popup"));
 
-
-
         let popup_rect_id = ui.make_persistent_id((id_source, popup_key, "rect"));
 
-
-
         let active_mouse_click_popup_key_id =
-
-
-
             ui.make_persistent_id((id_source, "mouse-click-active-submenu-key"));
 
-
-
         let mut open = ui
-
-
-
             .ctx()
-
-
-
             .data(|data| data.get_temp::<bool>(popup_id))
-
-
-
             .unwrap_or(false);
 
-
-
         let inner = ui.allocate_ui_with_layout(
-
-
-
             vec2(58.0, 42.0),
-
-
-
             egui::Layout::top_down(egui::Align::Center),
-
-
-
             |ui| {
-
-
-
                 let label_color = if selected {
-
-
-
                     ui.visuals().strong_text_color()
-
-
-
                 } else {
-
-
-
                     ui.visuals().text_color()
-
-
-
                 };
 
-
-
                 let response = ui.add_sized(
-
-
-
                     [34.0, 24.0],
-
-
-
                     Button::new(Self::macro_action_icon_text(base_action)).selected(selected),
-
-
-
                 );
 
-
-
                 if response.hovered() || response.clicked() {
-
-
-
                     Self::clear_mouse_click_submenus(ui, id_source);
-
-
 
                     open = true;
 
-
-
                     ui.ctx().data_mut(|data| {
-
-
-
                         data.insert_temp(active_mouse_click_popup_key_id, Some(popup_key))
-
-
-
                     });
-
-
-
                 }
 
-
-
                 if response.clicked() {
-
-
-
                     *current = base_action;
-
-
 
                     *live_sync = true;
 
-
-
                     ui.close();
-
-
-
                 }
-
-
 
                 let _popup_response = egui::Popup::from_response(&response)
-
-
-
                     .id(popup_id)
-
-
-
                     .open_bool(&mut open)
-
-
-
                     .align(egui::RectAlign::TOP_START)
-
-
-
                     .layout(egui::Layout::top_down_justified(egui::Align::Min))
-
-
-
                     .width(140.0)
-
-
-
                     .close_behavior(egui::PopupCloseBehavior::IgnoreClicks)
-
-
-
                     .show(|ui| {
-
-
-
                         let rect = ui.max_rect();
 
-
-
-                        ui.ctx().data_mut(|data| data.insert_temp(popup_rect_id, rect));
-
-
+                        ui.ctx()
+                            .data_mut(|data| data.insert_temp(popup_rect_id, rect));
 
                         egui::Grid::new((id_source, popup_key, "grid"))
-
-
-
                             .num_columns(2)
-
-
-
                             .spacing([6.0, 6.0])
-
-
-
                             .show(ui, |ui| {
-
-
-
                                 Self::render_macro_action_option(
-
-
-
                                     ui,
-
-
-
                                     language,
-
-
-
                                     current,
-
-
-
                                     down_action,
-
-
-
                                     live_sync,
-
-
-
                                     popup_id,
-
-
-
                                     true,
-
-
-
                                 );
-
-
 
                                 Self::render_macro_action_option(
-
-
-
-                                    ui,
-
-
-
-                                    language,
-
-
-
-                                    current,
-
-
-
-                                    up_action,
-
-
-
-                                    live_sync,
-
-
-
-                                    popup_id,
-
-
-
-                                    true,
-
-
-
+                                    ui, language, current, up_action, live_sync, popup_id, true,
                                 );
-
-
-
                             });
-
-
-
                     });
 
-
-
                 let popup_rect: Option<egui::Rect> =
-
-
-
                     ui.ctx().data(|data| data.get_temp(popup_rect_id));
 
-
-
                 if open {
-
-
-
                     if let Some(pointer_pos) = ui.ctx().pointer_hover_pos() {
-
-
-
                         let mut keep_open_rect = response.rect.expand(2.0);
 
-
-
                         if let Some(rect) = popup_rect {
-
-
-
                             keep_open_rect = keep_open_rect.union(rect.expand(2.0));
-
-
-
                         }
-
-
 
                         if !keep_open_rect.contains(pointer_pos) {
-
-
-
                             open = false;
 
-
-
                             ui.ctx().request_repaint();
-
-
-
                         }
-
-
-
                     } else {
-
-
-
                         open = false;
-
-
 
                         ui.ctx().request_repaint();
-
-
-
                     }
-
-
-
                 }
-
-
 
                 let active_popup_key = ui
-
-
-
                     .ctx()
-
-
-
-                    .data(|data| data.get_temp::<Option<&'static str>>(active_mouse_click_popup_key_id))
-
-
-
+                    .data(|data| {
+                        data.get_temp::<Option<&'static str>>(active_mouse_click_popup_key_id)
+                    })
                     .flatten();
 
-
-
                 if let Some(active_popup_key) = active_popup_key {
-
-
-
                     if active_popup_key != popup_key {
-
-
-
                         open = false;
-
-
-
                     }
-
-
-
                 }
-
-
 
                 ui.ctx().data_mut(|data| data.insert_temp(popup_id, open));
 
-
-
                 ui.label(
-
-
-
                     RichText::new(Self::macro_action_short_label(base_action, language))
-
-
-
                         .size(9.0)
-
-
-
                         .color(label_color),
-
-
-
                 );
 
-
-
                 response
-
-
-
             },
-
-
-
         );
-
-
 
         let response = inner.inner;
 
-
-
         if !open {
-
-
-
             Self::show_instant_hover_tooltip(
-
-
-
                 ui,
-
-
-
                 &response,
-
-
-
                 Self::macro_action_tooltip(base_action, language),
-
-
-
             );
-
-
-
         }
-
-
-
     }
 
-
-
     fn render_if_action_group_option(
-
-
-
         ui: &mut egui::Ui,
-
-
 
         language: UiLanguage,
 
-
-
         id_source: impl std::hash::Hash + Copy,
-
-
 
         current: &mut MacroAction,
 
-
-
         live_sync: &mut bool,
 
-
-
         action_hover_id: egui::Id,
-
-
-
     ) {
-
-
-
-        let selected = matches!(*current, MacroAction::IfStart | MacroAction::Else | MacroAction::IfEnd);
-
-
+        let selected = matches!(
+            *current,
+            MacroAction::IfStart | MacroAction::Else | MacroAction::IfEnd
+        );
 
         let owner_id = ui.make_persistent_id("macro-action-submenu-owner");
-
-
 
         let popup_id = ui.make_persistent_id((id_source, "if-submenu-popup"));
 
-
-
         let popup_rect_id = ui.make_persistent_id((id_source, "if-submenu-rect"));
-
-
 
         let mouse_popup_id = ui.make_persistent_id((id_source, "mouse-submenu-popup"));
 
-
-
         let image_popup_id = ui.make_persistent_id((id_source, "image-search-submenu-popup"));
-
-
 
         let timer_popup_id = ui.make_persistent_id((id_source, "timer-submenu-popup"));
 
-
-
         let active_owner = ui
-
-
-
             .ctx()
-
-
-
             .data(|data| data.get_temp::<MacroActionSubmenuKind>(owner_id));
 
-
-
         let mut open = ui
-
-
-
             .ctx()
-
-
-
             .data(|data| data.get_temp::<bool>(popup_id))
-
-
-
             .unwrap_or(false);
 
-
-
         if active_owner.is_some_and(|kind| kind != MacroActionSubmenuKind::If) {
-
-
-
             open = false;
-
-
-
         }
 
-
-
         let inner = ui.allocate_ui_with_layout(
-
-
-
             vec2(58.0, 42.0),
-
-
-
             egui::Layout::top_down(egui::Align::Center),
-
-
-
             |ui| {
-
-
-
                 let label_color = if selected {
-
-
-
                     ui.visuals().strong_text_color()
-
-
-
                 } else {
-
-
-
                     ui.visuals().text_color()
-
-
-
                 };
 
-
-
                 let response = ui.add_sized(
-
-
-
                     [34.0, 24.0],
-
-
-
-                    Button::new(Self::macro_action_icon_text(MacroAction::IfStart)).selected(selected),
-
-
-
+                    Button::new(Self::macro_action_icon_text(MacroAction::IfStart))
+                        .selected(selected),
                 );
 
-
-
                 if response.hovered() || response.clicked() {
-
-
-
                     Self::clear_macro_action_submenus(ui, id_source);
-
-
 
                     open = true;
 
-
-
                     ui.ctx()
-
-
-
                         .data_mut(|data| data.insert_temp(owner_id, MacroActionSubmenuKind::If));
 
+                    ui.ctx()
+                        .data_mut(|data| data.insert_temp(action_hover_id, true));
 
+                    ui.ctx()
+                        .data_mut(|data| data.insert_temp(mouse_popup_id, false));
 
-                    ui.ctx().data_mut(|data| data.insert_temp(action_hover_id, true));
+                    ui.ctx()
+                        .data_mut(|data| data.insert_temp(image_popup_id, false));
 
-
-
-                    ui.ctx().data_mut(|data| data.insert_temp(mouse_popup_id, false));
-
-
-
-                    ui.ctx().data_mut(|data| data.insert_temp(image_popup_id, false));
-
-
-
-                    ui.ctx().data_mut(|data| data.insert_temp(timer_popup_id, false));
-
-
-
+                    ui.ctx()
+                        .data_mut(|data| data.insert_temp(timer_popup_id, false));
                 }
-
-
 
                 let _popup_response = egui::Popup::from_response(&response)
-
-
-
                     .id(popup_id)
-
-
-
                     .open_bool(&mut open)
-
-
-
                     .align(egui::RectAlign::BOTTOM_START)
-
-
-
                     .layout(egui::Layout::top_down_justified(egui::Align::Min))
-
-
-
                     .width(176.0)
-
-
-
                     .close_behavior(egui::PopupCloseBehavior::IgnoreClicks)
-
-
-
                     .show(|ui| {
-
-
-
                         let rect = ui.max_rect();
 
-
-
-                        ui.ctx().data_mut(|data| data.insert_temp(popup_rect_id, rect));
-
-
+                        ui.ctx()
+                            .data_mut(|data| data.insert_temp(popup_rect_id, rect));
 
                         egui::Grid::new((id_source, "if-action-grid"))
-
-
-
                             .num_columns(2)
-
-
-
                             .spacing([6.0, 6.0])
-
-
-
                             .show(ui, |ui| {
-
-
-
                                 for action in Self::if_action_groups().iter().copied() {
-
-
-
                                     Self::render_macro_action_option(
-
-
-
                                         ui,
-
-
-
                                         language,
-
-
-
                                         current,
-
-
-
                                         action,
-
-
-
                                         live_sync,
-
-
-
                                         action_hover_id,
-
-
-
                                         true,
-
-
-
                                     );
-
-
-
                                 }
-
-
-
                             });
-
-
-
                     });
 
-
-
                 let popup_rect: Option<egui::Rect> =
-
-
-
                     ui.ctx().data(|data| data.get_temp(popup_rect_id));
 
-
-
                 if open {
-
-
-
                     if let Some(pointer_pos) = ui.ctx().pointer_hover_pos() {
-
-
-
                         let mut keep_open_rect = response.rect.expand(2.0);
 
-
-
                         if let Some(rect) = popup_rect {
-
-
-
                             keep_open_rect = keep_open_rect.union(rect.expand(2.0));
-
-
-
                         }
-
-
 
                         if !keep_open_rect.contains(pointer_pos) {
-
-
-
                             open = false;
 
-
-
-                            ui.ctx()
-
-
-
-                                .data_mut(|data| data.insert_temp(owner_id, None::<MacroActionSubmenuKind>));
-
-
+                            ui.ctx().data_mut(|data| {
+                                data.insert_temp(owner_id, None::<MacroActionSubmenuKind>)
+                            });
 
                             ui.ctx().request_repaint();
-
-
-
                         }
-
-
-
                     } else {
-
-
-
                         open = false;
 
-
-
-                        ui.ctx()
-
-
-
-                            .data_mut(|data| data.insert_temp(owner_id, None::<MacroActionSubmenuKind>));
-
-
+                        ui.ctx().data_mut(|data| {
+                            data.insert_temp(owner_id, None::<MacroActionSubmenuKind>)
+                        });
 
                         ui.ctx().request_repaint();
-
-
-
                     }
-
-
-
                 }
-
-
 
                 ui.ctx().data_mut(|data| data.insert_temp(popup_id, open));
 
-
-
                 ui.label(
-
-
-
                     RichText::new(Self::tr_lang(language, "IF", ""))
-
-
-
                         .size(9.0)
-
-
-
                         .color(label_color),
-
-
-
                 );
 
-
-
                 response
-
-
-
             },
-
-
-
         );
-
-
 
         let response = inner.inner;
 
-
-
         if !open {
-
-
-
             Self::show_instant_hover_tooltip(
-
-
-
                 ui,
-
-
-
                 &response,
-
-
-
                 Self::macro_action_tooltip(MacroAction::IfStart, language),
-
-
-
             );
-
-
-
         }
-
-
-
     }
 
-
-
     fn render_mouse_action_group_option(
-
-
-
         ui: &mut egui::Ui,
-
-
 
         language: UiLanguage,
 
-
-
         id_source: impl std::hash::Hash + Copy,
-
-
 
         current: &mut MacroAction,
 
-
-
         live_sync: &mut bool,
 
-
-
         action_hover_id: egui::Id,
-
-
-
     ) {
-
-
-
         let selected = Self::macro_action_is_mouse(*current);
-
-
 
         let owner_id = ui.make_persistent_id("macro-action-submenu-owner");
 
-
-
         let active_mouse_click_popup_key_id =
-
-
-
             ui.make_persistent_id((id_source, "mouse-click-active-submenu-key"));
-
-
 
         let popup_id = ui.make_persistent_id((id_source, "mouse-submenu-popup"));
 
-
-
         let image_popup_id = ui.make_persistent_id((id_source, "image-search-submenu-popup"));
-
-
 
         let timer_popup_id = ui.make_persistent_id((id_source, "timer-submenu-popup"));
 
-
-
         let active_owner = ui
-
-
-
             .ctx()
-
-
-
             .data(|data| data.get_temp::<MacroActionSubmenuKind>(owner_id));
 
-
-
         let top_level_hovered = ui
-
-
-
             .ctx()
-
-
-
             .data(|data| data.get_temp::<bool>(action_hover_id))
-
-
-
             .unwrap_or(false);
-
-
 
         let mut open = ui
-
-
-
             .ctx()
-
-
-
             .data(|data| data.get_temp::<bool>(popup_id))
-
-
-
             .unwrap_or(false);
 
-
-
         if active_owner.is_some_and(|kind| kind != MacroActionSubmenuKind::Mouse) {
-
-
-
             open = false;
-
-
-
         }
-
-
 
         if top_level_hovered {
-
-
-
             open = false;
 
-
-
             Self::clear_macro_action_submenus(ui, id_source);
-
-
-
         }
 
-
-
         let inner = ui.allocate_ui_with_layout(
-
-
-
             vec2(58.0, 42.0),
-
-
-
             egui::Layout::top_down(egui::Align::Center),
-
-
-
             |ui| {
-
-
-
                 let response = ui.add_sized(
-
-
-
                     [34.0, 24.0],
-
-
-
                     Button::new(Self::material_icon_text(0xe323, 18.0)).selected(selected),
-
-
-
                 );
 
-
-
                 if response.hovered() || response.clicked() {
-
-
-
                     Self::clear_macro_action_submenus(ui, id_source);
-
-
 
                     open = true;
 
-
-
                     ui.ctx()
-
-
-
                         .data_mut(|data| data.insert_temp(owner_id, MacroActionSubmenuKind::Mouse));
 
-
-
                     ui.ctx().data_mut(|data| {
-
-
-
                         data.insert_temp(active_mouse_click_popup_key_id, None::<&'static str>)
-
-
-
                     });
-
-
-
                 }
-
-
 
                 let popup_rect_id = ui.make_persistent_id((id_source, "mouse-submenu-rect"));
 
-
-
                 let popup_response = egui::Popup::from_response(&response)
-
-
-
                     .id(popup_id)
-
-
-
                     .open_bool(&mut open)
-
-
-
                     .align(egui::RectAlign::BOTTOM_START)
-
-
-
                     .layout(egui::Layout::top_down_justified(egui::Align::Min))
-
-
-
                     .width(372.0)
-
-
-
                     .close_behavior(egui::PopupCloseBehavior::IgnoreClicks)
-
-
-
                     .show(|ui| {
-
-
-
                         let rect = ui.max_rect();
 
-
-
-                        ui.ctx().data_mut(|data| data.insert_temp(popup_rect_id, rect));
-
-
+                        ui.ctx()
+                            .data_mut(|data| data.insert_temp(popup_rect_id, rect));
 
                         egui::Grid::new((id_source, "mouse-action-grid"))
-
-
-
                             .num_columns(6)
-
-
-
                             .spacing([6.0, 6.0])
-
-
-
                             .show(ui, |ui| {
-
-
-
                                 let mut item_index = 0usize;
 
-
-
                                 for (base_action, down_action, up_action, popup_key) in
-
-
-
                                     Self::mouse_click_action_groups().iter().copied()
-
-
-
                                 {
-
-
-
                                     Self::render_mouse_click_action_group_option(
-
-
-
                                         ui,
-
-
-
                                         language,
-
-
-
                                         id_source,
-
-
-
                                         current,
-
-
-
                                         live_sync,
-
-
-
                                         base_action,
-
-
-
                                         down_action,
-
-
-
                                         up_action,
-
-
-
                                         popup_key,
-
-
-
                                     );
-
-
 
                                     item_index += 1;
 
-
-
                                     if item_index % 6 == 0 {
-
-
-
                                         ui.end_row();
-
-
-
                                     }
-
-
-
                                 }
 
-
-
                                 for action in Self::mouse_leaf_action_groups().iter().copied() {
-
-
-
                                     let leaf_response = Self::render_macro_action_button(
-
-
-
                                         ui,
-
-
-
                                         language,
-
-
-
                                         current,
-
-
-
                                         action,
-
-
-
                                         action_hover_id,
-
-
-
                                         true,
-
-
-
                                     );
 
-
-
                                     if leaf_response.hovered() || leaf_response.clicked() {
-
-
-
                                         Self::clear_mouse_click_submenus(ui, id_source);
 
-
-
                                         ui.ctx().data_mut(|data| {
-
-
-
-                                            data.insert_temp(active_mouse_click_popup_key_id, None::<&'static str>)
-
-
-
+                                            data.insert_temp(
+                                                active_mouse_click_popup_key_id,
+                                                None::<&'static str>,
+                                            )
                                         });
-
-
-
                                     }
 
-
-
                                     if leaf_response.clicked() {
-
-
-
                                         *current = action;
-
-
 
                                         *live_sync = true;
 
-
-
                                         ui.close();
-
-
-
                                     }
-
-
 
                                     item_index += 1;
 
-
-
                                     if item_index % 6 == 0 {
-
-
-
                                         ui.end_row();
-
-
-
                                     }
-
-
-
                                 }
-
-
-
                             });
-
-
-
                     });
 
-
-
                 let active_mouse_click_popup_key = ui
-
-
-
                     .ctx()
-
-
-
-                    .data(|data| data.get_temp::<Option<&'static str>>(active_mouse_click_popup_key_id))
-
-
-
+                    .data(|data| {
+                        data.get_temp::<Option<&'static str>>(active_mouse_click_popup_key_id)
+                    })
                     .flatten();
 
-
-
                 Self::close_inactive_mouse_click_submenus(
-
-
-
                     ui,
-
-
-
                     id_source,
-
-
-
                     active_mouse_click_popup_key,
-
-
-
                 );
 
-
-
-                let popup_rect: Option<egui::Rect> = ui.ctx().data(|data| data.get_temp(popup_rect_id));
-
-
+                let popup_rect: Option<egui::Rect> =
+                    ui.ctx().data(|data| data.get_temp(popup_rect_id));
 
                 if open {
-
-
-
                     if let Some(pointer_pos) = ui.ctx().pointer_hover_pos() {
-
-
-
                         let mut keep_open_rect = response.rect.expand(2.0);
 
-
-
                         if let Some(rect) = popup_rect {
-
-
-
                             keep_open_rect = keep_open_rect.union(rect.expand(2.0));
 
-
-
                             if rect.contains(pointer_pos) {
-
-
-
                                 ui.ctx().data_mut(|data| {
-
-
-
                                     data.insert_temp(owner_id, MacroActionSubmenuKind::Mouse)
-
-
-
                                 });
-
-
-
                             }
-
-
-
                         }
 
-
-
-                        for (_, _, _, popup_key) in Self::mouse_click_action_groups().iter().copied() {
-
-
-
+                        for (_, _, _, popup_key) in
+                            Self::mouse_click_action_groups().iter().copied()
+                        {
                             let child_popup_rect_id =
-
-
-
                                 ui.make_persistent_id((id_source, popup_key, "rect"));
 
-
-
-                            if let Some(rect) =
-
-
-
-                                ui.ctx().data(|data| data.get_temp::<egui::Rect>(child_popup_rect_id))
-
-
-
+                            if let Some(rect) = ui
+                                .ctx()
+                                .data(|data| data.get_temp::<egui::Rect>(child_popup_rect_id))
                             {
-
-
-
                                 keep_open_rect = keep_open_rect.union(rect.expand(2.0));
-
-
-
                             }
-
-
-
                         }
-
-
 
                         if !keep_open_rect.contains(pointer_pos) {
-
-
-
                             open = false;
 
-
-
                             Self::clear_macro_action_submenus(ui, id_source);
-
-
-
                         }
-
-
-
                     } else {
-
-
-
                         open = false;
 
-
-
                         Self::clear_macro_action_submenus(ui, id_source);
-
-
-
                     }
-
-
-
                 }
-
-
 
                 ui.ctx().data_mut(|data| data.insert_temp(popup_id, open));
 
-
-
                 let label_color = if selected {
-
-
-
                     ui.visuals().strong_text_color()
-
-
-
                 } else {
-
-
-
                     ui.visuals().text_color()
-
-
-
                 };
 
-
-
                 ui.label(
-
-
-
                     RichText::new(Self::tr_lang(language, "Mouse", "Chuá»™t"))
-
-
-
                         .size(9.0)
-
-
-
                         .color(label_color),
-
-
-
                 );
 
-
-
                 response
-
-
-
             },
-
-
-
         );
-
-
 
         let response = inner.inner;
 
-
-
         if !open {
-
-
-
             Self::show_instant_hover_tooltip(
-
-
-
                 ui,
-
-
-
                 &response,
-
-
-
                 Self::tr_lang(
-
-
-
                     language,
-
-
-
                     "Mouse\nOpen mouse click, wheel, and move actions.",
-
-
-
                     "Chuá»™t\nMá»Ÿ cÃƒÂ¡c action click, lÃ„Æ’n vÃƒÂ  di chuyÃ¡Â»Æ’n chuá»™t.",
-
-
-
                 ),
-
-
-
             );
-
-
-
         }
-
-
-
     }
-
-
 
     fn image_search_macro_actions() -> &'static [MacroAction] {
-
-
-
         &[
-
-
-
             MacroAction::StartVisionSearch,
-
-
-
             MacroAction::ScanVisionOnce,
-
-
-
-            
-
-
-
             MacroAction::StopVision,
-
-
-
         ]
-
-
-
     }
-
-
 
     fn macro_action_is_image_search(action: MacroAction) -> bool {
-
-
-
         Self::image_search_macro_actions().contains(&action)
-
-
-
     }
 
-
-
     fn render_image_search_action_group_option(
-
-
-
         ui: &mut egui::Ui,
-
-
 
         language: UiLanguage,
 
-
-
         id_source: impl std::hash::Hash + Copy,
-
-
 
         current: &mut MacroAction,
 
-
-
         live_sync: &mut bool,
 
-
-
         action_hover_id: egui::Id,
-
-
-
     ) {
-
-
-
         let selected = Self::macro_action_is_image_search(*current);
 
-
-
         let owner_id = ui.make_persistent_id("macro-action-submenu-owner");
-
-
 
         let popup_id = ui.make_persistent_id((id_source, "image-search-submenu-popup"));
 
-
-
         let mouse_popup_id = ui.make_persistent_id((id_source, "mouse-submenu-popup"));
-
-
 
         let timer_popup_id = ui.make_persistent_id((id_source, "timer-submenu-popup"));
 
-
-
         let active_owner = ui
-
-
-
             .ctx()
-
-
-
             .data(|data| data.get_temp::<MacroActionSubmenuKind>(owner_id));
 
-
-
         let top_level_hovered = ui
-
-
-
             .ctx()
-
-
-
             .data(|data| data.get_temp::<bool>(action_hover_id))
-
-
-
             .unwrap_or(false);
-
-
 
         let mut open = ui
-
-
-
             .ctx()
-
-
-
             .data(|data| data.get_temp::<bool>(popup_id))
-
-
-
             .unwrap_or(false);
 
-
-
         if active_owner.is_some_and(|kind| kind != MacroActionSubmenuKind::ImageSearch) {
-
-
-
             open = false;
-
-
-
         }
-
-
 
         if top_level_hovered {
-
-
-
             open = false;
 
-
-
             ui.ctx()
-
-
-
                 .data_mut(|data| data.insert_temp(owner_id, None::<MacroActionSubmenuKind>));
 
-
-
             ui.ctx().request_repaint();
-
-
-
         }
 
-
-
         let inner = ui.allocate_ui_with_layout(
-
-
-
             vec2(58.0, 42.0),
-
-
-
             egui::Layout::top_down(egui::Align::Center),
-
-
-
             |ui| {
-
-
-
                 let response = ui.add_sized(
-
-
-
                     [34.0, 24.0],
-
-
-
                     Button::new(Self::material_icon_text(0xe8b6, 18.0)).selected(selected),
-
-
-
                 );
 
-
-
                 if response.hovered() || response.clicked() {
-
-
-
                     Self::clear_macro_action_submenus(ui, id_source);
-
-
 
                     open = true;
 
-
-
                     ui.ctx().data_mut(|data| {
-
-
-
                         data.insert_temp(owner_id, MacroActionSubmenuKind::ImageSearch)
-
-
-
                     });
-
-
-
                 }
-
-
 
                 let popup_rect_id = ui.make_persistent_id((id_source, "image-search-submenu-rect"));
 
-
-
                 let popup_response = egui::Popup::from_response(&response)
-
-
-
                     .id(popup_id)
-
-
-
                     .open_bool(&mut open)
-
-
-
                     .align(egui::RectAlign::BOTTOM_START)
-
-
-
                     .layout(egui::Layout::top_down_justified(egui::Align::Min))
-
-
-
                     .width(220.0)
-
-
-
                     .close_behavior(egui::PopupCloseBehavior::IgnoreClicks)
-
-
-
                     .show(|ui| {
-
-
-
                         let rect = ui.max_rect();
 
-
-
-                        ui.ctx().data_mut(|data| data.insert_temp(popup_rect_id, rect));
-
-
+                        ui.ctx()
+                            .data_mut(|data| data.insert_temp(popup_rect_id, rect));
 
                         egui::Grid::new((id_source, "image-search-action-grid"))
-
-
-
                             .num_columns(3)
-
-
-
                             .spacing([6.0, 6.0])
-
-
-
                             .show(ui, |ui| {
-
-
-
                                 for (index, action) in Self::image_search_macro_actions()
-
-
-
                                     .iter()
-
-
-
                                     .copied()
-
-
-
                                     .enumerate()
-
-
-
                                 {
-
-
-
                                     Self::render_macro_action_option(
-
-
-
                                         ui,
-
-
-
                                         language,
-
-
-
                                         current,
-
-
-
                                         action,
-
-
-
                                         live_sync,
-
-
-
                                         action_hover_id,
-
-
-
                                         true,
-
-
-
                                     );
 
-
-
                                     if (index + 1) % 3 == 0 {
-
-
-
                                         ui.end_row();
-
-
-
                                     }
-
-
-
                                 }
-
-
-
                             });
-
-
-
                     });
 
-
-
-                let popup_rect: Option<egui::Rect> = ui.ctx().data(|data| data.get_temp(popup_rect_id));
-
-
+                let popup_rect: Option<egui::Rect> =
+                    ui.ctx().data(|data| data.get_temp(popup_rect_id));
 
                 if open {
-
-
-
                     if let Some(pointer_pos) = ui.ctx().pointer_hover_pos() {
-
-
-
                         let mut keep_open_rect = response.rect.expand(2.0);
 
-
-
                         if let Some(rect) = popup_rect {
-
-
-
                             keep_open_rect = keep_open_rect.union(rect.expand(2.0));
 
-
-
                             if rect.contains(pointer_pos) {
-
-
-
                                 ui.ctx().data_mut(|data| {
-
-
-
                                     data.insert_temp(owner_id, MacroActionSubmenuKind::ImageSearch)
-
-
-
                                 });
-
-
-
                             }
-
-
-
                         }
-
-
 
                         if !keep_open_rect.contains(pointer_pos) {
-
-
-
                             open = false;
 
-
-
-                            ui.ctx().data_mut(|data| data.insert_temp(owner_id, None::<MacroActionSubmenuKind>));
-
-
+                            ui.ctx().data_mut(|data| {
+                                data.insert_temp(owner_id, None::<MacroActionSubmenuKind>)
+                            });
 
                             ui.ctx().request_repaint();
-
-
-
                         }
-
-
-
                     } else {
-
-
-
                         open = false;
 
-
-
-                        ui.ctx().data_mut(|data| data.insert_temp(owner_id, None::<MacroActionSubmenuKind>));
-
-
+                        ui.ctx().data_mut(|data| {
+                            data.insert_temp(owner_id, None::<MacroActionSubmenuKind>)
+                        });
 
                         ui.ctx().request_repaint();
-
-
-
                     }
-
-
-
                 }
-
-
 
                 ui.ctx().data_mut(|data| data.insert_temp(popup_id, open));
 
-
-
                 let label_color = if selected {
-
-
-
                     ui.visuals().strong_text_color()
-
-
-
                 } else {
-
-
-
                     ui.visuals().text_color()
-
-
-
                 };
 
-
-
                 ui.label(
-
-
-
                     RichText::new(Self::tr_lang(language, "Image", "Image"))
-
-
-
                         .size(9.0)
-
-
-
                         .color(label_color),
-
-
-
                 );
 
-
-
                 response
-
-
-
             },
-
-
-
         );
-
-
 
         let response = inner.inner;
 
-
-
         if !open {
-
-
-
             Self::show_instant_hover_tooltip(
-
-
-
                 ui,
-
-
-
                 &response,
-
-
-
                 Self::tr_lang(
-
-
-
                     language,
-
-
-
                     "Image\nOpen image search start, trigger, and stop actions.",
-
-
-
                     "Image\nMá»Ÿ cÃƒÂ¡c action báº¯t Ã„â€˜Ã¡ÂºÂ§u, trigger vÃƒÂ  dÃ¡Â»Â«ng image search.",
-
-
-
                 ),
-
-
-
             );
-
-
-
         }
-
-
-
     }
-
-
 
     fn timer_macro_actions() -> &'static [MacroAction] {
-
-
-
         &[
-
-
-
             MacroAction::StartTimerPreset,
-
-
-
             MacroAction::PauseTimerPreset,
-
-
-
             MacroAction::StopTimerPreset,
-
-
-
         ]
-
-
-
     }
-
-
 
     fn macro_action_is_timer(action: MacroAction) -> bool {
-
-
-
         Self::timer_macro_actions().contains(&action)
-
-
-
     }
 
-
-
     fn render_timer_action_group_option(
-
-
-
         ui: &mut egui::Ui,
 
-
-
         language: UiLanguage,
-
-
 
         id_source: impl std::hash::Hash + Copy,
 
-
-
         current: &mut MacroAction,
-
-
 
         live_sync: &mut bool,
 
-
-
         action_hover_id: egui::Id,
-
-
-
     ) {
-
-
-
         let selected = Self::macro_action_is_timer(*current);
-
-
 
         let owner_id = ui.make_persistent_id("macro-action-submenu-owner");
 
-
-
         let popup_id = ui.make_persistent_id((id_source, "timer-submenu-popup"));
-
-
 
         let mouse_popup_id = ui.make_persistent_id((id_source, "mouse-submenu-popup"));
 
-
-
         let image_popup_id = ui.make_persistent_id((id_source, "image-search-submenu-popup"));
 
-
-
         let active_owner = ui
-
-
-
             .ctx()
-
-
-
             .data(|data| data.get_temp::<MacroActionSubmenuKind>(owner_id));
 
-
-
         let top_level_hovered = ui
-
-
-
             .ctx()
-
-
-
             .data(|data| data.get_temp::<bool>(action_hover_id))
-
-
-
             .unwrap_or(false);
-
-
 
         let mut open = ui
-
-
-
             .ctx()
-
-
-
             .data(|data| data.get_temp::<bool>(popup_id))
-
-
-
             .unwrap_or(false);
 
-
-
         if active_owner.is_some_and(|kind| kind != MacroActionSubmenuKind::Timer) {
-
-
-
             open = false;
-
-
-
         }
-
-
 
         if top_level_hovered {
-
-
-
             open = false;
 
-
-
             ui.ctx()
-
-
-
                 .data_mut(|data| data.insert_temp(owner_id, None::<MacroActionSubmenuKind>));
 
-
-
             ui.ctx().request_repaint();
-
-
-
         }
 
-
-
         let inner = ui.allocate_ui_with_layout(
-
-
-
             vec2(58.0, 42.0),
-
-
-
             egui::Layout::top_down(egui::Align::Center),
-
-
-
             |ui| {
-
-
-
                 let response = ui.add_sized(
-
-
-
                     [34.0, 24.0],
-
-
-
                     Button::new(Self::material_icon_text(0xe425, 18.0)).selected(selected),
-
-
-
                 );
 
-
-
                 if response.hovered() || response.clicked() {
-
-
-
                     Self::clear_macro_action_submenus(ui, id_source);
-
-
 
                     open = true;
 
-
-
                     ui.ctx()
-
-
-
                         .data_mut(|data| data.insert_temp(owner_id, MacroActionSubmenuKind::Timer));
-
-
-
                 }
-
-
 
                 let popup_rect_id = ui.make_persistent_id((id_source, "timer-submenu-rect"));
 
-
-
                 let popup_response = egui::Popup::from_response(&response)
-
-
-
                     .id(popup_id)
-
-
-
                     .open_bool(&mut open)
-
-
-
                     .align(egui::RectAlign::BOTTOM_START)
-
-
-
                     .layout(egui::Layout::top_down_justified(egui::Align::Min))
-
-
-
                     .width(220.0)
-
-
-
                     .close_behavior(egui::PopupCloseBehavior::IgnoreClicks)
-
-
-
                     .show(|ui| {
-
-
-
                         let rect = ui.max_rect();
 
-
-
-                        ui.ctx().data_mut(|data| data.insert_temp(popup_rect_id, rect));
-
-
+                        ui.ctx()
+                            .data_mut(|data| data.insert_temp(popup_rect_id, rect));
 
                         egui::Grid::new((id_source, "timer-action-grid"))
-
-
-
                             .num_columns(3)
-
-
-
                             .spacing([6.0, 6.0])
-
-
-
                             .show(ui, |ui| {
-
-
-
                                 for (index, action) in
-
-
-
                                     Self::timer_macro_actions().iter().copied().enumerate()
-
-
-
                                 {
-
-
-
                                     Self::render_macro_action_option(
-
-
-
                                         ui,
-
-
-
                                         language,
-
-
-
                                         current,
-
-
-
                                         action,
-
-
-
                                         live_sync,
-
-
-
                                         action_hover_id,
-
-
-
                                         true,
-
-
-
                                     );
 
-
-
                                     if (index + 1) % 3 == 0 {
-
-
-
                                         ui.end_row();
-
-
-
                                     }
-
-
-
                                 }
-
-
-
                             });
-
-
-
                     });
 
-
-
-                let popup_rect: Option<egui::Rect> = ui.ctx().data(|data| data.get_temp(popup_rect_id));
-
-
+                let popup_rect: Option<egui::Rect> =
+                    ui.ctx().data(|data| data.get_temp(popup_rect_id));
 
                 if open {
-
-
-
                     if let Some(pointer_pos) = ui.ctx().pointer_hover_pos() {
-
-
-
                         let mut keep_open_rect = response.rect.expand(2.0);
 
-
-
                         if let Some(rect) = popup_rect {
-
-
-
                             keep_open_rect = keep_open_rect.union(rect.expand(2.0));
 
-
-
                             if rect.contains(pointer_pos) {
-
-
-
                                 ui.ctx().data_mut(|data| {
-
-
-
                                     data.insert_temp(owner_id, MacroActionSubmenuKind::Timer)
-
-
-
                                 });
-
-
-
                             }
-
-
-
                         }
-
-
 
                         if !keep_open_rect.contains(pointer_pos) {
-
-
-
                             open = false;
 
-
-
-                            ui.ctx().data_mut(|data| data.insert_temp(owner_id, None::<MacroActionSubmenuKind>));
-
-
+                            ui.ctx().data_mut(|data| {
+                                data.insert_temp(owner_id, None::<MacroActionSubmenuKind>)
+                            });
 
                             ui.ctx().request_repaint();
-
-
-
                         }
-
-
-
                     } else {
-
-
-
                         open = false;
 
-
-
-                        ui.ctx().data_mut(|data| data.insert_temp(owner_id, None::<MacroActionSubmenuKind>));
-
-
+                        ui.ctx().data_mut(|data| {
+                            data.insert_temp(owner_id, None::<MacroActionSubmenuKind>)
+                        });
 
                         ui.ctx().request_repaint();
-
-
-
                     }
-
-
-
                 }
-
-
 
                 ui.ctx().data_mut(|data| data.insert_temp(popup_id, open));
 
-
-
                 let label_color = if selected {
-
-
-
                     ui.visuals().strong_text_color()
-
-
-
                 } else {
-
-
-
                     ui.visuals().text_color()
-
-
-
                 };
 
-
-
                 ui.label(
-
-
-
                     RichText::new(Self::tr_lang(language, "Timer", "Hẹn giờ"))
-
-
-
                         .size(9.0)
-
-
-
                         .color(label_color),
-
-
-
                 );
 
-
-
                 response
-
-
-
             },
-
-
-
         );
-
-
 
         let response = inner.inner;
 
-
-
         if !open {
-
-
-
             Self::show_instant_hover_tooltip(
-
-
-
                 ui,
-
-
-
                 &response,
-
-
-
                 Self::tr_lang(
-
-
-
                     language,
-
-
-
                     "Timer\nOpen start, pause, and stop timer actions.",
-
-
-
                     "HÃ¡ÂºÂ¹n giÃ¡Â»Â\nMá»Ÿ cÃƒÂ¡c action báº¯t Ã„â€˜Ã¡ÂºÂ§u, tÃ¡ÂºÂ¡m dÃ¡Â»Â«ng vÃƒÂ  dÃ¡Â»Â«ng hÃ¡ÂºÂ¹n giÃ¡Â»Â.",
-
-
-
                 ),
-
-
-
             );
-
-
-
         }
-
-
-
     }
 
-
-
     fn render_custom_preset_step_draft_popup(
-
-
-
         ui: &mut egui::Ui,
-
-
 
         response: &egui::Response,
 
-
-
         anchor_response: &egui::Response,
-
-
 
         step: &mut MacroStep,
 
-
-
         id_source: impl std::hash::Hash,
-
-
 
         step_index: Option<usize>,
 
-
-
         language: UiLanguage,
-
-
 
         command_presets: &[CommandPreset],
 
-
-
         is_generating: bool,
-
-
-
     ) -> (
-
-
-
         bool,
-
-
-
         Option<(Option<usize>, String, String, bool)>,
-
-
-
         Option<(Option<usize>, String, String, bool, bool)>,
-
-
-
         Option<u32>,
-
-
-
     ) {
-
-
-
         let mut changed = false;
-
-
 
         let mut save_request = None;
 
-
-
         let mut save_and_open_ai_request = None;
-
-
 
         let mut open_ai_preset_id = None;
 
-
-
         if step.action != MacroAction::TriggerCommandPreset {
-
-
-
             return (false, None, None, None);
-
-
-
         }
-
-
 
         let popup_id = ui.make_persistent_id((id_source, "custom-preset-draft-popup"));
 
-
-
         let pointer_pos = ui.input(|input| input.pointer.hover_pos());
 
-
-
         let mut open = response.hovered()
-
-
-
             || ui
-
-
-
                 .ctx()
-
-
-
                 .data(|data| data.get_temp::<bool>(popup_id))
-
-
-
                 .unwrap_or(false);
 
-
-
         let resolved_preset = command_presets
-
-
-
             .iter()
-
-
-
             .find(|preset| {
-
-
-
                 let key = step.key.trim();
 
-
-
                 if key.is_empty() {
-
-
-
                     return false;
-
-
-
                 }
 
-
-
                 preset.id.to_string() == key || preset.name.trim().eq_ignore_ascii_case(key)
-
-
-
             })
-
-
-
             .cloned();
 
-
-
         if step.command_preset_command.trim().is_empty() {
-
-
-
             if let Some(preset) = resolved_preset.as_ref() {
-
-
-
                 step.command_preset_command = preset.command.clone();
-
-
-
             }
-
-
-
         }
 
-
-
         let is_saved_custom_preset = resolved_preset.as_ref().is_some_and(|preset| {
-
-
-
             preset.command.trim() == step.command_preset_command.trim()
-
-
-
                 && !step.command_preset_command.trim().is_empty()
-
-
-
                 && preset.use_powershell == step.command_preset_use_powershell
-
-
-
         });
 
-
-
         if open {
-
-
-
             let popup_size = vec2(320.0, 132.0);
-
-
 
             let mut pos = anchor_response.rect.right_top() + vec2(2.0, 0.0);
 
-
-
             let screen_rect = ui.ctx().content_rect();
 
-
-
             if pos.x + popup_size.x > screen_rect.right() {
-
-
-
                 pos.x = anchor_response.rect.left() - popup_size.x - 2.0;
-
-
-
             }
 
-
-
             let area = egui::Area::new(popup_id)
-
-
-
                 .order(egui::Order::Foreground)
-
-
-
                 .fixed_pos(pos)
-
-
-
                 .interactable(true);
 
-
-
             let area_response = area.show(ui.ctx(), |ui| {
-
-
-
                 let mut frame = egui::Frame::popup(ui.style());
 
-
-
                 let (fill, stroke_color) = if step.command_preset_use_powershell {
-
-
-
                     (
-
-
-
                         Color32::from_rgba_premultiplied(20, 35, 55, 245),
-
-
-
                         Color32::from_rgb(90, 190, 255),
-
-
-
                     )
-
-
-
                 } else {
-
-
-
                     (
-
-
-
                         Color32::from_rgba_premultiplied(45, 30, 15, 245),
-
-
-
                         Color32::from_rgb(255, 170, 75),
-
-
-
                     )
-
-
-
                 };
 
-
-
                 frame = frame
-
-
-
                     .fill(fill)
-
-
-
                     .stroke(egui::Stroke::new(1.5, stroke_color));
 
-
-
                 frame.show(ui, |ui| {
-
-
-
                     ui.set_min_width(320.0);
-
-
 
                     let mut trigger_ai = false;
 
-
-
                     ui.horizontal(|ui| {
-
-
-
                         ui.label(Self::tr_lang(language, "Custom command", "Custom command"));
 
-
-
                         if is_generating {
-
-
-
                             let (rect, _resp) = ui
-
-
-
                                 .allocate_exact_size(egui::vec2(36.0, 20.0), egui::Sense::hover());
 
-
-
                             Self::draw_spinning_wand(ui, rect, Color32::from_rgb(255, 220, 100));
-
-
-
                         } else {
-
-
-
                             let ai_btn = egui::Button::new(Self::ai_badge_text(true))
-
-
-
                                 .fill(Self::ai_badge_fill())
-
-
-
                                 .stroke(Self::ai_badge_stroke());
 
-
-
                             if ui
-
-
-
                                 .add(ai_btn)
-
-
-
                                 .on_hover_text(Self::tr_lang(
-
-
-
                                     language,
-
-
-
                                     "Generate or edit command with AI",
-
-
-
                                     "Tạo hoặc sửa câu lệnh bằng AI",
-
-
-
                                 ))
-
-
-
                                 .clicked()
-
-
-
                             {
-
-
-
                                 trigger_ai = true;
-
-
-
                             }
-
-
-
                         }
-
-
 
                         ui.add_space(8.0);
 
-
-
                         changed |= ui
-
-
-
                             .radio_value(&mut step.command_preset_use_powershell, false, "CMD")
-
-
-
                             .changed();
-
-
 
                         ui.add_space(4.0);
 
-
-
                         changed |= ui
-
-
-
                             .radio_value(
-
-
-
                                 &mut step.command_preset_use_powershell,
-
-
-
                                 true,
-
-
-
                                 "PowerShell",
-
-
-
                             )
-
-
-
                             .changed();
-
-
-
                     });
 
-
-
                     if trigger_ai {
-
-
-
                         if let Some(preset) = resolved_preset.as_ref() {
-
-
-
                             open_ai_preset_id = Some(preset.id);
-
-
-
                         } else {
-
-
-
                             let preset_name = if step.key.trim().is_empty() {
-
-
-
                                 "Custom Command Step".to_owned()
-
-
-
                             } else {
-
-
-
                                 step.key.trim().to_owned()
-
-
-
                             };
 
-
-
                             let command_text =
-
-
-
                                 ai::normalize_command_text(&step.command_preset_command);
 
-
-
                             save_and_open_ai_request = Some((
-
-
-
                                 step_index,
-
-
-
                                 preset_name,
-
-
-
                                 command_text,
-
-
-
                                 step.command_preset_use_powershell,
-
-
-
                                 true, // is_ad_hoc
-
-
-
                             ));
-
-
-
                         }
-
-
-
                     }
-
-
 
                     let is_dark_theme = ui.visuals().dark_mode;
 
-
-
                     let hint_color = if is_dark_theme {
-
-
-
                         Color32::from_rgba_unmultiplied(140, 140, 140, 150)
-
-
-
                     } else {
-
-
-
                         Color32::from_rgba_unmultiplied(100, 100, 100, 150)
-
-
-
                     };
 
-
-
                     let command_changed = Self::render_expandable_command_text_edit(
-
-
-
                         ui,
-
-
-
                         &mut step.command_preset_command,
-
-
-
                         ui.id().with((step_index, "command-preset-cmd")),
-
-
-
                         "shutdown /s /t 0",
-
-
-
                     )
-
-
-
                     .changed();
 
-
-
                     if command_changed {
-
-
-
                         changed = true;
-
-
-
                     }
-
-
 
                     if resolved_preset.is_none() {
-
-
-
                         ui.horizontal(|ui| {
-
-
-
                             ui.label(Self::tr_lang(language, "Preset name:", "Tên preset:"));
 
-
-
                             let name_changed = ui
-
-
-
                                 .add(
-
-
-
                                     TextEdit::singleline(&mut step.key)
-
-
-
                                         .hint_text(Self::tr_lang(
-
-
-
                                             language,
-
-
-
                                             "Enter name...",
-
-
-
                                             "Nhập tên...",
-
-
-
                                         ))
-
-
-
                                         .desired_width(180.0),
-
-
-
                                 )
-
-
-
                                 .changed();
 
-
-
                             if name_changed {
-
-
-
                                 changed = true;
-
-
-
                             }
-
-
-
                         });
-
-
 
                         ui.add_space(2.0);
-
-
-
                     }
-
-
 
                     if !is_saved_custom_preset {
-
-
-
                         ui.horizontal(|ui| {
-
-
-
                             let save_enabled = !step.key.trim().is_empty()
-
-
-
                                 && !ai::normalize_command_text(&step.command_preset_command)
-
-
-
                                     .trim()
-
-
-
                                     .is_empty();
 
-
-
                             let btn_text = if resolved_preset.is_some() {
-
-
-
                                 Self::tr_lang(language, "Update custom preset", "Cập nhật preset")
-
-
-
                             } else {
-
-
-
                                 Self::tr_lang(
-
-
-
                                     language,
-
-
-
                                     "Save as custom preset",
-
-
-
                                     "Lưu thành preset mới",
-
-
-
                                 )
-
-
-
                             };
 
-
-
                             if ui
-
-
-
                                 .add_enabled(save_enabled, egui::Button::new(btn_text))
-
-
-
                                 .clicked()
-
-
-
                             {
-
-
-
                                 let save_name = resolved_preset
-
-
-
                                     .as_ref()
-
-
-
                                     .map(|p| p.name.clone())
-
-
-
                                     .unwrap_or_else(|| step.key.trim().to_owned());
 
-
-
                                 save_request = Some((
-
-
-
                                     step_index,
-
-
-
                                     save_name,
-
-
-
                                     ai::normalize_command_text(&step.command_preset_command),
-
-
-
                                     step.command_preset_use_powershell,
-
-
-
                                 ));
-
-
-
                             }
-
-
-
                         });
-
-
-
                     }
-
-
-
                 });
-
-
-
             });
-
-
 
             let icon_pos = area_response.response.rect.right_top() + vec2(-24.0, 12.0);
 
-
-
             ui.painter().text(
-
-
-
                 icon_pos,
-
-
-
                 egui::Align2::CENTER_CENTER,
-
-
-
                 char::from_u32(0xeb8e).unwrap_or('?').to_string(),
-
-
-
                 egui::FontId::new(15.0, FontFamily::Name(MATERIAL_ICONS_FONT.into())),
-
-
-
                 ui.visuals().weak_text_color(),
-
-
-
             );
-
-
 
             let popup_rect = area_response.response.rect.expand(12.0);
 
-
-
             let hover_popup = pointer_pos.is_some_and(|pos| popup_rect.contains(pos));
-
-
 
             open = response.hovered() || hover_popup;
 
-
-
             ui.ctx().data_mut(|data| data.insert_temp(popup_id, open));
 
-
-
             return (
-
-
-
                 changed,
-
-
-
                 save_request,
-
-
-
                 save_and_open_ai_request,
-
-
-
                 open_ai_preset_id,
-
-
-
             );
-
-
-
         }
-
-
 
         ui.ctx().data_mut(|data| data.insert_temp(popup_id, open));
 
-
-
         (
-
-
-
             changed,
-
-
-
             save_request,
-
-
-
             save_and_open_ai_request,
-
-
-
             open_ai_preset_id,
-
-
-
         )
-
-
-
     }
 
-
-
-
-
-
-
     fn render_multi_key_capture_chips(
-
-
-
         ui: &mut egui::Ui,
-
-
 
         language: UiLanguage,
 
-
-
         keys_str: &mut String,
-
-
 
         active: bool,
 
-
-
         mut on_capture_click: impl FnMut(),
 
-
-
         mut on_clear_click: impl FnMut(),
-
-
-
     ) {
-
-
-
         ui.horizontal(|ui| {
-
-
-
             // Nút bấm hình bàn phím để capture
 
-
-
-            let keyboard_btn = ui.add_sized(
-
-
-
-                [22.0, 22.0],
-
-
-
-                egui::Button::new(Self::material_icon_text(0xe312, 14.0)) // icon bàn phím ⌨️
-
-
-
-                    .fill(if active { egui::Color32::from_rgba_premultiplied(72, 156, 116, 120) } else { ui.visuals().widgets.noninteractive.bg_fill })
-
-
-
-                    .stroke(egui::Stroke::new(1.0, if active { egui::Color32::from_rgb(126, 224, 182) } else { ui.visuals().widgets.noninteractive.bg_stroke.color }))
-
-
-
-            ).on_hover_text(Self::tr_lang(language, "Click to capture keys/mouse (Multi-key supported)", "Bấm để bắt phím/chuột (Hỗ trợ gán nhiều phím)"));
-
-
-
-            
-
-
+            let keyboard_btn = ui
+                .add_sized(
+                    [22.0, 22.0],
+                    egui::Button::new(Self::material_icon_text(0xe312, 14.0)) // icon bàn phím ⌨️
+                        .fill(if active {
+                            egui::Color32::from_rgba_premultiplied(72, 156, 116, 120)
+                        } else {
+                            ui.visuals().widgets.noninteractive.bg_fill
+                        })
+                        .stroke(egui::Stroke::new(
+                            1.0,
+                            if active {
+                                egui::Color32::from_rgb(126, 224, 182)
+                            } else {
+                                ui.visuals().widgets.noninteractive.bg_stroke.color
+                            },
+                        )),
+                )
+                .on_hover_text(Self::tr_lang(
+                    language,
+                    "Click to capture keys/mouse (Multi-key supported)",
+                    "Bấm để bắt phím/chuột (Hỗ trợ gán nhiều phím)",
+                ));
 
             if keyboard_btn.clicked() {
-
-
-
                 on_capture_click();
-
-
-
             }
-
-
-
-
-
-
 
             // Hiển thị các phím tắt dạng chip
 
-
-
-            let keys: Vec<String> = keys_str.split(',')
-
-
-
+            let keys: Vec<String> = keys_str
+                .split(',')
                 .map(str::trim)
-
-
-
                 .filter(|p| !p.is_empty())
-
-
-
                 .map(str::to_owned)
-
-
-
                 .collect();
 
-
-
-
-
-
-
             if keys.is_empty() {
-
-
-
                 if active {
-
-
-
-                    ui.label(egui::RichText::new(Self::tr_lang(language, "Capturing...", "Đang bắt...")).color(egui::Color32::from_rgb(255, 232, 96)).strong());
-
-
-
+                    ui.label(
+                        egui::RichText::new(Self::tr_lang(language, "Capturing...", "Đang bắt..."))
+                            .color(egui::Color32::from_rgb(255, 232, 96))
+                            .strong(),
+                    );
                 } else {
-
-
-
-                    ui.label(egui::RichText::new(Self::tr_lang(language, "No key assigned", "Chưa gán phím")).weak().italics());
-
-
-
+                    ui.label(
+                        egui::RichText::new(Self::tr_lang(
+                            language,
+                            "No key assigned",
+                            "Chưa gán phím",
+                        ))
+                        .weak()
+                        .italics(),
+                    );
                 }
-
-
-
             } else {
-
-
-
                 let mut remove_key = None;
 
-
-
                 for key in &keys {
-
-
-
-                    let chip_btn = ui.add(
-
-
-
-                        egui::Button::new(egui::RichText::new(key).monospace()).min_size(egui::vec2(0.0, 22.0))
-
-
-
-                    ).on_hover_text(Self::tr_lang(language, "Click to remove this key", "Bấm để xóa phím này"));
-
-
+                    let chip_btn = ui
+                        .add(
+                            egui::Button::new(egui::RichText::new(key).monospace())
+                                .min_size(egui::vec2(0.0, 22.0)),
+                        )
+                        .on_hover_text(Self::tr_lang(
+                            language,
+                            "Click to remove this key",
+                            "Bấm để xóa phím này",
+                        ));
 
                     if chip_btn.clicked() {
-
-
-
                         remove_key = Some(key.clone());
-
-
-
                     }
-
-
-
                 }
 
-
-
                 if let Some(rk) = remove_key {
-
-
-
                     let remaining: Vec<String> = keys.into_iter().filter(|k| k != &rk).collect();
-
-
 
                     *keys_str = remaining.join(",");
 
-
-
                     on_clear_click();
-
-
-
                 }
-
-
-
             }
-
-
-
         });
-
-
-
     }
-
-
-
-
-
-
 
     fn render_key_capture_chips(
         ui: &mut egui::Ui,
@@ -9536,20 +3478,56 @@ impl CrosshairApp {
         mut on_change: impl FnMut(),
     ) {
         const LETTERS: &[&str] = &[
-            "A", "B", "C", "D", "E", "F", "G", "H", "I", "J", "K", "L", "M", "N", "O", "P",
-            "Q", "R", "S", "T", "U", "V", "W", "X", "Y", "Z",
+            "A", "B", "C", "D", "E", "F", "G", "H", "I", "J", "K", "L", "M", "N", "O", "P", "Q",
+            "R", "S", "T", "U", "V", "W", "X", "Y", "Z",
         ];
         const NUMBERS: &[&str] = &["0", "1", "2", "3", "4", "5", "6", "7", "8", "9"];
         const SYMBOLS: &[&str] = &[";", "=", ",", "-", ".", "/", "`", "[", "\\", "]", "'"];
         const NAVIGATION: &[&str] = &[
-            "Escape", "Enter", "Space", "Backspace", "Tab", "Insert", "Delete", "Home", "End",
-            "PageUp", "PageDown", "Left", "Up", "Right", "Down", "PrintScreen", "Pause",
+            "Escape",
+            "Enter",
+            "Space",
+            "Backspace",
+            "Tab",
+            "Insert",
+            "Delete",
+            "Home",
+            "End",
+            "PageUp",
+            "PageDown",
+            "Left",
+            "Up",
+            "Right",
+            "Down",
+            "PrintScreen",
+            "Pause",
         ];
-        const MODIFIERS: &[&str] = &["Ctrl", "Alt", "Shift", "Win", "CapsLock", "NumLock", "ScrollLock", "Apps"];
+        const MODIFIERS: &[&str] = &[
+            "Ctrl",
+            "Alt",
+            "Shift",
+            "Win",
+            "CapsLock",
+            "NumLock",
+            "ScrollLock",
+            "Apps",
+        ];
         const NUMPAD: &[&str] = &[
-            "Numpad0", "Numpad1", "Numpad2", "Numpad3", "Numpad4", "Numpad5", "Numpad6",
-            "Numpad7", "Numpad8", "Numpad9", "NumpadMultiply", "NumpadAdd", "NumpadSubtract",
-            "NumpadDecimal", "NumpadDivide",
+            "Numpad0",
+            "Numpad1",
+            "Numpad2",
+            "Numpad3",
+            "Numpad4",
+            "Numpad5",
+            "Numpad6",
+            "Numpad7",
+            "Numpad8",
+            "Numpad9",
+            "NumpadMultiply",
+            "NumpadAdd",
+            "NumpadSubtract",
+            "NumpadDecimal",
+            "NumpadDivide",
         ];
 
         ui.horizontal_wrapped(|ui| {
@@ -9591,53 +3569,59 @@ impl CrosshairApp {
                         ui.close_menu();
                     }
                 };
-                egui::ScrollArea::vertical().max_height(280.0).show(ui, |ui| {
-                    ui.label(Self::tr_lang(language, "Letters (A-Z)", "Chữ cái (A-Z)"));
-                    ui.horizontal_wrapped(|ui| {
-                        for key in LETTERS {
-                            add_key(ui, key);
-                        }
+                egui::ScrollArea::vertical()
+                    .max_height(280.0)
+                    .show(ui, |ui| {
+                        ui.label(Self::tr_lang(language, "Letters (A-Z)", "Chữ cái (A-Z)"));
+                        ui.horizontal_wrapped(|ui| {
+                            for key in LETTERS {
+                                add_key(ui, key);
+                            }
+                        });
+                        ui.separator();
+                        ui.label(Self::tr_lang(language, "Numbers & Symbols", "Số & ký tự"));
+                        ui.horizontal_wrapped(|ui| {
+                            for key in NUMBERS {
+                                add_key(ui, key);
+                            }
+                            for key in SYMBOLS {
+                                add_key(ui, key);
+                            }
+                        });
+                        ui.separator();
+                        ui.label(Self::tr_lang(language, "Navigation", "Điều hướng"));
+                        ui.horizontal_wrapped(|ui| {
+                            for key in NAVIGATION {
+                                add_key(ui, key);
+                            }
+                        });
+                        ui.separator();
+                        ui.label(Self::tr_lang(language, "Function", "Phím chức năng"));
+                        ui.horizontal_wrapped(|ui| {
+                            for num in 1..=24 {
+                                let key = format!("F{}", num);
+                                add_key(ui, &key);
+                            }
+                        });
+                        ui.separator();
+                        ui.label(Self::tr_lang(language, "Numpad", "Bàn phím số"));
+                        ui.horizontal_wrapped(|ui| {
+                            for key in NUMPAD {
+                                add_key(ui, key);
+                            }
+                        });
+                        ui.separator();
+                        ui.label(Self::tr_lang(
+                            language,
+                            "Modifiers & Locks",
+                            "Phím khóa & bổ trợ",
+                        ));
+                        ui.horizontal_wrapped(|ui| {
+                            for key in MODIFIERS {
+                                add_key(ui, key);
+                            }
+                        });
                     });
-                    ui.separator();
-                    ui.label(Self::tr_lang(language, "Numbers & Symbols", "Số & ký tự"));
-                    ui.horizontal_wrapped(|ui| {
-                        for key in NUMBERS {
-                            add_key(ui, key);
-                        }
-                        for key in SYMBOLS {
-                            add_key(ui, key);
-                        }
-                    });
-                    ui.separator();
-                    ui.label(Self::tr_lang(language, "Navigation", "Điều hướng"));
-                    ui.horizontal_wrapped(|ui| {
-                        for key in NAVIGATION {
-                            add_key(ui, key);
-                        }
-                    });
-                    ui.separator();
-                    ui.label(Self::tr_lang(language, "Function", "Phím chức năng"));
-                    ui.horizontal_wrapped(|ui| {
-                        for num in 1..=24 {
-                            let key = format!("F{}", num);
-                            add_key(ui, &key);
-                        }
-                    });
-                    ui.separator();
-                    ui.label(Self::tr_lang(language, "Numpad", "Bàn phím số"));
-                    ui.horizontal_wrapped(|ui| {
-                        for key in NUMPAD {
-                            add_key(ui, key);
-                        }
-                    });
-                    ui.separator();
-                    ui.label(Self::tr_lang(language, "Modifiers & Locks", "Phím khóa & bổ trợ"));
-                    ui.horizontal_wrapped(|ui| {
-                        for key in MODIFIERS {
-                            add_key(ui, key);
-                        }
-                    });
-                });
             });
             add_menu.response.on_hover_text(Self::tr_lang(
                 language,
@@ -9655,9 +3639,13 @@ impl CrosshairApp {
                     );
                 } else {
                     ui.label(
-                        egui::RichText::new(Self::tr_lang(language, "No key assigned", "Chưa gán phím"))
-                            .weak()
-                            .italics(),
+                        egui::RichText::new(Self::tr_lang(
+                            language,
+                            "No key assigned",
+                            "Chưa gán phím",
+                        ))
+                        .weak()
+                        .italics(),
                     );
                 }
             } else {
@@ -9681,4336 +3669,1501 @@ impl CrosshairApp {
     }
 
     fn render_extra_conditions(
-
-
-
         ui: &mut egui::Ui,
-
-
 
         extra_conditions: &mut Vec<ExtraCondition>,
 
-
-
         group_id: u32,
-
-
 
         preset_id: u32,
 
-
-
         step_index: usize,
-
-
 
         timer_names: &[String],
 
-
-
         ocr_preset_options: &[(u32, String)],
-
-
 
         image_search_preset_options: &[(u32, String)],
 
-
-
         all_presets: &[(u32, String)],
-
-
 
         all_groups: &[(u32, String, Vec<(u32, String)>)],
 
-
-
         language: UiLanguage,
-
-
 
         live_sync: &mut bool,
 
-
-
         timer_presets: &[crate::model::TimerPreset],
-
-
 
         vietnamese_input_enabled: bool,
 
-
-
         vietnamese_input_mode: crate::model::VietnameseInputMode,
-
-
 
         pending_pick_target: &mut Option<MouseMoveAbsoluteCaptureTarget>,
 
-
-
         capture_target_snapshot: Option<&CaptureRequest>,
-
-
 
         next_capture_target: &mut Option<CaptureRequest>,
 
-
-
         cancel_active_capture: &mut bool,
 
-
-
         is_hold_stop: bool,
-
-
-
     ) {
-
-
-
-
-
-
-
         let mut remove_extra_idx = None;
 
-
-
         for (extra_idx, cond) in extra_conditions.iter_mut().enumerate() {
-
-
-
             ui.horizontal(|ui| {
+                egui::ComboBox::from_id_salt((
+                    group_id,
+                    preset_id,
+                    step_index,
+                    extra_idx,
+                    "hold-extra-join-cb",
+                ))
+                .width(56.0)
+                .selected_text(if cond.join_operator.eq_ignore_ascii_case("OR") {
+                    Self::tr_lang(language, "OR", "HOẶC")
+                } else {
+                    Self::tr_lang(language, "AND", "VÀ")
+                })
+                .show_ui(ui, |ui| {
+                    for op in &["AND", "OR"] {
+                        let label = if *op == "AND" {
+                            Self::tr_lang(language, "AND", "VÀ")
+                        } else {
+                            Self::tr_lang(language, "OR", "HOẶC")
+                        };
 
+                        if ui
+                            .selectable_label(cond.join_operator.eq_ignore_ascii_case(op), label)
+                            .clicked()
+                        {
+                            cond.join_operator = op.to_string();
 
-
-                egui::ComboBox::from_id_salt((group_id, preset_id, step_index, extra_idx, "hold-extra-join-cb"))
-
-
-
-                    .width(56.0)
-
-
-
-                    .selected_text(if cond.join_operator.eq_ignore_ascii_case("OR") {
-
-
-
-                        Self::tr_lang(language, "OR", "HOẶC")
-
-
-
-                    } else {
-
-
-
-                        Self::tr_lang(language, "AND", "VÀ")
-
-
-
-                    })
-
-
-
-                    .show_ui(ui, |ui| {
-
-
-
-                        for op in &["AND", "OR"] {
-
-
-
-                            let label = if *op == "AND" {
-
-
-
-                                Self::tr_lang(language, "AND", "VÀ")
-
-
-
-                            } else {
-
-
-
-                                Self::tr_lang(language, "OR", "HOẶC")
-
-
-
-                            };
-
-
-
-                            if ui.selectable_label(cond.join_operator.eq_ignore_ascii_case(op), label).clicked() {
-
-
-
-                                cond.join_operator = op.to_string();
-
-
-
-                                *live_sync = true;
-
-
-
-                            }
-
-
-
+                            *live_sync = true;
                         }
-
-
-
-                    });
-
-
-
-
-
-
-
-
-
-
+                    }
+                });
 
                 let cond_text = match cond.condition_type {
-
-
-
                     IfConditionType::Variable => Self::tr_lang(language, "Variable", "Biến"),
 
+                    IfConditionType::PixelColor => {
+                        Self::tr_lang(language, "Pixel Color", "Màu điểm")
+                    }
 
+                    IfConditionType::VisionMatch => {
+                        Self::tr_lang(language, "Vision Match", "Hình ảnh")
+                    }
 
-                    IfConditionType::PixelColor => Self::tr_lang(language, "Pixel Color", "Màu điểm"),
+                    IfConditionType::KeyHeld => {
+                        Self::tr_lang(language, "Input Held", "Giữ phím/chuột")
+                    }
 
+                    IfConditionType::MouseHeld => {
+                        Self::tr_lang(language, "Input Held", "Giữ phím/chuột")
+                    }
 
+                    IfConditionType::MousePosition => {
+                        Self::tr_lang(language, "Mouse Position", "Tọa độ chuột")
+                    }
 
-                    IfConditionType::VisionMatch => Self::tr_lang(language, "Vision Match", "Hình ảnh"),
+                    IfConditionType::PresetRunning => {
+                        Self::tr_lang(language, "Preset Running", "Preset đang chạy")
+                    }
 
-
-
-                    IfConditionType::KeyHeld => Self::tr_lang(language, "Input Held", "Giữ phím/chuột"),
-
-
-
-                    IfConditionType::MouseHeld => Self::tr_lang(language, "Input Held", "Giữ phím/chuột"),
-
-
-
-                    IfConditionType::MousePosition => Self::tr_lang(language, "Mouse Position", "Tọa độ chuột"),
-
-
-
-                    IfConditionType::PresetRunning => Self::tr_lang(language, "Preset Running", "Preset đang chạy"),
-
-
-
-                    IfConditionType::OcrMatch => Self::tr_lang(language, "OCR Match", "Từ tìm (OCR)"),
-
-
+                    IfConditionType::OcrMatch => {
+                        Self::tr_lang(language, "OCR Match", "Từ tìm (OCR)")
+                    }
 
                     _ => "-",
-
-
-
                 };
 
-
-
-
-
-
-
-                
-
-
-
-                egui::ComboBox::from_id_salt((group_id, preset_id, step_index, extra_idx, "hold-extra-cond-type-cb"))
-
-
-
-                    .width(100.0)
-
-
-
-                    .selected_text(cond_text)
-
-
-
-                    .show_ui(ui, |ui| {
-
-
-
-                        let options = [
-
-
-
-                            (IfConditionType::Variable, Self::tr_lang(language, "Variable", "Biến")),
-
-
-
-                            (IfConditionType::PixelColor, Self::tr_lang(language, "Pixel Color", "Màu điểm")),
-
-
-
-                            (IfConditionType::VisionMatch, Self::tr_lang(language, "Vision Match", "Hình ảnh")),
-
-
-
-                            (IfConditionType::KeyHeld, Self::tr_lang(language, "Input Held", "Giữ phím/chuột")),
-
-
-
-                            
-
-
-
-                            (IfConditionType::MousePosition, Self::tr_lang(language, "Mouse Position", "Tọa độ chuột")),
-
-
-
-                            (IfConditionType::PresetRunning, Self::tr_lang(language, "Preset Running", "Preset đang chạy")),
-
-
-
-                            
-
-
-
-                        ];
-
-
-
-                        for (opt_type, opt_label) in options {
-
-
-
-                            if ui.selectable_label(cond.condition_type == opt_type, opt_label).clicked() {
-
-
-
-                                cond.condition_type = opt_type;
-
-
-
-                                *live_sync = true;
-
-
-
-                            }
-
-
-
+                egui::ComboBox::from_id_salt((
+                    group_id,
+                    preset_id,
+                    step_index,
+                    extra_idx,
+                    "hold-extra-cond-type-cb",
+                ))
+                .width(100.0)
+                .selected_text(cond_text)
+                .show_ui(ui, |ui| {
+                    let options = [
+                        (
+                            IfConditionType::Variable,
+                            Self::tr_lang(language, "Variable", "Biến"),
+                        ),
+                        (
+                            IfConditionType::PixelColor,
+                            Self::tr_lang(language, "Pixel Color", "Màu điểm"),
+                        ),
+                        (
+                            IfConditionType::VisionMatch,
+                            Self::tr_lang(language, "Vision Match", "Hình ảnh"),
+                        ),
+                        (
+                            IfConditionType::KeyHeld,
+                            Self::tr_lang(language, "Input Held", "Giữ phím/chuột"),
+                        ),
+                        (
+                            IfConditionType::MousePosition,
+                            Self::tr_lang(language, "Mouse Position", "Tọa độ chuột"),
+                        ),
+                        (
+                            IfConditionType::PresetRunning,
+                            Self::tr_lang(language, "Preset Running", "Preset đang chạy"),
+                        ),
+                    ];
+
+                    for (opt_type, opt_label) in options {
+                        if ui
+                            .selectable_label(cond.condition_type == opt_type, opt_label)
+                            .clicked()
+                        {
+                            cond.condition_type = opt_type;
+
+                            *live_sync = true;
                         }
-
-
-
-                    });
-
-
-
-
-
-
+                    }
+                });
 
                 match cond.condition_type {
-
-
-
                     IfConditionType::Variable => {
-
-
-
                         let cond_var_id = ui.id().with((step_index, extra_idx, "extra-var-input"));
 
-
-
                         let response = Self::render_variable_text_edit(
-
-
-
                             ui,
-
-
-
                             &mut cond.variable_name,
-
-
-
                             cond_var_id,
-
-
-
                             76.0,
-
-
-
                             140.0,
-
-
-
                             22.0,
-
-
-
                             22.0,
-
-
-
                             Self::tr_lang(language, "value/expr", "biến/expr"),
-
-
-
                             false,
-
-
-
                         );
-
-
 
                         Self::apply_vietnamese_input_if_changed(
-
-
-
                             &response,
-
-
-
                             vietnamese_input_enabled,
-
-
-
                             vietnamese_input_mode,
-
-
-
                             &mut cond.variable_name,
-
-
-
                         );
-
-
 
                         *live_sync |= response.changed();
 
+                        Self::render_variable_suggestions(
+                            ui,
+                            &response,
+                            &mut cond.variable_name,
+                            timer_names,
+                            language,
+                        );
 
+                        egui::ComboBox::from_id_salt((
+                            group_id,
+                            preset_id,
+                            step_index,
+                            extra_idx,
+                            "hold-extra-op-cb",
+                        ))
+                        .width(55.0)
+                        .selected_text(&cond.operator)
+                        .show_ui(ui, |ui| {
+                            for op in &["==", ">", "<", ">=", "<=", "!="] {
+                                if ui.selectable_label(cond.operator == *op, *op).clicked() {
+                                    cond.operator = op.to_string();
 
-                        Self::render_variable_suggestions(ui, &response, &mut cond.variable_name, timer_names, language);
-
-
-
-
-
-
-
-
-
-
-
-                        egui::ComboBox::from_id_salt((group_id, preset_id, step_index, extra_idx, "hold-extra-op-cb"))
-
-
-
-                            .width(55.0)
-
-
-
-                            .selected_text(&cond.operator)
-
-
-
-                            .show_ui(ui, |ui| {
-
-
-
-                                for op in &["==", ">", "<", ">=", "<=", "!="] {
-
-
-
-                                    if ui.selectable_label(cond.operator == *op, *op).clicked() {
-
-
-
-                                        cond.operator = op.to_string();
-
-
-
-                                        *live_sync = true;
-
-
-
-                                    }
-
-
-
+                                    *live_sync = true;
                                 }
+                            }
+                        });
 
-
-
-                            });
-
-
-
-
-
-
-
-
-
-
-
-                        let cond_expr_id = ui.id().with((step_index, extra_idx, "extra-expr-input"));
-
-
+                        let cond_expr_id =
+                            ui.id().with((step_index, extra_idx, "extra-expr-input"));
 
                         let response2 = Self::render_variable_text_edit(
-
-
-
                             ui,
-
-
-
                             &mut cond.expression,
-
-
-
                             cond_expr_id,
-
-
-
                             76.0,
-
-
-
                             180.0,
-
-
-
                             22.0,
-
-
-
                             22.0,
-
-
-
                             Self::tr_lang(language, "value/expr", "giá trị/expr"),
-
-
-
                             false,
-
-
-
                         );
-
-
 
                         Self::apply_vietnamese_input_if_changed(
-
-
-
                             &response2,
-
-
-
                             vietnamese_input_enabled,
-
-
-
                             vietnamese_input_mode,
-
-
-
                             &mut cond.expression,
-
-
-
                         );
-
-
 
                         *live_sync |= response2.changed();
 
-
-
-                        Self::render_variable_suggestions(ui, &response2, &mut cond.expression, timer_names, language);
-
-
-
-
-
-
-
-
-
-
-
-
-
-
+                        Self::render_variable_suggestions(
+                            ui,
+                            &response2,
+                            &mut cond.expression,
+                            timer_names,
+                            language,
+                        );
 
                         let left_expr = cond.variable_name.trim();
 
-
-
                         if !left_expr.is_empty() {
-
-
-
                             let left_val = crate::overlay::evaluate_math_expression(left_expr);
-
-
 
                             ui.add_space(2.0);
 
-
-
                             ui.label(
-
-
-
                                 egui::RichText::new(format!("({})", left_val))
-
-
-
                                     .size(10.0)
-
-
-
-                                    .color(egui::Color32::from_rgb(0, 191, 255))
-
-
-
-                            ).on_hover_text(Self::tr_lang(language, "Evaluated left expression", "Giá trị biểu thức bên trái"));
-
-
-
+                                    .color(egui::Color32::from_rgb(0, 191, 255)),
+                            )
+                            .on_hover_text(Self::tr_lang(
+                                language,
+                                "Evaluated left expression",
+                                "Giá trị biểu thức bên trái",
+                            ));
                         }
-
-
-
                     }
 
-
-
                     IfConditionType::OcrMatch => {
-
-
-
                         let selected_id = cond.ocr_preset_id;
 
-
-
                         let selected_label = selected_id
-
-
-
                             .and_then(|id| {
-
-
-
                                 ocr_preset_options
-
-
-
                                     .iter()
-
-
-
                                     .find(|(preset_id, _)| *preset_id == id)
-
-
-
                                     .map(|(_, label)| label.clone())
-
-
-
                             })
-
-
-
-                            .unwrap_or_else(|| Self::tr_lang(language, "Select OCR", "Chọn OCR").to_owned());
-
-
-
-                        
-
-
-
-                        egui::ComboBox::from_id_salt((group_id, preset_id, step_index, extra_idx, "hold-extra-ocr-preset-cb"))
-
-
-
-                            .width(146.0)
-
-
-
-                            .selected_text(selected_label)
-
-
-
-                            .show_ui(ui, |ui| {
-
-
-
-                                for (preset_option_id, preset_option_label) in ocr_preset_options {
-
-
-
-                                    if ui.selectable_label(selected_id == Some(*preset_option_id), preset_option_label).clicked() {
-
-
-
-                                        cond.ocr_preset_id = Some(*preset_option_id);
-
-
-
-                                        *live_sync = true;
-
-
-
-                                    }
-
-
-
-                                }
-
-
-
+                            .unwrap_or_else(|| {
+                                Self::tr_lang(language, "Select OCR", "Chọn OCR").to_owned()
                             });
 
+                        egui::ComboBox::from_id_salt((
+                            group_id,
+                            preset_id,
+                            step_index,
+                            extra_idx,
+                            "hold-extra-ocr-preset-cb",
+                        ))
+                        .width(146.0)
+                        .selected_text(selected_label)
+                        .show_ui(ui, |ui| {
+                            for (preset_option_id, preset_option_label) in ocr_preset_options {
+                                if ui
+                                    .selectable_label(
+                                        selected_id == Some(*preset_option_id),
+                                        preset_option_label,
+                                    )
+                                    .clicked()
+                                {
+                                    cond.ocr_preset_id = Some(*preset_option_id);
 
+                                    *live_sync = true;
+                                }
+                            }
+                        });
 
-                        
-
-
-
-                        let var_target_id = ui.id().with((step_index, extra_idx, "hold-stop-ocr-target-text-if-extra"));
-
-
+                        let var_target_id = ui.id().with((
+                            step_index,
+                            extra_idx,
+                            "hold-stop-ocr-target-text-if-extra",
+                        ));
 
                         let response_target = Self::render_variable_text_edit(
-
-
-
                             ui,
-
-
-
                             &mut cond.ocr_target_text,
-
-
-
                             var_target_id,
-
-
-
                             76.0,
-
-
-
                             180.0,
-
-
-
                             22.0,
-
-
-
                             22.0,
-
-
-
                             Self::tr_lang(language, "Target text", "Từ tìm"),
-
-
-
                             false,
-
-
-
                         );
-
-
 
                         Self::apply_vietnamese_input_if_changed(
-
-
-
                             &response_target,
-
-
-
                             vietnamese_input_enabled,
-
-
-
                             vietnamese_input_mode,
-
-
-
                             &mut cond.ocr_target_text,
-
-
-
                         );
-
-
 
                         *live_sync |= response_target.changed();
 
-
-
-                        Self::render_variable_suggestions(ui, &response_target, &mut cond.ocr_target_text, timer_names, language);
-
-
-
+                        Self::render_variable_suggestions(
+                            ui,
+                            &response_target,
+                            &mut cond.ocr_target_text,
+                            timer_names,
+                            language,
+                        );
                     }
 
-
-
                     IfConditionType::PixelColor => {
-
-
-
                         ui.label("X:");
-
-
 
                         let resp_x = ui.add(egui::DragValue::new(&mut cond.x));
 
-
-
                         *live_sync |= resp_x.changed();
-
-
 
                         ui.label("Y:");
 
-
-
                         let resp_y = ui.add(egui::DragValue::new(&mut cond.y));
-
-
 
                         *live_sync |= resp_y.changed();
 
-
-
-                        
-
-
-
-
-
-
-
                         let resp_col = ui.add_sized(
-
-
-
                             [76.0, 22.0],
-
-
-
-                            egui::TextEdit::singleline(&mut cond.target_color)
-
-
-
-                                .hint_text("R,G,B")
-
-
-
+                            egui::TextEdit::singleline(&mut cond.target_color).hint_text("R,G,B"),
                         );
-
-
 
                         *live_sync |= resp_col.changed();
 
-
-
-
-
-
-
-
-
-
-
-
-
-
-
                         // Swatch màu trực quan
 
+                        let swatch_color = Self::parse_rgb_color(&cond.target_color)
+                            .unwrap_or(egui::Color32::TRANSPARENT);
 
-
-                        let swatch_color = Self::parse_rgb_color(&cond.target_color).unwrap_or(egui::Color32::TRANSPARENT);
-
-
-
-                        let (rect, _response) = ui.allocate_exact_size(egui::vec2(16.0, 16.0), egui::Sense::hover());
-
-
+                        let (rect, _response) =
+                            ui.allocate_exact_size(egui::vec2(16.0, 16.0), egui::Sense::hover());
 
                         ui.painter().rect_filled(rect, 3.0, swatch_color);
 
-
-
-
-
-
-
-
-
-
-
-
-
-
-
                         ui.label(Self::tr_lang(language, "Tol:", "Sai số:"));
 
-
-
-
-
-
-
-                        let resp_tol = ui.add(egui::DragValue::new(&mut cond.color_tolerance).range(0..=255));
-
-
+                        let resp_tol =
+                            ui.add(egui::DragValue::new(&mut cond.color_tolerance).range(0..=255));
 
                         *live_sync |= resp_tol.changed();
 
-
-
-
-
-
-
                         // Nút pick tọa độ & màu từ màn hình
 
-
-
-                        let pick_btn = ui.add_sized(
-
-
-
-                            [22.0, 22.0],
-
-
-
-                            egui::Button::new(Self::material_icon_text(0xe3b4, 14.0)),
-
-
-
-                        ).on_hover_text(Self::tr_lang(language, "Click on screen to capture position & color", "Bấm vào màn hình để lấy tọa độ và màu sắc"));
-
-
+                        let pick_btn = ui
+                            .add_sized(
+                                [22.0, 22.0],
+                                egui::Button::new(Self::material_icon_text(0xe3b4, 14.0)),
+                            )
+                            .on_hover_text(Self::tr_lang(
+                                language,
+                                "Click on screen to capture position & color",
+                                "Bấm vào màn hình để lấy tọa độ và màu sắc",
+                            ));
 
                         if pick_btn.clicked() {
-
-
-
                             *pending_pick_target = Some(MouseMoveAbsoluteCaptureTarget {
-
-
-
                                 group_id: Some(group_id),
-
-
 
                                 preset_id,
 
-
-
                                 step_index,
-
-
 
                                 capture_kind: MouseCaptureKind::ExtraCondPixelColor,
 
-
-
                                 extra_cond_index: Some(extra_idx),
 
-
-
                                 is_hold_stop,
-
-
-
                             });
-
-
-
                         }
-
-
-
                     }
-
-
 
                     IfConditionType::VisionMatch => {
-
-
-
                         let selected_id = cond.vision_preset_id;
 
-
-
                         let selected_label = selected_id
-
-
-
                             .and_then(|id| {
-
-
-
-                                image_search_preset_options.iter().find(|(pid, _)| *pid == id).map(|(_, name)| name.clone())
-
-
-
+                                image_search_preset_options
+                                    .iter()
+                                    .find(|(pid, _)| *pid == id)
+                                    .map(|(_, name)| name.clone())
                             })
-
-
-
-                            .unwrap_or_else(|| Self::tr_lang(language, "Select Image", "Chọn Ảnh").to_owned());
-
-
-
-                        
-
-
-
-                        egui::ComboBox::from_id_salt((group_id, preset_id, step_index, extra_idx, "hold-extra-vision-preset-cb"))
-
-
-
-                            .width(146.0)
-
-
-
-                            .selected_text(selected_label)
-
-
-
-                            .show_ui(ui, |ui| {
-
-
-
-                                for (pid, pname) in image_search_preset_options {
-
-
-
-                                    if ui.selectable_label(selected_id == Some(*pid), pname).clicked() {
-
-
-
-                                        cond.vision_preset_id = Some(*pid);
-
-
-
-                                        *live_sync = true;
-
-
-
-                                    }
-
-
-
-                                }
-
-
-
+                            .unwrap_or_else(|| {
+                                Self::tr_lang(language, "Select Image", "Chọn Ảnh").to_owned()
                             });
 
+                        egui::ComboBox::from_id_salt((
+                            group_id,
+                            preset_id,
+                            step_index,
+                            extra_idx,
+                            "hold-extra-vision-preset-cb",
+                        ))
+                        .width(146.0)
+                        .selected_text(selected_label)
+                        .show_ui(ui, |ui| {
+                            for (pid, pname) in image_search_preset_options {
+                                if ui
+                                    .selectable_label(selected_id == Some(*pid), pname)
+                                    .clicked()
+                                {
+                                    cond.vision_preset_id = Some(*pid);
 
-
+                                    *live_sync = true;
+                                }
+                            }
+                        });
                     }
-
-
-
-
-
-
 
                     IfConditionType::KeyHeld => {
-
-
-
                         let capture_target = CaptureRequest::MacroStepInput {
-
-
-
                             group_id,
-
-
 
                             preset_id,
 
-
-
                             step_index,
 
-
-
                             extra_cond_index: Some(extra_idx),
-
-
-
                         };
-
-
 
                         let active = capture_target_snapshot == Some(&capture_target);
 
-
-
                         Self::render_multi_key_capture_chips(
-
-
-
                             ui,
-
-
-
                             language,
-
-
-
                             &mut cond.key_held_name,
-
-
-
                             active,
-
-
-
                             || {
-
-
-
                                 if active {
-
-
-
                                     *cancel_active_capture = true;
-
-
-
                                 } else {
-
-
-
                                     *next_capture_target = Some(capture_target.clone());
-
-
-
                                 }
-
-
-
                             },
-
-
-
                             || {
-
-
-
                                 *live_sync = true;
-
-
-
-                            }
-
-
-
+                            },
                         );
-
-
-
                     }
-
-
-
-
-
-
-
-
-
-
 
                     IfConditionType::MouseHeld => {
-
-
-
                         let capture_target = CaptureRequest::MacroStepInput {
-
-
-
                             group_id,
-
-
 
                             preset_id,
 
-
-
                             step_index,
 
-
-
                             extra_cond_index: Some(extra_idx),
-
-
-
                         };
-
-
 
                         let active = capture_target_snapshot == Some(&capture_target);
 
-
-
                         Self::render_multi_key_capture_chips(
-
-
-
                             ui,
-
-
-
                             language,
-
-
-
                             &mut cond.mouse_button,
-
-
-
                             active,
-
-
-
                             || {
-
-
-
                                 if active {
-
-
-
                                     *cancel_active_capture = true;
-
-
-
                                 } else {
-
-
-
                                     *next_capture_target = Some(capture_target.clone());
-
-
-
                                 }
-
-
-
                             },
-
-
-
                             || {
-
-
-
                                 *live_sync = true;
-
-
-
-                            }
-
-
-
+                            },
                         );
-
-
-
                     }
 
-
-
-
-
-
-
                     IfConditionType::MousePosition => {
+                        egui::ComboBox::from_id_salt((
+                            group_id,
+                            preset_id,
+                            step_index,
+                            extra_idx,
+                            "hold-extra-mouse-pos-axis-cb",
+                        ))
+                        .width(55.0)
+                        .selected_text(&cond.mouse_axis)
+                        .show_ui(ui, |ui| {
+                            for axis in &["X", "Y"] {
+                                if ui
+                                    .selectable_label(cond.mouse_axis == *axis, *axis)
+                                    .clicked()
+                                {
+                                    cond.mouse_axis = axis.to_string();
 
-
-
-                        egui::ComboBox::from_id_salt((group_id, preset_id, step_index, extra_idx, "hold-extra-mouse-pos-axis-cb"))
-
-
-
-                            .width(55.0)
-
-
-
-                            .selected_text(&cond.mouse_axis)
-
-
-
-                            .show_ui(ui, |ui| {
-
-
-
-                                for axis in &["X", "Y"] {
-
-
-
-                                    if ui.selectable_label(cond.mouse_axis == *axis, *axis).clicked() {
-
-
-
-                                        cond.mouse_axis = axis.to_string();
-
-
-
-                                        *live_sync = true;
-
-
-
-                                    }
-
-
-
+                                    *live_sync = true;
                                 }
+                            }
+                        });
 
+                        egui::ComboBox::from_id_salt((
+                            group_id,
+                            preset_id,
+                            step_index,
+                            extra_idx,
+                            "hold-extra-mouse-pos-op-cb",
+                        ))
+                        .width(55.0)
+                        .selected_text(&cond.operator)
+                        .show_ui(ui, |ui| {
+                            for op in &["==", ">", "<", ">=", "<=", "!="] {
+                                if ui.selectable_label(cond.operator == *op, *op).clicked() {
+                                    cond.operator = op.to_string();
 
-
-                            });
-
-
-
-
-
-
-
-                        egui::ComboBox::from_id_salt((group_id, preset_id, step_index, extra_idx, "hold-extra-mouse-pos-op-cb"))
-
-
-
-                            .width(55.0)
-
-
-
-                            .selected_text(&cond.operator)
-
-
-
-                            .show_ui(ui, |ui| {
-
-
-
-                                for op in &["==", ">", "<", ">=", "<=", "!="] {
-
-
-
-                                    if ui.selectable_label(cond.operator == *op, *op).clicked() {
-
-
-
-                                        cond.operator = op.to_string();
-
-
-
-                                        *live_sync = true;
-
-
-
-                                    }
-
-
-
+                                    *live_sync = true;
                                 }
+                            }
+                        });
 
-
-
-                            });
-
-
-
-
-
-
-
-                        let cond_expr_id = ui.id().with((step_index, extra_idx, "hold-extra-mouse-pos-val-input"));
-
-
+                        let cond_expr_id =
+                            ui.id()
+                                .with((step_index, extra_idx, "hold-extra-mouse-pos-val-input"));
 
                         let response2 = Self::render_variable_text_edit(
-
-
-
                             ui,
-
-
-
                             &mut cond.expression,
-
-
-
                             cond_expr_id,
-
-
-
                             76.0,
-
-
-
                             100.0,
-
-
-
                             22.0,
-
-
-
                             22.0,
-
-
-
                             Self::tr_lang(language, "value/expr", "giá trị/expr"),
-
-
-
                             false,
-
-
-
                         );
-
-
 
                         Self::apply_vietnamese_input_if_changed(
-
-
-
                             &response2,
-
-
-
                             vietnamese_input_enabled,
-
-
-
                             vietnamese_input_mode,
-
-
-
                             &mut cond.expression,
-
-
-
                         );
-
-
 
                         *live_sync |= response2.changed();
 
-
-
-                        Self::render_variable_suggestions(ui, &response2, &mut cond.expression, timer_names, language);
-
-
-
-
-
-
+                        Self::render_variable_suggestions(
+                            ui,
+                            &response2,
+                            &mut cond.expression,
+                            timer_names,
+                            language,
+                        );
 
                         // Nút pick tọa độ từ màn hình
 
-
-
-                        let pick_btn = ui.add_sized(
-
-
-
-                            [22.0, 22.0],
-
-
-
-                            egui::Button::new(Self::material_icon_text(0xe55c, 14.0)),
-
-
-
-                        ).on_hover_text(Self::tr_lang(language, "Click on screen to capture coordinate", "Bấm vào màn hình để lấy tọa độ"));
-
-
+                        let pick_btn = ui
+                            .add_sized(
+                                [22.0, 22.0],
+                                egui::Button::new(Self::material_icon_text(0xe55c, 14.0)),
+                            )
+                            .on_hover_text(Self::tr_lang(
+                                language,
+                                "Click on screen to capture coordinate",
+                                "Bấm vào màn hình để lấy tọa độ",
+                            ));
 
                         if pick_btn.clicked() {
-
-
-
                             *pending_pick_target = Some(MouseMoveAbsoluteCaptureTarget {
-
-
-
                                 group_id: Some(group_id),
-
-
 
                                 preset_id,
 
-
-
                                 step_index,
-
-
 
                                 capture_kind: MouseCaptureKind::ExtraCondMousePos,
 
-
-
                                 extra_cond_index: Some(extra_idx),
 
-
-
                                 is_hold_stop,
-
-
-
                             });
-
-
-
                         }
-
-
-
                     }
 
-
-
                     IfConditionType::PresetRunning => {
-
-
-
                         // Bước 1: chọn group
-
-
 
                         let sel_group_id = cond.running_preset_group_id;
 
-
-
                         let sel_group_label = sel_group_id
-
-
-
-                            .and_then(|gid| all_groups.iter().find(|(id, _, _)| *id == gid).map(|(_, name, _)| name.clone()))
-
-
-
+                            .and_then(|gid| {
+                                all_groups
+                                    .iter()
+                                    .find(|(id, _, _)| *id == gid)
+                                    .map(|(_, name, _)| name.clone())
+                            })
                             .unwrap_or_else(|| Self::tr_lang(language, "Group", "Nhóm").to_owned());
 
+                        egui::ComboBox::from_id_salt((
+                            group_id,
+                            preset_id,
+                            step_index,
+                            extra_idx,
+                            "hold-extra-running-group-cb",
+                        ))
+                        .width(100.0)
+                        .selected_text(sel_group_label)
+                        .show_ui(ui, |ui| {
+                            for (gid, gname, _) in all_groups {
+                                if ui
+                                    .selectable_label(sel_group_id == Some(*gid), gname)
+                                    .clicked()
+                                {
+                                    cond.running_preset_group_id = Some(*gid);
 
+                                    cond.running_preset_id = None;
 
-                        egui::ComboBox::from_id_salt((group_id, preset_id, step_index, extra_idx, "hold-extra-running-group-cb"))
-
-
-
-                            .width(100.0)
-
-
-
-                            .selected_text(sel_group_label)
-
-
-
-                            .show_ui(ui, |ui| {
-
-
-
-                                for (gid, gname, _) in all_groups {
-
-
-
-                                    if ui.selectable_label(sel_group_id == Some(*gid), gname).clicked() {
-
-
-
-                                        cond.running_preset_group_id = Some(*gid);
-
-
-
-                                        cond.running_preset_id = None;
-
-
-
-                                        *live_sync = true;
-
-
-
-                                    }
-
-
-
+                                    *live_sync = true;
                                 }
-
-
-
-                            });
-
-
-
-
-
-
+                            }
+                        });
 
                         // Bước 2: chọn preset trong group đó
 
-
-
                         let group_presets: &[(u32, String)] = if let Some(gid) = sel_group_id {
-
-
-
-                            all_groups.iter()
-
-
-
+                            all_groups
+                                .iter()
                                 .find(|(id, _, _)| *id == gid)
-
-
-
                                 .map(|(_, _, presets)| presets.as_slice())
-
-
-
                                 .unwrap_or(&[])
-
-
-
                         } else {
-
-
-
                             &[]
-
-
-
                         };
-
-
 
                         let selected_id = cond.running_preset_id;
 
-
-
                         let selected_label = selected_id
-
-
-
                             .and_then(|id| {
-
-
-
                                 if id == 0 {
-
-
-
                                     Some(Self::tr_lang(language, "Any Preset", "Bất kỳ").to_owned())
-
-
-
                                 } else {
-
-
-
-                                    group_presets.iter().find(|(pid, _)| *pid == id).map(|(_, name)| name.clone())
-
-
-
+                                    group_presets
+                                        .iter()
+                                        .find(|(pid, _)| *pid == id)
+                                        .map(|(_, name)| name.clone())
                                 }
-
-
-
                             })
-
-
-
-                            .unwrap_or_else(|| Self::tr_lang(language, "Preset", "Preset").to_owned());
-
-
-
-
-
-
-
-                        egui::ComboBox::from_id_salt((group_id, preset_id, step_index, extra_idx, "hold-extra-running-preset-cb"))
-
-
-
-                            .width(120.0)
-
-
-
-                            .selected_text(selected_label)
-
-
-
-                            .show_ui(ui, |ui| {
-
-
-
-                                if ui.selectable_label(selected_id == Some(0), Self::tr_lang(language, "Any Preset", "Bất kỳ")).clicked() {
-
-
-
-                                    cond.running_preset_id = Some(0);
-
-
-
-                                    *live_sync = true;
-
-
-
-                                }
-
-
-
-                                for (pid, pname) in group_presets {
-
-
-
-                                    if ui.selectable_label(selected_id == Some(*pid), pname).clicked() {
-
-
-
-                                        cond.running_preset_id = Some(*pid);
-
-
-
-                                        *live_sync = true;
-
-
-
-                                    }
-
-
-
-                                }
-
-
-
+                            .unwrap_or_else(|| {
+                                Self::tr_lang(language, "Preset", "Preset").to_owned()
                             });
 
+                        egui::ComboBox::from_id_salt((
+                            group_id,
+                            preset_id,
+                            step_index,
+                            extra_idx,
+                            "hold-extra-running-preset-cb",
+                        ))
+                        .width(120.0)
+                        .selected_text(selected_label)
+                        .show_ui(ui, |ui| {
+                            if ui
+                                .selectable_label(
+                                    selected_id == Some(0),
+                                    Self::tr_lang(language, "Any Preset", "Bất kỳ"),
+                                )
+                                .clicked()
+                            {
+                                cond.running_preset_id = Some(0);
 
+                                *live_sync = true;
+                            }
 
-                        }
+                            for (pid, pname) in group_presets {
+                                if ui
+                                    .selectable_label(selected_id == Some(*pid), pname)
+                                    .clicked()
+                                {
+                                    cond.running_preset_id = Some(*pid);
 
+                                    *live_sync = true;
+                                }
+                            }
+                        });
+                    }
 
-
-                        _ => {}
-
-
-
-                        }
-
-
-
-
-
-
-
-
-
-
+                    _ => {}
+                }
 
                 let btn_minus = egui::Button::new(egui::RichText::new("-").size(14.0).strong());
 
-
-
                 let btn_minus_clicked = ui.scope(|ui| {
-
-
-
                     ui.spacing_mut().button_padding = egui::vec2(0.0, 0.0);
 
-
-
                     ui.add_sized([24.0, 24.0], btn_minus)
-
-
-
                         .on_hover_text(Self::tr_lang(language, "Remove condition", "Xóa điều kiện"))
-
-
-
                         .clicked()
-
-
-
                 });
 
-
-
                 if btn_minus_clicked.inner {
-
-
-
                     remove_extra_idx = Some(extra_idx);
-
-
-
                 }
-
-
-
             });
-
-
-
         }
-
-
 
         if let Some(remove_idx) = remove_extra_idx {
-
-
-
             extra_conditions.remove(remove_idx);
 
-
-
             *live_sync = true;
-
-
-
         }
-
-
-
     }
 
-
-
-pub(crate) fn render_macro_panel(&mut self, ui: &mut egui::Ui) {
-
-
-
+    pub(crate) fn render_macro_panel(&mut self, ui: &mut egui::Ui) {
         let language = self.state.ui_language;
 
-
-
-        let timer_names: Vec<String> = self.state.timer_presets.iter().map(|t| t.name.clone()).collect();
-
-
+        let timer_names: Vec<String> = self
+            .state
+            .timer_presets
+            .iter()
+            .map(|t| t.name.clone())
+            .collect();
 
         let mut suggestion_names = std::collections::HashSet::new();
 
-
-
         for (idx, _name) in timer_names.iter().enumerate() {
-
-
-
             suggestion_names.insert(format!("Timer{}", idx + 1));
-
-
-
         }
-
-
 
         for name in Self::builtin_variable_suggestions() {
-
-
-
             suggestion_names.insert(name.to_string());
-
-
-
         }
-
-
 
         for name in self.collect_all_macro_referenced_variables() {
-
-
-
             if !name.contains('.') {
-
-
-
                 suggestion_names.insert(name);
-
-
-
             }
-
-
-
         }
-
-
 
         {
-
-
-
             let vars = crate::overlay::RUNTIME_VARIABLES.lock();
 
-
-
             for name in vars.keys() {
-
-
-
                 if !name.contains('.') {
-
-
-
                     suggestion_names.insert(name.clone());
-
-
-
                 }
-
-
-
             }
-
-
-
         }
-
-
 
         let mut suggestion_names: Vec<String> = suggestion_names.into_iter().collect();
 
-
-
         suggestion_names.sort();
-
-
 
         let mut writable_suggestion_names = std::collections::HashSet::new();
 
-
-
         {
-
-
-
             let vars = crate::overlay::RUNTIME_VARIABLES.lock();
 
-
-
             for name in vars.keys() {
-
-
-
                 if !name.contains('.') {
-
-
-
                     writable_suggestion_names.insert(name.clone());
-
-
-
                 }
-
-
-
             }
-
-
-
         }
-
-
 
         for (idx, _name) in timer_names.iter().enumerate() {
-
-
-
             writable_suggestion_names.insert(format!("Timer{}", idx + 1));
-
-
-
         }
 
-
-
-        let mut writable_suggestion_names: Vec<String> = writable_suggestion_names.into_iter().collect();
-
-
+        let mut writable_suggestion_names: Vec<String> =
+            writable_suggestion_names.into_iter().collect();
 
         writable_suggestion_names.sort();
 
-
-
         let mut all_vars = suggestion_names.clone();
 
-
-
         for (const_name, _) in &self.state.global_constants {
-
-
-
             if !all_vars.contains(const_name) {
-
-
-
                 all_vars.push(const_name.clone());
-
-
-
             }
-
-
-
         }
-
-
 
         all_vars.sort();
 
-
-
-
-
-
-
         ui.memory_mut(|mem| {
+            mem.data.insert_temp(
+                egui::Id::new("macro_variable_suggestion_names"),
+                suggestion_names,
+            );
 
+            mem.data.insert_temp(
+                egui::Id::new("macro_variable_writable_suggestion_names"),
+                writable_suggestion_names,
+            );
 
-
-            mem.data.insert_temp(egui::Id::new("macro_variable_suggestion_names"), suggestion_names);
-
-
-
-            mem.data.insert_temp(egui::Id::new("macro_variable_writable_suggestion_names"), writable_suggestion_names);
-
-
-
-            mem.data.insert_temp(egui::Id::new("macro_variable_suggestion_committed"), false);
-
-
-
+            mem.data
+                .insert_temp(egui::Id::new("macro_variable_suggestion_committed"), false);
         });
 
-
-
-        let any_popup_open = ui.memory(|mem| mem.data.get_temp::<bool>(egui::Id::new("any_popup_open"))).unwrap_or(false);
-
-
+        let any_popup_open = ui
+            .memory(|mem| mem.data.get_temp::<bool>(egui::Id::new("any_popup_open")))
+            .unwrap_or(false);
 
         let mut enter_pressed = false;
 
-
-
         let mut arrow_up_pressed = false;
-
-
 
         let mut arrow_down_pressed = false;
 
-
-
         if any_popup_open {
-
-
-
             ui.input_mut(|i| {
-
-
-
                 if i.consume_key(egui::Modifiers::NONE, egui::Key::Enter) {
-
-
-
                     enter_pressed = true;
-
-
-
                 }
-
-
 
                 if i.consume_key(egui::Modifiers::NONE, egui::Key::ArrowUp) {
-
-
-
                     arrow_up_pressed = true;
-
-
-
                 }
-
-
 
                 if i.consume_key(egui::Modifiers::NONE, egui::Key::ArrowDown) {
-
-
-
                     arrow_down_pressed = true;
-
-
-
                 }
-
-
-
             });
-
-
-
         }
-
-
 
         ui.memory_mut(|mem| {
+            mem.data
+                .insert_temp(egui::Id::new("enter_pressed"), enter_pressed);
 
+            mem.data
+                .insert_temp(egui::Id::new("arrow_up_pressed"), arrow_up_pressed);
 
-
-            mem.data.insert_temp(egui::Id::new("enter_pressed"), enter_pressed);
-
-
-
-            mem.data.insert_temp(egui::Id::new("arrow_up_pressed"), arrow_up_pressed);
-
-
-
-            mem.data.insert_temp(egui::Id::new("arrow_down_pressed"), arrow_down_pressed);
-
-
+            mem.data
+                .insert_temp(egui::Id::new("arrow_down_pressed"), arrow_down_pressed);
 
             mem.data.insert_temp(egui::Id::new("any_popup_open"), false);
-
-
-
         });
 
-
-
         let active_folder_for_controls = if self.macro_folders_panel_open {
-
-
-
             self.active_macro_folder_view.filter(|folder_id| {
-
-
-
                 self.state
-
-
-
                     .macro_folders
-
-
-
                     .iter()
-
-
-
                     .any(|folder| folder.id == *folder_id)
-
-
-
             })
-
-
-
         } else {
-
-
-
             None
-
-
-
         };
-
-
 
         if self.active_macro_folder_view.is_some() && active_folder_for_controls.is_none() {
-
-
-
             self.active_macro_folder_view = None;
-
-
-
         }
 
-
-
         let active_folder_name = if self.macro_folders_panel_open {
-
-
-
             self.active_macro_folder_view.and_then(|folder_id| {
-
-
-
                 self.state
-
-
-
                     .macro_folders
-
-
-
                     .iter()
-
-
-
                     .find(|folder| folder.id == folder_id)
-
-
-
                     .map(|folder| folder.name.clone())
-
-
-
             })
-
-
-
         } else {
-
-
-
             None
-
-
-
         };
-
-
 
         let paste_target_folder = if active_folder_name.is_some() {
-
-
-
             self.active_macro_folder_view
-
-
-
         } else {
-
-
-
             None
-
-
-
         };
-
-
 
         ui.add_space(2.0);
 
-
-
         ui.horizontal(|ui| {
-
-
-
             ui.group(|ui| {
-
-
-
                 ui.spacing_mut().item_spacing.x = 4.0;
 
-
-
                 let master_label = if self.state.macros_master_enabled {
-
-
-
                     Self::tr_lang(language, "Macro On", "Macro On")
-
-
-
                 } else {
-
-
-
                     Self::tr_lang(language, "Macro Off", "Macro Off")
-
-
-
                 };
-
-
 
                 let master_fill = if self.state.macros_master_enabled {
-
-
-
                     Color32::from_rgb(44, 132, 74)
-
-
-
                 } else {
-
-
-
                     Color32::from_rgb(74, 78, 86)
-
-
-
                 };
-
-
 
                 let master_stroke = if self.state.macros_master_enabled {
-
-
-
                     Color32::from_rgb(124, 240, 164)
-
-
-
                 } else {
-
-
-
                     Color32::from_rgb(156, 162, 172)
-
-
-
                 };
 
-
-
                 if ui
-
-
-
                     .add_sized(
-
-
-
                         [120.0, 28.0],
-
-
-
                         Button::new(RichText::new(master_label).color(Color32::WHITE))
-
-
-
                             .fill(master_fill)
-
-
-
                             .stroke(egui::Stroke::new(1.0, master_stroke)),
-
-
-
                     )
-
-
-
                     .clicked()
-
-
-
                 {
-
-
-
                     self.state.macros_master_enabled = !self.state.macros_master_enabled;
-
-
 
                     self.sync_macro_master_enabled();
 
-
-
                     self.persist();
-
-
-
                 }
-
-
 
                 let macro_hotkey_capture_target = CaptureRequest::MacrosMasterHotkey;
 
-
-
                 let macro_hotkey_capture_active =
-
-
-
                     self.capture_target.as_ref() == Some(&macro_hotkey_capture_target);
 
-
-
                 let macro_hotkey_preview = if macro_hotkey_capture_active
-
-
-
                     && let Some(pending) = self.capture_hotkey_combo_keys.as_ref()
-
-
-
                 {
-
-
-
                     Some(Self::hotkey_binding_from_combo_keys(pending.clone()))
-
-
-
                 } else {
-
-
-
                     self.state.macros_master_hotkey.clone()
-
-
-
                 };
-
-
 
                 let macro_hotkey_capture_button_text = if macro_hotkey_capture_active {
-
-
-
                     Self::capture_button_text(language, true)
-
-
-
                 } else {
-
-
-
                     Self::material_icon_text(0xe312, 18.0)
-
-
-
                 };
 
-
-
                 if ui
-
-
-
                     .add_sized(
-
-
-
                         if macro_hotkey_capture_active {
-
-
-
                             [104.0, 28.0]
-
-
-
                         } else {
-
-
-
                             [28.0, 28.0]
-
-
-
                         },
-
-
-
                         Button::new(macro_hotkey_capture_button_text)
-
-
-
                             .fill(if macro_hotkey_capture_active {
-
-
-
                                 Color32::from_rgba_premultiplied(72, 156, 116, 120)
-
-
-
                             } else {
-
-
-
                                 ui.visuals().faint_bg_color
-
-
-
                             })
-
-
-
                             .stroke(egui::Stroke::new(
-
-
-
                                 1.0,
-
-
-
                                 if macro_hotkey_capture_active {
-
-
-
                                     Color32::from_rgb(126, 224, 182)
-
-
-
                                 } else {
-
-
-
                                     ui.visuals().widgets.noninteractive.bg_stroke.color
-
-
-
                                 },
-
-
-
                             )),
-
-
-
                     )
-
-
-
                     .on_hover_text(Self::tr_lang(
-
-
-
                         language,
-
-
-
                         "Capture macro hotkey",
-
-
-
                         "Bat macro hotkey",
-
-
-
                     ))
-
-
-
                     .clicked()
-
-
-
                 {
-
-
-
                     if macro_hotkey_capture_active {
-
-
-
                         self.cancel_capture();
-
-
-
                     } else {
-
-
-
                         self.begin_capture(
-
-
-
                             macro_hotkey_capture_target,
-
-
-
                             Self::tr_lang(
-
-
-
                                 language,
-
-
-
                                 "Press a hotkey for Macro On / Off.",
-
-
-
                                 "Nhan hotkey de bat / tat Macro.",
-
-
-
                             )
-
-
-
                             .to_owned(),
-
-
-
                         );
-
-
-
                     }
-
-
-
                 }
 
-
-
                 if let Some(binding) = macro_hotkey_preview.as_ref() {
-
-
-
                     let label = hotkey::format_binding(Some(binding));
 
-
-
                     if ui
-
-
-
                         .add(
-
-
-
                             Button::new(RichText::new(label).monospace()).min_size(vec2(0.0, 28.0)),
-
-
-
                         )
-
-
-
                         .on_hover_text(Self::tr_lang(
-
-
-
                             language,
-
-
-
                             "Click to remove this hotkey",
-
-
-
                             "Bấm để xóa hotkey này",
-
-
-
                         ))
-
-
-
                         .clicked()
-
-
-
                     {
-
-
-
                         self.state.macros_master_hotkey = None;
-
-
 
                         self.sync_macro_master_hotkey();
 
-
-
                         self.persist();
-
-
-
                     }
-
-
-
                 }
-
-
-
             });
 
-
-
             if ui
-
-
-
                 .add_sized(
-
-
-
                     [28.0, 28.0],
-
-
-
                     Button::new(Self::material_icon_text(0xe145, 18.0))
-
-
-
                         .fill(ui.visuals().faint_bg_color)
-
-
-
                         .stroke(egui::Stroke::new(
-
-
-
                             1.0,
-
-
-
                             ui.visuals().widgets.noninteractive.bg_stroke.color,
-
-
-
                         )),
-
-
-
                 )
-
-
-
                 .on_hover_text(Self::tr_lang(
-
-
-
                     language,
-
-
-
                     "Add macro group",
-
-
-
                     "Them macro group",
-
-
-
                 ))
-
-
-
                 .clicked()
-
-
-
             {
-
-
-
                 if let Some(folder_id) = active_folder_for_controls {
-
-
-
                     self.add_macro_group_to_folder(folder_id);
-
-
-
                 } else {
-
-
-
                     self.add_macro_group();
-
-
-
                 }
 
-
-
                 self.persist();
-
-
-
             }
-
-
 
             let share_icon = 0xe80d; // Material icon for share
 
-
-
             let share_fill = if self.show_share_buttons {
-
-
-
                 Color32::from_rgba_premultiplied(0, 191, 255, 30)
-
-
-
             } else {
-
-
-
                 ui.visuals().faint_bg_color
-
-
-
             };
-
-
 
             let share_stroke = if self.show_share_buttons {
-
-
-
                 Color32::from_rgb(0, 191, 255)
-
-
-
             } else {
-
-
-
                 ui.visuals().widgets.noninteractive.bg_stroke.color
-
-
-
             };
 
-
-
             if ui
-
-
-
                 .add_sized(
-
-
-
                     [28.0, 28.0],
-
-
-
                     Button::new(Self::material_icon_text(share_icon, 18.0))
-
-
-
                         .fill(share_fill)
-
-
-
                         .stroke(egui::Stroke::new(1.0, share_stroke)),
-
-
-
                 )
-
-
-
                 .on_hover_text(Self::tr_lang(
-
-
-
                     language,
-
-
-
                     "Toggle Import/Export buttons",
-
-
-
                     "Bật/Tắt hiển thị nút chia sẻ (Import/Export)",
-
-
-
                 ))
-
-
-
                 .clicked()
-
-
-
             {
-
-
-
                 self.show_share_buttons = !self.show_share_buttons;
-
-
-
             }
-
-
 
             let paste_enabled = !self.macro_group_clipboard.is_empty();
 
-
-
             let paste_fill = if paste_enabled {
-
-
-
                 Color32::from_rgb(84, 90, 102)
-
-
-
             } else {
-
-
-
                 ui.visuals().faint_bg_color
-
-
-
             };
-
-
 
             let paste_stroke = if paste_enabled {
-
-
-
                 ui.visuals().widgets.active.bg_stroke.color
-
-
-
             } else {
-
-
-
                 ui.visuals().widgets.noninteractive.bg_stroke.color
-
-
-
             };
 
-
-
             if ui
-
-
-
                 .add_enabled(
-
-
-
                     paste_enabled,
-
-
-
                     Button::new(Self::material_icon_text(0xe14f, 18.0))
-
-
-
                         .min_size(egui::vec2(28.0, 28.0))
-
-
-
                         .fill(paste_fill)
-
-
-
                         .stroke(egui::Stroke::new(1.0, paste_stroke)),
-
-
-
                 )
-
-
-
                 .on_hover_text(Self::tr_lang(
-
-
-
                     language,
-
-
-
                     "Paste macro groups",
-
-
-
                     "DÃƒÂ¡n macro group",
-
-
-
                 ))
-
-
-
                 .clicked()
-
-
-
             {
-
-
-
                 self.paste_macro_groups_into_folder(paste_target_folder);
-
-
-
             }
-
-
 
             let copy_enabled = !self.selected_macro_groups.is_empty();
 
-
-
             let copy_fill = if copy_enabled {
-
-
-
                 Color32::from_rgb(84, 90, 102)
-
-
-
             } else {
-
-
-
                 ui.visuals().faint_bg_color
-
-
-
             };
-
-
 
             let copy_stroke = if copy_enabled {
-
-
-
                 ui.visuals().widgets.active.bg_stroke.color
-
-
-
             } else {
-
-
-
                 ui.visuals().widgets.noninteractive.bg_stroke.color
-
-
-
             };
 
-
-
             if ui
-
-
-
                 .add_enabled(
-
-
-
                     copy_enabled,
-
-
-
                     Button::new(Self::material_icon_text(0xe14d, 18.0))
-
-
-
                         .min_size(egui::vec2(28.0, 28.0))
-
-
-
                         .fill(copy_fill)
-
-
-
                         .stroke(egui::Stroke::new(1.0, copy_stroke)),
-
-
-
                 )
-
-
-
                 .on_hover_text(Self::tr_lang(
-
-
-
                     language,
-
-
-
                     "Copy selected macro groups",
-
-
-
                     "Sao chÃƒÂ©p macro group Ãƒâ€žÃ¢â‚¬ËœÃƒÂ£ chÃ¡Â»Ân",
-
-
-
                 ))
-
-
-
                 .clicked()
-
-
-
             {
-
-
-
                 self.copy_selected_macro_groups();
-
-
-
             }
-
-
 
             let cut_enabled = !self.selected_macro_groups.is_empty();
 
-
-
             let cut_fill = if cut_enabled {
-
-
-
                 Color32::from_rgb(84, 90, 102)
-
-
-
             } else {
-
-
-
                 ui.visuals().faint_bg_color
-
-
-
             };
-
-
 
             let cut_stroke = if cut_enabled {
-
-
-
                 ui.visuals().widgets.active.bg_stroke.color
-
-
-
             } else {
-
-
-
                 ui.visuals().widgets.noninteractive.bg_stroke.color
-
-
-
             };
 
-
-
             if ui
-
-
-
                 .add_enabled(
-
-
-
                     cut_enabled,
-
-
-
                     Button::new(Self::material_icon_text(0xe14e, 18.0))
-
-
-
                         .min_size(egui::vec2(28.0, 28.0))
-
-
-
                         .fill(cut_fill)
-
-
-
                         .stroke(egui::Stroke::new(1.0, cut_stroke)),
-
-
-
                 )
-
-
-
                 .on_hover_text(Self::tr_lang(
-
-
-
                     language,
-
-
-
                     "Cut selected macro groups",
-
-
-
                     "Cat macro group Ãƒâ€žÃ¢â‚¬ËœÃƒÂ£ chÃ¡Â»Ân",
-
-
-
                 ))
-
-
-
                 .clicked()
-
-
-
             {
-
-
-
                 self.cut_selected_macro_groups();
-
-
-
             }
-
-
 
             let trash_enabled = !self.selected_macro_groups.is_empty();
 
-
-
             let trash_fill = if trash_enabled {
-
-
-
                 Color32::from_rgb(84, 90, 102)
-
-
-
             } else {
-
-
-
                 ui.visuals().faint_bg_color
-
-
-
             };
-
-
 
             let trash_stroke = if trash_enabled {
-
-
-
                 ui.visuals().widgets.active.bg_stroke.color
-
-
-
             } else {
-
-
-
                 ui.visuals().widgets.noninteractive.bg_stroke.color
-
-
-
             };
 
-
-
             if ui
-
-
-
                 .add_enabled(
-
-
-
                     trash_enabled,
-
-
-
                     Button::new(Self::material_icon_text(0xe872, 18.0))
-
-
-
                         .min_size(egui::vec2(28.0, 28.0))
-
-
-
                         .fill(trash_fill)
-
-
-
                         .stroke(egui::Stroke::new(1.0, trash_stroke)),
-
-
-
                 )
-
-
-
                 .on_hover_text(Self::tr_lang(
-
-
-
                     language,
-
-
-
                     "Delete selected macro groups",
-
-
-
                     "Xoa cac macro group da chon",
-
-
-
                 ))
-
-
-
                 .clicked()
-
-
-
             {
-
-
-
                 self.remove_selected_macro_groups();
-
-
-
             }
-
-
 
             let star_filter_active = matches!(
-
-
-
                 self.macro_groups_favorite_filter,
-
-
-
                 MacroGroupFavoriteFilter::Star
-
-
-
             );
 
-
-
             if ui
-
-
-
                 .add_sized(
-
-
-
                     [28.0, 28.0],
-
-
-
                     Button::new(Self::material_icon_text(0xe838, 18.0))
-
-
-
                         .fill(if star_filter_active {
-
-
-
                             Color32::from_rgb(124, 96, 28)
-
-
-
                         } else {
-
-
-
                             ui.visuals().faint_bg_color
-
-
-
                         })
-
-
-
                         .stroke(egui::Stroke::new(
-
-
-
                             1.0,
-
-
-
                             if star_filter_active {
-
-
-
                                 Color32::from_rgb(255, 220, 96)
-
-
-
                             } else {
-
-
-
                                 ui.visuals().widgets.noninteractive.bg_stroke.color
-
-
-
                             },
-
-
-
                         )),
-
-
-
                 )
-
-
-
                 .on_hover_text(Self::tr_lang(
-
-
-
                     language,
-
-
-
                     "Show star macros only",
-
-
-
                     "Chi nhÃƒÂ³m Ãƒâ€žÃ¢â‚¬ËœÃƒÂ£ favorite",
-
-
-
                 ))
-
-
-
                 .clicked()
-
-
-
             {
-
-
-
                 self.macro_groups_favorite_filter = if star_filter_active {
-
-
-
                     MacroGroupFavoriteFilter::All
-
-
-
                 } else {
-
-
-
                     MacroGroupFavoriteFilter::Star
-
-
-
                 };
-
-
-
             }
 
-
-
             ui.group(|ui| {
-
-
-
                 ui.spacing_mut().item_spacing.x = 4.0;
-
-
 
                 // Render Global Constants on toolbar
 
-
-
                 if !self.state.global_constants.is_empty() {
-
-
-
                     let max_show = 3;
 
-
-
                     for (i, (name, val)) in self.state.global_constants.iter().enumerate() {
-
-
-
                         if i >= max_show {
-
-
-
                             break;
-
-
-
                         }
-
-
 
                         let text = format!("{}={}", name, val);
 
-
-
                         let is_dark = self.state.ui_theme == UiThemeMode::Dark;
 
-
-
                         let bg_color = if is_dark {
-
-
-
                             Color32::from_rgba_premultiplied(0, 150, 200, 30)
-
-
-
                         } else {
-
-
-
                             Color32::from_rgba_premultiplied(0, 120, 180, 20)
-
-
-
                         };
-
-
 
                         let border_color = if is_dark {
-
-
-
                             Color32::from_rgba_premultiplied(0, 200, 255, 120)
-
-
-
                         } else {
-
-
-
                             Color32::from_rgba_premultiplied(0, 100, 150, 120)
-
-
-
                         };
-
-
 
                         let text_color = if is_dark {
-
-
-
                             Color32::from_rgb(140, 230, 255)
-
-
-
                         } else {
-
-
-
                             Color32::from_rgb(0, 80, 120)
-
-
-
                         };
 
-
-
                         egui::Frame::canvas(ui.style())
-
-
-
                             .fill(bg_color)
-
-
-
                             .stroke(egui::Stroke::new(1.0, border_color))
-
-
-
                             .rounding(4.0)
-
-
-
                             .inner_margin(egui::Margin::symmetric(5, 2))
-
-
-
                             .show(ui, |ui| {
-
-
-
                                 ui.label(
-
-
-
                                     RichText::new(text).monospace().size(11.0).color(text_color),
-
-
-
                                 );
-
-
-
                             })
-
-
-
                             .response
-
-
-
                             .on_hover_text(Self::tr_lang(
-
-
-
                                 language,
-
-
-
                                 "Global Constant (Fixed Value)",
-
-
-
                                 "Hằng số toàn cục (Giá trị cố định)",
-
-
-
                             ));
-
-
-
                     }
 
-
-
                     if self.state.global_constants.len() > max_show {
-
-
-
                         let remaining = self.state.global_constants.len() - max_show;
-
-
 
                         let mut tooltip_text = String::new();
 
-
-
                         for (i, (name, val)) in self.state.global_constants.iter().enumerate() {
-
-
-
                             if i >= max_show {
-
-
-
                                 if !tooltip_text.is_empty() {
-
-
-
                                     tooltip_text.push('\n');
-
-
-
                                 }
 
-
-
                                 tooltip_text.push_str(&format!("{} = {}", name, val));
-
-
-
                             }
-
-
-
                         }
 
-
-
                         ui.label(
-
-
-
                             RichText::new(format!("+{} more", remaining))
-
-
-
                                 .size(11.0)
-
-
-
                                 .color(ui.visuals().weak_text_color())
-
-
-
                                 .italics(),
-
-
-
                         )
-
-
-
                         .on_hover_text(tooltip_text);
-
-
-
                     }
-
-
-
                 }
-
-
 
                 ui.vertical(|ui| {
-
-
-
                     let edit_icon = 0xe3c9; // edit icon (bút chì chéo)
 
-
-
                     if ui
-
-
-
                         .add_sized(
-
-
-
                             [28.0, 28.0],
-
-
-
                             Button::new(Self::material_icon_text(edit_icon, 18.0)) // variable edit icon
-
-
-
                                 .fill(if self.variable_inspector_open {
-
-
-
                                     Color32::from_rgba_premultiplied(72, 156, 116, 120)
-
-
-
                                 } else {
-
-
-
                                     ui.visuals().faint_bg_color
-
-
-
                                 })
-
-
-
                                 .stroke(egui::Stroke::new(
-
-
-
                                     1.0,
-
-
-
                                     if self.variable_inspector_open {
-
-
-
                                         Color32::from_rgb(126, 224, 182)
-
-
-
                                     } else {
-
-
-
                                         ui.visuals().widgets.noninteractive.bg_stroke.color
-
-
-
                                     },
-
-
-
                                 )),
-
-
-
                         )
-
-
-
                         .on_hover_text(Self::tr_lang(
-
-
-
                             language,
-
-
-
                             "Global & Local Variables Manager (Real-time)",
-
-
-
                             "Trình quản lý biến toàn cục & cục bộ (Real-time)",
-
-
-
                         ))
-
-
-
                         .clicked()
-
-
-
                     {
-
-
-
                         self.variable_inspector_open = !self.variable_inspector_open;
-
-
-
                     }
-
-
-
-
-
-
-
                 });
-
-
-
             });
 
-
-
             if ui
-
-
-
                 .add_sized(
-
-
-
                     [28.0, 28.0],
-
-
-
                     Button::new(Self::folder_icon_text(self.macro_folders_panel_open, 18.0))
-
-
-
                         .fill(if self.macro_folders_panel_open {
-
-
-
                             Color32::from_rgba_premultiplied(72, 156, 116, 120)
-
-
-
                         } else {
-
-
-
                             ui.visuals().faint_bg_color
-
-
-
                         })
-
-
-
                         .stroke(egui::Stroke::new(
-
-
-
                             1.0,
-
-
-
                             if self.macro_folders_panel_open {
-
-
-
                                 Color32::from_rgb(126, 224, 182)
-
-
-
                             } else {
-
-
-
                                 ui.visuals().widgets.noninteractive.bg_stroke.color
-
-
-
                             },
-
-
-
                         )),
-
-
-
                 )
-
-
-
                 .on_hover_text(Self::tr_lang(
-
-
-
                     language,
-
-
-
                     "Show / hide macro folders",
-
-
-
                     "Hien / an macro folder",
-
-
-
                 ))
-
-
-
                 .clicked()
-
-
-
             {
-
-
-
                 self.macro_folders_panel_open = !self.macro_folders_panel_open;
 
-
-
                 if !self.macro_folders_panel_open {
-
-
-
                     self.set_active_macro_folder_view(None);
-
-
-
                 }
-
-
-
             }
 
-
-
             if self.macro_folders_panel_open {
-
-
-
                 if let Some(folder_id) = self.active_macro_folder_view {
-
-
-
                     let folder_name = self
-
-
-
                         .state
-
-
-
                         .macro_folders
-
-
-
                         .iter()
-
-
-
                         .find(|f| f.id == folder_id)
-
-
-
                         .map(|f| f.name.clone())
-
-
-
                         .unwrap_or_default();
 
-
-
                     if ui
-
-
-
                         .add_sized(
-
-
-
                             [28.0, 28.0],
-
-
-
                             Button::new(Self::material_icon_text(0xe5c4, 18.0)) // arrow_back icon
-
-
-
                                 .fill(ui.visuals().faint_bg_color)
-
-
-
                                 .stroke(egui::Stroke::new(
-
-
-
                                     1.0,
-
-
-
                                     ui.visuals().widgets.noninteractive.bg_stroke.color,
-
-
-
                                 )),
-
-
-
                         )
-
-
-
                         .on_hover_text(Self::tr_lang(
-
-
-
                             language,
-
-
-
                             "Back to folder list",
-
-
-
                             "Quay lại danh sách thư mục",
-
-
-
                         ))
-
-
-
                         .clicked()
-
-
-
                     {
-
-
-
                         self.set_active_macro_folder_view(None);
-
-
-
                     }
 
-
-
                     ui.label(
-
-
-
                         RichText::new(folder_name)
-
-
-
                             .strong()
-
-
-
                             .color(ui.visuals().strong_text_color()),
-
-
-
                     );
 
-
-
                     ui.add_space(8.0);
-
-
-
                 } else {
-
-
-
                     if ui
-
-
-
                         .add_sized(
-
-
-
                             [28.0, 28.0],
-
-
-
                             Button::new(Self::material_icon_text(0xe2cc, 18.0))
-
-
-
                                 .fill(ui.visuals().faint_bg_color)
-
-
-
                                 .stroke(egui::Stroke::new(
-
-
-
                                     1.0,
-
-
-
                                     ui.visuals().widgets.noninteractive.bg_stroke.color,
-
-
-
                                 )),
-
-
-
                         )
-
-
-
                         .on_hover_text(Self::tr_lang(language, "Add folder", "Them thu muc"))
-
-
-
                         .clicked()
-
-
-
                     {
-
-
-
                         self.add_macro_folder();
-
-
 
                         self.persist();
 
-
-
                         self.macro_folders_panel_open = true;
 
-
-
                         self.active_macro_folder_view = None;
-
-
-
                     }
-
-
-
                 }
-
-
-
             }
 
-
-
             ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
-
-
-
                 ui.add_space(8.0);
 
-
-
                 let response = ui.add_sized(
-
-
-
                     [260.0, 24.0],
-
-
-
                     TextEdit::singleline(&mut self.macro_preset_search_query).hint_text(
-
-
-
                         RichText::new(Self::tr_lang(
-
-
-
                             language,
-
-
-
                             "Search macro groups and presets",
-
-
-
                             "Tìm group macro và preset",
-
-
-
                         ))
-
-
-
                         .weak(),
-
-
-
                     ),
-
-
-
                 );
-
-
 
                 ui.label(Self::material_icon_text(0xe8b6, 18.0));
 
-
-
                 Self::apply_vietnamese_input_if_changed(
-
-
-
                     &response,
-
-
-
                     self.state.vietnamese_input_enabled,
-
-
-
                     self.state.vietnamese_input_mode,
-
-
-
                     &mut self.macro_preset_search_query,
-
-
-
                 );
-
-
-
             });
-
-
-
         });
-
-
 
         ui.add_space(8.0);
 
-
-
         if Self::is_copy_feedback_active(self.macro_group_export_feedback_until)
-
-
-
             || Self::is_copy_feedback_active(self.macro_preset_export_feedback_until)
-
-
-
             || Self::is_copy_feedback_active(self.macro_step_export_feedback_until)
-
-
-
         {
-
-
-
             ui.ctx()
-
-
-
                 .request_repaint_after(std::time::Duration::from_millis(16));
-
-
-
         }
-
-
 
         let macro_panel_scroll_height = ui.available_height();
 
-
-
         let pending_macro_group_scroll_target = self.pending_macro_group_scroll_target.take();
-
-
 
         let mut pending_macro_group_scroll_consumed = false;
 
-
-
         let mut hover_preview: Option<MacroStepHoverPreview> = None;
-
-
 
         let mut hover_preview_request: Option<(u32, HoverPreviewRequest)> = None;
 
-
-
         let hover_preview_state_id = ui.make_persistent_id("macro-hover-preview-state");
-
-
 
         egui::ScrollArea::vertical()
 
@@ -18223,7 +9376,7 @@ pub(crate) fn render_macro_panel(&mut self, ui: &mut egui::Ui) {
 
 
 
-                            
+
 
 
 
@@ -22602,7 +13755,7 @@ pub(crate) fn render_macro_panel(&mut self, ui: &mut egui::Ui) {
 
 
 
-                                                         
+
 
 
 
@@ -22681,128 +13834,128 @@ pub(crate) fn render_macro_panel(&mut self, ui: &mut egui::Ui) {
                                                 egui::ComboBox::from_id_salt((group.id, preset.id, "hold-stop-image-search"))
 
     .width(160.0)
-    
+
     .selected_text(selected_label)
-    
+
     .show_ui(ui, |ui| {
-    
+
                     let (image_presets, color_presets, pixel_presets): (Vec<_>, Vec<_>, Vec<_>) = self.state.vision_presets.iter().fold(
-                    
+
                         (Vec::new(), Vec::new(), Vec::new()),
-                        
+
                         |(mut img, mut col, mut pix), p| {
-                        
+
                             if p.is_pixel_counter {
-                            
+
                                 pix.push(p);
-                                
+
                             } else if p.use_color_matching {
-                            
+
                                 col.push(p);
-                                
+
                             } else {
-                            
+
                                 img.push(p);
-                                
+
                             }
-                            
+
                             (img, col, pix)
-                            
+
                         }
-                        
+
                     );
-                    
+
                     if !image_presets.is_empty() {
-                    
+
                         ui.colored_label(egui::Color32::from_rgb(0, 191, 255), "🖼 Image Detect");
-                        
+
                         ui.separator();
-                        
+
                         for p in &image_presets {
-                        
+
                             if ui.selectable_label(selected_id == Some(p.id), &p.name).clicked() {
-                            
+
                                 step.key = p.id.to_string();
-                                
+
                                 live_sync = true;
-                                
+
                             }
-                            
+
                         }
-                        
+
                     }
-                    
+
                     if !color_presets.is_empty() {
-                    
+
                         if !image_presets.is_empty() {
-                        
+
                             ui.add_space(4.0);
-                            
+
                         }
-                        
+
                         ui.colored_label(egui::Color32::from_rgb(0, 250, 154), "🎨 Color Detect");
-                        
+
                         ui.separator();
-                        
+
                         for p in &color_presets {
-                        
+
                             if ui.selectable_label(selected_id == Some(p.id), &p.name).clicked() {
-                            
+
                                 step.key = p.id.to_string();
-                                
+
                                 live_sync = true;
-                                
+
                             }
-                            
+
                         }
-                        
+
                     }
-                    
+
                     let show_pixel_counter = step.action == MacroAction::ScanVisionOnce;
 
                     if show_pixel_counter && !pixel_presets.is_empty() {
-                    
+
                         if !image_presets.is_empty() || !color_presets.is_empty() {
-                        
+
                             ui.add_space(4.0);
-                            
+
                         }
-                        
+
                         ui.colored_label(egui::Color32::from_rgb(255, 165, 0), "🔢 Pixel Counter");
-                        
+
                         ui.separator();
-                        
+
                         for p in &pixel_presets {
-                        
+
                             if ui.selectable_label(selected_id == Some(p.id), &p.name).clicked() {
-                            
+
                                 step.key = p.id.to_string();
-                                
+
                                 live_sync = true;
-                                
+
                             }
-                            
+
                         }
-                        
+
                     }
-                    
-                    
+
+
     });
-    
+
                                                  let is_pixel = selected_id.and_then(|id| {
 
                                                         self.state.vision_presets.iter().find(|p| p.id == id)
-                                                        
+
                                                     }).map(|p| p.is_pixel_counter).unwrap_or(false);
-                                                    
+
                                                     if matches!(step.action, MacroAction::StartVisionSearch | MacroAction::StopVision) {
-                                                    
+
                                                         ui.add_space(4.0);
-                                                        
+
                                                         ui.weak(Self::tr_lang(language, "(Mouse move only)", "(Chức năng di chuột)"));
-                                                        
+
                                                     }
-                                                    
+
 
                                                  if step.action == MacroAction::ScanVisionOnce {
                                                      ui.add_space(4.0);
@@ -25429,7 +16582,7 @@ pub(crate) fn render_macro_panel(&mut self, ui: &mut egui::Ui) {
 
 
 
-                                                                   
+
 
 
 
@@ -25469,7 +16622,7 @@ pub(crate) fn render_macro_panel(&mut self, ui: &mut egui::Ui) {
 
 
 
-                                                                               
+
 
 
 
@@ -25481,7 +16634,7 @@ pub(crate) fn render_macro_panel(&mut self, ui: &mut egui::Ui) {
 
 
 
-                                                                               
+
 
 
 
@@ -25988,81 +17141,81 @@ pub(crate) fn render_macro_panel(&mut self, ui: &mut egui::Ui) {
                                                                        egui::ComboBox::from_id_salt((group.id, preset.id, 0, "hold-stop-if-vision-preset"))
 
     .width(146.0)
-    
+
     .selected_text(selected_label)
-    
+
     .show_ui(ui, |ui| {
-    
+
                     let (image_presets, color_presets): (Vec<_>, Vec<_>) = self.state.vision_presets.iter().filter(|p| !p.is_pixel_counter).fold(
-                    
+
                         (Vec::new(), Vec::new()),
-                        
+
                         |(mut img, mut col), p| {
-                        
+
                             if p.use_color_matching {
-                            
+
                                 col.push(p);
-                                
+
                             } else {
-                            
+
                                 img.push(p);
-                                
+
                             }
-                            
+
                             (img, col)
-                            
+
                         }
-                        
+
                     );
-                    
+
                     if !image_presets.is_empty() {
-                    
+
                         ui.colored_label(egui::Color32::from_rgb(0, 191, 255), "🖼 Image Detect");
-                        
+
                         ui.separator();
-                        
+
                         for p in &image_presets {
-                        
+
                             if ui.selectable_label(selected_id == Some(p.id), &p.name).clicked() {
-                            
+
                                 step.if_vision_preset_id = Some(p.id);
-                                
+
                                 live_sync = true;
-                                
+
                             }
-                            
+
                         }
-                        
+
                     }
-                    
+
                     if !color_presets.is_empty() {
-                    
+
                         if !image_presets.is_empty() {
-                        
+
                             ui.add_space(4.0);
-                            
+
                         }
-                        
+
                         ui.colored_label(egui::Color32::from_rgb(0, 250, 154), "🎨 Color Detect");
-                        
+
                         ui.separator();
-                        
+
                         for p in &color_presets {
-                        
+
                             if ui.selectable_label(selected_id == Some(p.id), &p.name).clicked() {
-                            
+
                                 step.if_vision_preset_id = Some(p.id);
-                                
+
                                 live_sync = true;
-                                
+
                             }
-                            
+
                         }
-                        
+
                     }
-                    
+
     });
-    
+
 
 
 
@@ -26606,7 +17759,7 @@ pub(crate) fn render_macro_panel(&mut self, ui: &mut egui::Ui) {
 
 
 
-                                                                        
+
 
 
 
@@ -26666,7 +17819,7 @@ pub(crate) fn render_macro_panel(&mut self, ui: &mut egui::Ui) {
 
 
 
-                                                                        
+
 
 
 
@@ -32705,7 +23858,7 @@ pub(crate) fn render_macro_panel(&mut self, ui: &mut egui::Ui) {
 
 
 
-                                                         
+
 
 
 
@@ -32756,128 +23909,128 @@ pub(crate) fn render_macro_panel(&mut self, ui: &mut egui::Ui) {
                                                     egui::ComboBox::from_id_salt((group.id, preset.id, step_index, "image-search-preset-step"))
 
     .width(146.0)
-    
+
     .selected_text(selected_label)
-    
+
     .show_ui(ui, |ui| {
-    
+
                     let (image_presets, color_presets, pixel_presets): (Vec<_>, Vec<_>, Vec<_>) = self.state.vision_presets.iter().fold(
-                    
+
                         (Vec::new(), Vec::new(), Vec::new()),
-                        
+
                         |(mut img, mut col, mut pix), p| {
-                        
+
                             if p.is_pixel_counter {
-                            
+
                                 pix.push(p);
-                                
+
                             } else if p.use_color_matching {
-                            
+
                                 col.push(p);
-                                
+
                             } else {
-                            
+
                                 img.push(p);
-                                
+
                             }
-                            
+
                             (img, col, pix)
-                            
+
                         }
-                        
+
                     );
-                    
+
                     if !image_presets.is_empty() {
-                    
+
                         ui.colored_label(egui::Color32::from_rgb(0, 191, 255), "🖼 Image Detect");
-                        
+
                         ui.separator();
-                        
+
                         for p in &image_presets {
-                        
+
                             if ui.selectable_label(selected_id == Some(p.id), &p.name).clicked() {
-                            
+
                                 step.key = p.id.to_string();
-                                
+
                                 live_sync = true;
-                                
+
                             }
-                            
+
                         }
-                        
+
                     }
-                    
+
                     if !color_presets.is_empty() {
-                    
+
                         if !image_presets.is_empty() {
-                        
+
                             ui.add_space(4.0);
-                            
+
                         }
-                        
+
                         ui.colored_label(egui::Color32::from_rgb(0, 250, 154), "🎨 Color Detect");
-                        
+
                         ui.separator();
-                        
+
                         for p in &color_presets {
-                        
+
                             if ui.selectable_label(selected_id == Some(p.id), &p.name).clicked() {
-                            
+
                                 step.key = p.id.to_string();
-                                
+
                                 live_sync = true;
-                                
+
                             }
-                            
+
                         }
-                        
+
                     }
-                    
+
                     let show_pixel_counter = step.action == MacroAction::ScanVisionOnce;
 
                     if show_pixel_counter && !pixel_presets.is_empty() {
-                    
+
                         if !image_presets.is_empty() || !color_presets.is_empty() {
-                        
+
                             ui.add_space(4.0);
-                            
+
                         }
-                        
+
                         ui.colored_label(egui::Color32::from_rgb(255, 165, 0), "🔢 Pixel Counter");
-                        
+
                         ui.separator();
-                        
+
                         for p in &pixel_presets {
-                        
+
                             if ui.selectable_label(selected_id == Some(p.id), &p.name).clicked() {
-                            
+
                                 step.key = p.id.to_string();
-                                
+
                                 live_sync = true;
-                                
+
                             }
-                            
+
                         }
-                        
+
                     }
-                    
-                    
+
+
     });
-    
+
                                                      let is_pixel = selected_id.and_then(|id| {
 
                                                         self.state.vision_presets.iter().find(|p| p.id == id)
-                                                        
+
                                                     }).map(|p| p.is_pixel_counter).unwrap_or(false);
-                                                    
+
                                                     if matches!(step.action, MacroAction::StartVisionSearch | MacroAction::StopVision) {
-                                                    
+
                                                         ui.add_space(4.0);
-                                                        
+
                                                         ui.weak(Self::tr_lang(language, "(Mouse move only)", "(Chức năng di chuột)"));
-                                                        
+
                                                     }
-                                                    
+
 
                                                      if step.action == MacroAction::ScanVisionOnce {
                                                          ui.add_space(4.0);
@@ -32930,7 +24083,7 @@ pub(crate) fn render_macro_panel(&mut self, ui: &mut egui::Ui) {
 
 
 
-                                                    
+
 
 
 
@@ -33106,7 +24259,7 @@ pub(crate) fn render_macro_panel(&mut self, ui: &mut egui::Ui) {
 
 
 
-                                                    
+
 
 
 
@@ -33114,7 +24267,7 @@ pub(crate) fn render_macro_panel(&mut self, ui: &mut egui::Ui) {
 
 
 
-                                                    
+
 
 
 
@@ -33210,7 +24363,7 @@ pub(crate) fn render_macro_panel(&mut self, ui: &mut egui::Ui) {
 
 
 
-                                                    
+
 
 
 
@@ -33266,11 +24419,11 @@ pub(crate) fn render_macro_panel(&mut self, ui: &mut egui::Ui) {
 
 
 
-                                                                    resp_label.on_hover_text(Self::tr_lang(language, 
+                                                                    resp_label.on_hover_text(Self::tr_lang(language,
 
 
 
-                                                                        "Assigns 1 if the target text was found (or if OCR succeeded when no target is set), 0 otherwise", 
+                                                                        "Assigns 1 if the target text was found (or if OCR succeeded when no target is set), 0 otherwise",
 
 
 
@@ -33298,7 +24451,7 @@ pub(crate) fn render_macro_panel(&mut self, ui: &mut egui::Ui) {
 
 
 
- 
+
 
 
 
@@ -33306,11 +24459,11 @@ pub(crate) fn render_macro_panel(&mut self, ui: &mut egui::Ui) {
 
 
 
-                                                                    resp_label.on_hover_text(Self::tr_lang(language, 
+                                                                    resp_label.on_hover_text(Self::tr_lang(language,
 
 
 
-                                                                        "Assigns the absolute X coordinate of the center of found text", 
+                                                                        "Assigns the absolute X coordinate of the center of found text",
 
 
 
@@ -33338,7 +24491,7 @@ pub(crate) fn render_macro_panel(&mut self, ui: &mut egui::Ui) {
 
 
 
- 
+
 
 
 
@@ -33346,11 +24499,11 @@ pub(crate) fn render_macro_panel(&mut self, ui: &mut egui::Ui) {
 
 
 
-                                                                    resp_label.on_hover_text(Self::tr_lang(language, 
+                                                                    resp_label.on_hover_text(Self::tr_lang(language,
 
 
 
-                                                                        "Assigns the absolute Y coordinate of the center of found text", 
+                                                                        "Assigns the absolute Y coordinate of the center of found text",
 
 
 
@@ -33378,7 +24531,7 @@ pub(crate) fn render_macro_panel(&mut self, ui: &mut egui::Ui) {
 
 
 
- 
+
 
 
 
@@ -33386,11 +24539,11 @@ pub(crate) fn render_macro_panel(&mut self, ui: &mut egui::Ui) {
 
 
 
-                                                                     resp_label.on_hover_text(Self::tr_lang(language, 
+                                                                     resp_label.on_hover_text(Self::tr_lang(language,
 
 
 
-                                                                         "Stores ALL recognized text into this variable, regardless of the Target Text filter", 
+                                                                         "Stores ALL recognized text into this variable, regardless of the Target Text filter",
 
 
 
@@ -33426,7 +24579,7 @@ pub(crate) fn render_macro_panel(&mut self, ui: &mut egui::Ui) {
 
 
 
- 
+
 
 
 
@@ -33434,7 +24587,7 @@ pub(crate) fn render_macro_panel(&mut self, ui: &mut egui::Ui) {
 
                                                          ui.add_space(4.0);
 
-                                                         
+
 
                                                          // 3. Pick Area Button (Width ctrl_height, Height ctrl_height)
 
@@ -33460,11 +24613,11 @@ pub(crate) fn render_macro_panel(&mut self, ui: &mut egui::Ui) {
 
                                                          }
 
-                                                         
+
 
                                                          ui.add_space(4.0);
 
-                                                         
+
 
                                                          // 4. Language selector - ASCII labels to avoid font rendering issues
 
@@ -33498,11 +24651,11 @@ pub(crate) fn render_macro_panel(&mut self, ui: &mut egui::Ui) {
 
                                                          ];
 
-                                                         
+
 
                                                          let avail_langs = crate::ocr::available_ocr_languages();
 
-                                                         
+
 
                                                          let cur_lang = step.ocr_lang.clone().unwrap_or_default();
 
@@ -33516,7 +24669,7 @@ pub(crate) fn render_macro_panel(&mut self, ui: &mut egui::Ui) {
 
                                                              .unwrap_or(if cur_lang.is_empty() { "Auto" } else { cur_lang.as_str() });
 
-                                                         
+
 
                                                          let short_lbl = match cur_lang.as_str() {
 
@@ -33566,7 +24719,7 @@ pub(crate) fn render_macro_panel(&mut self, ui: &mut egui::Ui) {
 
                                                          let short_lbl_upper = short_lbl.to_uppercase();
 
-                                                         
+
 
                                                          let combo_resp = egui::ComboBox::from_id_salt((group.id, preset.id, step_index, "ocr-step-lang"))
 
@@ -33628,7 +24781,7 @@ pub(crate) fn render_macro_panel(&mut self, ui: &mut egui::Ui) {
 
                                                      }
 
-                                                     
+
 
                                                      // 5. Target Text Input TextBox (Width 120.0)
 
@@ -36078,7 +27231,7 @@ pub(crate) fn render_macro_panel(&mut self, ui: &mut egui::Ui) {
 
 
 
-                                                                    
+
 
 
 
@@ -36118,7 +27271,7 @@ pub(crate) fn render_macro_panel(&mut self, ui: &mut egui::Ui) {
 
 
 
-                                                                                
+
 
 
 
@@ -36130,7 +27283,7 @@ pub(crate) fn render_macro_panel(&mut self, ui: &mut egui::Ui) {
 
 
 
-                                                                                
+
 
 
 
@@ -36637,81 +27790,81 @@ pub(crate) fn render_macro_panel(&mut self, ui: &mut egui::Ui) {
                                                                         egui::ComboBox::from_id_salt((group.id, preset.id, step_index, "if-vision-preset"))
 
     .width(146.0)
-    
+
     .selected_text(selected_label)
-    
+
     .show_ui(ui, |ui| {
-    
+
                     let (image_presets, color_presets): (Vec<_>, Vec<_>) = self.state.vision_presets.iter().filter(|p| !p.is_pixel_counter).fold(
-                    
+
                         (Vec::new(), Vec::new()),
-                        
+
                         |(mut img, mut col), p| {
-                        
+
                             if p.use_color_matching {
-                            
+
                                 col.push(p);
-                                
+
                             } else {
-                            
+
                                 img.push(p);
-                                
+
                             }
-                            
+
                             (img, col)
-                            
+
                         }
-                        
+
                     );
-                    
+
                     if !image_presets.is_empty() {
-                    
+
                         ui.colored_label(egui::Color32::from_rgb(0, 191, 255), "🖼 Image Detect");
-                        
+
                         ui.separator();
-                        
+
                         for p in &image_presets {
-                        
+
                             if ui.selectable_label(selected_id == Some(p.id), &p.name).clicked() {
-                            
+
                                 step.if_vision_preset_id = Some(p.id);
-                                
+
                                 live_sync = true;
-                                
+
                             }
-                            
+
                         }
-                        
+
                     }
-                    
+
                     if !color_presets.is_empty() {
-                    
+
                         if !image_presets.is_empty() {
-                        
+
                             ui.add_space(4.0);
-                            
+
                         }
-                        
+
                         ui.colored_label(egui::Color32::from_rgb(0, 250, 154), "🎨 Color Detect");
-                        
+
                         ui.separator();
-                        
+
                         for p in &color_presets {
-                        
+
                             if ui.selectable_label(selected_id == Some(p.id), &p.name).clicked() {
-                            
+
                                 step.if_vision_preset_id = Some(p.id);
-                                
+
                                 live_sync = true;
-                                
+
                             }
-                            
+
                         }
-                        
+
                     }
-                    
+
     });
-    
+
 
 
 
@@ -37295,7 +28448,7 @@ pub(crate) fn render_macro_panel(&mut self, ui: &mut egui::Ui) {
 
 
 
-                                                                        
+
 
 
 
@@ -37355,7 +28508,7 @@ pub(crate) fn render_macro_panel(&mut self, ui: &mut egui::Ui) {
 
 
 
-                                                                        
+
 
 
 
@@ -37843,7 +28996,7 @@ pub(crate) fn render_macro_panel(&mut self, ui: &mut egui::Ui) {
 
 
 
-                                                         
+
 
 
 
@@ -37938,130 +29091,130 @@ pub(crate) fn render_macro_panel(&mut self, ui: &mut egui::Ui) {
                                                     egui::ComboBox::from_id_salt((group.id, preset.id, step_index, "vision-preset-step"))
 
     .width(146.0)
-    
+
     .selected_text(selected_label)
-    
+
     .show_ui(ui, |ui| {
-    
+
                     let (image_presets, color_presets, pixel_presets): (Vec<_>, Vec<_>, Vec<_>) = self.state.vision_presets.iter().fold(
-                    
+
                         (Vec::new(), Vec::new(), Vec::new()),
-                        
+
                         |(mut img, mut col, mut pix), p| {
-                        
+
                             if p.is_pixel_counter {
-                            
+
                                 pix.push(p);
-                                
+
                             } else if p.use_color_matching {
-                            
+
                                 col.push(p);
-                                
+
                             } else {
-                            
+
                                 img.push(p);
-                                
+
                             }
-                            
+
                             (img, col, pix)
-                            
+
                         }
-                        
+
                     );
-                    
+
                     if !image_presets.is_empty() {
-                    
+
                         ui.colored_label(egui::Color32::from_rgb(0, 191, 255), "🖼 Image Detect");
-                        
+
                         ui.separator();
-                        
+
                         for p in &image_presets {
-                        
+
                             if ui.selectable_label(selected_id == Some(p.id), &p.name).clicked() {
-                            
+
                                 step.key = p.id.to_string();
-                                
+
                                 live_sync = true;
-                                
+
                             }
-                            
+
                         }
-                        
+
                     }
-                    
+
                     if !color_presets.is_empty() {
-                    
+
                         if !image_presets.is_empty() {
-                        
+
                             ui.add_space(4.0);
-                            
+
                         }
-                        
+
                         ui.colored_label(egui::Color32::from_rgb(0, 250, 154), "🎨 Color Detect");
-                        
+
                         ui.separator();
-                        
+
                         for p in &color_presets {
-                        
+
                             if ui.selectable_label(selected_id == Some(p.id), &p.name).clicked() {
-                            
+
                                 step.key = p.id.to_string();
-                                
+
                                 live_sync = true;
-                                
+
                             }
-                            
+
                         }
-                        
+
                     }
-                    
+
                     let show_pixel_counter = step.action == MacroAction::ScanVisionOnce;
 
                     if show_pixel_counter && !pixel_presets.is_empty() {
-                    
+
                         if !image_presets.is_empty() || !color_presets.is_empty() {
-                        
+
                             ui.add_space(4.0);
-                            
+
                         }
-                        
+
                         ui.colored_label(egui::Color32::from_rgb(255, 165, 0), "🔢 Pixel Counter");
-                        
+
                         ui.separator();
-                        
+
                         for p in &pixel_presets {
-                        
+
                             if ui.selectable_label(selected_id == Some(p.id), &p.name).clicked() {
-                            
+
                                 step.key = p.id.to_string();
-                                
+
                                 live_sync = true;
-                                
+
                             }
-                            
+
                         }
-                        
+
                     }
-                    
-                    
+
+
     });
-    
+
                                                      let selected_preset = selected_id.and_then(|id| {
 
                                                          self.state.vision_presets.iter().find(|p| p.id == id)
-                                                         
+
                                                      });
-                                                     
+
                                                      let is_pixel = selected_preset.map(|p| p.is_pixel_counter).unwrap_or(false);
-                                                     
+
                                                      if matches!(step.action, MacroAction::StartVisionSearch | MacroAction::StopVision) {
-                                                     
+
                                                          ui.add_space(4.0);
-                                                         
+
                                                          ui.weak(Self::tr_lang(language, "(Mouse move only)", "(Chức năng di chuột)"));
-                                                         
+
                                                      }
-                                                     
+
 
                                                      if step.action == MacroAction::ScanVisionOnce {
                                                          ui.add_space(4.0);
@@ -39693,287 +30846,287 @@ pub(crate) fn render_macro_panel(&mut self, ui: &mut egui::Ui) {
                                 let mut hover_regions = Vec::new();
 
                                  let mut has_hover_support = false;
-                                 
+
                                  match step.action {
-                                 
+
                                      MacroAction::OcrSearch => {
-                                     
+
                                          has_hover_support = true;
-                                         
+
                                          hover_regions.push(crate::overlay::VisionRegion {
-                                         
+
                                              left: step.x,
-                                             
+
                                              top: step.y,
-                                             
+
                                              width: step.ocr_width.max(10),
-                                             
+
                                              height: step.ocr_height.max(10),
-                                             
+
                                              is_circle: false,
-                                             
+
                                              angle_offset_deg: None,
-                                             
+
                                              angle_span_deg: None,
-                                             
+
                                          });
-                                         
+
                                      }
-                                     
+
                                      MacroAction::StartVisionSearch | MacroAction::ScanVisionOnce | MacroAction::StopVision => {
-                                     
+
                                          has_hover_support = true;
-                                         
+
                                          if let Some(preset) = self.state.vision_presets.iter().find(|p| p.id.to_string() == step.key.trim()) {
-                                         
+
                                              if let (Some(rx), Some(ry), Some(rw), Some(rh)) = (preset.search_region_screen_x, preset.search_region_screen_y, preset.search_region_width, preset.search_region_height) {
-                                             
+
                                                  let bounds = crate::window_list::virtual_screen_bounds();
-                                                 
+
                                                  let left = rx.max(bounds.0);
-                                                 
+
                                                  let top = ry.max(bounds.1);
-                                                 
+
                                                  let right = (rx + rw).min(bounds.0 + bounds.2);
-                                                 
+
                                                  let bottom = (ry + rh).min(bounds.1 + bounds.3);
-                                                 
+
                                                  let width = right - left;
-                                                 
+
                                                  let height = bottom - top;
-                                                 
+
                                                  if width > 0 && height > 0 {
-                                                 
+
                                                      hover_regions.push(crate::overlay::VisionRegion {
-                                                     
+
                                                          left,
-                                                         
+
                                                          top,
-                                                         
+
                                                          width,
-                                                         
+
                                                          height,
-                                                         
+
                                                          is_circle: preset.search_region_is_circle,
-                                                         
+
                                                          angle_offset_deg: None,
-                                                         
+
                                                          angle_span_deg: None,
-                                                         
+
                                                      });
-                                                     
+
                                                  }
-                                                 
+
                                              }
-                                             
+
                                          }
-                                         
+
                                      }
-                                     
+
                                      MacroAction::EnablePinPreset | MacroAction::DisablePin => {
-                                     
+
                                          has_hover_support = true;
-                                         
+
                                          if let Some(preset) = step.key.trim().parse::<u32>().ok().and_then(|pid| self.state.pin_presets.iter().find(|p| p.id == pid)) {
-                                         
+
                                              if preset.use_source_crop {
-                                             
+
                                                  hover_regions.push(crate::overlay::VisionRegion {
-                                                 
+
                                                      left: preset.source_x,
-                                                     
+
                                                      top: preset.source_y,
-                                                     
+
                                                      width: preset.source_width.max(10),
-                                                     
+
                                                      height: preset.source_height.max(10),
-                                                     
+
                                                      is_circle: false,
-                                                     
+
                                                      angle_offset_deg: None,
-                                                     
+
                                                      angle_span_deg: None,
-                                                     
+
                                                  });
-                                                 
+
                                              }
-                                             
+
                                              if preset.use_custom_bounds {
-                                             
+
                                                  hover_regions.push(crate::overlay::VisionRegion {
-                                                 
+
                                                      left: preset.x,
-                                                     
+
                                                      top: preset.y,
-                                                     
+
                                                      width: preset.width.max(10),
-                                                     
+
                                                      height: preset.height.max(10),
-                                                     
+
                                                      is_circle: false,
-                                                     
+
                                                      angle_offset_deg: None,
-                                                     
+
                                                      angle_span_deg: None,
-                                                     
+
                                                  });
-                                                 
+
                                              }
-                                             
+
                                          }
-                                         
+
                                      }
-                                     
+
                                      MacroAction::ApplyWindowPreset => {
-                                     
+
                                          has_hover_support = true;
-                                         
+
                                          if let Some(preset) = step.key.trim().parse::<u32>().ok().and_then(|pid| self.state.window_presets.iter().find(|p| p.id == pid)) {
-                                         
+
                                              let (screen_width, screen_height) = {
-                                             
+
                                                  let bounds = crate::window_list::virtual_screen_bounds();
-                                                 
+
                                                  (bounds.2, bounds.3)
-                                                 
+
                                              };
-                                             
+
                                              let width = preset.width;
-                                             
+
                                              let height = preset.height;
-                                             
+
                                              let (wx, wy) = match preset.anchor {
-                                             
+
                                                  crate::model::WindowAnchor::Manual => (preset.x, preset.y),
-                                                 
+
                                                  crate::model::WindowAnchor::Center => ((screen_width - width) / 2, (screen_height - height) / 2),
-                                                 
+
                                                  crate::model::WindowAnchor::TopLeft => (0, 0),
-                                                 
+
                                                  crate::model::WindowAnchor::Top => (((screen_width - width) / 2), 0),
-                                                 
+
                                                  crate::model::WindowAnchor::TopRight => ((screen_width - width), 0),
-                                                 
+
                                                  crate::model::WindowAnchor::Left => (0, ((screen_height - height) / 2)),
-                                                 
+
                                                  crate::model::WindowAnchor::Right => ((screen_width - width), ((screen_height - height) / 2)),
-                                                 
+
                                                  crate::model::WindowAnchor::BottomLeft => (0, (screen_height - height)),
-                                                 
+
                                                  crate::model::WindowAnchor::Bottom => (((screen_width - width) / 2), (screen_height - height)),
-                                                 
+
                                                  crate::model::WindowAnchor::BottomRight => ((screen_width - width), (screen_height - height)),
-                                                 
+
                                              };
-                                             
+
                                              hover_regions.push(crate::overlay::VisionRegion {
-                                             
+
                                                  left: wx,
-                                                 
+
                                                  top: wy,
-                                                 
+
                                                  width: width.max(10),
-                                                 
+
                                                  height: height.max(10),
-                                                 
+
                                                  is_circle: false,
-                                                 
+
                                                  angle_offset_deg: None,
-                                                 
+
                                                  angle_span_deg: None,
-                                                 
+
                                              });
-                                             
+
                                          }
-                                         
+
                                      }
-                                     
+
                                      _ => {}
-                                     
+
                                  }
-                                 
+
                                  if has_hover_support {
-                                 
+
                                      let mut hook_state = crate::overlay::HOOK_STATE.lock();
-                                     
+
                                      if is_row_hovered {
-                                     
+
                                          if !hover_regions.is_empty() {
-                                         
+
                                              hook_state.vision_capture_preview_regions = hover_regions;
-                                             
+
                                          }
-                                         
+
                                      } else {
-                                     
+
                                          if !hook_state.vision_capture_preview_regions.is_empty() {
-                                         
+
                                              let matches_this_step = match step.action {
-                                             
+
                                                  MacroAction::OcrSearch => {
-                                                 
+
                                                      hook_state.vision_capture_preview_regions.iter().any(|r| r.left == step.x && r.top == step.y)
-                                                     
+
                                                  }
-                                                 
+
                                                  MacroAction::StartVisionSearch | MacroAction::ScanVisionOnce | MacroAction::StopVision => {
-                                                 
+
                                                      if let Some(preset) = self.state.vision_presets.iter().find(|p| p.id.to_string() == step.key.trim()) {
-                                                     
+
                                                          hook_state.vision_capture_preview_regions.iter().any(|r| r.left == preset.search_region_screen_x.unwrap_or(0))
-                                                         
+
                                                      } else {
-                                                     
+
                                                          false
-                                                         
+
                                                      }
-                                                     
+
                                                  }
-                                                 
+
                                                  MacroAction::EnablePinPreset | MacroAction::DisablePin => {
-                                                 
+
                                                      if let Some(preset) = step.key.trim().parse::<u32>().ok().and_then(|pid| self.state.pin_presets.iter().find(|p| p.id == pid)) {
-                                                     
+
                                                          hook_state.vision_capture_preview_regions.iter().any(|r| r.left == preset.x || r.left == preset.source_x)
-                                                         
+
                                                      } else {
-                                                     
+
                                                          false
-                                                         
+
                                                      }
-                                                     
+
                                                  }
-                                                 
+
                                                  MacroAction::ApplyWindowPreset => {
-                                                 
+
                                                      if let Some(preset) = step.key.trim().parse::<u32>().ok().and_then(|pid| self.state.window_presets.iter().find(|p| p.id == pid)) {
-                                                     
+
                                                          hook_state.vision_capture_preview_regions.iter().any(|r| r.width == preset.width.max(10))
-                                                         
+
                                                      } else {
-                                                     
+
                                                          false
-                                                         
+
                                                      }
-                                                     
+
                                                  }
-                                                 
+
                                                  _ => false,
-                                                 
+
                                              };
-                                             
+
                                              if matches_this_step {
-                                             
+
                                                  hook_state.vision_capture_preview_regions.clear();
-                                                 
+
                                              }
-                                             
+
                                          }
-                                         
+
                                      }
-                                     
+
                                  }
-                                 
+
 
 
 
@@ -42556,2485 +33709,874 @@ pub(crate) fn render_macro_panel(&mut self, ui: &mut egui::Ui) {
 
 
         });
-
-
-
     }
 
-
-
     fn collect_all_macro_referenced_variables(&self) -> Vec<String> {
-
-
-
         let mut vars = std::collections::HashSet::new();
 
-
-
         for group in &self.state.macro_groups {
-
-
-
             for preset in &group.presets {
-
-
-
                 for step in &preset.steps {
-
-
-
                     Self::collect_vars_from_step(step, &mut vars);
-
-
-
                 }
-
-
 
                 if preset.hold_stop_step_enabled {
-
-
-
                     Self::collect_vars_from_step(&preset.hold_stop_step, &mut vars);
-
-
-
                 }
-
-
-
             }
-
-
-
         }
-
-
 
         let mut list: Vec<String> = vars.into_iter().collect();
 
-
-
         list.sort();
 
-
-
         list
-
-
-
     }
 
-
-
     fn collect_vars_from_step(step: &MacroStep, vars: &mut std::collections::HashSet<String>) {
-
-
-
         if step.action == MacroAction::SetVariable {
-
-
-
             let name = step.key.trim();
 
-
-
             if !name.is_empty() {
-
-
-
                 vars.insert(name.to_string());
-
-
-
             }
-
-
-
         }
-
-
 
         if !step.if_variable_name.trim().is_empty() {
-
-
-
             vars.insert(step.if_variable_name.trim().to_string());
-
-
-
         }
-
-
 
         for cond in &step.extra_conditions {
-
-
-
             let name = cond.variable_name.trim();
 
-
-
             if !name.is_empty() {
-
-
-
                 vars.insert(name.to_string());
-
-
-
             }
 
-
-
             Self::extract_vars_from_expression(&cond.expression, vars);
-
-
-
         }
-
-
 
         Self::extract_braced_vars(&step.delay_expr, vars);
 
-
-
         Self::extract_braced_vars(&step.text_override, vars);
 
-
-
         Self::extract_braced_vars(&step.command_preset_command, vars);
-
-
-
     }
 
-
-
     fn extract_braced_vars(text: &str, vars: &mut std::collections::HashSet<String>) {
-
-
-
         let mut chars = text.chars().peekable();
 
-
-
         while let Some(c) = chars.next() {
-
-
-
             if c == '{' {
-
-
-
                 let mut name = String::new();
-
-
 
                 let mut found = false;
 
-
-
                 while let Some(&next_c) = chars.peek() {
-
-
-
                     if next_c == '}' {
-
-
-
                         chars.next();
-
-
 
                         found = true;
 
-
-
                         break;
-
-
-
                     } else if next_c == '{' {
-
-
-
                         break;
-
-
-
                     } else {
-
-
-
                         name.push(chars.next().unwrap());
-
-
-
                     }
-
-
-
                 }
-
-
 
                 if found {
-
-
-
                     Self::extract_vars_from_expression(&name, vars);
-
-
-
                 }
-
-
-
             }
-
-
-
         }
-
-
-
     }
 
-
-
     fn extract_vars_from_expression(expr: &str, vars: &mut std::collections::HashSet<String>) {
-
-
-
         let mut current_var = String::new();
 
-
-
         for c in expr.chars() {
-
-
-
             if c.is_alphanumeric() || c == '_' {
-
-
-
                 current_var.push(c);
-
-
-
             } else {
-
-
-
                 let trimmed = current_var.trim();
 
-
-
                 if !trimmed.is_empty() && !trimmed.chars().next().unwrap().is_ascii_digit() {
-
-
-
                     vars.insert(trimmed.to_string());
-
-
-
                 }
 
-
-
                 current_var.clear();
-
-
-
             }
-
-
-
         }
-
-
 
         let trimmed = current_var.trim();
 
-
-
         if !trimmed.is_empty() && !trimmed.chars().next().unwrap().is_ascii_digit() {
-
-
-
             vars.insert(trimmed.to_string());
-
-
-
         }
-
-
-
     }
 
-
-
     pub(crate) fn render_variable_inspector(&mut self, ui: &mut egui::Ui) {
-
-
-
         let language = self.state.ui_language;
 
-
-
         ui.vertical(|ui| {
-
-
-
             ui.add_space(4.0);
-
-
 
             Self::render_expression_help_box(ui, language);
 
-
-
             ui.add_space(6.0);
-
-
 
             // Grid for global constants
 
-
-
             if !self.state.global_constants.is_empty() {
-
-
-
                 egui::ScrollArea::vertical()
-
-
-
                     .id_salt("global_constants_scroll")
-
-
-
                     .max_height(100.0)
-
-
-
                     .show(ui, |ui| {
-
-
-
                         egui::Grid::new("global_constants_grid")
-
-
-
                             .num_columns(3)
-
-
-
                             .spacing([8.0, 6.0])
-
-
-
                             .striped(true)
-
-
-
                             .show(ui, |ui| {
-
-
-
                                 let mut to_remove_idx = None;
-
-
 
                                 let mut to_update = None;
 
-
-
                                 for (idx, (name, val)) in
-
-
-
                                     self.state.global_constants.iter().enumerate()
-
-
-
                                 {
-
-
-
                                     ui.label(
-
-
-
                                         RichText::new(name)
-
-
-
                                             .monospace()
-
-
-
                                             .color(Color32::from_rgb(0, 180, 216)),
-
-
-
                                     );
-
-
 
                                     let id_editing = ui.id().with(("var-edit", name));
 
-
-
-                                    let mut val_str = ui.memory(|mem| mem.data.get_temp::<String>(id_editing))
-
-
-
+                                    let mut val_str = ui
+                                        .memory(|mem| mem.data.get_temp::<String>(id_editing))
                                         .unwrap_or_else(|| val.to_string());
 
-
-
                                     let response = ui.add(
-
-
-
                                         egui::TextEdit::singleline(&mut val_str)
-
-
-
                                             .desired_width(70.0)
-
-
-
                                             .font(egui::FontId::monospace(14.0)),
-
-
-
                                     );
 
-
-
                                     if response.changed() {
-
-
-
-                                        ui.memory_mut(|mem| mem.data.insert_temp(id_editing, val_str.clone()));
-
-
-
+                                        ui.memory_mut(|mem| {
+                                            mem.data.insert_temp(id_editing, val_str.clone())
+                                        });
                                     }
-
-
 
                                     if response.lost_focus() || response.clicked_elsewhere() {
-
-
-
                                         if let Ok(new_val) = val_str.trim().parse::<i32>() {
-
-
-
                                             to_update = Some((name.clone(), new_val));
-
-
-
                                         }
 
-
-
-                                        ui.memory_mut(|mem| mem.data.remove_temp::<String>(id_editing));
-
-
-
+                                        ui.memory_mut(|mem| {
+                                            mem.data.remove_temp::<String>(id_editing)
+                                        });
                                     }
-
-
 
                                     if ui
-
-
-
                                         .button(Self::material_icon_text(0xe872, 14.0)) // trash
-
-
-
                                         .on_hover_text(Self::tr_lang(language, "Delete", "Xóa"))
-
-
-
                                         .clicked()
-
-
-
                                     {
-
-
-
                                         to_remove_idx = Some(idx);
-
-
-
                                     }
 
-
-
                                     ui.end_row();
-
-
-
                                 }
 
-
-
                                 if let Some(idx) = to_remove_idx {
-
-
-
                                     let (removed_name, _) = self.state.global_constants.remove(idx);
 
-
-
                                     let mut vars = crate::overlay::RUNTIME_VARIABLES.lock();
-
-
 
                                     vars.remove(&removed_name);
 
-
-
                                     self.persist();
-
-
-
                                 } else if let Some((name_to_up, new_val)) = to_update {
-
-
-
                                     if let Some(pos) = self
-
-
-
                                         .state
-
-
-
                                         .global_constants
-
-
-
                                         .iter()
-
-
-
                                         .position(|(n, _)| n == &name_to_up)
-
-
-
                                     {
-
-
-
                                         self.state.global_constants[pos].1 = new_val;
-
-
 
                                         let mut vars = crate::overlay::RUNTIME_VARIABLES.lock();
 
-
-
                                         vars.insert(name_to_up, new_val);
 
-
-
                                         self.persist();
-
-
-
                                     }
-
-
-
                                 }
-
-
-
                             });
-
-
-
                     });
-
-
-
             }
-
-
 
             // Quick add global constant
 
-
-
             ui.add_space(4.0);
 
-
-
             ui.horizontal(|ui| {
-
-
-
                 let id_const_name = ui.id().with("new_const_name");
-
-
 
                 let id_const_val = ui.id().with("new_const_val");
 
-
-
                 let mut name_buf = ui.memory(|mem| {
-
-
-
                     mem.data
-
-
-
                         .get_temp::<String>(id_const_name)
-
-
-
                         .unwrap_or_default()
-
-
-
                 });
-
-
 
                 let mut val_buf = ui.memory(|mem| {
-
-
-
                     mem.data
-
-
-
                         .get_temp::<String>(id_const_val)
-
-
-
                         .unwrap_or_default()
-
-
-
                 });
-
-
 
                 let is_dark_theme = self.state.ui_theme == UiThemeMode::Dark;
 
-
-
                 let hint_color = if is_dark_theme {
-
-
-
                     Color32::from_rgba_premultiplied(140, 140, 140, 150)
-
-
-
                 } else {
-
-
-
                     Color32::from_rgba_premultiplied(100, 100, 100, 150)
-
-
-
                 };
 
-
-
                 ui.add_sized(
-
-
-
                     [100.0, 20.0],
-
-
-
                     egui::TextEdit::singleline(&mut name_buf).hint_text(
-
-
-
                         RichText::new(Self::tr_lang(language, "CONST_NAME", "CONST_NAME"))
-
-
-
                             .color(hint_color)
-
-
-
                             .weak(),
-
-
-
                     ),
-
-
-
                 );
-
-
 
                 ui.label("=");
 
-
-
                 ui.add_sized(
-
-
-
                     [70.0, 20.0],
-
-
-
                     egui::TextEdit::singleline(&mut val_buf).hint_text(
-
-
-
                         RichText::new(Self::tr_lang(language, "Value", "Value"))
-
-
-
                             .color(hint_color)
-
-
-
                             .weak(),
-
-
-
                     ),
-
-
-
                 );
 
-
-
                 if ui.button(Self::tr_lang(language, "Add", "Add")).clicked() {
-
-
-
                     let name_trimmed = name_buf.trim().to_uppercase();
 
-
-
                     if !name_trimmed.is_empty() {
-
-
-
                         let parsed_val = val_buf.trim().parse::<i32>().unwrap_or(0);
 
-
-
                         if !self
-
-
-
                             .state
-
-
-
                             .global_constants
-
-
-
                             .iter()
-
-
-
                             .any(|(n, _)| n == &name_trimmed)
-
-
-
                         {
-
-
-
                             self.state
-
-
-
                                 .global_constants
-
-
-
                                 .push((name_trimmed.clone(), parsed_val));
-
-
 
                             let mut vars = crate::overlay::RUNTIME_VARIABLES.lock();
 
-
-
                             vars.insert(name_trimmed, parsed_val);
-
-
 
                             name_buf.clear();
 
-
-
                             val_buf.clear();
 
-
-
                             self.persist();
-
-
-
                         }
-
-
-
                     }
-
-
-
                 }
 
-
-
                 ui.memory_mut(|mem| {
-
-
-
                     mem.data.insert_temp(id_const_name, name_buf);
 
-
-
                     mem.data.insert_temp(id_const_val, val_buf);
-
-
-
                 });
-
-
-
             });
 
-
-
             ui.add_space(4.0);
-
-
 
             ui.separator();
 
-
-
             ui.add_space(4.0);
-
-
 
             // Collect referenced variables statically + dynamic runtime variables
 
-
-
             let mut all_vars_set = std::collections::HashSet::new();
 
-
-
             for v in self.collect_all_macro_referenced_variables() {
-
-
-
                 all_vars_set.insert(v);
-
-
-
             }
-
-
 
             {
-
-
-
                 let vars = crate::overlay::RUNTIME_VARIABLES.lock();
 
-
-
                 for k in vars.keys() {
-
-
-
                     if !self.state.global_constants.iter().any(|(n, _)| n == k) {
-
-
-
                         all_vars_set.insert(k.clone());
-
-
-
                     }
-
-
-
                 }
-
-
-
             }
-
-
 
             let mut vars_list: Vec<String> = all_vars_set.into_iter().collect();
 
-
-
             vars_list.sort();
 
-
-
             if !vars_list.is_empty() {
-
-
-
                 egui::ScrollArea::vertical()
-
-
-
                     .id_salt("macro_vars_scroll")
-
-
-
                     .max_height(160.0)
-
-
-
                     .show(ui, |ui| {
-
-
-
                         egui::Grid::new("macro_vars_grid")
-
-
-
                             .num_columns(3)
-
-
-
                             .spacing([8.0, 6.0])
-
-
-
                             .striped(true)
-
-
-
                             .show(ui, |ui| {
-
-
-
                                 let mut to_remove = None;
-
-
 
                                 let mut to_update = None;
 
-
-
                                 for name in &vars_list {
-
-
-
                                     ui.label(
-
-
-
                                         RichText::new(name)
-
-
-
                                             .monospace()
-
-
-
                                             .color(Color32::from_rgb(243, 156, 18)),
-
-
-
                                     );
 
-
-
                                     let runtime_val = {
-
-
-
                                         let vars = crate::overlay::RUNTIME_VARIABLES.lock();
 
-
-
                                         vars.get(name).copied().unwrap_or(0)
-
-
-
                                     };
-
-
 
                                     let id_editing = ui.id().with(("var-edit", name));
 
-
-
-                                    let mut val_str = ui.memory(|mem| mem.data.get_temp::<String>(id_editing))
-
-
-
+                                    let mut val_str = ui
+                                        .memory(|mem| mem.data.get_temp::<String>(id_editing))
                                         .unwrap_or_else(|| runtime_val.to_string());
 
-
-
                                     let response = ui.add(
-
-
-
                                         egui::TextEdit::singleline(&mut val_str)
-
-
-
                                             .desired_width(70.0)
-
-
-
                                             .font(egui::FontId::monospace(14.0)),
-
-
-
                                     );
 
-
-
                                     if response.changed() {
-
-
-
-                                        ui.memory_mut(|mem| mem.data.insert_temp(id_editing, val_str.clone()));
-
-
-
+                                        ui.memory_mut(|mem| {
+                                            mem.data.insert_temp(id_editing, val_str.clone())
+                                        });
                                     }
-
-
 
                                     if response.lost_focus() || response.clicked_elsewhere() {
-
-
-
                                         if let Ok(new_val) = val_str.trim().parse::<i32>() {
-
-
-
                                             to_update = Some((name.clone(), new_val));
-
-
-
                                         }
 
-
-
-                                        ui.memory_mut(|mem| mem.data.remove_temp::<String>(id_editing));
-
-
-
+                                        ui.memory_mut(|mem| {
+                                            mem.data.remove_temp::<String>(id_editing)
+                                        });
                                     }
-
-
 
                                     if ui
-
-
-
                                         .button(Self::material_icon_text(0xe872, 14.0))
-
-
-
                                         .on_hover_text(Self::tr_lang(language, "Delete", "Xóa"))
-
-
-
                                         .clicked()
-
-
-
                                     {
-
-
-
                                         to_remove = Some(name.clone());
-
-
-
                                     }
 
-
-
                                     ui.end_row();
-
-
-
                                 }
-
-
 
                                 if let Some(name) = to_remove {
-
-
-
                                     let mut vars = crate::overlay::RUNTIME_VARIABLES.lock();
-
-
 
                                     vars.remove(&name);
-
-
-
                                 } else if let Some((name, new_val)) = to_update {
-
-
-
                                     let mut vars = crate::overlay::RUNTIME_VARIABLES.lock();
 
-
-
                                     vars.insert(name, new_val);
-
-
-
                                 }
-
-
-
                             });
-
-
-
                     });
-
-
-
             }
-
-
 
             // Quick set dynamic variable at the bottom
 
-
-
             ui.add_space(4.0);
 
-
-
             ui.horizontal(|ui| {
-
-
-
                 ui.set_row_height(24.0);
-
-
 
                 let id_name = ui.id().with("new_dyn_var_name");
 
-
-
                 let id_val = ui.id().with("new_dyn_var_val");
 
-
-
                 let mut name_buf =
-
-
-
                     ui.memory(|mem| mem.data.get_temp::<String>(id_name).unwrap_or_default());
 
-
-
                 let mut val_buf =
-
-
-
                     ui.memory(|mem| mem.data.get_temp::<String>(id_val).unwrap_or_default());
-
-
 
                 let is_dark_theme = self.state.ui_theme == UiThemeMode::Dark;
 
-
-
                 let hint_color = if is_dark_theme {
-
-
-
                     Color32::from_rgba_premultiplied(140, 140, 140, 150)
-
-
-
                 } else {
-
-
-
                     Color32::from_rgba_premultiplied(100, 100, 100, 150)
-
-
-
                 };
 
-
-
                 ui.add_sized(
-
-
-
                     [100.0, 20.0],
-
-
-
                     egui::TextEdit::singleline(&mut name_buf).hint_text(
-
-
-
                         RichText::new(Self::tr_lang(language, "Var Name", "Var Name"))
-
-
-
                             .color(hint_color)
-
-
-
                             .weak(),
-
-
-
                     ),
-
-
-
                 );
-
-
 
                 ui.label("=");
 
-
-
                 ui.add_sized(
-
-
-
                     [70.0, 20.0],
-
-
-
                     egui::TextEdit::singleline(&mut val_buf).hint_text(
-
-
-
                         RichText::new(Self::tr_lang(language, "Value", "Value"))
-
-
-
                             .color(hint_color)
-
-
-
                             .weak(),
-
-
-
                     ),
-
-
-
                 );
 
-
-
                 if ui.button(Self::tr_lang(language, "Set", "Set")).clicked() {
-
-
-
                     let name_trimmed = name_buf.trim().to_string();
 
-
-
                     if !name_trimmed.is_empty() {
-
-
-
                         let parsed_val = val_buf.trim().parse::<i32>().unwrap_or(0);
-
-
 
                         let mut vars = crate::overlay::RUNTIME_VARIABLES.lock();
 
-
-
                         vars.insert(name_trimmed, parsed_val);
-
-
 
                         name_buf.clear();
 
-
-
                         val_buf.clear();
-
-
-
                     }
-
-
-
                 }
 
-
-
                 ui.memory_mut(|mem| {
-
-
-
                     mem.data.insert_temp(id_name, name_buf);
 
-
-
                     mem.data.insert_temp(id_val, val_buf);
-
-
-
                 });
-
-
-
             });
-
-
-
         });
-
-
-
     }
 
-
-
     fn adjust_expression_by_delta(expr: &str, delta: i32) -> String {
-
-
-
         if delta == 0 {
-
-
-
             return expr.to_string();
-
-
-
         }
-
-
 
         let trimmed = expr.trim();
 
-
-
         if trimmed.is_empty() {
-
-
-
             return delta.max(0).to_string();
-
-
-
         }
-
-
 
         if let Ok(val) = trimmed.parse::<i32>() {
-
-
-
             return (val + delta).max(0).to_string();
-
-
-
         }
 
-
-
         if let Some(pos) = trimmed.rfind(|c| c == '+' || c == '-') {
-
-
-
             let (left, right) = trimmed.split_at(pos);
-
-
 
             let op = &right[0..1];
 
-
-
             let num_part = right[1..].trim();
 
-
-
             if let Ok(num) = num_part.parse::<i32>() {
-
-
-
                 let signed_num = if op == "-" { -num } else { num };
-
-
 
                 let new_num = signed_num + delta;
 
-
-
                 let left_trimmed = left.trim_end();
 
-
-
                 if new_num == 0 {
-
-
-
                     return left_trimmed.to_string();
-
-
-
                 } else if new_num > 0 {
-
-
-
                     return format!("{} + {}", left_trimmed, new_num);
-
-
-
                 } else {
-
-
-
                     return format!("{} - {}", left_trimmed, -new_num);
-
-
-
                 }
-
-
-
             }
-
-
-
         }
-
-
 
         if delta > 0 {
-
-
-
             format!("{} + {}", trimmed, delta)
-
-
-
         } else {
-
-
-
             format!("{} - {}", trimmed, -delta)
-
-
-
         }
-
-
-
     }
-
-
 
     fn builtin_variable_suggestions() -> &'static [&'static str] {
-
-
-
-        &[
-
-
-
-            "System",
-
-
-
-            "Screen",
-
-
-
-            "Mouse",
-
-
-
-            "Window",
-
-
-
-            "Volume",
-
-
-
-            "Clipboard",
-
-
-
-        ]
-
-
-
+        &["System", "Screen", "Mouse", "Window", "Volume", "Clipboard"]
     }
 
-
-
     fn object_property_suggestions(base: &str) -> Option<&'static [&'static str]> {
-
-
-
         match base.to_ascii_lowercase().as_str() {
+            "system" => Some(&[
+                "date",
+                "time",
+                "year",
+                "month",
+                "day",
+                "hour",
+                "minute",
+                "second",
+                "millisecond",
+            ]),
 
-
-
-            "system" => Some(&["date", "time", "year", "month", "day", "hour", "minute", "second", "millisecond"]),
-
-
-
-            s if s.starts_with("timer") => Some(&["hour", "minute", "second", "millisecond", "ms", "raw", "total_sec"]),
-
-
+            s if s.starts_with("timer") => Some(&[
+                "hour",
+                "minute",
+                "second",
+                "millisecond",
+                "ms",
+                "raw",
+                "total_sec",
+            ]),
 
             "screen" => Some(&["width", "height"]),
 
-
-
             "mouse" => Some(&["x", "y", "sensitivity"]),
-
-
 
             "volume" => Some(&["level"]),
 
-
-
             "window" => Some(&["title", "width", "height"]),
-
-
 
             "clipboard" => Some(&["text"]),
 
-
-
             _ => Some(&["toNumber"]),
-
-
-
         }
-
-
-
     }
 
-
-
     fn variable_base_exists(base: &str, suggestion_names: &[String]) -> bool {
-
         let normalized = base.trim().replace(' ', "").to_lowercase();
 
         if normalized.is_empty() {
-
             return false;
-
         }
 
         suggestion_names
             .iter()
             .any(|name| name.replace(' ', "").to_lowercase() == normalized)
-
     }
 
-
-
     fn timer_ref_index(ref_name: &str) -> Option<usize> {
-
-
-
         let normalized = ref_name.trim().replace(' ', "").to_lowercase();
-
-
 
         let idx_str = normalized.strip_prefix("timer")?;
 
-
-
         let idx = idx_str.parse::<usize>().ok()?;
 
-
-
         idx.checked_sub(1)
-
-
-
     }
-
-
 
     fn timer_suggestion_label(suggestion: &str, timer_names: &[String]) -> String {
-
-
-
         if let Some((base, prop)) = suggestion.split_once('.') {
-
-
-
             if let Some(idx) = Self::timer_ref_index(base)
-
-
-
                 && let Some(timer_name) = timer_names.get(idx)
-
-
-
             {
-
-
-
                 return format!("{}.{} ({})", base, prop, timer_name);
-
-
-
             }
-
-
-
         } else if let Some(idx) = Self::timer_ref_index(suggestion)
-
-
-
             && let Some(timer_name) = timer_names.get(idx)
-
-
-
         {
-
-
-
             return format!("{} ({})", suggestion, timer_name);
-
-
-
         }
-
-
 
         suggestion.to_string()
-
-
-
     }
 
-
-
     fn variable_value_kind(token: &str) -> VariableValueKind {
-
-
-
         let trimmed = token.trim().trim_matches(|c| c == '{' || c == '}');
 
-
-
         if trimmed.is_empty() {
-
-
-
             return VariableValueKind::Neutral;
-
-
-
         }
 
-
-
-
-
-
-
         if let Some((base, prop)) = trimmed.split_once('.') {
-
-
-
             let base = base.trim().replace(' ', "").to_ascii_lowercase();
-
-
 
             let prop = prop.trim().to_ascii_lowercase();
 
-
-
             if base.is_empty() || prop.is_empty() {
-
-
-
                 return VariableValueKind::Neutral;
-
-
-
             }
 
-
-
-
-
-
-
             return match base.as_str() {
-
-
-
                 "system" => match prop.as_str() {
-
-
-
                     "date" | "time" => VariableValueKind::Text,
 
-
-
-                    "year" | "month" | "day" | "hour" | "minute" | "second" | "millisecond" | "ms" => VariableValueKind::Number,
-
-
+                    "year" | "month" | "day" | "hour" | "minute" | "second" | "millisecond"
+                    | "ms" => VariableValueKind::Number,
 
                     _ => VariableValueKind::Neutral,
-
-
-
                 },
-
-
 
                 "screen" => match prop.as_str() {
-
-
-
                     "width" | "height" | "w" | "h" => VariableValueKind::Number,
 
-
-
                     _ => VariableValueKind::Neutral,
-
-
-
                 },
-
-
 
                 "mouse" => match prop.as_str() {
-
-
-
                     "x" | "y" | "sensitivity" => VariableValueKind::Number,
 
-
-
                     _ => VariableValueKind::Neutral,
-
-
-
                 },
 
-
-
                 "window" => match prop.as_str() {
-
-
-
                     "title" => VariableValueKind::Text,
-
-
 
                     "width" | "height" | "w" | "h" => VariableValueKind::Number,
 
-
-
                     _ => VariableValueKind::Neutral,
-
-
-
                 },
-
-
 
                 "volume" => match prop.as_str() {
-
-
-
                     "level" | "percent" | "value" => VariableValueKind::Number,
 
-
-
                     _ => VariableValueKind::Neutral,
-
-
-
                 },
-
-
 
                 "clipboard" => match prop.as_str() {
-
-
-
                     "text" => VariableValueKind::Text,
 
-
-
                     _ => VariableValueKind::Neutral,
-
-
-
                 },
-
-
 
                 s if s.starts_with("timer") => match prop.as_str() {
-
-
-
-                    "hour" | "minute" | "second" | "millisecond" | "ms" | "raw" | "total_sec" => VariableValueKind::Number,
-
-
+                    "hour" | "minute" | "second" | "millisecond" | "ms" | "raw" | "total_sec" => {
+                        VariableValueKind::Number
+                    }
 
                     _ => VariableValueKind::Neutral,
-
-
-
                 },
 
-
-
                 _ => VariableValueKind::Neutral,
-
-
-
             };
-
-
-
         }
-
-
-
-
-
-
 
         if Self::builtin_variable_suggestions()
-
-
-
             .iter()
-
-
-
             .any(|name| name.eq_ignore_ascii_case(trimmed))
-
-
-
             || Self::timer_ref_index(trimmed).is_some()
-
-
-
         {
-
-
-
             return VariableValueKind::Neutral;
-
-
-
         }
 
-
-
-
-
-
-
         VariableValueKind::Number
-
-
-
     }
 
-
-
-    fn variable_highlight_job(
-
-
-
-        ui: &egui::Ui,
-
-
-
-        text: &str,
-
-
-
-        wrap_width: f32,
-
-
-
-    ) -> egui::text::LayoutJob {
-
-
-
+    fn variable_highlight_job(ui: &egui::Ui, text: &str, wrap_width: f32) -> egui::text::LayoutJob {
         let mut job = egui::text::LayoutJob::default();
-
-
 
         job.wrap.max_width = wrap_width;
 
-
-
         let font_id = egui::TextStyle::Body.resolve(ui.style());
-
-
 
         let default_color = ui.visuals().text_color();
 
-
-
-
-
-
-
         let mut segment_start = 0;
-
-
 
         let mut chars = text.char_indices().peekable();
 
-
-
         while let Some((idx, ch)) = chars.next() {
-
-
-
             let is_token_char = ch.is_ascii_alphanumeric() || ch == '_' || ch == '.';
 
-
-
             if !is_token_char {
-
-
-
                 continue;
-
-
-
             }
-
-
-
-
-
-
 
             if segment_start < idx {
-
-
-
                 job.append(
-
-
-
                     &text[segment_start..idx],
-
-
-
                     0.0,
-
-
-
                     egui::text::TextFormat::simple(font_id.clone(), default_color),
-
-
-
                 );
-
-
-
             }
-
-
-
-
-
-
 
             let mut end = idx + ch.len_utf8();
 
-
-
             while let Some(&(next_idx, next_ch)) = chars.peek() {
-
-
-
                 if next_ch.is_ascii_alphanumeric() || next_ch == '_' || next_ch == '.' {
-
-
-
                     chars.next();
 
-
-
                     end = next_idx + next_ch.len_utf8();
-
-
-
                 } else {
-
-
-
                     break;
-
-
-
                 }
-
-
-
             }
-
-
-
-
-
-
 
             let token = &text[idx..end];
 
-
-
             let color = match Self::variable_value_kind(token) {
-
-
-
                 VariableValueKind::Text => Color32::from_rgb(255, 185, 92),
-
-
 
                 VariableValueKind::Number => Color32::from_rgb(86, 198, 255),
 
-
-
                 VariableValueKind::Neutral => default_color,
-
-
-
             };
 
-
-
             job.append(
-
-
-
                 token,
-
-
-
                 0.0,
-
-
-
                 egui::text::TextFormat::simple(font_id.clone(), color),
-
-
-
             );
-
-
 
             segment_start = end;
-
-
-
         }
-
-
-
-
-
-
 
         if segment_start < text.len() {
-
-
-
             job.append(
-
-
-
                 &text[segment_start..],
-
-
-
                 0.0,
-
-
-
                 egui::text::TextFormat::simple(font_id, default_color),
-
-
-
             );
-
-
-
         }
 
-
-
-
-
-
-
         job
-
-
-
     }
 
-
-
     fn apply_variable_suggestion(
-
-
-
         ui: &mut egui::Ui,
-
-
 
         response: &egui::Response,
 
-
-
         text: &mut String,
-
-
 
         prefix: &str,
 
-
-
         chosen: &str,
-
-
 
         wrap_open: bool,
 
-
-
         after_cursor: &str,
-
-
-
     ) {
-
-
-
         let suffix = if wrap_open && after_cursor.starts_with('}') {
-
-
-
             &after_cursor['}'.len_utf8()..]
-
-
-
         } else {
-
-
-
             after_cursor
-
-
-
         };
-
-
 
         let closing = if wrap_open { "}" } else { "" };
 
-
-
         *text = format!("{}{}{}{}", prefix, chosen, closing, suffix);
-
-
 
         let mut response = response.clone();
 
-
-
         response.mark_changed();
-
-
 
         response.request_focus();
 
-
-
-
-
-
-
         let char_count = text.chars().count();
 
-
-
-        if let Some(mut state) = egui::widgets::text_edit::TextEditState::load(ui.ctx(), response.id) {
-
-
-
+        if let Some(mut state) =
+            egui::widgets::text_edit::TextEditState::load(ui.ctx(), response.id)
+        {
             let cursor_pos = egui::text::CCursor::new(char_count);
 
-
-
-            state.cursor.set_char_range(Some(egui::text::CCursorRange::two(cursor_pos, cursor_pos)));
-
-
+            state
+                .cursor
+                .set_char_range(Some(egui::text::CCursorRange::two(cursor_pos, cursor_pos)));
 
             state.store(ui.ctx(), response.id);
-
-
-
         }
-
-
-
     }
 
-
-
     fn render_variable_suggestions(
-
-
-
         ui: &mut egui::Ui,
-
-
 
         response: &egui::Response,
 
-
-
         text: &mut String,
-
-
 
         timer_names: &[String],
 
-
-
         _language: UiLanguage,
-
-
-
     ) {
-
-
-
         let suggestion_names = ui
-
-
-
-            .memory(|mem| mem.data.get_temp::<Vec<String>>(egui::Id::new("macro_variable_suggestion_names")))
-
-
-
+            .memory(|mem| {
+                mem.data
+                    .get_temp::<Vec<String>>(egui::Id::new("macro_variable_suggestion_names"))
+            })
             .unwrap_or_default();
 
+        let cursor_index =
+            match egui::widgets::text_edit::TextEditState::load(ui.ctx(), response.id).and_then(
+                |state| {
+                    state
+                        .cursor
+                        .char_range()
+                        .and_then(|range| range.single().map(|c| c.index))
+                },
+            ) {
+                Some(index) => index,
 
-
-        let cursor_index = match egui::widgets::text_edit::TextEditState::load(ui.ctx(), response.id)
-
-
-
-            .and_then(|state| state.cursor.char_range().and_then(|range| range.single().map(|c| c.index)))
-
-
-
-        {
-
-
-
-            Some(index) => index,
-
-
-
-            None => return,
-
-
-
-        };
-
-
+                None => return,
+            };
 
         let cursor_byte = text
-
-
-
             .char_indices()
-
-
-
             .nth(cursor_index)
-
-
-
             .map(|(byte, _)| byte)
-
-
-
             .unwrap_or(text.len());
-
-
 
         let before_cursor = &text[..cursor_byte];
 
-
-
         let after_cursor = text[cursor_byte..].to_string();
-
-
-
-
-
-
 
         let mut last_word_start = 0;
 
-
-
         for (i, c) in before_cursor.char_indices() {
-
-
-
             if c.is_whitespace()
-
-
-
                 || c == '+'
-
-
-
                 || c == '-'
-
-
-
                 || c == '*'
-
-
-
                 || c == '/'
-
-
-
                 || c == '('
-
-
-
                 || c == ')'
-
-
-
                 || c == ','
-
-
-
                 || c == '{'
-
-
-
                 || c == '}'
-
-
-
             {
-
-
-
                 last_word_start = i + c.len_utf8();
-
-
-
             }
-
-
-
         }
-
-
 
         let prefix = before_cursor[..last_word_start].to_string();
 
-
-
         let last_word_trimmed = before_cursor[last_word_start..].trim().to_string();
-
-
 
         let wrap_open = prefix.ends_with('{');
 
-
-
-        
-
-
-
         if last_word_trimmed.is_empty() {
-
-
-
             return;
-
-
-
         }
-
-
-
-
-
-
 
         let mut suggestions = Vec::new();
 
-
-
-
-
-
-
         if last_word_trimmed.contains('.') {
-
             let parts: Vec<&str> = last_word_trimmed.split('.').collect();
 
             let base = parts[0].trim();
@@ -45042,2078 +34584,823 @@ pub(crate) fn render_macro_panel(&mut self, ui: &mut egui::Ui) {
             let prop_part = parts[1].to_lowercase();
 
             let timer_exists = Self::timer_ref_index(base).is_some()
-                || timer_names
-                    .iter()
-                    .any(|name| name.replace(' ', "").to_lowercase() == base.replace(' ', "").to_lowercase());
+                || timer_names.iter().any(|name| {
+                    name.replace(' ', "").to_lowercase() == base.replace(' ', "").to_lowercase()
+                });
 
             if !timer_exists && !Self::variable_base_exists(base, &suggestion_names) {
                 return;
             }
 
             let props: Vec<&str> = if timer_exists {
-                vec!["hour", "minute", "second", "millisecond", "ms", "raw", "total_sec"]
+                vec![
+                    "hour",
+                    "minute",
+                    "second",
+                    "millisecond",
+                    "ms",
+                    "raw",
+                    "total_sec",
+                ]
             } else {
-                Self::object_property_suggestions(base).map_or_else(Vec::new, |props| props.to_vec())
+                Self::object_property_suggestions(base)
+                    .map_or_else(Vec::new, |props| props.to_vec())
             };
 
             for prop in props {
-
-
-
                 let full_prop = format!("{}.{}", parts[0], prop);
 
-
-
-                if prop.starts_with(&prop_part) && full_prop.to_lowercase() != last_word_trimmed.to_lowercase() {
-
-
-
+                if prop.starts_with(&prop_part)
+                    && full_prop.to_lowercase() != last_word_trimmed.to_lowercase()
+                {
                     suggestions.push(full_prop);
-
-
-
                 }
-
-
-
             }
-
-
-
         } else {
-
-
-
             for name in &suggestion_names {
-
-
-
                 let name_no_space = name.replace(" ", "");
 
-
-
-                if name_no_space.to_lowercase().starts_with(&last_word_trimmed.to_lowercase()) 
-
-
-
-                   && name_no_space.to_lowercase() != last_word_trimmed.to_lowercase() {
-
-
-
+                if name_no_space
+                    .to_lowercase()
+                    .starts_with(&last_word_trimmed.to_lowercase())
+                    && name_no_space.to_lowercase() != last_word_trimmed.to_lowercase()
+                {
                     suggestions.push(name_no_space);
-
-
-
                 }
-
-
-
             }
-
-
-
         }
-
-
-
-
-
-
 
         if suggestions.is_empty() {
-
-
-
             return;
-
-
-
         }
-
-
-
-
-
-
 
         let popup_open_key = response.id.with("popup_open");
 
-
-
-        let mut popup_open = ui.memory(|mem| mem.data.get_temp::<bool>(popup_open_key)).unwrap_or(false);
-
-
-
-        
-
-
+        let mut popup_open = ui
+            .memory(|mem| mem.data.get_temp::<bool>(popup_open_key))
+            .unwrap_or(false);
 
         if response.has_focus() {
-
-
-
             popup_open = true;
-
-
-
         } else {
-
-
-
-            let popup_rect = ui.memory(|mem| mem.data.get_temp::<egui::Rect>(response.id.with("popup_rect")));
-
-
+            let popup_rect = ui.memory(|mem| {
+                mem.data
+                    .get_temp::<egui::Rect>(response.id.with("popup_rect"))
+            });
 
             if let Some(rect) = popup_rect {
-
-
-
-                let hover = ui.input(|i| i.pointer.hover_pos().map_or(false, |pos| rect.contains(pos)));
-
-
+                let hover = ui.input(|i| {
+                    i.pointer
+                        .hover_pos()
+                        .map_or(false, |pos| rect.contains(pos))
+                });
 
                 let mouse_down = ui.input(|i| i.pointer.any_down());
 
-
-
                 if !hover && mouse_down {
-
-
-
                     popup_open = false;
-
-
-
                 }
-
-
-
             } else {
-
-
-
                 popup_open = false;
-
-
-
             }
-
-
-
         }
-
-
-
-
-
-
 
         if !popup_open {
-
-
-
             return;
-
-
-
         }
 
-
-
-
-
-
-
-        let mut selected_index = ui.memory(|mem| mem.data.get_temp::<usize>(response.id)).unwrap_or(0);
-
-
+        let mut selected_index = ui
+            .memory(|mem| mem.data.get_temp::<usize>(response.id))
+            .unwrap_or(0);
 
         let mut confirm_selected = false;
 
-
-
         let mut selection_changed = false;
-
-
 
         let sug_count = suggestions.len();
 
-
-
-        
-
-
-
         if selected_index >= sug_count {
-
-
-
             selected_index = 0;
-
-
-
         }
-
-
-
-
-
-
 
         if response.has_focus() {
-
-
-
-            let enter_pressed = ui.memory(|mem| mem.data.get_temp::<bool>(egui::Id::new("enter_pressed"))).unwrap_or(false);
-
-
+            let enter_pressed = ui
+                .memory(|mem| mem.data.get_temp::<bool>(egui::Id::new("enter_pressed")))
+                .unwrap_or(false);
 
             if enter_pressed {
-
-
-
                 confirm_selected = true;
-
-
-
             }
 
+            let arrow_up_pressed = ui
+                .memory(|mem| mem.data.get_temp::<bool>(egui::Id::new("arrow_up_pressed")))
+                .unwrap_or(false);
 
-
-            let arrow_up_pressed = ui.memory(|mem| mem.data.get_temp::<bool>(egui::Id::new("arrow_up_pressed"))).unwrap_or(false);
-
-
-
-            let arrow_down_pressed = ui.memory(|mem| mem.data.get_temp::<bool>(egui::Id::new("arrow_down_pressed"))).unwrap_or(false);
-
-
+            let arrow_down_pressed = ui
+                .memory(|mem| {
+                    mem.data
+                        .get_temp::<bool>(egui::Id::new("arrow_down_pressed"))
+                })
+                .unwrap_or(false);
 
             if arrow_down_pressed {
-
-
-
                 selected_index = (selected_index + 1) % sug_count;
 
-
-
                 selection_changed = true;
-
-
-
             }
-
-
 
             if arrow_up_pressed {
-
-
-
-                selected_index = if selected_index == 0 { sug_count - 1 } else { selected_index - 1 };
-
-
+                selected_index = if selected_index == 0 {
+                    sug_count - 1
+                } else {
+                    selected_index - 1
+                };
 
                 selection_changed = true;
-
-
-
             }
 
-
-
             ui.memory_mut(|mem| mem.data.insert_temp(response.id, selected_index));
-
-
-
         }
 
-
-
-
-
-
-
         if confirm_selected {
-
-
-
             let chosen = &suggestions[selected_index];
 
-
-
-            Self::apply_variable_suggestion(ui, response, text, &prefix, chosen, wrap_open, &after_cursor);
-
-
+            Self::apply_variable_suggestion(
+                ui,
+                response,
+                text,
+                &prefix,
+                chosen,
+                wrap_open,
+                &after_cursor,
+            );
 
             ui.memory_mut(|mem| {
-
-
-
-                mem.data.insert_temp(egui::Id::new("macro_variable_suggestion_committed"), true);
-
-
-
+                mem.data
+                    .insert_temp(egui::Id::new("macro_variable_suggestion_committed"), true);
             });
-
-
 
             popup_open = false;
 
-
-
             ui.memory_mut(|mem| {
-
-
-
                 mem.data.insert_temp(popup_open_key, popup_open);
 
-
-
                 mem.data.insert_temp(egui::Id::new("enter_pressed"), false);
-
-
-
             });
 
-
-
             return;
-
-
-
         }
-
-
-
-
-
-
 
         let popup_id = response.id.with("sug_popup");
 
-
-
         let popup_position = response.rect.left_bottom();
-
-
 
         let mut clicked_choice: Option<String> = None;
 
-
-
-        let popup_max_height = (ui.ctx().content_rect().bottom() - popup_position.y - 8.0).max(120.0);
-
-
-
-        
-
-
+        let popup_max_height =
+            (ui.ctx().content_rect().bottom() - popup_position.y - 8.0).max(120.0);
 
         let area_res = egui::Area::new(popup_id)
-
-
-
             .order(egui::Order::Foreground)
-
-
-
             .fixed_pos(popup_position)
-
-
-
             .show(ui.ctx(), |ui| {
-
-
-
                 let frame_res = egui::Frame::popup(ui.style()).show(ui, |ui| {
-
-
-
                     ui.set_max_width(200.0);
 
-
-
                     egui::ScrollArea::vertical()
-
-
-
                         .max_height(popup_max_height)
-
-
-
                         .show(ui, |ui| {
-
-
-
                             ui.vertical(|ui| {
-
-
-
                                 for (idx, sug) in suggestions.iter().enumerate() {
-
-
-
                                     let is_selected = idx == selected_index;
-
-
 
                                     let label = Self::timer_suggestion_label(sug, timer_names);
 
-
-
                                     let color = match Self::variable_value_kind(sug) {
-
-
-
                                         VariableValueKind::Text => Color32::from_rgb(255, 185, 92),
 
-
-
-                                        VariableValueKind::Number => Color32::from_rgb(86, 198, 255),
-
-
+                                        VariableValueKind::Number => {
+                                            Color32::from_rgb(86, 198, 255)
+                                        }
 
                                         VariableValueKind::Neutral => ui.visuals().text_color(),
-
-
-
                                     };
 
-
-
                                     let mut resp = ui.selectable_label(
-
-
-
                                         is_selected,
-
-
-
                                         RichText::new(label).color(color),
-
-
-
                                     );
 
-
-
                                     if is_selected && selection_changed {
-
-
-
                                         resp.scroll_to_me(None);
-
-
-
                                     }
-
-
 
                                     if resp.clicked() {
-
-
-
                                         clicked_choice = Some(sug.clone());
-
-
-
                                     }
-
-
-
                                 }
-
-
-
                             });
-
-
-
                         });
-
-
-
                 });
-
-
-
-                
-
-
 
                 let rect = frame_res.response.rect;
 
-
-
                 ui.memory_mut(|mem| mem.data.insert_temp(response.id.with("popup_rect"), rect));
-
-
-
             });
-
-
-
-
-
-
 
         if let Some(chosen) = clicked_choice {
-
-
-
-            Self::apply_variable_suggestion(ui, response, text, &prefix, &chosen, wrap_open, &after_cursor);
-
-
+            Self::apply_variable_suggestion(
+                ui,
+                response,
+                text,
+                &prefix,
+                &chosen,
+                wrap_open,
+                &after_cursor,
+            );
 
             ui.memory_mut(|mem| {
-
-
-
-                mem.data.insert_temp(egui::Id::new("macro_variable_suggestion_committed"), true);
-
-
-
+                mem.data
+                    .insert_temp(egui::Id::new("macro_variable_suggestion_committed"), true);
             });
-
-
 
             popup_open = false;
 
-
-
             ui.memory_mut(|mem| {
-
-
-
                 mem.data.insert_temp(popup_open_key, popup_open);
 
-
-
                 mem.data.insert_temp(egui::Id::new("enter_pressed"), false);
-
-
-
             });
 
-
-
             return;
-
-
-
         }
 
-
-
-            
-
-
-
         ui.memory_mut(|mem| {
-
-
-
             mem.data.insert_temp(popup_open_key, popup_open);
 
-
-
             mem.data.insert_temp(egui::Id::new("any_popup_open"), true);
-
-
-
         });
-
-
-
     }
 
-
-
-
-
-
-
     fn render_variable_suggestions_raw(
-
-
-
         ui: &mut egui::Ui,
-
-
 
         response: &egui::Response,
 
-
-
         text: &mut String,
-
-
 
         timer_names: &[String],
 
-
-
         _language: UiLanguage,
-
-
-
     ) {
-
-
-
         let suggestion_names = ui
-
-
-
-            .memory(|mem| mem.data.get_temp::<Vec<String>>(egui::Id::new("macro_variable_writable_suggestion_names")))
-
-
-
+            .memory(|mem| {
+                mem.data.get_temp::<Vec<String>>(egui::Id::new(
+                    "macro_variable_writable_suggestion_names",
+                ))
+            })
             .unwrap_or_default();
 
+        let cursor_index =
+            match egui::widgets::text_edit::TextEditState::load(ui.ctx(), response.id).and_then(
+                |state| {
+                    state
+                        .cursor
+                        .char_range()
+                        .and_then(|range| range.single().map(|c| c.index))
+                },
+            ) {
+                Some(index) => index,
 
-
-        let cursor_index = match egui::widgets::text_edit::TextEditState::load(ui.ctx(), response.id)
-
-
-
-            .and_then(|state| state.cursor.char_range().and_then(|range| range.single().map(|c| c.index)))
-
-
-
-        {
-
-
-
-            Some(index) => index,
-
-
-
-            None => return,
-
-
-
-        };
-
-
+                None => return,
+            };
 
         let cursor_byte = text
-
-
-
             .char_indices()
-
-
-
             .nth(cursor_index)
-
-
-
             .map(|(byte, _)| byte)
-
-
-
             .unwrap_or(text.len());
-
-
 
         let before_cursor = &text[..cursor_byte];
 
-
-
         let after_cursor = text[cursor_byte..].to_string();
-
-
-
-
-
-
 
         let mut last_word_start = 0;
 
-
-
         for (i, c) in before_cursor.char_indices() {
-
-
-
             if c.is_whitespace()
-
-
-
                 || c == '+'
-
-
-
                 || c == '-'
-
-
-
                 || c == '*'
-
-
-
                 || c == '/'
-
-
-
                 || c == '('
-
-
-
                 || c == ')'
-
-
-
                 || c == ','
-
-
-
                 || c == '{'
-
-
-
                 || c == '}'
-
-
-
             {
-
-
-
                 last_word_start = i + c.len_utf8();
-
-
-
             }
-
-
-
         }
-
-
 
         let prefix = before_cursor[..last_word_start].to_string();
 
-
-
         let last_word = before_cursor[last_word_start..].trim().to_string();
-
-
 
         let wrap_open = prefix.ends_with('{');
 
-
-
-
-
-
-
         if last_word.is_empty() {
-
-
-
             return;
-
-
-
         }
-
-
-
-
-
-
 
         let mut suggestions = Vec::new();
 
-
-
-
-
-
-
         if last_word.contains('.') {
-
-
-
             let parts: Vec<&str> = last_word.split('.').collect();
-
-
 
             let prop_part = parts.get(1).map(|s| s.to_lowercase()).unwrap_or_default();
 
-
-
             if Self::timer_ref_index(parts[0]).is_some() {
-
-
-
-                for prop in ["hour", "minute", "second", "millisecond", "ms", "raw", "total_sec"] {
-
-
-
+                for prop in [
+                    "hour",
+                    "minute",
+                    "second",
+                    "millisecond",
+                    "ms",
+                    "raw",
+                    "total_sec",
+                ] {
                     let full_prop = format!("{}.{}", parts[0], prop);
 
-
-
-                    if prop.starts_with(&prop_part) && full_prop.to_lowercase() != last_word.to_lowercase() {
-
-
-
+                    if prop.starts_with(&prop_part)
+                        && full_prop.to_lowercase() != last_word.to_lowercase()
+                    {
                         suggestions.push(full_prop);
-
-
-
                     }
-
-
-
                 }
-
-
-
             }
-
-
-
         } else {
-
-
-
             for name in &suggestion_names {
-
-
-
                 let name_no_space = name.replace(" ", "");
 
-
-
-                if name_no_space.to_lowercase().starts_with(&last_word.to_lowercase()) 
-
-
-
-                   && name_no_space.to_lowercase() != last_word.to_lowercase() {
-
-
-
+                if name_no_space
+                    .to_lowercase()
+                    .starts_with(&last_word.to_lowercase())
+                    && name_no_space.to_lowercase() != last_word.to_lowercase()
+                {
                     suggestions.push(name_no_space);
-
-
-
                 }
-
-
-
             }
-
-
-
         }
-
-
-
-
-
-
 
         if suggestions.is_empty() {
-
-
-
             return;
-
-
-
         }
-
-
-
-
-
-
 
         let popup_open_key = response.id.with("popup_open_raw");
 
-
-
-        let mut popup_open = ui.memory(|mem| mem.data.get_temp::<bool>(popup_open_key)).unwrap_or(false);
-
-
-
-        
-
-
+        let mut popup_open = ui
+            .memory(|mem| mem.data.get_temp::<bool>(popup_open_key))
+            .unwrap_or(false);
 
         if response.has_focus() {
-
-
-
             popup_open = true;
-
-
-
         } else {
-
-
-
-            let popup_rect = ui.memory(|mem| mem.data.get_temp::<egui::Rect>(response.id.with("popup_rect_raw")));
-
-
+            let popup_rect = ui.memory(|mem| {
+                mem.data
+                    .get_temp::<egui::Rect>(response.id.with("popup_rect_raw"))
+            });
 
             if let Some(rect) = popup_rect {
-
-
-
-                let hover = ui.input(|i| i.pointer.hover_pos().map_or(false, |pos| rect.contains(pos)));
-
-
+                let hover = ui.input(|i| {
+                    i.pointer
+                        .hover_pos()
+                        .map_or(false, |pos| rect.contains(pos))
+                });
 
                 let mouse_down = ui.input(|i| i.pointer.any_down());
 
-
-
                 if !hover && mouse_down {
-
-
-
                     popup_open = false;
-
-
-
                 }
-
-
-
             } else {
-
-
-
                 popup_open = false;
-
-
-
             }
-
-
-
         }
-
-
-
-
-
-
 
         if !popup_open {
-
-
-
             return;
-
-
-
         }
 
-
-
-
-
-
-
-        let mut selected_index = ui.memory(|mem| mem.data.get_temp::<usize>(response.id)).unwrap_or(0);
-
-
+        let mut selected_index = ui
+            .memory(|mem| mem.data.get_temp::<usize>(response.id))
+            .unwrap_or(0);
 
         let mut confirm_selected = false;
 
-
-
         let mut selection_changed = false;
-
-
 
         let sug_count = suggestions.len();
 
-
-
-        
-
-
-
         if selected_index >= sug_count {
-
-
-
             selected_index = 0;
-
-
-
         }
-
-
-
-
-
-
 
         if response.has_focus() {
-
-
-
-            let enter_pressed = ui.memory(|mem| mem.data.get_temp::<bool>(egui::Id::new("enter_pressed"))).unwrap_or(false);
-
-
+            let enter_pressed = ui
+                .memory(|mem| mem.data.get_temp::<bool>(egui::Id::new("enter_pressed")))
+                .unwrap_or(false);
 
             if enter_pressed {
-
-
-
                 confirm_selected = true;
-
-
-
             }
 
+            let arrow_up_pressed = ui
+                .memory(|mem| mem.data.get_temp::<bool>(egui::Id::new("arrow_up_pressed")))
+                .unwrap_or(false);
 
-
-            let arrow_up_pressed = ui.memory(|mem| mem.data.get_temp::<bool>(egui::Id::new("arrow_up_pressed"))).unwrap_or(false);
-
-
-
-            let arrow_down_pressed = ui.memory(|mem| mem.data.get_temp::<bool>(egui::Id::new("arrow_down_pressed"))).unwrap_or(false);
-
-
+            let arrow_down_pressed = ui
+                .memory(|mem| {
+                    mem.data
+                        .get_temp::<bool>(egui::Id::new("arrow_down_pressed"))
+                })
+                .unwrap_or(false);
 
             if arrow_down_pressed {
-
-
-
                 selected_index = (selected_index + 1) % sug_count;
 
-
-
                 selection_changed = true;
-
-
-
             }
-
-
 
             if arrow_up_pressed {
-
-
-
-                selected_index = if selected_index == 0 { sug_count - 1 } else { selected_index - 1 };
-
-
+                selected_index = if selected_index == 0 {
+                    sug_count - 1
+                } else {
+                    selected_index - 1
+                };
 
                 selection_changed = true;
-
-
-
             }
 
-
-
             ui.memory_mut(|mem| mem.data.insert_temp(response.id, selected_index));
-
-
-
         }
 
-
-
-
-
-
-
         if confirm_selected {
-
-
-
             let chosen = &suggestions[selected_index];
 
-
-
             let suffix = if wrap_open && after_cursor.starts_with('}') {
-
-
-
                 &after_cursor['}'.len_utf8()..]
-
-
-
             } else {
-
-
-
                 after_cursor.as_str()
-
-
-
             };
-
-
 
             let closing = if wrap_open { "}" } else { "" };
 
-
-
             *text = format!("{}{}{}{}", prefix, chosen, closing, suffix);
-
-
 
             response.request_focus();
 
-
-
-            
-
-
-
             let char_count = text.chars().count();
 
-
-
-            if let Some(mut state) = egui::widgets::text_edit::TextEditState::load(ui.ctx(), response.id) {
-
-
-
+            if let Some(mut state) =
+                egui::widgets::text_edit::TextEditState::load(ui.ctx(), response.id)
+            {
                 let cursor_pos = egui::text::CCursor::new(char_count);
 
-
-
-                state.cursor.set_char_range(Some(egui::text::CCursorRange::two(cursor_pos, cursor_pos)));
-
-
+                state
+                    .cursor
+                    .set_char_range(Some(egui::text::CCursorRange::two(cursor_pos, cursor_pos)));
 
                 state.store(ui.ctx(), response.id);
-
-
-
             }
-
-
-
-
-
-
 
             popup_open = false;
 
-
-
             ui.memory_mut(|mem| {
-
-
-
                 mem.data.insert_temp(popup_open_key, popup_open);
 
-
-
                 mem.data.insert_temp(egui::Id::new("enter_pressed"), false);
-
-
-
             });
 
-
-
             return;
-
-
-
         }
-
-
-
-
-
-
 
         let popup_id = response.id.with("sug_popup_raw");
 
-
-
         let popup_position = response.rect.left_bottom();
-
-
 
         let mut clicked_choice: Option<String> = None;
 
-
-
-        let popup_max_height = (ui.ctx().content_rect().bottom() - popup_position.y - 8.0).max(120.0);
-
-
-
-        
-
-
+        let popup_max_height =
+            (ui.ctx().content_rect().bottom() - popup_position.y - 8.0).max(120.0);
 
         let area_res = egui::Area::new(popup_id)
-
-
-
             .order(egui::Order::Foreground)
-
-
-
             .fixed_pos(popup_position)
-
-
-
             .show(ui.ctx(), |ui| {
-
-
-
                 let frame_res = egui::Frame::popup(ui.style()).show(ui, |ui| {
-
-
-
                     ui.set_max_width(200.0);
 
-
-
                     egui::ScrollArea::vertical()
-
-
-
                         .max_height(popup_max_height)
-
-
-
                         .show(ui, |ui| {
-
-
-
                             ui.vertical(|ui| {
-
-
-
                                 for (idx, sug) in suggestions.iter().enumerate() {
-
-
-
                                     let is_selected = idx == selected_index;
-
-
 
                                     let label = Self::timer_suggestion_label(sug, timer_names);
 
-
-
                                     let color = match Self::variable_value_kind(sug) {
-
-
-
                                         VariableValueKind::Text => Color32::from_rgb(255, 185, 92),
 
-
-
-                                        VariableValueKind::Number => Color32::from_rgb(86, 198, 255),
-
-
+                                        VariableValueKind::Number => {
+                                            Color32::from_rgb(86, 198, 255)
+                                        }
 
                                         VariableValueKind::Neutral => ui.visuals().text_color(),
-
-
-
                                     };
 
-
-
                                     let mut resp = ui.selectable_label(
-
-
-
                                         is_selected,
-
-
-
                                         RichText::new(label).color(color),
-
-
-
                                     );
 
-
-
                                     if is_selected && selection_changed {
-
-
-
                                         resp.scroll_to_me(None);
-
-
-
                                     }
-
-
 
                                     if resp.clicked() {
-
-
-
                                         clicked_choice = Some(sug.clone());
-
-
-
                                     }
-
-
-
                                 }
-
-
-
                             });
-
-
-
                         });
-
-
-
                 });
-
-
-
-                
-
-
 
                 let rect = frame_res.response.rect;
 
-
-
-                ui.memory_mut(|mem| mem.data.insert_temp(response.id.with("popup_rect_raw"), rect));
-
-
-
+                ui.memory_mut(|mem| {
+                    mem.data
+                        .insert_temp(response.id.with("popup_rect_raw"), rect)
+                });
             });
 
-
-
-
-
-
-
         if let Some(chosen) = clicked_choice {
-
-
-
-            Self::apply_variable_suggestion(ui, response, text, &prefix, &chosen, wrap_open, &after_cursor);
-
-
+            Self::apply_variable_suggestion(
+                ui,
+                response,
+                text,
+                &prefix,
+                &chosen,
+                wrap_open,
+                &after_cursor,
+            );
 
             popup_open = false;
 
-
-
             ui.memory_mut(|mem| {
-
-
-
                 mem.data.insert_temp(popup_open_key, popup_open);
 
-
-
                 mem.data.insert_temp(egui::Id::new("enter_pressed"), false);
-
-
-
             });
 
-
-
             return;
-
-
-
         }
 
-
-
-            
-
-
-
         ui.memory_mut(|mem| {
-
-
-
             mem.data.insert_temp(popup_open_key, popup_open);
 
-
-
             mem.data.insert_temp(egui::Id::new("any_popup_open"), true);
-
-
-
         });
-
-
-
     }
 
-
-
-
-
-
-
     fn render_expandable_text_edit_impl(
-
-
-
         ui: &mut egui::Ui,
-
-
 
         text: &mut String,
 
-
-
         id: egui::Id,
-
-
 
         normal_width: f32,
 
-
-
         expanded_width: f32,
-
-
 
         normal_height: f32,
 
-
-
         expanded_height: f32,
-
-
 
         hint: &str,
 
-
-
         multiline_on_focus: bool,
 
-
-
         highlight_variables: bool,
-
-
-
     ) -> egui::Response {
-
-
-
         let focus_key = id.with("expand-focus");
 
+        let has_focus = ui
+            .memory(|mem| mem.data.get_temp::<bool>(focus_key))
+            .unwrap_or(false);
 
-
-        let has_focus = ui.memory(|mem| mem.data.get_temp::<bool>(focus_key)).unwrap_or(false);
-
-
-
-
-
-
-
-        let target_width = if has_focus { expanded_width } else { normal_width };
-
-
-
-
-
-
+        let target_width = if has_focus {
+            expanded_width
+        } else {
+            normal_width
+        };
 
         // Calculate dynamic height based on text content when focused
 
-
-
         let target_height = if has_focus {
-
-
-
             let chars_per_line = ((expanded_width / 7.2) as usize).max(10);
-
-
 
             let mut estimated_rows = 0;
 
-
-
             for line in text.split('\n') {
-
-
-
                 let line_len = line.chars().count();
 
-
-
                 estimated_rows += 1 + line_len / chars_per_line;
-
-
-
             }
 
-
-
             let rows = estimated_rows.clamp(1, 12);
-
-
-
-            
-
-
 
             if multiline_on_focus || rows > 1 {
-
-
-
                 (rows as f32 * 18.0 + 6.0).max(expanded_height)
-
-
-
             } else {
-
-
-
                 expanded_height
-
-
-
             }
-
-
-
         } else {
-
-
-
             normal_height
-
-
-
         };
 
+        let animated_width = ui
+            .ctx()
+            .animate_value_with_time(id.with("w"), target_width, 0.20);
 
+        let animated_height = ui
+            .ctx()
+            .animate_value_with_time(id.with("h"), target_height, 0.20);
 
-
-
-
-
-        let animated_width = ui.ctx().animate_value_with_time(id.with("w"), target_width, 0.20);
-
-
-
-        let animated_height = ui.ctx().animate_value_with_time(id.with("h"), target_height, 0.20);
-
-
-
-
-
-
-
-        let is_multiline = has_focus && (multiline_on_focus || (text.chars().count() > (expanded_width / 7.2) as usize) || text.contains('\n'));
-
-
-
-
-
-
+        let is_multiline = has_focus
+            && (multiline_on_focus
+                || (text.chars().count() > (expanded_width / 7.2) as usize)
+                || text.contains('\n'));
 
         let text_edit = if is_multiline {
-
-
-
             let chars_per_line = ((expanded_width / 7.2) as usize).max(10);
-
-
 
             let mut estimated_rows = 0;
 
-
-
             for line in text.split('\n') {
-
-
-
                 let line_len = line.chars().count();
 
-
-
                 estimated_rows += 1 + line_len / chars_per_line;
-
-
-
             }
-
-
 
             let rows = estimated_rows.clamp(1, 12);
 
-
-
-
-
-
-
             egui::TextEdit::multiline(text)
-
-
-
                 .hint_text(hint)
-
-
-
                 .desired_rows(rows)
-
-
-
                 .id(id)
-
-
-
         } else {
-
-
-
-            egui::TextEdit::singleline(text)
-
-
-
-                .hint_text(hint)
-
-
-
-                .id(id)
-
-
-
+            egui::TextEdit::singleline(text).hint_text(hint).id(id)
         };
-
-
-
-
-
-
 
         let mut layouter = |ui: &egui::Ui, string: &dyn TextBuffer, wrap_width: f32| {
-
-
-
             let job = Self::variable_highlight_job(ui, string.as_str(), wrap_width);
 
-
-
             ui.fonts_mut(|fonts| fonts.layout_job(job))
-
-
-
         };
-
-
 
         let text_edit = if highlight_variables {
-
-
-
             text_edit.layouter(&mut layouter)
-
-
-
         } else {
-
-
-
             text_edit
-
-
-
         };
-
-
-
-
-
-
 
         // Temporarily clear override_text_color so hint/placeholder text is properly dimmed.
 
-
-
         // Preset cards set override_text_color for their content, which bleeds into TextEdit
-
-
 
         // and makes hint text appear at full brightness instead of the dimmed weak_text_color.
 
-
-
         let prev_override = ui.visuals().override_text_color;
-
-
 
         ui.visuals_mut().override_text_color = None;
 
-
-
         let response = ui.add_sized([animated_width, animated_height], text_edit);
-
-
 
         ui.visuals_mut().override_text_color = prev_override;
 
-
-
-
-
-
-
         let now_focused = response.has_focus();
 
-
-
         if now_focused != has_focus {
-
-
-
             ui.memory_mut(|mem| mem.data.insert_temp(focus_key, now_focused));
-
-
-
         }
 
-
-
-
-
-
-
         response
-
-
-
     }
-
-
 
     fn render_expandable_text_edit(
-
-
-
         ui: &mut egui::Ui,
-
-
 
         text: &mut String,
 
-
-
         id: egui::Id,
-
-
 
         normal_width: f32,
 
-
-
         expanded_width: f32,
-
-
 
         normal_height: f32,
 
-
-
         expanded_height: f32,
-
-
 
         hint: &str,
 
-
-
         multiline_on_focus: bool,
-
-
-
     ) -> egui::Response {
-
-
-
         Self::render_expandable_text_edit_impl(
-
-
-
             ui,
-
-
-
             text,
-
-
-
             id,
-
-
-
             normal_width,
-
-
-
             expanded_width,
-
-
-
             normal_height,
-
-
-
             expanded_height,
-
-
-
             hint,
-
-
-
             multiline_on_focus,
-
-
-
             false,
-
-
-
         )
-
-
-
     }
-
-
 
     fn render_variable_text_edit(
-
-
-
         ui: &mut egui::Ui,
-
-
 
         text: &mut String,
 
-
-
         id: egui::Id,
-
-
 
         normal_width: f32,
 
-
-
         expanded_width: f32,
-
-
 
         normal_height: f32,
 
-
-
         expanded_height: f32,
-
-
 
         hint: &str,
 
-
-
         multiline_on_focus: bool,
-
-
-
     ) -> egui::Response {
-
-
-
         Self::render_expandable_text_edit_impl(
-
-
-
             ui,
-
-
-
             text,
-
-
-
             id,
-
-
-
             normal_width,
-
-
-
             expanded_width,
-
-
-
             normal_height,
-
-
-
             expanded_height,
-
-
-
             hint,
-
-
-
             multiline_on_focus,
-
-
-
             true,
-
-
-
         )
-
-
-
     }
 
-
-
-
-
-
-
     fn render_expandable_command_text_edit(
-
-
-
         ui: &mut egui::Ui,
-
-
 
         text: &mut String,
 
-
-
         id: egui::Id,
 
-
-
         hint: &str,
-
-
-
     ) -> egui::Response {
-
-
-
         let focus_key = id.with("expand-focus");
 
-
-
-        let has_focus = ui.memory(|mem| mem.data.get_temp::<bool>(focus_key)).unwrap_or(false);
-
-
-
-
-
-
+        let has_focus = ui
+            .memory(|mem| mem.data.get_temp::<bool>(focus_key))
+            .unwrap_or(false);
 
         let target_height = if has_focus { 160.0 } else { 72.0 };
 
-
-
-        let animated_height = ui.ctx().animate_value_with_time(id.with("h"), target_height, 0.20);
-
-
-
-
-
-
+        let animated_height = ui
+            .ctx()
+            .animate_value_with_time(id.with("h"), target_height, 0.20);
 
         let response = ui.add_sized(
-
-
-
             [300.0, animated_height],
-
-
-
             egui::TextEdit::multiline(text)
-
-
-
                 .hint_text(hint)
-
-
-
                 .desired_rows(if has_focus { 7 } else { 3 })
-
-
-
                 .id(id),
-
-
-
         );
-
-
-
-
-
-
 
         let now_focused = response.has_focus();
 
-
-
         if now_focused != has_focus {
-
-
-
             ui.memory_mut(|mem| mem.data.insert_temp(focus_key, now_focused));
-
-
-
         }
 
-
-
-
-
-
-
         response
-
-
-
     }
-
-
-
-
-
-
-
 }
-
-
-
-

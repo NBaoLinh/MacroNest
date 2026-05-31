@@ -1,17 +1,16 @@
-use std::time::Duration;
-use eframe::egui::{self, Button, RichText, Margin, Slider, DragValue, Sense, TextEdit, Color32, vec2, Frame, TextBuffer};
+use crate::hotkey;
 use crate::model::*;
 use crate::overlay::OverlayCommand;
-use crate::hotkey;
-use crate::ui::{
-    CrosshairApp,
-    MouseMoveAbsoluteCaptureTarget,
-    MouseCaptureKind,
-};
+use crate::ui::{CrosshairApp, MouseCaptureKind, MouseMoveAbsoluteCaptureTarget};
 use crate::window_list;
+use eframe::egui::{
+    self, Button, Color32, DragValue, Frame, Margin, RichText, Sense, Slider, TextBuffer, TextEdit,
+    vec2,
+};
+use std::time::Duration;
 
 #[cfg(windows)]
-use crate::ui::{POINT, GetCursorPos};
+use crate::ui::{GetCursorPos, POINT};
 
 impl CrosshairApp {
     pub(crate) fn render_mouse_panel(&mut self, ui: &mut egui::Ui) {
@@ -104,10 +103,8 @@ impl CrosshairApp {
                 ui.horizontal(|ui| {
                     let mut disabled_by_button = false;
                     let name_width = Self::preset_header_name_width(ui);
-                    let response = ui.add_sized(
-                        [name_width, 24.0],
-                        TextEdit::singleline(&mut preset.name),
-                    );
+                    let response =
+                        ui.add_sized([name_width, 24.0], TextEdit::singleline(&mut preset.name));
                     Self::apply_vietnamese_input_if_changed(
                         &response,
                         self.state.vietnamese_input_enabled,
@@ -126,7 +123,8 @@ impl CrosshairApp {
                         &capture_target,
                         pending_combo_keys.as_ref(),
                     );
-                    preset.enabled = preset.hotkey.is_some() || !preset.trigger_keys.trim().is_empty();
+                    preset.enabled =
+                        preset.hotkey.is_some() || !preset.trigger_keys.trim().is_empty();
 
                     if Self::sound_style_toggle_button(
                         ui,
@@ -148,112 +146,126 @@ impl CrosshairApp {
                             .overlay_tx
                             .send(OverlayCommand::RestoreMouseSensitivity);
                     }
-                    ui.with_layout(
-                        egui::Layout::right_to_left(egui::Align::Center),
-                        |ui| {
-                            let capture_active = active_capture_target.as_ref() == Some(&capture_target);
-                            let capture_time = ui.ctx().input(|input| input.time) as f32;
-                            let pulse = if capture_active {
-                                0.5 + 0.5 * (capture_time * 6.0).sin().abs()
-                            } else {
-                                0.0
-                            };
-                            let has_keys = preset.hotkey.is_some() || !preset.trigger_keys.trim().is_empty();
-                            let fill = if capture_active {
-                                Color32::from_rgba_premultiplied(
-                                    (88.0 + pulse * 28.0) as u8,
-                                    (84.0 + pulse * 28.0) as u8,
-                                    (44.0 + pulse * 10.0) as u8,
-                                    255,
-                                )
-                            } else if has_keys {
-                                Color32::from_rgba_premultiplied(72, 156, 116, 120)
-                            } else {
-                                ui.visuals().faint_bg_color
-                            };
-                            let stroke = if capture_active {
-                                Color32::from_rgb(255, 232, 96)
-                            } else if has_keys {
-                                Color32::from_rgb(126, 224, 182)
-                            } else {
-                                ui.visuals().widgets.noninteractive.bg_stroke.color
-                            };
+                    ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
+                        let capture_active =
+                            active_capture_target.as_ref() == Some(&capture_target);
+                        let capture_time = ui.ctx().input(|input| input.time) as f32;
+                        let pulse = if capture_active {
+                            0.5 + 0.5 * (capture_time * 6.0).sin().abs()
+                        } else {
+                            0.0
+                        };
+                        let has_keys =
+                            preset.hotkey.is_some() || !preset.trigger_keys.trim().is_empty();
+                        let fill = if capture_active {
+                            Color32::from_rgba_premultiplied(
+                                (88.0 + pulse * 28.0) as u8,
+                                (84.0 + pulse * 28.0) as u8,
+                                (44.0 + pulse * 10.0) as u8,
+                                255,
+                            )
+                        } else if has_keys {
+                            Color32::from_rgba_premultiplied(72, 156, 116, 120)
+                        } else {
+                            ui.visuals().faint_bg_color
+                        };
+                        let stroke = if capture_active {
+                            Color32::from_rgb(255, 232, 96)
+                        } else if has_keys {
+                            Color32::from_rgb(126, 224, 182)
+                        } else {
+                            ui.visuals().widgets.noninteractive.bg_stroke.color
+                        };
 
-                            let hover_text = if capture_active {
-                                Self::tr_lang(language, "Capturing... Press any key.", "Đang ghi... Nhấn một phím bất kỳ.").to_string()
-                            } else if has_keys {
-                                let bindings_labels: Vec<String> = Self::preset_trigger_bindings(&preset.hotkey, &preset.trigger_keys)
+                        let hover_text = if capture_active {
+                            Self::tr_lang(
+                                language,
+                                "Capturing... Press any key.",
+                                "Đang ghi... Nhấn một phím bất kỳ.",
+                            )
+                            .to_string()
+                        } else if has_keys {
+                            let bindings_labels: Vec<String> =
+                                Self::preset_trigger_bindings(&preset.hotkey, &preset.trigger_keys)
                                     .iter()
                                     .map(|b| hotkey::format_binding(Some(b)))
                                     .collect();
-                                format!(
-                                    "{} {}\n{}",
-                                    Self::tr_lang(language, "Hotkey:", "Phím tắt:"),
-                                    bindings_labels.join(", "),
-                                    Self::tr_lang(
-                                        language,
-                                        "Left click: rebind | Right click: clear",
-                                        "Chuột trái: đổi phím | Chuột phải: xóa phím"
-                                    )
+                            format!(
+                                "{} {}\n{}",
+                                Self::tr_lang(language, "Hotkey:", "Phím tắt:"),
+                                bindings_labels.join(", "),
+                                Self::tr_lang(
+                                    language,
+                                    "Left click: rebind | Right click: clear",
+                                    "Chuột trái: đổi phím | Chuột phải: xóa phím"
                                 )
-                            } else {
-                                Self::tr_lang(language, "Left click: bind hotkey", "Chuột trái: gán phím tắt").to_string()
-                            };
+                            )
+                        } else {
+                            Self::tr_lang(
+                                language,
+                                "Left click: bind hotkey",
+                                "Chuột trái: gán phím tắt",
+                            )
+                            .to_string()
+                        };
 
-                            let btn_text = if capture_active {
-                                RichText::new(Self::tr_lang(language, "Capturing...", "Đang bắt..."))
-                                    .strong()
-                                    .color(Color32::from_rgb(255, 232, 96))
-                            } else {
-                                Self::material_icon_text(0xe312, 18.0)
-                            };
-                            let btn_width = if capture_active { 84.0 } else { 36.0 };
-                            let btn_response = ui.add_sized(
+                        let btn_text = if capture_active {
+                            RichText::new(Self::tr_lang(language, "Capturing...", "Đang bắt..."))
+                                .strong()
+                                .color(Color32::from_rgb(255, 232, 96))
+                        } else {
+                            Self::material_icon_text(0xe312, 18.0)
+                        };
+                        let btn_width = if capture_active { 84.0 } else { 36.0 };
+                        let btn_response = ui
+                            .add_sized(
                                 [btn_width, 24.0],
                                 Button::new(btn_text)
                                     .fill(fill)
                                     .stroke(egui::Stroke::new(1.0, stroke)),
-                            ).on_hover_text(hover_text);
-
-                            if btn_response.clicked() {
-                                if capture_active {
-                                    cancel_active_capture_sensitivity = true;
-                                } else {
-                                    next_mouse_sensitivity_capture_target = Some((
-                                        capture_target,
-                                        match language {
-                                            UiLanguage::Vietnamese => format!("Đang bật phím tắt cho {}.", preset.name),
-                                            _ => format!("Capturing hotkey for {}.", preset.name),
-                                        },
-                                    ));
-                                }
-                            }
-                            if btn_response.secondary_clicked() {
-                                preset.hotkey = None;
-                                preset.trigger_keys.clear();
-                                preset.enabled = false;
-                                disabled_by_button = true;
-                                mouse_sensitivity_live_sync = true;
-                            }
-
-                            if Self::sound_style_remove_button(ui).clicked() {
-                                remove_mouse_sensitivity_id = Some(preset.id);
-                            }
-                            if Self::sound_style_toggle_button(
-                                ui,
-                                if preset.collapsed {
-                                    Self::tr_lang(language, "Show", "Hiện")
-                                } else {
-                                    Self::tr_lang(language, "Hide", "Hide")
-                                },
                             )
-                            .clicked()
-                            {
-                                preset.collapsed = !preset.collapsed;
-                                mouse_sensitivity_live_sync = true;
+                            .on_hover_text(hover_text);
+
+                        if btn_response.clicked() {
+                            if capture_active {
+                                cancel_active_capture_sensitivity = true;
+                            } else {
+                                next_mouse_sensitivity_capture_target = Some((
+                                    capture_target,
+                                    match language {
+                                        UiLanguage::Vietnamese => {
+                                            format!("Đang bật phím tắt cho {}.", preset.name)
+                                        }
+                                        _ => format!("Capturing hotkey for {}.", preset.name),
+                                    },
+                                ));
                             }
-                        },
-                    );
+                        }
+                        if btn_response.secondary_clicked() {
+                            preset.hotkey = None;
+                            preset.trigger_keys.clear();
+                            preset.enabled = false;
+                            disabled_by_button = true;
+                            mouse_sensitivity_live_sync = true;
+                        }
+
+                        if Self::sound_style_remove_button(ui).clicked() {
+                            remove_mouse_sensitivity_id = Some(preset.id);
+                        }
+                        if Self::sound_style_toggle_button(
+                            ui,
+                            if preset.collapsed {
+                                Self::tr_lang(language, "Show", "Hiện")
+                            } else {
+                                Self::tr_lang(language, "Hide", "Hide")
+                            },
+                        )
+                        .clicked()
+                        {
+                            preset.collapsed = !preset.collapsed;
+                            mouse_sensitivity_live_sync = true;
+                        }
+                    });
                     if disabled_by_button {
                         let _ = self
                             .overlay_tx
@@ -301,7 +313,9 @@ impl CrosshairApp {
 
         ui.add_space(8.0);
         ui.horizontal(|ui| {
-            ui.label(RichText::new(Self::tr_lang(language, "Mouse Path", "Đường dẫn chuột")).strong());
+            ui.label(
+                RichText::new(Self::tr_lang(language, "Mouse Path", "Đường dẫn chuột")).strong(),
+            );
         });
 
         for index in 0..self.state.mouse_path_presets.len() {
@@ -312,10 +326,8 @@ impl CrosshairApp {
             Self::show_preset_card(ui, false, |ui| {
                 ui.horizontal(|ui| {
                     let name_width = Self::preset_header_name_width(ui);
-                    let response = ui.add_sized(
-                        [name_width, 24.0],
-                        TextEdit::singleline(&mut preset.name),
-                    );
+                    let response =
+                        ui.add_sized([name_width, 24.0], TextEdit::singleline(&mut preset.name));
                     Self::apply_vietnamese_input_if_changed(
                         &response,
                         self.state.vietnamese_input_enabled,
@@ -323,27 +335,24 @@ impl CrosshairApp {
                         &mut preset.name,
                     );
                     live_sync |= response.changed();
-                    ui.with_layout(
-                        egui::Layout::right_to_left(egui::Align::Center),
-                        |ui| {
-                            if Self::sound_style_remove_button(ui).clicked() {
-                                remove_id = Some(preset.id);
-                            }
-                            if Self::sound_style_toggle_button(
-                                ui,
-                                if preset.collapsed {
-                                    Self::tr_lang(language, "Show", "Hiện")
-                                } else {
-                                    Self::tr_lang(language, "Hide", "Hide")
-                                },
-                            )
-                            .clicked()
-                            {
-                                preset.collapsed = !preset.collapsed;
-                                live_sync = true;
-                            }
-                        },
-                    );
+                    ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
+                        if Self::sound_style_remove_button(ui).clicked() {
+                            remove_id = Some(preset.id);
+                        }
+                        if Self::sound_style_toggle_button(
+                            ui,
+                            if preset.collapsed {
+                                Self::tr_lang(language, "Show", "Hiện")
+                            } else {
+                                Self::tr_lang(language, "Hide", "Hide")
+                            },
+                        )
+                        .clicked()
+                        {
+                            preset.collapsed = !preset.collapsed;
+                            live_sync = true;
+                        }
+                    });
                 });
                 if preset.collapsed {
                     return;
@@ -354,8 +363,7 @@ impl CrosshairApp {
                     .show(ui, |ui| {
                         ui.label(Self::tr_lang(language, "Record Hotkey", "Record Hotkey"));
                         ui.horizontal_wrapped(|ui| {
-                            let capture_target =
-                                CaptureRequest::MousePathRecordHotkey(preset.id);
+                            let capture_target = CaptureRequest::MousePathRecordHotkey(preset.id);
                             let (begin_capture, cancel_capture) =
                                 Self::render_hotkey_capture_control(
                                     ui,
@@ -371,16 +379,10 @@ impl CrosshairApp {
                                     capture_target,
                                     match language {
                                         UiLanguage::Vietnamese => {
-                                            format!(
-                                                "Đang bật phím tắt ghi cho {}.",
-                                                preset.name
-                                            )
+                                            format!("Đang bật phím tắt ghi cho {}.", preset.name)
                                         }
                                         _ => {
-                                            format!(
-                                                "Capturing record hotkey for {}.",
-                                                preset.name
-                                            )
+                                            format!("Capturing record hotkey for {}.", preset.name)
                                         }
                                     },
                                 ));
@@ -449,7 +451,11 @@ impl CrosshairApp {
         _desired_height: f32,
     ) {
         let screen_size = Self::screen_size();
-        let aspect_ratio = if screen_size.y > 0.0 { screen_size.x / screen_size.y } else { 16.0 / 9.0 };
+        let aspect_ratio = if screen_size.y > 0.0 {
+            screen_size.x / screen_size.y
+        } else {
+            16.0 / 9.0
+        };
         let width = ui.available_width();
         let height = width / aspect_ratio;
         let max_height = 480.0;
@@ -459,10 +465,9 @@ impl CrosshairApp {
             (width, height)
         };
         let (canvas_rect, _) = ui.allocate_exact_size(vec2(width, desired_height), Sense::hover());
-        let draw_rect = egui::Rect::from_center_size(
-            canvas_rect.center(),
-            vec2(desired_width, desired_height)
-        ).shrink(8.0);
+        let draw_rect =
+            egui::Rect::from_center_size(canvas_rect.center(), vec2(desired_width, desired_height))
+                .shrink(8.0);
         ui.painter().rect_filled(
             draw_rect,
             8.0,
@@ -515,7 +520,10 @@ impl CrosshairApp {
         }
     }
 
-    pub(crate) fn render_mouse_move_absolute_capture_overlay(&mut self, ctx: &egui::Context) -> bool {
+    pub(crate) fn render_mouse_move_absolute_capture_overlay(
+        &mut self,
+        ctx: &egui::Context,
+    ) -> bool {
         if self.mouse_move_absolute_capture_target.is_none() {
             return false;
         }
@@ -559,7 +567,15 @@ impl CrosshairApp {
         while self.state.mouse_path_presets.iter().any(|p| p.id == id) {
             id += 1;
         }
-        self.state.next_mouse_path_preset_id = (self.state.mouse_path_presets.iter().map(|p| p.id).max().unwrap_or(0) + 1).max(id + 1);
+        self.state.next_mouse_path_preset_id = (self
+            .state
+            .mouse_path_presets
+            .iter()
+            .map(|p| p.id)
+            .max()
+            .unwrap_or(0)
+            + 1)
+        .max(id + 1);
         self.state.mouse_path_presets.push(MousePathPreset::new(id));
         self.sync_window_presets();
         self.status = format!("Added mouse path preset {id}.");
@@ -567,10 +583,23 @@ impl CrosshairApp {
 
     pub(crate) fn add_mouse_sensitivity_preset(&mut self) {
         let mut id = 1;
-        while self.state.mouse_sensitivity_presets.iter().any(|p| p.id == id) {
+        while self
+            .state
+            .mouse_sensitivity_presets
+            .iter()
+            .any(|p| p.id == id)
+        {
             id += 1;
         }
-        self.state.next_mouse_sensitivity_preset_id = (self.state.mouse_sensitivity_presets.iter().map(|p| p.id).max().unwrap_or(0) + 1).max(id + 1);
+        self.state.next_mouse_sensitivity_preset_id = (self
+            .state
+            .mouse_sensitivity_presets
+            .iter()
+            .map(|p| p.id)
+            .max()
+            .unwrap_or(0)
+            + 1)
+        .max(id + 1);
         self.state
             .mouse_sensitivity_presets
             .push(MouseSensitivityPreset::new(id));
@@ -693,7 +722,10 @@ impl CrosshairApp {
         }
 
         // --- Handle ExtraCondition captures ---
-        if matches!(target.capture_kind, MouseCaptureKind::ExtraCondMousePos | MouseCaptureKind::ExtraCondPixelColor) {
+        if matches!(
+            target.capture_kind,
+            MouseCaptureKind::ExtraCondMousePos | MouseCaptureKind::ExtraCondPixelColor
+        ) {
             let color = if target.capture_kind == MouseCaptureKind::ExtraCondPixelColor {
                 if let Some(color) = color {
                     self.mouse_move_absolute_capture_target = None;
@@ -722,15 +754,18 @@ impl CrosshairApp {
                     .iter_mut()
                     .find(|group| group.id == group_id)
                     .and_then(|group| {
-                        group.presets.iter_mut().find(|preset| preset.id == target.preset_id)
+                        group
+                            .presets
+                            .iter_mut()
+                            .find(|preset| preset.id == target.preset_id)
                     })
                     .and_then(|preset| {
-                    if target.is_hold_stop {
-                        Some(&mut preset.hold_stop_step)
-                    } else {
-                        preset.steps.get_mut(target.step_index)
-                    }
-                })
+                        if target.is_hold_stop {
+                            Some(&mut preset.hold_stop_step)
+                        } else {
+                            preset.steps.get_mut(target.step_index)
+                        }
+                    })
             } else {
                 None
             };
@@ -768,7 +803,10 @@ impl CrosshairApp {
         }
 
         // --- Handle IfStart captures ---
-        if matches!(target.capture_kind, MouseCaptureKind::IfStartMousePos | MouseCaptureKind::IfStartPixelColor) {
+        if matches!(
+            target.capture_kind,
+            MouseCaptureKind::IfStartMousePos | MouseCaptureKind::IfStartPixelColor
+        ) {
             let color = if target.capture_kind == MouseCaptureKind::IfStartPixelColor {
                 if let Some(color) = color {
                     self.mouse_move_absolute_capture_target = None;
@@ -796,15 +834,18 @@ impl CrosshairApp {
                     .iter_mut()
                     .find(|group| group.id == group_id)
                     .and_then(|group| {
-                        group.presets.iter_mut().find(|preset| preset.id == target.preset_id)
+                        group
+                            .presets
+                            .iter_mut()
+                            .find(|preset| preset.id == target.preset_id)
                     })
                     .and_then(|preset| {
-                    if target.is_hold_stop {
-                        Some(&mut preset.hold_stop_step)
-                    } else {
-                        preset.steps.get_mut(target.step_index)
-                    }
-                })
+                        if target.is_hold_stop {
+                            Some(&mut preset.hold_stop_step)
+                        } else {
+                            preset.steps.get_mut(target.step_index)
+                        }
+                    })
             } else {
                 None
             };

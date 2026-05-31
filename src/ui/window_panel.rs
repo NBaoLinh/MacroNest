@@ -1,14 +1,13 @@
-use std::time::{Duration, Instant};
-use eframe::egui::{self, Button, RichText, DragValue, Sense, TextEdit, Color32, vec2, Frame, TextBuffer, ColorImage, TextureOptions};
+use crate::hotkey;
 use crate::model::*;
 use crate::overlay::OverlayCommand;
+use crate::ui::{CrosshairApp, ZoomPreviewCache, ZoomPreviewView};
 use crate::window_list;
-use crate::hotkey;
-use crate::ui::{
-    CrosshairApp,
-    ZoomPreviewView, ZoomPreviewCache,
+use eframe::egui::{
+    self, Button, Color32, ColorImage, DragValue, Frame, RichText, Sense, TextBuffer, TextEdit,
+    TextureOptions, vec2,
 };
-
+use std::time::{Duration, Instant};
 
 impl CrosshairApp {
     pub(crate) fn render_window_presets_panel(&mut self, ui: &mut egui::Ui) {
@@ -45,7 +44,8 @@ impl CrosshairApp {
                     preset_snapshot.match_duplicate_window_titles,
                 )
             } else {
-                self.zoom_preview_cache.remove(&(200_000 + preset_snapshot.id));
+                self.zoom_preview_cache
+                    .remove(&(200_000 + preset_snapshot.id));
                 None
             };
             {
@@ -80,19 +80,22 @@ impl CrosshairApp {
                                     &capture_target,
                                     pending_combo_keys.as_ref(),
                                 );
-                                preset.enabled = preset.hotkey.is_some() || !preset.trigger_keys.trim().is_empty();
+                                preset.enabled = preset.hotkey.is_some()
+                                    || !preset.trigger_keys.trim().is_empty();
                             });
                             ui.with_layout(
                                 egui::Layout::right_to_left(egui::Align::Center),
                                 |ui| {
-                                    let capture_active = active_capture_target.as_ref() == Some(&capture_target);
+                                    let capture_active =
+                                        active_capture_target.as_ref() == Some(&capture_target);
                                     let capture_time = ui.ctx().input(|input| input.time) as f32;
                                     let pulse = if capture_active {
                                         0.5 + 0.5 * (capture_time * 6.0).sin().abs()
                                     } else {
                                         0.0
                                     };
-                                    let has_keys = preset.hotkey.is_some() || !preset.trigger_keys.trim().is_empty();
+                                    let has_keys = preset.hotkey.is_some()
+                                        || !preset.trigger_keys.trim().is_empty();
                                     let fill = if capture_active {
                                         Color32::from_rgba_premultiplied(
                                             (88.0 + pulse * 28.0) as u8,
@@ -114,9 +117,18 @@ impl CrosshairApp {
                                     };
 
                                     let hover_text = if capture_active {
-                                        Self::tr_lang(language, "Capturing... Press any key.", "Äang ghi... Nhấn má»™t phím bất kỳ.").to_string()
+                                        Self::tr_lang(
+                                            language,
+                                            "Capturing... Press any key.",
+                                            "Äang ghi... Nhấn má»™t phím bất kỳ.",
+                                        )
+                                        .to_string()
                                     } else if has_keys {
-                                        let bindings_labels: Vec<String> = Self::preset_trigger_bindings(&preset.hotkey, &preset.trigger_keys)
+                                        let bindings_labels: Vec<String> =
+                                            Self::preset_trigger_bindings(
+                                                &preset.hotkey,
+                                                &preset.trigger_keys,
+                                            )
                                             .iter()
                                             .map(|b| hotkey::format_binding(Some(b)))
                                             .collect();
@@ -131,23 +143,34 @@ impl CrosshairApp {
                                             )
                                         )
                                     } else {
-                                        Self::tr_lang(language, "Left click: bind hotkey", "Chuột trái: gÃ¡n phím tắt").to_string()
+                                        Self::tr_lang(
+                                            language,
+                                            "Left click: bind hotkey",
+                                            "Chuột trái: gÃ¡n phím tắt",
+                                        )
+                                        .to_string()
                                     };
 
                                     let btn_text = if capture_active {
-                                        RichText::new(Self::tr_lang(language, "Capturing...", "Đang bắt..."))
-                                            .strong()
-                                            .color(Color32::from_rgb(255, 232, 96))
+                                        RichText::new(Self::tr_lang(
+                                            language,
+                                            "Capturing...",
+                                            "Đang bắt...",
+                                        ))
+                                        .strong()
+                                        .color(Color32::from_rgb(255, 232, 96))
                                     } else {
                                         Self::material_icon_text(0xe312, 18.0)
                                     };
                                     let btn_width = if capture_active { 84.0 } else { 36.0 };
-                                    let btn_response = ui.add_sized(
-                                        [btn_width, 24.0],
-                                        Button::new(btn_text)
-                                            .fill(fill)
-                                            .stroke(egui::Stroke::new(1.0, stroke)),
-                                    ).on_hover_text(hover_text);
+                                    let btn_response = ui
+                                        .add_sized(
+                                            [btn_width, 24.0],
+                                            Button::new(btn_text)
+                                                .fill(fill)
+                                                .stroke(egui::Stroke::new(1.0, stroke)),
+                                        )
+                                        .on_hover_text(hover_text);
 
                                     if btn_response.clicked() {
                                         if capture_active {
@@ -155,7 +178,10 @@ impl CrosshairApp {
                                         } else {
                                             next_capture_target = Some((
                                                 capture_target.clone(),
-                                                format!("Capturing preset hotkey for {}.", preset.name),
+                                                format!(
+                                                    "Capturing preset hotkey for {}.",
+                                                    preset.name
+                                                ),
                                             ));
                                         }
                                     }
@@ -294,7 +320,13 @@ impl CrosshairApp {
                         });
                     if preset.preview_enabled {
                         ui.add_space(8.0);
-                        Self::render_window_preset_preview(ui, language, preset, preview.as_ref(), &mut live_sync);
+                        Self::render_window_preset_preview(
+                            ui,
+                            language,
+                            preset,
+                            preview.as_ref(),
+                            &mut live_sync,
+                        );
                     }
                 });
             }
@@ -582,37 +614,40 @@ impl CrosshairApp {
             Self::show_preset_card(ui, preset.enabled, |ui| {
                 ui.horizontal(|ui| {
                     let name_width = Self::preset_header_name_width(ui);
-                        let response =
-                            ui.add_sized([name_width, 24.0], TextEdit::singleline(&mut preset.name));
-                        Self::apply_vietnamese_input_if_changed(
-                            &response,
-                            self.state.vietnamese_input_enabled,
-                            self.state.vietnamese_input_mode,
-                            &mut preset.name,
-                        );
-                        live_sync |= response.changed();
+                    let response =
+                        ui.add_sized([name_width, 24.0], TextEdit::singleline(&mut preset.name));
+                    Self::apply_vietnamese_input_if_changed(
+                        &response,
+                        self.state.vietnamese_input_enabled,
+                        self.state.vietnamese_input_mode,
+                        &mut preset.name,
+                    );
+                    live_sync |= response.changed();
 
-                        let capture_target = CaptureRequest::PinPresetHotkey(preset.id);
-                        live_sync |= Self::render_preset_trigger_chips(
-                            ui,
-                            language,
-                            &mut preset.hotkey,
-                            &mut preset.trigger_keys,
-                            active_capture_target.as_ref(),
-                            &capture_target,
-                            pending_combo_keys.as_ref(),
-                        );
-                        preset.enabled = preset.hotkey.is_some() || !preset.trigger_keys.trim().is_empty();
+                    let capture_target = CaptureRequest::PinPresetHotkey(preset.id);
+                    live_sync |= Self::render_preset_trigger_chips(
+                        ui,
+                        language,
+                        &mut preset.hotkey,
+                        &mut preset.trigger_keys,
+                        active_capture_target.as_ref(),
+                        &capture_target,
+                        pending_combo_keys.as_ref(),
+                    );
+                    preset.enabled =
+                        preset.hotkey.is_some() || !preset.trigger_keys.trim().is_empty();
 
                     ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
-                        let capture_active = active_capture_target.as_ref() == Some(&capture_target);
+                        let capture_active =
+                            active_capture_target.as_ref() == Some(&capture_target);
                         let capture_time = ui.ctx().input(|input| input.time) as f32;
                         let pulse = if capture_active {
                             0.5 + 0.5 * (capture_time * 6.0).sin().abs()
                         } else {
                             0.0
                         };
-                        let has_keys = preset.hotkey.is_some() || !preset.trigger_keys.trim().is_empty();
+                        let has_keys =
+                            preset.hotkey.is_some() || !preset.trigger_keys.trim().is_empty();
                         let fill = if capture_active {
                             Color32::from_rgba_premultiplied(
                                 (88.0 + pulse * 28.0) as u8,
@@ -634,12 +669,18 @@ impl CrosshairApp {
                         };
 
                         let hover_text = if capture_active {
-                            Self::tr_lang(language, "Capturing... Press any key.", "Äang ghi... Nhấn má»™t phím bất kỳ.").to_string()
+                            Self::tr_lang(
+                                language,
+                                "Capturing... Press any key.",
+                                "Äang ghi... Nhấn má»™t phím bất kỳ.",
+                            )
+                            .to_string()
                         } else if has_keys {
-                            let bindings_labels: Vec<String> = Self::preset_trigger_bindings(&preset.hotkey, &preset.trigger_keys)
-                                .iter()
-                                .map(|b| hotkey::format_binding(Some(b)))
-                                .collect();
+                            let bindings_labels: Vec<String> =
+                                Self::preset_trigger_bindings(&preset.hotkey, &preset.trigger_keys)
+                                    .iter()
+                                    .map(|b| hotkey::format_binding(Some(b)))
+                                    .collect();
                             format!(
                                 "{} {}\n{}",
                                 Self::tr_lang(language, "Hotkey:", "Phím tắt:"),
@@ -651,7 +692,12 @@ impl CrosshairApp {
                                 )
                             )
                         } else {
-                            Self::tr_lang(language, "Left click: bind hotkey", "Chuột trái: gÃ¡n phím tắt").to_string()
+                            Self::tr_lang(
+                                language,
+                                "Left click: bind hotkey",
+                                "Chuột trái: gÃ¡n phím tắt",
+                            )
+                            .to_string()
                         };
 
                         let btn_text = if capture_active {
@@ -662,12 +708,14 @@ impl CrosshairApp {
                             Self::material_icon_text(0xe312, 18.0)
                         };
                         let btn_width = if capture_active { 84.0 } else { 36.0 };
-                        let btn_response = ui.add_sized(
-                            [btn_width, 24.0],
-                            Button::new(btn_text)
-                                .fill(fill)
-                                .stroke(egui::Stroke::new(1.0, stroke)),
-                        ).on_hover_text(hover_text);
+                        let btn_response = ui
+                            .add_sized(
+                                [btn_width, 24.0],
+                                Button::new(btn_text)
+                                    .fill(fill)
+                                    .stroke(egui::Stroke::new(1.0, stroke)),
+                            )
+                            .on_hover_text(hover_text);
 
                         if btn_response.clicked() {
                             if capture_active {
@@ -712,11 +760,7 @@ impl CrosshairApp {
                     .num_columns(2)
                     .spacing([14.0, 8.0])
                     .show(ui, |ui| {
-                        ui.label(Self::tr_lang(
-                            language,
-                            "Target Window",
-                            "Cửa sổ mục tiêu",
-                        ));
+                        ui.label(Self::tr_lang(language, "Target Window", "Cửa sổ mục tiêu"));
                         let target_changed = Self::render_multi_window_targets_with_duplicate_mode(
                             ui,
                             language,
@@ -778,21 +822,21 @@ impl CrosshairApp {
                         None,
                     );
                     ui.horizontal_wrapped(|ui| {
-    if ui
-        .button(Self::tr_lang(language, "Center X", "Center X"))
-        .clicked()
-    {
-        preset.x = ((screen_size.x as i32 - preset.width.max(1)) / 2).max(0);
-        live_sync = true;
-    }
-    if ui
-        .button(Self::tr_lang(language, "Center Y", "Center Y"))
-        .clicked()
-    {
-        preset.y = ((screen_size.y as i32 - preset.height.max(1)) / 2).max(0);
-        live_sync = true;
-    }
-});
+                        if ui
+                            .button(Self::tr_lang(language, "Center X", "Center X"))
+                            .clicked()
+                        {
+                            preset.x = ((screen_size.x as i32 - preset.width.max(1)) / 2).max(0);
+                            live_sync = true;
+                        }
+                        if ui
+                            .button(Self::tr_lang(language, "Center Y", "Center Y"))
+                            .clicked()
+                        {
+                            preset.y = ((screen_size.y as i32 - preset.height.max(1)) / 2).max(0);
+                            live_sync = true;
+                        }
+                    });
                 } else {
                     ui.label(
                         RichText::new(Self::tr_lang(
@@ -845,15 +889,21 @@ impl CrosshairApp {
                         {
                             let mut target_frame = None;
                             if let Some(preview_frame) = preview.as_ref() {
-                                target_frame = Some((preview_frame.logical_width, preview_frame.logical_height));
+                                target_frame = Some((
+                                    preview_frame.logical_width,
+                                    preview_frame.logical_height,
+                                ));
                             } else {
-                                if let Some(frame) = window_list::capture_window_preview_with_candidates(
-                                    preset.target_window_title.as_ref().map(|s| s.as_str()),
-                                    &preset.extra_target_window_titles,
-                                    preset.match_duplicate_window_titles,
-                                    720,
-                                ) {
-                                    target_frame = Some((frame.logical_width, frame.logical_height));
+                                if let Some(frame) =
+                                    window_list::capture_window_preview_with_candidates(
+                                        preset.target_window_title.as_ref().map(|s| s.as_str()),
+                                        &preset.extra_target_window_titles,
+                                        preset.match_duplicate_window_titles,
+                                        720,
+                                    )
+                                {
+                                    target_frame =
+                                        Some((frame.logical_width, frame.logical_height));
                                 }
                             }
 
@@ -918,15 +968,15 @@ impl CrosshairApp {
                             {
                                 apply_id = Some(preset.id);
                             }
-                    let response =
-                        ui.add_sized([220.0, 24.0], TextEdit::singleline(&mut preset.name));
-                    Self::apply_vietnamese_input_if_changed(
-                        &response,
-                        self.state.vietnamese_input_enabled,
-                        self.state.vietnamese_input_mode,
-                        &mut preset.name,
-                    );
-                    needs_persist |= response.changed();
+                            let response =
+                                ui.add_sized([220.0, 24.0], TextEdit::singleline(&mut preset.name));
+                            Self::apply_vietnamese_input_if_changed(
+                                &response,
+                                self.state.vietnamese_input_enabled,
+                                self.state.vietnamese_input_mode,
+                                &mut preset.name,
+                            );
+                            needs_persist |= response.changed();
                             ui.with_layout(
                                 egui::Layout::right_to_left(egui::Align::Center),
                                 |ui| {
@@ -1089,7 +1139,11 @@ impl CrosshairApp {
         }
 
         let screen_size = Self::screen_size();
-        let aspect_ratio = if screen_size.y > 0.0 { screen_size.x / screen_size.y } else { 16.0 / 9.0 };
+        let aspect_ratio = if screen_size.y > 0.0 {
+            screen_size.x / screen_size.y
+        } else {
+            16.0 / 9.0
+        };
         let width = ui.available_width();
         let height = width / aspect_ratio;
         let max_height = 400.0;
@@ -1098,11 +1152,11 @@ impl CrosshairApp {
         } else {
             (width, height)
         };
-        let (canvas_rect, response) = ui.allocate_exact_size(vec2(width, desired_height), Sense::drag());
-        let draw_rect = egui::Rect::from_center_size(
-            canvas_rect.center(),
-            vec2(desired_width, desired_height)
-        ).shrink(4.0);
+        let (canvas_rect, response) =
+            ui.allocate_exact_size(vec2(width, desired_height), Sense::drag());
+        let draw_rect =
+            egui::Rect::from_center_size(canvas_rect.center(), vec2(desired_width, desired_height))
+                .shrink(4.0);
 
         // Draw monitor screen background
         ui.painter().rect_filled(
@@ -1138,7 +1192,8 @@ impl CrosshairApp {
 
         // Interaction Handling
         let drag_id = ui.make_persistent_id((preset.id, "preview-drag-handle"));
-        let mut active_handle: DragHandle = ui.data_mut(|d| d.get_temp(drag_id).unwrap_or(DragHandle::None));
+        let mut active_handle: DragHandle =
+            ui.data_mut(|d| d.get_temp(drag_id).unwrap_or(DragHandle::None));
 
         if response.drag_started() {
             if let Some(pointer_pos) = response.interact_pointer_pos() {
@@ -1146,7 +1201,7 @@ impl CrosshairApp {
                 let dist_tr = pointer_pos.distance(window_rect.right_top());
                 let dist_bl = pointer_pos.distance(window_rect.left_bottom());
                 let dist_br = pointer_pos.distance(window_rect.right_bottom());
-                
+
                 let nearest_on_box = egui::pos2(
                     pointer_pos.x.clamp(window_rect.left(), window_rect.right()),
                     pointer_pos.y.clamp(window_rect.top(), window_rect.bottom()),
@@ -1161,13 +1216,25 @@ impl CrosshairApp {
                     DragHandle::BottomLeft
                 } else if dist_br < 12.0 {
                     DragHandle::BottomRight
-                } else if (pointer_pos.x - window_rect.left()).abs() < 8.0 && pointer_pos.y >= window_rect.top() && pointer_pos.y <= window_rect.bottom() {
+                } else if (pointer_pos.x - window_rect.left()).abs() < 8.0
+                    && pointer_pos.y >= window_rect.top()
+                    && pointer_pos.y <= window_rect.bottom()
+                {
                     DragHandle::Left
-                } else if (pointer_pos.x - window_rect.right()).abs() < 8.0 && pointer_pos.y >= window_rect.top() && pointer_pos.y <= window_rect.bottom() {
+                } else if (pointer_pos.x - window_rect.right()).abs() < 8.0
+                    && pointer_pos.y >= window_rect.top()
+                    && pointer_pos.y <= window_rect.bottom()
+                {
                     DragHandle::Right
-                } else if (pointer_pos.y - window_rect.top()).abs() < 8.0 && pointer_pos.x >= window_rect.left() && pointer_pos.x <= window_rect.right() {
+                } else if (pointer_pos.y - window_rect.top()).abs() < 8.0
+                    && pointer_pos.x >= window_rect.left()
+                    && pointer_pos.x <= window_rect.right()
+                {
                     DragHandle::Top
-                } else if (pointer_pos.y - window_rect.bottom()).abs() < 8.0 && pointer_pos.x >= window_rect.left() && pointer_pos.x <= window_rect.right() {
+                } else if (pointer_pos.y - window_rect.bottom()).abs() < 8.0
+                    && pointer_pos.x >= window_rect.left()
+                    && pointer_pos.x <= window_rect.right()
+                {
                     DragHandle::Bottom
                 } else if window_rect.contains(pointer_pos) {
                     DragHandle::Center
@@ -1188,7 +1255,11 @@ impl CrosshairApp {
             let delta_y = delta.y / scale_y;
             let shift_pressed = ui.input(|i| i.modifiers.shift);
             let ctrl_pressed = ui.input(|i| i.modifiers.ctrl);
-            let original_aspect = if preset.height > 0 { preset.width as f32 / preset.height as f32 } else { 16.0 / 9.0 };
+            let original_aspect = if preset.height > 0 {
+                preset.width as f32 / preset.height as f32
+            } else {
+                16.0 / 9.0
+            };
             let target_aspect = if let Some(preview_frame) = preview {
                 if preview_frame.logical_height > 0 {
                     preview_frame.logical_width as f32 / preview_frame.logical_height as f32
@@ -1373,13 +1444,25 @@ impl CrosshairApp {
                     DragHandle::BottomLeft
                 } else if dist_br < 12.0 {
                     DragHandle::BottomRight
-                } else if (pointer_pos.x - window_rect.left()).abs() < 8.0 && pointer_pos.y >= window_rect.top() && pointer_pos.y <= window_rect.bottom() {
+                } else if (pointer_pos.x - window_rect.left()).abs() < 8.0
+                    && pointer_pos.y >= window_rect.top()
+                    && pointer_pos.y <= window_rect.bottom()
+                {
                     DragHandle::Left
-                } else if (pointer_pos.x - window_rect.right()).abs() < 8.0 && pointer_pos.y >= window_rect.top() && pointer_pos.y <= window_rect.bottom() {
+                } else if (pointer_pos.x - window_rect.right()).abs() < 8.0
+                    && pointer_pos.y >= window_rect.top()
+                    && pointer_pos.y <= window_rect.bottom()
+                {
                     DragHandle::Right
-                } else if (pointer_pos.y - window_rect.top()).abs() < 8.0 && pointer_pos.x >= window_rect.left() && pointer_pos.x <= window_rect.right() {
+                } else if (pointer_pos.y - window_rect.top()).abs() < 8.0
+                    && pointer_pos.x >= window_rect.left()
+                    && pointer_pos.x <= window_rect.right()
+                {
                     DragHandle::Top
-                } else if (pointer_pos.y - window_rect.bottom()).abs() < 8.0 && pointer_pos.x >= window_rect.left() && pointer_pos.x <= window_rect.right() {
+                } else if (pointer_pos.y - window_rect.bottom()).abs() < 8.0
+                    && pointer_pos.x >= window_rect.left()
+                    && pointer_pos.x <= window_rect.right()
+                {
                     DragHandle::Bottom
                 } else if window_rect.contains(pointer_pos) {
                     DragHandle::Center
@@ -1417,12 +1500,23 @@ impl CrosshairApp {
 
         if !clipped_window_rect.is_negative() {
             if let Some(preview_view) = &preview {
-                let uv_min_x = ((clipped_window_rect.left() - window_rect.left()) / window_rect.width().max(1.0)).clamp(0.0, 1.0);
-                let uv_max_x = ((clipped_window_rect.right() - window_rect.left()) / window_rect.width().max(1.0)).clamp(0.0, 1.0);
-                let uv_min_y = ((clipped_window_rect.top() - window_rect.top()) / window_rect.height().max(1.0)).clamp(0.0, 1.0);
-                let uv_max_y = ((clipped_window_rect.bottom() - window_rect.top()) / window_rect.height().max(1.0)).clamp(0.0, 1.0);
+                let uv_min_x = ((clipped_window_rect.left() - window_rect.left())
+                    / window_rect.width().max(1.0))
+                .clamp(0.0, 1.0);
+                let uv_max_x = ((clipped_window_rect.right() - window_rect.left())
+                    / window_rect.width().max(1.0))
+                .clamp(0.0, 1.0);
+                let uv_min_y = ((clipped_window_rect.top() - window_rect.top())
+                    / window_rect.height().max(1.0))
+                .clamp(0.0, 1.0);
+                let uv_max_y = ((clipped_window_rect.bottom() - window_rect.top())
+                    / window_rect.height().max(1.0))
+                .clamp(0.0, 1.0);
 
-                let uv = egui::Rect::from_min_max(egui::pos2(uv_min_x, uv_min_y), egui::pos2(uv_max_x, uv_max_y));
+                let uv = egui::Rect::from_min_max(
+                    egui::pos2(uv_min_x, uv_min_y),
+                    egui::pos2(uv_max_x, uv_max_y),
+                );
 
                 ui.painter().image(
                     preview_view.texture.id(),
@@ -1487,7 +1581,8 @@ impl CrosshairApp {
         let mut changed = false;
         ui.label(RichText::new(label).strong());
         let desired = vec2(ui.available_width().max(420.0), 260.0);
-        let (canvas_rect, response) = ui.allocate_exact_size(desired, Sense::drag().union(Sense::click()));
+        let (canvas_rect, response) =
+            ui.allocate_exact_size(desired, Sense::drag().union(Sense::click()));
 
         let mut arrow_dx = 0;
         let mut arrow_dy = 0;
@@ -1602,7 +1697,8 @@ impl CrosshairApp {
         }
 
         let drag_id = ui.make_persistent_id((id_source, "zoom-selection-drag-handle"));
-        let mut active_handle: SelectionDragHandle = ui.data_mut(|d| d.get_temp(drag_id).unwrap_or(SelectionDragHandle::None));
+        let mut active_handle: SelectionDragHandle =
+            ui.data_mut(|d| d.get_temp(drag_id).unwrap_or(SelectionDragHandle::None));
 
         if response.drag_started() {
             if let Some(pointer_pos) = response.interact_pointer_pos() {
@@ -1610,7 +1706,7 @@ impl CrosshairApp {
                 let dist_tr = pointer_pos.distance(rect.right_top());
                 let dist_bl = pointer_pos.distance(rect.left_bottom());
                 let dist_br = pointer_pos.distance(rect.right_bottom());
-                
+
                 // Also allow drag start from near-but-outside the box (helps with tiny boxes)
                 let nearest_on_box = egui::pos2(
                     pointer_pos.x.clamp(rect.left(), rect.right()),
@@ -1626,13 +1722,25 @@ impl CrosshairApp {
                     SelectionDragHandle::BottomLeft
                 } else if dist_br < 14.0 {
                     SelectionDragHandle::BottomRight
-                } else if (pointer_pos.x - rect.left()).abs() < 10.0 && pointer_pos.y >= rect.top() && pointer_pos.y <= rect.bottom() {
+                } else if (pointer_pos.x - rect.left()).abs() < 10.0
+                    && pointer_pos.y >= rect.top()
+                    && pointer_pos.y <= rect.bottom()
+                {
                     SelectionDragHandle::Left
-                } else if (pointer_pos.x - rect.right()).abs() < 10.0 && pointer_pos.y >= rect.top() && pointer_pos.y <= rect.bottom() {
+                } else if (pointer_pos.x - rect.right()).abs() < 10.0
+                    && pointer_pos.y >= rect.top()
+                    && pointer_pos.y <= rect.bottom()
+                {
                     SelectionDragHandle::Right
-                } else if (pointer_pos.y - rect.top()).abs() < 10.0 && pointer_pos.x >= rect.left() && pointer_pos.x <= rect.right() {
+                } else if (pointer_pos.y - rect.top()).abs() < 10.0
+                    && pointer_pos.x >= rect.left()
+                    && pointer_pos.x <= rect.right()
+                {
                     SelectionDragHandle::Top
-                } else if (pointer_pos.y - rect.bottom()).abs() < 10.0 && pointer_pos.x >= rect.left() && pointer_pos.x <= rect.right() {
+                } else if (pointer_pos.y - rect.bottom()).abs() < 10.0
+                    && pointer_pos.x >= rect.left()
+                    && pointer_pos.x <= rect.right()
+                {
                     SelectionDragHandle::Bottom
                 } else if rect.contains(pointer_pos) {
                     SelectionDragHandle::Center
@@ -1653,7 +1761,11 @@ impl CrosshairApp {
             let delta = pointer_delta;
             let shift_pressed = ui.input(|i| i.modifiers.shift);
             let ctrl_pressed = ui.input(|i| i.modifiers.ctrl);
-            let aspect = if rect.height() > 0.0 { rect.width() / rect.height() } else { 16.0 / 9.0 };
+            let aspect = if rect.height() > 0.0 {
+                rect.width() / rect.height()
+            } else {
+                16.0 / 9.0
+            };
             let target_aspect = if let Some(preview_frame) = preview {
                 if preview_frame.logical_height > 0 {
                     preview_frame.logical_width as f32 / preview_frame.logical_height as f32
@@ -1667,15 +1779,13 @@ impl CrosshairApp {
                     16.0 / 9.0
                 }
             };
-            let lock_aspect = keep_aspect_ratio.unwrap_or(
-                if ctrl_pressed {
-                    target_aspect
-                } else if shift_pressed {
-                    aspect
-                } else {
-                    0.0
-                }
-            );
+            let lock_aspect = keep_aspect_ratio.unwrap_or(if ctrl_pressed {
+                target_aspect
+            } else if shift_pressed {
+                aspect
+            } else {
+                0.0
+            });
 
             changed = true;
 
@@ -1828,13 +1938,25 @@ impl CrosshairApp {
                     SelectionDragHandle::BottomLeft
                 } else if dist_br < 14.0 {
                     SelectionDragHandle::BottomRight
-                } else if (pointer_pos.x - rect.left()).abs() < 10.0 && pointer_pos.y >= rect.top() && pointer_pos.y <= rect.bottom() {
+                } else if (pointer_pos.x - rect.left()).abs() < 10.0
+                    && pointer_pos.y >= rect.top()
+                    && pointer_pos.y <= rect.bottom()
+                {
                     SelectionDragHandle::Left
-                } else if (pointer_pos.x - rect.right()).abs() < 10.0 && pointer_pos.y >= rect.top() && pointer_pos.y <= rect.bottom() {
+                } else if (pointer_pos.x - rect.right()).abs() < 10.0
+                    && pointer_pos.y >= rect.top()
+                    && pointer_pos.y <= rect.bottom()
+                {
                     SelectionDragHandle::Right
-                } else if (pointer_pos.y - rect.top()).abs() < 10.0 && pointer_pos.x >= rect.left() && pointer_pos.x <= rect.right() {
+                } else if (pointer_pos.y - rect.top()).abs() < 10.0
+                    && pointer_pos.x >= rect.left()
+                    && pointer_pos.x <= rect.right()
+                {
                     SelectionDragHandle::Top
-                } else if (pointer_pos.y - rect.bottom()).abs() < 10.0 && pointer_pos.x >= rect.left() && pointer_pos.x <= rect.right() {
+                } else if (pointer_pos.y - rect.bottom()).abs() < 10.0
+                    && pointer_pos.x >= rect.left()
+                    && pointer_pos.x <= rect.right()
+                {
                     SelectionDragHandle::Bottom
                 } else if rect.contains(pointer_pos) {
                     SelectionDragHandle::Center
@@ -1922,7 +2044,15 @@ impl CrosshairApp {
         while self.state.window_presets.iter().any(|p| p.id == id) {
             id += 1;
         }
-        self.state.next_preset_id = (self.state.window_presets.iter().map(|p| p.id).max().unwrap_or(0) + 1).max(id + 1);
+        self.state.next_preset_id = (self
+            .state
+            .window_presets
+            .iter()
+            .map(|p| p.id)
+            .max()
+            .unwrap_or(0)
+            + 1)
+        .max(id + 1);
         self.state.window_presets.push(WindowPreset::new(id));
         self.reconcile_master_presets();
         self.sync_window_presets();
@@ -1934,7 +2064,15 @@ impl CrosshairApp {
         while self.state.window_focus_presets.iter().any(|p| p.id == id) {
             id += 1;
         }
-        self.state.next_window_focus_preset_id = (self.state.window_focus_presets.iter().map(|p| p.id).max().unwrap_or(0) + 1).max(id + 1);
+        self.state.next_window_focus_preset_id = (self
+            .state
+            .window_focus_presets
+            .iter()
+            .map(|p| p.id)
+            .max()
+            .unwrap_or(0)
+            + 1)
+        .max(id + 1);
         self.state
             .window_focus_presets
             .push(WindowFocusPreset::new(id));
@@ -1948,7 +2086,15 @@ impl CrosshairApp {
         while self.state.zoom_presets.iter().any(|p| p.id == id) {
             id += 1;
         }
-        self.state.next_zoom_preset_id = (self.state.zoom_presets.iter().map(|p| p.id).max().unwrap_or(0) + 1).max(id + 1);
+        self.state.next_zoom_preset_id = (self
+            .state
+            .zoom_presets
+            .iter()
+            .map(|p| p.id)
+            .max()
+            .unwrap_or(0)
+            + 1)
+        .max(id + 1);
         self.state.zoom_presets.push(ZoomPreset::new(id));
         self.reconcile_master_presets();
         self.sync_window_presets();
@@ -1960,7 +2106,15 @@ impl CrosshairApp {
         while self.state.pin_presets.iter().any(|p| p.id == id) {
             id += 1;
         }
-        self.state.next_pin_preset_id = (self.state.pin_presets.iter().map(|p| p.id).max().unwrap_or(0) + 1).max(id + 1);
+        self.state.next_pin_preset_id = (self
+            .state
+            .pin_presets
+            .iter()
+            .map(|p| p.id)
+            .max()
+            .unwrap_or(0)
+            + 1)
+        .max(id + 1);
         self.state.pin_presets.push(PinPreset::new(id));
         self.sync_window_presets();
         self.status = format!("Added pin preset {id}.");
@@ -1999,11 +2153,9 @@ impl CrosshairApp {
             return;
         }
         self.active_hud_preview_preset_id = next_id;
-        let _ = self
-            .overlay_tx
-            .send(OverlayCommand::PreviewHudPreset(
-                preset.cloned().into_iter().collect(),
-            ));
+        let _ = self.overlay_tx.send(OverlayCommand::PreviewHudPreset(
+            preset.cloned().into_iter().collect(),
+        ));
     }
 
     pub(crate) fn clear_hud_preview(&mut self) {
@@ -2230,4 +2382,3 @@ impl CrosshairApp {
         }
     }
 }
-
