@@ -15235,7 +15235,7 @@ impl CrosshairApp {
 
                                                          let short_lbl = match cur_lang.as_str() {
 
-                                                             "" => "AU",
+                                                             "" => "Auto",
 
                                                              "en" => "EN",
 
@@ -15279,13 +15279,11 @@ impl CrosshairApp {
 
                                                          };
 
-                                                         let short_lbl_upper = short_lbl.to_uppercase();
-
                                                          let combo_resp = egui::ComboBox::from_id_salt((group.id, preset.id, step_index, "ocr-step-lang"))
 
-                                                             .width(45.0)
+                                                             .width(56.0)
 
-                                                             .selected_text(short_lbl_upper)
+                                                             .selected_text(short_lbl)
 
                                                              .show_ui(ui, |ui| {
 
@@ -15349,15 +15347,15 @@ impl CrosshairApp {
 
                                                      ui.visuals_mut().override_text_color = None;
 
-                                                     let target_resp = ui.add(
+                                                         let target_resp = ui.add(
 
-                                                         egui::TextEdit::singleline(&mut step.ocr_target_text)
+                                                             egui::TextEdit::singleline(&mut step.ocr_target_text)
 
-                                                             .desired_width(120.0)
+                                                                 .desired_width(120.0)
 
-                                                             .hint_text(Self::tr_lang(language, "Target Text", "ChÃƒÆ’Ã‚Â¡Ãƒâ€šÃ‚Â»Ãƒâ€šÃ‚Â¯ cÃƒÆ’Ã‚Â¡Ãƒâ€šÃ‚ÂºÃƒâ€šÃ‚Â§n tÃƒÆ’Ã†â€™Ãƒâ€šÃ‚Â¬m"))
+                                                                 .hint_text(Self::tr_lang(language, "Target Text", "Van ban can tim"))
 
-                                                     );
+                                                         );
 
                                                      ui.visuals_mut().override_text_color = prev_override;
 
