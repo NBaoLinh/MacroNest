@@ -6383,9 +6383,9 @@ impl CrosshairApp {
 
                     let mut delete_selected_steps = None;
 
-                    let mut paste_step_after = None;
+                    let mut paste_step_after: Option<(u32, u32, usize)> = None;
 
-                    let mut copy_single_step = None;
+                    let mut copy_single_step: Option<(u32, u32, usize)> = None;
 
                     let mut export_step: Option<(u32, usize)> = None;
 
@@ -18055,69 +18055,8 @@ impl CrosshairApp {
 
                                             let is_dark_theme = self.state.ui_theme == UiThemeMode::Dark;
 
-                                            let paste_button_width = 56.0;
-
                                             ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
-
-                                                if ui
-
-                                                    .add_enabled(
-
-                                                        !self.macro_step_clipboard.is_empty(),
-
-                                                        Button::new(Self::tr_lang(language, "Paste", "Paste"))
-
-                                                            .min_size(vec2(paste_button_width, 18.0)),
-
-                                                    )
-
-                                                    .on_hover_text(Self::tr_lang(
-
-                                                        language,
-
-                                                        "Paste the copied steps below this step.",
-
-                                                        "Paste copied steps below this step.",
-
-                                                    ))
-
-                                                    .clicked()
-
-                                                {
-
-                                                    paste_step_after = Some((group.id, preset.id, step_index));
-
-                                                }
-
-                                                if ui
-
-                                                     .add(
-
-                                                         Button::new(Self::tr_lang(language, "Copy", "Copy"))
-
-                                                             .min_size(vec2(paste_button_width, 18.0)),
-
-                                                      )
-
-                                                      .on_hover_text(Self::tr_lang(
-
-                                                          language,
-
-                                                          "Copy this step.",
-
-                                                          "Copy step nÃƒÂ y.",
-
-                                                      ))
-
-                                                      .clicked()
-
-                                                  {
-
-                                                      copy_single_step = Some((group.id, preset.id, step_index));
-
-                                                  }
-
-                                                  if self.show_share_buttons {
+                                                if self.show_share_buttons {
 
                                                       if ui
 
@@ -21589,3 +21528,4 @@ impl CrosshairApp {
         response
     }
 }
+
