@@ -9773,6 +9773,74 @@ mod windows_overlay {
         vars.insert(target_trimmed.to_string(), value);
     }
 
+    fn normalize_ocr_match_text(text: &str) -> String {
+        text.split_whitespace()
+            .map(|part| part.trim_matches(|ch: char| !ch.is_alphanumeric()))
+            .filter(|part| !part.is_empty())
+            .map(|part| part.to_lowercase())
+            .collect::<Vec<_>>()
+            .join(" ")
+    }
+
+    fn find_ocr_target_bounds(
+        words: &[crate::ocr::OcrWord],
+        target_text: &str,
+    ) -> Option<(f32, f32, f32, f32)> {
+        let normalized_target = normalize_ocr_match_text(target_text);
+        if normalized_target.is_empty() {
+            return None;
+        }
+
+        let is_multi_word_target = normalized_target.contains(' ');
+
+        for start in 0..words.len() {
+            let mut candidate = String::new();
+            let mut left = f32::MAX;
+            let mut top = f32::MAX;
+            let mut right = f32::MIN;
+            let mut bottom = f32::MIN;
+
+            for word in &words[start..] {
+                let normalized_word = normalize_ocr_match_text(&word.text);
+                if normalized_word.is_empty() {
+                    continue;
+                }
+
+                if !candidate.is_empty() {
+                    candidate.push(' ');
+                }
+                candidate.push_str(&normalized_word);
+
+                left = left.min(word.x);
+                top = top.min(word.y);
+                right = right.max(word.x + word.width);
+                bottom = bottom.max(word.y + word.height);
+
+                let matched = if is_multi_word_target {
+                    candidate == normalized_target || candidate.contains(&normalized_target)
+                } else {
+                    normalized_word.contains(&normalized_target)
+                };
+                if matched {
+                    return Some((left, top, right, bottom));
+                }
+
+                if is_multi_word_target {
+                    if candidate.len() >= normalized_target.len()
+                        && !normalized_target.starts_with(&candidate)
+                        && !candidate.contains(&normalized_target)
+                    {
+                        break;
+                    }
+                } else if candidate.len() > normalized_target.len() + 24 {
+                    break;
+                }
+            }
+        }
+
+        None
+    }
+
     fn execute_ocr_action_step(step: &crate::model::MacroStep) {
         let preset_id = step.key.trim().parse::<u32>().ok().unwrap_or(0);
 
@@ -9850,28 +9918,16 @@ mod windows_overlay {
                 let target_text = step.ocr_target_text.trim();
 
                 if !target_text.is_empty() {
-                    let mut found_word = None;
-
-                    for word in &res.words {
-                        if word
-                            .text
-                            .to_lowercase()
-                            .contains(&target_text.to_lowercase())
-                        {
-                            found_word = Some(word.clone());
-
-                            break;
-                        }
-                    }
-
-                    if let Some(word) = found_word {
+                    if let Some((left, top, right, bottom)) =
+                        find_ocr_target_bounds(&res.words, target_text)
+                    {
                         success = 1;
 
-                        // Absolute position of the center of the word on screen
+                        // Absolute position of the center of the matched text on screen
 
-                        let abs_x = x + word.x as i32 + (word.width / 2.0).round() as i32;
+                        let abs_x = x + ((left + right) / 2.0).round() as i32;
 
-                        let abs_y = y + word.y as i32 + (word.height / 2.0).round() as i32;
+                        let abs_y = y + ((top + bottom) / 2.0).round() as i32;
 
                         let pos_x_var = step.ocr_pos_var_x.trim();
 
@@ -10308,6 +10364,45 @@ mod windows_overlay {
 
                 vars.clear();
             }
+        }
+
+        #[test]
+        fn test_find_ocr_target_bounds_matches_phrase_across_words() {
+            let words = vec![
+                crate::ocr::OcrWord {
+                    text: "better".to_string(),
+                    x: 10.0,
+                    y: 20.0,
+                    width: 40.0,
+                    height: 12.0,
+                },
+                crate::ocr::OcrWord {
+                    text: "prompt".to_string(),
+                    x: 56.0,
+                    y: 20.0,
+                    width: 46.0,
+                    height: 12.0,
+                },
+            ];
+
+            let bounds = find_ocr_target_bounds(&words, "better prompt");
+
+            assert_eq!(bounds, Some((10.0, 20.0, 102.0, 32.0)));
+        }
+
+        #[test]
+        fn test_find_ocr_target_bounds_trims_punctuation() {
+            let words = vec![crate::ocr::OcrWord {
+                text: "prompt,".to_string(),
+                x: 100.0,
+                y: 200.0,
+                width: 50.0,
+                height: 20.0,
+            }];
+
+            let bounds = find_ocr_target_bounds(&words, "prompt");
+
+            assert_eq!(bounds, Some((100.0, 200.0, 150.0, 220.0)));
         }
     }
 

@@ -1,4 +1,4 @@
-﻿use crate::ai;
+use crate::ai;
 
 use crate::hotkey;
 
@@ -517,7 +517,9 @@ impl CrosshairApp {
         let mut changed = false;
         for group in &mut self.state.macro_groups {
             for preset in &mut group.presets {
-                changed |= Self::sanitize_legacy_ocr_target_text(&mut preset.hold_stop_step.ocr_target_text);
+                changed |= Self::sanitize_legacy_ocr_target_text(
+                    &mut preset.hold_stop_step.ocr_target_text,
+                );
                 for cond in &mut preset.hold_stop_step.extra_conditions {
                     changed |= Self::sanitize_legacy_ocr_target_text(&mut cond.ocr_target_text);
                 }
@@ -614,7 +616,11 @@ impl CrosshairApp {
         let end = (start + visible_lines).min(visible_steps.len());
 
         if visible_steps.is_empty() {
-            ui.label(Self::tr_lang(language, "No steps.", "KhÃƒÆ’Ã†â€™Ãƒâ€šÃ‚Â´ng cÃƒÆ’Ã†â€™Ãƒâ€šÃ‚Â³ step nÃƒÆ’Ã†â€™Ãƒâ€šÃ‚Â o."));
+            ui.label(Self::tr_lang(
+                language,
+                "No steps.",
+                "KhÃƒÆ’Ã†â€™Ãƒâ€šÃ‚Â´ng cÃƒÆ’Ã†â€™Ãƒâ€šÃ‚Â³ step nÃƒÆ’Ã†â€™Ãƒâ€šÃ‚Â o.",
+            ));
 
             return;
         }
@@ -1557,7 +1563,12 @@ impl CrosshairApp {
 
                 preset_id: step.key.trim().parse::<u32>().ok().unwrap_or(0),
 
-                mode_label: Self::tr_lang(language, "Trigger macro", "KÃƒÆ’Ã†â€™Ãƒâ€šÃ‚Â­ch hoÃƒÆ’Ã‚Â¡Ãƒâ€šÃ‚ÂºÃƒâ€šÃ‚Â¡t macro").to_owned(),
+                mode_label: Self::tr_lang(
+                    language,
+                    "Trigger macro",
+                    "KÃƒÆ’Ã†â€™Ãƒâ€šÃ‚Â­ch hoÃƒÆ’Ã‚Â¡Ãƒâ€šÃ‚ÂºÃƒâ€šÃ‚Â¡t macro",
+                )
+                .to_owned(),
             }),
 
             MacroAction::EnableMacroPreset => Some(HoverPreviewRequest::MacroPreset {
@@ -1565,7 +1576,12 @@ impl CrosshairApp {
 
                 preset_id: step.key.trim().parse::<u32>().ok().unwrap_or(0),
 
-                mode_label: Self::tr_lang(language, "Enable macro", "BÃƒÆ’Ã‚Â¡Ãƒâ€šÃ‚ÂºÃƒâ€šÃ‚Â­t macro").to_owned(),
+                mode_label: Self::tr_lang(
+                    language,
+                    "Enable macro",
+                    "BÃƒÆ’Ã‚Â¡Ãƒâ€šÃ‚ÂºÃƒâ€šÃ‚Â­t macro",
+                )
+                .to_owned(),
             }),
 
             MacroAction::DisableMacroPreset => Some(HoverPreviewRequest::MacroPreset {
@@ -1573,7 +1589,12 @@ impl CrosshairApp {
 
                 preset_id: step.key.trim().parse::<u32>().ok().unwrap_or(0),
 
-                mode_label: Self::tr_lang(language, "Disable macro", "TÃƒÆ’Ã‚Â¡Ãƒâ€šÃ‚ÂºÃƒâ€šÃ‚Â¯t macro").to_owned(),
+                mode_label: Self::tr_lang(
+                    language,
+                    "Disable macro",
+                    "TÃƒÆ’Ã‚Â¡Ãƒâ€šÃ‚ÂºÃƒâ€šÃ‚Â¯t macro",
+                )
+                .to_owned(),
             }),
 
             MacroAction::EnableStep | MacroAction::DisableStep => {
@@ -1605,9 +1626,15 @@ impl CrosshairApp {
                     preset_id,
 
                     mode_label: if step.action == MacroAction::EnableStep {
-                        Self::tr_lang(language, "Enable steps", "BÃƒÆ’Ã‚Â¡Ãƒâ€šÃ‚ÂºÃƒâ€šÃ‚Â­t step").to_owned()
+                        Self::tr_lang(language, "Enable steps", "BÃƒÆ’Ã‚Â¡Ãƒâ€šÃ‚ÂºÃƒâ€šÃ‚Â­t step")
+                            .to_owned()
                     } else {
-                        Self::tr_lang(language, "Disable steps", "TÃƒÆ’Ã‚Â¡Ãƒâ€šÃ‚ÂºÃƒâ€šÃ‚Â¯t step").to_owned()
+                        Self::tr_lang(
+                            language,
+                            "Disable steps",
+                            "TÃƒÆ’Ã‚Â¡Ãƒâ€šÃ‚ÂºÃƒâ€šÃ‚Â¯t step",
+                        )
+                        .to_owned()
                     },
 
                     selected_steps: steps,
@@ -3015,9 +3042,13 @@ impl CrosshairApp {
                 };
 
                 ui.label(
-                    RichText::new(Self::tr_lang(language, "Timer", "HÃƒÆ’Ã‚Â¡Ãƒâ€šÃ‚ÂºÃƒâ€šÃ‚Â¹n giÃƒÆ’Ã‚Â¡Ãƒâ€šÃ‚Â»Ãƒâ€šÃ‚Â"))
-                        .size(9.0)
-                        .color(label_color),
+                    RichText::new(Self::tr_lang(
+                        language,
+                        "Timer",
+                        "HÃƒÆ’Ã‚Â¡Ãƒâ€šÃ‚ÂºÃƒâ€šÃ‚Â¹n giÃƒÆ’Ã‚Â¡Ãƒâ€šÃ‚Â»Ãƒâ€šÃ‚Â",
+                    ))
+                    .size(9.0)
+                    .color(label_color),
                 );
 
                 response
@@ -11885,6 +11916,10 @@ impl CrosshairApp {
 
                                                 }
 
+                                            } else if step.action == MacroAction::MouseMoveAbsolute {
+
+                                                ui.add_space(4.0);
+
                                             } else {
 
                                                 ui.add_sized([70.0, 22.0], egui::Label::new(""));
@@ -11897,8 +11932,13 @@ impl CrosshairApp {
 
                                                     Self::ensure_mouse_move_absolute_coordinate_exprs(step);
 
+                                                    ui.label(
+                                                        egui::RichText::new("X")
+                                                            .strong()
+                                                            .color(Color32::from_rgb(86, 198, 255)),
+                                                    );
                                                     let x_id = ui.id().with((group.id, preset.id, "hold-stop-move-abs-x-22"));
-                                                    let x_response = Self::render_variable_text_edit(
+                                                    let x_response = Self::render_plain_text_edit(
                                                         ui,
                                                         &mut step.x_expr,
                                                         x_id,
@@ -11906,7 +11946,7 @@ impl CrosshairApp {
                                                         150.0,
                                                         22.0,
                                                         22.0,
-                                                        "X",
+                                                        "X value or {var}",
                                                         false,
                                                     );
                                                     Self::apply_vietnamese_input_if_changed(
@@ -11927,8 +11967,13 @@ impl CrosshairApp {
                                                         language,
                                                     );
 
+                                                    ui.label(
+                                                        egui::RichText::new("Y")
+                                                            .strong()
+                                                            .color(Color32::from_rgb(255, 185, 92)),
+                                                    );
                                                     let y_id = ui.id().with((group.id, preset.id, "hold-stop-move-abs-y-22"));
-                                                    let y_response = Self::render_variable_text_edit(
+                                                    let y_response = Self::render_plain_text_edit(
                                                         ui,
                                                         &mut step.y_expr,
                                                         y_id,
@@ -11936,7 +11981,7 @@ impl CrosshairApp {
                                                         150.0,
                                                         22.0,
                                                         22.0,
-                                                        "Y",
+                                                        "Y value or {var}",
                                                         false,
                                                     );
                                                     Self::apply_vietnamese_input_if_changed(
@@ -17547,6 +17592,10 @@ impl CrosshairApp {
 
                                                 }
 
+                                            } else if step.action == MacroAction::MouseMoveAbsolute {
+
+                                                ui.add_space(4.0);
+
                                             } else {
 
                                                 ui.add_sized([146.0, 18.0], egui::Label::new("-"));
@@ -17563,9 +17612,14 @@ impl CrosshairApp {
 
                                                     Self::ensure_mouse_move_absolute_coordinate_exprs(step);
 
+                                                    ui.label(
+                                                        egui::RichText::new("X")
+                                                            .strong()
+                                                            .color(Color32::from_rgb(86, 198, 255)),
+                                                    );
                                                     let x_id =
                                                         ui.id().with((group.id, preset.id, step_index, "move-abs-x-18"));
-                                                    let x_response = Self::render_variable_text_edit(
+                                                    let x_response = Self::render_plain_text_edit(
                                                         ui,
                                                         &mut step.x_expr,
                                                         x_id,
@@ -17573,7 +17627,7 @@ impl CrosshairApp {
                                                         140.0,
                                                         18.0,
                                                         18.0,
-                                                        "X",
+                                                        "X value or {var}",
                                                         false,
                                                     );
                                                     Self::apply_vietnamese_input_if_changed(
@@ -17594,9 +17648,14 @@ impl CrosshairApp {
                                                         language,
                                                     );
 
+                                                    ui.label(
+                                                        egui::RichText::new("Y")
+                                                            .strong()
+                                                            .color(Color32::from_rgb(255, 185, 92)),
+                                                    );
                                                     let y_id =
                                                         ui.id().with((group.id, preset.id, step_index, "move-abs-y-18"));
-                                                    let y_response = Self::render_variable_text_edit(
+                                                    let y_response = Self::render_plain_text_edit(
                                                         ui,
                                                         &mut step.y_expr,
                                                         y_id,
@@ -17604,7 +17663,7 @@ impl CrosshairApp {
                                                         140.0,
                                                         18.0,
                                                         18.0,
-                                                        "Y",
+                                                        "Y value or {var}",
                                                         false,
                                                     );
                                                     Self::apply_vietnamese_input_if_changed(
@@ -19996,7 +20055,11 @@ impl CrosshairApp {
 
                                     if ui
                                         .button(Self::material_icon_text(0xe872, 14.0)) // trash
-                                        .on_hover_text(Self::tr_lang(language, "Delete", "XÃƒÆ’Ã†â€™Ãƒâ€šÃ‚Â³a"))
+                                        .on_hover_text(Self::tr_lang(
+                                            language,
+                                            "Delete",
+                                            "XÃƒÆ’Ã†â€™Ãƒâ€šÃ‚Â³a",
+                                        ))
                                         .clicked()
                                     {
                                         to_remove_idx = Some(idx);
@@ -20203,7 +20266,11 @@ impl CrosshairApp {
 
                                     if ui
                                         .button(Self::material_icon_text(0xe872, 14.0))
-                                        .on_hover_text(Self::tr_lang(language, "Delete", "XÃƒÆ’Ã†â€™Ãƒâ€šÃ‚Â³a"))
+                                        .on_hover_text(Self::tr_lang(
+                                            language,
+                                            "Delete",
+                                            "XÃƒÆ’Ã†â€™Ãƒâ€šÃ‚Â³a",
+                                        ))
                                         .clicked()
                                     {
                                         to_remove = Some(name.clone());
@@ -21610,4 +21677,3 @@ impl CrosshairApp {
         response
     }
 }
-
