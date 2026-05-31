@@ -11918,7 +11918,7 @@ impl CrosshairApp {
 
                                             } else if step.action == MacroAction::MouseMoveAbsolute {
 
-                                                ui.add_space(4.0);
+                                                ui.add_space(2.0);
 
                                             } else {
 
@@ -11932,10 +11932,13 @@ impl CrosshairApp {
 
                                                     Self::ensure_mouse_move_absolute_coordinate_exprs(step);
 
-                                                    ui.label(
-                                                        egui::RichText::new("X")
-                                                            .strong()
-                                                            .color(Color32::from_rgb(86, 198, 255)),
+                                                    ui.add_sized(
+                                                        [12.0, 22.0],
+                                                        egui::Label::new(
+                                                            egui::RichText::new("X")
+                                                                .strong()
+                                                                .color(Color32::from_rgb(86, 198, 255)),
+                                                        ),
                                                     );
                                                     let x_id = ui.id().with((group.id, preset.id, "hold-stop-move-abs-x-22"));
                                                     let x_response = Self::render_plain_text_edit(
@@ -11967,10 +11970,13 @@ impl CrosshairApp {
                                                         language,
                                                     );
 
-                                                    ui.label(
-                                                        egui::RichText::new("Y")
-                                                            .strong()
-                                                            .color(Color32::from_rgb(255, 185, 92)),
+                                                    ui.add_sized(
+                                                        [12.0, 22.0],
+                                                        egui::Label::new(
+                                                            egui::RichText::new("Y")
+                                                                .strong()
+                                                                .color(Color32::from_rgb(255, 185, 92)),
+                                                        ),
                                                     );
                                                     let y_id = ui.id().with((group.id, preset.id, "hold-stop-move-abs-y-22"));
                                                     let y_response = Self::render_plain_text_edit(
@@ -17594,7 +17600,7 @@ impl CrosshairApp {
 
                                             } else if step.action == MacroAction::MouseMoveAbsolute {
 
-                                                ui.add_space(4.0);
+                                                ui.add_space(2.0);
 
                                             } else {
 
@@ -17612,10 +17618,13 @@ impl CrosshairApp {
 
                                                     Self::ensure_mouse_move_absolute_coordinate_exprs(step);
 
-                                                    ui.label(
-                                                        egui::RichText::new("X")
-                                                            .strong()
-                                                            .color(Color32::from_rgb(86, 198, 255)),
+                                                    ui.add_sized(
+                                                        [12.0, 18.0],
+                                                        egui::Label::new(
+                                                            egui::RichText::new("X")
+                                                                .strong()
+                                                                .color(Color32::from_rgb(86, 198, 255)),
+                                                        ),
                                                     );
                                                     let x_id =
                                                         ui.id().with((group.id, preset.id, step_index, "move-abs-x-18"));
@@ -17648,10 +17657,13 @@ impl CrosshairApp {
                                                         language,
                                                     );
 
-                                                    ui.label(
-                                                        egui::RichText::new("Y")
-                                                            .strong()
-                                                            .color(Color32::from_rgb(255, 185, 92)),
+                                                    ui.add_sized(
+                                                        [12.0, 18.0],
+                                                        egui::Label::new(
+                                                            egui::RichText::new("Y")
+                                                                .strong()
+                                                                .color(Color32::from_rgb(255, 185, 92)),
+                                                        ),
                                                     );
                                                     let y_id =
                                                         ui.id().with((group.id, preset.id, step_index, "move-abs-y-18"));

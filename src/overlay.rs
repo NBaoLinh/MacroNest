@@ -9579,6 +9579,8 @@ mod windows_overlay {
             return;
         }
 
+        RUNTIME_VARIABLES.lock().remove(target_trimmed);
+
         let mut vars = TEXT_VARIABLES.lock();
 
         vars.insert(target_trimmed.to_string(), value.to_string());
@@ -9624,6 +9626,8 @@ mod windows_overlay {
         if target_trimmed.is_empty() {
             return;
         }
+
+        TEXT_VARIABLES.lock().remove(target_trimmed);
 
         // Neu bien dich chua dau cham (truy cap thuoc tinh doi tuong)
 
@@ -10403,6 +10407,45 @@ mod windows_overlay {
             let bounds = find_ocr_target_bounds(&words, "prompt");
 
             assert_eq!(bounds, Some((100.0, 200.0, 150.0, 220.0)));
+        }
+
+        #[test]
+        fn test_numeric_variable_overrides_stale_text_variable() {
+            set_text_variable_value("u", "better prompt");
+            set_variable_value("u", 1);
+
+            {
+                let text_vars = TEXT_VARIABLES.lock();
+                assert!(!text_vars.contains_key("u"));
+            }
+
+            assert_eq!(resolve_text_variable_value("u"), Some("1".to_string()));
+
+            {
+                let mut vars = RUNTIME_VARIABLES.lock();
+                vars.clear();
+            }
+        }
+
+        #[test]
+        fn test_text_variable_overrides_stale_numeric_variable() {
+            set_variable_value("u", 1);
+            set_text_variable_value("u", "better prompt");
+
+            {
+                let vars = RUNTIME_VARIABLES.lock();
+                assert!(!vars.contains_key("u"));
+            }
+
+            assert_eq!(
+                resolve_text_variable_value("u"),
+                Some("better prompt".to_string())
+            );
+
+            {
+                let mut text_vars = TEXT_VARIABLES.lock();
+                text_vars.clear();
+            }
         }
     }
 
