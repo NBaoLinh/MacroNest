@@ -463,48 +463,37 @@ impl CrosshairApp {
 
                     ui.label(Self::material_icon_text(0xe88f, 14.0).color(Color32::from_rgb(0, 170, 255)));
 
-                    ui.label(
-
-                        egui::RichText::new(Self::tr_lang(
-
-                            language,
-
-                            "EXPRESSION HELP",
-
-                            "HÃƒÆ’Ã¢â‚¬Â Ãƒâ€šÃ‚Â¯ÃƒÆ’Ã‚Â¡Ãƒâ€šÃ‚Â»Ãƒâ€¦Ã‚Â¡NG DÃƒÆ’Ã‚Â¡Ãƒâ€šÃ‚ÂºÃƒâ€šÃ‚ÂªN BIÃƒÆ’Ã‚Â¡Ãƒâ€šÃ‚Â»ÃƒÂ¢Ã¢â€šÂ¬Ã…Â¡U THÃƒÆ’Ã‚Â¡Ãƒâ€šÃ‚Â»Ãƒâ€šÃ‚Â¨C",
-
-                        ))
-
-                        .strong()
-
-                        .color(Color32::from_rgb(0, 170, 255)),
-
-                    );
+                ui.label(
+                    egui::RichText::new(Self::tr_lang(
+                        language,
+                        "EXPRESSION HELP",
+                        "HƯỚNG DẪN BIỂU THỨC",
+                    ))
+                    .strong()
+                    .color(Color32::from_rgb(0, 170, 255)),
+                );
 
                 });
 
                 ui.add_space(2.0);
 
                 ui.label(Self::tr_lang(
-
                     language,
-
                     "You can write math expressions and use variables in {}. Math operators + - * / and parentheses () are supported.\nExample: {100 + (A - B) * 2}",
-
-                    "BÃƒÆ’Ã‚Â¡Ãƒâ€šÃ‚ÂºÃƒâ€šÃ‚Â¡n cÃƒÆ’Ã†â€™Ãƒâ€šÃ‚Â³ thÃƒÆ’Ã‚Â¡Ãƒâ€šÃ‚Â»Ãƒâ€ Ã¢â‚¬â„¢ viÃƒÆ’Ã‚Â¡Ãƒâ€šÃ‚ÂºÃƒâ€šÃ‚Â¿t biÃƒÆ’Ã‚Â¡Ãƒâ€šÃ‚Â»Ãƒâ€ Ã¢â‚¬â„¢u thÃƒÆ’Ã‚Â¡Ãƒâ€šÃ‚Â»Ãƒâ€šÃ‚Â©c toÃƒÆ’Ã†â€™Ãƒâ€šÃ‚Â¡n vÃƒÆ’Ã†â€™Ãƒâ€šÃ‚Â  dÃƒÆ’Ã†â€™Ãƒâ€šÃ‚Â¹ng biÃƒÆ’Ã‚Â¡Ãƒâ€šÃ‚ÂºÃƒâ€šÃ‚Â¿n trong {}. HÃƒÆ’Ã‚Â¡Ãƒâ€šÃ‚Â»ÃƒÂ¢Ã¢â€šÂ¬Ã¢â‚¬Â trÃƒÆ’Ã‚Â¡Ãƒâ€šÃ‚Â»Ãƒâ€šÃ‚Â£ cÃƒÆ’Ã†â€™Ãƒâ€šÃ‚Â¡c phÃƒÆ’Ã†â€™Ãƒâ€šÃ‚Â©p toÃƒÆ’Ã†â€™Ãƒâ€šÃ‚Â¡n + - * / vÃƒÆ’Ã†â€™Ãƒâ€šÃ‚Â  dÃƒÆ’Ã‚Â¡Ãƒâ€šÃ‚ÂºÃƒâ€šÃ‚Â¥u ngoÃƒÆ’Ã‚Â¡Ãƒâ€šÃ‚ÂºÃƒâ€šÃ‚Â·c ().\nVÃƒÆ’Ã†â€™Ãƒâ€šÃ‚Â­ dÃƒÆ’Ã‚Â¡Ãƒâ€šÃ‚Â»Ãƒâ€šÃ‚Â¥: {100 + (A - B) * 2}",
-
+                    "Bạn có thể viết biểu thức toán và dùng biến trong {}. Hỗ trợ các phép toán + - * / và dấu ngoặc ().\nVí dụ: {100 + (A - B) * 2}",
                 ));
 
                 ui.add_space(4.0);
 
-                ui.label(egui::RichText::new(Self::tr_lang(language, "Supported Functions:", "HÃƒÆ’Ã†â€™Ãƒâ€šÃ‚Â m hÃƒÆ’Ã‚Â¡Ãƒâ€šÃ‚Â»ÃƒÂ¢Ã¢â€šÂ¬Ã¢â‚¬Â trÃƒÆ’Ã‚Â¡Ãƒâ€šÃ‚Â»Ãƒâ€šÃ‚Â£:")).strong());
+                ui.label(
+                    egui::RichText::new(Self::tr_lang(language, "Supported Functions:", "Hàm hỗ trợ:"))
+                        .strong(),
+                );
 
-                ui.label(egui::RichText::new("ÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â‚¬Å¡Ã‚Â¬Ãƒâ€šÃ‚Â¢ random(min, max)").monospace());
-
-                ui.label(egui::RichText::new("ÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â‚¬Å¡Ã‚Â¬Ãƒâ€šÃ‚Â¢ min(a, b)  ÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â‚¬Å¡Ã‚Â¬Ãƒâ€šÃ‚Â¢  max(a, b)").monospace());
-
-                ui.label(egui::RichText::new("ÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â‚¬Å¡Ã‚Â¬Ãƒâ€šÃ‚Â¢ abs(a)").monospace());
-                ui.label(egui::RichText::new("ÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â‚¬Å¡Ã‚Â¬Ãƒâ€šÃ‚Â¢ var.toNumber").monospace());
+                ui.label(egui::RichText::new("- random(min, max)").monospace());
+                ui.label(egui::RichText::new("- min(a, b)  -  max(a, b)").monospace());
+                ui.label(egui::RichText::new("- abs(a)").monospace());
+                ui.label(egui::RichText::new("- var.toNumber").monospace());
 
             });
     }
@@ -10727,7 +10716,7 @@ impl CrosshairApp {
 
                                                         live_sync |= response.changed();
 
-                                                        Self::render_variable_suggestions(ui, &response, &mut step.key, &timer_names, language);
+                                                        Self::render_variable_suggestions_braced(ui, &response, &mut step.key, &timer_names, language);
 
                                                     });
 
@@ -16286,7 +16275,7 @@ impl CrosshairApp {
 
                                                          live_sync |= response.changed();
 
-                                                         Self::render_variable_suggestions(ui, &response, &mut step.key, &timer_names, language);
+                                                         Self::render_variable_suggestions_braced(ui, &response, &mut step.key, &timer_names, language);
 
                                                      });
 
@@ -18334,9 +18323,9 @@ impl CrosshairApp {
 
                                                                 language,
 
-                                                                "Tự bật/tắt chính nó khi chạy (trạng thái chạy lại/cập nhật)",
+                                                                "Toggle self enabled on run (run-loop/refresh state)",
 
-                                                                "Toggle self enabled on run (run-loop/refresh state)"
+                                                                "Tự bật/tắt chính nó khi chạy (trạng thái chạy lại/cập nhật)"
 
                                                             ))
 
@@ -19978,8 +19967,6 @@ impl CrosshairApp {
             if !name.is_empty() {
                 vars.insert(name.to_string());
             }
-
-            Self::extract_vars_from_expression(&step.key, vars);
         }
 
         if !step.if_variable_name.trim().is_empty() {
@@ -20755,6 +20742,34 @@ impl CrosshairApp {
 
         _language: UiLanguage,
     ) {
+        Self::render_variable_suggestions_inner(ui, response, text, timer_names, false);
+    }
+
+    fn render_variable_suggestions_braced(
+        ui: &mut egui::Ui,
+
+        response: &egui::Response,
+
+        text: &mut String,
+
+        timer_names: &[String],
+
+        _language: UiLanguage,
+    ) {
+        Self::render_variable_suggestions_inner(ui, response, text, timer_names, true);
+    }
+
+    fn render_variable_suggestions_inner(
+        ui: &mut egui::Ui,
+
+        response: &egui::Response,
+
+        text: &mut String,
+
+        timer_names: &[String],
+
+        require_wrap_open: bool,
+    ) {
         let suggestion_names = ui
             .memory(|mem| {
                 mem.data
@@ -20811,6 +20826,10 @@ impl CrosshairApp {
         let wrap_open = prefix.ends_with('{');
 
         if last_word_trimmed.is_empty() {
+            return;
+        }
+
+        if require_wrap_open && !wrap_open {
             return;
         }
 
