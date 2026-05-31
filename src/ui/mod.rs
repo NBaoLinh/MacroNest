@@ -40,6 +40,7 @@ mod command_panel;
 mod crosshair_panel;
 mod hud_panel;
 mod macro_panel;
+mod macro_panel_ocr;
 mod mouse_panel;
 mod ocr_panel;
 mod settings_panel;

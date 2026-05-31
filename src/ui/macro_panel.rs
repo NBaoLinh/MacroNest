@@ -15056,8 +15056,6 @@ impl CrosshairApp {
 
                                                     live_sync |= Self::sanitize_legacy_ocr_target_text(&mut step.ocr_target_text);
 
-                                                    let ctrl_height = ui.spacing().interact_size.y;
-
                                                     // 1. OCR Preset ComboBox (Width 110.0)
 
                                                     egui::ComboBox::from_id_salt((group.id, preset.id, step_index, "ocr-preset-step"))
@@ -15104,311 +15102,33 @@ impl CrosshairApp {
 
                                                         });
 
-                                                    // 2. Outputs ComboBox (Width 110.0)
-
-                                                    let outputs_label = Self::tr_lang(language, "Outputs", "ÃƒÆ’Ã¢â‚¬Å¾Ãƒâ€šÃ‚ÂÃƒÆ’Ã‚Â¡Ãƒâ€šÃ‚ÂºÃƒâ€šÃ‚Â§u ra").to_owned();
-
-                                                    egui::ComboBox::from_id_salt((group.id, preset.id, step_index, "ocr-outputs"))
-
-                                                         .close_behavior(egui::PopupCloseBehavior::CloseOnClickOutside)
-
-                                                         .width(110.0)
-
-                                                         .selected_text(outputs_label)
-
-                                                         .show_ui(ui, |ui| {
-
-                                                            ui.set_min_width(200.0);
-
-                                                            egui::Grid::new("ocr_outputs_grid")
-
-                                                                .num_columns(2)
-
-                                                                .spacing([8.0, 6.0])
-
-                                                                .show(ui, |ui| {
-
-                                                                    let resp_label = ui.label(Self::tr_lang(language, "Found Var:", "BiÃƒÆ’Ã‚Â¡Ãƒâ€šÃ‚ÂºÃƒâ€šÃ‚Â¿n kÃƒÆ’Ã‚Â¡Ãƒâ€šÃ‚ÂºÃƒâ€šÃ‚Â¿t quÃƒÆ’Ã‚Â¡Ãƒâ€šÃ‚ÂºÃƒâ€šÃ‚Â£:"));
-
-                                                                    resp_label.on_hover_text(Self::tr_lang(language,
-
-                                                                        "Assigns 1 if the target text was found (or if OCR succeeded when no target is set), 0 otherwise",
-
-                                                                        "GÃƒÆ’Ã†â€™Ãƒâ€šÃ‚Â¡n 1 nÃƒÆ’Ã‚Â¡Ãƒâ€šÃ‚ÂºÃƒâ€šÃ‚Â¿u tÃƒÆ’Ã†â€™Ãƒâ€šÃ‚Â¬m thÃƒÆ’Ã‚Â¡Ãƒâ€šÃ‚ÂºÃƒâ€šÃ‚Â¥y tÃƒÆ’Ã‚Â¡Ãƒâ€šÃ‚Â»Ãƒâ€šÃ‚Â« khÃƒÆ’Ã†â€™Ãƒâ€šÃ‚Â³a (hoÃƒÆ’Ã‚Â¡Ãƒâ€šÃ‚ÂºÃƒâ€šÃ‚Â·c nÃƒÆ’Ã‚Â¡Ãƒâ€šÃ‚ÂºÃƒâ€šÃ‚Â¿u quÃƒÆ’Ã†â€™Ãƒâ€šÃ‚Â©t OCR thÃƒÆ’Ã†â€™Ãƒâ€šÃ‚Â nh cÃƒÆ’Ã†â€™Ãƒâ€šÃ‚Â´ng khi khÃƒÆ’Ã†â€™Ãƒâ€šÃ‚Â´ng ÃƒÆ’Ã¢â‚¬Å¾ÃƒÂ¢Ã¢â€šÂ¬Ã‹Å“ÃƒÆ’Ã‚Â¡Ãƒâ€šÃ‚ÂºÃƒâ€šÃ‚Â·t tÃƒÆ’Ã‚Â¡Ãƒâ€šÃ‚Â»Ãƒâ€šÃ‚Â« tÃƒÆ’Ã†â€™Ãƒâ€šÃ‚Â¬m), ngÃƒÆ’Ã¢â‚¬Â Ãƒâ€šÃ‚Â°ÃƒÆ’Ã‚Â¡Ãƒâ€šÃ‚Â»Ãƒâ€šÃ‚Â£c lÃƒÆ’Ã‚Â¡Ãƒâ€šÃ‚ÂºÃƒâ€šÃ‚Â¡i lÃƒÆ’Ã†â€™Ãƒâ€šÃ‚Â  0"
-
-                                                                    ));
-
-                                                                    let resp = ui.add(egui::TextEdit::singleline(&mut step.ocr_success_var).hint_text("var_ok"));
-
-                                                                    Self::apply_vietnamese_input_if_changed(&resp, self.state.vietnamese_input_enabled, self.state.vietnamese_input_mode, &mut step.ocr_success_var);
-
-                                                                    live_sync |= resp.changed();
-
-                                                                    ui.end_row();
-
-                                                                    let resp_label = ui.label("Pos X:");
-
-                                                                    resp_label.on_hover_text(Self::tr_lang(language,
-
-                                                                        "Assigns the absolute X coordinate of the center of found text",
-
-                                                                        "GÃƒÆ’Ã†â€™Ãƒâ€šÃ‚Â¡n tÃƒÆ’Ã‚Â¡Ãƒâ€šÃ‚Â»Ãƒâ€šÃ‚Âa ÃƒÆ’Ã¢â‚¬Å¾ÃƒÂ¢Ã¢â€šÂ¬Ã‹Å“ÃƒÆ’Ã‚Â¡Ãƒâ€šÃ‚Â»ÃƒÂ¢Ã¢â‚¬Å¾Ã‚Â¢ X tuyÃƒÆ’Ã‚Â¡Ãƒâ€šÃ‚Â»ÃƒÂ¢Ã¢â€šÂ¬Ã‚Â¡t ÃƒÆ’Ã¢â‚¬Å¾ÃƒÂ¢Ã¢â€šÂ¬Ã‹Å“ÃƒÆ’Ã‚Â¡Ãƒâ€šÃ‚Â»ÃƒÂ¢Ã¢â€šÂ¬Ã‹Å“i ÃƒÆ’Ã‚Â¡Ãƒâ€šÃ‚Â»Ãƒâ€¦Ã‚Â¸ chÃƒÆ’Ã†â€™Ãƒâ€šÃ‚Â­nh giÃƒÆ’Ã‚Â¡Ãƒâ€šÃ‚Â»Ãƒâ€šÃ‚Â¯a tÃƒÆ’Ã‚Â¡Ãƒâ€šÃ‚Â»Ãƒâ€šÃ‚Â« tÃƒÆ’Ã†â€™Ãƒâ€šÃ‚Â¬m thÃƒÆ’Ã‚Â¡Ãƒâ€šÃ‚ÂºÃƒâ€šÃ‚Â¥y"
-
-                                                                    ));
-
-                                                                    let resp = ui.add(egui::TextEdit::singleline(&mut step.ocr_pos_var_x).hint_text("var_x"));
-
-                                                                    Self::apply_vietnamese_input_if_changed(&resp, self.state.vietnamese_input_enabled, self.state.vietnamese_input_mode, &mut step.ocr_pos_var_x);
-
-                                                                    live_sync |= resp.changed();
-
-                                                                    ui.end_row();
-
-                                                                    let resp_label = ui.label("Pos Y:");
-
-                                                                    resp_label.on_hover_text(Self::tr_lang(language,
-
-                                                                        "Assigns the absolute Y coordinate of the center of found text",
-
-                                                                        "GÃƒÆ’Ã†â€™Ãƒâ€šÃ‚Â¡n tÃƒÆ’Ã‚Â¡Ãƒâ€šÃ‚Â»Ãƒâ€šÃ‚Âa ÃƒÆ’Ã¢â‚¬Å¾ÃƒÂ¢Ã¢â€šÂ¬Ã‹Å“ÃƒÆ’Ã‚Â¡Ãƒâ€šÃ‚Â»ÃƒÂ¢Ã¢â‚¬Å¾Ã‚Â¢ Y tuyÃƒÆ’Ã‚Â¡Ãƒâ€šÃ‚Â»ÃƒÂ¢Ã¢â€šÂ¬Ã‚Â¡t ÃƒÆ’Ã¢â‚¬Å¾ÃƒÂ¢Ã¢â€šÂ¬Ã‹Å“ÃƒÆ’Ã‚Â¡Ãƒâ€šÃ‚Â»ÃƒÂ¢Ã¢â€šÂ¬Ã‹Å“i ÃƒÆ’Ã‚Â¡Ãƒâ€šÃ‚Â»Ãƒâ€¦Ã‚Â¸ chÃƒÆ’Ã†â€™Ãƒâ€šÃ‚Â­nh giÃƒÆ’Ã‚Â¡Ãƒâ€šÃ‚Â»Ãƒâ€šÃ‚Â¯a tÃƒÆ’Ã‚Â¡Ãƒâ€šÃ‚Â»Ãƒâ€šÃ‚Â« tÃƒÆ’Ã†â€™Ãƒâ€šÃ‚Â¬m thÃƒÆ’Ã‚Â¡Ãƒâ€šÃ‚ÂºÃƒâ€šÃ‚Â¥y"
-
-                                                                    ));
-
-                                                                    let resp = ui.add(egui::TextEdit::singleline(&mut step.ocr_pos_var_y).hint_text("var_y"));
-
-                                                                    Self::apply_vietnamese_input_if_changed(&resp, self.state.vietnamese_input_enabled, self.state.vietnamese_input_mode, &mut step.ocr_pos_var_y);
-
-                                                                    live_sync |= resp.changed();
-
-                                                                    ui.end_row();
-
-                                                                     let resp_label = ui.label(Self::tr_lang(language, "Text Var:", "Text Var:"));
-
-                                                                     resp_label.on_hover_text(Self::tr_lang(language,
-
-                                                                         "Stores ALL recognized text into this variable, regardless of the Target Text filter",
-
-                                                                         "Stores all OCR text into this variable regardless of Target Text filter"
-
-                                                                     ));
-
-                                                                     let resp = ui.add(egui::TextEdit::singleline(&mut step.ocr_text_var).hint_text("var_text"));
-
-                                                                     Self::apply_vietnamese_input_if_changed(&resp, self.state.vietnamese_input_enabled, self.state.vietnamese_input_mode, &mut step.ocr_text_var);
-
-                                                                     live_sync |= resp.changed();
-
-                                                                     ui.end_row();
-
-                                                                });
-
-                                                         });
+                                                    Self::render_ocr_outputs_selector(
+                                                        ui,
+                                                        language,
+                                                        self.state.vietnamese_input_enabled,
+                                                        self.state.vietnamese_input_mode,
+                                                        group.id,
+                                                        preset.id,
+                                                        step_index,
+                                                        step,
+                                                        &mut live_sync,
+                                                    );
 
                                                     if is_custom {
-
-                                                         ui.add_space(4.0);
-
-                                                         // 3. Pick Area Button (Width ctrl_height, Height ctrl_height)
-
-                                                         let pick_btn = egui::Button::new("⛶");
-
-                                                         if ui.add_sized([ctrl_height, ctrl_height], pick_btn)
-
-                                                             .on_hover_text(Self::tr_lang(
-
-                                                                 language,
-
-                                                                 "Pick area - Drag on screen to select the OCR scan region",
-
-                                                                 "ChÃƒÆ’Ã‚Â¡Ãƒâ€šÃ‚Â»Ãƒâ€šÃ‚Ân vÃƒÆ’Ã†â€™Ãƒâ€šÃ‚Â¹ng - KÃƒÆ’Ã†â€™Ãƒâ€šÃ‚Â©o trÃƒÆ’Ã†â€™Ãƒâ€šÃ‚Âªn mÃƒÆ’Ã†â€™Ãƒâ€šÃ‚Â n hÃƒÆ’Ã†â€™Ãƒâ€šÃ‚Â¬nh ÃƒÆ’Ã¢â‚¬Å¾ÃƒÂ¢Ã¢â€šÂ¬Ã‹Å“ÃƒÆ’Ã‚Â¡Ãƒâ€šÃ‚Â»Ãƒâ€ Ã¢â‚¬â„¢ chÃƒÆ’Ã‚Â¡Ãƒâ€šÃ‚Â»Ãƒâ€šÃ‚Ân vÃƒÆ’Ã†â€™Ãƒâ€šÃ‚Â¹ng quÃƒÆ’Ã†â€™Ãƒâ€šÃ‚Â©t OCR"
-
-                                                             ))
-
-                                                             .clicked()
-
-                                                         {
-
-                                                             pending_ocr_step_capture = Some((group.id, preset.id, step_index));
-
-                                                         }
-
-                                                         ui.add_space(4.0);
-
-                                                         // 4. Language selector - ASCII labels to avoid font rendering issues
-
-                                                         // [?] means this language pack is not installed on this Windows system
-
-                                                         let popular_langs: &[(&str, &str, &str)] = &[
-
-                                                             ("", "Auto",                    "Detect language from Windows profile. No install needed."),
-
-                                                             ("en",      "English (en)",              "English - usually installed by default"),
-
-                                                             ("vi",      "Vietnamese (vi)",           "Tieng Viet - install via Windows Settings > Language"),
-
-                                                             ("zh-Hans", "Chinese Simp (zh)",         "Simplified Chinese - install via Windows Settings > Language"),
-
-                                                             ("zh-Hant", "Chinese Trad (zht)",        "Traditional Chinese - install via Windows Settings > Language"),
-
-                                                             ("ja",      "Japanese (ja)",             "install via Windows Settings > Language"),
-
-                                                             ("ko",      "Korean (ko)",               "install via Windows Settings > Language"),
-
-                                                             ("fr",      "French (fr)",               "Francais - install via Windows Settings > Language"),
-
-                                                             ("de",      "German (de)",               "Deutsch - install via Windows Settings > Language"),
-
-                                                             ("es",      "Spanish (es)",              "Espanol - install via Windows Settings > Language"),
-
-                                                             ("ru",      "Russian (ru)",              "install via Windows Settings > Language"),
-
-                                                             ("th",      "Thai (th)",                 "install via Windows Settings > Language"),
-
-                                                         ];
-
-                                                         let avail_langs = crate::ocr::available_ocr_languages();
-
-                                                         let cur_lang = step.ocr_lang.clone().unwrap_or_default();
-
-                                                         let lang_lbl = popular_langs
-
-                                                             .iter()
-
-                                                             .find(|(code, _, _)| *code == cur_lang.as_str())
-
-                                                             .map(|(_, lbl, _)| *lbl)
-
-                                                             .unwrap_or(if cur_lang.is_empty() { "Auto" } else { cur_lang.as_str() });
-
-                                                         let short_lbl = match cur_lang.as_str() {
-
-                                                             "" => "Auto",
-
-                                                             "en" => "EN",
-
-                                                             "vi" => "VI",
-
-                                                             "zh-Hans" => "ZH",
-
-                                                             "zh-Hant" => "ZHT",
-
-                                                             "ja" => "JA",
-
-                                                             "ko" => "KO",
-
-                                                             "fr" => "FR",
-
-                                                             "de" => "DE",
-
-                                                             "es" => "ES",
-
-                                                             "ru" => "RU",
-
-                                                             "th" => "TH",
-
-                                                             other => {
-
-                                                                 if other.starts_with("zh-Han") {
-
-                                                                     "ZH"
-
-                                                                 } else if let Some(idx) = other.find('-') {
-
-                                                                     &other[..idx]
-
-                                                                 } else {
-
-                                                                     other
-
-                                                                 }
-
-                                                             }
-
-                                                         };
-
-                                                         let combo_resp = egui::ComboBox::from_id_salt((group.id, preset.id, step_index, "ocr-step-lang"))
-
-                                                             .width(56.0)
-
-                                                             .selected_text(short_lbl)
-
-                                                             .show_ui(ui, |ui| {
-
-                                                                 for (code, lbl, hint) in popular_langs {
-
-                                                                     let is_selected = cur_lang.as_str() == *code;
-
-                                                                     let is_installed = code.is_empty() || avail_langs.iter().any(|a| {
-
-                                                                         a.to_lowercase().starts_with(&code.to_lowercase())
-
-                                                                     }) || self.newly_installed_langs.iter().any(|n| {
-
-                                                                         n.to_lowercase() == code.to_lowercase()
-
-                                                                     });
-
-                                                                     let display = if is_installed {
-
-                                                                         lbl.to_string()
-
-                                                                     } else {
-
-                                                                         format!("{} [not installed]", lbl)
-
-                                                                     };
-
-                                                                     let resp = ui.selectable_label(is_selected, &display);
-
-                                                                     let hover_msg = if is_installed {
-
-                                                                         hint.to_string()
-
-                                                                     } else {
-
-                                                                         format!("{} - Language pack NOT installed. Go to Windows Settings > Time & Language > Language & Region > Add a language", hint)
-
-                                                                     };
-
-                                                                     if resp.on_hover_text(hover_msg).clicked() {
-
-                                                                         step.ocr_lang = if code.is_empty() { None } else { Some(code.to_string()) };
-
-                                                                         live_sync = true;
-
-                                                                     }
-
-                                                                 }
-
-                                                             });
-
-                                                         combo_resp.response.on_hover_text(format!("{}: {}", Self::tr_lang(language, "Language", "NgÃƒÆ’Ã†â€™Ãƒâ€šÃ‚Â´n ngÃƒÆ’Ã‚Â¡Ãƒâ€šÃ‚Â»Ãƒâ€šÃ‚Â¯"), lang_lbl));
-
-                                                     }
-
-                                                     // 5. Target Text Input TextBox (Width 120.0)
-
-                                                     ui.add_space(4.0);
-
-                                                     let prev_override = ui.visuals().override_text_color;
-
-                                                     ui.visuals_mut().override_text_color = None;
-
-                                                         let target_resp = ui.add(
-
-                                                             egui::TextEdit::singleline(&mut step.ocr_target_text)
-
-                                                                 .desired_width(120.0)
-
-                                                                 .hint_text(Self::tr_lang(language, "Target Text", "Van ban can tim"))
-
-                                                         );
-
-                                                     ui.visuals_mut().override_text_color = prev_override;
-
-                                                     Self::apply_vietnamese_input_if_changed(&target_resp, self.state.vietnamese_input_enabled, self.state.vietnamese_input_mode, &mut step.ocr_target_text);
-
-                                                     live_sync |= target_resp.changed();
+                                                        Self::render_custom_ocr_inline_controls(
+                                                            ui,
+                                                            language,
+                                                            self.state.vietnamese_input_enabled,
+                                                            self.state.vietnamese_input_mode,
+                                                            &self.newly_installed_langs,
+                                                            group.id,
+                                                            preset.id,
+                                                            step_index,
+                                                            step,
+                                                            &mut live_sync,
+                                                            &mut pending_ocr_step_capture,
+                                                        );
+                                                    }
 
                                                                                                 } else if step.action == MacroAction::PlaySoundPreset {
 
