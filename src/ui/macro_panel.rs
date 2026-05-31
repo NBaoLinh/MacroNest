@@ -11718,7 +11718,7 @@ impl CrosshairApp {
 
                                                                   let var_name_id = ui.id().with("hold-stop-set-var-name");
 
-                                                                  let response = Self::render_plain_text_edit(
+                                                                  let response = Self::render_variable_text_edit(
 
                                                                       ui,
 
@@ -11758,7 +11758,7 @@ impl CrosshairApp {
 
                                                                   let var_val_id = ui.id().with("hold-stop-set-var-val");
 
-                                                                  let response2 = Self::render_variable_text_edit(
+                                                                  let response2 = Self::render_plain_text_edit(
 
                                                                       ui,
 
@@ -17297,7 +17297,7 @@ impl CrosshairApp {
 
                                                                   let var_name_id = ui.id().with((step_index, "regular-set-var-name"));
 
-                                                                  let response = Self::render_plain_text_edit(
+                                                                  let response = Self::render_variable_text_edit(
 
                                                                       ui,
 
@@ -17337,7 +17337,7 @@ impl CrosshairApp {
 
                                                                   let var_val_id = ui.id().with((step_index, "regular-set-var-val"));
 
-                                                                  let response2 = Self::render_variable_text_edit(
+                                                                  let response2 = Self::render_plain_text_edit(
 
                                                                       ui,
 
