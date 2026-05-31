@@ -9527,6 +9527,159 @@ impl CrosshairApp {
 
 
 
+    fn render_key_capture_chips(
+        ui: &mut egui::Ui,
+        language: UiLanguage,
+        keys_str: &mut String,
+        active: bool,
+        mut on_capture_click: impl FnMut(),
+        mut on_change: impl FnMut(),
+    ) {
+        const LETTERS: &[&str] = &[
+            "A", "B", "C", "D", "E", "F", "G", "H", "I", "J", "K", "L", "M", "N", "O", "P",
+            "Q", "R", "S", "T", "U", "V", "W", "X", "Y", "Z",
+        ];
+        const NUMBERS: &[&str] = &["0", "1", "2", "3", "4", "5", "6", "7", "8", "9"];
+        const SYMBOLS: &[&str] = &[";", "=", ",", "-", ".", "/", "`", "[", "\\", "]", "'"];
+        const NAVIGATION: &[&str] = &[
+            "Escape", "Enter", "Space", "Backspace", "Tab", "Insert", "Delete", "Home", "End",
+            "PageUp", "PageDown", "Left", "Up", "Right", "Down", "PrintScreen", "Pause",
+        ];
+        const MODIFIERS: &[&str] = &["Ctrl", "Alt", "Shift", "Win", "CapsLock", "NumLock", "ScrollLock", "Apps"];
+        const NUMPAD: &[&str] = &[
+            "Numpad0", "Numpad1", "Numpad2", "Numpad3", "Numpad4", "Numpad5", "Numpad6",
+            "Numpad7", "Numpad8", "Numpad9", "NumpadMultiply", "NumpadAdd", "NumpadSubtract",
+            "NumpadDecimal", "NumpadDivide",
+        ];
+
+        ui.horizontal_wrapped(|ui| {
+            let capture_btn = ui
+                .add_sized(
+                    [22.0, 22.0],
+                    egui::Button::new(Self::material_icon_text(0xe312, 14.0))
+                        .fill(if active {
+                            egui::Color32::from_rgba_premultiplied(72, 156, 116, 120)
+                        } else {
+                            ui.visuals().widgets.noninteractive.bg_fill
+                        })
+                        .stroke(egui::Stroke::new(
+                            1.0,
+                            if active {
+                                egui::Color32::from_rgb(126, 224, 182)
+                            } else {
+                                ui.visuals().widgets.noninteractive.bg_stroke.color
+                            },
+                        )),
+                )
+                .on_hover_text(Self::tr_lang(
+                    language,
+                    "Click to capture one key",
+                    "Bấm để bắt 1 phím",
+                ));
+            if capture_btn.clicked() {
+                on_capture_click();
+            }
+
+            let add_menu = ui.menu_button(Self::material_icon_text(0xe5d2, 14.0), |ui| {
+                ui.set_min_width(260.0);
+                ui.set_max_width(320.0);
+                let mut add_key = |ui: &mut egui::Ui, key: &str| {
+                    if ui.button(key).clicked() {
+                        if Self::append_key_list_value(keys_str, key) {
+                            on_change();
+                        }
+                        ui.close_menu();
+                    }
+                };
+                egui::ScrollArea::vertical().max_height(280.0).show(ui, |ui| {
+                    ui.label(Self::tr_lang(language, "Letters (A-Z)", "Chữ cái (A-Z)"));
+                    ui.horizontal_wrapped(|ui| {
+                        for key in LETTERS {
+                            add_key(ui, key);
+                        }
+                    });
+                    ui.separator();
+                    ui.label(Self::tr_lang(language, "Numbers & Symbols", "Số & ký tự"));
+                    ui.horizontal_wrapped(|ui| {
+                        for key in NUMBERS {
+                            add_key(ui, key);
+                        }
+                        for key in SYMBOLS {
+                            add_key(ui, key);
+                        }
+                    });
+                    ui.separator();
+                    ui.label(Self::tr_lang(language, "Navigation", "Điều hướng"));
+                    ui.horizontal_wrapped(|ui| {
+                        for key in NAVIGATION {
+                            add_key(ui, key);
+                        }
+                    });
+                    ui.separator();
+                    ui.label(Self::tr_lang(language, "Function", "Phím chức năng"));
+                    ui.horizontal_wrapped(|ui| {
+                        for num in 1..=24 {
+                            let key = format!("F{}", num);
+                            add_key(ui, &key);
+                        }
+                    });
+                    ui.separator();
+                    ui.label(Self::tr_lang(language, "Numpad", "Bàn phím số"));
+                    ui.horizontal_wrapped(|ui| {
+                        for key in NUMPAD {
+                            add_key(ui, key);
+                        }
+                    });
+                    ui.separator();
+                    ui.label(Self::tr_lang(language, "Modifiers & Locks", "Phím khóa & bổ trợ"));
+                    ui.horizontal_wrapped(|ui| {
+                        for key in MODIFIERS {
+                            add_key(ui, key);
+                        }
+                    });
+                });
+            });
+            add_menu.response.on_hover_text(Self::tr_lang(
+                language,
+                "Manually add a key",
+                "Thêm phím thủ công",
+            ));
+
+            let keys = Self::split_key_list(keys_str);
+            if keys.is_empty() {
+                if active {
+                    ui.label(
+                        egui::RichText::new(Self::tr_lang(language, "Capturing...", "Đang bắt..."))
+                            .color(egui::Color32::from_rgb(255, 232, 96))
+                            .strong(),
+                    );
+                } else {
+                    ui.label(
+                        egui::RichText::new(Self::tr_lang(language, "No key assigned", "Chưa gán phím"))
+                            .weak()
+                            .italics(),
+                    );
+                }
+            } else {
+                for key in &keys {
+                    let chip_btn = ui
+                        .add(
+                            egui::Button::new(egui::RichText::new(key).monospace())
+                                .min_size(egui::vec2(0.0, 22.0)),
+                        )
+                        .on_hover_text(Self::tr_lang(
+                            language,
+                            "Click to remove this key",
+                            "Bấm để xóa phím này",
+                        ));
+                    if chip_btn.clicked() && Self::remove_key_list_value(keys_str, key) {
+                        on_change();
+                    }
+                }
+            }
+        });
+    }
+
     fn render_extra_conditions(
 
 
@@ -23310,11 +23463,16 @@ pub(crate) fn render_macro_panel(&mut self, ui: &mut egui::Ui) {
 
 
 
-                                                    let key_id = ui.id().with(("hold-stop-unlockkeys-key",));
+                                                    let capture_target =
+                                                        CaptureRequest::MacroPresetHoldStopInput(group.id, preset.id);
 
 
 
-                                                    let response = Self::render_expandable_text_edit(
+                                                    let active = capture_target_snapshot == Some(capture_target.clone());
+
+
+
+                                                    Self::render_key_capture_chips(
 
 
 
@@ -23322,55 +23480,7 @@ pub(crate) fn render_macro_panel(&mut self, ui: &mut egui::Ui) {
 
 
 
-                                                        &mut step.key,
-
-
-
-                                                        key_id,
-
-
-
-                                                        160.0,
-
-
-
-                                                        260.0,
-
-
-
-                                                        22.0,
-
-
-
-                                                        22.0,
-
-
-
-                                                        "A,S,W,D",
-
-
-
-                                                        false,
-
-
-
-                                                    );
-
-
-
-                                                    Self::apply_vietnamese_input_if_changed(
-
-
-
-                                                        &response,
-
-
-
-                                                        self.state.vietnamese_input_enabled,
-
-
-
-                                                        self.state.vietnamese_input_mode,
+                                                        language,
 
 
 
@@ -23378,11 +23488,39 @@ pub(crate) fn render_macro_panel(&mut self, ui: &mut egui::Ui) {
 
 
 
+                                                        active,
+
+
+
+                                                        || {
+
+
+
+                                                            if active {
+                                                                cancel_active_capture = true;
+                                                            } else {
+                                                                next_capture_target = Some(capture_target.clone());
+                                                            }
+
+
+
+                                                        },
+
+
+
+                                                        || {
+
+
+
+                                                            live_sync = true;
+
+
+
+                                                        },
+
+
+
                                                     );
-
-
-
-                                                    live_sync |= response.changed();
 
 
 
@@ -23390,11 +23528,16 @@ pub(crate) fn render_macro_panel(&mut self, ui: &mut egui::Ui) {
 
 
 
-                                                    let key_id = ui.id().with(("hold-stop-lockkeys-key",));
+                                                    let capture_target =
+                                                        CaptureRequest::MacroPresetHoldStopInput(group.id, preset.id);
 
 
 
-                                                    let response = Self::render_expandable_text_edit(
+                                                    let active = capture_target_snapshot == Some(capture_target.clone());
+
+
+
+                                                    Self::render_key_capture_chips(
 
 
 
@@ -23402,55 +23545,7 @@ pub(crate) fn render_macro_panel(&mut self, ui: &mut egui::Ui) {
 
 
 
-                                                        &mut step.key,
-
-
-
-                                                        key_id,
-
-
-
-                                                        160.0,
-
-
-
-                                                        260.0,
-
-
-
-                                                        22.0,
-
-
-
-                                                        22.0,
-
-
-
-                                                        "A,S,W,D",
-
-
-
-                                                        false,
-
-
-
-                                                    );
-
-
-
-                                                    Self::apply_vietnamese_input_if_changed(
-
-
-
-                                                        &response,
-
-
-
-                                                        self.state.vietnamese_input_enabled,
-
-
-
-                                                        self.state.vietnamese_input_mode,
+                                                        language,
 
 
 
@@ -23458,11 +23553,39 @@ pub(crate) fn render_macro_panel(&mut self, ui: &mut egui::Ui) {
 
 
 
+                                                        active,
+
+
+
+                                                        || {
+
+
+
+                                                            if active {
+                                                                cancel_active_capture = true;
+                                                            } else {
+                                                                next_capture_target = Some(capture_target.clone());
+                                                            }
+
+
+
+                                                        },
+
+
+
+                                                        || {
+
+
+
+                                                            live_sync = true;
+
+
+
+                                                        },
+
+
+
                                                     );
-
-
-
-                                                    live_sync |= response.changed();
 
 
 
@@ -34001,11 +34124,20 @@ pub(crate) fn render_macro_panel(&mut self, ui: &mut egui::Ui) {
 
 
 
-                                                    let key_id = ui.id().with((step_index, "unlockkeys-key"));
+                                                    let capture_target = CaptureRequest::MacroStepInput {
+                                                        group_id: group.id,
+                                                        preset_id: preset.id,
+                                                        step_index,
+                                                        extra_cond_index: None,
+                                                    };
 
 
 
-                                                    let response = Self::render_expandable_text_edit(
+                                                    let active = capture_target_snapshot == Some(capture_target.clone());
+
+
+
+                                                    Self::render_key_capture_chips(
 
 
 
@@ -34013,67 +34145,47 @@ pub(crate) fn render_macro_panel(&mut self, ui: &mut egui::Ui) {
 
 
 
+                                                        language,
+
+
+
                                                         &mut step.key,
 
 
 
-                                                        key_id,
+                                                        active,
 
 
 
-                                                        146.0,
+                                                        || {
 
 
 
-                                                        260.0,
+                                                            if active {
+                                                                cancel_active_capture = true;
+                                                            } else {
+                                                                next_capture_target = Some(capture_target.clone());
+                                                            }
 
 
 
-                                                        18.0,
+                                                        },
 
 
 
-                                                        18.0,
+                                                        || {
 
 
 
-                                                        &Self::tr_lang(language, "A,S,W,D", "A,S,W,D"),
+                                                            live_sync = true;
 
 
 
-                                                        false,
+                                                        },
 
 
 
                                                     );
-
-
-
-                                                    Self::apply_vietnamese_input_if_changed(
-
-
-
-                                                        &response,
-
-
-
-                                                        self.state.vietnamese_input_enabled,
-
-
-
-                                                        self.state.vietnamese_input_mode,
-
-
-
-                                                        &mut step.key,
-
-
-
-                                                     );
-
-
-
-                                                     live_sync |= response.changed();
 
 
 
@@ -34081,11 +34193,20 @@ pub(crate) fn render_macro_panel(&mut self, ui: &mut egui::Ui) {
 
 
 
-                                                    let key_id = ui.id().with((step_index, "lockkeys-key"));
+                                                    let capture_target = CaptureRequest::MacroStepInput {
+                                                        group_id: group.id,
+                                                        preset_id: preset.id,
+                                                        step_index,
+                                                        extra_cond_index: None,
+                                                    };
 
 
 
-                                                    let response = Self::render_expandable_text_edit(
+                                                    let active = capture_target_snapshot == Some(capture_target.clone());
+
+
+
+                                                    Self::render_key_capture_chips(
 
 
 
@@ -34093,67 +34214,47 @@ pub(crate) fn render_macro_panel(&mut self, ui: &mut egui::Ui) {
 
 
 
+                                                        language,
+
+
+
                                                         &mut step.key,
 
 
 
-                                                        key_id,
+                                                        active,
 
 
 
-                                                        146.0,
+                                                        || {
 
 
 
-                                                        260.0,
+                                                            if active {
+                                                                cancel_active_capture = true;
+                                                            } else {
+                                                                next_capture_target = Some(capture_target.clone());
+                                                            }
 
 
 
-                                                        18.0,
+                                                        },
 
 
 
-                                                        18.0,
+                                                        || {
 
 
 
-                                                        &Self::tr_lang(language, "A,S,W,D", "A,S,W,D"),
+                                                            live_sync = true;
 
 
 
-                                                        false,
+                                                        },
 
 
 
                                                     );
-
-
-
-                                                    Self::apply_vietnamese_input_if_changed(
-
-
-
-                                                        &response,
-
-
-
-                                                        self.state.vietnamese_input_enabled,
-
-
-
-                                                        self.state.vietnamese_input_mode,
-
-
-
-                                                        &mut step.key,
-
-
-
-                                                     );
-
-
-
-                                                     live_sync |= response.changed();
 
 
 
@@ -41354,9 +41455,23 @@ pub(crate) fn render_macro_panel(&mut self, ui: &mut egui::Ui) {
 
                     if let Some(target) = next_capture_target {
 
+                        let capture_status = match &target {
+                            CaptureRequest::MacroPresetHoldStopInput(_, _) => match self.state.ui_language {
+                                UiLanguage::Vietnamese => {
+                                    "Đang bắt phím. Nhấn 1 phím để thêm.".to_owned()
+                                }
+                                _ => "Capturing one key. Press a key to add it.".to_owned(),
+                            },
+                            CaptureRequest::MacroStepInput { .. } => match self.state.ui_language {
+                                UiLanguage::Vietnamese => {
+                                    "Đang bắt phím. Nhấn 1 phím để thêm.".to_owned()
+                                }
+                                _ => "Capturing one key. Press a key to add it.".to_owned(),
+                            },
+                            _ => "Capturing macro input.".to_owned(),
+                        };
 
-
-                        self.begin_capture(target, "Capturing macro input.".to_owned());
+                        self.begin_capture(target, capture_status);
 
 
 

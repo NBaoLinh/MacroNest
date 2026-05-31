@@ -6195,33 +6195,13 @@ impl CrosshairApp {
             CaptureRequest::PinPresetHotkey(_) => true,
             CaptureRequest::MouseSensitivityPresetHotkey(_) => true,
             CaptureRequest::VisionPresetHotkey(_) => true,
-            CaptureRequest::MacroPresetHoldStopInput(group_id, preset_id) => self
-                .state
-                .macro_groups
-                .iter()
-                .find(|group| group.id == *group_id)
-                .and_then(|group| group.presets.iter().find(|preset| preset.id == *preset_id))
-                .is_some_and(|preset| {
-                    matches!(
-                        preset.hold_stop_step.action,
-                        MacroAction::LockKeys | MacroAction::UnlockKeys
-                    )
-                }),
+            CaptureRequest::MacroPresetHoldStopInput(_, _) => false,
             CaptureRequest::MacroStepInput {
                 group_id,
                 preset_id,
                 step_index,
                 ..
-            } => self
-                .state
-                .macro_groups
-                .iter()
-                .find(|group| group.id == *group_id)
-                .and_then(|group| group.presets.iter().find(|preset| preset.id == *preset_id))
-                .and_then(|preset| preset.steps.get(*step_index))
-                .is_some_and(|step| {
-                    matches!(step.action, MacroAction::LockKeys | MacroAction::UnlockKeys)
-                }),
+            } => false,
             _ => false,
         }
     }
@@ -6246,6 +6226,52 @@ impl CrosshairApp {
                 | CaptureRequest::MacrosMasterHotkey
                 | CaptureRequest::MacroStepInput { .. }
         )
+    }
+
+    fn split_key_list(value: &str) -> Vec<String> {
+        value
+            .split(',')
+            .map(str::trim)
+            .filter(|part| !part.is_empty())
+            .map(str::to_owned)
+            .collect()
+    }
+
+    fn join_key_list(keys: &[String]) -> String {
+        keys.join(",")
+    }
+
+    fn append_key_list_value(list: &mut String, key: &str) -> bool {
+        let key = key.trim();
+        if key.is_empty() {
+            return false;
+        }
+        let existing = Self::split_key_list(list);
+        if existing.iter().any(|part| part.eq_ignore_ascii_case(key)) {
+            return false;
+        }
+        let mut updated = existing;
+        updated.push(key.to_owned());
+        *list = Self::join_key_list(&updated);
+        true
+    }
+
+    fn remove_key_list_value(list: &mut String, key: &str) -> bool {
+        let key = key.trim();
+        if key.is_empty() {
+            return false;
+        }
+        let existing = Self::split_key_list(list);
+        let original_len = existing.len();
+        let remaining: Vec<String> = existing
+            .into_iter()
+            .filter(|part| !part.eq_ignore_ascii_case(key))
+            .collect();
+        if remaining.len() == original_len {
+            return false;
+        }
+        *list = Self::join_key_list(&remaining);
+        true
     }
 
     fn cancel_capture(&mut self) {
@@ -6791,22 +6817,19 @@ impl CrosshairApp {
                         self.status = format!("Captured Input Held condition input for preset {preset_id}.");
                     } else if matches!(step.action, MacroAction::LockKeys | MacroAction::UnlockKeys) {
                         let key = binding.key;
-                        let existing = step
-                            .key
-                            .split(',')
-                            .map(str::trim)
-                            .filter(|part| !part.is_empty())
-                            .map(str::to_owned)
-                            .collect::<Vec<_>>();
-                        if existing.iter().any(|part| part.eq_ignore_ascii_case(&key)) {
+                        let was_empty = Self::split_key_list(&step.key).is_empty();
+                        if !was_empty
+                            && Self::split_key_list(&step.key)
+                            .iter()
+                            .any(|part| part.eq_ignore_ascii_case(&key))
+                        {
                             self.status = format!("Key {key} is already in that lock list.");
-                        } else if existing.is_empty() {
-                            step.key = key.clone();
-                            self.status =
-                                format!("Captured lock key {key} for preset {preset_id}.");
-                        } else {
-                            step.key = format!("{},{}", step.key.trim(), key);
-                            self.status = format!("Added lock key {key} for preset {preset_id}.");
+                        } else if Self::append_key_list_value(&mut step.key, &key) {
+                            self.status = if was_empty {
+                                format!("Captured lock key {key} for preset {preset_id}.")
+                            } else {
+                                format!("Added lock key {key} for preset {preset_id}.")
+                            };
                         }
                     } else {
                         step.key = binding.key;
