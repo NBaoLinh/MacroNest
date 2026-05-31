@@ -19973,11 +19973,13 @@ impl CrosshairApp {
 
     fn collect_vars_from_step(step: &MacroStep, vars: &mut std::collections::HashSet<String>) {
         if step.action == MacroAction::SetVariable {
-            let name = step.key.trim();
+            let name = step.if_variable_name.trim();
 
             if !name.is_empty() {
                 vars.insert(name.to_string());
             }
+
+            Self::extract_vars_from_expression(&step.key, vars);
         }
 
         if !step.if_variable_name.trim().is_empty() {
