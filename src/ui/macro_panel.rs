@@ -15210,7 +15210,7 @@ impl CrosshairApp {
 
                                                          // 3. Pick Area Button (Width ctrl_height, Height ctrl_height)
 
-                                                         let pick_btn = egui::Button::new("ÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â€šÂ¬Ã‚ÂºÃƒâ€šÃ‚Â¶");
+                                                         let pick_btn = egui::Button::new("⛶");
 
                                                          if ui.add_sized([ctrl_height, ctrl_height], pick_btn)
 
