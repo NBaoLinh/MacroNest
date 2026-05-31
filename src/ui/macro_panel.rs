@@ -10446,45 +10446,25 @@ impl CrosshairApp {
 
                                                                  } else if mode == "StopKey" {
 
-                                                                     let response = ui.add_sized(
-
-                                                                         [160.0, 22.0],
-
-                                                                         TextEdit::singleline(&mut step.key).hint_text(
-
-                                                                             RichText::new(Self::tr_lang(
-
-                                                                                 language,
-
-                                                                                 "Stop key",
-
-                                                                                 "PhÃƒÆ’Ã†â€™Ãƒâ€šÃ‚Â­m dÃƒÆ’Ã‚Â¡Ãƒâ€šÃ‚Â»Ãƒâ€šÃ‚Â«ng vÃƒÆ’Ã†â€™Ãƒâ€šÃ‚Â²ng lÃƒÆ’Ã‚Â¡Ãƒâ€šÃ‚ÂºÃƒâ€šÃ‚Â·p",
-
-                                                                             ))
-
-                                                                             .color(hint_color)
-
-                                                                             .italics(),
-
-                                                                         ),
-
-                                                                     );
-
-                                                                     Self::apply_vietnamese_input_if_changed(
-
-                                                                         &response,
-
-                                                                         self.state.vietnamese_input_enabled,
-
-                                                                         self.state.vietnamese_input_mode,
-
+                                                                     let capture_target =
+                                                                         CaptureRequest::MacroPresetHoldStopInput(group.id, preset.id);
+                                                                     let active = capture_target_snapshot == Some(capture_target.clone());
+                                                                     Self::render_key_capture_chips(
+                                                                         ui,
+                                                                         language,
                                                                          &mut step.key,
-
+                                                                         active,
+                                                                         || {
+                                                                             if active {
+                                                                                 cancel_active_capture = true;
+                                                                             } else {
+                                                                                 next_capture_target = Some(capture_target.clone());
+                                                                             }
+                                                                         },
+                                                                         || {
+                                                                             live_sync = true;
+                                                                         },
                                                                      );
-
-                                                                     live_sync |= response.changed();
-
-                                                                     Self::render_variable_suggestions(ui, &response, &mut step.key, &timer_names, language);
 
                                                                  }
 
@@ -11923,7 +11903,7 @@ impl CrosshairApp {
                                                     step.action,
                                                     MacroAction::LockKeys | MacroAction::UnlockKeys
                                                 )
-                                                && !(step.action == MacroAction::StopIfKeyPressed && step.get_break_loop_mode() != "StopKey")
+                                                && !(step.action == MacroAction::StopIfKeyPressed && step.get_break_loop_mode() == "StopKey")
                                             {
 
                                                 let hold_stop_capture_target =
@@ -16013,31 +15993,29 @@ impl CrosshairApp {
 
                                                                  } else if mode == "StopKey" {
 
-                                                                     let response = ui.add_sized(
-
-                                                                         [146.0, 18.0],
-
-                                                                         TextEdit::singleline(&mut step.key)
-
-                                                                             .hint_text(RichText::new(Self::tr_lang(language, "Stop key", "Stop key")).color(hint_color).italics()),
-
-                                                                     );
-
-                                                                     Self::apply_vietnamese_input_if_changed(
-
-                                                                         &response,
-
-                                                                         self.state.vietnamese_input_enabled,
-
-                                                                         self.state.vietnamese_input_mode,
-
+                                                                     let capture_target = CaptureRequest::MacroStepInput {
+                                                                         group_id: group.id,
+                                                                         preset_id: preset.id,
+                                                                         step_index,
+                                                                         extra_cond_index: None,
+                                                                     };
+                                                                     let active = capture_target_snapshot == Some(capture_target.clone());
+                                                                     Self::render_key_capture_chips(
+                                                                         ui,
+                                                                         language,
                                                                          &mut step.key,
-
+                                                                         active,
+                                                                         || {
+                                                                             if active {
+                                                                                 cancel_active_capture = true;
+                                                                             } else {
+                                                                                 next_capture_target = Some(capture_target.clone());
+                                                                             }
+                                                                         },
+                                                                         || {
+                                                                             live_sync = true;
+                                                                         },
                                                                      );
-
-                                                                     live_sync |= response.changed();
-
-                                                                     Self::render_variable_suggestions(ui, &response, &mut step.key, &timer_names, language);
 
                                                                  }
 
@@ -17911,7 +17889,7 @@ impl CrosshairApp {
                                                     step.action,
                                                     MacroAction::LockKeys | MacroAction::UnlockKeys
                                                 )
-                                                && !(step.action == MacroAction::StopIfKeyPressed && step.get_break_loop_mode() != "StopKey")
+                                                && !(step.action == MacroAction::StopIfKeyPressed && step.get_break_loop_mode() == "StopKey")
                                             {
 
                                                 let step_capture_target = CaptureRequest::MacroStepInput {
