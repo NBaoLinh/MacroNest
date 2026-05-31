@@ -498,6 +498,21 @@ impl CrosshairApp {
             });
     }
 
+    fn sanitize_legacy_ocr_target_text(value: &mut String) -> bool {
+        let trimmed = value.trim();
+        if trimmed.is_empty() {
+            return false;
+        }
+        let looks_like_mojibake = ["Ãƒ", "Ã†", "Â", "â€", "â‚¬"]
+            .iter()
+            .any(|marker| trimmed.contains(marker));
+        if !looks_like_mojibake {
+            return false;
+        }
+        value.clear();
+        true
+    }
+
     fn macro_step_preview_summary_line(step: &MacroStep, language: UiLanguage) -> String {
         let mut parts = Vec::new();
 
@@ -3916,6 +3931,8 @@ impl CrosshairApp {
                             "hold-stop-ocr-target-text-if-extra",
                         ));
 
+                        *live_sync |= Self::sanitize_legacy_ocr_target_text(&mut cond.ocr_target_text);
+
                         let response_target = Self::render_variable_text_edit(
                             ui,
                             &mut cond.ocr_target_text,
@@ -3924,7 +3941,7 @@ impl CrosshairApp {
                             180.0,
                             22.0,
                             22.0,
-                            Self::tr_lang(language, "Target text", "TÃƒÆ’Ã‚Â¡Ãƒâ€šÃ‚Â»Ãƒâ€šÃ‚Â« tÃƒÆ’Ã†â€™Ãƒâ€šÃ‚Â¬m"),
+                            Self::tr_lang(language, "Target text", "Van ban can tim"),
                             false,
                         );
 
@@ -11578,6 +11595,10 @@ impl CrosshairApp {
 
                                                                         let var_target_id = ui.id().with("hold-stop-ocr-target-text-if");
 
+                                                                        live_sync |= Self::sanitize_legacy_ocr_target_text(&mut step.ocr_target_text);
+
+                                                                        live_sync |= Self::sanitize_legacy_ocr_target_text(&mut step.ocr_target_text);
+
                                                                         let response_target = Self::render_variable_text_edit(
 
                                                                             ui,
@@ -11594,7 +11615,7 @@ impl CrosshairApp {
 
                                                                             22.0,
 
-                                                                            Self::tr_lang(language, "Target text", "TÃƒÆ’Ã‚Â¡Ãƒâ€šÃ‚Â»Ãƒâ€šÃ‚Â« tÃƒÆ’Ã†â€™Ãƒâ€šÃ‚Â¬m"),
+                                                                            Self::tr_lang(language, "Target text", "Van ban can tim"),
 
                                                                             false,
 
@@ -15009,6 +15030,8 @@ impl CrosshairApp {
 
                                                     };
 
+                                                    live_sync |= Self::sanitize_legacy_ocr_target_text(&mut step.ocr_target_text);
+
                                                     let ctrl_height = ui.spacing().interact_size.y;
 
                                                     // 1. OCR Preset ComboBox (Width 110.0)
@@ -17169,7 +17192,7 @@ impl CrosshairApp {
 
                                                                             22.0,
 
-                                                                            Self::tr_lang(language, "Target text", "TÃƒÆ’Ã‚Â¡Ãƒâ€šÃ‚Â»Ãƒâ€šÃ‚Â« tÃƒÆ’Ã†â€™Ãƒâ€šÃ‚Â¬m"),
+                                                                            Self::tr_lang(language, "Target text", "Van ban can tim"),
 
                                                                             false,
 
