@@ -1,13 +1,12 @@
 use std::{
-    env,
-    fs,
+    env, fs,
     path::{Path, PathBuf},
 };
 
 use anyhow::{Context, Result};
 use directories::ProjectDirs;
 
-use crate::model::{AppState, VisionPreset, ProfileRecord, VietnameseInputMode};
+use crate::model::{AppState, ProfileRecord, VietnameseInputMode, VisionPreset};
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum StateLoadStatus {
@@ -91,14 +90,16 @@ impl AppPaths {
     }
 
     pub fn vision_template_file_for(&self, preset_id: u32) -> PathBuf {
-        self.vision_dir
-            .join(format!("preset-{preset_id}.png"))
+        self.vision_dir.join(format!("preset-{preset_id}.png"))
     }
 
     pub fn load_state(&self) -> Result<(AppState, StateLoadStatus)> {
         // Fallback: Copy interception.dll from local assets folder if not present in bin directory
         if !self.interception_dll.exists() {
-            let local_asset = std::env::current_dir().unwrap_or_default().join("assets").join("interception.dll");
+            let local_asset = std::env::current_dir()
+                .unwrap_or_default()
+                .join("assets")
+                .join("interception.dll");
             if local_asset.exists() {
                 let _ = fs::copy(&local_asset, &self.interception_dll);
             }
@@ -116,7 +117,9 @@ impl AppPaths {
                         eprintln!("state.json was empty; recreating defaults.");
                         (AppState::default(), StateLoadStatus::Loaded)
                     } else {
-                        anyhow::bail!("state.json is invalid: {error}. Please fix the file or restore from a backup to prevent data loss. The application will not start in this state.");
+                        anyhow::bail!(
+                            "state.json is invalid: {error}. Please fix the file or restore from a backup to prevent data loss. The application will not start in this state."
+                        );
                     }
                 }
             }
@@ -142,7 +145,10 @@ impl AppPaths {
             state.selected_profile = state.profiles.first().map(|p| p.name.clone());
         }
         if let Some(selected_name) = state.selected_profile.as_deref() {
-            if let Some(profile) = state.profiles.iter().find(|profile| profile.name == selected_name)
+            if let Some(profile) = state
+                .profiles
+                .iter()
+                .find(|profile| profile.name == selected_name)
             {
                 state.active_style = profile.style.clone();
                 state.active_style.enabled = profile.enabled;
@@ -175,8 +181,7 @@ impl AppPaths {
         }
         if state.vision_presets.is_empty() {
             let mut preset = VisionPreset::default();
-            preset.enabled =
-                state.vision_settings.enabled || self.vision_template_file.exists();
+            preset.enabled = state.vision_settings.enabled || self.vision_template_file.exists();
             preset.hotkey = state.vision_settings.trigger_hotkey.clone();
             preset.click_after_move = state.vision_settings.click_after_move;
             state.vision_presets.push(preset);
@@ -426,7 +431,9 @@ impl AppPaths {
             group.collapsed = true;
             for preset in &mut group.presets {
                 preset.collapsed = true;
-                if preset.hold_stop_step.if_operator.is_empty() || preset.hold_stop_step.if_operator == "=" {
+                if preset.hold_stop_step.if_operator.is_empty()
+                    || preset.hold_stop_step.if_operator == "="
+                {
                     preset.hold_stop_step.if_operator = "==".to_string();
                 }
                 for cond in &mut preset.hold_stop_step.extra_conditions {
@@ -451,26 +458,32 @@ impl AppPaths {
         state.macro_groups.retain(|group| {
             let has_unknown = group.presets.iter().any(|preset| {
                 preset.hold_stop_step.if_condition_type == crate::model::IfConditionType::Unknown
-                    || preset.hold_stop_step.extra_conditions.iter().any(|c| c.condition_type == crate::model::IfConditionType::Unknown)
+                    || preset
+                        .hold_stop_step
+                        .extra_conditions
+                        .iter()
+                        .any(|c| c.condition_type == crate::model::IfConditionType::Unknown)
                     || preset.steps.iter().any(|step| {
                         step.if_condition_type == crate::model::IfConditionType::Unknown
-                            || step.extra_conditions.iter().any(|c| c.condition_type == crate::model::IfConditionType::Unknown)
+                            || step
+                                .extra_conditions
+                                .iter()
+                                .any(|c| c.condition_type == crate::model::IfConditionType::Unknown)
                     })
             });
             !has_unknown
         });
 
-
         // Dọn dẹp triệt để các group rác (không chứa bất kỳ macro/preset có ích nào, bất kể tên là gì)
         state.macro_groups.retain(|group| {
             let has_useful_preset = group.presets.iter().any(|preset| {
-                preset.hotkey.is_some() 
+                preset.hotkey.is_some()
                     || !preset.trigger_keys.trim().is_empty()
                     || preset.steps.iter().any(|step| {
                         (step.action == crate::model::MacroAction::Wait && step.delay_ms > 0)
-                            || (step.action != crate::model::MacroAction::Wait 
+                            || (step.action != crate::model::MacroAction::Wait
                                 && step.action != crate::model::MacroAction::KeyPress)
-                            || (step.action == crate::model::MacroAction::KeyPress 
+                            || (step.action == crate::model::MacroAction::KeyPress
                                 && !step.key.trim().is_empty())
                     })
             });
@@ -645,7 +658,9 @@ fn find_local_opencv_videoio_ffmpeg_plugin() -> Option<PathBuf> {
     }
 
     if let Ok(local_app_data) = env::var("LOCALAPPDATA") {
-        let python_root = PathBuf::from(local_app_data).join("Programs").join("Python");
+        let python_root = PathBuf::from(local_app_data)
+            .join("Programs")
+            .join("Python");
         if let Ok(entries) = fs::read_dir(&python_root) {
             for entry in entries.flatten() {
                 let base = entry.path().join("Lib").join("site-packages").join("cv2");

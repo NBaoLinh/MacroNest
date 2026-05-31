@@ -3,7 +3,7 @@ use base64::{Engine as _, engine::general_purpose::URL_SAFE_NO_PAD};
 use flate2::{Compression, read::DeflateDecoder, write::DeflateEncoder};
 use std::io::{Read, Write};
 
-use crate::model::{MacroStep, MacroPreset, MacroGroup};
+use crate::model::{MacroGroup, MacroPreset, MacroStep};
 
 const PREFIX_STEP: &str = "MN_STEP:";
 const PREFIX_PRESET: &str = "MN_PRESET:";
@@ -14,7 +14,10 @@ pub fn encode_step(step: &MacroStep) -> Result<String> {
     let mut encoder = DeflateEncoder::new(Vec::new(), Compression::fast());
     encoder.write_all(&json)?;
     let compressed = encoder.finish()?;
-    Ok(format!("{PREFIX_STEP}{}", URL_SAFE_NO_PAD.encode(compressed)))
+    Ok(format!(
+        "{PREFIX_STEP}{}",
+        URL_SAFE_NO_PAD.encode(compressed)
+    ))
 }
 
 pub fn decode_step(code: &str) -> Result<MacroStep> {
@@ -40,7 +43,10 @@ pub fn encode_preset(preset: &MacroPreset) -> Result<String> {
     let mut encoder = DeflateEncoder::new(Vec::new(), Compression::fast());
     encoder.write_all(&json)?;
     let compressed = encoder.finish()?;
-    Ok(format!("{PREFIX_PRESET}{}", URL_SAFE_NO_PAD.encode(compressed)))
+    Ok(format!(
+        "{PREFIX_PRESET}{}",
+        URL_SAFE_NO_PAD.encode(compressed)
+    ))
 }
 
 pub fn decode_preset(code: &str) -> Result<MacroPreset> {
@@ -66,7 +72,10 @@ pub fn encode_group(group: &MacroGroup) -> Result<String> {
     let mut encoder = DeflateEncoder::new(Vec::new(), Compression::fast());
     encoder.write_all(&json)?;
     let compressed = encoder.finish()?;
-    Ok(format!("{PREFIX_GROUP}{}", URL_SAFE_NO_PAD.encode(compressed)))
+    Ok(format!(
+        "{PREFIX_GROUP}{}",
+        URL_SAFE_NO_PAD.encode(compressed)
+    ))
 }
 
 pub fn decode_group(code: &str) -> Result<MacroGroup> {

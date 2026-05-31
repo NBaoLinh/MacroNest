@@ -35,11 +35,12 @@ pub fn load_video_metadata(path: &str) -> Result<VideoMetadata> {
     let height = capture.get(CAP_PROP_FRAME_HEIGHT)?.round() as i32;
     let fps = capture.get(CAP_PROP_FPS)?;
     let frame_count = capture.get(CAP_PROP_FRAME_COUNT)?;
-    let duration_ms = if fps.is_finite() && fps > 0.0 && frame_count.is_finite() && frame_count > 0.0 {
-        ((frame_count / fps) * 1000.0).round().max(0.0) as u64
-    } else {
-        0
-    };
+    let duration_ms =
+        if fps.is_finite() && fps > 0.0 && frame_count.is_finite() && frame_count > 0.0 {
+            ((frame_count / fps) * 1000.0).round().max(0.0) as u64
+        } else {
+            0
+        };
 
     Ok(VideoMetadata {
         width,
@@ -209,7 +210,7 @@ pub fn load_video_preview_frame(
     let src_h = source_size.height.max(1);
     let scale = ((max_width.max(1) as f32 / src_w as f32)
         .min(max_height.max(1) as f32 / src_h as f32))
-        .min(1.0);
+    .min(1.0);
     let dst_w = ((src_w as f32 * scale).round() as i32).max(1);
     let dst_h = ((src_h as f32 * scale).round() as i32).max(1);
 

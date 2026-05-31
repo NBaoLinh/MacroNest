@@ -36,17 +36,17 @@ pub fn available_ocr_languages() -> Vec<String> {
 fn friendly_lang_not_installed_msg(language_code: &str) -> String {
     let lang_name = match language_code {
         "en" | "en-US" => "English",
-        "vi"           => "Tiếng Việt",
-        "zh-Hans"      => "简体中文 (Simplified Chinese)",
-        "zh-Hant"      => "繁體中文 (Traditional Chinese)",
-        "ja"           => "日本語 (Japanese)",
-        "ko"           => "한국어 (Korean)",
-        "fr"           => "Français (French)",
-        "de"           => "Deutsch (German)",
-        "es"           => "Español (Spanish)",
-        "ru"           => "Русский (Russian)",
-        "th"           => "ไทย (Thai)",
-        other          => other,
+        "vi" => "Tiếng Việt",
+        "zh-Hans" => "简体中文 (Simplified Chinese)",
+        "zh-Hant" => "繁體中文 (Traditional Chinese)",
+        "ja" => "日本語 (Japanese)",
+        "ko" => "한국어 (Korean)",
+        "fr" => "Français (French)",
+        "de" => "Deutsch (German)",
+        "es" => "Español (Spanish)",
+        "ru" => "Русский (Russian)",
+        "th" => "ไทย (Thai)",
+        other => other,
     };
     format!(
         "Ngôn ngữ OCR '{}' chưa được cài đặt trên Windows.\n\
@@ -58,11 +58,11 @@ fn friendly_lang_not_installed_msg(language_code: &str) -> String {
 
 #[cfg(windows)]
 pub fn perform_ocr(rgba_bytes: &[u8], width: u32, height: u32, lang: &str) -> Result<OcrResult> {
-    use windows::core::HSTRING;
-    use windows::Storage::Streams::{InMemoryRandomAccessStream, DataWriter};
+    use windows::Globalization::Language;
     use windows::Graphics::Imaging::BitmapDecoder;
     use windows::Media::Ocr::OcrEngine;
-    use windows::Globalization::Language;
+    use windows::Storage::Streams::{DataWriter, InMemoryRandomAccessStream};
+    use windows::core::HSTRING;
 
     if rgba_bytes.is_empty() || width == 0 || height == 0 {
         bail!("Empty image or invalid dimensions");
@@ -79,8 +79,11 @@ pub fn perform_ocr(rgba_bytes: &[u8], width: u32, height: u32, lang: &str) -> Re
         scale_factor = if w < 40 || h < 40 { 4 } else { 2 };
         let new_w = w * scale_factor;
         let new_h = h * scale_factor;
-        if let Some(img) = image::ImageBuffer::<image::Rgba<u8>, _>::from_raw(w, h, rgba_vec.clone()) {
-            let resized_img = image::imageops::resize(&img, new_w, new_h, image::imageops::FilterType::Triangle);
+        if let Some(img) =
+            image::ImageBuffer::<image::Rgba<u8>, _>::from_raw(w, h, rgba_vec.clone())
+        {
+            let resized_img =
+                image::imageops::resize(&img, new_w, new_h, image::imageops::FilterType::Triangle);
             rgba_vec = resized_img.into_raw();
             w = new_w;
             h = new_h;
@@ -102,7 +105,7 @@ pub fn perform_ocr(rgba_bytes: &[u8], width: u32, height: u32, lang: &str) -> Re
     writer.WriteBytes(&png_bytes)?;
     writer.StoreAsync()?.get()?;
     writer.FlushAsync()?.get()?;
-    
+
     // Seek to beginning of stream
     stream.Seek(0)?;
 
@@ -120,7 +123,9 @@ pub fn perform_ocr(rgba_bytes: &[u8], width: u32, height: u32, lang: &str) -> Re
                 let language = Language::CreateLanguage(&HSTRING::from("en-US"))?;
                 // Check if English is supported before trying
                 if !OcrEngine::IsLanguageSupported(&language).unwrap_or(false) {
-                    bail!("No OCR language pack is installed on this Windows system. Please go to Settings → Time & Language → Language & Region to install a language with OCR support.");
+                    bail!(
+                        "No OCR language pack is installed on this Windows system. Please go to Settings → Time & Language → Language & Region to install a language with OCR support."
+                    );
                 }
                 match OcrEngine::TryCreateFromLanguage(&language) {
                     Ok(engine) => engine,
@@ -140,7 +145,11 @@ pub fn perform_ocr(rgba_bytes: &[u8], width: u32, height: u32, lang: &str) -> Re
         match OcrEngine::TryCreateFromLanguage(&language) {
             Ok(engine) => engine,
             Err(e) => {
-                bail!("{}\n(Details: {})", friendly_lang_not_installed_msg(language_code), e);
+                bail!(
+                    "{}\n(Details: {})",
+                    friendly_lang_not_installed_msg(language_code),
+                    e
+                );
             }
         }
     };
@@ -172,6 +181,11 @@ pub fn perform_ocr(rgba_bytes: &[u8], width: u32, height: u32, lang: &str) -> Re
 }
 
 #[cfg(not(windows))]
-pub fn perform_ocr(_rgba_bytes: &[u8], _width: u32, _height: u32, _lang: &str) -> Result<OcrResult> {
+pub fn perform_ocr(
+    _rgba_bytes: &[u8],
+    _width: u32,
+    _height: u32,
+    _lang: &str,
+) -> Result<OcrResult> {
     bail!("OCR is only supported on Windows.");
 }

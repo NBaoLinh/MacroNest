@@ -393,8 +393,6 @@ impl CrosshairApp {
                             });
                             ui.end_row();
 
-
-
                             if preset.use_color_matching {
                                 ui.label(Self::tr_lang(language, "Color", "Màu sắc"));
                                 ui.vertical(|ui| {
@@ -754,7 +752,6 @@ impl CrosshairApp {
                                 });
                                 ui.end_row();
                             }
-
 
                         });
 

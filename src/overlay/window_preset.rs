@@ -3,20 +3,20 @@ use std::{thread, time::Duration};
 use anyhow::{Context, Result, bail};
 use windows::Win32::{
     System::Threading::{AttachThreadInput, GetCurrentThreadId},
+    UI::Input::KeyboardAndMouse::{SetActiveWindow, SetFocus},
     UI::WindowsAndMessaging::{
         BringWindowToTop, GA_ROOT, GetAncestor, GetForegroundWindow, GetWindowRect,
-        GetWindowThreadProcessId, HWND_NOTOPMOST, HWND_TOPMOST, IsIconic, SWP_FRAMECHANGED,
-        SWP_NOMOVE, SWP_NOSIZE, SWP_NOACTIVATE, SWP_NOZORDER, SWP_SHOWWINDOW, SW_RESTORE,
+        GetWindowThreadProcessId, HWND_NOTOPMOST, HWND_TOPMOST, IsIconic, SW_RESTORE,
+        SWP_FRAMECHANGED, SWP_NOACTIVATE, SWP_NOMOVE, SWP_NOSIZE, SWP_NOZORDER, SWP_SHOWWINDOW,
         SetForegroundWindow, SetWindowPos, ShowWindow,
     },
-    UI::Input::KeyboardAndMouse::{SetActiveWindow, SetFocus},
 };
 
 use super::{
-    HOOK_STATE, WindowFocusPreset, WindowPreset, calculate_window_bounds,
-    ensure_window_restored, find_target_window_hwnd, is_internal_app_window,
-    replay_held_inputs_after_focus, remove_window_title_bar, resolve_window_target,
-    restore_window_title_bar, window_belongs_to_current_process,
+    HOOK_STATE, WindowFocusPreset, WindowPreset, calculate_window_bounds, ensure_window_restored,
+    find_target_window_hwnd, is_internal_app_window, remove_window_title_bar,
+    replay_held_inputs_after_focus, resolve_window_target, restore_window_title_bar,
+    window_belongs_to_current_process,
 };
 
 pub(super) fn apply_window_preset_by_id(spec: &str) -> Result<()> {

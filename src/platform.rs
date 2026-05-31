@@ -1,9 +1,6 @@
 #[cfg(windows)]
 mod windows_platform {
-    use std::{
-        env,
-        path::Path,
-    };
+    use std::{env, path::Path};
 
     use anyhow::{Result, bail};
     use eframe::Frame;
@@ -13,25 +10,26 @@ mod windows_platform {
             Foundation::{CloseHandle, GetLastError, HANDLE, HWND},
             Graphics::Dwm::{
                 DWMNCRP_DISABLED, DWMNCRP_ENABLED, DWMWA_NCRENDERING_POLICY,
-                DWMWA_WINDOW_CORNER_PREFERENCE, DWMWCP_DEFAULT, DWMWCP_ROUND,
-                DWMWCP_DONOTROUND, DwmSetWindowAttribute,
+                DWMWA_WINDOW_CORNER_PREFERENCE, DWMWCP_DEFAULT, DWMWCP_DONOTROUND, DWMWCP_ROUND,
+                DwmSetWindowAttribute,
             },
             System::Threading::{
                 CreateMutexW, GetCurrentProcess, HIGH_PRIORITY_CLASS, SetPriorityClass,
             },
-            UI::{
-                Shell::{
-                    IsUserAnAdmin, SetCurrentProcessExplicitAppUserModelID, ShellExecuteW, DROPFILES,
-                },
-        WindowsAndMessaging::{
-                    BringWindowToTop, HWND_NOTOPMOST, HWND_TOPMOST, SW_RESTORE, SW_SHOWNORMAL,
-                    SW_HIDE, SWP_NOMOVE, SWP_NOSIZE, SWP_SHOWWINDOW, SetForegroundWindow,
-                    SetWindowPos, ShowWindow,
-                },
-            },
             System::{
                 DataExchange::{CloseClipboard, EmptyClipboard, OpenClipboard, SetClipboardData},
-                Memory::{GlobalAlloc, GlobalLock, GlobalUnlock, GHND},
+                Memory::{GHND, GlobalAlloc, GlobalLock, GlobalUnlock},
+            },
+            UI::{
+                Shell::{
+                    DROPFILES, IsUserAnAdmin, SetCurrentProcessExplicitAppUserModelID,
+                    ShellExecuteW,
+                },
+                WindowsAndMessaging::{
+                    BringWindowToTop, HWND_NOTOPMOST, HWND_TOPMOST, SW_HIDE, SW_RESTORE,
+                    SW_SHOWNORMAL, SWP_NOMOVE, SWP_NOSIZE, SWP_SHOWWINDOW, SetForegroundWindow,
+                    SetWindowPos, ShowWindow,
+                },
             },
         },
         core::{PCWSTR, w},
@@ -182,7 +180,9 @@ mod windows_platform {
 
     pub fn restart_windows() -> Result<()> {
         let system_root = env::var("SystemRoot").unwrap_or_else(|_| "C:\\Windows".to_owned());
-        let shutdown = Path::new(&system_root).join("System32").join("shutdown.exe");
+        let shutdown = Path::new(&system_root)
+            .join("System32")
+            .join("shutdown.exe");
         launch_process_as_admin(&shutdown, Some("/r /t 0"))
     }
 
@@ -313,7 +313,11 @@ mod windows_platform {
             if let Ok(h_text) = GlobalAlloc(GHND, text_bytes) {
                 let p_text = GlobalLock(h_text);
                 if !p_text.is_null() {
-                    std::ptr::copy_nonoverlapping(path_wide.as_ptr() as *const u8, p_text as *mut u8, text_bytes);
+                    std::ptr::copy_nonoverlapping(
+                        path_wide.as_ptr() as *const u8,
+                        p_text as *mut u8,
+                        text_bytes,
+                    );
                     let _ = GlobalUnlock(h_text);
                     let _ = SetClipboardData(13, Some(HANDLE(h_text.0 as *mut _)));
                 }

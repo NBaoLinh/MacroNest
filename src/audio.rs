@@ -152,7 +152,8 @@ impl PreviewState {
         let clip_start_ms = clip.start_ms;
         let clip_end_ms = clip.end_ms.max(clip_start_ms + 1);
         let start_position_ms = start_position_ms.clamp(clip_start_ms, clip_end_ms);
-        let start_frame = ((start_position_ms as f32 / 1000.0) * sample_rate as f32).floor() as usize;
+        let start_frame =
+            ((start_position_ms as f32 / 1000.0) * sample_rate as f32).floor() as usize;
         let start_sample = start_frame.saturating_mul(channels as usize);
         let end_frame = ((clip_end_ms as f32 / 1000.0) * sample_rate as f32).ceil() as usize;
         let end_sample = (end_frame.saturating_mul(channels as usize)).min(cached.samples.len());
@@ -437,10 +438,12 @@ pub fn play_video_audio_preview(path: &str, start_ms: u64, end_ms: u64) -> Resul
     let channels = decoded.channels.max(1);
     let sample_rate = decoded.sample_rate.max(1);
     let clip_end_ms = end_ms.max(start_ms.saturating_add(1));
-    let start_frame =
-        ((start_ms as f64 / 1000.0) * sample_rate as f64).floor().max(0.0) as usize;
-    let end_frame =
-        ((clip_end_ms as f64 / 1000.0) * sample_rate as f64).ceil().max(0.0) as usize;
+    let start_frame = ((start_ms as f64 / 1000.0) * sample_rate as f64)
+        .floor()
+        .max(0.0) as usize;
+    let end_frame = ((clip_end_ms as f64 / 1000.0) * sample_rate as f64)
+        .ceil()
+        .max(0.0) as usize;
     let start_sample = start_frame.saturating_mul(channels as usize);
     let end_sample = end_frame
         .saturating_mul(channels as usize)
@@ -557,7 +560,8 @@ fn preview_state() -> Result<parking_lot::MutexGuard<'static, Option<PreviewStat
     Ok(state)
 }
 
-fn video_preview_state() -> Result<parking_lot::MutexGuard<'static, Option<VideoPreviewAudioState>>> {
+fn video_preview_state() -> Result<parking_lot::MutexGuard<'static, Option<VideoPreviewAudioState>>>
+{
     let mut state = VIDEO_PREVIEW_STATE.lock();
     if state.is_none() {
         *state = Some(VideoPreviewAudioState::new()?);

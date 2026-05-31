@@ -5,17 +5,17 @@ mod app_icon;
 mod audio;
 mod hotkey;
 mod lang;
+mod macro_code;
+mod media;
 mod model;
+mod ocr;
 mod overlay;
 mod platform;
 mod profile_code;
-mod macro_code;
-mod media;
 mod render;
 mod storage;
 mod ui;
 mod window_list;
-mod ocr;
 
 use anyhow::Result;
 use crossbeam_channel::unbounded;
@@ -137,8 +137,10 @@ fn main() -> Result<()> {
     #[cfg(windows)]
     {
         unsafe {
-            use windows::Win32::UI::WindowsAndMessaging::{GetSystemMetrics, SM_CXSCREEN, SM_CYSCREEN};
             use windows::Win32::UI::HiDpi::GetDpiForSystem;
+            use windows::Win32::UI::WindowsAndMessaging::{
+                GetSystemMetrics, SM_CXSCREEN, SM_CYSCREEN,
+            };
             let scr_w = GetSystemMetrics(SM_CXSCREEN) as f32;
             let scr_h = GetSystemMetrics(SM_CYSCREEN) as f32;
             let dpi = GetDpiForSystem() as f32;
@@ -162,11 +164,7 @@ fn main() -> Result<()> {
         Box::new(move |cc| {
             ui::configure_fonts(&cc.egui_ctx);
             Ok(Box::new(CrosshairApp::new(
-                paths,
-                state,
-                overlay_tx,
-                ui_tx,
-                ui_rx,
+                paths, state, overlay_tx, ui_tx, ui_rx,
             )))
         }),
     )
