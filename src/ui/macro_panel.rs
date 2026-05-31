@@ -3477,25 +3477,23 @@ impl CrosshairApp {
         ui.horizontal_wrapped(|ui| {
             let keys = Self::split_key_list(keys_str);
             if keys.is_empty() {
-                let empty_text = if active {
-                    egui::RichText::new(Self::tr_lang(language, "Capturing...", "Đang bắt..."))
-                        .color(egui::Color32::from_rgb(255, 232, 96))
-                        .strong()
+                if active {
+                    ui.label(
+                        egui::RichText::new(Self::tr_lang(language, "Capturing...", "Đang bắt..."))
+                            .color(egui::Color32::from_rgb(255, 232, 96))
+                            .strong(),
+                    );
                 } else {
-                    egui::RichText::new(Self::tr_lang(language, "No key assigned", "Chưa gán phím"))
+                    ui.label(
+                        egui::RichText::new(Self::tr_lang(
+                            language,
+                            "No key assigned",
+                            "Chưa gán phím",
+                        ))
                         .weak()
-                        .italics()
-                };
-
-                let empty_resp = ui.add(egui::Label::new(empty_text).sense(egui::Sense::click()));
-                if !active && empty_resp.clicked() {
-                    on_capture_click();
+                        .italics(),
+                    );
                 }
-                empty_resp.on_hover_text(Self::tr_lang(
-                    language,
-                    "Click to capture one key",
-                    "Bấm để bắt 1 phím",
-                ));
             } else {
                 for key in &keys {
                     let chip_btn = ui
