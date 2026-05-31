@@ -6369,6 +6369,48 @@ impl CrosshairApp {
         )
     }
 
+    fn capture_request_registers_on_press(&self, target: &CaptureRequest) -> bool {
+        match target {
+            CaptureRequest::MacroPresetHoldStopInput(group_id, preset_id) => self
+                .state
+                .macro_groups
+                .iter()
+                .find(|group| group.id == *group_id)
+                .and_then(|group| group.presets.iter().find(|preset| preset.id == *preset_id))
+                .is_some_and(|preset| {
+                    matches!(
+                        preset.hold_stop_step.action,
+                        MacroAction::LockKeys | MacroAction::UnlockKeys
+                    ) || (preset.hold_stop_step.action == MacroAction::StopIfKeyPressed
+                        && preset.hold_stop_step.get_break_loop_mode() == "StopKey")
+                }),
+            CaptureRequest::MacroStepInput {
+                group_id,
+                preset_id,
+                step_index,
+                extra_cond_index,
+            } => {
+                if extra_cond_index.is_some() {
+                    return false;
+                }
+                self.state
+                    .macro_groups
+                    .iter()
+                    .find(|group| group.id == *group_id)
+                    .and_then(|group| {
+                        group.presets.iter().find(|preset| preset.id == *preset_id)
+                    })
+                    .and_then(|preset| preset.steps.get(*step_index))
+                    .is_some_and(|step| {
+                        matches!(step.action, MacroAction::LockKeys | MacroAction::UnlockKeys)
+                            || (step.action == MacroAction::StopIfKeyPressed
+                                && step.get_break_loop_mode() == "StopKey")
+                    })
+            }
+            _ => false,
+        }
+    }
+
     fn split_key_list(value: &str) -> Vec<String> {
         value
             .split(',')
@@ -6855,7 +6897,9 @@ impl CrosshairApp {
                     if matches!(
                         preset.hold_stop_step.action,
                         MacroAction::LockKeys | MacroAction::UnlockKeys
-                    ) {
+                    ) || (preset.hold_stop_step.action == MacroAction::StopIfKeyPressed
+                        && preset.hold_stop_step.get_break_loop_mode() == "StopKey")
+                    {
                         let key = binding.key;
                         let existing = preset
                             .hold_stop_step
@@ -6865,18 +6909,24 @@ impl CrosshairApp {
                             .filter(|part| !part.is_empty())
                             .map(str::to_owned)
                             .collect::<Vec<_>>();
+                        let label = if preset.hold_stop_step.action
+                            == MacroAction::StopIfKeyPressed
+                        {
+                            "hold-stop stop key"
+                        } else {
+                            "hold-stop lock key"
+                        };
                         if existing.iter().any(|part| part.eq_ignore_ascii_case(&key)) {
-                            self.status =
-                                format!("Key {key} is already in that hold-stop lock list.");
+                            self.status = format!("Key {key} is already in that {label} list.");
                         } else if existing.is_empty() {
                             preset.hold_stop_step.key = key.clone();
                             self.status =
-                                format!("Captured hold-stop key {key} for macro {preset_id}.");
+                                format!("Captured {label} {key} for macro {preset_id}.");
                         } else {
                             preset.hold_stop_step.key =
                                 format!("{},{}", preset.hold_stop_step.key.trim(), key);
                             self.status =
-                                format!("Added hold-stop key {key} for macro {preset_id}.");
+                                format!("Added {label} {key} for macro {preset_id}.");
                         }
                     } else {
                         preset.hold_stop_step.key = binding.key.clone();
@@ -6958,6 +7008,8 @@ impl CrosshairApp {
                         self.status =
                             format!("Captured Input Held condition input for preset {preset_id}.");
                     } else if matches!(step.action, MacroAction::LockKeys | MacroAction::UnlockKeys)
+                        || (step.action == MacroAction::StopIfKeyPressed
+                            && step.get_break_loop_mode() == "StopKey")
                     {
                         let key = binding.key;
                         let was_empty = Self::split_key_list(&step.key).is_empty();
@@ -6966,12 +7018,24 @@ impl CrosshairApp {
                                 .iter()
                                 .any(|part| part.eq_ignore_ascii_case(&key))
                         {
-                            self.status = format!("Key {key} is already in that lock list.");
-                        } else if Self::append_key_list_value(&mut step.key, &key) {
-                            self.status = if was_empty {
-                                format!("Captured lock key {key} for preset {preset_id}.")
+                            self.status = if step.action == MacroAction::StopIfKeyPressed {
+                                format!("Key {key} is already in that stop key list.")
                             } else {
-                                format!("Added lock key {key} for preset {preset_id}.")
+                                format!("Key {key} is already in that lock list.")
+                            };
+                        } else if Self::append_key_list_value(&mut step.key, &key) {
+                            self.status = if step.action == MacroAction::StopIfKeyPressed {
+                                if was_empty {
+                                    format!("Captured stop key {key} for preset {preset_id}.")
+                                } else {
+                                    format!("Added stop key {key} for preset {preset_id}.")
+                                }
+                            } else {
+                                if was_empty {
+                                    format!("Captured lock key {key} for preset {preset_id}.")
+                                } else {
+                                    format!("Added lock key {key} for preset {preset_id}.")
+                                }
                             };
                         }
                     } else {
@@ -7137,17 +7201,27 @@ impl CrosshairApp {
             }
         }
 
+        let first_newly_pressed = newly_pressed_keys.first().cloned();
+
         if let Some(pending) = self.capture_hotkey_combo_keys.as_mut() {
-            for key in newly_pressed_keys {
+            for key in &newly_pressed_keys {
                 if !pending
                     .iter()
-                    .any(|existing| existing.eq_ignore_ascii_case(&key))
+                    .any(|existing| existing.eq_ignore_ascii_case(key))
                 {
-                    pending.push(key);
+                    pending.push(key.clone());
                 }
             }
         } else if !newly_pressed_keys.is_empty() {
             self.capture_hotkey_combo_keys = Some(newly_pressed_keys);
+        }
+
+        if let Some(target) = capture_target.as_ref()
+            && self.capture_request_registers_on_press(target)
+            && let Some(key) = first_newly_pressed
+        {
+            self.capture_hotkey_combo_keys = None;
+            return Some(Self::hotkey_binding_from_combo_keys(vec![key]));
         }
 
         if let Some(target) = capture_target

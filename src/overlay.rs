@@ -7898,9 +7898,9 @@ mod windows_overlay {
                     }
 
                     "StopKey" => {
-                        let key = normalize_locked_key(&step.key);
+                        let keys = parse_stop_keys(&step.key);
 
-                        if !key.trim().is_empty() && stop_key_triggered(preset_id, &key) {
+                        if keys.iter().any(|key| stop_key_triggered(preset_id, key)) {
                             return MacroRunFlow::BreakLoop;
                         }
                     }
@@ -8378,9 +8378,9 @@ mod windows_overlay {
                     }
 
                     "StopKey" => {
-                        let key = normalize_locked_key(&step.key);
+                        let keys = parse_stop_keys(&step.key);
 
-                        if !key.trim().is_empty() && stop_key_triggered(preset_id, &key) {
+                        if keys.iter().any(|key| stop_key_triggered(preset_id, key)) {
                             return MacroRunFlow::BreakLoop;
                         }
                     }
@@ -10426,6 +10426,30 @@ mod windows_overlay {
             return trimmed
                 .chars()
                 .map(|ch| normalize_locked_key(&ch.to_string()))
+                .collect();
+        }
+
+        vec![normalize_locked_key(trimmed)]
+    }
+
+    fn parse_stop_keys(spec: &str) -> Vec<String> {
+        let trimmed = spec.trim();
+
+        if trimmed.is_empty() {
+            return Vec::new();
+        }
+
+        let has_separator = trimmed
+            .chars()
+            .any(|ch| matches!(ch, ',' | ';' | '+' | ' ' | '\t' | '\n'));
+
+        if has_separator {
+            return trimmed
+                .split(|ch: char| matches!(ch, ',' | ';' | '+' | ' ' | '\t' | '\n'))
+                .filter_map(|part| {
+                    let key = part.trim();
+                    (!key.is_empty()).then(|| normalize_locked_key(key))
+                })
                 .collect();
         }
 
