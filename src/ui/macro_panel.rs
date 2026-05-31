@@ -3474,7 +3474,7 @@ impl CrosshairApp {
             "NumpadDivide",
         ];
 
-        ui.horizontal_wrapped(|ui| {
+        ui.horizontal(|ui| {
             let capture_btn = ui
                 .add_sized(
                     [22.0, 22.0],
@@ -3572,7 +3572,9 @@ impl CrosshairApp {
                 "Manually add a key",
                 "Thêm phím thủ công",
             ));
+        });
 
+        ui.horizontal_wrapped(|ui| {
             let keys = Self::split_key_list(keys_str);
             if keys.is_empty() {
                 if active {
