@@ -11718,7 +11718,7 @@ impl CrosshairApp {
 
                                                                   let var_name_id = ui.id().with("hold-stop-set-var-name");
 
-                                                                  let response = Self::render_variable_text_edit(
+                                                                  let response = Self::render_plain_text_edit(
 
                                                                       ui,
 
@@ -17297,7 +17297,7 @@ impl CrosshairApp {
 
                                                                   let var_name_id = ui.id().with((step_index, "regular-set-var-name"));
 
-                                                                  let response = Self::render_variable_text_edit(
+                                                                  let response = Self::render_plain_text_edit(
 
                                                                       ui,
 
@@ -21622,6 +21622,39 @@ impl CrosshairApp {
             hint,
             multiline_on_focus,
             true,
+        )
+    }
+
+    fn render_plain_text_edit(
+        ui: &mut egui::Ui,
+
+        text: &mut String,
+
+        id: egui::Id,
+
+        normal_width: f32,
+
+        expanded_width: f32,
+
+        normal_height: f32,
+
+        expanded_height: f32,
+
+        hint: &str,
+
+        multiline_on_focus: bool,
+    ) -> egui::Response {
+        Self::render_expandable_text_edit_impl(
+            ui,
+            text,
+            id,
+            normal_width,
+            expanded_width,
+            normal_height,
+            expanded_height,
+            hint,
+            multiline_on_focus,
+            false,
         )
     }
 
