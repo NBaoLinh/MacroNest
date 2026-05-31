@@ -513,6 +513,25 @@ impl CrosshairApp {
         true
     }
 
+    fn sanitize_legacy_macro_ocr_target_texts(&mut self) -> bool {
+        let mut changed = false;
+        for group in &mut self.state.macro_groups {
+            for preset in &mut group.presets {
+                changed |= Self::sanitize_legacy_ocr_target_text(&mut preset.hold_stop_step.ocr_target_text);
+                for cond in &mut preset.hold_stop_step.extra_conditions {
+                    changed |= Self::sanitize_legacy_ocr_target_text(&mut cond.ocr_target_text);
+                }
+                for step in &mut preset.steps {
+                    changed |= Self::sanitize_legacy_ocr_target_text(&mut step.ocr_target_text);
+                    for cond in &mut step.extra_conditions {
+                        changed |= Self::sanitize_legacy_ocr_target_text(&mut cond.ocr_target_text);
+                    }
+                }
+            }
+        }
+        changed
+    }
+
     fn macro_step_preview_summary_line(step: &MacroStep, language: UiLanguage) -> String {
         let mut parts = Vec::new();
 
@@ -4364,6 +4383,11 @@ impl CrosshairApp {
 
     pub(crate) fn render_macro_panel(&mut self, ui: &mut egui::Ui) {
         let language = self.state.ui_language;
+
+        if self.sanitize_legacy_macro_ocr_target_texts() {
+            self.sync_macro_presets();
+            self.persist();
+        }
 
         let timer_names: Vec<String> = self
             .state
