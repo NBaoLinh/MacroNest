@@ -11463,7 +11463,7 @@ mod windows_overlay {
 
         match step.action {
             MacroAction::MouseMoveAbsolute => {
-                return send_mouse_move_absolute(step.x, step.y);
+                return send_mouse_move_absolute(step.get_x(), step.get_y());
             }
 
             MacroAction::MouseMoveRelative => {

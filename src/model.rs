@@ -564,6 +564,10 @@ pub struct MacroStep {
     pub enabled: bool,
     pub x: i32,
     pub y: i32,
+    #[serde(default)]
+    pub x_expr: String,
+    #[serde(default)]
+    pub y_expr: String,
     pub text_override: String,
     #[serde(default, alias = "custom_preset_command")]
     pub command_preset_command: String,
@@ -686,6 +690,8 @@ impl Default for MacroStep {
             enabled: true,
             x: 0,
             y: 0,
+            x_expr: String::new(),
+            y_expr: String::new(),
             text_override: String::new(),
             command_preset_command: String::new(),
             command_preset_use_powershell: false,
@@ -776,6 +782,24 @@ impl MacroStep {
         } else {
             self.delay_ms
         }
+    }
+
+    pub fn get_x(&self) -> i32 {
+        Self::resolve_i32_expression(&self.x_expr).unwrap_or(self.x)
+    }
+
+    pub fn get_y(&self) -> i32 {
+        Self::resolve_i32_expression(&self.y_expr).unwrap_or(self.y)
+    }
+
+    fn resolve_i32_expression(expr: &str) -> Option<i32> {
+        let trimmed = expr.trim();
+        if trimmed.is_empty() {
+            return None;
+        }
+
+        let interpolated = crate::overlay::interpolate_variables(trimmed);
+        Some(crate::overlay::evaluate_math_expression(&interpolated))
     }
 
     pub fn is_infinite_loop(&self) -> bool {

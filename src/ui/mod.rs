@@ -7078,6 +7078,8 @@ impl CrosshairApp {
                     step.action = captured_step.action;
                     step.x = captured_step.x;
                     step.y = captured_step.y;
+                    step.x_expr = captured_step.x_expr;
+                    step.y_expr = captured_step.y_expr;
                     self.status = format!("Captured step input for preset {preset_id}.");
                 }
                 self.sync_macro_presets();

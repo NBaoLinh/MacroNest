@@ -916,6 +916,8 @@ impl CrosshairApp {
 
         step.x = screen_x;
         step.y = screen_y;
+        step.x_expr = screen_x.to_string();
+        step.y_expr = screen_y.to_string();
         step.action = MacroAction::MouseMoveAbsolute;
         self.mouse_move_absolute_capture_target = None;
         self.mouse_move_absolute_capture_wait_for_mouse_release = false;

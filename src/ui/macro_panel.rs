@@ -553,7 +553,7 @@ impl CrosshairApp {
             step.action,
             MacroAction::MouseMoveAbsolute | MacroAction::MouseMoveRelative
         ) {
-            parts.push(format!("({}, {})", step.x, step.y));
+            parts.push(format!("({}, {})", step.get_x(), step.get_y()));
         }
 
         if step.action == MacroAction::ShowHud && !step.text_override.trim().is_empty() {
@@ -11893,17 +11893,85 @@ impl CrosshairApp {
 
                                             if Self::macro_action_uses_position(step.action) {
 
-                                                live_sync |= ui
+                                                if step.action == MacroAction::MouseMoveAbsolute {
 
-                                                    .add_sized([58.0, 22.0], DragValue::new(&mut step.x).range(-30000..=30000))
+                                                    Self::ensure_mouse_move_absolute_coordinate_exprs(step);
 
-                                                    .changed();
+                                                    let x_id = ui.id().with((group.id, preset.id, "hold-stop-move-abs-x-22"));
+                                                    let x_response = Self::render_variable_text_edit(
+                                                        ui,
+                                                        &mut step.x_expr,
+                                                        x_id,
+                                                        58.0,
+                                                        150.0,
+                                                        22.0,
+                                                        22.0,
+                                                        "X",
+                                                        false,
+                                                    );
+                                                    Self::apply_vietnamese_input_if_changed(
+                                                        &x_response,
+                                                        self.state.vietnamese_input_enabled,
+                                                        self.state.vietnamese_input_mode,
+                                                        &mut step.x_expr,
+                                                    );
+                                                    if x_response.changed() {
+                                                        Self::sync_coordinate_expr_to_value(&step.x_expr, &mut step.x);
+                                                        live_sync = true;
+                                                    }
+                                                    Self::render_variable_suggestions(
+                                                        ui,
+                                                        &x_response,
+                                                        &mut step.x_expr,
+                                                        &timer_names,
+                                                        language,
+                                                    );
 
-                                                live_sync |= ui
+                                                    let y_id = ui.id().with((group.id, preset.id, "hold-stop-move-abs-y-22"));
+                                                    let y_response = Self::render_variable_text_edit(
+                                                        ui,
+                                                        &mut step.y_expr,
+                                                        y_id,
+                                                        58.0,
+                                                        150.0,
+                                                        22.0,
+                                                        22.0,
+                                                        "Y",
+                                                        false,
+                                                    );
+                                                    Self::apply_vietnamese_input_if_changed(
+                                                        &y_response,
+                                                        self.state.vietnamese_input_enabled,
+                                                        self.state.vietnamese_input_mode,
+                                                        &mut step.y_expr,
+                                                    );
+                                                    if y_response.changed() {
+                                                        Self::sync_coordinate_expr_to_value(&step.y_expr, &mut step.y);
+                                                        live_sync = true;
+                                                    }
+                                                    Self::render_variable_suggestions(
+                                                        ui,
+                                                        &y_response,
+                                                        &mut step.y_expr,
+                                                        &timer_names,
+                                                        language,
+                                                    );
 
-                                                    .add_sized([58.0, 22.0], DragValue::new(&mut step.y).range(-30000..=30000))
+                                                } else {
 
-                                                    .changed();
+                                                    live_sync |= ui
+
+                                                        .add_sized([58.0, 22.0], DragValue::new(&mut step.x).range(-30000..=30000))
+
+                                                        .changed();
+
+                                                    live_sync |= ui
+
+                                                        .add_sized([58.0, 22.0], DragValue::new(&mut step.y).range(-30000..=30000))
+
+                                                        .changed();
+
+                                                }
 
                                             } else if step.action == MacroAction::ShowHud {
 
@@ -17491,29 +17559,99 @@ impl CrosshairApp {
 
                                             if action_uses_position {
 
-                                                live_sync |= ui
+                                                if step.action == MacroAction::MouseMoveAbsolute {
 
-                                                    .add_sized(
+                                                    Self::ensure_mouse_move_absolute_coordinate_exprs(step);
 
-                                                        [48.0, 18.0],
+                                                    let x_id =
+                                                        ui.id().with((group.id, preset.id, step_index, "move-abs-x-18"));
+                                                    let x_response = Self::render_variable_text_edit(
+                                                        ui,
+                                                        &mut step.x_expr,
+                                                        x_id,
+                                                        48.0,
+                                                        140.0,
+                                                        18.0,
+                                                        18.0,
+                                                        "X",
+                                                        false,
+                                                    );
+                                                    Self::apply_vietnamese_input_if_changed(
+                                                        &x_response,
+                                                        self.state.vietnamese_input_enabled,
+                                                        self.state.vietnamese_input_mode,
+                                                        &mut step.x_expr,
+                                                    );
+                                                    if x_response.changed() {
+                                                        Self::sync_coordinate_expr_to_value(&step.x_expr, &mut step.x);
+                                                        live_sync = true;
+                                                    }
+                                                    Self::render_variable_suggestions(
+                                                        ui,
+                                                        &x_response,
+                                                        &mut step.x_expr,
+                                                        &timer_names,
+                                                        language,
+                                                    );
 
-                                                        DragValue::new(&mut step.x).range(-30000..=30000),
+                                                    let y_id =
+                                                        ui.id().with((group.id, preset.id, step_index, "move-abs-y-18"));
+                                                    let y_response = Self::render_variable_text_edit(
+                                                        ui,
+                                                        &mut step.y_expr,
+                                                        y_id,
+                                                        48.0,
+                                                        140.0,
+                                                        18.0,
+                                                        18.0,
+                                                        "Y",
+                                                        false,
+                                                    );
+                                                    Self::apply_vietnamese_input_if_changed(
+                                                        &y_response,
+                                                        self.state.vietnamese_input_enabled,
+                                                        self.state.vietnamese_input_mode,
+                                                        &mut step.y_expr,
+                                                    );
+                                                    if y_response.changed() {
+                                                        Self::sync_coordinate_expr_to_value(&step.y_expr, &mut step.y);
+                                                        live_sync = true;
+                                                    }
+                                                    Self::render_variable_suggestions(
+                                                        ui,
+                                                        &y_response,
+                                                        &mut step.y_expr,
+                                                        &timer_names,
+                                                        language,
+                                                    );
 
-                                                    )
+                                                } else {
 
-                                                    .changed();
+                                                    live_sync |= ui
 
-                                                live_sync |= ui
+                                                        .add_sized(
 
-                                                    .add_sized(
+                                                            [48.0, 18.0],
 
-                                                        [48.0, 18.0],
+                                                            DragValue::new(&mut step.x).range(-30000..=30000),
 
-                                                        DragValue::new(&mut step.y).range(-30000..=30000),
+                                                        )
 
-                                                    )
+                                                        .changed();
 
-                                                    .changed();
+                                                    live_sync |= ui
+
+                                                        .add_sized(
+
+                                                            [48.0, 18.0],
+
+                                                            DragValue::new(&mut step.y).range(-30000..=30000),
+
+                                                        )
+
+                                                        .changed();
+
+                                                }
 
                                                 if step.action == MacroAction::MouseMoveAbsolute {
 
@@ -19731,6 +19869,8 @@ impl CrosshairApp {
         }
 
         Self::extract_braced_vars(&step.delay_expr, vars);
+        Self::extract_braced_vars(&step.x_expr, vars);
+        Self::extract_braced_vars(&step.y_expr, vars);
 
         Self::extract_braced_vars(&step.text_override, vars);
 
@@ -20199,6 +20339,33 @@ impl CrosshairApp {
         } else {
             format!("{} - {}", trimmed, -delta)
         }
+    }
+
+    fn ensure_mouse_move_absolute_coordinate_exprs(step: &mut MacroStep) {
+        if step.x_expr.trim().is_empty() {
+            step.x_expr = step.x.to_string();
+        }
+
+        if step.y_expr.trim().is_empty() {
+            step.y_expr = step.y.to_string();
+        }
+    }
+
+    fn sync_coordinate_expr_to_value(expr: &str, value: &mut i32) {
+        let trimmed = expr.trim();
+
+        if trimmed.is_empty() {
+            *value = 0;
+            return;
+        }
+
+        if let Ok(parsed) = trimmed.parse::<i32>() {
+            *value = parsed;
+            return;
+        }
+
+        let interpolated = crate::overlay::interpolate_variables(trimmed);
+        *value = crate::overlay::evaluate_math_expression(&interpolated);
     }
 
     fn builtin_variable_suggestions() -> &'static [&'static str] {
