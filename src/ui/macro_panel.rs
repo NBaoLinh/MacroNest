@@ -11941,16 +11941,13 @@ impl CrosshairApp {
                                                         ),
                                                     );
                                                     let x_id = ui.id().with((group.id, preset.id, "hold-stop-move-abs-x-22"));
-                                                    let x_response = Self::render_plain_text_edit(
+                                                    let x_response = Self::render_compact_plain_text_edit(
                                                         ui,
                                                         &mut step.x_expr,
                                                         x_id,
                                                         58.0,
-                                                        150.0,
-                                                        22.0,
                                                         22.0,
                                                         "X value or {var}",
-                                                        false,
                                                     );
                                                     Self::apply_vietnamese_input_if_changed(
                                                         &x_response,
@@ -11979,16 +11976,13 @@ impl CrosshairApp {
                                                         ),
                                                     );
                                                     let y_id = ui.id().with((group.id, preset.id, "hold-stop-move-abs-y-22"));
-                                                    let y_response = Self::render_plain_text_edit(
+                                                    let y_response = Self::render_compact_plain_text_edit(
                                                         ui,
                                                         &mut step.y_expr,
                                                         y_id,
                                                         58.0,
-                                                        150.0,
-                                                        22.0,
                                                         22.0,
                                                         "Y value or {var}",
-                                                        false,
                                                     );
                                                     Self::apply_vietnamese_input_if_changed(
                                                         &y_response,
@@ -17628,16 +17622,13 @@ impl CrosshairApp {
                                                     );
                                                     let x_id =
                                                         ui.id().with((group.id, preset.id, step_index, "move-abs-x-18"));
-                                                    let x_response = Self::render_plain_text_edit(
+                                                    let x_response = Self::render_compact_plain_text_edit(
                                                         ui,
                                                         &mut step.x_expr,
                                                         x_id,
                                                         48.0,
-                                                        140.0,
-                                                        18.0,
                                                         18.0,
                                                         "X value or {var}",
-                                                        false,
                                                     );
                                                     Self::apply_vietnamese_input_if_changed(
                                                         &x_response,
@@ -17667,16 +17658,13 @@ impl CrosshairApp {
                                                     );
                                                     let y_id =
                                                         ui.id().with((group.id, preset.id, step_index, "move-abs-y-18"));
-                                                    let y_response = Self::render_plain_text_edit(
+                                                    let y_response = Self::render_compact_plain_text_edit(
                                                         ui,
                                                         &mut step.y_expr,
                                                         y_id,
                                                         48.0,
-                                                        140.0,
-                                                        18.0,
                                                         18.0,
                                                         "Y value or {var}",
-                                                        false,
                                                     );
                                                     Self::apply_vietnamese_input_if_changed(
                                                         &y_response,
@@ -21649,6 +21637,24 @@ impl CrosshairApp {
             multiline_on_focus,
             false,
         )
+    }
+
+    fn render_compact_plain_text_edit(
+        ui: &mut egui::Ui,
+        text: &mut String,
+        id: egui::Id,
+        width: f32,
+        height: f32,
+        hint: &str,
+    ) -> egui::Response {
+        let prev_override = ui.visuals().override_text_color;
+        ui.visuals_mut().override_text_color = None;
+        let response = ui.add_sized(
+            [width, height],
+            egui::TextEdit::singleline(text).hint_text(hint).id(id),
+        );
+        ui.visuals_mut().override_text_color = prev_override;
+        response
     }
 
     fn render_expandable_command_text_edit(
