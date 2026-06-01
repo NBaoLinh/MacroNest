@@ -1054,6 +1054,8 @@ mod windows_overlay {
         events: Vec<MousePathEvent>,
 
         dirty: bool,
+
+        movement_only: bool,
     }
 
     struct MousePathPreviewSession {
@@ -2869,6 +2871,8 @@ mod windows_overlay {
                     events: Vec::new(),
 
                     dirty: true,
+
+                    movement_only: false,
                 });
 
                 None
@@ -2934,13 +2938,9 @@ mod windows_overlay {
             *guard = Some(MouseRecordingSession {
                 preset_id: session.preset_id,
                 last_event_at: Instant::now(),
-                events: vec![MousePathEvent {
-                    kind: MousePathEventKind::LeftDown,
-                    x: point.x,
-                    y: point.y,
-                    delay_ms: 0,
-                }],
+                events: Vec::new(),
                 dirty: true,
+                movement_only: true,
             });
         }
 
@@ -3377,6 +3377,10 @@ mod windows_overlay {
         let Some(kind) = kind else {
             return;
         };
+
+        if session.movement_only && !matches!(kind, MousePathEventKind::Move) {
+            return;
+        }
 
         if matches!(kind, MousePathEventKind::Move)
             && session.events.last().is_some_and(|last| {
