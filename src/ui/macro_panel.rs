@@ -2240,7 +2240,8 @@ impl CrosshairApp {
                         let left_expr = cond.variable_name.trim();
 
                         if !left_expr.is_empty() {
-                            let left_val = crate::overlay::evaluate_math_expression(left_expr);
+                            let left_val =
+                                crate::overlay::evaluate_interpolated_math_expression(left_expr);
 
                             ui.add_space(2.0);
 
@@ -9476,7 +9477,7 @@ impl CrosshairApp {
 
                                                                       if !left_expr.is_empty() {
 
-                                                                          let left_val = crate::overlay::evaluate_math_expression(left_expr);
+                                                                          let left_val = crate::overlay::evaluate_interpolated_math_expression(left_expr);
 
                                                                           ui.add_space(2.0);
 
@@ -14962,7 +14963,7 @@ impl CrosshairApp {
 
                                                                        if !left_expr.is_empty() {
 
-                                                                           let left_val = crate::overlay::evaluate_math_expression(left_expr);
+                                                                           let left_val = crate::overlay::evaluate_interpolated_math_expression(left_expr);
 
                                                                            ui.add_space(2.0);
 

@@ -424,6 +424,11 @@ mod windows_overlay {
         result
     }
 
+    pub(crate) fn evaluate_interpolated_math_expression(expr: &str) -> i32 {
+        let interpolated = interpolate_variables(expr.trim());
+        evaluate_math_expression(&interpolated)
+    }
+
     #[derive(Debug, Clone)]
 
     pub enum OverlayCommand {
@@ -9301,7 +9306,7 @@ mod windows_overlay {
                         if expr.trim().is_empty() {
                             fallback
                         } else {
-                            evaluate_math_expression(expr)
+                            evaluate_interpolated_math_expression(expr)
                         }
                     };
 
@@ -9409,7 +9414,7 @@ mod windows_overlay {
                             if expr.trim().is_empty() {
                                 fallback
                             } else {
-                                evaluate_math_expression(expr)
+                                evaluate_interpolated_math_expression(expr)
                             }
                         };
 
@@ -10661,6 +10666,26 @@ mod windows_overlay {
             assert_eq!(interpolate_variables("test {A + B * 2}"), "test 540");
 
             assert_eq!(interpolate_variables("test {C}"), "test 0");
+        }
+
+        #[test]
+        fn test_evaluate_interpolated_math_expression() {
+            {
+                let mut vars = RUNTIME_VARIABLES.lock();
+                vars.insert("x".to_string(), 1660);
+                vars.insert("x1".to_string(), 1555);
+                vars.insert("y".to_string(), 555);
+                vars.insert("y1".to_string(), 520);
+            }
+
+            assert_eq!(evaluate_interpolated_math_expression("{x-x1}"), 105);
+            assert_eq!(evaluate_interpolated_math_expression("{y-y1}"), 35);
+            assert_eq!(evaluate_interpolated_math_expression("{x-x1} + {y-y1}"), 140);
+
+            {
+                let mut vars = RUNTIME_VARIABLES.lock();
+                vars.clear();
+            }
         }
 
         #[test]
