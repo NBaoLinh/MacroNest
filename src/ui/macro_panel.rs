@@ -11922,16 +11922,19 @@ impl CrosshairApp {
                                                     };
 
                                                     let x_id = ui.id().with((group.id, preset.id, "hold-stop-move-abs-x-22"));
-                                                    let x_response = Self::render_coordinate_compact_input(
-                                                        ui,
-                                                        "X",
-                                                        Color32::from_rgb(86, 198, 255),
-                                                        &mut step.x_expr,
-                                                        x_id,
-                                                        58.0,
-                                                        22.0,
-                                                        x_hint,
-                                                    );
+                                                    let y_id = ui.id().with((group.id, preset.id, "hold-stop-move-abs-y-22"));
+                                                    let (x_response, y_response) =
+                                                        Self::render_coordinate_compact_pair(
+                                                            ui,
+                                                            &mut step.x_expr,
+                                                            x_id,
+                                                            x_hint,
+                                                            &mut step.y_expr,
+                                                            y_id,
+                                                            y_hint,
+                                                            58.0,
+                                                            22.0,
+                                                        );
                                                     Self::apply_vietnamese_input_if_changed(
                                                         &x_response,
                                                         self.state.vietnamese_input_enabled,
@@ -11948,18 +11951,6 @@ impl CrosshairApp {
                                                         &mut step.x_expr,
                                                         &timer_names,
                                                         language,
-                                                    );
-
-                                                    let y_id = ui.id().with((group.id, preset.id, "hold-stop-move-abs-y-22"));
-                                                    let y_response = Self::render_coordinate_compact_input(
-                                                        ui,
-                                                        "Y",
-                                                        Color32::from_rgb(255, 185, 92),
-                                                        &mut step.y_expr,
-                                                        y_id,
-                                                        58.0,
-                                                        22.0,
-                                                        y_hint,
                                                     );
                                                     Self::apply_vietnamese_input_if_changed(
                                                         &y_response,
@@ -17594,16 +17585,20 @@ impl CrosshairApp {
 
                                                     let x_id =
                                                         ui.id().with((group.id, preset.id, step_index, "move-abs-x-18"));
-                                                    let x_response = Self::render_coordinate_compact_input(
-                                                        ui,
-                                                        "X",
-                                                        Color32::from_rgb(86, 198, 255),
-                                                        &mut step.x_expr,
-                                                        x_id,
-                                                        48.0,
-                                                        18.0,
-                                                        x_hint,
-                                                    );
+                                                    let y_id =
+                                                        ui.id().with((group.id, preset.id, step_index, "move-abs-y-18"));
+                                                    let (x_response, y_response) =
+                                                        Self::render_coordinate_compact_pair(
+                                                            ui,
+                                                            &mut step.x_expr,
+                                                            x_id,
+                                                            x_hint,
+                                                            &mut step.y_expr,
+                                                            y_id,
+                                                            y_hint,
+                                                            48.0,
+                                                            18.0,
+                                                        );
                                                     Self::apply_vietnamese_input_if_changed(
                                                         &x_response,
                                                         self.state.vietnamese_input_enabled,
@@ -17620,19 +17615,6 @@ impl CrosshairApp {
                                                         &mut step.x_expr,
                                                         &timer_names,
                                                         language,
-                                                    );
-
-                                                    let y_id =
-                                                        ui.id().with((group.id, preset.id, step_index, "move-abs-y-18"));
-                                                    let y_response = Self::render_coordinate_compact_input(
-                                                        ui,
-                                                        "Y",
-                                                        Color32::from_rgb(255, 185, 92),
-                                                        &mut step.y_expr,
-                                                        y_id,
-                                                        48.0,
-                                                        18.0,
-                                                        y_hint,
                                                     );
                                                     Self::apply_vietnamese_input_if_changed(
                                                         &y_response,
@@ -21611,6 +21593,48 @@ impl CrosshairApp {
                     egui::Label::new(egui::RichText::new(label).strong().color(label_color)),
                 );
                 Self::render_compact_plain_text_edit(ui, text, id, width, height, hint)
+            },
+        )
+        .inner
+    }
+
+    fn render_coordinate_compact_pair(
+        ui: &mut egui::Ui,
+        x_text: &mut String,
+        x_id: egui::Id,
+        x_hint: &str,
+        y_text: &mut String,
+        y_id: egui::Id,
+        y_hint: &str,
+        width: f32,
+        height: f32,
+    ) -> (egui::Response, egui::Response) {
+        ui.allocate_ui_with_layout(
+            vec2((16.0 + width) * 2.0 + 4.0, height),
+            egui::Layout::left_to_right(egui::Align::Center),
+            |ui| {
+                ui.spacing_mut().item_spacing.x = 4.0;
+                let x_response = Self::render_coordinate_compact_input(
+                    ui,
+                    "X",
+                    Color32::from_rgb(86, 198, 255),
+                    x_text,
+                    x_id,
+                    width,
+                    height,
+                    x_hint,
+                );
+                let y_response = Self::render_coordinate_compact_input(
+                    ui,
+                    "Y",
+                    Color32::from_rgb(255, 185, 92),
+                    y_text,
+                    y_id,
+                    width,
+                    height,
+                    y_hint,
+                );
+                (x_response, y_response)
             },
         )
         .inner
