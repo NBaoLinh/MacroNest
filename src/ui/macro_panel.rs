@@ -19505,9 +19505,7 @@ impl CrosshairApp {
                         .map_or(false, |pos| rect.contains(pos))
                 });
 
-                let mouse_down = ui.input(|i| i.pointer.any_down());
-
-                if !hover && mouse_down {
+                if !hover {
                     popup_open = false;
                 }
             } else {
@@ -19516,6 +19514,7 @@ impl CrosshairApp {
         }
 
         if !popup_open {
+            ui.memory_mut(|mem| mem.data.insert_temp(popup_open_key, false));
             return;
         }
 
@@ -19839,9 +19838,7 @@ impl CrosshairApp {
                         .map_or(false, |pos| rect.contains(pos))
                 });
 
-                let mouse_down = ui.input(|i| i.pointer.any_down());
-
-                if !hover && mouse_down {
+                if !hover {
                     popup_open = false;
                 }
             } else {
@@ -19850,6 +19847,7 @@ impl CrosshairApp {
         }
 
         if !popup_open {
+            ui.memory_mut(|mem| mem.data.insert_temp(popup_open_key, false));
             return;
         }
 
