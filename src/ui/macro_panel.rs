@@ -16148,6 +16148,14 @@ impl CrosshairApp {
 
                                             } else if step.action == MacroAction::PlayMousePathPreset {
 
+                                                if step.mouse_speed_expr.trim().is_empty() {
+                                                    step.mouse_speed_expr =
+                                                        MacroStep::format_mouse_speed_multiplier(
+                                                            step.get_mouse_speed_multiplier(),
+                                                        );
+                                                    live_sync = true;
+                                                }
+
                                                 live_sync |= ui
 
                                                     .checkbox(
@@ -16174,26 +16182,50 @@ impl CrosshairApp {
                                                 )
                                                 .on_hover_text(Self::tr_lang(
                                                     language,
-                                                    "Smooth speed. 100% keeps the normal smooth playback speed, 200% is 2x faster, and 50% is half speed.",
-                                                    "Toc do Smooth. 100% giu toc do smooth mac dinh, 200% nhanh gap doi, 50% la nua toc do.",
+                                                    "Smooth multiplier. Use values like x1, x1.2, x2, or {var}.",
+                                                    "He so Smooth. Dung cac gia tri nhu x1, x1.2, x2, hoac {var}.",
                                                 ));
                                                 live_sync |= ui
                                                     .add_enabled_ui(step.smooth_mouse_path, |ui| {
-                                                        ui.add_sized(
-                                                            [64.0, 18.0],
-                                                            DragValue::new(
-                                                                &mut step.mouse_speed_percent,
-                                                            )
-                                                            .range(10..=1000)
-                                                            .update_while_editing(true)
-                                                            .suffix("%"),
-                                                        )
+                                                        let speed_id =
+                                                            ui.id().with((step_index, "mouse-speed"));
+                                                        let response = Self::render_interpolated_text_edit(
+                                                            ui,
+                                                            &mut step.mouse_speed_expr,
+                                                            speed_id,
+                                                            72.0,
+                                                            120.0,
+                                                            18.0,
+                                                            18.0,
+                                                            "x1",
+                                                            false,
+                                                        );
+                                                        Self::apply_vietnamese_input_if_changed(
+                                                            &response,
+                                                            self.state.vietnamese_input_enabled,
+                                                            self.state.vietnamese_input_mode,
+                                                            &mut step.mouse_speed_expr,
+                                                        );
+                                                        if response.changed() {
+                                                            if let Some(multiplier) =
+                                                                MacroStep::resolve_mouse_speed_multiplier(
+                                                                    &step.mouse_speed_expr,
+                                                                )
+                                                            {
+                                                                step.mouse_speed_percent =
+                                                                    (multiplier * 100.0)
+                                                                        .round()
+                                                                        .clamp(10.0, 10_000.0)
+                                                                        as u32;
+                                                            }
+                                                        }
+                                                        response
                                                     })
                                                     .inner
                                                     .on_hover_text(Self::tr_lang(
                                                         language,
-                                                        "This value only changes Smooth playback speed for this Mouse Path step. 100% = default smooth speed.",
-                                                        "Gia tri nay chi doi toc do Smooth cua step Mouse Path nay. 100% = toc do smooth mac dinh.",
+                                                        "Only changes Smooth playback for this Mouse Path step. x1 = normal speed, x2 = 2x faster, x0.5 = half speed. Supports {var}.",
+                                                        "Chi doi toc do Smooth cua step Mouse Path nay. x1 = toc do mac dinh, x2 = nhanh gap doi, x0.5 = mot nua. Ho tro {var}.",
                                                     ))
                                                     .changed();
 
@@ -18275,6 +18307,7 @@ impl CrosshairApp {
         Self::extract_braced_vars(&step.delay_expr, vars);
         Self::extract_braced_vars(&step.x_expr, vars);
         Self::extract_braced_vars(&step.y_expr, vars);
+        Self::extract_braced_vars(&step.mouse_speed_expr, vars);
 
         Self::extract_braced_vars(&step.text_override, vars);
 

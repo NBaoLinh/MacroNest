@@ -576,6 +576,8 @@ pub struct MacroStep {
     pub timed_override: bool,
     pub duration_override_ms: u64,
     pub smooth_mouse_path: bool,
+    #[serde(default)]
+    pub mouse_speed_expr: String,
     pub mouse_speed_percent: u32,
     #[serde(default = "default_true", alias = "image_search_move_cursor_on_match")]
     pub vision_move_cursor_on_match: bool,
@@ -698,6 +700,7 @@ impl Default for MacroStep {
             timed_override: false,
             duration_override_ms: 1500,
             smooth_mouse_path: false,
+            mouse_speed_expr: String::new(),
             mouse_speed_percent: 100,
             vision_move_cursor_on_match: true,
             vision_wait_until_found: false,
@@ -792,6 +795,54 @@ impl MacroStep {
         Self::resolve_i32_expression(&self.y_expr).unwrap_or(self.y)
     }
 
+    pub fn get_mouse_speed_multiplier(&self) -> f32 {
+        Self::resolve_mouse_speed_multiplier(&self.mouse_speed_expr)
+            .unwrap_or_else(|| self.legacy_mouse_speed_multiplier())
+    }
+
+    pub fn format_mouse_speed_multiplier(multiplier: f32) -> String {
+        let clamped = multiplier.clamp(0.1, 100.0);
+        let mut number = format!("{clamped:.2}");
+        while number.contains('.') && number.ends_with('0') {
+            number.pop();
+        }
+        if number.ends_with('.') {
+            number.pop();
+        }
+        format!("x{number}")
+    }
+
+    pub fn resolve_mouse_speed_multiplier(expr: &str) -> Option<f32> {
+        let trimmed = expr.trim();
+        if trimmed.is_empty() {
+            return None;
+        }
+
+        let interpolated = crate::overlay::interpolate_variables(trimmed);
+        let normalized = interpolated
+            .trim()
+            .trim_start_matches('x')
+            .trim_start_matches('X')
+            .trim();
+
+        if normalized.is_empty() {
+            return None;
+        }
+
+        if let Ok(parsed) = normalized.parse::<f32>() {
+            if parsed.is_finite() && parsed > 0.0 {
+                return Some(parsed.clamp(0.1, 100.0));
+            }
+        }
+
+        let evaluated = crate::overlay::evaluate_math_expression(normalized);
+        if evaluated > 0 {
+            Some((evaluated as f32).clamp(0.1, 100.0))
+        } else {
+            None
+        }
+    }
+
     fn resolve_i32_expression(expr: &str) -> Option<i32> {
         let trimmed = expr.trim();
         if trimmed.is_empty() {
@@ -808,6 +859,10 @@ impl MacroStep {
                 self.key.trim().to_ascii_lowercase().as_str(),
                 "infinite" | "inf" | "forever" | "-1"
             )
+    }
+
+    fn legacy_mouse_speed_multiplier(&self) -> f32 {
+        self.mouse_speed_percent.max(10) as f32 / 100.0
     }
 }
 

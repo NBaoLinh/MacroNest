@@ -7313,7 +7313,7 @@ mod windows_overlay {
         }
 
         if step.smooth_mouse_path {
-            let speed = step.mouse_speed_percent.max(10) as f32 / 100.0;
+            let speed = step.get_mouse_speed_multiplier();
 
             let mut last_move_pos: Option<(i32, i32)> = None;
 
