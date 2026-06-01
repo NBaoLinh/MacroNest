@@ -41,6 +41,17 @@ struct MacroStepHoverPreview {
 }
 
 #[derive(Clone)]
+struct MacroHoverPreviewState {
+    group_id: u32,
+
+    request: HoverPreviewRequest,
+
+    anchor_pos: egui::Pos2,
+
+    source_rect: egui::Rect,
+}
+
+#[derive(Clone)]
 
 enum MacroStepHoverPreviewKind {
     MacroPreset {
@@ -1453,14 +1464,14 @@ impl CrosshairApp {
         preview: Option<&MacroStepHoverPreview>,
 
         anchor_pos: egui::Pos2,
-    ) -> bool {
+    ) -> Option<egui::Rect> {
         let Some(preview) = preview else {
-            return false;
+            return None;
         };
 
         let popup_id = egui::Id::new(("macro-hover-preview-popup", preview.source_id));
 
-        let mut pos = anchor_pos + vec2(16.0, 18.0);
+        let mut pos = anchor_pos + vec2(8.0, 10.0);
 
         let content_rect = ctx.content_rect();
 
@@ -1488,11 +1499,11 @@ impl CrosshairApp {
         };
 
         if pos.x + estimated_size.x > content_rect.right() {
-            pos.x = (anchor_pos.x - estimated_size.x - 16.0).max(content_rect.left() + 6.0);
+            pos.x = (anchor_pos.x - estimated_size.x - 8.0).max(content_rect.left() + 6.0);
         }
 
         if pos.y + estimated_size.y > content_rect.bottom() {
-            pos.y = (anchor_pos.y - estimated_size.y - 16.0).max(content_rect.top() + 6.0);
+            pos.y = (anchor_pos.y - estimated_size.y - 8.0).max(content_rect.top() + 6.0);
         }
 
         let area_response = egui::Area::new(popup_id)
@@ -1505,12 +1516,7 @@ impl CrosshairApp {
 
         let rect = area_response.response.rect;
 
-        let pointer_pos = ctx.input(|i| i.pointer.hover_pos());
-
-        let popup_hovered =
-            area_response.response.hovered() && pointer_pos.map_or(false, |p| rect.contains(p));
-
-        if popup_hovered {
+        if area_response.response.hovered() {
             if matches!(
                 &preview.kind,
                 MacroStepHoverPreviewKind::MacroPreset { .. }
@@ -1552,7 +1558,7 @@ impl CrosshairApp {
             }
         }
 
-        popup_hovered
+        Some(rect)
     }
 
     fn build_hover_preview_request(
@@ -8698,7 +8704,12 @@ impl CrosshairApp {
 
                                                             .as_ref()
 
-                                                            .map(|request| (group.id, request.clone(), hover_anchor_pos)),
+                                                            .map(|request| MacroHoverPreviewState {
+                                                                group_id: group.id,
+                                                                request: request.clone(),
+                                                                anchor_pos: hover_anchor_pos,
+                                                                source_rect: hold_stop_combo.response.rect,
+                                                            }),
 
                                                     )
 
@@ -18616,7 +18627,12 @@ impl CrosshairApp {
 
                                                 .as_ref()
 
-                                                .map(|request| (group.id, request.clone(), hover_anchor_pos)),
+                                                .map(|request| MacroHoverPreviewState {
+                                                    group_id: group.id,
+                                                    request: request.clone(),
+                                                    anchor_pos: hover_anchor_pos,
+                                                    source_rect: row_response.rect,
+                                                }),
 
                                         )
 
@@ -19752,23 +19768,41 @@ impl CrosshairApp {
 
             .ctx()
 
-            .data(|data| data.get_temp::<Option<(u32, HoverPreviewRequest, egui::Pos2)>>(hover_preview_state_id))
+            .data(|data| data.get_temp::<Option<MacroHoverPreviewState>>(hover_preview_state_id))
 
             .flatten();
 
-        if let Some((group_id, hover_request, anchor_pos)) = active_hover_preview_state.clone() {
+        if let Some(active_hover_preview_state) = active_hover_preview_state.clone() {
 
-            hover_preview = self.resolve_hover_preview_request(group_id, hover_request);
+            hover_preview = self.resolve_hover_preview_request(
+                active_hover_preview_state.group_id,
+                active_hover_preview_state.request.clone(),
+            );
 
             if let Some(preview) = hover_preview.as_ref() {
 
-                let popup_hovered =
-
-                    Self::render_hover_preview_popup(ui.ctx(), language, Some(preview), anchor_pos);
+                let popup_rect = Self::render_hover_preview_popup(
+                    ui.ctx(),
+                    language,
+                    Some(preview),
+                    active_hover_preview_state.anchor_pos,
+                );
 
                 let pointer_pos = ui.ctx().input(|i| i.pointer.hover_pos());
 
-                if pointer_pos.is_none() || (!popup_hovered && hover_preview_request.is_none()) {
+                let should_clear = pointer_pos.map_or(true, |pointer| {
+                    let over_source = active_hover_preview_state
+                        .source_rect
+                        .expand2(vec2(2.0, 2.0))
+                        .contains(pointer);
+                    let over_popup = popup_rect
+                        .map(|rect| rect.expand2(vec2(2.0, 2.0)).contains(pointer))
+                        .unwrap_or(false);
+
+                    !over_source && !over_popup && hover_preview_request.is_none()
+                });
+
+                if should_clear {
 
                     ui.ctx()
 
@@ -19778,7 +19812,7 @@ impl CrosshairApp {
 
                                 hover_preview_state_id,
 
-                                None::<Option<(u32, HoverPreviewRequest, egui::Pos2)>>,
+                                None::<Option<MacroHoverPreviewState>>,
 
                             )
 
@@ -19798,7 +19832,7 @@ impl CrosshairApp {
 
                         hover_preview_state_id,
 
-                        None::<Option<(u32, HoverPreviewRequest, egui::Pos2)>>,
+                        None::<Option<MacroHoverPreviewState>>,
 
                     )
 
