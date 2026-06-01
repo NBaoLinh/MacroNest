@@ -17668,6 +17668,11 @@ impl CrosshairApp {
                         }
 
                         self.persist_macro_presets();
+                        self.mouse_path_step_preview_preset_id = None;
+                        self.mouse_path_draw_capture_preset_id = None;
+                        self.active_mouse_record_preset_id = None;
+                        let _ = self.overlay_tx.send(OverlayCommand::PreviewMousePath(None));
+                        crate::overlay::wake_command_queue();
                         self.begin_mouse_path_draw_capture(ui.ctx(), path_preset_id);
 
                     }
