@@ -15341,6 +15341,158 @@ mod windows_overlay {
             }
         }
 
+        if let (Some(start), Some(end)) = (points.first().copied(), points.last().copied()) {
+            let width_usize = screen_width as usize;
+            let height_usize = screen_height as usize;
+            let start_fill = [90, 235, 150, 220];
+            let start_stroke = [180, 255, 210, 255];
+            let end_fill = [90, 140, 255, 220];
+            let end_stroke = [210, 225, 255, 255];
+
+            fill_ellipse_rgba(
+                pixels,
+                width_usize,
+                height_usize,
+                start.x - 7,
+                start.y - 7,
+                14,
+                14,
+                start_fill,
+            );
+            draw_ellipse_outline_rgba(
+                pixels,
+                width_usize,
+                height_usize,
+                start.x - 9,
+                start.y - 9,
+                18,
+                18,
+                start_stroke,
+            );
+
+            fill_ellipse_rgba(
+                pixels,
+                width_usize,
+                height_usize,
+                end.x - 7,
+                end.y - 7,
+                14,
+                14,
+                end_fill,
+            );
+            draw_ellipse_outline_rgba(
+                pixels,
+                width_usize,
+                height_usize,
+                end.x - 9,
+                end.y - 9,
+                18,
+                18,
+                end_stroke,
+            );
+
+            let font_name = "Segoe UI"
+                .encode_utf16()
+                .chain(std::iter::once(0))
+                .collect::<Vec<_>>();
+            let font = CreateFontW(
+                -14,
+                0,
+                0,
+                0,
+                FW_MEDIUM.0 as i32,
+                0,
+                0,
+                0,
+                DEFAULT_CHARSET,
+                OUT_DEFAULT_PRECIS,
+                CLIP_DEFAULT_PRECIS,
+                ANTIALIASED_QUALITY,
+                FF_DONTCARE.0 as u32,
+                PCWSTR(font_name.as_ptr()),
+            );
+            let old_font = SelectObject(mem_dc, HGDIOBJ(font.0));
+            let _ = SetBkMode(mem_dc, TRANSPARENT);
+
+            let draw_anchor_label =
+                |mem_dc: HDC, pixels: &mut [u8], anchor: POINT, text: String, color: [u8; 4], y_bias: i32| {
+                    let label_width = 144;
+                    let label_height = 26;
+                    let desired_left = if anchor.x + 20 + label_width > screen_width {
+                        anchor.x - label_width - 20
+                    } else {
+                        anchor.x + 20
+                    };
+                    let desired_top = (anchor.y + y_bias)
+                        .clamp(6, screen_height.saturating_sub(label_height + 6));
+                    let label_left = desired_left.clamp(6, screen_width.saturating_sub(label_width + 6));
+                    fill_rect_rgba(
+                        pixels,
+                        width_usize,
+                        height_usize,
+                        label_left,
+                        desired_top,
+                        label_width,
+                        label_height,
+                        [18, 26, 22, 210],
+                    );
+                    draw_rect_outline_rgba(
+                        pixels,
+                        width_usize,
+                        height_usize,
+                        label_left,
+                        desired_top,
+                        label_width,
+                        label_height,
+                        color,
+                    );
+                    let _ = SetTextColor(
+                        mem_dc,
+                        COLORREF(
+                            ((color[0] as u32) << 16)
+                                | ((color[1] as u32) << 8)
+                                | color[2] as u32,
+                        ),
+                    );
+                    let mut rect = RECT {
+                        left: label_left + 8,
+                        top: desired_top + 4,
+                        right: label_left + label_width - 8,
+                        bottom: desired_top + label_height - 4,
+                    };
+                    let mut wide = text
+                        .encode_utf16()
+                        .chain(std::iter::once(0))
+                        .collect::<Vec<_>>();
+                    let _ = DrawTextW(
+                        mem_dc,
+                        &mut wide,
+                        &mut rect,
+                        DT_VCENTER | DT_SINGLELINE,
+                    );
+                };
+
+            draw_anchor_label(
+                mem_dc,
+                pixels,
+                start,
+                format!("Start {} , {}", start.x, start.y),
+                start_stroke,
+                -34,
+            );
+            draw_anchor_label(
+                mem_dc,
+                pixels,
+                end,
+                format!("End {} , {}", end.x, end.y),
+                end_stroke,
+                10,
+            );
+
+            let _ = SelectObject(mem_dc, old_font);
+            let _ = DeleteObject(HGDIOBJ(font.0));
+        }
+
         let destination = POINT { x: 0, y: 0 };
 
         let source = POINT { x: 0, y: 0 };
