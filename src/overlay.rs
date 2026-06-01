@@ -4850,14 +4850,20 @@ mod windows_overlay {
                     let previous_enabled: HashMap<u32, bool> = runtime
                         .macro_groups
                         .iter()
-                        .flat_map(|group| group.presets.iter())
-                        .map(|preset| (preset.id, preset.enabled))
+                        .flat_map(|group| {
+                            group.presets.iter().map(|preset| {
+                                (preset.id, group.enabled && preset.enabled)
+                            })
+                        })
                         .collect();
 
                     let next_enabled: HashMap<u32, bool> = presets
                         .iter()
-                        .flat_map(|group| group.presets.iter())
-                        .map(|preset| (preset.id, preset.enabled))
+                        .flat_map(|group| {
+                            group.presets.iter().map(|preset| {
+                                (preset.id, group.enabled && preset.enabled)
+                            })
+                        })
                         .collect();
 
                     let presets_to_stop: Vec<u32> = previous_enabled
@@ -8008,9 +8014,11 @@ mod windows_overlay {
         hook_state
             .macro_groups
             .iter()
-            .flat_map(|group| group.presets.iter())
-            .find(|preset| preset.id == preset_id)
-            .map(|preset| preset.enabled)
+            .find_map(|group| {
+                group.presets.iter().find(|preset| preset.id == preset_id).map(|preset| {
+                    group.enabled && preset.enabled
+                })
+            })
             .unwrap_or(false)
     }
 

@@ -12071,6 +12071,8 @@ impl CrosshairApp {
 
                                                 });
 
+                                            let previous_action = step.action;
+
                                             let action_combo = egui::ComboBox::from_id_salt((group.id, preset.id, step_index, "action"))
 
                                                 .close_behavior(egui::PopupCloseBehavior::CloseOnClickOutside)
@@ -15562,11 +15564,17 @@ impl CrosshairApp {
 
                                                               &mut cancel_active_capture,
 
-                                                                  false,
+                                                                false,
 
-                                                              );
+                                                            );
 
-                                                          });
+                                                        });
+
+                                            if step.action != previous_action
+                                                && matches!(step.action, MacroAction::ScanVisionOnce)
+                                            {
+                                                step.vision_move_cursor_on_match = false;
+                                            }
 
                                                       });} else if step.action == MacroAction::SetVariable {
 
@@ -16549,7 +16557,6 @@ impl CrosshairApp {
                                             let is_dark_theme = self.state.ui_theme == UiThemeMode::Dark;
 
                                             ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
-                                                if self.show_share_buttons {
                                                   if ui
                                                       .add(
                                                           Button::new(Self::tr_lang(language, "Paste", "Paste"))
@@ -16582,6 +16589,7 @@ impl CrosshairApp {
                                                           Some((group.id, preset.id, step_index));
                                                   }
 
+                                                if self.show_share_buttons {
                                                       if ui
 
                                                       .add(
