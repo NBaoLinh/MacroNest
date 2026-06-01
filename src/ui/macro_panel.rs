@@ -17045,7 +17045,11 @@ impl CrosshairApp {
                                         pointer_y < row_response.rect.bottom()
                                     })
                                 {
-                                    next_compact_preview_index = compact_cursor;
+                                    next_compact_preview_index = if step_is_being_dragged {
+                                        compact_cursor
+                                    } else {
+                                        compact_cursor + 1
+                                    };
                                 }
                                 if !step_is_being_dragged {
                                     compact_cursor += 1;
