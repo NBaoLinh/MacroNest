@@ -16167,15 +16167,15 @@ impl CrosshairApp {
 
                                                     .changed();
                                                 ui.add_space(6.0);
-                                                ui.label(Self::tr_lang(
-                                                    language,
-                                                    "Speed",
-                                                    "Toc do",
-                                                ))
+                                                ui.label(
+                                                    RichText::new("⚡")
+                                                        .strong()
+                                                        .color(Color32::from_rgb(255, 210, 90)),
+                                                )
                                                 .on_hover_text(Self::tr_lang(
                                                     language,
-                                                    "Only used when Smooth is on. 100% keeps the normal smooth playback speed, 200% is 2x faster, and 50% is half speed.",
-                                                    "Chi dung khi bat Smooth. 100% giu toc do smooth mac dinh, 200% nhanh gap doi, 50% la nua toc do.",
+                                                    "Smooth speed. 100% keeps the normal smooth playback speed, 200% is 2x faster, and 50% is half speed.",
+                                                    "Toc do Smooth. 100% giu toc do smooth mac dinh, 200% nhanh gap doi, 50% la nua toc do.",
                                                 ));
                                                 live_sync |= ui
                                                     .add_enabled_ui(step.smooth_mouse_path, |ui| {

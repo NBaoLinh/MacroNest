@@ -7350,7 +7350,9 @@ mod windows_overlay {
                                 .clamp(1.0, 5_000.0)
                                 as u64;
 
-                            let steps = (duration_ms / 8).max(1);
+                            let steps = ((duration_ms as f32) / 8.0).ceil().max(1.0) as u64;
+                            let frame_delay_ms =
+                                ((duration_ms as f32) / steps as f32).round().max(1.0) as u64;
 
                             for index in 1..=steps {
                                 if mouse_path_playback_should_stop(
@@ -7370,7 +7372,7 @@ mod windows_overlay {
 
                                 if sleep_for_mouse_path_delay(
                                     preset_id,
-                                    8,
+                                    frame_delay_ms,
                                     stop_immediately_on_retrigger,
                                 ) {
                                     return Ok(());
@@ -12101,7 +12103,9 @@ mod windows_overlay {
             .round()
             .clamp(1.0, 5_000.0) as u64;
 
-        let steps = (duration_ms / 8).max(1);
+        let steps = ((duration_ms as f32) / 8.0).ceil().max(1.0) as u64;
+        let frame_delay_ms =
+            ((duration_ms as f32) / steps as f32).round().max(1.0) as u64;
 
         let mut prev_x = from_x;
 
@@ -12124,7 +12128,11 @@ mod windows_overlay {
 
             prev_y = next_y;
 
-            if sleep_for_mouse_path_delay(preset_id, 8, stop_immediately_on_retrigger) {
+            if sleep_for_mouse_path_delay(
+                preset_id,
+                frame_delay_ms,
+                stop_immediately_on_retrigger,
+            ) {
                 return Ok(());
             }
         }
