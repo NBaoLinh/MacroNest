@@ -1,6 +1,6 @@
 use crate::model::*;
 use crate::overlay::UiCommand;
-use crate::ui::{CrosshairApp, UpdateStatus};
+use crate::ui::{CrosshairApp, OcrLanguageOperationKind, UpdateStatus};
 use anyhow::{Result, bail};
 use eframe::egui::{
     self, Button, Color32, Frame, Margin, Order, RichText, Shadow, Stroke, TextEdit, WidgetText,
@@ -1323,6 +1323,11 @@ impl CrosshairApp {
         crate::ocr::clear_available_ocr_languages_cache();
         self.ocr_lang_pack_open = true;
         self.ocr_lang_settings_focus = Some(lang_code.to_owned());
+        self.ocr_lang_operation = Some((
+            lang_code.to_owned(),
+            OcrLanguageOperationKind::Install,
+            Instant::now(),
+        ));
 
         let args = format!(
             "/Online /Add-Capability /CapabilityName:{} /NoRestart",
@@ -1349,6 +1354,11 @@ impl CrosshairApp {
         crate::ocr::clear_available_ocr_languages_cache();
         self.ocr_lang_pack_open = true;
         self.ocr_lang_settings_focus = Some(lang_code.to_owned());
+        self.ocr_lang_operation = Some((
+            lang_code.to_owned(),
+            OcrLanguageOperationKind::Remove,
+            Instant::now(),
+        ));
 
         let args = format!(
             "/Online /Remove-Capability /CapabilityName:{} /NoRestart",
@@ -1369,12 +1379,14 @@ impl CrosshairApp {
 
     fn refresh_ocr_language_status(&mut self) {
         crate::ocr::clear_available_ocr_languages_cache();
+        self.ocr_lang_operation = None;
         self.status = "Refreshed Windows OCR language status.".to_owned();
     }
 
     pub(crate) fn render_ocr_language_settings(&mut self, ui: &mut egui::Ui) {
         let language = self.state.ui_language;
         let focused_lang = self.ocr_lang_settings_focus.clone();
+        let active_operation = self.ocr_lang_operation.clone();
 
         Self::settings_card_frame(ui).show(ui, |ui| {
             ui.set_min_width(ui.available_width());
@@ -1433,9 +1445,19 @@ impl CrosshairApp {
                     .num_columns(3)
                     .spacing([10.0, 6.0])
                     .show(ui, |ui| {
+                        let mut clear_focus_after_scroll = false;
                         for (lang_code, display_name, _) in crate::ocr::OCR_SUPPORTED_LANGUAGE_CATALOG {
                             let has_ocr = crate::ocr::language_tag_matches(&avail_langs, lang_code);
                             let is_focused = focused_lang.as_deref() == Some(*lang_code);
+                            let operation_for_lang = active_operation.as_ref().and_then(
+                                |(op_lang, kind, started_at)| {
+                                    if op_lang == lang_code {
+                                        Some((*kind, *started_at))
+                                    } else {
+                                        None
+                                    }
+                                },
+                            );
 
                             if has_ocr {
                                 ui.label(RichText::new("OK").color(Color32::from_rgb(126, 224, 182)));
@@ -1452,9 +1474,16 @@ impl CrosshairApp {
                             );
                             if is_focused {
                                 ui.scroll_to_rect(name_response.rect, Some(egui::Align::Center));
+                                clear_focus_after_scroll = true;
                             }
 
                             if has_ocr {
+                                if matches!(
+                                    operation_for_lang,
+                                    Some((OcrLanguageOperationKind::Install, _))
+                                ) {
+                                    self.ocr_lang_operation = None;
+                                }
                                 ui.horizontal(|ui| {
                                     ui.label(
                                         RichText::new(Self::tr_lang(language, "OCR ready", "OCR san sang"))
@@ -1479,24 +1508,55 @@ impl CrosshairApp {
                                     }
                                 });
                             } else {
-                                let button_label = if is_focused {
-                                    Self::tr_lang(language, "Install", "Cai dat")
-                                } else {
-                                    Self::tr_lang(language, "Install", "Cai dat")
-                                };
-                                if Self::settings_action_button(ui, button_label)
-                                    .on_hover_text(Self::tr_lang(
-                                        language,
-                                        "Install the Windows OCR capability for this language directly.",
-                                        "Cai Windows OCR capability cho ngon ngu nay truc tiep.",
-                                    ))
-                                    .clicked()
+                                if matches!(
+                                    operation_for_lang,
+                                    Some((OcrLanguageOperationKind::Remove, _))
+                                ) {
+                                    self.ocr_lang_operation = None;
+                                }
+                                if let Some((operation_kind, started_at)) = operation_for_lang {
+                                    let elapsed = started_at.elapsed().as_secs_f32();
+                                    let pulse = ((elapsed * 0.45).sin() + 1.0) * 0.5;
+                                    let progress = 0.12 + pulse * 0.76;
+                                    let label = match operation_kind {
+                                        OcrLanguageOperationKind::Install => {
+                                            Self::tr_lang(language, "Installing", "Dang cai")
+                                        }
+                                        OcrLanguageOperationKind::Remove => {
+                                            Self::tr_lang(language, "Removing", "Dang xoa")
+                                        }
+                                    };
+                                    ui.vertical(|ui| {
+                                        ui.label(
+                                            RichText::new(label)
+                                                .small()
+                                                .color(Color32::from_rgb(255, 216, 96)),
+                                        );
+                                        ui.add_sized(
+                                            [140.0, 16.0],
+                                            egui::ProgressBar::new(progress).show_percentage(),
+                                        );
+                                    });
+                                    ui.ctx().request_repaint_after(Duration::from_millis(80));
+                                } else if Self::settings_action_button(
+                                    ui,
+                                    Self::tr_lang(language, "Install", "Cai dat"),
+                                )
+                                .on_hover_text(Self::tr_lang(
+                                    language,
+                                    "Install the Windows OCR capability for this language directly.",
+                                    "Cai Windows OCR capability cho ngon ngu nay truc tiep.",
+                                ))
+                                .clicked()
                                 {
                                     self.install_ocr_language_capability(lang_code, display_name);
                                 }
                             }
 
                             ui.end_row();
+                        }
+                        if clear_focus_after_scroll {
+                            self.ocr_lang_settings_focus = None;
                         }
                     });
             });
