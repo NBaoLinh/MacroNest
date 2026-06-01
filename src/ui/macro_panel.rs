@@ -13113,22 +13113,35 @@ impl CrosshairApp {
                                                         .color(draw_button_color)
                                                         .strong(),
                                                     );
-                                                    let draw_response = ui
-                                                        .add_enabled(
-                                                            selected_id.is_some() || draw_capture_active,
-                                                            draw_button,
-                                                        )
-                                                        .on_hover_text(Self::tr_lang(
+                                                    let draw_tooltip = if selected_id.is_some() || draw_capture_active {
+                                                        Self::tr_lang(
                                                             language,
                                                             "Hide the app, hold left mouse to draw this path, then release to save into the selected Mouse Path preset.",
                                                             "An app, giu chuot trai de ve duong, roi tha ra de luu vao Mouse Path da chon.",
-                                                        ));
+                                                        )
+                                                    } else {
+                                                        Self::tr_lang(
+                                                            language,
+                                                            "Select a Mouse Path preset first, then press Draw.",
+                                                            "Hay chon Mouse Path truoc, roi bam Draw.",
+                                                        )
+                                                    };
+                                                    let draw_response = ui
+                                                        .add(draw_button)
+                                                        .on_hover_text(draw_tooltip);
                                                     if draw_response.clicked() {
                                                         if draw_capture_active {
                                                             cancel_mouse_path_draw_capture = true;
                                                         } else if let Some(path_preset_id) = selected_id {
                                                             begin_mouse_path_draw_capture_preset_id =
                                                                 Some(path_preset_id);
+                                                        } else {
+                                                            self.status = Self::tr_lang(
+                                                                language,
+                                                                "Select a Mouse Path preset first.",
+                                                                "Hay chon Mouse Path truoc.",
+                                                            )
+                                                            .to_owned();
                                                         }
                                                     }
 
