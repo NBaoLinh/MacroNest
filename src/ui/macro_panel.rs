@@ -21565,9 +21565,13 @@ impl CrosshairApp {
     ) -> egui::Response {
         let prev_override = ui.visuals().override_text_color;
         ui.visuals_mut().override_text_color = None;
-        let response = ui.add_sized(
-            [width, height],
-            egui::TextEdit::singleline(text).hint_text(hint).id(id),
+        let (rect, _) = ui.allocate_exact_size(vec2(width, height), egui::Sense::hover());
+        let response = ui.put(
+            rect,
+            egui::TextEdit::singleline(text)
+                .font(egui::TextStyle::Monospace)
+                .hint_text(hint)
+                .id(id),
         );
         ui.visuals_mut().override_text_color = prev_override;
         response
