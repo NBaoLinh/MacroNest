@@ -168,20 +168,6 @@ pub(crate) struct CommandAiJobResult {
     outcome: Result<ai::CommandPresetPatch, String>,
 }
 
-struct CloseToTrayAnimation {
-    started_at: f64,
-    duration_sec: f64,
-}
-
-struct OpenFromTrayAnimation {
-    start_outer_pos: egui::Pos2,
-    start_inner_size: egui::Vec2,
-    end_outer_pos: egui::Pos2,
-    end_inner_size: egui::Vec2,
-    started_at: f64,
-    duration_sec: f64,
-}
-
 struct StartupSplashState {
     started_at: Option<f64>,
     duration_sec: f64,
@@ -600,12 +586,7 @@ pub struct CrosshairApp {
     active_macro_folder_view: Option<u32>,
     macro_folders_panel_open: bool,
     crosshair_panel_collapsed: bool,
-    close_to_tray_animation: Option<CloseToTrayAnimation>,
-    open_from_tray_animation: Option<OpenFromTrayAnimation>,
-    tray_close_request_consumed: bool,
     startup_splash: StartupSplashState,
-    hidden_window_inner_size: Option<egui::Vec2>,
-    hidden_window_outer_pos: Option<egui::Pos2>,
     settings_popup_open: bool,
     advanced_settings_open: bool,
     downloaded_tools_open: bool,
@@ -762,15 +743,10 @@ impl CrosshairApp {
             active_macro_folder_view: None,
             macro_folders_panel_open: false,
             crosshair_panel_collapsed: true,
-            close_to_tray_animation: None,
-            open_from_tray_animation: None,
-            tray_close_request_consumed: false,
             startup_splash: StartupSplashState {
                 started_at: None,
                 duration_sec: 0.0,
             },
-            hidden_window_inner_size: None,
-            hidden_window_outer_pos: None,
             settings_popup_open: false,
             advanced_settings_open: false,
             downloaded_tools_open: false,
@@ -7501,30 +7477,6 @@ impl CrosshairApp {
             });
     }
 
-    fn render_tray_blob_transition(&self, ctx: &egui::Context, progress: f32, opening: bool) {
-        let rect = ctx.content_rect();
-        let painter = ctx.layer_painter(egui::LayerId::new(
-            egui::Order::Foreground,
-            egui::Id::new(if opening {
-                "open-tray-blob"
-            } else {
-                "close-tray-blob"
-            }),
-        ));
-        let eased = if opening {
-            let p = progress.clamp(0.0, 1.0);
-            p * p * (3.0 - 2.0 * p)
-        } else {
-            1.0 - (1.0 - progress).clamp(0.0, 1.0).powi(2)
-        };
-        let alpha = ((1.0 - eased).clamp(0.0, 1.0) * 180.0) as u8;
-        painter.rect_filled(
-            rect,
-            16.0,
-            Color32::from_rgba_premultiplied(6, 8, 12, alpha),
-        );
-    }
-
     fn settings_card_frame(ui: &egui::Ui) -> egui::Frame {
         egui::Frame::group(ui.style())
             .fill(Color32::from_rgba_premultiplied(32, 36, 42, 160))
@@ -7537,10 +7489,6 @@ impl CrosshairApp {
     }
 
     fn refresh_macro_ai_debug_text_from_trace(&mut self) {}
-
-    fn animation_min_size() -> egui::Vec2 {
-        vec2(96.0, 56.0)
-    }
 
     fn render_custom_window_resize_handles(&self, ctx: &egui::Context) {
         if ctx.input(|input| input.viewport().maximized.unwrap_or(false)) {
@@ -7645,57 +7593,7 @@ impl CrosshairApp {
         painter.rect_stroke(rect, 16.0, stroke, egui::StrokeKind::Outside);
     }
 
-    fn begin_close_to_tray_animation(&mut self, ctx: &egui::Context) {
-        let viewport = ctx.input(|input| input.viewport().clone());
-        if let Some(outer_rect) = viewport.outer_rect {
-            let inner_size = viewport
-                .inner_rect
-                .map(|rect| rect.size())
-                .unwrap_or_else(|| outer_rect.size());
-            self.hidden_window_inner_size = Some(inner_size);
-            self.hidden_window_outer_pos = Some(outer_rect.min);
-        }
-        self.open_from_tray_animation = None;
-        self.close_to_tray_animation = None;
-        self.finish_close_to_tray_hide(ctx);
-    }
-
-    fn update_close_to_tray_animation(&mut self, ctx: &egui::Context) {
-        self.close_to_tray_animation = None;
-        self.finish_close_to_tray_hide(ctx);
-    }
-
-    fn begin_open_from_tray_animation(
-        &mut self,
-        ctx: &egui::Context,
-        end_outer_pos: egui::Pos2,
-        end_inner_size: egui::Vec2,
-    ) {
-        self.close_to_tray_animation = None;
-        self.open_from_tray_animation = None;
-        self.tray_close_request_consumed = false;
-        self.state.show_window = true;
-        self.enforce_square_window_frames = 0;
-        self.center_window_next_frame = false;
-        ctx.send_viewport_cmd(egui::ViewportCommand::InnerSize(end_inner_size));
-        ctx.send_viewport_cmd(egui::ViewportCommand::OuterPosition(end_outer_pos));
-        ctx.send_viewport_cmd(egui::ViewportCommand::Visible(true));
-        ctx.send_viewport_cmd(egui::ViewportCommand::Minimized(false));
-        ctx.send_viewport_cmd(egui::ViewportCommand::Focus);
-        let _ = self.overlay_tx.send(OverlayCommand::SetUiVisible(true));
-        let _ = self
-            .overlay_tx
-            .send(OverlayCommand::SetTrayIconVisible(false));
-        crate::overlay::wake_command_queue();
-    }
-
-    fn update_open_from_tray_animation(&mut self, _ctx: &egui::Context) {
-        self.open_from_tray_animation = None;
-    }
-
-    fn finish_close_to_tray_hide(&mut self, ctx: &egui::Context) {
-        self.close_to_tray_animation = None;
-        self.open_from_tray_animation = None;
+    fn hide_to_tray(&mut self, ctx: &egui::Context) {
         self.state.show_window = false;
         ctx.send_viewport_cmd(egui::ViewportCommand::Visible(false));
         let _ = self.overlay_tx.send(OverlayCommand::SetUiVisible(false));
@@ -7720,8 +7618,6 @@ impl eframe::App for CrosshairApp {
         self.apply_theme(ctx);
         let wants_native_shadow = self.state.show_window
             && self.startup_splash.duration_sec <= 0.0
-            && self.close_to_tray_animation.is_none()
-            && self.open_from_tray_animation.is_none()
             && !self.vision_capture_active
             && self.mouse_move_absolute_capture_target.is_none();
         if self.native_shadow_applied != wants_native_shadow {
@@ -7731,9 +7627,6 @@ impl eframe::App for CrosshairApp {
         while let Ok(command) = self.ui_rx.try_recv() {
             match command {
                 UiCommand::ShowWindow => {
-                    self.tray_close_request_consumed = false;
-                    self.close_to_tray_animation = None;
-                    self.open_from_tray_animation = None;
                     if self.state.show_window {
                         ctx.send_viewport_cmd(egui::ViewportCommand::Visible(true));
                         ctx.send_viewport_cmd(egui::ViewportCommand::Minimized(false));
@@ -7747,7 +7640,18 @@ impl eframe::App for CrosshairApp {
                     crate::platform::set_native_window_shadow(frame, false);
                     self.native_shadow_applied = false;
                     self.center_window_next_frame = false;
-                    self.begin_open_from_tray_animation(ctx, target_pos, target_size);
+                    self.state.show_window = true;
+                    self.enforce_square_window_frames = 0;
+                    ctx.send_viewport_cmd(egui::ViewportCommand::InnerSize(target_size));
+                    ctx.send_viewport_cmd(egui::ViewportCommand::OuterPosition(target_pos));
+                    ctx.send_viewport_cmd(egui::ViewportCommand::Visible(true));
+                    ctx.send_viewport_cmd(egui::ViewportCommand::Minimized(false));
+                    ctx.send_viewport_cmd(egui::ViewportCommand::Focus);
+                    let _ = self.overlay_tx.send(OverlayCommand::SetUiVisible(true));
+                    let _ = self
+                        .overlay_tx
+                        .send(OverlayCommand::SetTrayIconVisible(false));
+                    crate::overlay::wake_command_queue();
                     ctx.request_repaint();
                 }
                 UiCommand::Exit => {
@@ -8232,14 +8136,6 @@ impl eframe::App for CrosshairApp {
             self.refresh_open_windows_now();
         }
 
-        if self.close_to_tray_animation.is_some() {
-            self.update_close_to_tray_animation(ctx);
-        }
-
-        if self.open_from_tray_animation.is_some() {
-            self.update_open_from_tray_animation(ctx);
-        }
-
         if !self.state.show_window {
             return;
         }
@@ -8296,20 +8192,6 @@ impl eframe::App for CrosshairApp {
             return;
         }
 
-        if let Some(animation) = &self.close_to_tray_animation {
-            let elapsed = (ctx.input(|input| input.time) - animation.started_at).max(0.0);
-            let progress = (elapsed / animation.duration_sec).clamp(0.0, 1.0) as f32;
-            self.render_tray_blob_transition(ctx, progress, false);
-            return;
-        }
-
-        if let Some(animation) = &self.open_from_tray_animation {
-            let elapsed = (ctx.input(|input| input.time) - animation.started_at).max(0.0);
-            let progress = (elapsed / animation.duration_sec).clamp(0.0, 1.0) as f32;
-            self.render_tray_blob_transition(ctx, progress, true);
-            return;
-        }
-
         if self.render_image_search_capture_overlay(ctx) {
             return;
         }
@@ -8344,7 +8226,6 @@ impl eframe::App for CrosshairApp {
             .show(ctx, |ui| {
                 let maximized = ctx.input(|input| input.viewport().maximized.unwrap_or(false));
                 let show_icon_tooltips = true;
-                let hide_window_controls = self.close_to_tray_animation.is_some();
                 ui.allocate_ui_with_layout(
                     vec2(ui.available_width(), 34.0),
                     egui::Layout::right_to_left(egui::Align::Center),
@@ -8355,7 +8236,6 @@ impl eframe::App for CrosshairApp {
                             Color32::from_rgba_premultiplied(214, 223, 235, 110)
                         };
 
-                        if !hide_window_controls {
                             let exit_response = Self::hover_if(
                                 ui.add_sized(
                                     [38.0, 30.0],
@@ -8384,7 +8264,7 @@ impl eframe::App for CrosshairApp {
                                 self.tr("Hide to tray", "Ẩn xuống khay"),
                             );
                             if hide_response.clicked() {
-                                self.begin_close_to_tray_animation(ctx);
+                                self.hide_to_tray(ctx);
                             }
                             let maximize_response = Self::hover_if(
                                 ui.add_sized(
@@ -8499,7 +8379,6 @@ impl eframe::App for CrosshairApp {
                             if settings_response.clicked() {
                                 self.settings_popup_open = !self.settings_popup_open;
                             }
-                        }
 
                         ui.add_space(8.0);
 
