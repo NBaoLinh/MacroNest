@@ -14654,7 +14654,7 @@ impl CrosshairApp {
 
                                                      ui.add_sized(
 
-                                                         [110.0, 22.0],
+                                                         [146.0, 18.0],
 
                                                          egui::Label::new(Self::tr_lang(language, "No input", "No input")),
 
