@@ -4763,6 +4763,7 @@ impl CrosshairApp {
                 RenderItem::MacroGroup(group_index) => {
 
                     let group_id = self.state.macro_groups[group_index].id;
+                    let group_is_collapsed = self.state.macro_groups[group_index].collapsed;
                     let should_scroll_to_group =
                         pending_macro_group_scroll_target == Some(group_id);
                     let macro_group_height_key =
@@ -4771,7 +4772,8 @@ impl CrosshairApp {
                         ui.ctx().data(|data| data.get_temp(macro_group_height_key));
                     let group_top = ui.cursor().min.y;
 
-                    if let Some(cached_height) = cached_group_height {
+                    if group_is_collapsed && let Some(cached_height) = cached_group_height {
+                        let cached_height = cached_height.clamp(42.0, 84.0);
                         let group_bottom = group_top + cached_height;
                         let visible_top = viewport.top() - macro_group_virtualization_margin;
                         let visible_bottom = viewport.bottom() + macro_group_virtualization_margin;
@@ -18044,10 +18046,16 @@ impl CrosshairApp {
 
                     }
 
-                    let rendered_group_height = (ui.cursor().min.y - group_top).max(1.0);
-                    ui.ctx().data_mut(|data| {
-                        data.insert_temp(macro_group_height_key, rendered_group_height);
-                    });
+                    if group_is_collapsed {
+                        let rendered_group_height = (ui.cursor().min.y - group_top).clamp(42.0, 84.0);
+                        ui.ctx().data_mut(|data| {
+                            data.insert_temp(macro_group_height_key, rendered_group_height);
+                        });
+                    } else {
+                        ui.ctx().data_mut(|data| {
+                            data.remove::<f32>(macro_group_height_key);
+                        });
+                    }
 
                 }
 
