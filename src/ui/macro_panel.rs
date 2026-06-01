@@ -2861,110 +2861,109 @@ impl CrosshairApp {
         ui.add_space(2.0);
 
         ui.horizontal(|ui| {
-            ui.group(|ui| {
-                ui.spacing_mut().item_spacing.x = 4.0;
+            ui.spacing_mut().item_spacing.x = 4.0;
 
-                let master_label = if self.state.macros_master_enabled {
-                    Self::tr_lang(language, "Macro On", "Macro On")
-                } else {
-                    Self::tr_lang(language, "Macro Off", "Macro Off")
-                };
+            let master_label = if self.state.macros_master_enabled {
+                Self::tr_lang(language, "Macro On", "Macro On")
+            } else {
+                Self::tr_lang(language, "Macro Off", "Macro Off")
+            };
 
-                let master_fill = if self.state.macros_master_enabled {
-                    Color32::from_rgb(46, 126, 76)
-                } else {
-                    Color32::from_rgb(74, 78, 86)
-                };
+            let master_fill = if self.state.macros_master_enabled {
+                Color32::from_rgb(46, 126, 76)
+            } else {
+                Color32::from_rgb(74, 78, 86)
+            };
 
-                let master_stroke = if self.state.macros_master_enabled {
-                    Color32::from_rgb(112, 204, 142)
-                } else {
-                    Color32::from_rgb(156, 162, 172)
-                };
+            let master_stroke = if self.state.macros_master_enabled {
+                Color32::from_rgb(112, 204, 142)
+            } else {
+                Color32::from_rgb(156, 162, 172)
+            };
 
-                if ui
-                    .add_sized(
-                        [120.0, 28.0],
-                        Button::new(RichText::new(master_label).color(Color32::WHITE))
-                            .fill(master_fill)
-                            .stroke(egui::Stroke::new(1.0, master_stroke))
-                            .corner_radius(6.0),
-                    )
-                    .clicked()
-                {
-                    self.state.macros_master_enabled = !self.state.macros_master_enabled;
+            if ui
+                .add_sized(
+                    [120.0, 28.0],
+                    Button::new(RichText::new(master_label).color(Color32::WHITE))
+                        .fill(master_fill)
+                        .stroke(egui::Stroke::new(1.0, master_stroke))
+                        .corner_radius(6.0),
+                )
+                .clicked()
+            {
+                self.state.macros_master_enabled = !self.state.macros_master_enabled;
 
-                    self.sync_macro_master_enabled();
+                self.sync_macro_master_enabled();
 
-                    self.persist();
-                }
+                self.persist();
+            }
 
-                let macro_hotkey_capture_target = CaptureRequest::MacrosMasterHotkey;
+            let macro_hotkey_capture_target = CaptureRequest::MacrosMasterHotkey;
 
-                let macro_hotkey_capture_active =
-                    self.capture_target.as_ref() == Some(&macro_hotkey_capture_target);
+            let macro_hotkey_capture_active =
+                self.capture_target.as_ref() == Some(&macro_hotkey_capture_target);
 
-                let macro_hotkey_preview = if macro_hotkey_capture_active
-                    && let Some(pending) = self.capture_hotkey_combo_keys.as_ref()
-                {
-                    Some(Self::hotkey_binding_from_combo_keys(pending.clone()))
-                } else {
-                    self.state.macros_master_hotkey.clone()
-                };
+            let macro_hotkey_preview = if macro_hotkey_capture_active
+                && let Some(pending) = self.capture_hotkey_combo_keys.as_ref()
+            {
+                Some(Self::hotkey_binding_from_combo_keys(pending.clone()))
+            } else {
+                self.state.macros_master_hotkey.clone()
+            };
 
-                let macro_hotkey_capture_button_text = if macro_hotkey_capture_active {
-                    Self::capture_button_text(language, true)
-                } else {
-                    Self::material_icon_text(0xe312, 18.0)
-                };
+            let macro_hotkey_capture_button_text = if macro_hotkey_capture_active {
+                Self::capture_button_text(language, true)
+            } else {
+                Self::material_icon_text(0xe312, 18.0)
+            };
 
-                if ui
-                    .add_sized(
-                        if macro_hotkey_capture_active {
-                            [104.0, 28.0]
-                        } else {
-                            [28.0, 28.0]
-                        },
-                        Button::new(macro_hotkey_capture_button_text)
-                            .fill(if macro_hotkey_capture_active {
-                                Color32::from_rgb(46, 126, 76)
-                            } else {
-                                ui.visuals().faint_bg_color
-                            })
-                            .stroke(egui::Stroke::new(
-                                1.0,
-                                if macro_hotkey_capture_active {
-                                    Color32::from_rgb(112, 204, 142)
-                                } else {
-                                    ui.visuals().widgets.noninteractive.bg_stroke.color
-                                },
-                            ))
-                            .corner_radius(6.0),
-                    )
-                    .on_hover_text(Self::tr_lang(
-                        language,
-                        "Capture macro hotkey",
-                        "Bat macro hotkey",
-                    ))
-                    .clicked()
-                {
+            if ui
+                .add_sized(
                     if macro_hotkey_capture_active {
-                        self.cancel_capture();
+                        [104.0, 28.0]
                     } else {
-                        self.begin_capture(
-                            macro_hotkey_capture_target,
-                            Self::tr_lang(
-                                language,
-                                "Press a hotkey for Macro On / Off.",
-                                "Nhan hotkey de bat / tat Macro.",
-                            )
-                            .to_owned(),
-                        );
-                    }
+                        [28.0, 28.0]
+                    },
+                    Button::new(macro_hotkey_capture_button_text)
+                        .fill(if macro_hotkey_capture_active {
+                            Color32::from_rgb(46, 126, 76)
+                        } else {
+                            ui.visuals().faint_bg_color
+                        })
+                        .stroke(egui::Stroke::new(
+                            1.0,
+                            if macro_hotkey_capture_active {
+                                Color32::from_rgb(112, 204, 142)
+                            } else {
+                                ui.visuals().widgets.noninteractive.bg_stroke.color
+                            },
+                        ))
+                        .corner_radius(6.0),
+                )
+                .on_hover_text(Self::tr_lang(
+                    language,
+                    "Capture macro hotkey",
+                    "Bat macro hotkey",
+                ))
+                .clicked()
+            {
+                if macro_hotkey_capture_active {
+                    self.cancel_capture();
+                } else {
+                    self.begin_capture(
+                        macro_hotkey_capture_target,
+                        Self::tr_lang(
+                            language,
+                            "Press a hotkey for Macro On / Off.",
+                            "Nhan hotkey de bat / tat Macro.",
+                        )
+                        .to_owned(),
+                    );
                 }
+            }
 
-                if let Some(binding) = macro_hotkey_preview.as_ref() {
-                    let label = hotkey::format_binding(Some(binding));
+            if let Some(binding) = macro_hotkey_preview.as_ref() {
+                let label = hotkey::format_binding(Some(binding));
 
                     if ui
                         .add(
@@ -2983,8 +2982,7 @@ impl CrosshairApp {
 
                         self.persist();
                     }
-                }
-            });
+            }
 
             if ui
                 .add_sized(
@@ -3285,39 +3283,36 @@ impl CrosshairApp {
                         .on_hover_text(tooltip_text);
                     }
                 }
+                let edit_icon = 0xe3c9; // edit icon (bút chì chéo)
 
-                ui.vertical(|ui| {
-                    let edit_icon = 0xe3c9; // edit icon (bút chì chéo)
-
-                    if ui
-                        .add_sized(
-                            [28.0, 28.0],
-                            Button::new(Self::material_icon_text(edit_icon, 18.0)) // variable edit icon
-                                .fill(if self.variable_inspector_open {
-                                    Color32::from_rgb(46, 126, 76)
+                if ui
+                    .add_sized(
+                        [28.0, 28.0],
+                        Button::new(Self::material_icon_text(edit_icon, 18.0)) // variable edit icon
+                            .fill(if self.variable_inspector_open {
+                                Color32::from_rgb(46, 126, 76)
+                            } else {
+                                ui.visuals().faint_bg_color
+                            })
+                            .stroke(egui::Stroke::new(
+                                1.0,
+                                if self.variable_inspector_open {
+                                    Color32::from_rgb(112, 204, 142)
                                 } else {
-                                    ui.visuals().faint_bg_color
-                                })
-                                .stroke(egui::Stroke::new(
-                                    1.0,
-                                    if self.variable_inspector_open {
-                                        Color32::from_rgb(112, 204, 142)
-                                    } else {
-                                        ui.visuals().widgets.noninteractive.bg_stroke.color
-                                    },
-                                ))
-                                .corner_radius(6.0),
-                        )
-                        .on_hover_text(Self::tr_lang(
-                            language,
-                            "Global & Local Variables Manager (Real-time)",
-                            "Trình quản lý biến toàn cục & cục bộ (Real-time)",
-                        ))
-                        .clicked()
-                    {
-                        self.variable_inspector_open = !self.variable_inspector_open;
-                    }
-                });
+                                    ui.visuals().widgets.noninteractive.bg_stroke.color
+                                },
+                            ))
+                            .corner_radius(6.0),
+                    )
+                    .on_hover_text(Self::tr_lang(
+                        language,
+                        "Global & Local Variables Manager (Real-time)",
+                        "Trình quản lý biến toàn cục & cục bộ (Real-time)",
+                    ))
+                    .clicked()
+                {
+                    self.variable_inspector_open = !self.variable_inspector_open;
+                }
             });
 
             if ui
@@ -19865,6 +19860,7 @@ impl CrosshairApp {
         response
     }
 }
+
 
 
 
