@@ -8044,7 +8044,12 @@ impl CrosshairApp {
 
                                                             let mut variable_layouter = |ui: &egui::Ui, string: &dyn TextBuffer, wrap_width: f32| {
 
-                                                                let job = Self::variable_highlight_job(ui, string.as_str(), wrap_width);
+                                                                let job = Self::interpolation_highlight_job(
+                                                                    ui,
+                                                                    string.as_str(),
+                                                                    wrap_width,
+                                                                    egui::TextStyle::Body,
+                                                                );
 
                                                                 ui.fonts_mut(|fonts| fonts.layout_job(job))
 
@@ -9660,7 +9665,12 @@ impl CrosshairApp {
 
                                                                        let mut variable_layouter = |ui: &egui::Ui, string: &dyn TextBuffer, wrap_width: f32| {
 
-                                                                           let job = Self::variable_highlight_job(ui, string.as_str(), wrap_width);
+                                                                           let job = Self::interpolation_highlight_job(
+                                                                               ui,
+                                                                               string.as_str(),
+                                                                               wrap_width,
+                                                                               egui::TextStyle::Body,
+                                                                           );
 
                                                                            ui.fonts_mut(|fonts| fonts.layout_job(job))
 
@@ -15057,7 +15067,12 @@ impl CrosshairApp {
 
                                                                         let mut variable_layouter = |ui: &egui::Ui, string: &dyn TextBuffer, wrap_width: f32| {
 
-                                                                            let job = Self::variable_highlight_job(ui, string.as_str(), wrap_width);
+                                                                            let job = Self::interpolation_highlight_job(
+                                                                                ui,
+                                                                                string.as_str(),
+                                                                                wrap_width,
+                                                                                egui::TextStyle::Body,
+                                                                            );
 
                                                                             ui.fonts_mut(|fonts| fonts.layout_job(job))
 
@@ -18653,71 +18668,6 @@ impl CrosshairApp {
         }
     }
 
-    fn variable_highlight_job(ui: &egui::Ui, text: &str, wrap_width: f32) -> egui::text::LayoutJob {
-        let mut job = egui::text::LayoutJob::default();
-
-        job.wrap.max_width = wrap_width;
-
-        let font_id = egui::TextStyle::Body.resolve(ui.style());
-
-        let default_color = ui.visuals().text_color();
-
-        let mut segment_start = 0;
-
-        let mut chars = text.char_indices().peekable();
-
-        while let Some((idx, ch)) = chars.next() {
-            let is_token_char = ch.is_ascii_alphanumeric() || ch == '_' || ch == '.';
-
-            if !is_token_char {
-                continue;
-            }
-
-            if segment_start < idx {
-                job.append(
-                    &text[segment_start..idx],
-                    0.0,
-                    egui::text::TextFormat::simple(font_id.clone(), default_color),
-                );
-            }
-
-            let mut end = idx + ch.len_utf8();
-
-            while let Some(&(next_idx, next_ch)) = chars.peek() {
-                if next_ch.is_ascii_alphanumeric() || next_ch == '_' || next_ch == '.' {
-                    chars.next();
-
-                    end = next_idx + next_ch.len_utf8();
-                } else {
-                    break;
-                }
-            }
-
-            let token = &text[idx..end];
-
-            let color =
-                Self::variable_value_color(Self::variable_value_kind(token), default_color);
-
-            job.append(
-                token,
-                0.0,
-                egui::text::TextFormat::simple(font_id.clone(), color),
-            );
-
-            segment_start = end;
-        }
-
-        if segment_start < text.len() {
-            job.append(
-                &text[segment_start..],
-                0.0,
-                egui::text::TextFormat::simple(font_id, default_color),
-            );
-        }
-
-        job
-    }
-
     fn interpolation_highlight_job(
         ui: &egui::Ui,
         text: &str,
@@ -19641,7 +19591,12 @@ impl CrosshairApp {
             }
             TextHighlightMode::VariableTokens => {
                 let mut layouter = |ui: &egui::Ui, string: &dyn TextBuffer, wrap_width: f32| {
-                    let job = Self::variable_highlight_job(ui, string.as_str(), wrap_width);
+                    let job = Self::interpolation_highlight_job(
+                        ui,
+                        string.as_str(),
+                        wrap_width,
+                        egui::TextStyle::Body,
+                    );
 
                     ui.fonts_mut(|fonts| fonts.layout_job(job))
                 };
@@ -19829,7 +19784,12 @@ impl CrosshairApp {
             TextHighlightMode::None => ui.put(rect, text_edit),
             TextHighlightMode::VariableTokens => {
                 let mut layouter = |ui: &egui::Ui, string: &dyn TextBuffer, wrap_width: f32| {
-                    let job = Self::variable_highlight_job(ui, string.as_str(), wrap_width);
+                    let job = Self::interpolation_highlight_job(
+                        ui,
+                        string.as_str(),
+                        wrap_width,
+                        egui::TextStyle::Monospace,
+                    );
 
                     ui.fonts_mut(|fonts| fonts.layout_job(job))
                 };
