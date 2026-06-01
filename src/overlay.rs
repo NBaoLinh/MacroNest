@@ -3551,9 +3551,18 @@ mod windows_overlay {
                 && group.presets.iter().any(|preset| {
                     preset.enabled
                         && preset.trigger_mode == MacroTriggerMode::Hold
+                        && !preset.pass_through_hold
                         && macro_preset_trigger_matches(preset, binding)
                 })
         })
+    }
+
+    fn preset_blocks_trigger_input(preset: &MacroPreset) -> bool {
+        match preset.trigger_mode {
+            MacroTriggerMode::Press => !preset.pass_through_press,
+            MacroTriggerMode::Hold => !preset.pass_through_hold,
+            MacroTriggerMode::Release => false,
+        }
     }
 
     fn trigger_binding_matches(expected: &HotkeyBinding, observed: &HotkeyBinding) -> bool {
@@ -3860,6 +3869,7 @@ mod windows_overlay {
             Vec::new();
 
         let mut matched_any_press = false;
+        let mut matched_blocking_macro = false;
 
         for group in &hook_state.macro_groups {
             if !group.enabled {
@@ -3881,6 +3891,7 @@ mod windows_overlay {
 
                 if preset.trigger_mode == MacroTriggerMode::Hold {
                     matched_any_macro = true;
+                    matched_blocking_macro |= preset_blocks_trigger_input(preset);
 
                     if !hook_state.active_hold_macros.contains_key(&preset.id) {
                         hold_matches.push((
@@ -3905,6 +3916,7 @@ mod windows_overlay {
                 matched_any_macro = true;
 
                 matched_any_press = true;
+                matched_blocking_macro |= preset_blocks_trigger_input(preset);
 
                 if is_repeat {
                     continue;
@@ -3922,7 +3934,7 @@ mod windows_overlay {
 
         drop(hook_state);
 
-        if matched_any_press {
+        if matched_any_press && matched_blocking_macro {
             for key_name in consume_pending_press_trigger_keys(binding) {
                 increment_press_trigger_suppression(&key_name);
             }
@@ -3994,7 +4006,7 @@ mod windows_overlay {
         }
 
         if matched_any_macro {
-            return Some(true);
+            return Some(matched_blocking_macro);
         }
 
         Some(matched_any_window)

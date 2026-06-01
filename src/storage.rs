@@ -265,6 +265,8 @@ impl AppPaths {
                         enabled: legacy.enabled,
                         collapsed: legacy.collapsed,
                         trigger_mode: crate::model::MacroTriggerMode::Press,
+                        pass_through_press: false,
+                        pass_through_hold: false,
                         stop_on_retrigger_immediate: false,
                         release_requires_all_inputs_released: false,
                         release_wait_key: String::new(),

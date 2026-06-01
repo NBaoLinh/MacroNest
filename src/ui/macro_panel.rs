@@ -6540,6 +6540,32 @@ impl CrosshairApp {
 
                                     .checkbox(
 
+                                        &mut preset.pass_through_press,
+
+                                        Self::tr_lang(language, "Pass trigger through", "Pass trigger through"),
+
+                                    )
+
+                                    .on_hover_text(
+
+                                        Self::tr_lang(
+
+                                            language,
+
+                                            "Let the trigger input keep going to the game or app while it also starts this macro.",
+
+                                            "Let the trigger input keep going to the game or app while it also starts this macro.",
+
+                                        ),
+
+                                    )
+
+                                    .changed();
+
+                                live_sync |= ui
+
+                                    .checkbox(
+
                                         &mut preset.stop_on_retrigger_immediate,
 
                                         Self::tr_lang(language, "Stop on trigger again", "Stop on trigger again"),
@@ -6569,6 +6595,32 @@ impl CrosshairApp {
                             }
 
                             if preset.trigger_mode == MacroTriggerMode::Hold {
+
+                                live_sync |= ui
+
+                                    .checkbox(
+
+                                        &mut preset.pass_through_hold,
+
+                                        Self::tr_lang(language, "Pass trigger through", "Pass trigger through"),
+
+                                    )
+
+                                    .on_hover_text(
+
+                                        Self::tr_lang(
+
+                                            language,
+
+                                            "While this hold trigger is active, let the same input keep going to the game or app too.",
+
+                                            "While this hold trigger is active, let the same input keep going to the game or app too.",
+
+                                        ),
+
+                                    )
+
+                                    .changed();
 
                                 live_sync |= ui
 
