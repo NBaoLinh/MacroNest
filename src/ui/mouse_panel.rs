@@ -701,6 +701,9 @@ impl CrosshairApp {
             return;
         };
 
+        self.mouse_path_step_preview_preset_id = None;
+        let _ = self.overlay_tx.send(OverlayCommand::PreviewMousePath(None));
+
         let viewport = ctx.input(|input| input.viewport().clone());
         self.mouse_path_draw_capture_restore_inner_size = viewport
             .inner_rect
