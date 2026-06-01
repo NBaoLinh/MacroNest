@@ -8161,7 +8161,8 @@ impl eframe::App for CrosshairApp {
             self.persist();
         }
 
-        if self.state.show_window
+        if viewport_focused
+            && self.state.show_window
             && self.last_window_refresh_at.elapsed() >= Duration::from_millis(250)
             && matches!(
                 self.state.active_panel,
