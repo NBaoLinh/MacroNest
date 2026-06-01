@@ -1569,6 +1569,8 @@ impl CrosshairApp {
         step: &MacroStep,
     ) -> Option<HoverPreviewRequest> {
         match step.action {
+            MacroAction::EnableStep | MacroAction::DisableStep => None,
+
             MacroAction::TriggerMacroPreset => Some(HoverPreviewRequest::MacroPreset {
                 source_id,
 
