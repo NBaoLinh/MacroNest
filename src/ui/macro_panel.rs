@@ -16164,6 +16164,7 @@ impl CrosshairApp {
                                                     ))
 
                                                     .changed();
+                                                ui.add_space(6.0);
                                                 ui.label(Self::tr_lang(
                                                     language,
                                                     "Speed",
@@ -17041,7 +17042,7 @@ impl CrosshairApp {
                                 if drag_payload.is_some()
                                     && next_compact_preview_index == steps_len
                                     && pointer_y.is_some_and(|pointer_y| {
-                                        pointer_y <= row_response.rect.top() + 4.0
+                                        pointer_y < row_response.rect.bottom()
                                     })
                                 {
                                     next_compact_preview_index = compact_cursor;
