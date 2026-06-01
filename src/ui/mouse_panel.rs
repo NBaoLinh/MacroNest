@@ -681,7 +681,7 @@ impl CrosshairApp {
         ctx: &egui::Context,
         preset_id: u32,
     ) {
-        if self.mouse_path_draw_capture_preset_id.is_some() || self.active_mouse_record_preset_id.is_some() {
+        if self.mouse_path_draw_capture_preset_id.is_some() {
             return;
         }
 
@@ -702,6 +702,7 @@ impl CrosshairApp {
         };
 
         self.mouse_path_step_preview_preset_id = None;
+        self.active_mouse_record_preset_id = None;
         let _ = self.overlay_tx.send(OverlayCommand::PreviewMousePath(None));
 
         let viewport = ctx.input(|input| input.viewport().clone());
