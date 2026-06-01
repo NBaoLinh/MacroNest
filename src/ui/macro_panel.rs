@@ -32,6 +32,44 @@ enum TextHighlightMode {
 }
 
 impl CrosshairApp {
+    fn contrast_text_color(background: Color32) -> Color32 {
+        let red = background.r() as f32 / 255.0;
+        let green = background.g() as f32 / 255.0;
+        let blue = background.b() as f32 / 255.0;
+
+        let linearize = |channel: f32| {
+            if channel <= 0.04045 {
+                channel / 12.92
+            } else {
+                ((channel + 0.055) / 1.055).powf(2.4)
+            }
+        };
+
+        let luminance =
+            0.2126 * linearize(red) + 0.7152 * linearize(green) + 0.0722 * linearize(blue);
+
+        if luminance > 0.45 {
+            Color32::from_rgb(16, 22, 30)
+        } else {
+            Color32::from_rgb(248, 250, 252)
+        }
+    }
+
+    fn active_variable_badge_colors(has_value: bool) -> (Color32, Color32, Color32) {
+        let fill = if has_value {
+            Color32::from_rgb(52, 214, 255)
+        } else {
+            Color32::from_rgb(84, 90, 102)
+        };
+        let stroke = if has_value {
+            Color32::from_rgb(130, 236, 255)
+        } else {
+            Color32::from_rgb(164, 170, 180)
+        };
+        let text = Self::contrast_text_color(fill);
+        (fill, stroke, text)
+    }
+
     fn parse_rgb_color(s: &str) -> Option<Color32> {
         let parts: Vec<&str> = s.split(',').collect();
 
@@ -5683,6 +5721,9 @@ impl CrosshairApp {
 
                                     let binding_width = (left_width - label_width - 6.0).max(160.0);
 
+                                    let referenced_vars =
+                                        Self::collect_preset_referenced_variables(preset);
+
                                     ui.allocate_ui_with_layout(
 
                                         vec2(left_width, 0.0),
@@ -5760,6 +5801,66 @@ impl CrosshairApp {
                                                         capture_hotkey_combo_keys_snapshot.as_ref(),
 
                                                     );
+
+                                                    if !referenced_vars.is_empty() {
+                                                        ui.add_space(4.0);
+                                                        ui.horizontal_wrapped(|ui| {
+                                                            ui.spacing_mut().item_spacing =
+                                                                vec2(4.0, 4.0);
+                                                            ui.label(
+                                                                RichText::new(Self::tr_lang(
+                                                                    language,
+                                                                    "Active Variables:",
+                                                                    "Active Variables:",
+                                                                ))
+                                                                .size(11.0)
+                                                                .weak(),
+                                                            );
+
+                                                            let vars_map =
+                                                                crate::overlay::RUNTIME_VARIABLES
+                                                                    .lock();
+                                                            for var_name in &referenced_vars {
+                                                                let val =
+                                                                    vars_map.get(var_name).copied();
+                                                                let val_str = val
+                                                                    .map(|v| v.to_string())
+                                                                    .unwrap_or_else(|| {
+                                                                        "?".to_string()
+                                                                    });
+                                                                let (fill_color, stroke_color, text_color) =
+                                                                    Self::active_variable_badge_colors(
+                                                                        val.is_some(),
+                                                                    );
+
+                                                                egui::Frame::none()
+                                                                    .fill(fill_color)
+                                                                    .stroke(egui::Stroke::new(
+                                                                        1.0,
+                                                                        stroke_color,
+                                                                    ))
+                                                                    .inner_margin(
+                                                                        egui::Margin::symmetric(
+                                                                            6,
+                                                                            2,
+                                                                        ),
+                                                                    )
+                                                                    .rounding(4.0)
+                                                                    .show(ui, |ui| {
+                                                                        ui.label(
+                                                                            RichText::new(format!(
+                                                                                "{} = {}",
+                                                                                var_name,
+                                                                                val_str
+                                                                            ))
+                                                                            .size(11.0)
+                                                                            .strong()
+                                                                            .color(text_color),
+                                                                        );
+                                                                    });
+                                                            }
+                                                        });
+                                                    }
 
                                                 },
 
@@ -6382,76 +6483,6 @@ impl CrosshairApp {
                                     );
 
                                 });
-
-                                let referenced_vars = Self::collect_preset_referenced_variables(preset);
-
-                                if !referenced_vars.is_empty() {
-
-                                    ui.horizontal(|ui| {
-
-                                        ui.add_space(4.0);
-
-                                        ui.label(RichText::new(Self::tr_lang(language, "Active Variables:", "Active Variables:")).size(11.0).weak());
-
-                                        let vars_map = crate::overlay::RUNTIME_VARIABLES.lock();
-
-                                        for var_name in &referenced_vars {
-
-                                            let val = vars_map.get(var_name).copied();
-
-                                            let val_str = val.map(|v| v.to_string()).unwrap_or_else(|| "?".to_string());
-
-                                            let bg_color = if val.is_some() {
-
-                                                Color32::from_rgba_premultiplied(0, 191, 255, 34)
-
-                                            } else {
-
-                                                Color32::from_rgba_premultiplied(54, 54, 54, 230)
-
-                                            };
-
-                                            let stroke_color = if val.is_some() {
-
-                                                Color32::from_rgb(0, 191, 255)
-
-                                            } else {
-
-                                                Color32::from_rgb(150, 150, 150)
-
-                                            };
-
-                                            egui::Frame::none()
-
-                                                .fill(bg_color)
-
-                                                .stroke(egui::Stroke::new(1.0, stroke_color))
-
-                                                .inner_margin(egui::Margin::symmetric(6, 2))
-
-                                                .rounding(4.0)
-
-                                                .show(ui, |ui| {
-
-                                                    ui.label(
-
-                                                        RichText::new(format!("{} = {}", var_name, val_str))
-
-                                                            .size(11.0)
-
-                                                            .strong()
-
-                                                            .color(Color32::WHITE)
-
-                                                    );
-
-                                                });
-
-                                        }
-
-                                    });
-
-                                }
 
                                 if !preset.collapsed {
 
