@@ -62,16 +62,6 @@ enum MacroStepHoverPreviewKind {
         steps: Vec<MacroStep>,
     },
 
-    StepToggle {
-        mode_label: String,
-
-        preset_name: String,
-
-        steps: Vec<MacroStep>,
-
-        selected_steps: Vec<u32>,
-    },
-
     Vision {
         action_label: String,
 
@@ -158,16 +148,6 @@ enum HoverPreviewRequest {
         preset_id: u32,
 
         mode_label: String,
-    },
-
-    StepToggle {
-        source_id: egui::Id,
-
-        preset_id: u32,
-
-        mode_label: String,
-
-        selected_steps: Vec<u32>,
     },
 
     Vision {
@@ -754,21 +734,6 @@ impl CrosshairApp {
                                 preview.source_id,
                                 steps,
                                 &[],
-                            );
-                        }
-
-                        MacroStepHoverPreviewKind::StepToggle {
-                            steps,
-
-                            selected_steps,
-                            ..
-                        } => {
-                            Self::render_macro_step_hover_preview_list(
-                                ui,
-                                language,
-                                preview.source_id,
-                                steps,
-                                selected_steps,
                             );
                         }
 
@@ -1476,8 +1441,7 @@ impl CrosshairApp {
         let content_rect = ctx.content_rect();
 
         let estimated_size = match &preview.kind {
-            MacroStepHoverPreviewKind::MacroPreset { .. }
-            | MacroStepHoverPreviewKind::StepToggle { .. } => vec2(360.0, 180.0),
+            MacroStepHoverPreviewKind::MacroPreset { .. } => vec2(360.0, 180.0),
 
             MacroStepHoverPreviewKind::Vision { .. } => vec2(560.0, 440.0),
 
@@ -1517,11 +1481,7 @@ impl CrosshairApp {
         let rect = area_response.response.rect;
 
         if area_response.response.hovered() {
-            if matches!(
-                &preview.kind,
-                MacroStepHoverPreviewKind::MacroPreset { .. }
-                    | MacroStepHoverPreviewKind::StepToggle { .. }
-            ) {
+            if matches!(&preview.kind, MacroStepHoverPreviewKind::MacroPreset { .. }) {
                 let scroll_y = ctx.input(|i| i.raw_scroll_delta.y);
 
                 if scroll_y.abs() > 0.0 {
@@ -1529,10 +1489,6 @@ impl CrosshairApp {
 
                     let line_count = match &preview.kind {
                         MacroStepHoverPreviewKind::MacroPreset { steps, .. } => {
-                            Self::macro_step_preview_visible_entries(steps).len() as i32
-                        }
-
-                        MacroStepHoverPreviewKind::StepToggle { steps, .. } => {
                             Self::macro_step_preview_visible_entries(steps).len() as i32
                         }
 
@@ -1569,8 +1525,6 @@ impl CrosshairApp {
         step: &MacroStep,
     ) -> Option<HoverPreviewRequest> {
         match step.action {
-            MacroAction::EnableStep | MacroAction::DisableStep => None,
-
             MacroAction::TriggerMacroPreset => Some(HoverPreviewRequest::MacroPreset {
                 source_id,
 
@@ -1595,43 +1549,7 @@ impl CrosshairApp {
                 mode_label: Self::tr_lang(language, "Disable macro", "Tắt macro").to_owned(),
             }),
 
-            MacroAction::EnableStep | MacroAction::DisableStep => {
-                let (preset_id, steps) = {
-                    let parts: Vec<&str> = step.key.split('|').collect();
-
-                    if parts.len() == 2 {
-                        (
-                            parts[0].trim().parse::<u32>().ok().unwrap_or(0),
-                            parts[1]
-                                .split(',')
-                                .filter_map(|value| value.trim().parse::<u32>().ok())
-                                .collect::<Vec<_>>(),
-                        )
-                    } else {
-                        (
-                            step.key.trim().parse::<u32>().ok().unwrap_or(0),
-                            step.key
-                                .split(',')
-                                .filter_map(|value| value.trim().parse::<u32>().ok())
-                                .collect::<Vec<_>>(),
-                        )
-                    }
-                };
-
-                Some(HoverPreviewRequest::StepToggle {
-                    source_id,
-
-                    preset_id,
-
-                    mode_label: if step.action == MacroAction::EnableStep {
-                        Self::tr_lang(language, "Enable steps", "Bật step").to_owned()
-                    } else {
-                        Self::tr_lang(language, "Disable steps", "Tắt step").to_owned()
-                    },
-
-                    selected_steps: steps,
-                })
-            }
+            MacroAction::EnableStep | MacroAction::DisableStep => None,
 
             _ => None,
         }
@@ -1679,48 +1597,6 @@ impl CrosshairApp {
                         preset_name: preset_label,
 
                         steps: preset.steps,
-                    },
-                })
-            }
-
-            HoverPreviewRequest::StepToggle {
-                source_id,
-
-                preset_id,
-
-                mode_label,
-
-                selected_steps,
-            } => {
-                let group = self
-                    .state
-                    .macro_groups
-                    .iter()
-                    .find(|group| group.id == group_id)?;
-
-                let preset = group
-                    .presets
-                    .iter()
-                    .find(|preset| preset.id == preset_id)?
-                    .clone();
-
-                let preset_label = Self::format_macro_trigger_ui(self.state.ui_language, &preset);
-
-                let title = format!("{}: {}", mode_label, preset_label.clone());
-
-                Some(MacroStepHoverPreview {
-                    source_id,
-
-                    title,
-
-                    kind: MacroStepHoverPreviewKind::StepToggle {
-                        mode_label,
-
-                        preset_name: preset_label,
-
-                        steps: preset.steps,
-
-                        selected_steps,
                     },
                 })
             }
@@ -18642,15 +18518,7 @@ impl CrosshairApp {
 
                                     if let Some(hover_request) = hover_request {
 
-                                        if matches!(
-
-                                            &hover_request,
-
-                                            HoverPreviewRequest::MacroPreset { .. }
-
-                                                | HoverPreviewRequest::StepToggle { .. }
-
-                                        ) {
+                                        if matches!(&hover_request, HoverPreviewRequest::MacroPreset { .. }) {
 
                                             let scroll_y = ui.ctx().input(|i| i.raw_scroll_delta.y);
 
@@ -18658,9 +18526,7 @@ impl CrosshairApp {
 
                                                 let source_id = match &hover_request {
 
-                                                    HoverPreviewRequest::MacroPreset { source_id, .. }
-
-                                                    | HoverPreviewRequest::StepToggle { source_id, .. } => *source_id,
+                                                    HoverPreviewRequest::MacroPreset { source_id, .. } => *source_id,
 
                                                     _ => hover_preview_source_id,
 
@@ -18670,9 +18536,7 @@ impl CrosshairApp {
 
                                                 let line_count = match &hover_request {
 
-                                                    HoverPreviewRequest::MacroPreset { preset_id, .. }
-
-                                                    | HoverPreviewRequest::StepToggle { preset_id, .. } => {
+                                                    HoverPreviewRequest::MacroPreset { preset_id, .. } => {
 
                                                         all_preset_step_counts
 
