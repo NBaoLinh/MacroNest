@@ -249,7 +249,7 @@ impl CrosshairApp {
                     let display = if has_ocr {
                         label.to_string()
                     } else if has_language {
-                        format!("{} [OCR missing]", label)
+                        format!("{} [Windows language only]", label)
                     } else {
                         format!("{} [not installed]", label)
                     };
@@ -259,7 +259,7 @@ impl CrosshairApp {
                         hint.to_string()
                     } else if has_language {
                         format!(
-                            "{} - Language is already added in Windows, but the OCR feature is still missing. Open Settings > Language & Region to add its OCR optional feature",
+                            "{} - This language is already added in Windows, but Windows OCR is not available for it in the app yet. Open Settings > Language & Region and install any OCR-related optional features if Windows provides them.",
                             hint
                         )
                     } else {
