@@ -15830,6 +15830,8 @@ mod windows_overlay {
             let _ = SetBkMode(mem_dc, TRANSPARENT);
         }
 
+        let mut occupied_label_rects: Vec<RECT> = Vec::new();
+
         for region in preview_regions {
             let rel_left = region.left - min_x;
 
@@ -15864,6 +15866,28 @@ mod windows_overlay {
                 text_rect.bottom = text_rect.top + 18;
             }
 
+            loop {
+                let overlaps_existing = occupied_label_rects.iter().any(|occupied| {
+                    text_rect.left < occupied.right
+                        && text_rect.right > occupied.left
+                        && text_rect.top < occupied.bottom
+                        && text_rect.bottom > occupied.top
+                });
+
+                if !overlaps_existing {
+                    break;
+                }
+
+                text_rect.top += 20;
+                text_rect.bottom += 20;
+
+                if text_rect.bottom > height {
+                    text_rect.top = (rel_top - 38).max(0);
+                    text_rect.bottom = (text_rect.top + 18).min(height);
+                    break;
+                }
+            }
+
             let text_str = format!(
                 "{}x{} @ {},{}",
                 region.width, region.height, region.left, region.top
@@ -15882,6 +15906,8 @@ mod windows_overlay {
                     DT_LEFT | DT_VCENTER | DT_SINGLELINE,
                 );
             }
+
+            occupied_label_rects.push(text_rect);
         }
 
         for py in 0..height {

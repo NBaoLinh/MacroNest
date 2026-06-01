@@ -3495,7 +3495,7 @@ impl CrosshairApp {
             MacroAction::LockKeys => "LockKeys",
             MacroAction::UnlockKeys => "UnlockKeys",
             MacroAction::LockMouse => "LockMouseMove",
-            MacroAction::UnlockMouse => "UnlockMouseMove",
+            MacroAction::UnlockMouse => "UnlockMouse",
             MacroAction::EnableMacroPreset => "EnableMacro",
             MacroAction::DisableMacroPreset => "DisableMacro",
             MacroAction::StartTimerPreset => "StartTimer",
