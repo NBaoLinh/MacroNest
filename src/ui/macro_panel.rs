@@ -4773,7 +4773,7 @@ impl CrosshairApp {
                     let group_top = ui.cursor().min.y;
 
                     if group_is_collapsed && let Some(cached_height) = cached_group_height {
-                        let cached_height = cached_height.clamp(42.0, 84.0);
+                        let cached_height = cached_height.max(1.0);
                         let group_bottom = group_top + cached_height;
                         let visible_top = viewport.top() - macro_group_virtualization_margin;
                         let visible_bottom = viewport.bottom() + macro_group_virtualization_margin;
@@ -18047,7 +18047,7 @@ impl CrosshairApp {
                     }
 
                     if group_is_collapsed {
-                        let rendered_group_height = (ui.cursor().min.y - group_top).clamp(42.0, 84.0);
+                        let rendered_group_height = (ui.cursor().min.y - group_top).max(1.0);
                         ui.ctx().data_mut(|data| {
                             data.insert_temp(macro_group_height_key, rendered_group_height);
                         });
