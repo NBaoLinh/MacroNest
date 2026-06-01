@@ -21,6 +21,15 @@ enum VariableValueKind {
     Text,
 }
 
+#[derive(Clone, Copy, PartialEq, Eq)]
+enum TextHighlightMode {
+    None,
+
+    VariableTokens,
+
+    Interpolations,
+}
+
 #[derive(Clone)]
 
 struct MacroStepHoverPreview {
@@ -10714,7 +10723,7 @@ impl CrosshairApp {
 
                                                     ui.vertical(|ui| {
 
-                                                        let response = Self::render_expandable_text_edit(ui, &mut step.key, ui.id().with("hold-stop-type-text-key"),
+                                                        let response = Self::render_interpolated_text_edit(ui, &mut step.key, ui.id().with("hold-stop-type-text-key"),
 
                                                             220.0,
 
@@ -11888,7 +11897,7 @@ impl CrosshairApp {
 
                                                 }
 
-                                            } else if step.action == MacroAction::MouseMoveAbsolute {
+                                            } else if Self::macro_action_uses_position(step.action) {
 
                                                 ui.add_space(2.0);
 
@@ -16059,7 +16068,7 @@ impl CrosshairApp {
 
                                                      ui.vertical(|ui| {
 
-                                                         let response = Self::render_expandable_text_edit(ui, &mut step.key, ui.id().with((step_index, "type-text-key")),
+                                                         let response = Self::render_interpolated_text_edit(ui, &mut step.key, ui.id().with((step_index, "type-text-key")),
 
                                                              146.0,
 
@@ -17546,7 +17555,7 @@ impl CrosshairApp {
 
                                                 }
 
-                                            } else if step.action == MacroAction::MouseMoveAbsolute {
+                                            } else if Self::macro_action_uses_position(step.action) {
 
                                                 ui.add_space(2.0);
 
@@ -20512,6 +20521,16 @@ impl CrosshairApp {
         VariableValueKind::Number
     }
 
+    fn variable_value_color(kind: VariableValueKind, default_color: Color32) -> Color32 {
+        match kind {
+            VariableValueKind::Text => Color32::from_rgb(255, 185, 92),
+
+            VariableValueKind::Number => Color32::from_rgb(86, 198, 255),
+
+            VariableValueKind::Neutral => default_color,
+        }
+    }
+
     fn variable_highlight_job(ui: &egui::Ui, text: &str, wrap_width: f32) -> egui::text::LayoutJob {
         let mut job = egui::text::LayoutJob::default();
 
@@ -20554,13 +20573,8 @@ impl CrosshairApp {
 
             let token = &text[idx..end];
 
-            let color = match Self::variable_value_kind(token) {
-                VariableValueKind::Text => Color32::from_rgb(255, 185, 92),
-
-                VariableValueKind::Number => Color32::from_rgb(86, 198, 255),
-
-                VariableValueKind::Neutral => default_color,
-            };
+            let color =
+                Self::variable_value_color(Self::variable_value_kind(token), default_color);
 
             job.append(
                 token,
@@ -20569,6 +20583,74 @@ impl CrosshairApp {
             );
 
             segment_start = end;
+        }
+
+        if segment_start < text.len() {
+            job.append(
+                &text[segment_start..],
+                0.0,
+                egui::text::TextFormat::simple(font_id, default_color),
+            );
+        }
+
+        job
+    }
+
+    fn interpolation_highlight_job(
+        ui: &egui::Ui,
+        text: &str,
+        wrap_width: f32,
+        text_style: egui::TextStyle,
+    ) -> egui::text::LayoutJob {
+        let mut job = egui::text::LayoutJob::default();
+
+        job.wrap.max_width = wrap_width;
+
+        let font_id = text_style.resolve(ui.style());
+
+        let default_color = ui.visuals().text_color();
+
+        let mut segment_start = 0;
+
+        while let Some(open_rel) = text[segment_start..].find('{') {
+            let open_idx = segment_start + open_rel;
+
+            if segment_start < open_idx {
+                job.append(
+                    &text[segment_start..open_idx],
+                    0.0,
+                    egui::text::TextFormat::simple(font_id.clone(), default_color),
+                );
+            }
+
+            let close_search_start = open_idx + 1;
+
+            if let Some(close_rel) = text[close_search_start..].find('}') {
+                let close_idx = close_search_start + close_rel;
+                let token = &text[open_idx + 1..close_idx];
+                let color = if token.trim().is_empty() {
+                    default_color
+                } else {
+                    Self::variable_value_color(Self::variable_value_kind(token), default_color)
+                };
+
+                job.append(
+                    &text[open_idx..close_idx + 1],
+                    0.0,
+                    egui::text::TextFormat::simple(font_id.clone(), color),
+                );
+
+                segment_start = close_idx + 1;
+            } else {
+                job.append(
+                    &text[open_idx..],
+                    0.0,
+                    egui::text::TextFormat::simple(font_id.clone(), default_color),
+                );
+
+                segment_start = text.len();
+                break;
+            }
         }
 
         if segment_start < text.len() {
@@ -21349,7 +21431,7 @@ impl CrosshairApp {
 
         multiline_on_focus: bool,
 
-        highlight_variables: bool,
+        highlight_mode: TextHighlightMode,
     ) -> egui::Response {
         let focus_key = id.with("expand-focus");
 
@@ -21421,18 +21503,6 @@ impl CrosshairApp {
             egui::TextEdit::singleline(text).hint_text(hint).id(id)
         };
 
-        let mut layouter = |ui: &egui::Ui, string: &dyn TextBuffer, wrap_width: f32| {
-            let job = Self::variable_highlight_job(ui, string.as_str(), wrap_width);
-
-            ui.fonts_mut(|fonts| fonts.layout_job(job))
-        };
-
-        let text_edit = if highlight_variables {
-            text_edit.layouter(&mut layouter)
-        } else {
-            text_edit
-        };
-
         // Temporarily clear override_text_color so hint/placeholder text is properly dimmed.
 
         // Preset cards set override_text_color for their content, which bleeds into TextEdit
@@ -21443,7 +21513,38 @@ impl CrosshairApp {
 
         ui.visuals_mut().override_text_color = None;
 
-        let response = ui.add_sized([animated_width, animated_height], text_edit);
+        let response = match highlight_mode {
+            TextHighlightMode::None => {
+                ui.add_sized([animated_width, animated_height], text_edit)
+            }
+            TextHighlightMode::VariableTokens => {
+                let mut layouter = |ui: &egui::Ui, string: &dyn TextBuffer, wrap_width: f32| {
+                    let job = Self::variable_highlight_job(ui, string.as_str(), wrap_width);
+
+                    ui.fonts_mut(|fonts| fonts.layout_job(job))
+                };
+                ui.add_sized(
+                    [animated_width, animated_height],
+                    text_edit.layouter(&mut layouter),
+                )
+            }
+            TextHighlightMode::Interpolations => {
+                let mut layouter = |ui: &egui::Ui, string: &dyn TextBuffer, wrap_width: f32| {
+                    let job = Self::interpolation_highlight_job(
+                        ui,
+                        string.as_str(),
+                        wrap_width,
+                        egui::TextStyle::Body,
+                    );
+
+                    ui.fonts_mut(|fonts| fonts.layout_job(job))
+                };
+                ui.add_sized(
+                    [animated_width, animated_height],
+                    text_edit.layouter(&mut layouter),
+                )
+            }
+        };
 
         ui.visuals_mut().override_text_color = prev_override;
 
@@ -21485,7 +21586,7 @@ impl CrosshairApp {
             expanded_height,
             hint,
             multiline_on_focus,
-            false,
+            TextHighlightMode::None,
         )
     }
 
@@ -21518,7 +21619,40 @@ impl CrosshairApp {
             expanded_height,
             hint,
             multiline_on_focus,
-            true,
+            TextHighlightMode::VariableTokens,
+        )
+    }
+
+    fn render_interpolated_text_edit(
+        ui: &mut egui::Ui,
+
+        text: &mut String,
+
+        id: egui::Id,
+
+        normal_width: f32,
+
+        expanded_width: f32,
+
+        normal_height: f32,
+
+        expanded_height: f32,
+
+        hint: &str,
+
+        multiline_on_focus: bool,
+    ) -> egui::Response {
+        Self::render_expandable_text_edit_impl(
+            ui,
+            text,
+            id,
+            normal_width,
+            expanded_width,
+            normal_height,
+            expanded_height,
+            hint,
+            multiline_on_focus,
+            TextHighlightMode::Interpolations,
         )
     }
 
@@ -21551,7 +21685,7 @@ impl CrosshairApp {
             expanded_height,
             hint,
             multiline_on_focus,
-            false,
+            TextHighlightMode::None,
         )
     }
 
@@ -21562,17 +21696,39 @@ impl CrosshairApp {
         width: f32,
         height: f32,
         hint: &str,
+        highlight_mode: TextHighlightMode,
     ) -> egui::Response {
         let prev_override = ui.visuals().override_text_color;
         ui.visuals_mut().override_text_color = None;
         let (rect, _) = ui.allocate_exact_size(vec2(width, height), egui::Sense::hover());
-        let response = ui.put(
-            rect,
-            egui::TextEdit::singleline(text)
-                .font(egui::TextStyle::Monospace)
-                .hint_text(hint)
-                .id(id),
-        );
+        let text_edit = egui::TextEdit::singleline(text)
+            .font(egui::TextStyle::Monospace)
+            .hint_text(hint)
+            .id(id);
+        let response = match highlight_mode {
+            TextHighlightMode::None => ui.put(rect, text_edit),
+            TextHighlightMode::VariableTokens => {
+                let mut layouter = |ui: &egui::Ui, string: &dyn TextBuffer, wrap_width: f32| {
+                    let job = Self::variable_highlight_job(ui, string.as_str(), wrap_width);
+
+                    ui.fonts_mut(|fonts| fonts.layout_job(job))
+                };
+                ui.put(rect, text_edit.layouter(&mut layouter))
+            }
+            TextHighlightMode::Interpolations => {
+                let mut layouter = |ui: &egui::Ui, string: &dyn TextBuffer, wrap_width: f32| {
+                    let job = Self::interpolation_highlight_job(
+                        ui,
+                        string.as_str(),
+                        wrap_width,
+                        egui::TextStyle::Monospace,
+                    );
+
+                    ui.fonts_mut(|fonts| fonts.layout_job(job))
+                };
+                ui.put(rect, text_edit.layouter(&mut layouter))
+            }
+        };
         ui.visuals_mut().override_text_color = prev_override;
         response
     }
@@ -21596,7 +21752,15 @@ impl CrosshairApp {
                     [12.0, height],
                     egui::Label::new(egui::RichText::new(label).strong().color(label_color)),
                 );
-                Self::render_compact_plain_text_edit(ui, text, id, width, height, hint)
+                Self::render_compact_plain_text_edit(
+                    ui,
+                    text,
+                    id,
+                    width,
+                    height,
+                    hint,
+                    TextHighlightMode::Interpolations,
+                )
             },
         )
         .inner
