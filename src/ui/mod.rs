@@ -637,6 +637,7 @@ pub struct CrosshairApp {
     variable_inspector_open: bool,
     ocr_lang_pack_open: bool,
     ocr_lang_settings_focus: Option<String>,
+    ocr_preferred_languages_cache: Vec<String>,
     pub show_share_buttons: bool,
 }
 
@@ -807,6 +808,7 @@ impl CrosshairApp {
             variable_inspector_open: false,
             ocr_lang_pack_open: false,
             ocr_lang_settings_focus: None,
+            ocr_preferred_languages_cache: Vec::new(),
             show_share_buttons: false,
         };
         app.interception_installed = app.paths.interception_dll.exists();

@@ -1321,6 +1321,12 @@ impl CrosshairApp {
         self.persist();
     }
 
+    fn ensure_preferred_windows_languages_cache(&mut self) {
+        if self.ocr_preferred_languages_cache.is_empty() {
+            self.ocr_preferred_languages_cache = crate::ocr::preferred_windows_languages();
+        }
+    }
+
     pub(crate) fn render_ocr_language_settings(&mut self, ui: &mut egui::Ui) {
         let language = self.state.ui_language;
         let focused_lang = self.ocr_lang_settings_focus.clone();
@@ -1345,7 +1351,8 @@ impl CrosshairApp {
         ];
 
         let avail_langs = crate::ocr::available_ocr_languages();
-        let preferred_langs = crate::ocr::preferred_windows_languages();
+        self.ensure_preferred_windows_languages_cache();
+        let preferred_langs = self.ocr_preferred_languages_cache.clone();
 
         Self::settings_card_frame(ui).show(ui, |ui| {
             ui.set_min_width(ui.available_width());

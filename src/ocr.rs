@@ -30,8 +30,16 @@ pub fn available_ocr_languages() -> Vec<String> {
 #[cfg(windows)]
 pub fn preferred_windows_languages() -> Vec<String> {
     use std::process::Command;
+    #[cfg(windows)]
+    use std::os::windows::process::CommandExt;
 
-    let output = Command::new("powershell")
+    let mut cmd = Command::new("powershell");
+    #[cfg(windows)]
+    {
+        cmd.creation_flags(0x08000000);
+    }
+
+    let output = cmd
         .args([
             "-NoProfile",
             "-NonInteractive",
