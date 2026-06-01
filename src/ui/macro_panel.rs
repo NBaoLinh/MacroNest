@@ -3504,7 +3504,7 @@ impl CrosshairApp {
 
             .max_height(macro_panel_scroll_height)
 
-            .show(ui, |ui| {
+            .show_viewport(ui, |ui, viewport| {
 
         let mut release_folder_id = None;
 
@@ -4610,6 +4610,7 @@ impl CrosshairApp {
         let mut pending_ocr_language_settings: Option<(String, String)> = None;
 
         let command_presets_snapshot = self.state.command_presets.clone();
+        let macro_group_virtualization_margin = 480.0;
 
         for item in render_items {
 
@@ -4761,6 +4762,28 @@ impl CrosshairApp {
 
                 RenderItem::MacroGroup(group_index) => {
 
+                    let group_id = self.state.macro_groups[group_index].id;
+                    let should_scroll_to_group =
+                        pending_macro_group_scroll_target == Some(group_id);
+                    let macro_group_height_key =
+                        ui.make_persistent_id((group_id, "macro-group-cached-height"));
+                    let cached_group_height: Option<f32> =
+                        ui.ctx().data(|data| data.get_temp(macro_group_height_key));
+                    let group_top = ui.cursor().min.y;
+
+                    if let Some(cached_height) = cached_group_height {
+                        let group_bottom = group_top + cached_height;
+                        let visible_top = viewport.top() - macro_group_virtualization_margin;
+                        let visible_bottom = viewport.bottom() + macro_group_virtualization_margin;
+                        let group_is_visible =
+                            group_bottom >= visible_top && group_top <= visible_bottom;
+
+                        if !group_is_visible && !should_scroll_to_group {
+                            ui.add_space(cached_height);
+                            continue;
+                        }
+                    }
+
                     let mut next_capture_target = None;
 
                     let mut cancel_active_capture = false;
@@ -4889,8 +4912,6 @@ impl CrosshairApp {
                         .collect();
 
                     let group = &mut self.state.macro_groups[group_index];
-
-                    let should_scroll_to_group = pending_macro_group_scroll_target == Some(group.id);
 
                     let folder_enabled = true;
 
@@ -18022,6 +18043,11 @@ impl CrosshairApp {
                         self.import_macro_group_from_clipboard(None, Some(group_id));
 
                     }
+
+                    let rendered_group_height = (ui.cursor().min.y - group_top).max(1.0);
+                    ui.ctx().data_mut(|data| {
+                        data.insert_temp(macro_group_height_key, rendered_group_height);
+                    });
 
                 }
 
