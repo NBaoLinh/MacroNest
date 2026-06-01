@@ -16166,8 +16166,8 @@ impl CrosshairApp {
                                                     .changed();
                                                 ui.label(Self::tr_lang(
                                                     language,
-                                                    "Smooth Speed (100% = normal)",
-                                                    "Toc do Smooth (100% = mac dinh)",
+                                                    "Speed",
+                                                    "Toc do",
                                                 ))
                                                 .on_hover_text(Self::tr_lang(
                                                     language,
@@ -17041,7 +17041,7 @@ impl CrosshairApp {
                                 if drag_payload.is_some()
                                     && next_compact_preview_index == steps_len
                                     && pointer_y.is_some_and(|pointer_y| {
-                                        pointer_y <= row_response.rect.center().y
+                                        pointer_y <= row_response.rect.top() + 4.0
                                     })
                                 {
                                     next_compact_preview_index = compact_cursor;
