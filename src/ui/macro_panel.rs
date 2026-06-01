@@ -2871,13 +2871,13 @@ impl CrosshairApp {
                 };
 
                 let master_fill = if self.state.macros_master_enabled {
-                    Color32::from_rgb(44, 132, 74)
+                    Color32::from_rgb(46, 126, 76)
                 } else {
                     Color32::from_rgb(74, 78, 86)
                 };
 
                 let master_stroke = if self.state.macros_master_enabled {
-                    Color32::from_rgb(124, 240, 164)
+                    Color32::from_rgb(112, 204, 142)
                 } else {
                     Color32::from_rgb(156, 162, 172)
                 };
@@ -2887,7 +2887,8 @@ impl CrosshairApp {
                         [120.0, 28.0],
                         Button::new(RichText::new(master_label).color(Color32::WHITE))
                             .fill(master_fill)
-                            .stroke(egui::Stroke::new(1.0, master_stroke)),
+                            .stroke(egui::Stroke::new(1.0, master_stroke))
+                            .corner_radius(6.0),
                     )
                     .clicked()
                 {
@@ -2926,18 +2927,19 @@ impl CrosshairApp {
                         },
                         Button::new(macro_hotkey_capture_button_text)
                             .fill(if macro_hotkey_capture_active {
-                                Color32::from_rgba_premultiplied(72, 156, 116, 120)
+                                Color32::from_rgb(46, 126, 76)
                             } else {
                                 ui.visuals().faint_bg_color
                             })
                             .stroke(egui::Stroke::new(
                                 1.0,
                                 if macro_hotkey_capture_active {
-                                    Color32::from_rgb(126, 224, 182)
+                                    Color32::from_rgb(112, 204, 142)
                                 } else {
                                     ui.visuals().widgets.noninteractive.bg_stroke.color
                                 },
-                            )),
+                            ))
+                            .corner_radius(6.0),
                     )
                     .on_hover_text(Self::tr_lang(
                         language,
@@ -3292,18 +3294,19 @@ impl CrosshairApp {
                             [28.0, 28.0],
                             Button::new(Self::material_icon_text(edit_icon, 18.0)) // variable edit icon
                                 .fill(if self.variable_inspector_open {
-                                    Color32::from_rgba_premultiplied(72, 156, 116, 120)
+                                    Color32::from_rgb(46, 126, 76)
                                 } else {
                                     ui.visuals().faint_bg_color
                                 })
                                 .stroke(egui::Stroke::new(
                                     1.0,
                                     if self.variable_inspector_open {
-                                        Color32::from_rgb(126, 224, 182)
+                                        Color32::from_rgb(112, 204, 142)
                                     } else {
                                         ui.visuals().widgets.noninteractive.bg_stroke.color
                                     },
-                                )),
+                                ))
+                                .corner_radius(6.0),
                         )
                         .on_hover_text(Self::tr_lang(
                             language,
@@ -3523,7 +3526,7 @@ impl CrosshairApp {
 
             let master_fill = if self.state.macros_master_enabled {
 
-                Color32::from_rgb(44, 132, 74)
+                Color32::from_rgb(46, 126, 76)
 
             } else {
 
@@ -3533,7 +3536,7 @@ impl CrosshairApp {
 
             let master_stroke = if self.state.macros_master_enabled {
 
-                Color32::from_rgb(124, 240, 164)
+                Color32::from_rgb(112, 204, 142)
 
             } else {
 
@@ -3551,7 +3554,9 @@ impl CrosshairApp {
 
                         .fill(master_fill)
 
-                        .stroke(egui::Stroke::new(1.0, master_stroke)),
+                        .stroke(egui::Stroke::new(1.0, master_stroke))
+
+                        .corner_radius(6.0),
 
                 )
 
@@ -3611,7 +3616,7 @@ impl CrosshairApp {
 
                         .fill(if capture_active {
 
-                            Color32::from_rgba_premultiplied(72, 156, 116, 120)
+                            Color32::from_rgb(46, 126, 76)
 
                         } else {
 
@@ -3625,7 +3630,7 @@ impl CrosshairApp {
 
                             if capture_active {
 
-                                Color32::from_rgb(126, 224, 182)
+                                Color32::from_rgb(112, 204, 142)
 
                             } else {
 
@@ -3633,7 +3638,9 @@ impl CrosshairApp {
 
                             },
 
-                        )),
+                        ))
+
+                        .corner_radius(6.0),
 
                 )
 
@@ -3939,7 +3946,7 @@ impl CrosshairApp {
 
                         .fill(if variable_inspector_active {
 
-                            Color32::from_rgba_premultiplied(72, 156, 116, 120)
+                            Color32::from_rgb(46, 126, 76)
 
                         } else {
 
@@ -3953,7 +3960,7 @@ impl CrosshairApp {
 
                             if variable_inspector_active {
 
-                                Color32::from_rgb(126, 224, 182)
+                                Color32::from_rgb(112, 204, 142)
 
                             } else {
 
@@ -3961,7 +3968,9 @@ impl CrosshairApp {
 
                             },
 
-                        )),
+                        ))
+
+                        .corner_radius(6.0),
 
                 )
 
