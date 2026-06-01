@@ -21689,18 +21689,16 @@ impl CrosshairApp {
         )
     }
 
-    fn render_compact_plain_text_edit(
+    fn render_compact_plain_text_edit_at_rect(
         ui: &mut egui::Ui,
+        rect: Rect,
         text: &mut String,
         id: egui::Id,
-        width: f32,
-        height: f32,
         hint: &str,
         highlight_mode: TextHighlightMode,
     ) -> egui::Response {
         let prev_override = ui.visuals().override_text_color;
         ui.visuals_mut().override_text_color = None;
-        let (rect, _) = ui.allocate_exact_size(vec2(width, height), egui::Sense::hover());
         let text_edit = egui::TextEdit::singleline(text)
             .font(egui::TextStyle::Monospace)
             .hint_text(hint)
@@ -21733,39 +21731,6 @@ impl CrosshairApp {
         response
     }
 
-    fn render_coordinate_compact_input(
-        ui: &mut egui::Ui,
-        label: &str,
-        label_color: Color32,
-        text: &mut String,
-        id: egui::Id,
-        width: f32,
-        height: f32,
-        hint: &str,
-    ) -> egui::Response {
-        ui.allocate_ui_with_layout(
-            vec2(16.0 + width, height),
-            egui::Layout::left_to_right(egui::Align::Center),
-            |ui| {
-                ui.spacing_mut().item_spacing.x = 4.0;
-                ui.add_sized(
-                    [12.0, height],
-                    egui::Label::new(egui::RichText::new(label).strong().color(label_color)),
-                );
-                Self::render_compact_plain_text_edit(
-                    ui,
-                    text,
-                    id,
-                    width,
-                    height,
-                    hint,
-                    TextHighlightMode::Interpolations,
-                )
-            },
-        )
-        .inner
-    }
-
     fn render_coordinate_compact_pair(
         ui: &mut egui::Ui,
         x_text: &mut String,
@@ -21777,35 +21742,52 @@ impl CrosshairApp {
         width: f32,
         height: f32,
     ) -> (egui::Response, egui::Response) {
-        ui.allocate_ui_with_layout(
-            vec2((16.0 + width) * 2.0 + 4.0, height),
-            egui::Layout::left_to_right(egui::Align::Center),
-            |ui| {
-                ui.spacing_mut().item_spacing.x = 4.0;
-                let x_response = Self::render_coordinate_compact_input(
-                    ui,
-                    "X",
-                    Color32::from_rgb(86, 198, 255),
-                    x_text,
-                    x_id,
-                    width,
-                    height,
-                    x_hint,
-                );
-                let y_response = Self::render_coordinate_compact_input(
-                    ui,
-                    "Y",
-                    Color32::from_rgb(255, 185, 92),
-                    y_text,
-                    y_id,
-                    width,
-                    height,
-                    y_hint,
-                );
-                (x_response, y_response)
-            },
-        )
-        .inner
+        let label_width = 12.0;
+        let inner_gap = 4.0;
+        let pair_gap = 4.0;
+        let pair_width = (label_width + inner_gap + width) * 2.0 + pair_gap;
+        let (pair_rect, _) =
+            ui.allocate_exact_size(vec2(pair_width, height), egui::Sense::hover());
+
+        let x_label_rect = Rect::from_min_size(pair_rect.min, vec2(label_width, height));
+        let x_input_rect = Rect::from_min_size(
+            pos2(pair_rect.min.x + label_width + inner_gap, pair_rect.min.y),
+            vec2(width, height),
+        );
+        let y_label_x = pair_rect.min.x + label_width + inner_gap + width + pair_gap;
+        let y_label_rect = Rect::from_min_size(pos2(y_label_x, pair_rect.min.y), vec2(label_width, height));
+        let y_input_rect = Rect::from_min_size(
+            pos2(y_label_x + label_width + inner_gap, pair_rect.min.y),
+            vec2(width, height),
+        );
+
+        ui.put(
+            x_label_rect,
+            egui::Label::new(egui::RichText::new("X").strong().color(Color32::from_rgb(86, 198, 255))),
+        );
+        let x_response = Self::render_compact_plain_text_edit_at_rect(
+            ui,
+            x_input_rect,
+            x_text,
+            x_id,
+            x_hint,
+            TextHighlightMode::Interpolations,
+        );
+
+        ui.put(
+            y_label_rect,
+            egui::Label::new(egui::RichText::new("Y").strong().color(Color32::from_rgb(255, 185, 92))),
+        );
+        let y_response = Self::render_compact_plain_text_edit_at_rect(
+            ui,
+            y_input_rect,
+            y_text,
+            y_id,
+            y_hint,
+            TextHighlightMode::Interpolations,
+        );
+
+        (x_response, y_response)
     }
 
     fn render_expandable_command_text_edit(
