@@ -1,4 +1,6 @@
 use anyhow::{Result, bail};
+use once_cell::sync::Lazy;
+use parking_lot::Mutex;
 
 #[derive(Debug, Clone)]
 pub struct OcrWord {
@@ -16,19 +18,38 @@ pub struct OcrResult {
 }
 
 #[cfg(windows)]
+static AVAILABLE_OCR_LANGUAGES_CACHE: Lazy<Mutex<Option<Vec<String>>>> =
+    Lazy::new(|| Mutex::new(None));
+
+#[cfg(windows)]
+static PREFERRED_WINDOWS_LANGUAGES_CACHE: Lazy<Mutex<Option<Vec<String>>>> =
+    Lazy::new(|| Mutex::new(None));
+
+#[cfg(windows)]
 pub fn available_ocr_languages() -> Vec<String> {
+    if let Some(cached) = AVAILABLE_OCR_LANGUAGES_CACHE.lock().clone() {
+        return cached;
+    }
+
     use windows::Media::Ocr::OcrEngine;
-    match OcrEngine::AvailableRecognizerLanguages() {
+    let languages = match OcrEngine::AvailableRecognizerLanguages() {
         Ok(langs) => langs
             .into_iter()
             .filter_map(|l| l.LanguageTag().ok().map(|t| t.to_string()))
             .collect(),
         Err(_) => vec![],
-    }
+    };
+
+    *AVAILABLE_OCR_LANGUAGES_CACHE.lock() = Some(languages.clone());
+    languages
 }
 
 #[cfg(windows)]
 pub fn preferred_windows_languages() -> Vec<String> {
+    if let Some(cached) = PREFERRED_WINDOWS_LANGUAGES_CACHE.lock().clone() {
+        return cached;
+    }
+
     use std::process::Command;
     #[cfg(windows)]
     use std::os::windows::process::CommandExt;
@@ -44,11 +65,11 @@ pub fn preferred_windows_languages() -> Vec<String> {
             "-NoProfile",
             "-NonInteractive",
             "-Command",
-            "(Get-WinUserLanguageList | Select-Object -ExpandProperty LanguageTag) -join \"`n\"",
+            "Get-WinUserLanguageList | ForEach-Object { $_.LanguageTag }",
         ])
         .output();
 
-    match output {
+    let languages = match output {
         Ok(output) if output.status.success() => String::from_utf8_lossy(&output.stdout)
             .lines()
             .map(str::trim)
@@ -56,7 +77,10 @@ pub fn preferred_windows_languages() -> Vec<String> {
             .map(|line| line.to_string())
             .collect(),
         _ => vec![],
-    }
+    };
+
+    *PREFERRED_WINDOWS_LANGUAGES_CACHE.lock() = Some(languages.clone());
+    languages
 }
 
 #[cfg(not(windows))]
