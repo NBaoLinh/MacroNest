@@ -11308,6 +11308,12 @@ impl CrosshairApp {
 
                                 }
 
+                                if step_is_being_dragged {
+
+                                    row_fill = Color32::from_rgba_unmultiplied(120, 235, 190, 95);
+
+                                }
+
                                 let row_drag_payload = MacroStepDragPayload {
 
                                     group_id: group.id,
@@ -11318,7 +11324,11 @@ impl CrosshairApp {
 
                                 };
 
-                                let border_stroke = if is_active {
+                                let border_stroke = if step_is_being_dragged {
+
+                                    egui::Stroke::new(2.5, Color32::from_rgb(170, 255, 220))
+
+                                } else if is_active {
 
                                     egui::Stroke::new(1.5, Color32::from_rgb(0, 255, 170))
 
