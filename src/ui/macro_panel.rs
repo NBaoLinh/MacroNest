@@ -13066,9 +13066,11 @@ impl CrosshairApp {
 
                                                         });
 
-                                                    let draw_capture_active =
-                                                        self.mouse_path_draw_capture_preset_id
-                                                            == selected_id;
+                                                    let draw_capture_active = selected_id
+                                                        .is_some_and(|path_preset_id| {
+                                                            self.mouse_path_draw_capture_preset_id
+                                                                == Some(path_preset_id)
+                                                        });
                                                     let draw_button_icon = if draw_capture_active {
                                                         0xe047
                                                     } else {
