@@ -16550,6 +16550,37 @@ impl CrosshairApp {
 
                                             ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
                                                 if self.show_share_buttons {
+                                                  if ui
+                                                      .add(
+                                                          Button::new(Self::tr_lang(language, "Paste", "Paste"))
+                                                              .min_size(vec2(42.0, 18.0)),
+                                                      )
+                                                      .on_hover_text(Self::tr_lang(
+                                                          language,
+                                                          "Paste copied step(s) below this step.",
+                                                          "Dán step đã copy xuống dưới step này.",
+                                                      ))
+                                                      .clicked()
+                                                  {
+                                                      paste_step_after =
+                                                          Some((group.id, preset.id, step_index));
+                                                  }
+
+                                                  if ui
+                                                      .add(
+                                                          Button::new(Self::tr_lang(language, "Copy", "Copy"))
+                                                              .min_size(vec2(40.0, 18.0)),
+                                                      )
+                                                      .on_hover_text(Self::tr_lang(
+                                                          language,
+                                                          "Copy this step.",
+                                                          "Copy step này.",
+                                                      ))
+                                                      .clicked()
+                                                  {
+                                                      copy_single_step =
+                                                          Some((group.id, preset.id, step_index));
+                                                  }
 
                                                       if ui
 

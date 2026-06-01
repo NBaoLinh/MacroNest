@@ -4847,9 +4847,39 @@ mod windows_overlay {
                 }
 
                 OverlayCommand::UpdateMacroPresets(presets) => {
+                    let previous_enabled: HashMap<u32, bool> = runtime
+                        .macro_groups
+                        .iter()
+                        .flat_map(|group| group.presets.iter())
+                        .map(|preset| (preset.id, preset.enabled))
+                        .collect();
+
+                    let next_enabled: HashMap<u32, bool> = presets
+                        .iter()
+                        .flat_map(|group| group.presets.iter())
+                        .map(|preset| (preset.id, preset.enabled))
+                        .collect();
+
+                    let presets_to_stop: Vec<u32> = previous_enabled
+                        .iter()
+                        .filter_map(|(preset_id, was_enabled)| {
+                            if *was_enabled && !next_enabled.get(preset_id).copied().unwrap_or(false)
+                            {
+                                Some(*preset_id)
+                            } else {
+                                None
+                            }
+                        })
+                        .collect();
+
                     runtime.macro_groups = presets;
 
                     let _ = sync_macro_hotkeys(hwnd, runtime);
+
+                    for preset_id in presets_to_stop {
+                        STOP_REQUESTED_MACRO_PRESETS.lock().insert(preset_id);
+                        deactivate_hold_macro(preset_id);
+                    }
                 }
 
                 OverlayCommand::UpdateAudioSettings(settings) => {
