@@ -554,6 +554,8 @@ pub struct CrosshairApp {
     mouse_path_draw_capture_restore_inner_size: Option<egui::Vec2>,
     mouse_path_draw_capture_restore_outer_pos: Option<egui::Pos2>,
     mouse_path_step_preview_preset_id: Option<u32>,
+    mouse_path_add_feedback_target: Option<(u32, u32, usize)>,
+    mouse_path_add_feedback_until: Option<Instant>,
     vision_capture_active: bool,
     vision_capture_target: Option<VisionCaptureTarget>,
     vision_capture_mode: Option<VisionCaptureMode>,
@@ -715,6 +717,8 @@ impl CrosshairApp {
             mouse_path_draw_capture_restore_inner_size: None,
             mouse_path_draw_capture_restore_outer_pos: None,
             mouse_path_step_preview_preset_id: None,
+            mouse_path_add_feedback_target: None,
+            mouse_path_add_feedback_until: None,
             vision_capture_active: false,
             vision_capture_target: None,
             vision_capture_mode: None,
@@ -8572,7 +8576,6 @@ impl eframe::App for CrosshairApp {
                         });
                 }
             });
-        self.render_mouse_path_step_preview_window(ctx);
 
         if self.settings_popup_open {
             if self.capture_target.is_none()

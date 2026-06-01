@@ -3,6 +3,7 @@ use crate::ai;
 use crate::hotkey;
 
 use crate::model::*;
+use crate::overlay::OverlayCommand;
 
 use crate::ui::{
     CrosshairApp, MATERIAL_ICONS_FONT, MacroActionSubmenuKind, MacroGroupFavoriteFilter,
@@ -3475,8 +3476,8 @@ impl CrosshairApp {
         let mut begin_mouse_move_absolute_capture_target = None;
 
         let mut begin_mouse_path_draw_capture_request = None;
-        let mut add_mouse_path_preset_request = None;
-        let mut preview_mouse_path_step_request = None;
+        let mut add_mouse_path_preset_request: Option<(u32, u32, usize, Option<u32>)> = None;
+        let mut preview_mouse_path_step_request: Option<Option<u32>> = None;
 
         let mut cancel_mouse_move_absolute_capture = false;
 
@@ -7833,7 +7834,7 @@ impl CrosshairApp {
                                                     {
                                                         if let Some(path_preset_id) = selected_id {
                                                             preview_mouse_path_step_request =
-                                                                Some(path_preset_id);
+                                                                Some(Some(path_preset_id));
                                                         } else {
                                                             self.status = Self::tr_lang(
                                                                 language,
@@ -13168,21 +13169,38 @@ impl CrosshairApp {
                                                                 ));
                                                         }
                                                     }
+                                                    let preview_active = selected_id
+                                                        .is_some_and(|path_preset_id| {
+                                                            self.mouse_path_step_preview_preset_id
+                                                                == Some(path_preset_id)
+                                                        });
                                                     let preview_response = ui
                                                         .button(Self::tr_lang(
                                                             language,
-                                                            "Preview",
-                                                            "Xem truoc",
+                                                            if preview_active {
+                                                                "Hide preview"
+                                                            } else {
+                                                                "Preview"
+                                                            },
+                                                            if preview_active {
+                                                                "Tat preview"
+                                                            } else {
+                                                                "Xem truoc"
+                                                            },
                                                         ))
                                                         .on_hover_text(Self::tr_lang(
                                                             language,
-                                                            "Open the same path preview canvas used in the Mouse Path panel.",
-                                                            "Mo khung xem truoc giong trong tab Mouse Path.",
+                                                            "Show this path on the real screen at its recorded size and position.",
+                                                            "Hien duong chuot nay tren man hinh that dung vi tri va kich thuoc da ghi.",
                                                         ));
                                                     if preview_response.clicked() {
                                                         if let Some(path_preset_id) = selected_id {
                                                             preview_mouse_path_step_request =
-                                                                Some(path_preset_id);
+                                                                Some(if preview_active {
+                                                                    None
+                                                                } else {
+                                                                    Some(path_preset_id)
+                                                                });
                                                         } else {
                                                             self.status = Self::tr_lang(
                                                                 language,
@@ -13192,20 +13210,46 @@ impl CrosshairApp {
                                                             .to_owned();
                                                         }
                                                     }
+                                                    let add_feedback_active = self
+                                                        .mouse_path_add_feedback_target
+                                                        == Some((group.id, preset.id, step_index))
+                                                        && self
+                                                            .mouse_path_add_feedback_until
+                                                            .is_some_and(|until| {
+                                                                std::time::Instant::now() < until
+                                                            });
+                                                    if add_feedback_active {
+                                                        ui.ctx().request_repaint_after(
+                                                            std::time::Duration::from_millis(100),
+                                                        );
+                                                    }
                                                     let add_preset_response = ui
                                                         .button(Self::tr_lang(
                                                             language,
-                                                            "Add preset",
-                                                            "Them preset",
+                                                            if add_feedback_active {
+                                                                "Added"
+                                                            } else {
+                                                                "Add preset"
+                                                            },
+                                                            if add_feedback_active {
+                                                                "Added"
+                                                            } else {
+                                                                "Them preset"
+                                                            },
                                                         ))
                                                         .on_hover_text(Self::tr_lang(
                                                             language,
-                                                            "Create a new Mouse Path preset in the Mouse tab and assign it to this step.",
-                                                            "Tao mot Mouse Path preset moi trong tab Mouse va gan no cho step nay.",
+                                                            "Create a new Mouse Path preset in the Mouse tab, copy the current path into it when available, and assign it to this step.",
+                                                            "Tao mot Mouse Path preset moi trong tab Mouse, copy duong hien tai vao do neu co, roi gan cho step nay.",
                                                         ));
                                                     if add_preset_response.clicked() {
                                                         add_mouse_path_preset_request =
-                                                            Some((group.id, preset.id, step_index));
+                                                            Some((
+                                                                group.id,
+                                                                preset.id,
+                                                                step_index,
+                                                                selected_id,
+                                                            ));
                                                     }
 
                                                 } else if matches!(
@@ -17526,13 +17570,28 @@ impl CrosshairApp {
                     }
 
                     if let Some(path_preset_id) = preview_mouse_path_step_request {
-                        self.mouse_path_step_preview_preset_id = Some(path_preset_id);
+                        self.mouse_path_step_preview_preset_id = path_preset_id;
+                        let preview_events = path_preset_id.and_then(|active_id| {
+                            self.state
+                                .mouse_path_presets
+                                .iter()
+                                .find(|preset| preset.id == active_id)
+                                .map(|preset| preset.events.clone())
+                        });
+                        let _ = self
+                            .overlay_tx
+                            .send(OverlayCommand::PreviewMousePath(
+                                path_preset_id.map(|active_id| {
+                                    (active_id, preview_events.unwrap_or_default())
+                                }),
+                            ));
+                        crate::overlay::wake_command_queue();
                     }
 
-                    if let Some((group_id, preset_id, step_index)) =
+                    if let Some((group_id, preset_id, step_index, selected_id)) =
                         add_mouse_path_preset_request
                     {
-                        let path_preset_id = self.add_mouse_path_preset();
+                        let path_preset_id = self.add_mouse_path_preset_from(selected_id);
                         if let Some(group) = self
                             .state
                             .macro_groups
@@ -17549,6 +17608,12 @@ impl CrosshairApp {
                                 }
                             }
                         }
+                        self.mouse_path_add_feedback_target =
+                            Some((group_id, preset_id, step_index));
+                        self.mouse_path_add_feedback_until = Some(
+                            std::time::Instant::now()
+                                + std::time::Duration::from_secs(1),
+                        );
                         self.persist_mouse_path_presets();
                         self.persist_macro_presets();
                     }

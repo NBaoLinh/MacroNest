@@ -231,6 +231,9 @@ mod windows_overlay {
     static MOUSE_RECORDING: Lazy<Mutex<Option<MouseRecordingSession>>> =
         Lazy::new(|| Mutex::new(None));
 
+    static MOUSE_PATH_PREVIEW: Lazy<Mutex<Option<MousePathPreviewSession>>> =
+        Lazy::new(|| Mutex::new(None));
+
     static MACRO_RECORDING: Lazy<Mutex<Option<MacroRecordingSession>>> =
         Lazy::new(|| Mutex::new(None));
 
@@ -444,6 +447,7 @@ mod windows_overlay {
         UpdatePinPresets(Vec<PinPreset>),
 
         UpdateMousePathPresets(Vec<MousePathPreset>),
+        PreviewMousePath(Option<(u32, Vec<MousePathEvent>)>),
 
         UpdateMouseSensitivityPresets(Vec<MouseSensitivityPreset>),
 
@@ -1052,6 +1056,11 @@ mod windows_overlay {
         dirty: bool,
     }
 
+    struct MousePathPreviewSession {
+        points: Vec<POINT>,
+        dirty: bool,
+    }
+
     #[derive(Debug, Clone)]
 
     struct MousePathDrawCaptureSession {
@@ -1570,8 +1579,6 @@ mod windows_overlay {
                             let _ = ShowWindow(runtime.pin_hwnd, SW_HIDE);
 
                             let _ = ShowWindow(runtime.hud_hwnd, SW_HIDE);
-
-                            let _ = ShowWindow(runtime.mouse_trail_hwnd, SW_HIDE);
                         } else {
                             clear_transient_input_state();
 
@@ -1585,6 +1592,18 @@ mod windows_overlay {
 
                     if ui_foreground {
                         poll_macro_keyboard_recording();
+                    }
+
+                    let preview_active = MOUSE_PATH_PREVIEW.lock().is_some();
+                    let mouse_recording_active = MOUSE_RECORDING.lock().is_some();
+                    let mouse_trail_visible =
+                        windows::Win32::UI::WindowsAndMessaging::IsWindowVisible(
+                            runtime.mouse_trail_hwnd,
+                        )
+                        .as_bool();
+
+                    if mouse_recording_active || mouse_trail_visible || preview_active {
+                        let _ = refresh_mouse_record_trail(runtime);
                     }
 
                     if !is_ui_in_foreground() {
@@ -1605,17 +1624,6 @@ mod windows_overlay {
                             let _ = refresh_hud(runtime);
                         }
 
-                        let mouse_recording_active = MOUSE_RECORDING.lock().is_some();
-
-                        let mouse_trail_visible =
-                            windows::Win32::UI::WindowsAndMessaging::IsWindowVisible(
-                                runtime.mouse_trail_hwnd,
-                            )
-                            .as_bool();
-
-                        if mouse_recording_active || mouse_trail_visible {
-                            let _ = refresh_mouse_record_trail(runtime);
-                        }
                     }
 
                     let _ = refresh_search_area_overlay(runtime);
@@ -4581,6 +4589,23 @@ mod windows_overlay {
                     runtime.mouse_path_presets = presets;
                 }
 
+                OverlayCommand::PreviewMousePath(preview) => {
+                    let mut preview_guard = MOUSE_PATH_PREVIEW.lock();
+                    *preview_guard = preview.map(|(_, events)| MousePathPreviewSession {
+                        points: events
+                            .into_iter()
+                            .filter(|event| matches!(event.kind, MousePathEventKind::Move))
+                            .map(|event| POINT {
+                                x: event.x,
+                                y: event.y,
+                            })
+                            .collect(),
+                        dirty: true,
+                    });
+                    drop(preview_guard);
+                    let _ = refresh_mouse_record_trail(runtime);
+                }
+
                 OverlayCommand::UpdateMouseSensitivityPresets(presets) => {
                     let mut hook_state = HOOK_STATE.lock();
 
@@ -5101,32 +5126,40 @@ mod windows_overlay {
 
     fn refresh_mouse_record_trail(runtime: &mut Runtime) -> Result<()> {
         let points = {
-            let mut guard = MOUSE_RECORDING.lock();
-
-            let Some(session) = guard.as_mut() else {
-                unsafe {
-                    let _ = ShowWindow(runtime.mouse_trail_hwnd, SW_HIDE);
+            let mut recording_guard = MOUSE_RECORDING.lock();
+            if let Some(session) = recording_guard.as_mut() {
+                if !session.dirty {
+                    return Ok(());
                 }
 
-                return Ok(());
-            };
+                session.dirty = false;
 
-            if !session.dirty {
-                return Ok(());
+                session
+                    .events
+                    .iter()
+                    .filter(|event| matches!(event.kind, MousePathEventKind::Move))
+                    .map(|event| POINT {
+                        x: event.x,
+                        y: event.y,
+                    })
+                    .collect::<Vec<_>>()
+            } else {
+                drop(recording_guard);
+                let mut preview_guard = MOUSE_PATH_PREVIEW.lock();
+                let Some(session) = preview_guard.as_mut() else {
+                    unsafe {
+                        let _ = ShowWindow(runtime.mouse_trail_hwnd, SW_HIDE);
+                    }
+                    return Ok(());
+                };
+
+                if !session.dirty {
+                    return Ok(());
+                }
+
+                session.dirty = false;
+                session.points.clone()
             }
-
-            session.dirty = false;
-
-            session
-                .events
-                .iter()
-                .filter(|event| matches!(event.kind, MousePathEventKind::Move))
-                .map(|event| POINT {
-                    x: event.x,
-
-                    y: event.y,
-                })
-                .collect::<Vec<_>>()
         };
 
         if points.len() < 2 {
@@ -5213,7 +5246,9 @@ mod windows_overlay {
             return interval;
         }
 
-        let recording_active = MOUSE_RECORDING.lock().is_some() || MACRO_RECORDING.lock().is_some();
+        let recording_active = MOUSE_RECORDING.lock().is_some()
+            || MACRO_RECORDING.lock().is_some()
+            || MOUSE_PATH_PREVIEW.lock().is_some();
 
         if recording_active {
             return 33;

@@ -428,6 +428,11 @@ impl CrosshairApp {
         }
 
         if let Some(rem_id) = remove_id {
+            if self.mouse_path_step_preview_preset_id == Some(rem_id) {
+                self.mouse_path_step_preview_preset_id = None;
+                let _ = self.overlay_tx.send(OverlayCommand::PreviewMousePath(None));
+                crate::overlay::wake_command_queue();
+            }
             self.state
                 .mouse_path_presets
                 .retain(|preset| preset.id != rem_id);
@@ -563,10 +568,21 @@ impl CrosshairApp {
     }
 
     pub(crate) fn add_mouse_path_preset(&mut self) -> u32 {
+        self.add_mouse_path_preset_from(None)
+    }
+
+    pub(crate) fn add_mouse_path_preset_from(&mut self, source_preset_id: Option<u32>) -> u32 {
         let mut id = 1;
         while self.state.mouse_path_presets.iter().any(|p| p.id == id) {
             id += 1;
         }
+        let source_preset = source_preset_id.and_then(|preset_id| {
+            self.state
+                .mouse_path_presets
+                .iter()
+                .find(|preset| preset.id == preset_id)
+                .cloned()
+        });
         self.state.next_mouse_path_preset_id = (self
             .state
             .mouse_path_presets
@@ -576,7 +592,13 @@ impl CrosshairApp {
             .unwrap_or(0)
             + 1)
         .max(id + 1);
-        self.state.mouse_path_presets.push(MousePathPreset::new(id));
+        let mut new_preset = MousePathPreset::new(id);
+        new_preset.collapsed = false;
+        if let Some(source_preset) = source_preset {
+            new_preset.replay_relative_motion = source_preset.replay_relative_motion;
+            new_preset.events = source_preset.events;
+        }
+        self.state.mouse_path_presets.push(new_preset);
         self.sync_mouse_path_presets();
         self.status = format!("Added mouse path preset {id}.");
         id
@@ -588,47 +610,6 @@ impl CrosshairApp {
             .send(OverlayCommand::UpdateMousePathPresets(
                 self.state.mouse_path_presets.clone(),
             ));
-    }
-
-    pub(crate) fn render_mouse_path_step_preview_window(&mut self, ctx: &egui::Context) {
-        let Some(preset_id) = self.mouse_path_step_preview_preset_id else {
-            return;
-        };
-
-        let Some((preset_name, preset_events)) = self
-            .state
-            .mouse_path_presets
-            .iter()
-            .find(|preset| preset.id == preset_id)
-            .map(|preset| (preset.name.clone(), preset.events.clone()))
-        else {
-            self.mouse_path_step_preview_preset_id = None;
-            return;
-        };
-
-        let mut open = true;
-        egui::Window::new(Self::tr_lang(
-            self.state.ui_language,
-            "Mouse Path Preview",
-            "Xem truoc Mouse Path",
-        ))
-        .id(egui::Id::new(("mouse-path-step-preview", preset_id)))
-        .open(&mut open)
-        .resizable(true)
-        .default_size(vec2(420.0, 280.0))
-        .show(ctx, |ui| {
-            ui.label(
-                RichText::new(preset_name)
-                    .strong()
-                    .color(Color32::from_rgb(220, 235, 225)),
-            );
-            ui.add_space(8.0);
-            Self::render_mouse_path_preview(ui, self.state.ui_language, &preset_events, 240.0);
-        });
-
-        if !open {
-            self.mouse_path_step_preview_preset_id = None;
-        }
     }
 
     pub(crate) fn add_mouse_sensitivity_preset(&mut self) {
