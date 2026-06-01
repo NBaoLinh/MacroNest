@@ -1131,17 +1131,14 @@ impl CrosshairApp {
             if let Some(total_ms) = duration {
                 preview_cursor_ms = preview_cursor_ms.min(total_ms);
             }
-            let preview_key = self.ensure_video_preview_frame(
+            let preview_frame = self.ensure_video_preview_frame(
                 ui.ctx(),
+                preset_id,
                 clip_snapshot.file_path.trim(),
                 preview_cursor_ms,
                 720,
                 420,
             );
-            let preview_frame = preview_key
-                .as_ref()
-                .and_then(|key| self.video_preview_cache.get(key))
-                .cloned();
             let preset = &mut self.state.audio_settings.video_presets[index];
             if !preset.clip.enabled {
                 preset.clip.enabled = true;
@@ -1304,11 +1301,17 @@ impl CrosshairApp {
                             .clamp(0.0, preview.height.saturating_sub(1) as f32)
                             as usize;
                         let pixel_index = (local_y * preview.width + local_x) * 4;
-                        if pixel_index + 3 < preview.rgba.len() {
+                        if let Ok(preview_pixels) = crate::media::load_video_preview_frame(
+                            preset.clip.file_path.trim(),
+                            preview_cursor_ms,
+                            preview.width as i32,
+                            preview.height as i32,
+                        ) && pixel_index + 3 < preview_pixels.rgba.len()
+                        {
                             preset.clip.chroma_key_color = RgbaColor {
-                                r: preview.rgba[pixel_index],
-                                g: preview.rgba[pixel_index + 1],
-                                b: preview.rgba[pixel_index + 2],
+                                r: preview_pixels.rgba[pixel_index],
+                                g: preview_pixels.rgba[pixel_index + 1],
+                                b: preview_pixels.rgba[pixel_index + 2],
                                 a: 255,
                             };
                             preset.clip.chroma_key_enabled = true;
@@ -1414,6 +1417,7 @@ impl CrosshairApp {
                 .retain(|preset| preset.id != preset_id);
             self.video_preset_clip_duration_ms.remove(&preset_id);
             self.video_preview_cursor_ms.remove(&preset_id);
+            self.clear_video_preview_for_preset(preset_id);
             if self.video_chroma_pick_preset_id == Some(preset_id) {
                 self.video_chroma_pick_preset_id = None;
             }

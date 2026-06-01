@@ -211,7 +211,15 @@ pub(crate) struct VideoPreviewView {
     texture: TextureHandle,
     width: usize,
     height: usize,
-    rgba: Vec<u8>,
+}
+
+pub(crate) struct VideoPreviewCache {
+    updated_at: Instant,
+    source_path: String,
+    start_ms: u64,
+    max_width: i32,
+    max_height: i32,
+    view: VideoPreviewView,
 }
 
 pub(crate) const MATERIAL_ICONS_FONT: &str = "material_icons";
@@ -604,7 +612,7 @@ pub struct CrosshairApp {
     downloaded_tools_open: bool,
     zoom_preview_cache: HashMap<u32, ZoomPreviewCache>,
     vision_preview_cache: HashMap<u32, VisionPreviewCache>,
-    video_preview_cache: HashMap<String, VideoPreviewView>,
+    video_preview_cache: HashMap<u32, VideoPreviewCache>,
     video_chroma_pick_preset_id: Option<u32>,
     vision_color_pick_texture: Option<TextureHandle>,
     vision_color_pick_preview_color: Option<RgbaColor>,
@@ -1759,6 +1767,7 @@ impl CrosshairApp {
         let duration = crate::media::load_video_metadata(&path_str)
             .ok()
             .map(|meta| meta.duration_ms);
+        self.clear_video_preview_for_preset(preset_id);
         if let Some(preset) = self
             .state
             .audio_settings
@@ -1838,46 +1847,76 @@ impl CrosshairApp {
         });
     }
 
-    fn video_preview_cache_key(path: &str, start_ms: u64) -> String {
-        format!("{}|{}", path.trim(), start_ms)
-    }
-
     fn ensure_video_preview_frame(
         &mut self,
         ctx: &egui::Context,
+        preset_id: u32,
         path: &str,
         start_ms: u64,
         max_width: i32,
         max_height: i32,
-    ) -> Option<String> {
+    ) -> Option<VideoPreviewView> {
         let trimmed = path.trim();
         if trimmed.is_empty() {
             return None;
         }
-        let key = Self::video_preview_cache_key(trimmed, start_ms);
-        if self.video_preview_cache.contains_key(&key) {
-            return Some(key);
+        if let Some(cache) = self.video_preview_cache.get(&preset_id)
+            && cache.source_path == trimmed
+            && cache.start_ms == start_ms
+            && cache.max_width == max_width
+            && cache.max_height == max_height
+        {
+            return Some(cache.view.clone());
         }
         let preview =
             crate::media::load_video_preview_frame(trimmed, start_ms, max_width, max_height)
                 .ok()?;
         let image =
             ColorImage::from_rgba_unmultiplied([preview.width, preview.height], &preview.rgba);
-        let texture = ctx.load_texture(
-            format!("video_preview_{key}"),
-            image,
-            TextureOptions::LINEAR,
-        );
-        self.video_preview_cache.insert(
-            key.clone(),
-            VideoPreviewView {
+        let view = if let Some(cache) = self.video_preview_cache.get_mut(&preset_id) {
+            cache.view.texture.set(image, TextureOptions::LINEAR);
+            cache.updated_at = Instant::now();
+            cache.source_path = trimmed.to_owned();
+            cache.start_ms = start_ms;
+            cache.max_width = max_width;
+            cache.max_height = max_height;
+            cache.view.width = preview.width;
+            cache.view.height = preview.height;
+            cache.view.clone()
+        } else {
+            let texture = ctx.load_texture(
+                format!("video_preview_{preset_id}"),
+                image,
+                TextureOptions::LINEAR,
+            );
+            let view = VideoPreviewView {
                 texture,
                 width: preview.width,
                 height: preview.height,
-                rgba: preview.rgba,
-            },
-        );
-        Some(key)
+            };
+            self.video_preview_cache.insert(
+                preset_id,
+                VideoPreviewCache {
+                    updated_at: Instant::now(),
+                    source_path: trimmed.to_owned(),
+                    start_ms,
+                    max_width,
+                    max_height,
+                    view: view.clone(),
+                },
+            );
+            view
+        };
+        Some(view)
+    }
+
+    fn clear_video_preview_for_preset(&mut self, preset_id: u32) {
+        self.video_preview_cache.remove(&preset_id);
+    }
+
+    fn clear_video_preview_cache(&mut self) {
+        self.video_preview_cache.clear();
+        self.video_chroma_pick_preset_id = None;
     }
 
     fn preview_cursor_ms_for(
@@ -8042,6 +8081,11 @@ impl eframe::App for CrosshairApp {
                 AppPanel::WindowPresets | AppPanel::Pin | AppPanel::Macros | AppPanel::Vision
             ) {
                 self.refresh_open_windows_now();
+            }
+            if matches!(self.last_active_panel, AppPanel::Sound | AppPanel::Media)
+                && !matches!(self.state.active_panel, AppPanel::Sound | AppPanel::Media)
+            {
+                self.clear_video_preview_cache();
             }
             self.last_active_panel = self.state.active_panel;
         }
