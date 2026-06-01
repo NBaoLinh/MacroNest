@@ -4773,14 +4773,9 @@ impl CrosshairApp {
                     let group_top = ui.cursor().min.y;
 
                     if group_is_collapsed && let Some(cached_height) = cached_group_height {
-                        let cached_height = cached_height.max(1.0);
-                        let group_bottom = group_top + cached_height;
-                        let visible_top = viewport.top() - macro_group_virtualization_margin;
                         let visible_bottom = viewport.bottom() + macro_group_virtualization_margin;
-                        let group_is_visible =
-                            group_bottom >= visible_top && group_top <= visible_bottom;
 
-                        if !group_is_visible && !should_scroll_to_group {
+                        if group_top > visible_bottom && !should_scroll_to_group {
                             ui.add_space(cached_height);
                             continue;
                         }
