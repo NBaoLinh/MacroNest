@@ -18359,7 +18359,11 @@ impl CrosshairApp {
             let name = cond.variable_name.trim();
 
             if !name.is_empty() {
-                vars.insert(name.to_string());
+                if matches!(cond.condition_type, IfConditionType::Variable) {
+                    Self::extract_vars_from_expression(name, vars);
+                } else {
+                    vars.insert(name.to_string());
+                }
             }
 
             Self::extract_vars_from_expression(&cond.expression, vars);
