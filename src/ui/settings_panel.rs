@@ -1321,9 +1321,12 @@ impl CrosshairApp {
         self.persist();
     }
 
-    fn ensure_preferred_windows_languages_cache(&mut self) {
-        if self.ocr_preferred_languages_cache.is_empty() {
-            self.ocr_preferred_languages_cache = crate::ocr::preferred_windows_languages();
+    fn ensure_ocr_language_caches(&mut self) {
+        if self.ocr_available_languages_cache.is_none() {
+            self.ocr_available_languages_cache = Some(crate::ocr::available_ocr_languages());
+        }
+        if self.ocr_preferred_languages_cache.is_none() {
+            self.ocr_preferred_languages_cache = Some(crate::ocr::preferred_windows_languages());
         }
     }
 
@@ -1350,10 +1353,6 @@ impl CrosshairApp {
             ("tr", "Turkish (tr)"),
         ];
 
-        let avail_langs = crate::ocr::available_ocr_languages();
-        self.ensure_preferred_windows_languages_cache();
-        let preferred_langs = self.ocr_preferred_languages_cache.clone();
-
         Self::settings_card_frame(ui).show(ui, |ui| {
             ui.set_min_width(ui.available_width());
             ui.vertical(|ui| {
@@ -1367,6 +1366,16 @@ impl CrosshairApp {
                 if !self.ocr_lang_pack_open {
                     return;
                 }
+
+                self.ensure_ocr_language_caches();
+                let avail_langs = self
+                    .ocr_available_languages_cache
+                    .clone()
+                    .unwrap_or_default();
+                let preferred_langs = self
+                    .ocr_preferred_languages_cache
+                    .clone()
+                    .unwrap_or_default();
 
                 ui.add_space(6.0);
                 ui.label(
