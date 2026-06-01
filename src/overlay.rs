@@ -2910,7 +2910,10 @@ mod windows_overlay {
 
         *MOUSE_RECORDING.lock() = None;
 
+        show_ui_window_native();
+
         if let Some(tx) = HOOK_STATE.lock().ui_tx.clone() {
+            let _ = tx.send(UiCommand::ShowWindow);
             let _ = tx.send(UiCommand::MousePathDrawCaptureCancelled(status));
         }
 
@@ -2961,7 +2964,10 @@ mod windows_overlay {
             .take()
             .map(|session| (session.preset_id, session.events));
 
+        show_ui_window_native();
+
         if let Some(tx) = HOOK_STATE.lock().ui_tx.clone() {
+            let _ = tx.send(UiCommand::ShowWindow);
             if let Some((preset_id, events)) = finished {
                 let _ = tx.send(UiCommand::MousePathRecordingFinished(
                     preset_id,
