@@ -3253,7 +3253,7 @@ impl CrosshairApp {
 
                                 egui::Frame::canvas(ui.style())
                                     .fill(bg_color)
-                                    .stroke(egui::Stroke::new(1.0, border_color))
+                                    .stroke(egui::Stroke::NONE)
                                     .rounding(4.0)
                                     .inner_margin(egui::Margin::symmetric(5, 2))
                                     .show(ui, |ui| {
@@ -3879,7 +3879,7 @@ impl CrosshairApp {
 
                             .fill(bg_color)
 
-                            .stroke(egui::Stroke::new(1.0, border_color))
+                            .stroke(egui::Stroke::NONE)
 
                             .rounding(4.0)
 
@@ -19872,6 +19872,7 @@ impl CrosshairApp {
         response
     }
 }
+
 
 
 
