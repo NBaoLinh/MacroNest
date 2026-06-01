@@ -3474,7 +3474,7 @@ impl CrosshairApp {
 
         let mut begin_mouse_move_absolute_capture_target = None;
 
-        let mut begin_mouse_path_draw_capture_preset_id = None;
+        let mut begin_mouse_path_draw_capture_request = None;
 
         let mut cancel_mouse_move_absolute_capture = false;
 
@@ -13132,16 +13132,14 @@ impl CrosshairApp {
                                                     if draw_response.clicked() {
                                                         if draw_capture_active {
                                                             cancel_mouse_path_draw_capture = true;
-                                                        } else if let Some(path_preset_id) = selected_id {
-                                                            begin_mouse_path_draw_capture_preset_id =
-                                                                Some(path_preset_id);
                                                         } else {
-                                                            self.status = Self::tr_lang(
-                                                                language,
-                                                                "Select a Mouse Path preset first.",
-                                                                "Hay chon Mouse Path truoc.",
-                                                            )
-                                                            .to_owned();
+                                                            begin_mouse_path_draw_capture_request =
+                                                                Some((
+                                                                    group.id,
+                                                                    preset.id,
+                                                                    step_index,
+                                                                    selected_id,
+                                                                ));
                                                         }
                                                     }
 
@@ -17456,9 +17454,51 @@ impl CrosshairApp {
 
                     }
 
-                    if let Some(preset_id) = begin_mouse_path_draw_capture_preset_id {
+                    if let Some((group_id, preset_id, step_index, selected_id)) =
+                        begin_mouse_path_draw_capture_request
+                    {
 
-                        self.begin_mouse_path_draw_capture(ui.ctx(), preset_id);
+                        let mut created_new_path_preset = false;
+
+                        let path_preset_id = if let Some(path_preset_id) = selected_id {
+                            path_preset_id
+                        } else if let Some(existing_id) =
+                            self.state.mouse_path_presets.first().map(|preset| preset.id)
+                        {
+                            existing_id
+                        } else {
+                            self.add_mouse_path_preset();
+                            created_new_path_preset = true;
+                            self.state
+                                .mouse_path_presets
+                                .last()
+                                .map(|preset| preset.id)
+                                .unwrap_or(1)
+                        };
+
+                        if let Some(group) = self
+                            .state
+                            .macro_groups
+                            .iter_mut()
+                            .find(|group| group.id == group_id)
+                        {
+                            if let Some(preset) = group
+                                .presets
+                                .iter_mut()
+                                .find(|preset| preset.id == preset_id)
+                            {
+                                if let Some(step) = preset.steps.get_mut(step_index) {
+                                    step.key = path_preset_id.to_string();
+                                }
+                            }
+                        }
+
+                        if created_new_path_preset {
+                            self.persist_mouse_path_presets();
+                        }
+
+                        self.persist_macro_presets();
+                        self.begin_mouse_path_draw_capture(ui.ctx(), path_preset_id);
 
                     }
 

@@ -577,8 +577,16 @@ impl CrosshairApp {
             + 1)
         .max(id + 1);
         self.state.mouse_path_presets.push(MousePathPreset::new(id));
-        self.sync_window_presets();
+        self.sync_mouse_path_presets();
         self.status = format!("Added mouse path preset {id}.");
+    }
+
+    pub(crate) fn sync_mouse_path_presets(&self) {
+        let _ = self
+            .overlay_tx
+            .send(OverlayCommand::UpdateMousePathPresets(
+                self.state.mouse_path_presets.clone(),
+            ));
     }
 
     pub(crate) fn add_mouse_sensitivity_preset(&mut self) {
@@ -636,7 +644,7 @@ impl CrosshairApp {
     }
 
     pub(crate) fn persist_mouse_path_presets(&mut self) {
-        self.sync_window_presets();
+        self.sync_mouse_path_presets();
         self.persist();
     }
 
