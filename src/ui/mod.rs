@@ -357,6 +357,22 @@ pub fn configure_fonts(ctx: &egui::Context, load_cjk_fallback: bool) {
     });
 }
 
+pub fn build_runtime_macro_groups(state: &AppState) -> Vec<MacroGroup> {
+    let mut macro_groups = state.macro_groups.clone();
+    for group in &mut macro_groups {
+        if let Some(folder_id) = group.folder_id
+            && let Some(folder) = state.macro_folders.iter().find(|f| f.id == folder_id)
+            && !folder.enabled
+        {
+            group.enabled = false;
+        }
+        group.presets.retain(|preset| preset.enabled);
+    }
+    macro_groups.retain(|group| group.enabled && !group.presets.is_empty());
+    CrosshairApp::sort_macro_groups(&mut macro_groups);
+    macro_groups
+}
+
 #[derive(Clone, Copy)]
 pub enum PopupBlobKind {
     AlreadyRunning,
@@ -943,8 +959,7 @@ impl CrosshairApp {
     }
 
     fn sync_macro_presets(&self) {
-        let mut macro_groups = self.state.macro_groups.clone();
-        Self::sort_macro_groups(&mut macro_groups);
+        let macro_groups = build_runtime_macro_groups(&self.state);
         let _ = self
             .overlay_tx
             .send(OverlayCommand::UpdateMacroPresets(macro_groups));

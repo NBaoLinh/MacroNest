@@ -100,16 +100,7 @@ fn main() -> Result<()> {
     overlay.send(OverlayCommand::UpdateVisionPresets(
         state.vision_presets.clone(),
     ));
-    let mut macro_groups = state.macro_groups.clone();
-    for group in &mut macro_groups {
-        if let Some(folder_id) = group.folder_id {
-            if let Some(folder) = state.macro_folders.iter().find(|f| f.id == folder_id) {
-                if !folder.enabled {
-                    group.enabled = false;
-                }
-            }
-        }
-    }
+    let macro_groups = ui::build_runtime_macro_groups(&state);
     overlay.send(OverlayCommand::UpdateMacroPresets(macro_groups));
     overlay.send(OverlayCommand::UpdateAudioSettings(
         state.audio_settings.clone(),
