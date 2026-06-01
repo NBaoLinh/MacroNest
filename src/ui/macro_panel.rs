@@ -9164,7 +9164,7 @@ impl CrosshairApp {
 
                                                      );
 
-                                                } else if matches!(step.action, MacroAction::DisableZoom | MacroAction::HideHud | MacroAction::UnlockMouse) {
+                                                } else if matches!(step.action, MacroAction::DisableZoom | MacroAction::HideHud) {
 
                                                      ui.add_sized(
 
@@ -9176,51 +9176,25 @@ impl CrosshairApp {
 
                                                 } else if step.action == MacroAction::LockMouse {
 
-                                                    ui.horizontal(|ui| {
+                                                    Self::render_mouse_move_direction_controls(
+                                                        ui,
+                                                        step,
+                                                        language,
+                                                        &mut live_sync,
+                                                        true,
+                                                        "lockmouse-compact-warning-tip",
+                                                    );
 
-                                                        let unlock_resp = ui.checkbox(&mut step.unlock_on_exit, Self::tr_lang(language, "Unlock when macro ends", ""));
+                                                } else if step.action == MacroAction::UnlockMouse {
 
-                                                        if unlock_resp.changed() {
-
-                                                            live_sync = true;
-
-                                                        }
-
-                                                        if !step.unlock_on_exit {
-
-                                                        let warn_color = Color32::from_rgb(255, 90, 0);
-
-                                                        let response = ui.add(egui::Label::new(Self::material_icon_text(0xe002, 14.0).color(warn_color)).sense(egui::Sense::hover()));
-
-                                                        if response.contains_pointer() {
-
-                                                            egui::show_tooltip_at_pointer(ui.ctx(), ui.layer_id(), response.id.with("lockmouse-warning-tip"), |ui| {
-
-                                                                ui.horizontal(|ui| {
-
-                                                                    ui.label(Self::material_icon_text(0xe002, 14.0).color(warn_color));
-
-                                                                    ui.label(RichText::new(Self::tr_lang(language, "STEP WARNING", "CẢNH BÁO BƯỚC")).strong().color(warn_color));
-
-                                                                });
-
-                                                                ui.label(Self::tr_lang(
-
-                                                                    language,
-
-                                                                    "Warning: Keeping mouse locked after the macro ends can make your mouse unresponsive until manually unlocked!",
-
-                                                                    ""
-
-                                                                ));
-
-                                                            });
-
-                                                        }
-
-                                                    }
-
-                                                    });
+                                                    Self::render_mouse_move_direction_controls(
+                                                        ui,
+                                                        step,
+                                                        language,
+                                                        &mut live_sync,
+                                                        false,
+                                                        "unlockmouse-compact-warning-tip",
+                                                    );
 
                                                 } else if step.action == MacroAction::IfStart {
 
@@ -14676,11 +14650,11 @@ impl CrosshairApp {
 
                                                      );
 
-                                                } else if matches!(step.action, MacroAction::DisableZoom | MacroAction::HideHud | MacroAction::UnlockMouse) {
+                                                } else if matches!(step.action, MacroAction::DisableZoom | MacroAction::HideHud) {
 
                                                      ui.add_sized(
 
-                                                         [146.0, 18.0],
+                                                         [110.0, 22.0],
 
                                                          egui::Label::new(Self::tr_lang(language, "No input", "No input")),
 
@@ -14688,51 +14662,25 @@ impl CrosshairApp {
 
                                                 } else if step.action == MacroAction::LockMouse {
 
-                                                    ui.horizontal(|ui| {
+                                                    Self::render_mouse_move_direction_controls(
+                                                        ui,
+                                                        step,
+                                                        language,
+                                                        &mut live_sync,
+                                                        true,
+                                                        "lockmouse-warning-tip",
+                                                    );
 
-                                                        let unlock_resp = ui.checkbox(&mut step.unlock_on_exit, Self::tr_lang(language, "Unlock when macro ends", ""));
+                                                } else if step.action == MacroAction::UnlockMouse {
 
-                                                        if unlock_resp.changed() {
-
-                                                            live_sync = true;
-
-                                                        }
-
-                                                        if !step.unlock_on_exit {
-
-                                                        let warn_color = Color32::from_rgb(255, 90, 0);
-
-                                                        let response = ui.add(egui::Label::new(Self::material_icon_text(0xe002, 14.0).color(warn_color)).sense(egui::Sense::hover()));
-
-                                                        if response.contains_pointer() {
-
-                                                            egui::show_tooltip_at_pointer(ui.ctx(), ui.layer_id(), response.id.with("lockmouse-compact-warning-tip"), |ui| {
-
-                                                                ui.horizontal(|ui| {
-
-                                                                    ui.label(Self::material_icon_text(0xe002, 14.0).color(warn_color));
-
-                                                                    ui.label(RichText::new(Self::tr_lang(language, "STEP WARNING", "CẢNH BÁO BƯỚC")).strong().color(warn_color));
-
-                                                                });
-
-                                                                ui.label(Self::tr_lang(
-
-                                                                    language,
-
-                                                                    "Warning: Keeping mouse locked after the macro ends can make your mouse unresponsive until manually unlocked!",
-
-                                                                    ""
-
-                                                                ));
-
-                                                            });
-
-                                                        }
-
-                                                    }
-
-                                                    });
+                                                    Self::render_mouse_move_direction_controls(
+                                                        ui,
+                                                        step,
+                                                        language,
+                                                        &mut live_sync,
+                                                        false,
+                                                        "unlockmouse-warning-tip",
+                                                    );
 
                                                 } else if step.action == MacroAction::IfStart {
 
@@ -18368,6 +18316,99 @@ impl CrosshairApp {
         }
     }
 
+    fn render_mouse_move_direction_controls(
+        ui: &mut egui::Ui,
+        step: &mut MacroStep,
+        language: UiLanguage,
+        live_sync: &mut bool,
+        show_unlock_on_exit: bool,
+        warning_tooltip_id: &'static str,
+    ) {
+        ui.horizontal(|ui| {
+            for (value, label, tip_en, tip_vi) in [
+                (
+                    &mut step.lock_mouse_left,
+                    "L",
+                    "Lock movement to the left.",
+                    "Khoa di chuot sang trai.",
+                ),
+                (
+                    &mut step.lock_mouse_right,
+                    "R",
+                    "Lock movement to the right.",
+                    "Khoa di chuot sang phai.",
+                ),
+                (
+                    &mut step.lock_mouse_middle,
+                    "U",
+                    "Lock movement upward.",
+                    "Khoa di chuot len tren.",
+                ),
+                (
+                    &mut step.lock_mouse_scroll,
+                    "D",
+                    "Lock movement downward.",
+                    "Khoa di chuot xuong duoi.",
+                ),
+            ] {
+                let response =
+                    ui.checkbox(value, label)
+                        .on_hover_text(Self::tr_lang(language, tip_en, tip_vi));
+                if response.changed() {
+                    *live_sync = true;
+                }
+            }
+
+            if show_unlock_on_exit {
+                ui.add_space(6.0);
+                let unlock_resp = ui.checkbox(
+                    &mut step.unlock_on_exit,
+                    Self::tr_lang(language, "Unlock when macro ends", ""),
+                );
+                if unlock_resp.changed() {
+                    *live_sync = true;
+                }
+
+                if !step.unlock_on_exit {
+                    let warn_color = Color32::from_rgb(255, 90, 0);
+                    let response = ui.add(
+                        egui::Label::new(
+                            Self::material_icon_text(0xe002, 14.0).color(warn_color),
+                        )
+                        .sense(egui::Sense::hover()),
+                    );
+
+                    if response.contains_pointer() {
+                        egui::show_tooltip_at_pointer(
+                            ui.ctx(),
+                            ui.layer_id(),
+                            response.id.with(warning_tooltip_id),
+                            |ui| {
+                                ui.horizontal(|ui| {
+                                    ui.label(Self::material_icon_text(0xe002, 14.0).color(warn_color));
+                                    ui.label(
+                                        RichText::new(Self::tr_lang(
+                                            language,
+                                            "STEP WARNING",
+                                            "CANH BAO BUOC",
+                                        ))
+                                        .strong()
+                                        .color(warn_color),
+                                    );
+                                });
+                                ui.label(Self::tr_lang(
+                                    language,
+                                    "Warning: Keeping mouse movement locked after the macro ends can make the cursor feel stuck until you unlock it manually.",
+                                    "Canh bao: Neu giu khoa di chuot sau khi macro ket thuc, con tro co the bi ket cho toi khi ban tu mo khoa.",
+                                ));
+                            },
+                        );
+                    }
+                }
+            }
+        });
+    }
+
     pub(crate) fn render_variable_inspector(&mut self, ui: &mut egui::Ui) {
         let language = self.state.ui_language;
 
@@ -20218,6 +20259,9 @@ impl CrosshairApp {
         response
     }
 }
+
+
+
 
 
 

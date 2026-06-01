@@ -791,7 +791,8 @@ mod windows_overlay {
 
         locked_inputs: HashMap<String, usize>,
 
-        locked_mouse_count: usize,
+        mouse_move_locks: MouseMoveLockCounts,
+        mouse_move_lock_anchor: Option<POINT>,
 
         current_style: CrosshairStyle,
 
@@ -917,7 +918,8 @@ mod windows_overlay {
 
                 locked_inputs: HashMap::new(),
 
-                locked_mouse_count: 0,
+                mouse_move_locks: MouseMoveLockCounts::default(),
+                mouse_move_lock_anchor: None,
 
                 current_style: CrosshairStyle::default(),
 
@@ -1094,11 +1096,69 @@ mod windows_overlay {
 
         locked_keys: Vec<String>,
 
-        locked_mouse_count: usize,
+        locked_mouse_masks: Vec<MouseMoveLockMask>,
 
         run_token: u64,
 
         completed: bool,
+    }
+
+    #[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
+    struct MouseMoveLockMask {
+        left: bool,
+        right: bool,
+        up: bool,
+        down: bool,
+    }
+
+    impl MouseMoveLockMask {
+        fn any(self) -> bool {
+            self.left || self.right || self.up || self.down
+        }
+    }
+
+    #[derive(Clone, Copy, Debug, Default)]
+    struct MouseMoveLockCounts {
+        left: usize,
+        right: usize,
+        up: usize,
+        down: usize,
+    }
+
+    impl MouseMoveLockCounts {
+        fn add(&mut self, mask: MouseMoveLockMask) {
+            if mask.left {
+                self.left = self.left.saturating_add(1);
+            }
+            if mask.right {
+                self.right = self.right.saturating_add(1);
+            }
+            if mask.up {
+                self.up = self.up.saturating_add(1);
+            }
+            if mask.down {
+                self.down = self.down.saturating_add(1);
+            }
+        }
+
+        fn remove(&mut self, mask: MouseMoveLockMask) {
+            if mask.left && self.left > 0 {
+                self.left -= 1;
+            }
+            if mask.right && self.right > 0 {
+                self.right -= 1;
+            }
+            if mask.up && self.up > 0 {
+                self.up -= 1;
+            }
+            if mask.down && self.down > 0 {
+                self.down -= 1;
+            }
+        }
+
+        fn any(self) -> bool {
+            self.left > 0 || self.right > 0 || self.up > 0 || self.down > 0
+        }
     }
 
     #[derive(Clone, PartialEq)]
@@ -1912,7 +1972,8 @@ mod windows_overlay {
 
                 hook_state.locked_inputs.clear();
 
-                hook_state.locked_mouse_count = 0;
+                hook_state.mouse_move_locks = MouseMoveLockCounts::default();
+                hook_state.mouse_move_lock_anchor = None;
 
                 hook_state.profiles.clear();
 
@@ -2212,6 +2273,9 @@ mod windows_overlay {
             // 1. Immediately bypass WM_MOUSEMOVE to keep mouse movement extremely smooth and lock-free!
 
             if message == WM_MOUSEMOVE && !is_vision_capture_mouse_blocked() {
+                if handle_locked_mouse_move(info.pt) {
+                    return LRESULT(1);
+                }
                 return CallNextHookEx(None, code, wparam, lparam);
             }
 
@@ -4344,7 +4408,8 @@ mod windows_overlay {
 
         let mut hook_state = HOOK_STATE.lock();
 
-        hook_state.locked_mouse_count = 0;
+        hook_state.mouse_move_locks = MouseMoveLockCounts::default();
+        hook_state.mouse_move_lock_anchor = None;
 
         hook_state.held_inputs.clear();
 
@@ -4418,36 +4483,69 @@ mod windows_overlay {
     }
 
     fn is_mouse_locked() -> bool {
-        HOOK_STATE.lock().locked_mouse_count > 0
+        HOOK_STATE.lock().mouse_move_locks.any()
+    }
+
+    fn handle_locked_mouse_move(point: POINT) -> bool {
+        let maybe_allowed = {
+            let mut hook_state = HOOK_STATE.lock();
+            if !hook_state.mouse_move_locks.any() {
+                return false;
+            }
+
+            let anchor = hook_state.mouse_move_lock_anchor.unwrap_or(point);
+            let mut allowed = anchor;
+
+            if point.x < anchor.x && hook_state.mouse_move_locks.left > 0 {
+                allowed.x = anchor.x;
+            } else if point.x > anchor.x && hook_state.mouse_move_locks.right > 0 {
+                allowed.x = anchor.x;
+            } else {
+                allowed.x = point.x;
+            }
+
+            if point.y < anchor.y && hook_state.mouse_move_locks.up > 0 {
+                allowed.y = anchor.y;
+            } else if point.y > anchor.y && hook_state.mouse_move_locks.down > 0 {
+                allowed.y = anchor.y;
+            } else {
+                allowed.y = point.y;
+            }
+
+            hook_state.mouse_move_lock_anchor = Some(allowed);
+            Some(allowed)
+        };
+
+        let Some(allowed) = maybe_allowed else {
+            return false;
+        };
+
+        if allowed.x == point.x && allowed.y == point.y {
+            false
+        } else {
+            unsafe {
+                let _ = SetCursorPos(allowed.x, allowed.y);
+            }
+            true
+        }
     }
 
     fn is_vision_capture_mouse_blocked() -> bool {
         HOOK_STATE.lock().vision_capture_mouse_blocked
     }
 
-    fn physical_mouse_buttons_down() -> bool {
-        unsafe {
-            [0x01, 0x02, 0x04, 0x05, 0x06]
-                .into_iter()
-                .any(|vk| GetAsyncKeyState(vk) < 0)
-        }
-    }
-
     fn clear_stuck_mouse_lock() {
-        if physical_mouse_buttons_down() {
-            return;
-        }
-
         let mut hook_state = HOOK_STATE.lock();
 
-        if hook_state.locked_mouse_count == 0 {
+        if !hook_state.mouse_move_locks.any() {
             return;
         }
 
-        hook_state.locked_mouse_count = 0;
+        hook_state.mouse_move_locks = MouseMoveLockCounts::default();
+        hook_state.mouse_move_lock_anchor = None;
 
         for active in hook_state.active_hold_macros.values_mut() {
-            active.locked_mouse_count = 0;
+            active.locked_mouse_masks.clear();
         }
     }
 
@@ -6250,7 +6348,7 @@ mod windows_overlay {
 
             let mut press_locked_keys: Vec<String> = Vec::new();
 
-            let mut press_locked_mouse_count = 0usize;
+            let mut press_locked_mouse_masks: Vec<MouseMoveLockMask> = Vec::new();
 
             let step_indices: Vec<usize> = (0..preset.steps.len()).collect();
 
@@ -6259,7 +6357,7 @@ mod windows_overlay {
                 &preset.steps,
                 &step_indices,
                 &mut press_locked_keys,
-                &mut press_locked_mouse_count,
+                &mut press_locked_mouse_masks,
                 preset.stop_on_retrigger_immediate,
                 target_window_title.as_deref(),
                 &extra_target_window_titles,
@@ -6274,8 +6372,8 @@ mod windows_overlay {
                 apply_unlock_keys(&press_locked_keys, None);
             }
 
-            for _ in 0..press_locked_mouse_count {
-                apply_unlock_mouse(None);
+            for mask in press_locked_mouse_masks {
+                apply_unlock_mouse(None, mask);
             }
 
             let image_search_preset_ids = collect_macro_image_search_start_ids(&preset.steps);
@@ -6353,7 +6451,7 @@ mod windows_overlay {
 
                     locked_keys: Vec::new(),
 
-                    locked_mouse_count: 0,
+                    locked_mouse_masks: Vec::new(),
 
                     run_token,
 
@@ -6414,7 +6512,7 @@ mod windows_overlay {
 
             locked_keys,
 
-            locked_mouse_count,
+            locked_mouse_masks,
 
             run_token: _,
 
@@ -6429,8 +6527,8 @@ mod windows_overlay {
             apply_unlock_keys(&locked_keys, Some(preset_id));
         }
 
-        for _ in 0..locked_mouse_count {
-            apply_unlock_mouse(Some(preset_id));
+        for mask in locked_mouse_masks {
+            apply_unlock_mouse(Some(preset_id), mask);
         }
 
         if !completed {
@@ -7665,7 +7763,7 @@ mod windows_overlay {
                 if step.wait_for_completion {
                     let mut no_locked_keys = Vec::new();
 
-                    let mut no_locked_mouse = 0usize;
+                    let mut no_locked_mouse: Vec<MouseMoveLockMask> = Vec::new();
 
                     let _ = trigger_nested_macro_preset(
                         &step.key,
@@ -7806,11 +7904,11 @@ mod windows_overlay {
             }
 
             MacroAction::LockMouse => {
-                apply_lock_mouse(Some(preset_id), step.unlock_on_exit);
+                apply_lock_mouse(step, Some(preset_id), step.unlock_on_exit);
             }
 
             MacroAction::UnlockMouse => {
-                apply_unlock_mouse(Some(preset_id));
+                apply_unlock_mouse(Some(preset_id), mouse_move_lock_mask_from_step(step));
             }
 
             MacroAction::EnableMacroPreset => {
@@ -7893,7 +7991,7 @@ mod windows_overlay {
 
         press_locked_keys: &mut Vec<String>,
 
-        press_locked_mouse_count: &mut usize,
+        press_locked_mouse_masks: &mut Vec<MouseMoveLockMask>,
 
         stop_immediately_on_retrigger: bool,
 
@@ -7974,7 +8072,7 @@ mod windows_overlay {
                                 loop_body,
                                 loop_body_indices,
                                 press_locked_keys,
-                                press_locked_mouse_count,
+                                press_locked_mouse_masks,
                                 stop_immediately_on_retrigger,
                                 target_window_title,
                                 extra_target_window_titles,
@@ -8011,7 +8109,7 @@ mod windows_overlay {
                                 loop_body,
                                 loop_body_indices,
                                 press_locked_keys,
-                                press_locked_mouse_count,
+                                press_locked_mouse_masks,
                                 stop_immediately_on_retrigger,
                                 target_window_title,
                                 extra_target_window_titles,
@@ -8150,7 +8248,7 @@ mod windows_overlay {
                         let _ = trigger_nested_macro_preset(
                             &step.key,
                             press_locked_keys,
-                            press_locked_mouse_count,
+                            press_locked_mouse_masks,
                             stop_immediately_on_retrigger,
                             target_window_title,
                             extra_target_window_titles,
@@ -8315,19 +8413,18 @@ mod windows_overlay {
                 }
 
                 MacroAction::LockMouse => {
-                    apply_lock_mouse(None, step.unlock_on_exit);
+                    let mask = mouse_move_lock_mask_from_step(step);
+                    apply_lock_mouse(step, None, step.unlock_on_exit);
 
                     if step.unlock_on_exit {
-                        *press_locked_mouse_count = press_locked_mouse_count.saturating_add(1);
+                        press_locked_mouse_masks.push(mask);
                     }
                 }
 
                 MacroAction::UnlockMouse => {
-                    if *press_locked_mouse_count > 0 {
-                        *press_locked_mouse_count -= 1;
-                    }
-
-                    apply_unlock_mouse(None);
+                    let mask = mouse_move_lock_mask_from_step(step);
+                    press_locked_mouse_masks.retain(|entry| *entry != mask);
+                    apply_unlock_mouse(None, mask);
                 }
 
                 MacroAction::EnableMacroPreset => {
@@ -8629,7 +8726,7 @@ mod windows_overlay {
                     if step.wait_for_completion {
                         let mut no_locked_keys = Vec::new();
 
-                        let mut no_locked_mouse = 0usize;
+                        let mut no_locked_mouse: Vec<MouseMoveLockMask> = Vec::new();
 
                         let _ = trigger_nested_macro_preset(
                             &step.key,
@@ -8771,11 +8868,11 @@ mod windows_overlay {
                 }
 
                 MacroAction::LockMouse => {
-                    apply_lock_mouse(Some(preset_id), step.unlock_on_exit);
+                    apply_lock_mouse(step, Some(preset_id), step.unlock_on_exit);
                 }
 
                 MacroAction::UnlockMouse => {
-                    apply_unlock_mouse(Some(preset_id));
+                    apply_unlock_mouse(Some(preset_id), mouse_move_lock_mask_from_step(step));
                 }
 
                 MacroAction::EnableMacroPreset => {
@@ -10717,7 +10814,7 @@ mod windows_overlay {
 
         press_locked_keys: &mut Vec<String>,
 
-        press_locked_mouse_count: &mut usize,
+        press_locked_mouse_masks: &mut Vec<MouseMoveLockMask>,
 
         stop_immediately_on_retrigger: bool,
 
@@ -10751,7 +10848,7 @@ mod windows_overlay {
             &preset.steps,
             &step_indices,
             press_locked_keys,
-            press_locked_mouse_count,
+            press_locked_mouse_masks,
             stop_immediately_on_retrigger,
             target_window_title,
             extra_target_window_titles,
@@ -11143,95 +11240,55 @@ mod windows_overlay {
         }
     }
 
-    fn apply_lock_mouse(preset_id: Option<u32>, unlock_on_exit: bool) {
-        let buttons_to_release = {
-            let mut hook_state = HOOK_STATE.lock();
-
-            let first_lock = hook_state.locked_mouse_count == 0;
-
-            hook_state.locked_mouse_count = hook_state.locked_mouse_count.saturating_add(1);
-
-            if unlock_on_exit
-                && let Some(preset_id) = preset_id
-                && let Some(active) = hook_state.active_hold_macros.get_mut(&preset_id)
-            {
-                active.locked_mouse_count = active.locked_mouse_count.saturating_add(1);
-            }
-
-            if first_lock {
-                hook_state
-                    .held_mouse_buttons
-                    .iter()
-                    .cloned()
-                    .collect::<Vec<_>>()
-            } else {
-                Vec::new()
-            }
-        };
-
-        for button in buttons_to_release {
-            let action = match button.as_str() {
-                "MouseLeft" => MacroAction::MouseLeftUp,
-
-                "MouseRight" => MacroAction::MouseRightUp,
-
-                "MouseMiddle" => MacroAction::MouseMiddleUp,
-
-                "MouseX1" => MacroAction::MouseX1Up,
-
-                "MouseX2" => MacroAction::MouseX2Up,
-
-                _ => continue,
-            };
-
-            let _ = send_mouse_event(&MacroStep {
-                action,
-
-                ..MacroStep::default()
-            });
+    fn mouse_move_lock_mask_from_step(step: &MacroStep) -> MouseMoveLockMask {
+        MouseMoveLockMask {
+            left: step.lock_mouse_left,
+            right: step.lock_mouse_right,
+            up: step.lock_mouse_middle,
+            down: step.lock_mouse_scroll,
         }
     }
 
-    fn apply_unlock_mouse(preset_id: Option<u32>) {
-        let should_restore = {
-            let mut hook_state = HOOK_STATE.lock();
+    fn apply_lock_mouse(step: &MacroStep, preset_id: Option<u32>, unlock_on_exit: bool) {
+        let mask = mouse_move_lock_mask_from_step(step);
+        if !mask.any() {
+            return;
+        }
 
-            if let Some(preset_id) = preset_id
-                && let Some(active) = hook_state.active_hold_macros.get_mut(&preset_id)
-                && active.locked_mouse_count > 0
-            {
-                active.locked_mouse_count -= 1;
+        let mut hook_state = HOOK_STATE.lock();
+        hook_state.mouse_move_locks.add(mask);
+        if hook_state.mouse_move_lock_anchor.is_none() {
+            let mut point = POINT::default();
+            if unsafe { GetCursorPos(&mut point) }.is_ok() {
+                hook_state.mouse_move_lock_anchor = Some(point);
             }
+        }
 
-            if hook_state.locked_mouse_count > 0 {
-                hook_state.locked_mouse_count -= 1;
-            }
-
-            hook_state.locked_mouse_count == 0
-        };
-
-        if should_restore {
-            restore_physical_mouse_buttons();
+        if unlock_on_exit
+            && let Some(preset_id) = preset_id
+            && let Some(active) = hook_state.active_hold_macros.get_mut(&preset_id)
+        {
+            active.locked_mouse_masks.push(mask);
         }
     }
 
-    fn restore_physical_mouse_buttons() {
-        for (vk, action) in [
-            (0x01, MacroAction::MouseLeftDown),
-            (0x02, MacroAction::MouseRightDown),
-            (0x04, MacroAction::MouseMiddleDown),
-            (0x05, MacroAction::MouseX1Down),
-            (0x06, MacroAction::MouseX2Down),
-        ] {
-            let is_down = unsafe { GetAsyncKeyState(vk) } < 0;
+    fn apply_unlock_mouse(preset_id: Option<u32>, mask: MouseMoveLockMask) {
+        if !mask.any() {
+            return;
+        }
 
-            if is_down {
-                let _ = send_mouse_event(&MacroStep {
-                    action,
+        let mut hook_state = HOOK_STATE.lock();
 
-                    ..MacroStep::default()
-                });
-            }
+        if let Some(preset_id) = preset_id
+            && let Some(active) = hook_state.active_hold_macros.get_mut(&preset_id)
+            && let Some(index) = active.locked_mouse_masks.iter().position(|entry| *entry == mask)
+        {
+            active.locked_mouse_masks.remove(index);
+        }
+
+        hook_state.mouse_move_locks.remove(mask);
+        if !hook_state.mouse_move_locks.any() {
+            hook_state.mouse_move_lock_anchor = None;
         }
     }
 
@@ -13807,7 +13864,7 @@ mod windows_overlay {
 
         press_locked_keys: &mut Vec<String>,
 
-        press_locked_mouse_count: &mut usize,
+        press_locked_mouse_masks: &mut Vec<MouseMoveLockMask>,
 
         stop_immediately_on_retrigger: bool,
 
@@ -13883,7 +13940,7 @@ mod windows_overlay {
                         let _ = trigger_nested_macro_preset(
                             &trigger_preset_id.to_string(),
                             press_locked_keys,
-                            press_locked_mouse_count,
+                            press_locked_mouse_masks,
                             stop_immediately_on_retrigger,
                             target_window_title,
                             extra_target_window_titles,
@@ -14904,7 +14961,8 @@ mod windows_overlay {
 
             hook_state.locked_inputs.clear();
 
-            hook_state.locked_mouse_count = 0;
+            hook_state.mouse_move_locks = MouseMoveLockCounts::default();
+            hook_state.mouse_move_lock_anchor = None;
 
             hook_state.active_hold_macros.clear();
 
@@ -16778,7 +16836,7 @@ mod windows_overlay {
 
                 let mut press_locked_keys: Vec<String> = Vec::new();
 
-                let mut press_locked_mouse_count = 0usize;
+                let mut press_locked_mouse_masks: Vec<MouseMoveLockMask> = Vec::new();
 
                 let step_indices: Vec<usize> = (0..preset.steps.len()).collect();
 
@@ -16787,7 +16845,7 @@ mod windows_overlay {
                     &preset.steps,
                     &step_indices,
                     &mut press_locked_keys,
-                    &mut press_locked_mouse_count,
+                    &mut press_locked_mouse_masks,
                     preset.stop_on_retrigger_immediate,
                     None,
                     &[],
