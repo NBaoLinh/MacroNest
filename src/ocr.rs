@@ -77,6 +77,23 @@ pub fn available_ocr_languages() -> Vec<String> {
     languages
 }
 
+#[cfg(windows)]
+pub fn clear_available_ocr_languages_cache() {
+    *AVAILABLE_OCR_LANGUAGES_CACHE.lock() = None;
+}
+
+#[cfg(not(windows))]
+pub fn clear_available_ocr_languages_cache() {}
+
+pub fn ocr_capability_name(lang_code: &str) -> Option<String> {
+    let code = lang_code.trim();
+    if code.is_empty() {
+        None
+    } else {
+        Some(format!("Language.OCR~~~{}~0.0.1.0", code))
+    }
+}
+
 pub fn language_tag_matches(tags: &[String], code: &str) -> bool {
     let code_lower = code.to_lowercase();
     tags.iter().any(|tag| {

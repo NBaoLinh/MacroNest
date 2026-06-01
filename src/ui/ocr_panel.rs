@@ -172,7 +172,7 @@ impl CrosshairApp {
                                                 hint.to_string()
                                             } else {
                                                 format!(
-                                                    "{} - Windows OCR for this language is not installed on this PC. Install the OCR capability in Windows Settings if it is available.",
+                                                    "{} - Windows OCR for this language is not installed on this PC. Click to install it now.",
                                                     hint
                                                 )
                                             };
@@ -468,7 +468,7 @@ impl CrosshairApp {
         }
 
         if let Some((lang_code, display_name)) = pending_ocr_language_settings.take() {
-            self.open_ocr_language_settings_for(&lang_code, &display_name);
+            self.install_ocr_language_capability(&lang_code, &display_name);
         }
 
         if live_sync {

@@ -17578,7 +17578,7 @@ impl CrosshairApp {
                     }
 
                     if let Some((lang_code, display_name)) = pending_ocr_language_settings.take() {
-                        self.open_ocr_language_settings_for(&lang_code, &display_name);
+                        self.install_ocr_language_capability(&lang_code, &display_name);
                     }
 
                     if cancel_active_capture {

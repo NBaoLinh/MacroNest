@@ -205,7 +205,7 @@ impl CrosshairApp {
                         hint.to_string()
                     } else {
                         format!(
-                            "{} - Windows OCR for this language is not installed on this PC. Install the OCR capability in Windows Settings if it is available.",
+                            "{} - Windows OCR for this language is not installed on this PC. Click to install it now.",
                             hint
                         )
                     };

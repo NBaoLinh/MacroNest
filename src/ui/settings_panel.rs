@@ -7,6 +7,7 @@ use eframe::egui::{
     vec2,
 };
 use std::fs;
+use std::path::PathBuf;
 use std::path::Path;
 use std::process::Command;
 use std::sync::atomic::Ordering;
@@ -1305,20 +1306,70 @@ impl CrosshairApp {
 
     pub(crate) fn open_ai_debug_folder(&mut self) {}
 
-    pub(crate) fn open_ocr_language_settings_for(&mut self, lang_code: &str, display_name: &str) {
-        if lang_code.trim().is_empty() {
-            return;
-        }
+    fn ocr_dism_path() -> PathBuf {
+        let system_root = std::env::var("SystemRoot").unwrap_or_else(|_| "C:\\Windows".to_owned());
+        Path::new(&system_root).join("System32").join("dism.exe")
+    }
 
-        self.state.active_panel = AppPanel::Hud;
+    pub(crate) fn install_ocr_language_capability(
+        &mut self,
+        lang_code: &str,
+        display_name: &str,
+    ) {
+        let Some(capability_name) = crate::ocr::ocr_capability_name(lang_code) else {
+            return;
+        };
+
+        crate::ocr::clear_available_ocr_languages_cache();
         self.ocr_lang_pack_open = true;
         self.ocr_lang_settings_focus = Some(lang_code.to_owned());
-        self.status = format!(
-            "Open OCR Language Packs and install {} from Windows Settings > Language & Region.",
-            display_name
+
+        let args = format!(
+            "/Online /Add-Capability /CapabilityName:{} /NoRestart",
+            capability_name
         );
-        let _ = crate::platform::open_url_in_browser("ms-settings:regionlanguage");
-        self.persist();
+        match crate::platform::launch_hidden_process_as_admin(&Self::ocr_dism_path(), Some(&args)) {
+            Ok(()) => {
+                self.status = format!(
+                    "Started Windows OCR install for {}. Click Refresh after the install finishes.",
+                    display_name
+                );
+            }
+            Err(error) => {
+                self.status = format!("Failed to start OCR install for {}: {}", display_name, error);
+            }
+        }
+    }
+
+    fn uninstall_ocr_language_capability(&mut self, lang_code: &str, display_name: &str) {
+        let Some(capability_name) = crate::ocr::ocr_capability_name(lang_code) else {
+            return;
+        };
+
+        crate::ocr::clear_available_ocr_languages_cache();
+        self.ocr_lang_pack_open = true;
+        self.ocr_lang_settings_focus = Some(lang_code.to_owned());
+
+        let args = format!(
+            "/Online /Remove-Capability /CapabilityName:{} /NoRestart",
+            capability_name
+        );
+        match crate::platform::launch_hidden_process_as_admin(&Self::ocr_dism_path(), Some(&args)) {
+            Ok(()) => {
+                self.status = format!(
+                    "Started Windows OCR removal for {}. Click Refresh after the uninstall finishes.",
+                    display_name
+                );
+            }
+            Err(error) => {
+                self.status = format!("Failed to start OCR removal for {}: {}", display_name, error);
+            }
+        }
+    }
+
+    fn refresh_ocr_language_status(&mut self) {
+        crate::ocr::clear_available_ocr_languages_cache();
+        self.status = "Refreshed Windows OCR language status.".to_owned();
     }
 
     pub(crate) fn render_ocr_language_settings(&mut self, ui: &mut egui::Ui) {
@@ -1341,6 +1392,14 @@ impl CrosshairApp {
 
                 let avail_langs = crate::ocr::available_ocr_languages();
 
+                ui.add_space(6.0);
+                ui.horizontal(|ui| {
+                    if Self::settings_action_button(ui, Self::tr_lang(language, "Refresh", "Lam moi"))
+                        .clicked()
+                    {
+                        self.refresh_ocr_language_status();
+                    }
+                });
                 ui.add_space(6.0);
                 ui.label(
                     RichText::new(Self::tr_lang(
@@ -1396,30 +1455,44 @@ impl CrosshairApp {
                             }
 
                             if has_ocr {
-                                ui.label(
-                                    RichText::new(Self::tr_lang(language, "OCR ready", "OCR san sang"))
-                                        .small()
-                                        .color(Color32::from_rgb(126, 224, 182)),
-                                );
+                                ui.horizontal(|ui| {
+                                    ui.label(
+                                        RichText::new(Self::tr_lang(language, "OCR ready", "OCR san sang"))
+                                            .small()
+                                            .color(Color32::from_rgb(126, 224, 182)),
+                                    );
+                                    if Self::settings_action_button(
+                                        ui,
+                                        Self::tr_lang(language, "Delete", "Xoa"),
+                                    )
+                                    .on_hover_text(Self::tr_lang(
+                                        language,
+                                        "Remove the Windows OCR capability for this language.",
+                                        "Go OCR capability cua Windows cho ngon ngu nay.",
+                                    ))
+                                    .clicked()
+                                    {
+                                        self.uninstall_ocr_language_capability(
+                                            lang_code,
+                                            display_name,
+                                        );
+                                    }
+                                });
                             } else {
                                 let button_label = if is_focused {
-                                    Self::tr_lang(
-                                        language,
-                                        "Open Windows Settings",
-                                        "Mo Windows Settings",
-                                    )
+                                    Self::tr_lang(language, "Install", "Cai dat")
                                 } else {
-                                    Self::tr_lang(language, "Guide install", "Huong dan cai")
+                                    Self::tr_lang(language, "Install", "Cai dat")
                                 };
                                 if Self::settings_action_button(ui, button_label)
                                     .on_hover_text(Self::tr_lang(
                                         language,
-                                        "Open Windows Settings so you can install the Windows OCR capability for this language if it is available on your system.",
-                                        "Mo Windows Settings de ban cai Windows OCR capability cho ngon ngu nay neu he thong cua ban co ho tro.",
+                                        "Install the Windows OCR capability for this language directly.",
+                                        "Cai Windows OCR capability cho ngon ngu nay truc tiep.",
                                     ))
                                     .clicked()
                                 {
-                                    self.open_ocr_language_settings_for(lang_code, display_name);
+                                    self.install_ocr_language_capability(lang_code, display_name);
                                 }
                             }
 
