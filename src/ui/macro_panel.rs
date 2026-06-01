@@ -1524,35 +1524,9 @@ impl CrosshairApp {
 
         step: &MacroStep,
     ) -> Option<HoverPreviewRequest> {
-        match step.action {
-            MacroAction::TriggerMacroPreset => Some(HoverPreviewRequest::MacroPreset {
-                source_id,
+        let _ = (language, source_id, step);
 
-                preset_id: step.key.trim().parse::<u32>().ok().unwrap_or(0),
-
-                mode_label: Self::tr_lang(language, "Trigger macro", "Kích hoạt macro").to_owned(),
-            }),
-
-            MacroAction::EnableMacroPreset => Some(HoverPreviewRequest::MacroPreset {
-                source_id,
-
-                preset_id: step.key.trim().parse::<u32>().ok().unwrap_or(0),
-
-                mode_label: Self::tr_lang(language, "Enable macro", "Bật macro").to_owned(),
-            }),
-
-            MacroAction::DisableMacroPreset => Some(HoverPreviewRequest::MacroPreset {
-                source_id,
-
-                preset_id: step.key.trim().parse::<u32>().ok().unwrap_or(0),
-
-                mode_label: Self::tr_lang(language, "Disable macro", "Tắt macro").to_owned(),
-            }),
-
-            MacroAction::EnableStep | MacroAction::DisableStep => None,
-
-            _ => None,
-        }
+        None
     }
 
     fn resolve_hover_preview_request(
