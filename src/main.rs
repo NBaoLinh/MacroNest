@@ -162,7 +162,8 @@ fn main() -> Result<()> {
         app_title,
         native_options,
         Box::new(move |cc| {
-            ui::configure_fonts(&cc.egui_ctx);
+            let load_cjk_fallback = ui::app_state_needs_cjk_fallback(&state);
+            ui::configure_fonts(&cc.egui_ctx, load_cjk_fallback);
             Ok(Box::new(CrosshairApp::new(
                 paths, state, overlay_tx, ui_tx, ui_rx,
             )))
@@ -193,7 +194,7 @@ fn run_popup_blob(kind: PopupBlobKind) -> Result<()> {
         app_title,
         native_options,
         Box::new(move |cc| {
-            ui::configure_fonts(&cc.egui_ctx);
+            ui::configure_fonts(&cc.egui_ctx, false);
             Ok(Box::new(PopupBlobApp::new(
                 kind,
                 crate::model::UiThemeMode::Dark,

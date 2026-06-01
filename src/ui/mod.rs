@@ -226,8 +226,33 @@ pub(crate) const MATERIAL_ICONS_FONT: &str = "material_icons";
 const UI_SANS_FONT: &str = "ui_sans";
 const UI_SANS_SEMIBOLD_FONT: &str = "ui_sans_semibold";
 
-pub fn configure_fonts(ctx: &egui::Context) {
-    let mut fonts = FontDefinitions::default();
+fn text_has_cjk(text: &str) -> bool {
+    text.chars().any(|ch| {
+        matches!(
+            ch as u32,
+            0x2E80..=0x2FDF
+                | 0x3040..=0x30FF
+                | 0x31F0..=0x31FF
+                | 0x3400..=0x4DBF
+                | 0x4E00..=0x9FFF
+                | 0xAC00..=0xD7AF
+                | 0xF900..=0xFAFF
+                | 0xFF66..=0xFF9F
+        )
+    })
+}
+
+pub fn app_state_needs_cjk_fallback(state: &AppState) -> bool {
+    serde_json::to_string(state)
+        .map(|json| text_has_cjk(&json))
+        .unwrap_or(false)
+}
+
+pub fn configure_fonts(ctx: &egui::Context, load_cjk_fallback: bool) {
+    let mut fonts = FontDefinitions {
+        font_data: Default::default(),
+        families: Default::default(),
+    };
     fonts.font_data.insert(
         UI_SANS_FONT.to_owned(),
         Arc::new(FontData::from_static(include_bytes!(
@@ -248,7 +273,9 @@ pub fn configure_fonts(ctx: &egui::Context) {
     );
     #[cfg(windows)]
     {
-        if let Ok(font_bytes) = std::fs::read("C:\\Windows\\Fonts\\msyh.ttc") {
+        if load_cjk_fallback
+            && let Ok(font_bytes) = std::fs::read("C:\\Windows\\Fonts\\msyh.ttc")
+        {
             fonts.font_data.insert(
                 "cjk_fallback".to_owned(),
                 Arc::new(FontData::from_owned(font_bytes)),
@@ -269,6 +296,11 @@ pub fn configure_fonts(ctx: &egui::Context) {
     fonts
         .families
         .entry(FontFamily::Proportional)
+        .or_default()
+        .push(UI_SANS_FONT.to_owned());
+    fonts
+        .families
+        .entry(FontFamily::Monospace)
         .or_default()
         .push(UI_SANS_FONT.to_owned());
     let material_family = FontFamily::Name(MATERIAL_ICONS_FONT.into());
