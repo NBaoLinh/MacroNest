@@ -21,9 +21,42 @@ pub struct OcrResult {
 static AVAILABLE_OCR_LANGUAGES_CACHE: Lazy<Mutex<Option<Vec<String>>>> =
     Lazy::new(|| Mutex::new(None));
 
-#[cfg(windows)]
-static PREFERRED_WINDOWS_LANGUAGES_CACHE: Lazy<Mutex<Option<Vec<String>>>> =
-    Lazy::new(|| Mutex::new(None));
+pub const OCR_SUPPORTED_LANGUAGE_CATALOG: &[(&str, &str, &str)] = &[
+    ("en-US", "English (en-US)", "Install via Windows OCR capabilities"),
+    ("zh-CN", "Chinese Simplified (zh-CN)", "Install via Windows OCR capabilities"),
+    ("zh-HK", "Chinese Traditional Hong Kong (zh-HK)", "Install via Windows OCR capabilities"),
+    ("zh-TW", "Chinese Traditional Taiwan (zh-TW)", "Install via Windows OCR capabilities"),
+    ("ja-JP", "Japanese (ja-JP)", "Install via Windows OCR capabilities"),
+    ("ko-KR", "Korean (ko-KR)", "Install via Windows OCR capabilities"),
+    ("de-DE", "German (de-DE)", "Install via Windows OCR capabilities"),
+    ("fr-FR", "French (fr-FR)", "Install via Windows OCR capabilities"),
+    ("fr-CA", "French Canada (fr-CA)", "Install via Windows OCR capabilities"),
+    ("es-ES", "Spanish (es-ES)", "Install via Windows OCR capabilities"),
+    ("es-MX", "Spanish Mexico (es-MX)", "Install via Windows OCR capabilities"),
+    ("it-IT", "Italian (it-IT)", "Install via Windows OCR capabilities"),
+    ("pt-BR", "Portuguese Brazil (pt-BR)", "Install via Windows OCR capabilities"),
+    ("pt-PT", "Portuguese Portugal (pt-PT)", "Install via Windows OCR capabilities"),
+    ("ru-RU", "Russian (ru-RU)", "Install via Windows OCR capabilities"),
+    ("ar-SA", "Arabic (ar-SA)", "Install via Windows OCR capabilities"),
+    ("bg-BG", "Bulgarian (bg-BG)", "Install via Windows OCR capabilities"),
+    ("bs-LATN-BA", "Bosnian Latin (bs-LATN-BA)", "Install via Windows OCR capabilities"),
+    ("cs-CZ", "Czech (cs-CZ)", "Install via Windows OCR capabilities"),
+    ("da-DK", "Danish (da-DK)", "Install via Windows OCR capabilities"),
+    ("el-GR", "Greek (el-GR)", "Install via Windows OCR capabilities"),
+    ("fi-FI", "Finnish (fi-FI)", "Install via Windows OCR capabilities"),
+    ("hr-HR", "Croatian (hr-HR)", "Install via Windows OCR capabilities"),
+    ("hu-HU", "Hungarian (hu-HU)", "Install via Windows OCR capabilities"),
+    ("nb-NO", "Norwegian Bokmal (nb-NO)", "Install via Windows OCR capabilities"),
+    ("nl-NL", "Dutch (nl-NL)", "Install via Windows OCR capabilities"),
+    ("pl-PL", "Polish (pl-PL)", "Install via Windows OCR capabilities"),
+    ("ro-RO", "Romanian (ro-RO)", "Install via Windows OCR capabilities"),
+    ("sk-SK", "Slovak (sk-SK)", "Install via Windows OCR capabilities"),
+    ("sl-SI", "Slovenian (sl-SI)", "Install via Windows OCR capabilities"),
+    ("sr-CYRL-RS", "Serbian Cyrillic (sr-CYRL-RS)", "Install via Windows OCR capabilities"),
+    ("sr-LATN-RS", "Serbian Latin (sr-LATN-RS)", "Install via Windows OCR capabilities"),
+    ("sv-SE", "Swedish (sv-SE)", "Install via Windows OCR capabilities"),
+    ("tr-TR", "Turkish (tr-TR)", "Install via Windows OCR capabilities"),
+];
 
 #[cfg(windows)]
 pub fn available_ocr_languages() -> Vec<String> {
@@ -42,50 +75,6 @@ pub fn available_ocr_languages() -> Vec<String> {
 
     *AVAILABLE_OCR_LANGUAGES_CACHE.lock() = Some(languages.clone());
     languages
-}
-
-#[cfg(windows)]
-pub fn preferred_windows_languages() -> Vec<String> {
-    if let Some(cached) = PREFERRED_WINDOWS_LANGUAGES_CACHE.lock().clone() {
-        return cached;
-    }
-
-    use std::process::Command;
-    #[cfg(windows)]
-    use std::os::windows::process::CommandExt;
-
-    let mut cmd = Command::new("powershell");
-    #[cfg(windows)]
-    {
-        cmd.creation_flags(0x08000000);
-    }
-
-    let output = cmd
-        .args([
-            "-NoProfile",
-            "-NonInteractive",
-            "-Command",
-            "Get-WinUserLanguageList | ForEach-Object { $_.LanguageTag }",
-        ])
-        .output();
-
-    let languages = match output {
-        Ok(output) if output.status.success() => String::from_utf8_lossy(&output.stdout)
-            .lines()
-            .map(str::trim)
-            .filter(|line| !line.is_empty())
-            .map(|line| line.to_string())
-            .collect(),
-        _ => vec![],
-    };
-
-    *PREFERRED_WINDOWS_LANGUAGES_CACHE.lock() = Some(languages.clone());
-    languages
-}
-
-#[cfg(not(windows))]
-pub fn preferred_windows_languages() -> Vec<String> {
-    vec![]
 }
 
 pub fn language_tag_matches(tags: &[String], code: &str) -> bool {

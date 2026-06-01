@@ -124,35 +124,11 @@ impl CrosshairApp {
                         // Language Code - Dropdown with popular languages
                         ui.label(Self::tr_lang(language, "Language", "Ngon ngu OCR"));
                         {
-                            // ASCII-only labels to avoid font rendering issues with CJK/Arabic/Thai
-                            // [not installed] = language pack not found on this Windows system
-                            let popular_langs: &[(&str, &str, &str)] = &[
-                                ("",        "Auto Detect",              "Use Windows profile languages. No extra install needed."),
-                                ("en",      "English (en)",             "Usually pre-installed on Windows"),
-                                ("vi",      "Vietnamese (vi)",          "Tieng Viet - install via Settings > Language"),
-                                ("zh-Hans", "Chinese Simp (zh-Hans)",   "Simplified Chinese - install via Settings > Language"),
-                                ("zh-Hant", "Chinese Trad (zh-Hant)",   "Traditional Chinese - install via Settings > Language"),
-                                ("ja",      "Japanese (ja)",            "install via Settings > Language"),
-                                ("ko",      "Korean (ko)",              "install via Settings > Language"),
-                                ("fr",      "French (fr)",              "Francais - install via Settings > Language"),
-                                ("de",      "German (de)",              "Deutsch - install via Settings > Language"),
-                                ("es",      "Spanish (es)",             "Espanol - install via Settings > Language"),
-                                ("it",      "Italian (it)",             "Italiano - install via Settings > Language"),
-                                ("pt",      "Portuguese (pt)",          "Portugues - install via Settings > Language"),
-                                ("ru",      "Russian (ru)",             "install via Settings > Language"),
-                                ("ar",      "Arabic (ar)",              "install via Settings > Language"),
-                                ("th",      "Thai (th)",                "install via Settings > Language"),
-                                ("nl",      "Dutch (nl)",               "Nederlands - install via Settings > Language"),
-                                ("pl",      "Polish (pl)",              "Polski - install via Settings > Language"),
-                                ("tr",      "Turkish (tr)",             "Turkce - install via Settings > Language"),
-                            ];
-
                             let avail_langs = crate::ocr::available_ocr_languages();
-                            let preferred_langs = crate::ocr::preferred_windows_languages();
 
                             let current_code = preset.lang.clone().unwrap_or_default();
-                            let current_label: String = popular_langs.iter()
-                                .find(|(code, _, _)| *code == current_code.as_str())
+                            let current_label: String = crate::ocr::OCR_SUPPORTED_LANGUAGE_CATALOG.iter()
+                                .find(|(code, _, _)| crate::ocr::language_tag_matches(&[current_code.clone()], code))
                                 .map(|(_, label, _)| label.to_string())
                                 .unwrap_or_else(|| {
                                     if current_code.is_empty() {
@@ -167,32 +143,45 @@ impl CrosshairApp {
                                     .selected_text(current_label.as_str())
                                     .width(200.0)
                                     .show_ui(ui, |ui| {
-                                        for (code, label, hint) in popular_langs {
-                                            let is_selected = current_code.as_str() == *code;
-                                            let has_ocr = code.is_empty()
-                                                || crate::ocr::language_tag_matches(&avail_langs, code);
-                                            let has_language = !code.is_empty()
-                                                && crate::ocr::language_tag_matches(&preferred_langs, code);
+                                        if ui
+                                            .selectable_label(
+                                                current_code.is_empty(),
+                                                "Auto Detect",
+                                            )
+                                            .on_hover_text(
+                                                "Use Windows OCR automatic language detection",
+                                            )
+                                            .clicked()
+                                        {
+                                            preset.lang = None;
+                                            live_sync = true;
+                                        }
+                                        for (code, label, hint) in crate::ocr::OCR_SUPPORTED_LANGUAGE_CATALOG {
+                                            let is_selected = crate::ocr::language_tag_matches(
+                                                &[current_code.clone()],
+                                                code,
+                                            );
+                                            let has_ocr =
+                                                crate::ocr::language_tag_matches(&avail_langs, code);
                                             let display = if has_ocr {
                                                 label.to_string()
-                                            } else if has_language {
-                                                format!("{} [Windows language only]", label)
                                             } else {
                                                 format!("{} [not installed]", label)
                                             };
                                             let hover_msg = if has_ocr {
                                                 hint.to_string()
-                                            } else if has_language {
-                                                format!("{} - This language is already added in Windows, but Windows OCR is not available for it in the app yet. Open Settings > Language & Region and install any OCR-related optional features if Windows provides them.", hint)
                                             } else {
-                                                format!("{} - Language pack NOT installed. Go to Windows Settings > Time & Language > Language & Region > Add a language", hint)
+                                                format!(
+                                                    "{} - Windows OCR for this language is not installed on this PC. Install the OCR capability in Windows Settings if it is available.",
+                                                    hint
+                                                )
                                             };
                                             if ui.selectable_label(is_selected, &display)
                                                 .on_hover_text(hover_msg)
                                                 .clicked()
                                             {
-                                                preset.lang = if code.is_empty() { None } else { Some(code.to_string()) };
-                                                if !has_ocr && !code.is_empty() {
+                                                preset.lang = Some(code.to_string());
+                                                if !has_ocr {
                                                     pending_ocr_language_settings =
                                                         Some((code.to_string(), label.to_string()));
                                                 }

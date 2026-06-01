@@ -139,71 +139,13 @@ impl CrosshairApp {
 
         ui.add_space(4.0);
 
-        let popular_langs: &[(&str, &str, &str)] = &[
-            (
-                "",
-                "Auto",
-                "Detect language from Windows profile. No install needed.",
-            ),
-            (
-                "en",
-                "English (en)",
-                "English - usually installed by default",
-            ),
-            (
-                "vi",
-                "Vietnamese (vi)",
-                "Tieng Viet - install via Windows Settings > Language",
-            ),
-            (
-                "zh-Hans",
-                "Chinese Simp (zh)",
-                "Simplified Chinese - install via Windows Settings > Language",
-            ),
-            (
-                "zh-Hant",
-                "Chinese Trad (zht)",
-                "Traditional Chinese - install via Windows Settings > Language",
-            ),
-            (
-                "ja",
-                "Japanese (ja)",
-                "install via Windows Settings > Language",
-            ),
-            (
-                "ko",
-                "Korean (ko)",
-                "install via Windows Settings > Language",
-            ),
-            (
-                "fr",
-                "French (fr)",
-                "Francais - install via Windows Settings > Language",
-            ),
-            (
-                "de",
-                "German (de)",
-                "Deutsch - install via Windows Settings > Language",
-            ),
-            (
-                "es",
-                "Spanish (es)",
-                "Espanol - install via Windows Settings > Language",
-            ),
-            (
-                "ru",
-                "Russian (ru)",
-                "install via Windows Settings > Language",
-            ),
-            ("th", "Thai (th)", "install via Windows Settings > Language"),
-        ];
-
         let available_languages = crate::ocr::available_ocr_languages();
-        let preferred_languages = crate::ocr::preferred_windows_languages();
         let current_language = step.ocr_lang.clone().unwrap_or_default();
-        let language_label = popular_langs
+        let language_label = crate::ocr::OCR_SUPPORTED_LANGUAGE_CATALOG
             .iter()
-            .find(|(code, _, _)| *code == current_language.as_str())
+            .find(|(code, _, _)| {
+                crate::ocr::language_tag_matches(&[current_language.clone()], code)
+            })
             .map(|(_, label, _)| *label)
             .unwrap_or(if current_language.is_empty() {
                 "Auto"
@@ -213,17 +155,15 @@ impl CrosshairApp {
 
         let short_label = match current_language.as_str() {
             "" => "Auto",
-            "en" => "EN",
-            "vi" => "VI",
-            "zh-Hans" => "ZH",
-            "zh-Hant" => "ZHT",
-            "ja" => "JA",
-            "ko" => "KO",
-            "fr" => "FR",
-            "de" => "DE",
-            "es" => "ES",
-            "ru" => "RU",
-            "th" => "TH",
+            "en" | "en-US" => "EN",
+            "zh-Hans" | "zh-CN" => "ZH",
+            "zh-Hant" | "zh-HK" | "zh-TW" => "ZHT",
+            "ja" | "ja-JP" => "JA",
+            "ko" | "ko-KR" => "KO",
+            "fr" | "fr-FR" | "fr-CA" => "FR",
+            "de" | "de-DE" => "DE",
+            "es" | "es-ES" | "es-MX" => "ES",
+            "ru" | "ru-RU" => "RU",
             other => {
                 if other.starts_with("zh-Han") {
                     "ZH"
@@ -239,17 +179,23 @@ impl CrosshairApp {
             .width(56.0)
             .selected_text(short_label)
             .show_ui(ui, |ui| {
-                for (code, label, hint) in popular_langs {
-                    let is_selected = current_language.as_str() == *code;
-                    let has_ocr = code.is_empty()
-                        || crate::ocr::language_tag_matches(&available_languages, code);
-                    let has_language = !code.is_empty()
-                        && crate::ocr::language_tag_matches(&preferred_languages, code);
+                if ui
+                    .selectable_label(current_language.is_empty(), "Auto")
+                    .on_hover_text("Use Windows OCR automatic language detection")
+                    .clicked()
+                {
+                    step.ocr_lang = None;
+                    *live_sync = true;
+                }
+                for (code, label, hint) in crate::ocr::OCR_SUPPORTED_LANGUAGE_CATALOG {
+                    let is_selected = crate::ocr::language_tag_matches(
+                        &[current_language.clone()],
+                        code,
+                    );
+                    let has_ocr = crate::ocr::language_tag_matches(&available_languages, code);
 
                     let display = if has_ocr {
                         label.to_string()
-                    } else if has_language {
-                        format!("{} [Windows language only]", label)
                     } else {
                         format!("{} [not installed]", label)
                     };
@@ -257,25 +203,16 @@ impl CrosshairApp {
                     let response = ui.selectable_label(is_selected, &display);
                     let hover_message = if has_ocr {
                         hint.to_string()
-                    } else if has_language {
-                        format!(
-                            "{} - This language is already added in Windows, but Windows OCR is not available for it in the app yet. Open Settings > Language & Region and install any OCR-related optional features if Windows provides them.",
-                            hint
-                        )
                     } else {
                         format!(
-                            "{} - Language pack NOT installed. Go to Windows Settings > Time & Language > Language & Region > Add a language",
+                            "{} - Windows OCR for this language is not installed on this PC. Install the OCR capability in Windows Settings if it is available.",
                             hint
                         )
                     };
 
                     if response.on_hover_text(hover_message).clicked() {
-                        step.ocr_lang = if code.is_empty() {
-                            None
-                        } else {
-                            Some(code.to_string())
-                        };
-                        if !has_ocr && !code.is_empty() {
+                        step.ocr_lang = Some(code.to_string());
+                        if !has_ocr {
                             *pending_ocr_language_settings =
                                 Some((code.to_string(), label.to_string()));
                         }

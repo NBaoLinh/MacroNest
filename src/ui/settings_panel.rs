@@ -1321,37 +1321,9 @@ impl CrosshairApp {
         self.persist();
     }
 
-    fn ensure_ocr_language_caches(&mut self) {
-        if self.ocr_available_languages_cache.is_none() {
-            self.ocr_available_languages_cache = Some(crate::ocr::available_ocr_languages());
-        }
-        if self.ocr_preferred_languages_cache.is_none() {
-            self.ocr_preferred_languages_cache = Some(crate::ocr::preferred_windows_languages());
-        }
-    }
-
     pub(crate) fn render_ocr_language_settings(&mut self, ui: &mut egui::Ui) {
         let language = self.state.ui_language;
         let focused_lang = self.ocr_lang_settings_focus.clone();
-        let lang_catalog: &[(&str, &str)] = &[
-            ("en", "English (en)"),
-            ("vi", "Vietnamese (vi)"),
-            ("zh-Hans", "Chinese Simplified (zh)"),
-            ("zh-Hant", "Chinese Traditional (zht)"),
-            ("ja", "Japanese (ja)"),
-            ("ko", "Korean (ko)"),
-            ("fr", "French (fr)"),
-            ("de", "German (de)"),
-            ("es", "Spanish (es)"),
-            ("it", "Italian (it)"),
-            ("pt", "Portuguese (pt)"),
-            ("ru", "Russian (ru)"),
-            ("ar", "Arabic (ar)"),
-            ("th", "Thai (th)"),
-            ("nl", "Dutch (nl)"),
-            ("pl", "Polish (pl)"),
-            ("tr", "Turkish (tr)"),
-        ];
 
         Self::settings_card_frame(ui).show(ui, |ui| {
             ui.set_min_width(ui.available_width());
@@ -1367,22 +1339,14 @@ impl CrosshairApp {
                     return;
                 }
 
-                self.ensure_ocr_language_caches();
-                let avail_langs = self
-                    .ocr_available_languages_cache
-                    .clone()
-                    .unwrap_or_default();
-                let preferred_langs = self
-                    .ocr_preferred_languages_cache
-                    .clone()
-                    .unwrap_or_default();
+                let avail_langs = crate::ocr::available_ocr_languages();
 
                 ui.add_space(6.0);
                 ui.label(
                     RichText::new(Self::tr_lang(
                         language,
-                        "This app uses the Windows OCR engine. A language only works here when Windows OCR is available for it, not just when the language is added in Windows.",
-                        "App nay dung Windows OCR engine. Mot ngon ngu chi dung duoc o day khi Windows OCR san sang cho no, khong phai chi can da them ngon ngu vao Windows.",
+                        "This list only shows languages that Windows OCR supports. OCR ready means the OCR capability is installed on this PC.",
+                        "Danh sach nay chi hien nhung ngon ngu ma Windows OCR ho tro. OCR ready nghia la OCR capability da duoc cai tren may nay.",
                     ))
                     .small()
                     .weak(),
@@ -1410,16 +1374,12 @@ impl CrosshairApp {
                     .num_columns(3)
                     .spacing([10.0, 6.0])
                     .show(ui, |ui| {
-                        for (lang_code, display_name) in lang_catalog {
+                        for (lang_code, display_name, _) in crate::ocr::OCR_SUPPORTED_LANGUAGE_CATALOG {
                             let has_ocr = crate::ocr::language_tag_matches(&avail_langs, lang_code);
-                            let has_language =
-                                crate::ocr::language_tag_matches(&preferred_langs, lang_code);
                             let is_focused = focused_lang.as_deref() == Some(*lang_code);
 
                             if has_ocr {
                                 ui.label(RichText::new("OK").color(Color32::from_rgb(126, 224, 182)));
-                            } else if has_language {
-                                ui.label(RichText::new("!").color(Color32::from_rgb(255, 216, 96)));
                             } else {
                                 ui.label(RichText::new("x").color(Color32::from_rgb(220, 100, 100)));
                             }
@@ -1435,59 +1395,32 @@ impl CrosshairApp {
                                 ui.scroll_to_rect(name_response.rect, Some(egui::Align::Center));
                             }
 
-                            let button_label = if has_ocr {
-                                None
-                            } else if has_language || is_focused {
-                                Some(Self::tr_lang(
-                                    language,
-                                    "Open Windows Settings",
-                                    "Mo Windows Settings",
-                                ))
-                            } else {
-                                Some(Self::tr_lang(
-                                    language,
-                                    "Guide install",
-                                    "Huong dan cai",
-                                ))
-                            };
-
                             if has_ocr {
                                 ui.label(
                                     RichText::new(Self::tr_lang(language, "OCR ready", "OCR san sang"))
                                         .small()
                                         .color(Color32::from_rgb(126, 224, 182)),
                                 );
-                            } else if has_language {
-                                ui.horizontal(|ui| {
-                                    ui.label(
-                                        RichText::new(Self::tr_lang(
-                                            language,
-                                            "Windows language added, but OCR is not available here yet",
-                                            "Windows da co ngon ngu nay, nhung OCR chua dung duoc trong app",
-                                        ))
-                                        .small()
-                                        .color(Color32::from_rgb(255, 216, 96)),
-                                    );
-                                    if Self::settings_action_button(ui, button_label.unwrap_or(""))
-                                        .on_hover_text(Self::tr_lang(
-                                            language,
-                                            "Open Windows Settings > Language & Region. If Windows provides OCR or related optional features for this language, install them there.",
-                                            "Mo Windows Settings > Language & Region. Neu Windows co OCR hoac optional features lien quan cho ngon ngu nay thi cai tai do.",
-                                        ))
-                                        .clicked()
-                                    {
-                                        self.open_ocr_language_settings_for(lang_code, display_name);
-                                    }
-                                });
-                            } else if Self::settings_action_button(ui, button_label.unwrap_or(""))
-                                .on_hover_text(Self::tr_lang(
-                                    language,
-                                    "Open Windows Settings > Language & Region so you can add this language and any OCR-related optional features there.",
-                                    "Mo Windows Settings > Language & Region de ban them ngon ngu nay va cac optional features lien quan den OCR neu co.",
-                                ))
-                                .clicked()
-                            {
-                                self.open_ocr_language_settings_for(lang_code, display_name);
+                            } else {
+                                let button_label = if is_focused {
+                                    Self::tr_lang(
+                                        language,
+                                        "Open Windows Settings",
+                                        "Mo Windows Settings",
+                                    )
+                                } else {
+                                    Self::tr_lang(language, "Guide install", "Huong dan cai")
+                                };
+                                if Self::settings_action_button(ui, button_label)
+                                    .on_hover_text(Self::tr_lang(
+                                        language,
+                                        "Open Windows Settings so you can install the Windows OCR capability for this language if it is available on your system.",
+                                        "Mo Windows Settings de ban cai Windows OCR capability cho ngon ngu nay neu he thong cua ban co ho tro.",
+                                    ))
+                                    .clicked()
+                                {
+                                    self.open_ocr_language_settings_for(lang_code, display_name);
+                                }
                             }
 
                             ui.end_row();
