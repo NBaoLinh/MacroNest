@@ -11009,6 +11009,7 @@ impl CrosshairApp {
                             let mut preview_drop_index = steps_len;
                             let mut visual_step_order: Vec<usize> = (0..steps_len).collect();
                             let mut active_dragged_indices: Vec<usize> = Vec::new();
+                            let mut active_current_compact_index: Option<usize> = None;
                             if let Some(payload) = drag_payload.as_ref() {
                                 active_dragged_indices = payload.indices.clone();
                                 active_dragged_indices.sort_unstable();
@@ -11036,6 +11037,7 @@ impl CrosshairApp {
                                 });
                                 let current_compact_index =
                                     stored_compact_index.min(compact_steps_len);
+                                active_current_compact_index = Some(current_compact_index);
                                 let mut compact_order = (0..steps_len)
                                     .filter(|index| !active_dragged_indices.contains(index))
                                     .collect::<Vec<_>>();
@@ -17048,7 +17050,13 @@ impl CrosshairApp {
                                     next_compact_preview_index = if step_is_being_dragged {
                                         compact_cursor
                                     } else {
-                                        compact_cursor + 1
+                                        let moving_up = active_current_compact_index
+                                            .is_some_and(|current| compact_cursor < current);
+                                        if moving_up {
+                                            compact_cursor
+                                        } else {
+                                            compact_cursor + 1
+                                        }
                                     };
                                 }
                                 if !step_is_being_dragged {
