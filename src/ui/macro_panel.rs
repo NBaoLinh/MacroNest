@@ -10990,57 +10990,10 @@ impl CrosshairApp {
                             let pointer_y = ui.ctx().pointer_interact_pos().map(|pointer| pointer.y);
 
                             let mut preview_drop_index = steps_len;
-                            let mut preview_drawn = false;
-                            let dragged_step_count = drag_payload
-                                .as_ref()
-                                .map(|payload| payload.indices.len().max(1))
-                                .unwrap_or(1);
-                            let preview_gap_height = 30.0 * dragged_step_count as f32;
-                            let paint_drop_gap = |ui: &mut egui::Ui| {
-                                let (rect, _) = ui.allocate_exact_size(
-                                    vec2(ui.available_width(), preview_gap_height),
-                                    Sense::hover(),
-                                );
-                                let marker_color = Color32::from_rgb(124, 240, 164);
-                                let marker_y = rect.center().y;
-                                let marker_left = rect.left() + 10.0;
-                                let marker_right = rect.right() - 10.0;
-                                ui.painter().line_segment(
-                                    [
-                                        egui::pos2(marker_left, marker_y),
-                                        egui::pos2(marker_right, marker_y),
-                                    ],
-                                    egui::Stroke::new(3.0, marker_color),
-                                );
-                                ui.painter().circle_filled(
-                                    egui::pos2(marker_left, marker_y),
-                                    4.0,
-                                    marker_color,
-                                );
-                                ui.painter().circle_filled(
-                                    egui::pos2(marker_right, marker_y),
-                                    4.0,
-                                    marker_color,
-                                );
-                            };
 
                             let mut step_rects = vec![Rect::ZERO; steps_len];
 
                             for step_index in 0..steps_len {
-                                if drag_payload.is_some()
-                                    && !preview_drawn
-                                    && pointer_y.is_some_and(|pointer_y| {
-                                        pointer_y <= ui.cursor().min.y + 12.0
-                                    })
-                                {
-                                    preview_drop_index = step_index;
-                                    preview_drawn = true;
-                                    paint_drop_gap(ui);
-                                }
-
-                                let step_is_being_dragged = drag_payload
-                                    .as_ref()
-                                    .is_some_and(|payload| payload.indices.contains(&step_index));
 
                                 let has_step_break_loop_warning = {
 
@@ -11282,16 +11235,7 @@ impl CrosshairApp {
 
                                 }
 
-                                if step_is_being_dragged {
-                                    row_fill = Color32::from_rgba_unmultiplied(
-                                        row_fill.r(),
-                                        row_fill.g(),
-                                        row_fill.b(),
-                                        row_fill.a().min(90),
-                                    );
-                                }
-
-                                let row_drag_payload = MacroStepDragPayload {
+                                let drag_payload = MacroStepDragPayload {
 
                                     group_id: group.id,
 
@@ -11553,7 +11497,7 @@ impl CrosshairApp {
 
                                                     .on_hover_cursor(egui::CursorIcon::Grab);
 
-                                                drag_handle.dnd_set_drag_payload(row_drag_payload.clone());
+                                                drag_handle.dnd_set_drag_payload(drag_payload.clone());
 
                                             });
 
@@ -17013,79 +16957,49 @@ impl CrosshairApp {
 
                             }
 
-                            if drag_payload.is_some() && !preview_drawn {
-                                preview_drop_index = steps_len;
-                                paint_drop_gap(ui);
+                            let mut drop_marker_y: Option<f32> = None;
+                            if drag_payload.is_some() && !step_rects.is_empty() {
+                                if let Some(pointer_y) = pointer_y {
+                                    if pointer_y <= step_rects[0].center().y {
+                                        preview_drop_index = 0;
+                                        drop_marker_y = Some(step_rects[0].top());
+                                    } else {
+                                        for (index, rect) in step_rects.iter().enumerate() {
+                                            if pointer_y <= rect.center().y {
+                                                preview_drop_index = index;
+                                                drop_marker_y = Some(rect.top());
+                                                break;
+                                            }
+                                        }
+                                        if drop_marker_y.is_none() {
+                                            preview_drop_index = steps_len;
+                                            drop_marker_y = step_rects.last().map(|rect| rect.bottom());
+                                        }
+                                    }
+                                } else {
+                                    drop_marker_y = step_rects.last().map(|rect| rect.bottom());
+                                }
                             }
 
-                            if let Some(payload) = drag_payload.as_ref()
-                                && let Some(pointer_pos) = ui.ctx().pointer_interact_pos()
-                            {
-                                let preview_rect = payload
-                                    .indices
-                                    .first()
-                                    .and_then(|index| step_rects.get(*index).copied())
-                                    .filter(|rect| *rect != Rect::ZERO)
-                                    .map(|rect| {
-                                        egui::Rect::from_min_size(
-                                            egui::pos2(pointer_pos.x + 14.0, pointer_pos.y + 10.0),
-                                            rect.size(),
-                                        )
-                                    })
-                                    .unwrap_or_else(|| {
-                                        egui::Rect::from_min_size(
-                                            egui::pos2(pointer_pos.x + 14.0, pointer_pos.y + 10.0),
-                                            egui::vec2(ui.available_width().min(620.0), 28.0),
-                                        )
-                                    });
-                                let preview_fill =
-                                    Color32::from_rgba_unmultiplied(34, 48, 40, 220);
-                                let preview_stroke =
-                                    egui::Stroke::new(1.5, Color32::from_rgb(124, 240, 164));
-                                ui.painter().rect_filled(preview_rect, 6.0, preview_fill);
-                                ui.painter().rect_stroke(
-                                    preview_rect,
-                                    6.0,
-                                    preview_stroke,
-                                    egui::StrokeKind::Outside,
-                                );
-                                let preview_label = payload
-                                    .indices
-                                    .first()
-                                    .and_then(|index| preset.steps.get(*index))
-                                    .map(|step| {
-                                        let action_name =
-                                            Self::macro_action_selected_label(step.action, language);
-                                        if payload.indices.len() > 1 {
-                                            format!(
-                                                "{} {}  (+{})",
-                                                Self::macro_action_icon(step.action),
-                                                action_name,
-                                                payload.indices.len() - 1
-                                            )
-                                        } else {
-                                            format!(
-                                                "{} {}",
-                                                Self::macro_action_icon(step.action),
-                                                action_name
-                                            )
-                                        }
-                                    })
-                                    .unwrap_or_else(|| {
-                                        Self::tr_lang(
-                                            language,
-                                            "Dragging step",
-                                            "Dang keo step",
-                                        )
-                                        .to_owned()
-                                    });
-                                ui.painter().text(
-                                    preview_rect.left_center() + egui::vec2(12.0, 0.0),
-                                    egui::Align2::LEFT_CENTER,
-                                    preview_label,
-                                    egui::TextStyle::Button.resolve(ui.style()),
-                                    Color32::from_rgb(220, 255, 230),
-                                );
+                            if let Some(marker_y) = drop_marker_y {
+                                let marker_left = step_rects
+                                    .iter()
+                                    .find(|rect| **rect != Rect::ZERO)
+                                    .map(|rect| rect.left() + 6.0)
+                                    .unwrap_or(ui.min_rect().left() + 6.0);
+                                let marker_right = step_rects
+                                    .iter()
+                                    .rev()
+                                    .find(|rect| **rect != Rect::ZERO)
+                                    .map(|rect| rect.right() - 6.0)
+                                    .unwrap_or(ui.max_rect().right() - 6.0);
+                                let marker_color = Color32::from_rgb(124, 240, 164);
+                                let marker_stroke = egui::Stroke::new(3.0, marker_color);
+                                let start = egui::pos2(marker_left, marker_y);
+                                let end = egui::pos2(marker_right, marker_y);
+                                ui.painter().line_segment([start, end], marker_stroke);
+                                ui.painter().circle_filled(start, 4.0, marker_color);
+                                ui.painter().circle_filled(end, 4.0, marker_color);
                             }
 
                             // Dynamic hover highlight for Loop and If blocks (Gợi ý 2)
