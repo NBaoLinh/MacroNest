@@ -7676,6 +7676,10 @@ mod windows_overlay {
             {
                 preset.enabled = enabled;
 
+                if !enabled {
+                    STOP_REQUESTED_MACRO_PRESETS.lock().insert(preset_id);
+                }
+
                 let updated_groups = hook_state.macro_groups.clone();
 
                 let status = format!(
@@ -7686,6 +7690,12 @@ mod windows_overlay {
 
                 if let Some(tx) = hook_state.ui_tx.clone() {
                     let _ = tx.send(UiCommand::SyncMacroGroups(updated_groups, status));
+                }
+
+                drop(hook_state);
+
+                if !enabled {
+                    deactivate_hold_macro(preset_id);
                 }
 
                 return Ok(());
@@ -7964,6 +7974,21 @@ mod windows_overlay {
         fallback
     }
 
+    fn is_macro_preset_enabled_with_guard(preset_id: u32, hook_state: &HookState) -> bool {
+        hook_state
+            .macro_groups
+            .iter()
+            .flat_map(|group| group.presets.iter())
+            .find(|preset| preset.id == preset_id)
+            .map(|preset| preset.enabled)
+            .unwrap_or(false)
+    }
+
+    fn is_macro_preset_enabled(preset_id: u32) -> bool {
+        let hook_state = HOOK_STATE.lock();
+        is_macro_preset_enabled_with_guard(preset_id, &hook_state)
+    }
+
     fn toggle_macro_step_enabled(preset_id: u32, step_index: usize) -> Option<bool> {
         let mut hook_state = HOOK_STATE.lock();
 
@@ -8021,6 +8046,10 @@ mod windows_overlay {
         let mut index = 0usize;
 
         while index < steps.len() {
+            if !is_macro_preset_enabled(preset_id) {
+                return MacroRunFlow::StopExecution;
+            }
+
             if !macro_runtime_target_matches(
                 target_window_title,
                 extra_target_window_titles,
@@ -8495,6 +8524,10 @@ mod windows_overlay {
         let mut index = 0usize;
 
         while index < steps.len() {
+            if !is_macro_preset_enabled(preset_id) {
+                return MacroRunFlow::StopExecution;
+            }
+
             if !current_hold_run_matches(preset_id, run_token) {
                 return MacroRunFlow::StopExecution;
             }
@@ -8943,7 +8976,8 @@ mod windows_overlay {
                 target_window_title,
                 extra_target_window_titles,
                 match_duplicate_window_titles,
-            ) || !current_hold_run_matches(preset_id, run_token)
+            ) || !is_macro_preset_enabled(preset_id)
+                || !current_hold_run_matches(preset_id, run_token)
                 || (stop_immediately_on_retrigger
                     && STOP_REQUESTED_MACRO_PRESETS.lock().contains(&preset_id));
         }
@@ -8955,6 +8989,10 @@ mod windows_overlay {
                 let hook_state = HOOK_STATE.lock();
 
                 if !hook_state.macros_master_enabled {
+                    return true;
+                }
+
+                if !is_macro_preset_enabled_with_guard(preset_id, &hook_state) {
                     return true;
                 }
 
@@ -8989,7 +9027,8 @@ mod windows_overlay {
             target_window_title,
             extra_target_window_titles,
             match_duplicate_window_titles,
-        ) || !current_hold_run_matches(preset_id, run_token)
+        ) || !is_macro_preset_enabled(preset_id)
+            || !current_hold_run_matches(preset_id, run_token)
             || (stop_immediately_on_retrigger
                 && STOP_REQUESTED_MACRO_PRESETS.lock().contains(&preset_id))
     }
@@ -9012,7 +9051,7 @@ mod windows_overlay {
                 target_window_title,
                 extra_target_window_titles,
                 match_duplicate_window_titles,
-            );
+            ) || !is_macro_preset_enabled(preset_id);
         }
 
         let mut remaining_ms = delay_ms;
@@ -9022,6 +9061,10 @@ mod windows_overlay {
                 let hook_state = HOOK_STATE.lock();
 
                 if !hook_state.macros_master_enabled {
+                    return true;
+                }
+
+                if !is_macro_preset_enabled_with_guard(preset_id, &hook_state) {
                     return true;
                 }
 
@@ -9052,7 +9095,8 @@ mod windows_overlay {
             target_window_title,
             extra_target_window_titles,
             match_duplicate_window_titles,
-        ) || (stop_immediately_on_retrigger
+        ) || !is_macro_preset_enabled(preset_id)
+            || (stop_immediately_on_retrigger
             && STOP_REQUESTED_MACRO_PRESETS.lock().contains(&preset_id))
     }
 

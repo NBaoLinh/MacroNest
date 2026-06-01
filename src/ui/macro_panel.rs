@@ -18318,17 +18318,41 @@ impl CrosshairApp {
         list
     }
 
-    fn collect_vars_from_step(step: &MacroStep, vars: &mut std::collections::HashSet<String>) {
+    pub(crate) fn collect_vars_from_step(
+        step: &MacroStep,
+        vars: &mut std::collections::HashSet<String>,
+    ) {
         if step.action == MacroAction::SetVariable {
             let name = step.if_variable_name.trim();
 
             if !name.is_empty() {
                 vars.insert(name.to_string());
             }
+
+            if matches!(step.set_variable_source, crate::model::SetVariableSource::Expression) {
+                Self::extract_vars_from_expression(&step.key, vars);
+            }
         }
 
-        if !step.if_variable_name.trim().is_empty() {
-            vars.insert(step.if_variable_name.trim().to_string());
+        if step.action == MacroAction::IfStart
+            && matches!(step.if_condition_type, IfConditionType::Variable)
+        {
+            Self::extract_vars_from_expression(&step.if_variable_name, vars);
+            Self::extract_vars_from_expression(&step.key, vars);
+        }
+
+        for output_var in [
+            step.vision_pos_var_x.trim(),
+            step.vision_pos_var_y.trim(),
+            step.ocr_success_var.trim(),
+            step.ocr_pos_var_x.trim(),
+            step.ocr_pos_var_y.trim(),
+            step.ocr_numeric_var.trim(),
+            step.ocr_text_var.trim(),
+        ] {
+            if !output_var.is_empty() {
+                vars.insert(output_var.to_string());
+            }
         }
 
         for cond in &step.extra_conditions {
@@ -18349,6 +18373,13 @@ impl CrosshairApp {
         Self::extract_braced_vars(&step.text_override, vars);
 
         Self::extract_braced_vars(&step.command_preset_command, vars);
+    }
+
+    fn is_builtin_expression_identifier(token: &str) -> bool {
+        matches!(
+            token.trim().to_ascii_lowercase().as_str(),
+            "abs" | "min" | "max" | "random" | "tonumber"
+        )
     }
 
     fn extract_braced_vars(text: &str, vars: &mut std::collections::HashSet<String>) {
@@ -18390,7 +18421,10 @@ impl CrosshairApp {
             } else {
                 let trimmed = current_var.trim();
 
-                if !trimmed.is_empty() && !trimmed.chars().next().unwrap().is_ascii_digit() {
+                if !trimmed.is_empty()
+                    && !trimmed.chars().next().unwrap().is_ascii_digit()
+                    && !Self::is_builtin_expression_identifier(trimmed)
+                {
                     vars.insert(trimmed.to_string());
                 }
 
@@ -18400,7 +18434,10 @@ impl CrosshairApp {
 
         let trimmed = current_var.trim();
 
-        if !trimmed.is_empty() && !trimmed.chars().next().unwrap().is_ascii_digit() {
+        if !trimmed.is_empty()
+            && !trimmed.chars().next().unwrap().is_ascii_digit()
+            && !Self::is_builtin_expression_identifier(trimmed)
+        {
             vars.insert(trimmed.to_string());
         }
     }

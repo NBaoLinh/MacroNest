@@ -2743,27 +2743,19 @@ impl CrosshairApp {
     }
 
     fn collect_preset_referenced_variables(preset: &MacroPreset) -> Vec<String> {
-        let mut vars = Vec::new();
+        let mut vars = std::collections::HashSet::new();
+
         for step in &preset.steps {
-            if matches!(step.action, MacroAction::IfStart | MacroAction::SetVariable) {
-                let name = step.if_variable_name.trim().to_string();
-                if !name.is_empty() && !vars.contains(&name) {
-                    vars.push(name);
-                }
-            }
+            Self::collect_vars_from_step(step, &mut vars);
         }
-        if preset.hold_stop_step_enabled
-            && matches!(
-                preset.hold_stop_step.action,
-                MacroAction::IfStart | MacroAction::SetVariable
-            )
-        {
-            let name = preset.hold_stop_step.if_variable_name.trim().to_string();
-            if !name.is_empty() && !vars.contains(&name) {
-                vars.push(name);
-            }
+
+        if preset.hold_stop_step_enabled {
+            Self::collect_vars_from_step(&preset.hold_stop_step, &mut vars);
         }
-        vars
+
+        let mut list: Vec<String> = vars.into_iter().collect();
+        list.sort();
+        list
     }
 
     fn format_macro_trigger_ui(language: UiLanguage, preset: &MacroPreset) -> String {
