@@ -645,6 +645,94 @@ impl CrosshairApp {
         self.persist();
     }
 
+    pub(crate) fn begin_mouse_path_draw_capture(
+        &mut self,
+        ctx: &egui::Context,
+        preset_id: u32,
+    ) {
+        if self.mouse_path_draw_capture_preset_id.is_some() || self.active_mouse_record_preset_id.is_some() {
+            return;
+        }
+
+        let Some(preset_name) = self
+            .state
+            .mouse_path_presets
+            .iter()
+            .find(|preset| preset.id == preset_id)
+            .map(|preset| preset.name.clone())
+        else {
+            self.status = Self::tr_lang(
+                self.state.ui_language,
+                "Selected mouse path preset was not found.",
+                "Khong tim thay mouse path da chon.",
+            )
+            .to_owned();
+            return;
+        };
+
+        let viewport = ctx.input(|input| input.viewport().clone());
+        self.mouse_path_draw_capture_restore_inner_size = viewport
+            .inner_rect
+            .map(|rect| rect.size())
+            .or(Some(Self::desired_window_size()));
+        self.mouse_path_draw_capture_restore_outer_pos = viewport.outer_rect.map(|rect| rect.min);
+        self.mouse_path_draw_capture_preset_id = Some(preset_id);
+        self.center_window_next_frame = false;
+        self.enforce_square_window_frames = 0;
+        self.status = Self::tr_lang(
+            self.state.ui_language,
+            "Hide app. Hold left mouse to draw the path, then release to save. Press Esc to cancel.",
+            "An app. Giu chuot trai de ve duong, tha ra de luu. Nhan Esc de huy.",
+        )
+        .to_owned();
+
+        let _ = self.overlay_tx.send(OverlayCommand::BeginMousePathDrawCapture {
+            preset_id,
+            preset_name,
+        });
+        let _ = self.overlay_tx.send(OverlayCommand::SetUiVisible(false));
+        crate::overlay::wake_command_queue();
+
+        ctx.send_viewport_cmd(egui::ViewportCommand::Visible(false));
+        ctx.request_repaint_after(Duration::from_millis(33));
+    }
+
+    pub(crate) fn cancel_mouse_path_draw_capture(&mut self, ctx: &egui::Context) {
+        if self.mouse_path_draw_capture_preset_id.is_none() {
+            return;
+        }
+
+        self.mouse_path_draw_capture_preset_id = None;
+        self.active_mouse_record_preset_id = None;
+        let _ = self.overlay_tx.send(OverlayCommand::CancelMousePathDrawCapture);
+        crate::overlay::wake_command_queue();
+        self.restore_mouse_path_draw_capture_window(ctx);
+        self.status = Self::tr_lang(
+            self.state.ui_language,
+            "Mouse path draw cancelled.",
+            "Da huy ve mouse path.",
+        )
+        .to_owned();
+        ctx.request_repaint_after(Duration::from_millis(33));
+    }
+
+    pub(crate) fn restore_mouse_path_draw_capture_window(&mut self, ctx: &egui::Context) {
+        if let Some(size) = self.mouse_path_draw_capture_restore_inner_size.take() {
+            ctx.send_viewport_cmd(egui::ViewportCommand::InnerSize(size));
+        }
+        if let Some(pos) = self.mouse_path_draw_capture_restore_outer_pos.take() {
+            ctx.send_viewport_cmd(egui::ViewportCommand::OuterPosition(pos));
+        }
+        ctx.send_viewport_cmd(egui::ViewportCommand::Visible(true));
+        ctx.send_viewport_cmd(egui::ViewportCommand::Minimized(false));
+        ctx.send_viewport_cmd(egui::ViewportCommand::Focus);
+        ctx.send_viewport_cmd(egui::ViewportCommand::RequestUserAttention(
+            egui::UserAttentionType::Informational,
+        ));
+        let _ = self.overlay_tx.send(OverlayCommand::SetUiVisible(true));
+        crate::overlay::wake_command_queue();
+    }
+
     pub(crate) fn begin_mouse_move_absolute_capture(
         &mut self,
         ctx: &egui::Context,

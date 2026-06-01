@@ -500,6 +500,13 @@ mod windows_overlay {
             is_region_mode: bool,
         },
 
+        BeginMousePathDrawCapture {
+            preset_id: u32,
+            preset_name: String,
+        },
+
+        CancelMousePathDrawCapture,
+
         SetUiVisible(bool),
 
         SetTrayIconVisible(bool),
@@ -533,6 +540,8 @@ mod windows_overlay {
         MousePathRecordingStarted(u32, String),
 
         MousePathRecordingFinished(u32, Vec<MousePathEvent>, String),
+
+        MousePathDrawCaptureCancelled(String),
 
         VisionFinished(String),
 
@@ -760,6 +769,8 @@ mod windows_overlay {
 
         pub(crate) vision_capture_preview_regions: Vec<VisionRegion>,
 
+        mouse_path_draw_capture: Option<MousePathDrawCaptureSession>,
+
         hud_presets: Vec<HudPreset>,
 
         ocr_presets: Vec<crate::model::OcrPreset>,
@@ -883,6 +894,8 @@ mod windows_overlay {
                 vision_capture_anchor: None,
 
                 vision_capture_preview_regions: Vec::new(),
+
+                mouse_path_draw_capture: None,
 
                 hud_presets: Vec::new(),
 
@@ -1037,6 +1050,14 @@ mod windows_overlay {
         events: Vec<MousePathEvent>,
 
         dirty: bool,
+    }
+
+    #[derive(Debug, Clone)]
+
+    struct MousePathDrawCaptureSession {
+        preset_id: u32,
+
+        preset_name: String,
     }
 
     #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -1961,6 +1982,12 @@ mod windows_overlay {
 
                 let is_key_up = matches!(msg, WM_KEYUP | WM_SYSKEYUP);
 
+                if is_key_down && info.vkCode == 0x1B && is_mouse_path_draw_capture_active() {
+                    cancel_mouse_path_draw_capture("Mouse path draw cancelled.".to_owned());
+                    update_modifier_state(info.vkCode, is_key_down);
+                    return LRESULT(1);
+                }
+
                 let key_name = hotkey::vk_to_key_name(info.vkCode).map(str::to_owned);
 
                 if is_key_down && !is_ui_in_foreground() {
@@ -2136,6 +2163,41 @@ mod windows_overlay {
             record_mouse_event(message, &info);
 
             record_macro_mouse_event(message, &info);
+
+            let active_mouse_path_draw_capture = HOOK_STATE.lock().mouse_path_draw_capture.clone();
+
+            if let Some(draw_capture) = active_mouse_path_draw_capture {
+                match message {
+                    WM_LBUTTONDOWN => {
+                        update_held_mouse_button(message, ((info.mouseData >> 16) & 0xFFFF) as u16);
+
+                        if MOUSE_RECORDING.lock().is_none() {
+                            start_mouse_path_draw_recording(&draw_capture, info.pt);
+                        }
+
+                        wake_command_queue();
+
+                        return LRESULT(1);
+                    }
+                    WM_LBUTTONUP => {
+                        update_held_mouse_button(message, ((info.mouseData >> 16) & 0xFFFF) as u16);
+                        finish_mouse_path_draw_capture();
+                        wake_command_queue();
+                        return LRESULT(1);
+                    }
+                    WM_RBUTTONDOWN
+                    | WM_RBUTTONUP
+                    | WM_MBUTTONDOWN
+                    | windows::Win32::UI::WindowsAndMessaging::WM_MBUTTONUP
+                    | WM_XBUTTONDOWN
+                    | WM_XBUTTONUP
+                    | WM_MOUSEWHEEL => {
+                        update_held_mouse_button(message, ((info.mouseData >> 16) & 0xFFFF) as u16);
+                        return LRESULT(1);
+                    }
+                    _ => {}
+                }
+            }
 
             // 1. Immediately bypass WM_MOUSEMOVE to keep mouse movement extremely smooth and lock-free!
 
@@ -2821,6 +2883,100 @@ mod windows_overlay {
                 format!("Recording mouse path for {preset_name}. Press the hotkey again to stop."),
             ));
         }
+    }
+
+    fn is_mouse_path_draw_capture_active() -> bool {
+        HOOK_STATE.lock().mouse_path_draw_capture.is_some()
+    }
+
+    fn begin_mouse_path_draw_capture(preset_id: u32, preset_name: String) {
+        {
+            let mut hook_state = HOOK_STATE.lock();
+            hook_state.mouse_path_draw_capture = Some(MousePathDrawCaptureSession {
+                preset_id,
+                preset_name,
+            });
+        }
+
+        *MOUSE_RECORDING.lock() = None;
+        request_ui_repaint();
+    }
+
+    fn cancel_mouse_path_draw_capture(status: String) {
+        {
+            let mut hook_state = HOOK_STATE.lock();
+            hook_state.mouse_path_draw_capture = None;
+        }
+
+        *MOUSE_RECORDING.lock() = None;
+
+        if let Some(tx) = HOOK_STATE.lock().ui_tx.clone() {
+            let _ = tx.send(UiCommand::MousePathDrawCaptureCancelled(status));
+        }
+
+        request_ui_repaint();
+    }
+
+    fn start_mouse_path_draw_recording(session: &MousePathDrawCaptureSession, point: POINT) {
+        {
+            let mut guard = MOUSE_RECORDING.lock();
+            *guard = Some(MouseRecordingSession {
+                preset_id: session.preset_id,
+                last_event_at: Instant::now(),
+                events: vec![MousePathEvent {
+                    kind: MousePathEventKind::LeftDown,
+                    x: point.x,
+                    y: point.y,
+                    delay_ms: 0,
+                }],
+                dirty: true,
+            });
+        }
+
+        if let Some(tx) = HOOK_STATE.lock().ui_tx.clone() {
+            let _ = tx.send(UiCommand::MousePathRecordingStarted(
+                session.preset_id,
+                format!(
+                    "Recording mouse path for {}. Release left mouse to save.",
+                    session.preset_name
+                ),
+            ));
+        }
+
+        request_ui_repaint();
+    }
+
+    fn finish_mouse_path_draw_capture() {
+        let active = {
+            let mut hook_state = HOOK_STATE.lock();
+            hook_state.mouse_path_draw_capture.take()
+        };
+
+        let Some(active) = active else {
+            return;
+        };
+
+        let finished = MOUSE_RECORDING
+            .lock()
+            .take()
+            .map(|session| (session.preset_id, session.events));
+
+        if let Some(tx) = HOOK_STATE.lock().ui_tx.clone() {
+            if let Some((preset_id, events)) = finished {
+                let _ = tx.send(UiCommand::MousePathRecordingFinished(
+                    preset_id,
+                    events,
+                    format!("Saved mouse record for {}.", active.preset_name),
+                ));
+            } else {
+                let _ = tx.send(UiCommand::MousePathDrawCaptureCancelled(format!(
+                    "Mouse path draw cancelled for {}.",
+                    active.preset_name
+                )));
+            }
+        }
+
+        request_ui_repaint();
     }
 
     fn macro_record_scan_keys() -> Vec<u32> {
@@ -4619,6 +4775,17 @@ mod windows_overlay {
 
                         hook_state.vision_capture_preview_regions = Vec::new();
                     }
+                }
+
+                OverlayCommand::BeginMousePathDrawCapture {
+                    preset_id,
+                    preset_name,
+                } => {
+                    begin_mouse_path_draw_capture(preset_id, preset_name);
+                }
+
+                OverlayCommand::CancelMousePathDrawCapture => {
+                    cancel_mouse_path_draw_capture("Mouse path draw cancelled.".to_owned());
                 }
 
                 OverlayCommand::SetUiVisible(visible) => {

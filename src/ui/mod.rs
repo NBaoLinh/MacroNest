@@ -550,6 +550,9 @@ pub struct CrosshairApp {
     mouse_move_absolute_capture_raise_window: bool,
     mouse_move_absolute_restore_inner_size: Option<egui::Vec2>,
     mouse_move_absolute_restore_outer_pos: Option<egui::Pos2>,
+    mouse_path_draw_capture_preset_id: Option<u32>,
+    mouse_path_draw_capture_restore_inner_size: Option<egui::Vec2>,
+    mouse_path_draw_capture_restore_outer_pos: Option<egui::Pos2>,
     vision_capture_active: bool,
     vision_capture_target: Option<VisionCaptureTarget>,
     vision_capture_mode: Option<VisionCaptureMode>,
@@ -707,6 +710,9 @@ impl CrosshairApp {
             mouse_move_absolute_capture_raise_window: false,
             mouse_move_absolute_restore_inner_size: None,
             mouse_move_absolute_restore_outer_pos: None,
+            mouse_path_draw_capture_preset_id: None,
+            mouse_path_draw_capture_restore_inner_size: None,
+            mouse_path_draw_capture_restore_outer_pos: None,
             vision_capture_active: false,
             vision_capture_target: None,
             vision_capture_mode: None,
@@ -7619,7 +7625,8 @@ impl eframe::App for CrosshairApp {
         let wants_native_shadow = self.state.show_window
             && self.startup_splash.duration_sec <= 0.0
             && !self.vision_capture_active
-            && self.mouse_move_absolute_capture_target.is_none();
+            && self.mouse_move_absolute_capture_target.is_none()
+            && self.mouse_path_draw_capture_preset_id.is_none();
         if self.native_shadow_applied != wants_native_shadow {
             crate::platform::set_native_window_shadow(frame, wants_native_shadow);
             self.native_shadow_applied = wants_native_shadow;
@@ -7772,6 +7779,20 @@ impl eframe::App for CrosshairApp {
                     self.active_mouse_record_preset_id = None;
                     self.persist_mouse_path_presets();
                     self.status = status;
+                    if self.mouse_path_draw_capture_preset_id == Some(preset_id) {
+                        self.mouse_path_draw_capture_preset_id = None;
+                        self.restore_mouse_path_draw_capture_window(ctx);
+                    }
+                    ctx.request_repaint();
+                }
+                UiCommand::MousePathDrawCaptureCancelled(status) => {
+                    self.active_mouse_record_preset_id = None;
+                    if self.mouse_path_draw_capture_preset_id.is_some() {
+                        self.mouse_path_draw_capture_preset_id = None;
+                        self.restore_mouse_path_draw_capture_window(ctx);
+                    }
+                    self.status = status;
+                    ctx.request_repaint();
                 }
                 UiCommand::VisionFinished(status) => {
                     self.status = status;

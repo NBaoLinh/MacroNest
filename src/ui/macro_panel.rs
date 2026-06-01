@@ -3474,7 +3474,11 @@ impl CrosshairApp {
 
         let mut begin_mouse_move_absolute_capture_target = None;
 
+        let mut begin_mouse_path_draw_capture_preset_id = None;
+
         let mut cancel_mouse_move_absolute_capture = false;
+
+        let mut cancel_mouse_path_draw_capture = false;
 
         let capture_target_snapshot = self.capture_target.clone();
 
@@ -13052,6 +13056,70 @@ impl CrosshairApp {
 
                                                         });
 
+                                                    let draw_capture_active =
+                                                        self.mouse_path_draw_capture_preset_id
+                                                            == selected_id;
+                                                    let draw_button_icon = if draw_capture_active {
+                                                        0xe047
+                                                    } else {
+                                                        0xe061
+                                                    };
+                                                    let draw_button_label = if draw_capture_active {
+                                                        Self::tr_lang(language, "Stop", "Dung")
+                                                    } else {
+                                                        Self::tr_lang(language, "Draw", "Ve")
+                                                    };
+                                                    let mut draw_button_color =
+                                                        Color32::from_rgb(255, 76, 76);
+                                                    if draw_capture_active {
+                                                        let ms = std::time::SystemTime::now()
+                                                            .duration_since(
+                                                                std::time::SystemTime::UNIX_EPOCH,
+                                                            )
+                                                            .unwrap_or_default()
+                                                            .as_millis();
+                                                        if (ms / 500) % 2 == 0 {
+                                                            draw_button_color =
+                                                                Color32::from_rgba_unmultiplied(
+                                                                    255, 76, 76, 96,
+                                                                );
+                                                        }
+                                                        ui.ctx().request_repaint_after(
+                                                            std::time::Duration::from_millis(250),
+                                                        );
+                                                    }
+                                                    let draw_button = Button::new(
+                                                        RichText::new(format!(
+                                                            "{} {}",
+                                                            Self::material_icon_text(
+                                                                draw_button_icon,
+                                                                10.0
+                                                            )
+                                                            .text(),
+                                                            draw_button_label
+                                                        ))
+                                                        .color(draw_button_color)
+                                                        .strong(),
+                                                    );
+                                                    let draw_response = ui
+                                                        .add_enabled(
+                                                            selected_id.is_some() || draw_capture_active,
+                                                            draw_button,
+                                                        )
+                                                        .on_hover_text(Self::tr_lang(
+                                                            language,
+                                                            "Hide the app, hold left mouse to draw this path, then release to save into the selected Mouse Path preset.",
+                                                            "An app, giu chuot trai de ve duong, roi tha ra de luu vao Mouse Path da chon.",
+                                                        ));
+                                                    if draw_response.clicked() {
+                                                        if draw_capture_active {
+                                                            cancel_mouse_path_draw_capture = true;
+                                                        } else if let Some(path_preset_id) = selected_id {
+                                                            begin_mouse_path_draw_capture_preset_id =
+                                                                Some(path_preset_id);
+                                                        }
+                                                    }
+
                                                 } else if matches!(
 
                                                     step.action,
@@ -15930,13 +15998,16 @@ impl CrosshairApp {
 
                                                 live_sync |= ui
 
-                                                    .checkbox(&mut step.smooth_mouse_path, "S")
+                                                    .checkbox(
+                                                        &mut step.smooth_mouse_path,
+                                                        Self::tr_lang(language, "Smooth", "Smooth"),
+                                                    )
 
                                                     .on_hover_text(Self::tr_lang(
 
                                                         language,
 
-                                                        "Constant speed",
+                                                        "Replay the path with smooth constant-speed movement.",
 
                                                         "Di chuyển chuột với tốc độ đều",
 
@@ -17343,9 +17414,21 @@ impl CrosshairApp {
 
                     }
 
+                    if cancel_mouse_path_draw_capture {
+
+                        self.cancel_mouse_path_draw_capture(ui.ctx());
+
+                    }
+
                     if let Some(target) = begin_mouse_move_absolute_capture_target {
 
                         self.begin_mouse_move_absolute_capture(ui.ctx(), target);
+
+                    }
+
+                    if let Some(preset_id) = begin_mouse_path_draw_capture_preset_id {
+
+                        self.begin_mouse_path_draw_capture(ui.ctx(), preset_id);
 
                     }
 
