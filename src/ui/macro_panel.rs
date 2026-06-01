@@ -18939,6 +18939,10 @@ impl CrosshairApp {
         &["System", "Screen", "Mouse", "Window", "Volume", "Clipboard"]
     }
 
+    fn builtin_expression_function_suggestions() -> &'static [&'static str] {
+        &["abs()", "min()", "max()", "random()"]
+    }
+
     fn object_property_suggestions(base: &str) -> Option<&'static [&'static str]> {
         match base.to_ascii_lowercase().as_str() {
             "system" => Some(&[
@@ -19013,6 +19017,16 @@ impl CrosshairApp {
         }
 
         suggestion.to_string()
+    }
+
+    fn expression_suggestion_label(suggestion: &str, timer_names: &[String]) -> String {
+        match suggestion {
+            "abs()" => "abs(a)".to_string(),
+            "min()" => "min(a, b)".to_string(),
+            "max()" => "max(a, b)".to_string(),
+            "random()" => "random(min, max)".to_string(),
+            _ => Self::timer_suggestion_label(suggestion, timer_names),
+        }
     }
 
     fn variable_value_kind(token: &str) -> VariableValueKind {
@@ -19205,12 +19219,18 @@ impl CrosshairApp {
 
         response.request_focus();
 
-        let char_count = text.chars().count();
+        let prefix_chars = prefix.chars().count();
+        let chosen_chars = chosen.chars().count();
+        let cursor_char_index = if chosen.ends_with("()") {
+            prefix_chars + chosen_chars.saturating_sub(1)
+        } else {
+            prefix_chars + chosen_chars
+        };
 
         if let Some(mut state) =
             egui::widgets::text_edit::TextEditState::load(ui.ctx(), response.id)
         {
-            let cursor_pos = egui::text::CCursor::new(char_count);
+            let cursor_pos = egui::text::CCursor::new(cursor_char_index);
 
             state
                 .cursor
@@ -19376,6 +19396,16 @@ impl CrosshairApp {
                     suggestions.push(name_no_space);
                 }
             }
+
+            for func in Self::builtin_expression_function_suggestions() {
+                if func
+                    .to_ascii_lowercase()
+                    .starts_with(&last_word_trimmed.to_ascii_lowercase())
+                    && !func.eq_ignore_ascii_case(&last_word_trimmed)
+                {
+                    suggestions.push((*func).to_string());
+                }
+            }
         }
 
         if suggestions.is_empty() {
@@ -19522,7 +19552,8 @@ impl CrosshairApp {
                                 for (idx, sug) in suggestions.iter().enumerate() {
                                     let is_selected = idx == selected_index;
 
-                                    let label = Self::timer_suggestion_label(sug, timer_names);
+                                    let label =
+                                        Self::expression_suggestion_label(sug, timer_names);
 
                                     let color = match Self::variable_value_kind(sug) {
                                         VariableValueKind::Text => Color32::from_rgb(255, 185, 92),
@@ -19699,6 +19730,16 @@ impl CrosshairApp {
                     suggestions.push(name_no_space);
                 }
             }
+
+            for func in Self::builtin_expression_function_suggestions() {
+                if func
+                    .to_ascii_lowercase()
+                    .starts_with(&last_word.to_ascii_lowercase())
+                    && !func.eq_ignore_ascii_case(&last_word)
+                {
+                    suggestions.push((*func).to_string());
+                }
+            }
         }
 
         if suggestions.is_empty() {
@@ -19796,31 +19837,15 @@ impl CrosshairApp {
         if confirm_selected {
             let chosen = &suggestions[selected_index];
 
-            let suffix = if wrap_open && after_cursor.starts_with('}') {
-                &after_cursor['}'.len_utf8()..]
-            } else {
-                after_cursor.as_str()
-            };
-
-            let closing = if wrap_open { "}" } else { "" };
-
-            *text = format!("{}{}{}{}", prefix, chosen, closing, suffix);
-
-            response.request_focus();
-
-            let char_count = text.chars().count();
-
-            if let Some(mut state) =
-                egui::widgets::text_edit::TextEditState::load(ui.ctx(), response.id)
-            {
-                let cursor_pos = egui::text::CCursor::new(char_count);
-
-                state
-                    .cursor
-                    .set_char_range(Some(egui::text::CCursorRange::two(cursor_pos, cursor_pos)));
-
-                state.store(ui.ctx(), response.id);
-            }
+            Self::apply_variable_suggestion(
+                ui,
+                response,
+                text,
+                &prefix,
+                chosen,
+                wrap_open,
+                &after_cursor,
+            );
 
             popup_open = false;
 
@@ -19856,7 +19881,8 @@ impl CrosshairApp {
                                 for (idx, sug) in suggestions.iter().enumerate() {
                                     let is_selected = idx == selected_index;
 
-                                    let label = Self::timer_suggestion_label(sug, timer_names);
+                                    let label =
+                                        Self::expression_suggestion_label(sug, timer_names);
 
                                     let color = match Self::variable_value_kind(sug) {
                                         VariableValueKind::Text => Color32::from_rgb(255, 185, 92),
