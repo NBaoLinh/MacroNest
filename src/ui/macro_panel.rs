@@ -4568,6 +4568,7 @@ impl CrosshairApp {
         let mut pending_open_ai_preset_id: Option<u32> = None;
 
         let mut pending_ocr_step_capture: Option<(u32, u32, usize)> = None;
+        let mut pending_ocr_language_settings: Option<(String, String)> = None;
 
         let command_presets_snapshot = self.state.command_presets.clone();
 
@@ -13596,13 +13597,13 @@ impl CrosshairApp {
                                                             language,
                                                             self.state.vietnamese_input_enabled,
                                                             self.state.vietnamese_input_mode,
-                                                            &self.newly_installed_langs,
                                                             group.id,
                                                             preset.id,
                                                             step_index,
                                                             step,
                                                             &mut live_sync,
                                                             &mut pending_ocr_step_capture,
+                                                            &mut pending_ocr_language_settings,
                                                         );
                                                     }
 
@@ -17574,6 +17575,10 @@ impl CrosshairApp {
 
                         );
 
+                    }
+
+                    if let Some((lang_code, display_name)) = pending_ocr_language_settings.take() {
+                        self.open_ocr_language_settings_for(&lang_code, &display_name);
                     }
 
                     if cancel_active_capture {

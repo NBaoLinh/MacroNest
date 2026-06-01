@@ -112,13 +112,13 @@ impl CrosshairApp {
         language: UiLanguage,
         vietnamese_input_enabled: bool,
         vietnamese_input_mode: VietnameseInputMode,
-        newly_installed_langs: &[String],
         group_id: u32,
         preset_id: u32,
         step_index: usize,
         step: &mut MacroStep,
         live_sync: &mut bool,
         pending_ocr_step_capture: &mut Option<(u32, u32, usize)>,
+        pending_ocr_language_settings: &mut Option<(String, String)>,
     ) {
         let ctrl_height = ui.spacing().interact_size.y;
 
@@ -243,10 +243,7 @@ impl CrosshairApp {
                     let is_installed = code.is_empty()
                         || available_languages
                             .iter()
-                            .any(|lang| lang.to_lowercase().starts_with(&code.to_lowercase()))
-                        || newly_installed_langs
-                            .iter()
-                            .any(|lang| lang.to_lowercase() == code.to_lowercase());
+                            .any(|lang| lang.to_lowercase().starts_with(&code.to_lowercase()));
 
                     let display = if is_installed {
                         label.to_string()
@@ -270,6 +267,10 @@ impl CrosshairApp {
                         } else {
                             Some(code.to_string())
                         };
+                        if !is_installed && !code.is_empty() {
+                            *pending_ocr_language_settings =
+                                Some((code.to_string(), label.to_string()));
+                        }
                         *live_sync = true;
                     }
                 }

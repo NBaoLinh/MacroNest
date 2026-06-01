@@ -1305,54 +1305,54 @@ impl CrosshairApp {
 
     pub(crate) fn open_ai_debug_folder(&mut self) {}
 
+    pub(crate) fn open_ocr_language_settings_for(&mut self, lang_code: &str, display_name: &str) {
+        if lang_code.trim().is_empty() {
+            return;
+        }
+
+        self.state.active_panel = AppPanel::Hud;
+        self.ocr_lang_pack_open = true;
+        self.ocr_lang_settings_focus = Some(lang_code.to_owned());
+        self.status = format!(
+            "Open OCR Language Packs and install {} from Windows Settings > Language & Region.",
+            display_name
+        );
+        let _ = crate::platform::open_url_in_browser("ms-settings:regionlanguage");
+        self.persist();
+    }
+
     pub(crate) fn render_ocr_language_settings(&mut self, ui: &mut egui::Ui) {
         let language = self.state.ui_language;
-        // OCR language packs that can be installed via Add-WindowsCapability
-        // Format: (lang_code, display_name, windows_capability_name)
-        let lang_catalog: &[(&str, &str, &str)] = &[
-            ("en", "English (en)", "Language.OCR~~~en-US~0.0.1.0"),
-            ("vi", "Vietnamese (vi)", "Language.OCR~~~vi-VN~0.0.1.0"),
-            (
-                "zh-Hans",
-                "Chinese Simplified (zh)",
-                "Language.OCR~~~zh-CN~0.0.1.0",
-            ),
-            (
-                "zh-Hant",
-                "Chinese Traditional (zht)",
-                "Language.OCR~~~zh-TW~0.0.1.0",
-            ),
-            ("ja", "Japanese (ja)", "Language.OCR~~~ja-JP~0.0.1.0"),
-            ("ko", "Korean (ko)", "Language.OCR~~~ko-KR~0.0.1.0"),
-            ("fr", "French (fr)", "Language.OCR~~~fr-FR~0.0.1.0"),
-            ("de", "German (de)", "Language.OCR~~~de-DE~0.0.1.0"),
-            ("es", "Spanish (es)", "Language.OCR~~~es-ES~0.0.1.0"),
-            ("it", "Italian (it)", "Language.OCR~~~it-IT~0.0.1.0"),
-            ("pt", "Portuguese (pt)", "Language.OCR~~~pt-PT~0.0.1.0"),
-            ("ru", "Russian (ru)", "Language.OCR~~~ru-RU~0.0.1.0"),
-            ("ar", "Arabic (ar)", "Language.OCR~~~ar-SA~0.0.1.0"),
-            ("th", "Thai (th)", "Language.OCR~~~th-TH~0.0.1.0"),
-            ("nl", "Dutch (nl)", "Language.OCR~~~nl-NL~0.0.1.0"),
-            ("pl", "Polish (pl)", "Language.OCR~~~pl-PL~0.0.1.0"),
-            ("tr", "Turkish (tr)", "Language.OCR~~~tr-TR~0.0.1.0"),
+        let focused_lang = self.ocr_lang_settings_focus.clone();
+        let lang_catalog: &[(&str, &str)] = &[
+            ("en", "English (en)"),
+            ("vi", "Vietnamese (vi)"),
+            ("zh-Hans", "Chinese Simplified (zh)"),
+            ("zh-Hant", "Chinese Traditional (zht)"),
+            ("ja", "Japanese (ja)"),
+            ("ko", "Korean (ko)"),
+            ("fr", "French (fr)"),
+            ("de", "German (de)"),
+            ("es", "Spanish (es)"),
+            ("it", "Italian (it)"),
+            ("pt", "Portuguese (pt)"),
+            ("ru", "Russian (ru)"),
+            ("ar", "Arabic (ar)"),
+            ("th", "Thai (th)"),
+            ("nl", "Dutch (nl)"),
+            ("pl", "Polish (pl)"),
+            ("tr", "Turkish (tr)"),
         ];
 
         let avail_langs = crate::ocr::available_ocr_languages();
-        let is_installing = self.ocr_lang_install_job.is_some();
-        let installing_lang = self.ocr_lang_installing.clone();
-        let install_status = self.ocr_lang_install_status.clone();
 
         Self::settings_card_frame(ui).show(ui, |ui| {
             ui.set_min_width(ui.available_width());
             ui.vertical(|ui| {
-                let header_text = RichText::new(Self::tr_lang(language, "OCR Language Packs", "Gói Ngôn ngữ OCR"))
+                let header_text = RichText::new(Self::tr_lang(language, "OCR Language Packs", "Goi Ngon ngu OCR"))
                     .strong()
                     .size(14.0);
-                if Self::settings_section_button(
-                    ui,
-                    header_text,
-                    self.ocr_lang_pack_open,
-                ).clicked() {
+                if Self::settings_section_button(ui, header_text, self.ocr_lang_pack_open).clicked() {
                     self.ocr_lang_pack_open = !self.ocr_lang_pack_open;
                 }
 
@@ -1364,83 +1364,79 @@ impl CrosshairApp {
                 ui.label(
                     RichText::new(Self::tr_lang(
                         language,
-                        "Install Windows OCR language packs. Requires internet connection and may show a UAC (Admin) prompt.",
-                        "Cài đặt các gói ngôn ngữ Windows OCR. Yêu cầu kết nối internet và có thể hiện cửa sổ UAC (Admin)."
+                        "Open Windows Settings > Language & Region, add the language you want, then install its OCR-related optional features there.",
+                        "Mo Windows Settings > Language & Region, them ngon ngu ban can, roi cai cac optional features lien quan den OCR ngay trong do.",
                     ))
                     .small()
-                    .weak()
+                    .weak(),
                 );
                 ui.add_space(8.0);
 
-                // Show last install result
-                if let Some((msg, is_ok)) = &install_status {
-                    let color = if *is_ok { Color32::from_rgb(126, 224, 182) } else { Color32::from_rgb(255, 85, 85) };
-                    let display_msg = if language == UiLanguage::Vietnamese {
-                        if msg.contains("installed successfully") {
-                            let extracted_lang = msg.split('\'').nth(1).unwrap_or("...");
-                            format!("Đã cài đặt thành công ngôn ngữ OCR '{}'. Hiện tại bạn có thể sử dụng.", extracted_lang)
-                        } else if msg.contains("Failed to install") {
-                            let extracted_lang = msg.split('\'').nth(1).unwrap_or("...");
-                            let error_part = msg.split(':').last().unwrap_or("").trim();
-                            format!("Cài đặt ngôn ngữ OCR '{}' thất bại: {}", extracted_lang, error_part)
-                        } else if msg.contains("panicked") {
-                            let extracted_lang = msg.split('\'').nth(1).unwrap_or("...");
-                            format!("Tiến trình cài đặt bị lỗi (panic) cho ngôn ngữ '{}'.", extracted_lang)
-                        } else {
-                            msg.clone()
-                        }
-                    } else {
-                        msg.clone()
-                    };
-                    ui.label(RichText::new(display_msg).small().color(color));
+                if let Some(lang_code) = focused_lang.as_deref() {
+                    ui.label(
+                        RichText::new(format!(
+                            "{} {}",
+                            Self::tr_lang(
+                                language,
+                                "Selected from OCR dropdown:",
+                                "Duoc chon tu dropdown OCR:",
+                            ),
+                            lang_code
+                        ))
+                        .small()
+                        .color(Color32::from_rgb(126, 224, 182)),
+                    );
                     ui.add_space(6.0);
-                }
-
-                // Show spinner while installing
-                if is_installing {
-                    ui.horizontal(|ui| {
-                        ui.spinner();
-                        let lang_name = installing_lang.as_deref().unwrap_or("...");
-                        let install_prefix = Self::tr_lang(language, "Installing", "Đang cài đặt");
-                        ui.label(format!("{} {}...", install_prefix, lang_name));
-                    });
-                    ui.label(RichText::new(Self::tr_lang(
-                        language,
-                        "This may take a minute. Windows is downloading from Microsoft servers.",
-                        "Quá trình này có thể mất một lúc. Windows đang tải xuống từ máy chủ Microsoft."
-                    )).small().weak());
-                    ui.ctx().request_repaint_after(std::time::Duration::from_millis(300));
-                    return;
                 }
 
                 egui::Grid::new("ocr-lang-pack-grid")
                     .num_columns(3)
                     .spacing([10.0, 6.0])
                     .show(ui, |ui| {
-                        for (lang_code, display_name, capability) in lang_catalog {
-                            let is_installed = avail_langs.iter().any(|a| {
-                                a.to_lowercase().starts_with(&lang_code.to_lowercase())
-                            }) || self.newly_installed_langs.iter().any(|n| {
-                                n.to_lowercase() == lang_code.to_lowercase()
-                            });
+                        for (lang_code, display_name) in lang_catalog {
+                            let is_installed = avail_langs
+                                .iter()
+                                .any(|a| a.to_lowercase().starts_with(&lang_code.to_lowercase()));
+                            let is_focused = focused_lang.as_deref() == Some(*lang_code);
 
-                            // Status indicator
                             if is_installed {
-                                ui.label(RichText::new("✓").color(Color32::from_rgb(126, 224, 182)));
+                                ui.label(RichText::new("OK").color(Color32::from_rgb(126, 224, 182)));
                             } else {
                                 ui.label(RichText::new("x").color(Color32::from_rgb(220, 100, 100)));
                             }
 
-                            // Language name
-                            ui.label(*display_name);
+                            let name_response = ui.label(
+                                RichText::new(*display_name).color(if is_focused {
+                                    Color32::from_rgb(255, 216, 96)
+                                } else {
+                                    ui.visuals().text_color()
+                                }),
+                            );
+                            if is_focused {
+                                ui.scroll_to_rect(name_response.rect, Some(egui::Align::Center));
+                            }
 
-                            // Action button
                             if is_installed {
-                                ui.label(RichText::new(Self::tr_lang(language, "Installed", "Đã cài đặt")).small().color(Color32::from_rgb(126, 224, 182)));
+                                ui.label(
+                                    RichText::new(Self::tr_lang(language, "Installed", "Da cai dat"))
+                                        .small()
+                                        .color(Color32::from_rgb(126, 224, 182)),
+                                );
                             } else {
-                                let btn = Self::settings_action_button(ui, Self::tr_lang(language, "Install", "Cài đặt"));
-                                if btn.on_hover_text(format!("Install via: Add-WindowsCapability -Online -Name {}", capability)).clicked() {
-                                    self.start_ocr_lang_install(display_name, capability);
+                                let button_label = if is_focused {
+                                    Self::tr_lang(language, "Open Windows Settings", "Mo Windows Settings")
+                                } else {
+                                    Self::tr_lang(language, "Guide install", "Huong dan cai")
+                                };
+                                if Self::settings_action_button(ui, button_label)
+                                    .on_hover_text(Self::tr_lang(
+                                        language,
+                                        "Open Windows Settings > Language & Region so you can add this language and its OCR features there.",
+                                        "Mo Windows Settings > Language & Region de ban them ngon ngu nay va cac OCR features trong do.",
+                                    ))
+                                    .clicked()
+                                {
+                                    self.open_ocr_language_settings_for(lang_code, display_name);
                                 }
                             }
 
@@ -1451,49 +1447,4 @@ impl CrosshairApp {
         });
     }
 
-    fn start_ocr_lang_install(&mut self, display_name: &str, capability_name: &str) {
-        if self.ocr_lang_install_job.is_some() {
-            return; // Already installing
-        }
-        self.ocr_lang_install_status = None;
-        let cap = capability_name.to_owned();
-        let lang_label = display_name.to_owned();
-        self.ocr_lang_installing = Some(lang_label.clone());
-        let job = std::thread::spawn(move || -> anyhow::Result<()> {
-            // Run PowerShell with elevation using Start-Process -Verb RunAs
-            // and hide the console window by using -WindowStyle Hidden.
-            // Under Windows, we also set creation_flags to CREATE_NO_WINDOW (0x08000000)
-            // so the initial process is completely hidden.
-            let cmd_str = format!(
-                "$p = Start-Process powershell -ArgumentList '-NoProfile -NonInteractive -Command Add-WindowsCapability -Online -Name \"{}\"' -Verb RunAs -WindowStyle Hidden -PassThru -Wait; exit $p.ExitCode",
-                cap
-            );
-
-            let mut cmd = Command::new("powershell");
-            #[cfg(windows)]
-            {
-                use std::os::windows::process::CommandExt;
-                cmd.creation_flags(0x08000000); // CREATE_NO_WINDOW
-            }
-
-            let output = cmd
-                .args(["-NoProfile", "-NonInteractive", "-Command", &cmd_str])
-                .output()?;
-
-            let code = output.status.code().unwrap_or(-1);
-            if code == 0 || code == 3010 {
-                Ok(())
-            } else {
-                let stderr = String::from_utf8_lossy(&output.stderr);
-                let stdout = String::from_utf8_lossy(&output.stdout);
-                anyhow::bail!(
-                    "Installation failed (exit code {}). Command output: {}. Error: {}",
-                    code,
-                    stdout.trim(),
-                    stderr.trim()
-                )
-            }
-        });
-        self.ocr_lang_install_job = Some(job);
-    }
 }

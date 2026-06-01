@@ -60,6 +60,7 @@ impl CrosshairApp {
         let mut run_test_preset_id = None;
         let mut preview_toggled_preset_id = None;
         let mut start_ocr_capture_preset_id = None;
+        let mut pending_ocr_language_settings: Option<(String, String)> = None;
 
         // Render card-based presets list
         for index in 0..self.state.ocr_presets.len() {
@@ -169,8 +170,6 @@ impl CrosshairApp {
                                             let is_selected = current_code.as_str() == *code;
                                             let is_installed = code.is_empty() || avail_langs.iter().any(|a| {
                                                 a.to_lowercase().starts_with(&code.to_lowercase())
-                                            }) || self.newly_installed_langs.iter().any(|n| {
-                                                n.to_lowercase() == code.to_lowercase()
                                             });
                                             let display = if is_installed {
                                                 label.to_string()
@@ -187,6 +186,10 @@ impl CrosshairApp {
                                                 .clicked()
                                             {
                                                 preset.lang = if code.is_empty() { None } else { Some(code.to_string()) };
+                                                if !is_installed && !code.is_empty() {
+                                                    pending_ocr_language_settings =
+                                                        Some((code.to_string(), label.to_string()));
+                                                }
                                                 live_sync = true;
                                             }
                                         }
@@ -467,6 +470,10 @@ impl CrosshairApp {
                 VisionCaptureTarget::OcrPreset(preset_id),
                 VisionCaptureMode::SearchRegion,
             );
+        }
+
+        if let Some((lang_code, display_name)) = pending_ocr_language_settings.take() {
+            self.open_ocr_language_settings_for(&lang_code, &display_name);
         }
 
         if live_sync {
