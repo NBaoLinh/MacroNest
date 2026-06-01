@@ -6716,6 +6716,17 @@ mod windows_overlay {
             .is_some_and(|preset| preset.stop_on_retrigger_immediate)
     }
 
+    fn mouse_path_playback_should_stop(
+        preset_id: Option<u32>,
+        stop_immediately_on_retrigger: bool,
+    ) -> bool {
+        if preset_id.is_some_and(|id| macro_stop_requested(id, stop_immediately_on_retrigger)) {
+            return true;
+        }
+
+        preset_id.is_some() && is_ui_in_foreground()
+    }
+
     fn sleep_for_mouse_path_delay(
         preset_id: Option<u32>,
 
@@ -6724,14 +6735,13 @@ mod windows_overlay {
         stop_immediately_on_retrigger: bool,
     ) -> bool {
         if delay_ms == 0 {
-            return preset_id
-                .is_some_and(|id| macro_stop_requested(id, stop_immediately_on_retrigger));
+            return mouse_path_playback_should_stop(preset_id, stop_immediately_on_retrigger);
         }
 
         let mut remaining_ms = delay_ms;
 
         while remaining_ms > 0 {
-            if preset_id.is_some_and(|id| macro_stop_requested(id, stop_immediately_on_retrigger)) {
+            if mouse_path_playback_should_stop(preset_id, stop_immediately_on_retrigger) {
                 return true;
             }
 
@@ -6742,7 +6752,7 @@ mod windows_overlay {
             remaining_ms = remaining_ms.saturating_sub(chunk_ms);
         }
 
-        preset_id.is_some_and(|id| macro_stop_requested(id, stop_immediately_on_retrigger))
+        mouse_path_playback_should_stop(preset_id, stop_immediately_on_retrigger)
     }
 
     fn enable_crosshair_profile(spec: &str) -> Result<()> {
@@ -7269,9 +7279,7 @@ mod windows_overlay {
             let mut last_move_pos: Option<(i32, i32)> = None;
 
             for event in &events {
-                if preset_id
-                    .is_some_and(|id| macro_stop_requested(id, stop_immediately_on_retrigger))
-                {
+                if mouse_path_playback_should_stop(preset_id, stop_immediately_on_retrigger) {
                     return Ok(());
                 }
 
@@ -7306,9 +7314,10 @@ mod windows_overlay {
                             let steps = (duration_ms / 8).max(1);
 
                             for index in 1..=steps {
-                                if preset_id.is_some_and(|id| {
-                                    macro_stop_requested(id, stop_immediately_on_retrigger)
-                                }) {
+                                if mouse_path_playback_should_stop(
+                                    preset_id,
+                                    stop_immediately_on_retrigger,
+                                ) {
                                     return Ok(());
                                 }
 

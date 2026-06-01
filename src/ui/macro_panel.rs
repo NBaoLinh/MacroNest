@@ -3475,6 +3475,8 @@ impl CrosshairApp {
         let mut begin_mouse_move_absolute_capture_target = None;
 
         let mut begin_mouse_path_draw_capture_request = None;
+        let mut add_mouse_path_preset_request = None;
+        let mut preview_mouse_path_step_request = None;
 
         let mut cancel_mouse_move_absolute_capture = false;
 
@@ -7816,7 +7818,31 @@ impl CrosshairApp {
                                                             }
 
                                                         });
-
+                                                    if ui
+                                                        .button(Self::tr_lang(
+                                                            language,
+                                                            "Preview",
+                                                            "Xem truoc",
+                                                        ))
+                                                        .on_hover_text(Self::tr_lang(
+                                                            language,
+                                                            "Open the same path preview canvas used in the Mouse Path panel.",
+                                                            "Mo khung xem truoc giong trong tab Mouse Path.",
+                                                        ))
+                                                        .clicked()
+                                                    {
+                                                        if let Some(path_preset_id) = selected_id {
+                                                            preview_mouse_path_step_request =
+                                                                Some(path_preset_id);
+                                                        } else {
+                                                            self.status = Self::tr_lang(
+                                                                language,
+                                                                "Select a Mouse Path preset first.",
+                                                                "Hay chon Mouse Path truoc.",
+                                                            )
+                                                            .to_owned();
+                                                        }
+                                                    }
                                                 } else if matches!(
 
                                                     step.action,
@@ -13142,6 +13168,45 @@ impl CrosshairApp {
                                                                 ));
                                                         }
                                                     }
+                                                    let preview_response = ui
+                                                        .button(Self::tr_lang(
+                                                            language,
+                                                            "Preview",
+                                                            "Xem truoc",
+                                                        ))
+                                                        .on_hover_text(Self::tr_lang(
+                                                            language,
+                                                            "Open the same path preview canvas used in the Mouse Path panel.",
+                                                            "Mo khung xem truoc giong trong tab Mouse Path.",
+                                                        ));
+                                                    if preview_response.clicked() {
+                                                        if let Some(path_preset_id) = selected_id {
+                                                            preview_mouse_path_step_request =
+                                                                Some(path_preset_id);
+                                                        } else {
+                                                            self.status = Self::tr_lang(
+                                                                language,
+                                                                "Select a Mouse Path preset first.",
+                                                                "Hay chon Mouse Path truoc.",
+                                                            )
+                                                            .to_owned();
+                                                        }
+                                                    }
+                                                    let add_preset_response = ui
+                                                        .button(Self::tr_lang(
+                                                            language,
+                                                            "Add preset",
+                                                            "Them preset",
+                                                        ))
+                                                        .on_hover_text(Self::tr_lang(
+                                                            language,
+                                                            "Create a new Mouse Path preset in the Mouse tab and assign it to this step.",
+                                                            "Tao mot Mouse Path preset moi trong tab Mouse va gan no cho step nay.",
+                                                        ));
+                                                    if add_preset_response.clicked() {
+                                                        add_mouse_path_preset_request =
+                                                            Some((group.id, preset.id, step_index));
+                                                    }
 
                                                 } else if matches!(
 
@@ -16042,21 +16107,33 @@ impl CrosshairApp {
                                                     ))
 
                                                     .changed();
-
+                                                ui.label(Self::tr_lang(
+                                                    language,
+                                                    "Smooth Speed",
+                                                    "Toc do Smooth",
+                                                ))
+                                                .on_hover_text(Self::tr_lang(
+                                                    language,
+                                                    "Only used when Smooth is on. 100% keeps the normal smooth playback speed, higher is faster.",
+                                                    "Chi dung khi bat Smooth. 100% giu toc do smooth mac dinh, cao hon se nhanh hon.",
+                                                ));
                                                 live_sync |= ui
-
-                                                    .add_sized(
-
-                                                        [48.0, 18.0],
-
-                                                        DragValue::new(&mut step.mouse_speed_percent)
-
+                                                    .add_enabled_ui(step.smooth_mouse_path, |ui| {
+                                                        ui.add_sized(
+                                                            [64.0, 18.0],
+                                                            DragValue::new(
+                                                                &mut step.mouse_speed_percent,
+                                                            )
                                                             .range(10..=1000)
-
                                                             .suffix("%"),
-
-                                                    )
-
+                                                        )
+                                                    })
+                                                    .inner
+                                                    .on_hover_text(Self::tr_lang(
+                                                        language,
+                                                        "Only affects Smooth playback speed for this Mouse Path step.",
+                                                        "Chi anh huong toc do Smooth cua step Mouse Path nay.",
+                                                    ))
                                                     .changed();
 
                                             } else if step.action == MacroAction::ShowHud {
@@ -17446,6 +17523,34 @@ impl CrosshairApp {
 
                         self.cancel_mouse_path_draw_capture(ui.ctx());
 
+                    }
+
+                    if let Some(path_preset_id) = preview_mouse_path_step_request {
+                        self.mouse_path_step_preview_preset_id = Some(path_preset_id);
+                    }
+
+                    if let Some((group_id, preset_id, step_index)) =
+                        add_mouse_path_preset_request
+                    {
+                        let path_preset_id = self.add_mouse_path_preset();
+                        if let Some(group) = self
+                            .state
+                            .macro_groups
+                            .iter_mut()
+                            .find(|group| group.id == group_id)
+                        {
+                            if let Some(preset) = group
+                                .presets
+                                .iter_mut()
+                                .find(|preset| preset.id == preset_id)
+                            {
+                                if let Some(step) = preset.steps.get_mut(step_index) {
+                                    step.key = path_preset_id.to_string();
+                                }
+                            }
+                        }
+                        self.persist_mouse_path_presets();
+                        self.persist_macro_presets();
                     }
 
                     if let Some(target) = begin_mouse_move_absolute_capture_target {
