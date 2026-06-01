@@ -10988,12 +10988,85 @@ impl CrosshairApp {
                                 .filter(|payload| payload.group_id == group.id && payload.preset_id == preset.id);
 
                             let pointer_y = ui.ctx().pointer_interact_pos().map(|pointer| pointer.y);
+                            let drag_preview_index_id =
+                                ui.make_persistent_id((group.id, preset.id, "step-drag-preview-index"));
+                            let expand_drag_drop_index =
+                                |compact_index: usize, dragged_indices: &[usize]| {
+                                    let mut compact_cursor = 0usize;
+                                    for boundary in 0..=steps_len {
+                                        if compact_cursor == compact_index {
+                                            return boundary;
+                                        }
+                                        if boundary < steps_len
+                                            && !dragged_indices.contains(&boundary)
+                                        {
+                                            compact_cursor += 1;
+                                        }
+                                    }
+                                    steps_len
+                                };
 
                             let mut preview_drop_index = steps_len;
+                            let mut visual_step_order: Vec<usize> = (0..steps_len).collect();
+                            let mut active_dragged_indices: Vec<usize> = Vec::new();
+                            if let Some(payload) = drag_payload.as_ref() {
+                                active_dragged_indices = payload.indices.clone();
+                                active_dragged_indices.sort_unstable();
+                                active_dragged_indices.dedup();
+                                let compact_steps_len =
+                                    steps_len.saturating_sub(active_dragged_indices.len());
+                                let default_compact_index = active_dragged_indices
+                                    .first()
+                                    .copied()
+                                    .map(|first_dragged| {
+                                        first_dragged
+                                            .saturating_sub(
+                                                active_dragged_indices
+                                                    .iter()
+                                                    .filter(|index| **index < first_dragged)
+                                                    .count(),
+                                            )
+                                    })
+                                    .unwrap_or(0)
+                                    .min(compact_steps_len);
+                                let stored_compact_index = ui.memory(|mem| {
+                                    mem.data
+                                        .get_temp::<usize>(drag_preview_index_id)
+                                        .unwrap_or(default_compact_index)
+                                });
+                                let current_compact_index =
+                                    stored_compact_index.min(compact_steps_len);
+                                let mut compact_order = (0..steps_len)
+                                    .filter(|index| !active_dragged_indices.contains(index))
+                                    .collect::<Vec<_>>();
+                                for (offset, dragged_index) in
+                                    active_dragged_indices.iter().copied().enumerate()
+                                {
+                                    compact_order.insert(
+                                        (current_compact_index + offset).min(compact_order.len()),
+                                        dragged_index,
+                                    );
+                                }
+                                preview_drop_index = expand_drag_drop_index(
+                                    current_compact_index,
+                                    &active_dragged_indices,
+                                );
+                                visual_step_order = compact_order;
+                            } else {
+                                ui.memory_mut(|mem| {
+                                    mem.data.remove::<usize>(drag_preview_index_id);
+                                });
+                            }
 
                             let mut step_rects = vec![Rect::ZERO; steps_len];
+                            let mut next_compact_preview_index = steps_len;
+                            let mut compact_cursor = 0usize;
 
-                            for step_index in 0..steps_len {
+                            for (display_index, step_index) in
+                                visual_step_order.iter().copied().enumerate()
+                            {
+                                let step_is_being_dragged =
+                                    active_dragged_indices.contains(&step_index);
 
                                 let has_step_break_loop_warning = {
 
@@ -11235,7 +11308,7 @@ impl CrosshairApp {
 
                                 }
 
-                                let drag_payload = MacroStepDragPayload {
+                                let row_drag_payload = MacroStepDragPayload {
 
                                     group_id: group.id,
 
@@ -11497,7 +11570,7 @@ impl CrosshairApp {
 
                                                     .on_hover_cursor(egui::CursorIcon::Grab);
 
-                                                drag_handle.dnd_set_drag_payload(drag_payload.clone());
+                                                drag_handle.dnd_set_drag_payload(row_drag_payload.clone());
 
                                             });
 
@@ -11613,7 +11686,7 @@ impl CrosshairApp {
 
                                             }
 
-                                            let step_num_text = format!("{}", step_index + 1);
+                                            let step_num_text = format!("{}", display_index + 1);
 
                                             let label_width = if has_infinite_loop_warning || has_step_vision_leak || has_step_break_loop_warning { 20.0 } else { 20.0 };
 
@@ -16954,52 +17027,33 @@ impl CrosshairApp {
                                 }
 
                                 step_rects[step_index] = row_response.rect;
-
-                            }
-
-                            let mut drop_marker_y: Option<f32> = None;
-                            if drag_payload.is_some() && !step_rects.is_empty() {
-                                if let Some(pointer_y) = pointer_y {
-                                    if pointer_y <= step_rects[0].center().y {
-                                        preview_drop_index = 0;
-                                        drop_marker_y = Some(step_rects[0].top());
-                                    } else {
-                                        for (index, rect) in step_rects.iter().enumerate() {
-                                            if pointer_y <= rect.center().y {
-                                                preview_drop_index = index;
-                                                drop_marker_y = Some(rect.top());
-                                                break;
-                                            }
-                                        }
-                                        if drop_marker_y.is_none() {
-                                            preview_drop_index = steps_len;
-                                            drop_marker_y = step_rects.last().map(|rect| rect.bottom());
-                                        }
-                                    }
-                                } else {
-                                    drop_marker_y = step_rects.last().map(|rect| rect.bottom());
+                                if drag_payload.is_some()
+                                    && next_compact_preview_index == steps_len
+                                    && pointer_y.is_some_and(|pointer_y| {
+                                        pointer_y <= row_response.rect.center().y
+                                    })
+                                {
+                                    next_compact_preview_index = compact_cursor;
                                 }
+                                if !step_is_being_dragged {
+                                    compact_cursor += 1;
+                                }
+
                             }
 
-                            if let Some(marker_y) = drop_marker_y {
-                                let marker_left = step_rects
-                                    .iter()
-                                    .find(|rect| **rect != Rect::ZERO)
-                                    .map(|rect| rect.left() + 6.0)
-                                    .unwrap_or(ui.min_rect().left() + 6.0);
-                                let marker_right = step_rects
-                                    .iter()
-                                    .rev()
-                                    .find(|rect| **rect != Rect::ZERO)
-                                    .map(|rect| rect.right() - 6.0)
-                                    .unwrap_or(ui.max_rect().right() - 6.0);
-                                let marker_color = Color32::from_rgb(124, 240, 164);
-                                let marker_stroke = egui::Stroke::new(3.0, marker_color);
-                                let start = egui::pos2(marker_left, marker_y);
-                                let end = egui::pos2(marker_right, marker_y);
-                                ui.painter().line_segment([start, end], marker_stroke);
-                                ui.painter().circle_filled(start, 4.0, marker_color);
-                                ui.painter().circle_filled(end, 4.0, marker_color);
+                            if drag_payload.is_some() {
+                                let compact_steps_len =
+                                    steps_len.saturating_sub(active_dragged_indices.len());
+                                let resolved_compact_index =
+                                    next_compact_preview_index.min(compact_steps_len);
+                                ui.memory_mut(|mem| {
+                                    mem.data
+                                        .insert_temp(drag_preview_index_id, resolved_compact_index);
+                                });
+                                preview_drop_index = expand_drag_drop_index(
+                                    resolved_compact_index,
+                                    &active_dragged_indices,
+                                );
                             }
 
                             // Dynamic hover highlight for Loop and If blocks (Gợi ý 2)
