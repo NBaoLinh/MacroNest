@@ -11921,17 +11921,11 @@ impl CrosshairApp {
                                                         "Y value or {var}"
                                                     };
 
-                                                    ui.add_sized(
-                                                        [12.0, 22.0],
-                                                        egui::Label::new(
-                                                            egui::RichText::new("X")
-                                                                .strong()
-                                                                .color(Color32::from_rgb(86, 198, 255)),
-                                                        ),
-                                                    );
                                                     let x_id = ui.id().with((group.id, preset.id, "hold-stop-move-abs-x-22"));
-                                                    let x_response = Self::render_compact_plain_text_edit(
+                                                    let x_response = Self::render_coordinate_compact_input(
                                                         ui,
+                                                        "X",
+                                                        Color32::from_rgb(86, 198, 255),
                                                         &mut step.x_expr,
                                                         x_id,
                                                         58.0,
@@ -11956,17 +11950,11 @@ impl CrosshairApp {
                                                         language,
                                                     );
 
-                                                    ui.add_sized(
-                                                        [12.0, 22.0],
-                                                        egui::Label::new(
-                                                            egui::RichText::new("Y")
-                                                                .strong()
-                                                                .color(Color32::from_rgb(255, 185, 92)),
-                                                        ),
-                                                    );
                                                     let y_id = ui.id().with((group.id, preset.id, "hold-stop-move-abs-y-22"));
-                                                    let y_response = Self::render_compact_plain_text_edit(
+                                                    let y_response = Self::render_coordinate_compact_input(
                                                         ui,
+                                                        "Y",
+                                                        Color32::from_rgb(255, 185, 92),
                                                         &mut step.y_expr,
                                                         y_id,
                                                         58.0,
@@ -17604,18 +17592,12 @@ impl CrosshairApp {
                                                         "Y value or {var}"
                                                     };
 
-                                                    ui.add_sized(
-                                                        [12.0, 18.0],
-                                                        egui::Label::new(
-                                                            egui::RichText::new("X")
-                                                                .strong()
-                                                                .color(Color32::from_rgb(86, 198, 255)),
-                                                        ),
-                                                    );
                                                     let x_id =
                                                         ui.id().with((group.id, preset.id, step_index, "move-abs-x-18"));
-                                                    let x_response = Self::render_compact_plain_text_edit(
+                                                    let x_response = Self::render_coordinate_compact_input(
                                                         ui,
+                                                        "X",
+                                                        Color32::from_rgb(86, 198, 255),
                                                         &mut step.x_expr,
                                                         x_id,
                                                         48.0,
@@ -17640,18 +17622,12 @@ impl CrosshairApp {
                                                         language,
                                                     );
 
-                                                    ui.add_sized(
-                                                        [12.0, 18.0],
-                                                        egui::Label::new(
-                                                            egui::RichText::new("Y")
-                                                                .strong()
-                                                                .color(Color32::from_rgb(255, 185, 92)),
-                                                        ),
-                                                    );
                                                     let y_id =
                                                         ui.id().with((group.id, preset.id, step_index, "move-abs-y-18"));
-                                                    let y_response = Self::render_compact_plain_text_edit(
+                                                    let y_response = Self::render_coordinate_compact_input(
                                                         ui,
+                                                        "Y",
+                                                        Color32::from_rgb(255, 185, 92),
                                                         &mut step.y_expr,
                                                         y_id,
                                                         48.0,
@@ -21613,6 +21589,31 @@ impl CrosshairApp {
         );
         ui.visuals_mut().override_text_color = prev_override;
         response
+    }
+
+    fn render_coordinate_compact_input(
+        ui: &mut egui::Ui,
+        label: &str,
+        label_color: Color32,
+        text: &mut String,
+        id: egui::Id,
+        width: f32,
+        height: f32,
+        hint: &str,
+    ) -> egui::Response {
+        ui.allocate_ui_with_layout(
+            vec2(16.0 + width, height),
+            egui::Layout::left_to_right(egui::Align::Center),
+            |ui| {
+                ui.spacing_mut().item_spacing.x = 4.0;
+                ui.add_sized(
+                    [12.0, height],
+                    egui::Label::new(egui::RichText::new(label).strong().color(label_color)),
+                );
+                Self::render_compact_plain_text_edit(ui, text, id, width, height, hint)
+            },
+        )
+        .inner
     }
 
     fn render_expandable_command_text_edit(
