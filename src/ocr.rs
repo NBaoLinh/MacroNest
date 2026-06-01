@@ -27,6 +27,45 @@ pub fn available_ocr_languages() -> Vec<String> {
     }
 }
 
+#[cfg(windows)]
+pub fn preferred_windows_languages() -> Vec<String> {
+    use std::process::Command;
+
+    let output = Command::new("powershell")
+        .args([
+            "-NoProfile",
+            "-NonInteractive",
+            "-Command",
+            "(Get-WinUserLanguageList | Select-Object -ExpandProperty LanguageTag) -join \"`n\"",
+        ])
+        .output();
+
+    match output {
+        Ok(output) if output.status.success() => String::from_utf8_lossy(&output.stdout)
+            .lines()
+            .map(str::trim)
+            .filter(|line| !line.is_empty())
+            .map(|line| line.to_string())
+            .collect(),
+        _ => vec![],
+    }
+}
+
+#[cfg(not(windows))]
+pub fn preferred_windows_languages() -> Vec<String> {
+    vec![]
+}
+
+pub fn language_tag_matches(tags: &[String], code: &str) -> bool {
+    let code_lower = code.to_lowercase();
+    tags.iter().any(|tag| {
+        let tag_lower = tag.to_lowercase();
+        tag_lower == code_lower
+            || tag_lower.starts_with(&(code_lower.clone() + "-"))
+            || code_lower.starts_with(&(tag_lower + "-"))
+    })
+}
+
 #[cfg(not(windows))]
 pub fn available_ocr_languages() -> Vec<String> {
     vec![]

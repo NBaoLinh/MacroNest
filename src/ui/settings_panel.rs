@@ -1345,6 +1345,7 @@ impl CrosshairApp {
         ];
 
         let avail_langs = crate::ocr::available_ocr_languages();
+        let preferred_langs = crate::ocr::preferred_windows_languages();
 
         Self::settings_card_frame(ui).show(ui, |ui| {
             ui.set_min_width(ui.available_width());
@@ -1394,13 +1395,15 @@ impl CrosshairApp {
                     .spacing([10.0, 6.0])
                     .show(ui, |ui| {
                         for (lang_code, display_name) in lang_catalog {
-                            let is_installed = avail_langs
-                                .iter()
-                                .any(|a| a.to_lowercase().starts_with(&lang_code.to_lowercase()));
+                            let has_ocr = crate::ocr::language_tag_matches(&avail_langs, lang_code);
+                            let has_language =
+                                crate::ocr::language_tag_matches(&preferred_langs, lang_code);
                             let is_focused = focused_lang.as_deref() == Some(*lang_code);
 
-                            if is_installed {
+                            if has_ocr {
                                 ui.label(RichText::new("OK").color(Color32::from_rgb(126, 224, 182)));
+                            } else if has_language {
+                                ui.label(RichText::new("!").color(Color32::from_rgb(255, 216, 96)));
                             } else {
                                 ui.label(RichText::new("x").color(Color32::from_rgb(220, 100, 100)));
                             }
@@ -1416,11 +1419,17 @@ impl CrosshairApp {
                                 ui.scroll_to_rect(name_response.rect, Some(egui::Align::Center));
                             }
 
-                            if is_installed {
+                            if has_ocr {
                                 ui.label(
-                                    RichText::new(Self::tr_lang(language, "Installed", "Da cai dat"))
+                                    RichText::new(Self::tr_lang(language, "OCR ready", "OCR san sang"))
                                         .small()
                                         .color(Color32::from_rgb(126, 224, 182)),
+                                );
+                            } else if has_language {
+                                ui.label(
+                                    RichText::new(Self::tr_lang(language, "Language added, OCR missing", "Da co ngon ngu, thieu OCR"))
+                                        .small()
+                                        .color(Color32::from_rgb(255, 216, 96)),
                                 );
                             } else {
                                 let button_label = if is_focused {

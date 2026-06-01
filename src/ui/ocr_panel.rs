@@ -148,6 +148,7 @@ impl CrosshairApp {
                             ];
 
                             let avail_langs = crate::ocr::available_ocr_languages();
+                            let preferred_langs = crate::ocr::preferred_windows_languages();
 
                             let current_code = preset.lang.clone().unwrap_or_default();
                             let current_label: String = popular_langs.iter()
@@ -168,16 +169,21 @@ impl CrosshairApp {
                                     .show_ui(ui, |ui| {
                                         for (code, label, hint) in popular_langs {
                                             let is_selected = current_code.as_str() == *code;
-                                            let is_installed = code.is_empty() || avail_langs.iter().any(|a| {
-                                                a.to_lowercase().starts_with(&code.to_lowercase())
-                                            });
-                                            let display = if is_installed {
+                                            let has_ocr = code.is_empty()
+                                                || crate::ocr::language_tag_matches(&avail_langs, code);
+                                            let has_language = !code.is_empty()
+                                                && crate::ocr::language_tag_matches(&preferred_langs, code);
+                                            let display = if has_ocr {
                                                 label.to_string()
+                                            } else if has_language {
+                                                format!("{} [OCR missing]", label)
                                             } else {
                                                 format!("{} [not installed]", label)
                                             };
-                                            let hover_msg = if is_installed {
+                                            let hover_msg = if has_ocr {
                                                 hint.to_string()
+                                            } else if has_language {
+                                                format!("{} - Language is already added in Windows, but the OCR feature is still missing. Open Settings > Language & Region to add its OCR optional feature", hint)
                                             } else {
                                                 format!("{} - Language pack NOT installed. Go to Windows Settings > Time & Language > Language & Region > Add a language", hint)
                                             };
@@ -186,7 +192,7 @@ impl CrosshairApp {
                                                 .clicked()
                                             {
                                                 preset.lang = if code.is_empty() { None } else { Some(code.to_string()) };
-                                                if !is_installed && !code.is_empty() {
+                                                if !has_ocr && !code.is_empty() {
                                                     pending_ocr_language_settings =
                                                         Some((code.to_string(), label.to_string()));
                                                 }
