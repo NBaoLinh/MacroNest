@@ -16166,13 +16166,13 @@ impl CrosshairApp {
                                                     .changed();
                                                 ui.label(Self::tr_lang(
                                                     language,
-                                                    "Smooth Speed",
-                                                    "Toc do Smooth",
+                                                    "Smooth Speed (100% = normal)",
+                                                    "Toc do Smooth (100% = mac dinh)",
                                                 ))
                                                 .on_hover_text(Self::tr_lang(
                                                     language,
-                                                    "Only used when Smooth is on. 100% keeps the normal smooth playback speed, higher is faster.",
-                                                    "Chi dung khi bat Smooth. 100% giu toc do smooth mac dinh, cao hon se nhanh hon.",
+                                                    "Only used when Smooth is on. 100% keeps the normal smooth playback speed, 200% is 2x faster, and 50% is half speed.",
+                                                    "Chi dung khi bat Smooth. 100% giu toc do smooth mac dinh, 200% nhanh gap doi, 50% la nua toc do.",
                                                 ));
                                                 live_sync |= ui
                                                     .add_enabled_ui(step.smooth_mouse_path, |ui| {
@@ -16182,14 +16182,15 @@ impl CrosshairApp {
                                                                 &mut step.mouse_speed_percent,
                                                             )
                                                             .range(10..=1000)
+                                                            .update_while_editing(true)
                                                             .suffix("%"),
                                                         )
                                                     })
                                                     .inner
                                                     .on_hover_text(Self::tr_lang(
                                                         language,
-                                                        "Only affects Smooth playback speed for this Mouse Path step.",
-                                                        "Chi anh huong toc do Smooth cua step Mouse Path nay.",
+                                                        "This value only changes Smooth playback speed for this Mouse Path step. 100% = default smooth speed.",
+                                                        "Gia tri nay chi doi toc do Smooth cua step Mouse Path nay. 100% = toc do smooth mac dinh.",
                                                     ))
                                                     .changed();
 
