@@ -3223,6 +3223,11 @@ impl CrosshairApp {
         open_windows: &[String],
     ) -> bool {
         let mut changed = false;
+        let extras_expanded_id = ui.make_persistent_id((id_source, "extra-target-windows-expanded"));
+        let mut extras_expanded = ui
+            .ctx()
+            .data(|data| data.get_temp::<bool>(extras_expanded_id))
+            .unwrap_or(false);
         ui.vertical(|ui| {
             ui.horizontal(|ui| {
                 ui.spacing_mut().interact_size.y = 24.0;
@@ -3281,41 +3286,87 @@ impl CrosshairApp {
                 }
             });
 
-            let mut remove_index = None;
-            for (index, extra) in extras.iter_mut().enumerate() {
+            if !extras.is_empty() {
                 ui.horizontal(|ui| {
-                    ui.spacing_mut().interact_size.y = 24.0;
-                    let display_extra = Self::simplify_window_title(extra);
-                    let truncated_extra = Self::truncate_window_title(&display_extra, 40);
-                    egui::ComboBox::from_id_salt((id_source, "extra-target-window", index))
-                        .width(320.0)
-                        .selected_text(truncated_extra)
-                        .show_ui(ui, |ui| {
-                            for title in open_windows {
-                                let display_title = Self::simplify_window_title(title);
-                                let truncated_title =
-                                    Self::truncate_window_title(&display_title, 50);
-                                if ui
-                                    .selectable_label(extra == title, truncated_title)
-                                    .on_hover_text(title)
-                                    .clicked()
-                                {
-                                    *extra = title.clone();
-                                    changed = true;
-                                }
-                            }
-                        });
-                    let remove_btn = Button::new(Self::material_icon_text(0xe14c, 12.0));
-                    if ui.add_sized([24.0, 24.0], remove_btn).clicked() {
-                        remove_index = Some(index);
+                    let toggle_label = if extras_expanded {
+                        format!("Hide extra windows ({})", extras.len())
+                    } else {
+                        format!("Extra windows ({})", extras.len())
+                    };
+                    if ui
+                        .add_sized([160.0, 22.0], Button::new(toggle_label))
+                        .on_hover_text(Self::tr_lang(
+                            language,
+                            "Show or hide the extra target windows list.",
+                            "Show or hide the extra target windows list.",
+                        ))
+                        .clicked()
+                    {
+                        extras_expanded = !extras_expanded;
+                    }
+
+                    let preview = extras
+                        .iter()
+                        .take(2)
+                        .map(|title| Self::simplify_window_title(title))
+                        .collect::<Vec<_>>()
+                        .join(", ");
+                    let preview = if extras.len() > 2 {
+                        format!("{preview} +{}", extras.len() - 2)
+                    } else {
+                        preview
+                    };
+                    if !preview.is_empty() {
+                        ui.label(
+                            RichText::new(Self::truncate_window_title(&preview, 44))
+                                .color(ui.visuals().weak_text_color()),
+                        )
+                        .on_hover_text(preview);
                     }
                 });
             }
-            if let Some(index) = remove_index {
-                extras.remove(index);
-                changed = true;
+
+            if extras_expanded {
+                let mut remove_index = None;
+                for (index, extra) in extras.iter_mut().enumerate() {
+                    ui.horizontal(|ui| {
+                        ui.spacing_mut().interact_size.y = 24.0;
+                        let display_extra = Self::simplify_window_title(extra);
+                        let truncated_extra = Self::truncate_window_title(&display_extra, 40);
+                        egui::ComboBox::from_id_salt((id_source, "extra-target-window", index))
+                            .width(320.0)
+                            .selected_text(truncated_extra)
+                            .show_ui(ui, |ui| {
+                                for title in open_windows {
+                                    let display_title = Self::simplify_window_title(title);
+                                    let truncated_title =
+                                        Self::truncate_window_title(&display_title, 50);
+                                    if ui
+                                        .selectable_label(extra == title, truncated_title)
+                                        .on_hover_text(title)
+                                        .clicked()
+                                    {
+                                        *extra = title.clone();
+                                        changed = true;
+                                    }
+                                }
+                            });
+                        let remove_btn = Button::new(Self::material_icon_text(0xe14c, 12.0));
+                        if ui.add_sized([24.0, 24.0], remove_btn).clicked() {
+                            remove_index = Some(index);
+                        }
+                    });
+                }
+                if let Some(index) = remove_index {
+                    extras.remove(index);
+                    changed = true;
+                    if extras.is_empty() {
+                        extras_expanded = false;
+                    }
+                }
             }
         });
+        ui.ctx().data_mut(|data| data.insert_temp(extras_expanded_id, extras_expanded));
         changed
     }
 
@@ -3474,6 +3525,11 @@ impl CrosshairApp {
         open_windows: &[String],
     ) -> bool {
         let mut changed = false;
+        let extras_expanded_id = ui.make_persistent_id((id_source, "extra-target-windows-expanded"));
+        let mut extras_expanded = ui
+            .ctx()
+            .data(|data| data.get_temp::<bool>(extras_expanded_id))
+            .unwrap_or(false);
         ui.vertical(|ui| {
             ui.horizontal(|ui| {
                 ui.spacing_mut().interact_size.y = 24.0;
@@ -3510,37 +3566,83 @@ impl CrosshairApp {
                 }
             });
 
-            let mut remove_index = None;
-            for (index, extra) in extras.iter_mut().enumerate() {
+            if !extras.is_empty() {
                 ui.horizontal(|ui| {
-                    ui.spacing_mut().interact_size.y = 24.0;
-                    let mut extra_target = Some(extra.clone());
-                    if Self::render_window_target_combo_with_duplicate_mode(
-                        ui,
-                        (id_source, "extra", index),
-                        label_when_none,
-                        &mut extra_target,
-                        match_duplicate_window_titles,
-                        open_windows,
-                        320.0,
-                        false,
-                    ) {
-                        if let Some(next) = extra_target {
-                            *extra = next;
-                            changed = true;
-                        }
+                    let toggle_label = if extras_expanded {
+                        format!("Hide extra windows ({})", extras.len())
+                    } else {
+                        format!("Extra windows ({})", extras.len())
+                    };
+                    if ui
+                        .add_sized([160.0, 22.0], Button::new(toggle_label))
+                        .on_hover_text(Self::tr_lang(
+                            language,
+                            "Show or hide the extra target windows list.",
+                            "Show or hide the extra target windows list.",
+                        ))
+                        .clicked()
+                    {
+                        extras_expanded = !extras_expanded;
                     }
-                    let remove_btn = Button::new(Self::material_icon_text(0xe14c, 12.0));
-                    if ui.add_sized([24.0, 24.0], remove_btn).clicked() {
-                        remove_index = Some(index);
+
+                    let preview = extras
+                        .iter()
+                        .take(2)
+                        .map(|title| Self::simplify_window_title(title))
+                        .collect::<Vec<_>>()
+                        .join(", ");
+                    let preview = if extras.len() > 2 {
+                        format!("{preview} +{}", extras.len() - 2)
+                    } else {
+                        preview
+                    };
+                    if !preview.is_empty() {
+                        ui.label(
+                            RichText::new(Self::truncate_window_title(&preview, 44))
+                                .color(ui.visuals().weak_text_color()),
+                        )
+                        .on_hover_text(preview);
                     }
                 });
             }
-            if let Some(index) = remove_index {
-                extras.remove(index);
-                changed = true;
+
+            if extras_expanded {
+                let mut remove_index = None;
+                for (index, extra) in extras.iter_mut().enumerate() {
+                    ui.horizontal(|ui| {
+                        ui.spacing_mut().interact_size.y = 24.0;
+                        let mut extra_target = Some(extra.clone());
+                        if Self::render_window_target_combo_with_duplicate_mode(
+                            ui,
+                            (id_source, "extra", index),
+                            label_when_none,
+                            &mut extra_target,
+                            match_duplicate_window_titles,
+                            open_windows,
+                            320.0,
+                            false,
+                        ) {
+                            if let Some(next) = extra_target {
+                                *extra = next;
+                                changed = true;
+                            }
+                        }
+                        let remove_btn = Button::new(Self::material_icon_text(0xe14c, 12.0));
+                        if ui.add_sized([24.0, 24.0], remove_btn).clicked() {
+                            remove_index = Some(index);
+                        }
+                    });
+                }
+                if let Some(index) = remove_index {
+                    extras.remove(index);
+                    changed = true;
+                    if extras.is_empty() {
+                        extras_expanded = false;
+                    }
+                }
             }
         });
+        ui.ctx().data_mut(|data| data.insert_temp(extras_expanded_id, extras_expanded));
         changed
     }
 
