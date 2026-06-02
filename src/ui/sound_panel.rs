@@ -1493,7 +1493,10 @@ impl CrosshairApp {
         let mut stop_video_preview = false;
         let mut stop_video_overlay = false;
         let mut preview_video_overlay_request: Option<(u32, u64)> = None;
-        let mut hovered_video_timeline: Option<(u32, u64, u64, bool, bool, bool)> = None;
+        let space_pressed = !ui.ctx().wants_keyboard_input()
+            && ui.input(|input| input.key_pressed(egui::Key::Space));
+        let s_pressed = !ui.ctx().wants_keyboard_input()
+            && ui.input(|input| input.key_pressed(egui::Key::S));
         for index in 0..self.state.audio_settings.video_presets.len() {
             let preset_id = self.state.audio_settings.video_presets[index].id;
             let clip_snapshot = self.state.audio_settings.video_presets[index].clip.clone();
@@ -1551,6 +1554,7 @@ impl CrosshairApp {
             }
 
             ui.add_space(6.0);
+            let mut card_hovered = false;
             Self::show_preset_card(ui, false, |ui| {
                 ui.set_min_width(ui.available_width());
                 ui.horizontal(|ui| {
@@ -1649,8 +1653,13 @@ impl CrosshairApp {
                         } else if self.active_video_preview_preset_id == Some(preset.id) {
                             stop_video_preview = true;
                         } else {
+                            let start_pos = if preview_cursor_ms >= preset.clip.end_ms.saturating_sub(10) {
+                                preset.clip.start_ms
+                            } else {
+                                preview_cursor_ms
+                            };
                             preview_video_overlay_request =
-                                Some((preset.id, preview_cursor_ms));
+                                Some((preset.id, start_pos));
                         }
                     }
                     let pick_active = self.video_chroma_pick_preset_id == Some(preset.id);
@@ -1774,16 +1783,6 @@ impl CrosshairApp {
                                 112.0,
                             );
                             changed |= timeline_outcome.changed;
-                            if timeline_outcome.hovered {
-                                hovered_video_timeline = Some((
-                                    preset.id,
-                                    preview_cursor_ms,
-                                    preset.clip.start_ms,
-                                    !preset.clip.file_path.trim().is_empty(),
-                                    timeline_outcome.preview_at_playhead,
-                                    timeline_outcome.preview_from_trim_start,
-                                ));
-                            }
                             ui.add_space(1.0);
                             ui.horizontal(|ui| {
                                 ui.label(Self::tr_lang(language, "Start", "Bắt đầu"));
@@ -1854,7 +1853,34 @@ impl CrosshairApp {
                         .add(Slider::new(&mut preset.clip.chroma_key_tolerance, 0..=128))
                         .changed();
                 });
+                card_hovered = ui.rect_contains_pointer(ui.min_rect());
             });
+
+            let is_currently_previewing = self.active_video_preview_preset_id == Some(preset_id);
+            if card_hovered {
+                if space_pressed {
+                    if is_currently_previewing {
+                        stop_video_preview = true;
+                    } else if self.active_video_preview_preset_id.is_none() {
+                        let start_pos = if preview_cursor_ms >= clip_end_ms.saturating_sub(100) {
+                            clip_snapshot.start_ms
+                        } else {
+                            preview_cursor_ms
+                        };
+                        preview_video_request = Some((preset_id, start_pos, clip_snapshot.clone()));
+                    }
+                }
+                if s_pressed {
+                    if is_currently_previewing {
+                        stop_video_preview = true;
+                    }
+                    preview_video_request = Some((preset_id, clip_snapshot.start_ms, clip_snapshot.clone()));
+                }
+            } else {
+                if space_pressed && is_currently_previewing {
+                    stop_video_preview = true;
+                }
+            }
 
             self.video_preset_clip_duration_ms
                 .insert(preset.id, duration);
@@ -1862,44 +1888,6 @@ impl CrosshairApp {
                 .insert(preset.id, preview_cursor_ms);
             if let Some(preset_id) = choose_video_for {
                 self.choose_video_file_for_preset(preset_id);
-            }
-        }
-
-        if let Some((
-            preset_id,
-            preview_cursor_ms,
-            clip_start_ms,
-            has_file,
-            preview_at_playhead,
-            preview_from_trim_start,
-        )) = hovered_video_timeline
-        {
-            if has_file {
-                if preview_from_trim_start {
-                    if let Some(clip) = self
-                        .state
-                        .audio_settings
-                        .video_presets
-                        .iter()
-                        .find(|preset| preset.id == preset_id)
-                        .map(|preset| preset.clip.clone())
-                    {
-                        preview_video_request = Some((preset_id, clip_start_ms, clip));
-                    }
-                } else if preview_at_playhead {
-                    if self.active_video_preview_preset_id == Some(preset_id) {
-                        stop_video_preview = true;
-                    } else if let Some(clip) = self
-                        .state
-                        .audio_settings
-                        .video_presets
-                        .iter()
-                        .find(|preset| preset.id == preset_id)
-                        .map(|preset| preset.clip.clone())
-                    {
-                        preview_video_request = Some((preset_id, preview_cursor_ms, clip));
-                    }
-                }
             }
         }
 

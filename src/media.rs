@@ -25,6 +25,7 @@ pub struct VideoFrameRequest {
     pub start_ms: u64,
     pub max_width: i32,
     pub max_height: i32,
+    pub is_playing: bool,
 }
 
 #[cfg(windows)]
@@ -208,13 +209,53 @@ pub fn decode_video_preview_frame(
     start_ms: u64,
     max_width: i32,
     max_height: i32,
+    is_playing: bool,
 ) -> Result<VideoPreviewFrame> {
-    if start_ms > 0 {
-        let _ = capture.set(CAP_PROP_POS_MSEC, start_ms as f64);
-    }
     let mut frame = Mat::default();
-    if !capture.read(&mut frame)? || frame.empty() {
-        bail!("Video preview frame could not be read");
+    let current_pos = capture.get(CAP_PROP_POS_MSEC).unwrap_or(0.0).round().max(0.0) as u64;
+
+    let diff = (start_ms as i64 - current_pos as i64).abs();
+    let should_seek = if is_playing {
+        diff >= 300
+    } else {
+        diff >= 30
+    };
+
+    if should_seek {
+        if start_ms > 0 {
+            let _ = capture.set(CAP_PROP_POS_MSEC, start_ms as f64);
+        }
+        if !capture.read(&mut frame)? || frame.empty() {
+            bail!("Video preview frame could not be read");
+        }
+    } else {
+        let fps = capture.get(CAP_PROP_FPS).unwrap_or(30.0);
+        let frame_duration = if fps.is_finite() && fps > 0.0 {
+            (1000.0 / fps) as u64
+        } else {
+            33
+        };
+
+        let mut temp_pos = current_pos;
+        let mut read_count = 0;
+        loop {
+            let mut f = Mat::default();
+            if !capture.read(&mut f)? || f.empty() {
+                break;
+            }
+            frame = f;
+            read_count += 1;
+            temp_pos += frame_duration;
+            if temp_pos >= start_ms {
+                break;
+            }
+            if read_count >= 5 {
+                break;
+            }
+        }
+        if frame.empty() {
+            bail!("Video preview frame could not be read");
+        }
     }
 
     let source_size = frame.size()?;
@@ -266,7 +307,7 @@ pub fn load_video_preview_frame(
     max_height: i32,
 ) -> Result<VideoPreviewFrame> {
     let (mut capture, _) = open_video_capture(path, start_ms)?;
-    decode_video_preview_frame(&mut capture, 0, max_width, max_height)
+    decode_video_preview_frame(&mut capture, 0, max_width, max_height, false)
 }
 
 #[cfg(not(windows))]
@@ -275,6 +316,7 @@ pub fn decode_video_preview_frame(
     _start_ms: u64,
     _max_width: i32,
     _max_height: i32,
+    _is_playing: bool,
 ) -> Result<VideoPreviewFrame> {
     bail!("Video playback is only supported on Windows")
 }
@@ -329,6 +371,7 @@ pub fn start_video_preview_worker(
                         req.start_ms,
                         req.max_width,
                         req.max_height,
+                        req.is_playing,
                     ) {
                         let _ = ui_tx.send(UiCommand::VideoFrameLoaded {
                             preset_id: req.preset_id,

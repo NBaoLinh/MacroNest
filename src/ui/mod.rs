@@ -1927,9 +1927,10 @@ impl CrosshairApp {
         if trimmed.is_empty() {
             return None;
         }
+        let rounded_start_ms = (start_ms / 15) * 15;
         if let Some(cache) = self.video_preview_cache.get(&preset_id)
             && cache.source_path == trimmed
-            && cache.start_ms == start_ms
+            && cache.start_ms == rounded_start_ms
             && cache.max_width == max_width
             && cache.max_height == max_height
         {
@@ -1937,17 +1938,19 @@ impl CrosshairApp {
         }
 
         let already_requested = self.video_preview_requested.get(&preset_id)
-            .map(|(p, ms)| p == trimmed && *ms == start_ms)
+            .map(|(p, ms)| p == trimmed && *ms == rounded_start_ms)
             .unwrap_or(false);
 
         if !already_requested {
-            self.video_preview_requested.insert(preset_id, (trimmed.to_owned(), start_ms));
+            self.video_preview_requested.insert(preset_id, (trimmed.to_owned(), rounded_start_ms));
+            let is_playing = self.active_video_preview_preset_id == Some(preset_id);
             let _ = self.video_frame_tx.send(crate::media::VideoFrameRequest {
                 preset_id,
                 path: trimmed.to_owned(),
-                start_ms,
+                start_ms: rounded_start_ms,
                 max_width,
                 max_height,
+                is_playing,
             });
         }
 
