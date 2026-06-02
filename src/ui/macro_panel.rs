@@ -11,6 +11,7 @@ use crate::ui::{
 };
 
 use eframe::egui::{self, *};
+use std::time::{Duration, Instant};
 
 #[derive(Clone, Copy, PartialEq, Eq)]
 
@@ -4858,7 +4859,6 @@ impl CrosshairApp {
 
                     let mut pending_step_selection = None;
 
-                    let mut selection_after_paste = None;
 
                     let mut clear_step_selection = None;
 
@@ -16636,8 +16636,13 @@ impl CrosshairApp {
                                             }
 
                                             let is_dark_theme = self.state.ui_theme == UiThemeMode::Dark;
-
                                             ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
+                                                  let copy_feedback_active =
+                                                      self.macro_step_copy_feedback_target
+                                                          == Some((group.id, preset.id, step_index))
+                                                          && Self::is_copy_feedback_active(
+                                                              self.macro_step_copy_feedback_until,
+                                                          );
                                                   if ui
                                                       .add(
                                                           Button::new(Self::tr_lang(language, "Paste", "Paste"))
@@ -16646,7 +16651,7 @@ impl CrosshairApp {
                                                       .on_hover_text(Self::tr_lang(
                                                           language,
                                                           "Paste copied step(s) below this step.",
-                                                          "Dán step đã copy xuống dưới step này.",
+                                                          "Paste copied step(s) below this step.",
                                                       ))
                                                       .clicked()
                                                   {
@@ -16654,7 +16659,20 @@ impl CrosshairApp {
                                                           Some((group.id, preset.id, step_index));
                                                   }
 
-                                                  if ui
+                                                  if copy_feedback_active {
+                                                      ui.add_sized(
+                                                          [48.0, 18.0],
+                                                          egui::Label::new(
+                                                              RichText::new(Self::tr_lang(
+                                                                  language,
+                                                                  "Copied",
+                                                                  "Copied",
+                                                              ))
+                                                              .color(Color32::from_rgb(126, 224, 182))
+                                                              .strong(),
+                                                          ),
+                                                      );
+                                                  } else if ui
                                                       .add(
                                                           Button::new(Self::tr_lang(language, "Copy", "Copy"))
                                                               .min_size(vec2(40.0, 18.0)),
@@ -16662,7 +16680,7 @@ impl CrosshairApp {
                                                       .on_hover_text(Self::tr_lang(
                                                           language,
                                                           "Copy this step.",
-                                                          "Copy step này.",
+                                                          "Copy this step.",
                                                       ))
                                                       .clicked()
                                                   {
@@ -17887,6 +17905,10 @@ impl CrosshairApp {
                                 if let Some(step) = preset.steps.get(step_index) {
 
                                     self.macro_step_clipboard = vec![step.clone()];
+                                    self.macro_step_copy_feedback_target =
+                                        Some((group_id, preset_id, step_index));
+                                    self.macro_step_copy_feedback_until =
+                                        Some(Instant::now() + Duration::from_secs(1));
 
                                     self.status = format!("Copied 1 step.");
 
@@ -17913,10 +17935,7 @@ impl CrosshairApp {
                             self.paste_macro_steps_after(group_id, preset_id, step_index)
 
                     {
-
-                        clear_step_selection = Some((group_id, preset_id));
-
-                        selection_after_paste = Some((group_id, preset_id, selection));
+                        let _ = selection;
 
                         live_sync = true;
 
@@ -18033,20 +18052,6 @@ impl CrosshairApp {
                     if let Some((group_id, preset_id)) = clear_step_selection {
 
                         self.clear_macro_step_selection_for_preset(group_id, preset_id);
-
-                    }
-
-                    if let Some((group_id, preset_id, pasted_indices)) = selection_after_paste {
-
-                        self.clear_macro_step_selection_for_preset(group_id, preset_id);
-
-                        for pasted_index in pasted_indices {
-
-                            self.selected_macro_steps
-
-                                .insert((group_id, preset_id, pasted_index));
-
-                        }
 
                     }
 
