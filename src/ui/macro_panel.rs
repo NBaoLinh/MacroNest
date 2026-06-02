@@ -334,6 +334,10 @@ impl CrosshairApp {
                             ui.label(egui::RichText::new("- min(a, b)").monospace());
                             ui.label(egui::RichText::new("- max(a, b)").monospace());
                             ui.label(egui::RichText::new("- abs(a)").monospace());
+                            ui.label(egui::RichText::new("- atan(a)").monospace());
+                            ui.label(egui::RichText::new("- atan2(y, x)").monospace());
+                            ui.label(egui::RichText::new("- sin(angleDeg) * 1000").monospace());
+                            ui.label(egui::RichText::new("- cos(angleDeg) * 1000").monospace());
                             ui.label(egui::RichText::new("- myVar.toNumber").monospace());
                         });
 
@@ -18463,7 +18467,8 @@ impl CrosshairApp {
     fn is_builtin_expression_identifier(token: &str) -> bool {
         matches!(
             token.trim().to_ascii_lowercase().as_str(),
-            "abs" | "min" | "max" | "random" | "tonumber"
+            "abs" | "min" | "max" | "random" | "atan" | "atan2" | "sin" | "cos"
+                | "tonumber"
         )
     }
 
@@ -19062,7 +19067,7 @@ impl CrosshairApp {
     }
 
     fn builtin_expression_function_suggestions() -> &'static [&'static str] {
-        &["abs()", "min()", "max()", "random()"]
+        &["abs()", "min()", "max()", "random()", "atan()", "atan2()", "sin()", "cos()"]
     }
 
     fn object_property_suggestions(base: &str) -> Option<&'static [&'static str]> {
@@ -19147,6 +19152,10 @@ impl CrosshairApp {
             "min()" => "min(a, b)".to_string(),
             "max()" => "max(a, b)".to_string(),
             "random()" => "random(min, max)".to_string(),
+            "atan()" => "atan(a)".to_string(),
+            "atan2()" => "atan2(y, x)".to_string(),
+            "sin()" => "sin(angleDeg) * 1000".to_string(),
+            "cos()" => "cos(angleDeg) * 1000".to_string(),
             _ => Self::timer_suggestion_label(suggestion, timer_names),
         }
     }

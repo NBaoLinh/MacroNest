@@ -10026,6 +10026,10 @@ mod windows_overlay {
                 || lower.contains("max(")
                 || lower.contains("abs(")
                 || lower.contains("random(")
+                || lower.contains("atan(")
+                || lower.contains("atan2(")
+                || lower.contains("sin(")
+                || lower.contains("cos(")
                 || lower.contains(".tonumber");
 
             if has_math_op || has_math_func {
@@ -10450,6 +10454,27 @@ mod windows_overlay {
                             val.abs()
                         }
 
+                        "atan" => {
+                            let val = resolved_args.first().copied().unwrap_or(0) as f64;
+                            val.atan().to_degrees().round() as i32
+                        }
+
+                        "atan2" => {
+                            let y = resolved_args.first().copied().unwrap_or(0) as f64;
+                            let x = resolved_args.get(1).copied().unwrap_or(0) as f64;
+                            y.atan2(x).to_degrees().round() as i32
+                        }
+
+                        "sin" => {
+                            let angle_deg = resolved_args.first().copied().unwrap_or(0) as f64;
+                            (angle_deg.to_radians().sin() * 1000.0).round() as i32
+                        }
+
+                        "cos" => {
+                            let angle_deg = resolved_args.first().copied().unwrap_or(0) as f64;
+                            (angle_deg.to_radians().cos() * 1000.0).round() as i32
+                        }
+
                         _ => 0,
                     };
 
@@ -10692,6 +10717,16 @@ mod windows_overlay {
             // Functions support (min, max, abs, random)
 
             assert_eq!(evaluate_math_expression("abs(-50)"), 50);
+
+            assert_eq!(evaluate_math_expression("atan(1)"), 45);
+
+            assert_eq!(evaluate_math_expression("atan2(1, 1)"), 45);
+
+            assert_eq!(evaluate_math_expression("sin(30)"), 500);
+
+            assert_eq!(evaluate_math_expression("cos(60)"), 500);
+
+            assert_eq!(evaluate_math_expression("cos(0)"), 1000);
 
             assert_eq!(evaluate_math_expression("min(20, 50)"), 20);
 
