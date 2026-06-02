@@ -3281,6 +3281,7 @@ impl CrosshairApp {
                         .unwrap_or_default();
                     if !next.is_empty() {
                         extras.push(next);
+                        extras_expanded = true;
                         changed = true;
                     }
                 }
@@ -3302,27 +3303,6 @@ impl CrosshairApp {
                     }
                 }
             });
-
-            if !extras.is_empty() {
-                let preview = extras
-                    .iter()
-                    .take(2)
-                    .map(|title| Self::simplify_window_title(title))
-                    .collect::<Vec<_>>()
-                    .join(", ");
-                let preview = if extras.len() > 2 {
-                    format!("Extra windows ({}) - {preview} +{}", extras.len(), extras.len() - 2)
-                } else {
-                    format!("Extra windows ({}) - {preview}", extras.len())
-                };
-                if !preview.is_empty() {
-                    ui.label(
-                        RichText::new(Self::truncate_window_title(&preview, 60))
-                            .color(ui.visuals().weak_text_color()),
-                    )
-                    .on_hover_text(preview);
-                }
-            }
 
             if extras_expanded {
                 let mut remove_index = None;
@@ -3559,6 +3539,7 @@ impl CrosshairApp {
                         .unwrap_or_default();
                     if !next.is_empty() {
                         extras.push(next);
+                        extras_expanded = true;
                         changed = true;
                     }
                 }
@@ -3580,27 +3561,6 @@ impl CrosshairApp {
                     }
                 }
             });
-
-            if !extras.is_empty() {
-                let preview = extras
-                    .iter()
-                    .take(2)
-                    .map(|title| Self::simplify_window_title(title))
-                    .collect::<Vec<_>>()
-                    .join(", ");
-                let preview = if extras.len() > 2 {
-                    format!("Extra windows ({}) - {preview} +{}", extras.len(), extras.len() - 2)
-                } else {
-                    format!("Extra windows ({}) - {preview}", extras.len())
-                };
-                if !preview.is_empty() {
-                    ui.label(
-                        RichText::new(Self::truncate_window_title(&preview, 60))
-                            .color(ui.visuals().weak_text_color()),
-                    )
-                    .on_hover_text(preview);
-                }
-            }
 
             if extras_expanded {
                 let mut remove_index = None;

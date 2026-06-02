@@ -5308,6 +5308,12 @@ impl CrosshairApp {
                                     {
 
                                         group.collapsed = !group.collapsed;
+                                        ui.ctx().data_mut(|data| {
+                                            data.remove::<bool>(ui.make_persistent_id((
+                                                (group.id, "macro-group-window-target"),
+                                                "extra-target-windows-expanded",
+                                            )));
+                                        });
 
                                         live_sync = true;
 
