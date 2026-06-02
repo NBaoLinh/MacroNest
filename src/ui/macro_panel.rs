@@ -315,7 +315,7 @@ impl CrosshairApp {
                 ui.add_space(4.0);
 
                 ui.label(
-                    egui::RichText::new(Self::tr_lang(language, "Supported Functions:", "Hàm hỗ trợ:"))
+                    egui::RichText::new(Self::tr_lang(language, "Available expressions:", "Hàm hỗ trợ:"))
                         .strong(),
                 );
 
@@ -20483,6 +20483,7 @@ impl CrosshairApp {
         response
     }
 }
+
 
 
 
