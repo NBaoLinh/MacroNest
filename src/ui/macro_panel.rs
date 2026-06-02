@@ -286,6 +286,7 @@ impl CrosshairApp {
             .inner_margin(egui::Margin::symmetric(8, 6))
 
             .show(ui, |ui| {
+                ui.set_min_width(420.0);
 
                 ui.horizontal(|ui| {
 
@@ -319,9 +320,36 @@ impl CrosshairApp {
                 );
 
                 ui.label(egui::RichText::new("- random(min, max)").monospace());
-                ui.label(egui::RichText::new("- min(a, b)  -  max(a, b)").monospace());
+                ui.label(egui::RichText::new("- min(a, b)").monospace());
+                ui.label(egui::RichText::new("- max(a, b)").monospace());
                 ui.label(egui::RichText::new("- abs(a)").monospace());
-                ui.label(egui::RichText::new("- var.toNumber").monospace());
+                ui.add_space(4.0);
+                ui.label(egui::RichText::new("Dot-style numeric values:").strong());
+                ui.label(egui::RichText::new("- myVar.toNumber").monospace());
+                ui.label(egui::RichText::new("- screen.width  screen.height").monospace());
+                ui.label(
+                    egui::RichText::new("- mouse.x  mouse.y  mouse.sensitivity").monospace(),
+                );
+                ui.label(egui::RichText::new("- volume.level").monospace());
+                ui.label(egui::RichText::new("- window.width  window.height").monospace());
+                ui.label(
+                    egui::RichText::new(
+                        "- system.year month day hour minute second millisecond",
+                    )
+                    .monospace(),
+                );
+                ui.label(
+                    egui::RichText::new(
+                        "- timer1.hour minute second millisecond ms raw total_sec",
+                    )
+                    .monospace(),
+                );
+                ui.label(egui::RichText::new("- TimerName.hour ... total_sec").monospace());
+                ui.add_space(4.0);
+                ui.label(egui::RichText::new("Dot-style text values:").strong());
+                ui.label(egui::RichText::new("- system.date  system.time").monospace());
+                ui.label(egui::RichText::new("- window.title").monospace());
+                ui.label(egui::RichText::new("- clipboard.text").monospace());
 
             });
     }
