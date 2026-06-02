@@ -366,9 +366,7 @@ pub fn build_runtime_macro_groups(state: &AppState) -> Vec<MacroGroup> {
         {
             group.enabled = false;
         }
-        group.presets.retain(|preset| preset.enabled);
     }
-    macro_groups.retain(|group| group.enabled && !group.presets.is_empty());
     CrosshairApp::sort_macro_groups(&mut macro_groups);
     macro_groups
 }
