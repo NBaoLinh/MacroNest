@@ -663,6 +663,8 @@ pub struct CrosshairApp {
     zoom_preview_cache: HashMap<u32, ZoomPreviewCache>,
     vision_preview_cache: HashMap<u32, VisionPreviewCache>,
     video_preview_cache: HashMap<u32, VideoPreviewCache>,
+    video_frame_tx: crossbeam_channel::Sender<crate::media::VideoFrameRequest>,
+    video_preview_requested: HashMap<u32, (String, u64)>,
     video_chroma_pick_preset_id: Option<u32>,
     active_video_preview_preset_id: Option<u32>,
     active_video_preview_started_at: Option<Instant>,
@@ -734,6 +736,7 @@ impl CrosshairApp {
         let initial_active_panel = state.active_panel;
 
         let opencv_installed = paths.opencv_dll.exists();
+        let video_frame_tx = crate::media::start_video_preview_worker(ui_tx.clone());
         let mut app = Self {
             paths: paths.clone(),
             state,
@@ -832,6 +835,8 @@ impl CrosshairApp {
             zoom_preview_cache: HashMap::new(),
             vision_preview_cache: HashMap::new(),
             video_preview_cache: HashMap::new(),
+            video_frame_tx,
+            video_preview_requested: HashMap::new(),
             video_chroma_pick_preset_id: None,
             active_video_preview_preset_id: None,
             active_video_preview_started_at: None,
@@ -1927,46 +1932,23 @@ impl CrosshairApp {
         {
             return Some(cache.view.clone());
         }
-        let preview =
-            crate::media::load_video_preview_frame(trimmed, start_ms, max_width, max_height)
-                .ok()?;
-        let image =
-            ColorImage::from_rgba_unmultiplied([preview.width, preview.height], &preview.rgba);
-        let view = if let Some(cache) = self.video_preview_cache.get_mut(&preset_id) {
-            cache.view.texture.set(image, TextureOptions::LINEAR);
-            cache.updated_at = Instant::now();
-            cache.source_path = trimmed.to_owned();
-            cache.start_ms = start_ms;
-            cache.max_width = max_width;
-            cache.max_height = max_height;
-            cache.view.width = preview.width;
-            cache.view.height = preview.height;
-            cache.view.clone()
-        } else {
-            let texture = ctx.load_texture(
-                format!("video_preview_{preset_id}"),
-                image,
-                TextureOptions::LINEAR,
-            );
-            let view = VideoPreviewView {
-                texture,
-                width: preview.width,
-                height: preview.height,
-            };
-            self.video_preview_cache.insert(
+
+        let already_requested = self.video_preview_requested.get(&preset_id)
+            .map(|(p, ms)| p == trimmed && *ms == start_ms)
+            .unwrap_or(false);
+
+        if !already_requested {
+            self.video_preview_requested.insert(preset_id, (trimmed.to_owned(), start_ms));
+            let _ = self.video_frame_tx.send(crate::media::VideoFrameRequest {
                 preset_id,
-                VideoPreviewCache {
-                    updated_at: Instant::now(),
-                    source_path: trimmed.to_owned(),
-                    start_ms,
-                    max_width,
-                    max_height,
-                    view: view.clone(),
-                },
-            );
-            view
-        };
-        Some(view)
+                path: trimmed.to_owned(),
+                start_ms,
+                max_width,
+                max_height,
+            });
+        }
+
+        self.video_preview_cache.get(&preset_id).map(|cache| cache.view.clone())
     }
 
     fn start_video_preview(
@@ -8094,6 +8076,51 @@ impl eframe::App for CrosshairApp {
                         .find(|p| p.id == preset_id)
                     {
                         preset.run_output = Some(output);
+                    }
+                    ctx.request_repaint();
+                }
+                UiCommand::VideoFrameLoaded {
+                    preset_id,
+                    path,
+                    start_ms,
+                    max_width,
+                    max_height,
+                    width,
+                    height,
+                    rgba,
+                } => {
+                    let image = ColorImage::from_rgba_unmultiplied([width, height], &rgba);
+                    if let Some(cache) = self.video_preview_cache.get_mut(&preset_id) {
+                        cache.view.texture.set(image, TextureOptions::LINEAR);
+                        cache.updated_at = Instant::now();
+                        cache.source_path = path;
+                        cache.start_ms = start_ms;
+                        cache.max_width = max_width;
+                        cache.max_height = max_height;
+                        cache.view.width = width;
+                        cache.view.height = height;
+                    } else {
+                        let texture = ctx.load_texture(
+                            format!("video_preview_{preset_id}"),
+                            image,
+                            TextureOptions::LINEAR,
+                        );
+                        let view = VideoPreviewView {
+                            texture,
+                            width,
+                            height,
+                        };
+                        self.video_preview_cache.insert(
+                            preset_id,
+                            VideoPreviewCache {
+                                updated_at: Instant::now(),
+                                source_path: path,
+                                start_ms,
+                                max_width,
+                                max_height,
+                                view,
+                            },
+                        );
                     }
                     ctx.request_repaint();
                 }

@@ -1,6 +1,7 @@
 use anyhow::{Context, Result, bail};
 
 use crate::model::RgbaColor;
+use crate::overlay::UiCommand;
 
 #[derive(Debug, Clone, Copy, Default)]
 pub struct VideoMetadata {
@@ -15,6 +16,15 @@ pub struct VideoPreviewFrame {
     pub width: usize,
     pub height: usize,
     pub rgba: Vec<u8>,
+}
+
+#[derive(Debug, Clone)]
+pub struct VideoFrameRequest {
+    pub preset_id: u32,
+    pub path: String,
+    pub start_ms: u64,
+    pub max_width: i32,
+    pub max_height: i32,
 }
 
 #[cfg(windows)]
@@ -193,13 +203,15 @@ pub fn frame_to_premultiplied_bgra(
 }
 
 #[cfg(windows)]
-pub fn load_video_preview_frame(
-    path: &str,
+pub fn decode_video_preview_frame(
+    capture: &mut VideoCapture,
     start_ms: u64,
     max_width: i32,
     max_height: i32,
 ) -> Result<VideoPreviewFrame> {
-    let (mut capture, _) = open_video_capture(path, start_ms)?;
+    if start_ms > 0 {
+        let _ = capture.set(CAP_PROP_POS_MSEC, start_ms as f64);
+    }
     let mut frame = Mat::default();
     if !capture.read(&mut frame)? || frame.empty() {
         bail!("Video preview frame could not be read");
@@ -246,6 +258,27 @@ pub fn load_video_preview_frame(
     })
 }
 
+#[cfg(windows)]
+pub fn load_video_preview_frame(
+    path: &str,
+    start_ms: u64,
+    max_width: i32,
+    max_height: i32,
+) -> Result<VideoPreviewFrame> {
+    let (mut capture, _) = open_video_capture(path, start_ms)?;
+    decode_video_preview_frame(&mut capture, 0, max_width, max_height)
+}
+
+#[cfg(not(windows))]
+pub fn decode_video_preview_frame(
+    _capture: &mut (),
+    _start_ms: u64,
+    _max_width: i32,
+    _max_height: i32,
+) -> Result<VideoPreviewFrame> {
+    bail!("Video playback is only supported on Windows")
+}
+
 #[cfg(not(windows))]
 pub fn load_video_preview_frame(
     _path: &str,
@@ -254,4 +287,71 @@ pub fn load_video_preview_frame(
     _max_height: i32,
 ) -> Result<VideoPreviewFrame> {
     bail!("Video playback is only supported on Windows")
+}
+
+#[cfg(windows)]
+pub fn start_video_preview_worker(
+    ui_tx: crossbeam_channel::Sender<UiCommand>,
+) -> crossbeam_channel::Sender<VideoFrameRequest> {
+    let (tx, rx) = crossbeam_channel::unbounded::<VideoFrameRequest>();
+    std::thread::spawn(move || {
+        let mut cached_capture: Option<(String, VideoCapture)> = None;
+
+        while let Ok(request) = rx.recv() {
+            let mut requests = std::collections::HashMap::new();
+            requests.insert(request.preset_id, request);
+            while let Ok(next_req) = rx.try_recv() {
+                requests.insert(next_req.preset_id, next_req);
+            }
+
+            for (_, req) in requests {
+                let capture_ok = if let Some((ref cached_path, ref mut capture)) = cached_capture {
+                    if cached_path == &req.path {
+                        capture.is_opened().unwrap_or(false)
+                    } else {
+                        false
+                    }
+                } else {
+                    false
+                };
+
+                if !capture_ok {
+                    if let Ok(capture) = open_video_capture_with_backend(&req.path) {
+                        cached_capture = Some((req.path.clone(), capture));
+                    } else {
+                        cached_capture = None;
+                    }
+                }
+
+                if let Some((_, ref mut capture)) = cached_capture {
+                    if let Ok(preview) = decode_video_preview_frame(
+                        capture,
+                        req.start_ms,
+                        req.max_width,
+                        req.max_height,
+                    ) {
+                        let _ = ui_tx.send(UiCommand::VideoFrameLoaded {
+                            preset_id: req.preset_id,
+                            path: req.path,
+                            start_ms: req.start_ms,
+                            max_width: req.max_width,
+                            max_height: req.max_height,
+                            width: preview.width,
+                            height: preview.height,
+                            rgba: preview.rgba,
+                        });
+                    }
+                }
+            }
+        }
+    });
+    tx
+}
+
+#[cfg(not(windows))]
+pub fn start_video_preview_worker(
+    _ui_tx: crossbeam_channel::Sender<UiCommand>,
+) -> crossbeam_channel::Sender<VideoFrameRequest> {
+    let (tx, _) = crossbeam_channel::unbounded::<VideoFrameRequest>();
+    tx
 }

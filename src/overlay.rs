@@ -665,6 +665,17 @@ mod windows_overlay {
 
             duration_ms: Option<u64>,
         },
+
+        VideoFrameLoaded {
+            preset_id: u32,
+            path: String,
+            start_ms: u64,
+            max_width: i32,
+            max_height: i32,
+            width: usize,
+            height: usize,
+            rgba: Vec<u8>,
+        },
     }
 
     pub struct OverlayHandle {
