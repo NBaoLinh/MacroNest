@@ -6434,6 +6434,7 @@ mod windows_overlay {
                 target_window_title.as_deref(),
                 &extra_target_window_titles,
                 match_duplicate_window_titles,
+                false,
             );
 
             for step in cleanup_steps {
@@ -6546,6 +6547,7 @@ mod windows_overlay {
                 target_window_title.as_deref(),
                 &extra_target_window_titles,
                 match_duplicate_window_titles,
+                false,
             );
 
             if matches!(flow, MacroRunFlow::Continue) {
@@ -7861,10 +7863,11 @@ mod windows_overlay {
                         None,
                         &[],
                         false,
+                        true,
                     );
                 } else {
                     if let Ok(pid) = step.key.trim().parse::<u32>() {
-                        spawn_macro_by_preset_id(pid);
+                        spawn_macro_by_preset_id(pid, true);
                     }
                 }
             }
@@ -8105,11 +8108,13 @@ mod windows_overlay {
         extra_target_window_titles: &[String],
 
         match_duplicate_window_titles: bool,
+
+        bypass_enabled: bool,
     ) -> MacroRunFlow {
         let mut index = 0usize;
 
         while index < steps.len() {
-            if !is_macro_preset_enabled(preset_id) {
+            if !bypass_enabled && !is_macro_preset_enabled(preset_id) {
                 return MacroRunFlow::StopExecution;
             }
 
@@ -8156,6 +8161,7 @@ mod windows_overlay {
                 target_window_title,
                 extra_target_window_titles,
                 match_duplicate_window_titles,
+                bypass_enabled,
             ) {
                 return MacroRunFlow::StopExecution;
             }
@@ -8186,6 +8192,7 @@ mod windows_overlay {
                                 target_window_title,
                                 extra_target_window_titles,
                                 match_duplicate_window_titles,
+                                bypass_enabled,
                             ) {
                                 MacroRunFlow::BreakLoop => break,
 
@@ -8202,6 +8209,7 @@ mod windows_overlay {
                                     target_window_title,
                                     extra_target_window_titles,
                                     match_duplicate_window_titles,
+                                    bypass_enabled,
                                 )
                             {
                                 return MacroRunFlow::StopExecution;
@@ -8223,6 +8231,7 @@ mod windows_overlay {
                                 target_window_title,
                                 extra_target_window_titles,
                                 match_duplicate_window_titles,
+                                bypass_enabled,
                             ) {
                                 MacroRunFlow::BreakLoop => break,
 
@@ -8239,6 +8248,7 @@ mod windows_overlay {
                                     target_window_title,
                                     extra_target_window_titles,
                                     match_duplicate_window_titles,
+                                    bypass_enabled,
                                 )
                             {
                                 return MacroRunFlow::StopExecution;
@@ -8362,10 +8372,11 @@ mod windows_overlay {
                             target_window_title,
                             extra_target_window_titles,
                             match_duplicate_window_titles,
+                            true,
                         );
                     } else {
                         if let Ok(pid) = step.key.trim().parse::<u32>() {
-                            spawn_macro_by_preset_id(pid);
+                            spawn_macro_by_preset_id(pid, true);
                         }
                     }
                 }
@@ -8583,11 +8594,13 @@ mod windows_overlay {
         extra_target_window_titles: &[String],
 
         match_duplicate_window_titles: bool,
+
+        bypass_enabled: bool,
     ) -> MacroRunFlow {
         let mut index = 0usize;
 
         while index < steps.len() {
-            if !is_macro_preset_enabled(preset_id) {
+            if !bypass_enabled && !is_macro_preset_enabled(preset_id) {
                 return MacroRunFlow::StopExecution;
             }
 
@@ -8639,6 +8652,7 @@ mod windows_overlay {
                 target_window_title,
                 extra_target_window_titles,
                 match_duplicate_window_titles,
+                bypass_enabled,
             ) {
                 return MacroRunFlow::StopExecution;
             }
@@ -8668,6 +8682,7 @@ mod windows_overlay {
                                 target_window_title,
                                 extra_target_window_titles,
                                 match_duplicate_window_titles,
+                                bypass_enabled,
                             ) {
                                 MacroRunFlow::BreakLoop => break,
 
@@ -8685,6 +8700,7 @@ mod windows_overlay {
                                     target_window_title,
                                     extra_target_window_titles,
                                     match_duplicate_window_titles,
+                                    bypass_enabled,
                                 )
                             {
                                 return MacroRunFlow::StopExecution;
@@ -8705,6 +8721,7 @@ mod windows_overlay {
                                 target_window_title,
                                 extra_target_window_titles,
                                 match_duplicate_window_titles,
+                                bypass_enabled,
                             ) {
                                 MacroRunFlow::BreakLoop => break,
 
@@ -8722,6 +8739,7 @@ mod windows_overlay {
                                     target_window_title,
                                     extra_target_window_titles,
                                     match_duplicate_window_titles,
+                                    bypass_enabled,
                                 )
                             {
                                 return MacroRunFlow::StopExecution;
@@ -8849,10 +8867,11 @@ mod windows_overlay {
                             target_window_title,
                             extra_target_window_titles,
                             match_duplicate_window_titles,
+                            true,
                         );
                     } else {
                         if let Ok(pid) = step.key.trim().parse::<u32>() {
-                            spawn_macro_by_preset_id(pid);
+                            spawn_macro_by_preset_id(pid, true);
                         }
                     }
                 }
@@ -9033,13 +9052,15 @@ mod windows_overlay {
         extra_target_window_titles: &[String],
 
         match_duplicate_window_titles: bool,
+
+        bypass_enabled: bool,
     ) -> bool {
         if delay_ms == 0 {
             return !macro_runtime_target_matches(
                 target_window_title,
                 extra_target_window_titles,
                 match_duplicate_window_titles,
-            ) || !is_macro_preset_enabled(preset_id)
+            ) || (!bypass_enabled && !is_macro_preset_enabled(preset_id))
                 || !current_hold_run_matches(preset_id, run_token)
                 || (stop_immediately_on_retrigger
                     && STOP_REQUESTED_MACRO_PRESETS.lock().contains(&preset_id));
@@ -9055,7 +9076,7 @@ mod windows_overlay {
                     return true;
                 }
 
-                if !is_macro_preset_enabled_with_guard(preset_id, &hook_state) {
+                if !bypass_enabled && !is_macro_preset_enabled_with_guard(preset_id, &hook_state) {
                     return true;
                 }
 
@@ -9090,7 +9111,7 @@ mod windows_overlay {
             target_window_title,
             extra_target_window_titles,
             match_duplicate_window_titles,
-        ) || !is_macro_preset_enabled(preset_id)
+        ) || (!bypass_enabled && !is_macro_preset_enabled(preset_id))
             || !current_hold_run_matches(preset_id, run_token)
             || (stop_immediately_on_retrigger
                 && STOP_REQUESTED_MACRO_PRESETS.lock().contains(&preset_id))
@@ -9108,13 +9129,15 @@ mod windows_overlay {
         extra_target_window_titles: &[String],
 
         match_duplicate_window_titles: bool,
+
+        bypass_enabled: bool,
     ) -> bool {
         if delay_ms == 0 {
             return !macro_runtime_target_matches(
                 target_window_title,
                 extra_target_window_titles,
                 match_duplicate_window_titles,
-            ) || !is_macro_preset_enabled(preset_id);
+            ) || (!bypass_enabled && !is_macro_preset_enabled(preset_id));
         }
 
         let mut remaining_ms = delay_ms;
@@ -9127,7 +9150,7 @@ mod windows_overlay {
                     return true;
                 }
 
-                if !is_macro_preset_enabled_with_guard(preset_id, &hook_state) {
+                if !bypass_enabled && !is_macro_preset_enabled_with_guard(preset_id, &hook_state) {
                     return true;
                 }
 
@@ -9158,7 +9181,7 @@ mod windows_overlay {
             target_window_title,
             extra_target_window_titles,
             match_duplicate_window_titles,
-        ) || !is_macro_preset_enabled(preset_id)
+        ) || (!bypass_enabled && !is_macro_preset_enabled(preset_id))
             || (stop_immediately_on_retrigger
             && STOP_REQUESTED_MACRO_PRESETS.lock().contains(&preset_id))
     }
@@ -11002,6 +11025,8 @@ mod windows_overlay {
         extra_target_window_titles: &[String],
 
         match_duplicate_window_titles: bool,
+
+        bypass_enabled: bool,
     ) -> Result<()> {
         let preset_id = spec
             .trim()
@@ -11032,6 +11057,7 @@ mod windows_overlay {
             target_window_title,
             extra_target_window_titles,
             match_duplicate_window_titles,
+            bypass_enabled,
         );
 
         Ok(())
@@ -14124,6 +14150,7 @@ mod windows_overlay {
                             target_window_title,
                             extra_target_window_titles,
                             match_duplicate_window_titles,
+                            true,
                         );
                     }
                 }
@@ -16837,7 +16864,7 @@ mod windows_overlay {
 
                             if let Some(t_state) = removed_state {
                                 if let Some(macro_id) = t_state.on_complete_macro_preset_id {
-                                    spawn_macro_by_preset_id(macro_id);
+                                    spawn_macro_by_preset_id(macro_id, true);
                                 }
                             }
                         }
@@ -17021,7 +17048,7 @@ mod windows_overlay {
         request_ui_repaint();
     }
 
-    fn spawn_macro_by_preset_id(preset_id: u32) {
+    fn spawn_macro_by_preset_id(preset_id: u32, bypass_enabled: bool) {
         let preset = {
             let hook_state = HOOK_STATE.lock();
 
@@ -17055,6 +17082,7 @@ mod windows_overlay {
                     None,
                     &[],
                     false,
+                    bypass_enabled,
                 );
 
                 for step in cleanup_steps {
