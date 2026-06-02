@@ -5895,8 +5895,20 @@ impl CrosshairApp {
                                                     );
 
                                                     if !referenced_vars.is_empty() {
+                                                        let active_vars_expanded_id = ui.make_persistent_id(
+                                                            (group.id, preset.id, "active-vars-expanded"),
+                                                        );
+                                                        let mut active_vars_expanded = ui
+                                                            .ctx()
+                                                            .data(|data| {
+                                                                data.get_temp::<bool>(
+                                                                    active_vars_expanded_id,
+                                                                )
+                                                            })
+                                                            .unwrap_or(false);
+
                                                         ui.add_space(4.0);
-                                                        ui.horizontal_wrapped(|ui| {
+                                                        ui.horizontal(|ui| {
                                                             ui.spacing_mut().item_spacing =
                                                                 vec2(4.0, 4.0);
                                                             ui.label(
@@ -5908,50 +5920,92 @@ impl CrosshairApp {
                                                                 .size(11.0)
                                                                 .weak(),
                                                             );
+                                                            let toggle_icon = if active_vars_expanded {
+                                                                0xe5cf
+                                                            } else {
+                                                                0xe5cc
+                                                            };
+                                                            if ui
+                                                                .add_sized(
+                                                                    [20.0, 20.0],
+                                                                    Button::new(
+                                                                        Self::material_icon_text(
+                                                                            toggle_icon,
+                                                                            14.0,
+                                                                        ),
+                                                                    ),
+                                                                )
+                                                                .on_hover_text(Self::tr_lang(
+                                                                    language,
+                                                                    "Show or hide active variables.",
+                                                                    "Show or hide active variables.",
+                                                                ))
+                                                                .clicked()
+                                                            {
+                                                                active_vars_expanded =
+                                                                    !active_vars_expanded;
+                                                            }
+                                                        });
 
-                                                            let vars_map =
-                                                                crate::overlay::RUNTIME_VARIABLES
-                                                                    .lock();
-                                                            for var_name in &referenced_vars {
-                                                                let val =
-                                                                    vars_map.get(var_name).copied();
-                                                                let val_str = val
-                                                                    .map(|v| v.to_string())
-                                                                    .unwrap_or_else(|| {
-                                                                        "?".to_string()
-                                                                    });
-                                                                let (fill_color, stroke_color, text_color) =
-                                                                    Self::active_variable_badge_colors(
+                                                        ui.ctx().data_mut(|data| {
+                                                            data.insert_temp(
+                                                                active_vars_expanded_id,
+                                                                active_vars_expanded,
+                                                            );
+                                                        });
+
+                                                        if active_vars_expanded {
+                                                            ui.horizontal_wrapped(|ui| {
+                                                                ui.spacing_mut().item_spacing =
+                                                                    vec2(4.0, 4.0);
+
+                                                                let vars_map =
+                                                                    crate::overlay::RUNTIME_VARIABLES
+                                                                        .lock();
+                                                                for var_name in &referenced_vars {
+                                                                    let val =
+                                                                        vars_map.get(var_name).copied();
+                                                                    let val_str = val
+                                                                        .map(|v| v.to_string())
+                                                                        .unwrap_or_else(|| {
+                                                                            "?".to_string()
+                                                                        });
+                                                                    let (
+                                                                        fill_color,
+                                                                        stroke_color,
+                                                                        text_color,
+                                                                    ) = Self::active_variable_badge_colors(
                                                                         val.is_some(),
                                                                     );
 
-                                                                egui::Frame::none()
-                                                                    .fill(fill_color)
-                                                                    .stroke(egui::Stroke::new(
-                                                                        1.0,
-                                                                        stroke_color,
-                                                                    ))
-                                                                    .inner_margin(
-                                                                        egui::Margin::symmetric(
-                                                                            6,
-                                                                            2,
-                                                                        ),
-                                                                    )
-                                                                    .rounding(4.0)
-                                                                    .show(ui, |ui| {
-                                                                        ui.label(
-                                                                            RichText::new(format!(
-                                                                                "{} = {}",
-                                                                                var_name,
-                                                                                val_str
-                                                                            ))
-                                                                            .size(11.0)
-                                                                            .strong()
-                                                                            .color(text_color),
-                                                                        );
-                                                                    });
-                                                            }
-                                                        });
+                                                                    egui::Frame::none()
+                                                                        .fill(fill_color)
+                                                                        .stroke(egui::Stroke::new(
+                                                                            1.0,
+                                                                            stroke_color,
+                                                                        ))
+                                                                        .inner_margin(
+                                                                            egui::Margin::symmetric(
+                                                                                6,
+                                                                                2,
+                                                                            ),
+                                                                        )
+                                                                        .rounding(4.0)
+                                                                        .show(ui, |ui| {
+                                                                            ui.label(
+                                                                                RichText::new(format!(
+                                                                                    "{} = {}",
+                                                                                    var_name,
+                                                                                    val_str
+                                                                                ))
+                                                                                .size(11.0)
+                                                                                .strong()
+                                                                                .color(text_color),
+                                                                            );
+                                                                        });
+                                                                }
+                                                            });
+                                                        }
                                                     }
 
                                                 },
@@ -19319,6 +19373,14 @@ impl CrosshairApp {
         job
     }
 
+    fn highlight_job_wrap_width(has_focus: bool, multiline_on_focus: bool, wrap_width: f32) -> f32 {
+        if has_focus && multiline_on_focus {
+            wrap_width
+        } else {
+            f32::INFINITY
+        }
+    }
+
     fn apply_variable_suggestion(
         ui: &mut egui::Ui,
 
@@ -20184,10 +20246,12 @@ impl CrosshairApp {
             }
             TextHighlightMode::VariableTokens => {
                 let mut layouter = |ui: &egui::Ui, string: &dyn TextBuffer, wrap_width: f32| {
+                    let effective_wrap_width =
+                        Self::highlight_job_wrap_width(has_focus, multiline_on_focus, wrap_width);
                     let job = Self::interpolation_highlight_job(
                         ui,
                         string.as_str(),
-                        wrap_width,
+                        effective_wrap_width,
                         egui::TextStyle::Body,
                     );
 
@@ -20200,10 +20264,12 @@ impl CrosshairApp {
             }
             TextHighlightMode::Interpolations => {
                 let mut layouter = |ui: &egui::Ui, string: &dyn TextBuffer, wrap_width: f32| {
+                    let effective_wrap_width =
+                        Self::highlight_job_wrap_width(has_focus, multiline_on_focus, wrap_width);
                     let job = Self::interpolation_highlight_job(
                         ui,
                         string.as_str(),
-                        wrap_width,
+                        effective_wrap_width,
                         egui::TextStyle::Body,
                     );
 
@@ -20377,10 +20443,12 @@ impl CrosshairApp {
             TextHighlightMode::None => ui.put(rect, text_edit),
             TextHighlightMode::VariableTokens => {
                 let mut layouter = |ui: &egui::Ui, string: &dyn TextBuffer, wrap_width: f32| {
+                    let effective_wrap_width =
+                        Self::highlight_job_wrap_width(false, false, wrap_width);
                     let job = Self::interpolation_highlight_job(
                         ui,
                         string.as_str(),
-                        wrap_width,
+                        effective_wrap_width,
                         egui::TextStyle::Monospace,
                     );
 
@@ -20390,10 +20458,12 @@ impl CrosshairApp {
             }
             TextHighlightMode::Interpolations => {
                 let mut layouter = |ui: &egui::Ui, string: &dyn TextBuffer, wrap_width: f32| {
+                    let effective_wrap_width =
+                        Self::highlight_job_wrap_width(false, false, wrap_width);
                     let job = Self::interpolation_highlight_job(
                         ui,
                         string.as_str(),
-                        wrap_width,
+                        effective_wrap_width,
                         egui::TextStyle::Monospace,
                     );
 
