@@ -3284,17 +3284,13 @@ impl CrosshairApp {
                         changed = true;
                     }
                 }
-            });
-
-            if !extras.is_empty() {
-                ui.horizontal(|ui| {
-                    let toggle_label = if extras_expanded {
-                        format!("Hide extra windows ({})", extras.len())
-                    } else {
-                        format!("Extra windows ({})", extras.len())
-                    };
+                if !extras.is_empty() {
+                    let toggle_icon = if extras_expanded { 0xe5cf } else { 0xe5cc };
                     if ui
-                        .add_sized([160.0, 22.0], Button::new(toggle_label))
+                        .add_sized(
+                            [24.0, 24.0],
+                            Button::new(Self::material_icon_text(toggle_icon, 14.0)),
+                        )
                         .on_hover_text(Self::tr_lang(
                             language,
                             "Show or hide the extra target windows list.",
@@ -3304,26 +3300,28 @@ impl CrosshairApp {
                     {
                         extras_expanded = !extras_expanded;
                     }
+                }
+            });
 
-                    let preview = extras
-                        .iter()
-                        .take(2)
-                        .map(|title| Self::simplify_window_title(title))
-                        .collect::<Vec<_>>()
-                        .join(", ");
-                    let preview = if extras.len() > 2 {
-                        format!("{preview} +{}", extras.len() - 2)
-                    } else {
-                        preview
-                    };
-                    if !preview.is_empty() {
-                        ui.label(
-                            RichText::new(Self::truncate_window_title(&preview, 44))
-                                .color(ui.visuals().weak_text_color()),
-                        )
-                        .on_hover_text(preview);
-                    }
-                });
+            if !extras.is_empty() {
+                let preview = extras
+                    .iter()
+                    .take(2)
+                    .map(|title| Self::simplify_window_title(title))
+                    .collect::<Vec<_>>()
+                    .join(", ");
+                let preview = if extras.len() > 2 {
+                    format!("Extra windows ({}) - {preview} +{}", extras.len(), extras.len() - 2)
+                } else {
+                    format!("Extra windows ({}) - {preview}", extras.len())
+                };
+                if !preview.is_empty() {
+                    ui.label(
+                        RichText::new(Self::truncate_window_title(&preview, 60))
+                            .color(ui.visuals().weak_text_color()),
+                    )
+                    .on_hover_text(preview);
+                }
             }
 
             if extras_expanded {
@@ -3564,17 +3562,13 @@ impl CrosshairApp {
                         changed = true;
                     }
                 }
-            });
-
-            if !extras.is_empty() {
-                ui.horizontal(|ui| {
-                    let toggle_label = if extras_expanded {
-                        format!("Hide extra windows ({})", extras.len())
-                    } else {
-                        format!("Extra windows ({})", extras.len())
-                    };
+                if !extras.is_empty() {
+                    let toggle_icon = if extras_expanded { 0xe5cf } else { 0xe5cc };
                     if ui
-                        .add_sized([160.0, 22.0], Button::new(toggle_label))
+                        .add_sized(
+                            [24.0, 24.0],
+                            Button::new(Self::material_icon_text(toggle_icon, 14.0)),
+                        )
                         .on_hover_text(Self::tr_lang(
                             language,
                             "Show or hide the extra target windows list.",
@@ -3584,26 +3578,28 @@ impl CrosshairApp {
                     {
                         extras_expanded = !extras_expanded;
                     }
+                }
+            });
 
-                    let preview = extras
-                        .iter()
-                        .take(2)
-                        .map(|title| Self::simplify_window_title(title))
-                        .collect::<Vec<_>>()
-                        .join(", ");
-                    let preview = if extras.len() > 2 {
-                        format!("{preview} +{}", extras.len() - 2)
-                    } else {
-                        preview
-                    };
-                    if !preview.is_empty() {
-                        ui.label(
-                            RichText::new(Self::truncate_window_title(&preview, 44))
-                                .color(ui.visuals().weak_text_color()),
-                        )
-                        .on_hover_text(preview);
-                    }
-                });
+            if !extras.is_empty() {
+                let preview = extras
+                    .iter()
+                    .take(2)
+                    .map(|title| Self::simplify_window_title(title))
+                    .collect::<Vec<_>>()
+                    .join(", ");
+                let preview = if extras.len() > 2 {
+                    format!("Extra windows ({}) - {preview} +{}", extras.len(), extras.len() - 2)
+                } else {
+                    format!("Extra windows ({}) - {preview}", extras.len())
+                };
+                if !preview.is_empty() {
+                    ui.label(
+                        RichText::new(Self::truncate_window_title(&preview, 60))
+                            .color(ui.visuals().weak_text_color()),
+                    )
+                    .on_hover_text(preview);
+                }
             }
 
             if extras_expanded {
