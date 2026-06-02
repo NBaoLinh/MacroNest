@@ -475,23 +475,6 @@ impl AppPaths {
             });
             !has_unknown
         });
-
-        // Dọn dẹp triệt để các group rác (không chứa bất kỳ macro/preset có ích nào, bất kể tên là gì)
-        state.macro_groups.retain(|group| {
-            let has_useful_preset = group.presets.iter().any(|preset| {
-                preset.hotkey.is_some()
-                    || !preset.trigger_keys.trim().is_empty()
-                    || preset.steps.iter().any(|step| {
-                        (step.action == crate::model::MacroAction::Wait && step.delay_ms > 0)
-                            || (step.action != crate::model::MacroAction::Wait
-                                && step.action != crate::model::MacroAction::KeyPress)
-                            || (step.action == crate::model::MacroAction::KeyPress
-                                && !step.key.trim().is_empty())
-                    })
-            });
-            has_useful_preset
-        });
-
         for preset in &mut state.audio_settings.presets {
             preset.collapsed = true;
         }
