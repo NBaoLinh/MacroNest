@@ -8673,7 +8673,7 @@ impl eframe::App for CrosshairApp {
                 .open(&mut open)
                 .fixed_pos(screen_center)
                 .pivot(egui::Align2::CENTER_CENTER)
-                .default_size(egui::vec2(470.0, 420.0))
+                .default_size(egui::vec2(820.0, 430.0))
                 .resizable(false)
                 .movable(false)
                 .collapsible(false)

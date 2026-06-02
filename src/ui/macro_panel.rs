@@ -286,7 +286,7 @@ impl CrosshairApp {
             .inner_margin(egui::Margin::symmetric(8, 6))
 
             .show(ui, |ui| {
-                ui.set_min_width(420.0);
+                ui.set_min_width(760.0);
 
                 ui.horizontal(|ui| {
 
@@ -319,37 +319,60 @@ impl CrosshairApp {
                         .strong(),
                 );
 
-                ui.label(egui::RichText::new("- random(min, max)").monospace());
-                ui.label(egui::RichText::new("- min(a, b)").monospace());
-                ui.label(egui::RichText::new("- max(a, b)").monospace());
-                ui.label(egui::RichText::new("- abs(a)").monospace());
-                ui.add_space(4.0);
-                ui.label(egui::RichText::new("Dot-style numeric values:").strong());
-                ui.label(egui::RichText::new("- myVar.toNumber").monospace());
-                ui.label(egui::RichText::new("- screen.width  screen.height").monospace());
-                ui.label(
-                    egui::RichText::new("- mouse.x  mouse.y  mouse.sensitivity").monospace(),
-                );
-                ui.label(egui::RichText::new("- volume.level").monospace());
-                ui.label(egui::RichText::new("- window.width  window.height").monospace());
-                ui.label(
-                    egui::RichText::new(
-                        "- system.year month day hour minute second millisecond",
-                    )
-                    .monospace(),
-                );
-                ui.label(
-                    egui::RichText::new(
-                        "- timer1.hour minute second millisecond ms raw total_sec",
-                    )
-                    .monospace(),
-                );
-                ui.label(egui::RichText::new("- TimerName.hour ... total_sec").monospace());
-                ui.add_space(4.0);
-                ui.label(egui::RichText::new("Dot-style text values:").strong());
-                ui.label(egui::RichText::new("- system.date  system.time").monospace());
-                ui.label(egui::RichText::new("- window.title").monospace());
-                ui.label(egui::RichText::new("- clipboard.text").monospace());
+                ui.columns(3, |columns| {
+                    columns[0].label(
+                        egui::RichText::new(Self::tr_lang(language, "Functions", "Ham"))
+                            .strong(),
+                    );
+                    columns[0].label(egui::RichText::new("- random(min, max)").monospace());
+                    columns[0].label(egui::RichText::new("- min(a, b)").monospace());
+                    columns[0].label(egui::RichText::new("- max(a, b)").monospace());
+                    columns[0].label(egui::RichText::new("- abs(a)").monospace());
+                    columns[0].label(egui::RichText::new("- myVar.toNumber").monospace());
+
+                    columns[1].label(
+                        egui::RichText::new(Self::tr_lang(
+                            language,
+                            "Numeric values",
+                            "Gia tri so",
+                        ))
+                        .strong(),
+                    );
+                    columns[1].label(egui::RichText::new("- screen.width").monospace());
+                    columns[1].label(egui::RichText::new("- screen.height").monospace());
+                    columns[1].label(egui::RichText::new("- mouse.x").monospace());
+                    columns[1].label(egui::RichText::new("- mouse.y").monospace());
+                    columns[1].label(egui::RichText::new("- mouse.sensitivity").monospace());
+                    columns[1].label(egui::RichText::new("- volume.level").monospace());
+                    columns[1].label(egui::RichText::new("- window.width").monospace());
+                    columns[1].label(egui::RichText::new("- window.height").monospace());
+
+                    columns[2].label(
+                        egui::RichText::new(Self::tr_lang(
+                            language,
+                            "System and text",
+                            "He thong va text",
+                        ))
+                        .strong(),
+                    );
+                    columns[2].label(
+                        egui::RichText::new("- system.year / month / day").monospace(),
+                    );
+                    columns[2].label(
+                        egui::RichText::new("- system.hour / minute / second").monospace(),
+                    );
+                    columns[2].label(egui::RichText::new("- system.millisecond").monospace());
+                    columns[2].label(egui::RichText::new("- system.date").monospace());
+                    columns[2].label(egui::RichText::new("- system.time").monospace());
+                    columns[2].label(egui::RichText::new("- window.title").monospace());
+                    columns[2].label(egui::RichText::new("- clipboard.text").monospace());
+                    columns[2].label(
+                        egui::RichText::new("- timer1.hour ... total_sec").monospace(),
+                    );
+                    columns[2].label(
+                        egui::RichText::new("- TimerName.hour ... total_sec").monospace(),
+                    );
+                });
 
             });
     }
