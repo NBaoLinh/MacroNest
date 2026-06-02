@@ -617,10 +617,10 @@ impl CrosshairApp {
 
                 if open {
                     if let Some(pointer_pos) = ui.ctx().pointer_hover_pos() {
-                        let mut keep_open_rect = response.rect.expand(2.0);
+                        let mut keep_open_rect = response.rect.expand(10.0);
 
                         if let Some(rect) = popup_rect {
-                            keep_open_rect = keep_open_rect.union(rect.expand(2.0));
+                            keep_open_rect = keep_open_rect.union(rect.expand(10.0));
                         }
 
                         if !keep_open_rect.contains(pointer_pos) {
@@ -787,10 +787,10 @@ impl CrosshairApp {
 
                 if open {
                     if let Some(pointer_pos) = ui.ctx().pointer_hover_pos() {
-                        let mut keep_open_rect = response.rect.expand(2.0);
+                        let mut keep_open_rect = response.rect.expand(10.0);
 
                         if let Some(rect) = popup_rect {
-                            keep_open_rect = keep_open_rect.union(rect.expand(2.0));
+                            keep_open_rect = keep_open_rect.union(rect.expand(10.0));
                         }
 
                         if !keep_open_rect.contains(pointer_pos) {
@@ -1007,10 +1007,10 @@ impl CrosshairApp {
 
                 if open {
                     if let Some(pointer_pos) = ui.ctx().pointer_hover_pos() {
-                        let mut keep_open_rect = response.rect.expand(2.0);
+                        let mut keep_open_rect = response.rect.expand(10.0);
 
                         if let Some(rect) = popup_rect {
-                            keep_open_rect = keep_open_rect.union(rect.expand(2.0));
+                            keep_open_rect = keep_open_rect.union(rect.expand(10.0));
 
                             if rect.contains(pointer_pos) {
                                 ui.ctx().data_mut(|data| {
@@ -1029,7 +1029,7 @@ impl CrosshairApp {
                                 .ctx()
                                 .data(|data| data.get_temp::<egui::Rect>(child_popup_rect_id))
                             {
-                                keep_open_rect = keep_open_rect.union(rect.expand(2.0));
+                                keep_open_rect = keep_open_rect.union(rect.expand(10.0));
                             }
                         }
 
@@ -1205,10 +1205,10 @@ impl CrosshairApp {
 
                 if open {
                     if let Some(pointer_pos) = ui.ctx().pointer_hover_pos() {
-                        let mut keep_open_rect = response.rect.expand(2.0);
+                        let mut keep_open_rect = response.rect.expand(10.0);
 
                         if let Some(rect) = popup_rect {
-                            keep_open_rect = keep_open_rect.union(rect.expand(2.0));
+                            keep_open_rect = keep_open_rect.union(rect.expand(10.0));
 
                             if rect.contains(pointer_pos) {
                                 ui.ctx().data_mut(|data| {
@@ -1394,10 +1394,10 @@ impl CrosshairApp {
 
                 if open {
                     if let Some(pointer_pos) = ui.ctx().pointer_hover_pos() {
-                        let mut keep_open_rect = response.rect.expand(2.0);
+                        let mut keep_open_rect = response.rect.expand(10.0);
 
                         if let Some(rect) = popup_rect {
-                            keep_open_rect = keep_open_rect.union(rect.expand(2.0));
+                            keep_open_rect = keep_open_rect.union(rect.expand(10.0));
 
                             if rect.contains(pointer_pos) {
                                 ui.ctx().data_mut(|data| {
