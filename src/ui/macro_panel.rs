@@ -8090,7 +8090,7 @@ impl CrosshairApp {
 
                     if !image_presets.is_empty() {
 
-                        ui.colored_label(egui::Color32::from_rgb(0, 191, 255), "🖼 Image Detect");
+                        ui.colored_label(egui::Color32::from_rgb(0, 191, 255), "Image Detect");
 
                         ui.separator();
 
@@ -8116,7 +8116,7 @@ impl CrosshairApp {
 
                         }
 
-                        ui.colored_label(egui::Color32::from_rgb(0, 250, 154), "🎨 Color Detect");
+                        ui.colored_label(egui::Color32::from_rgb(0, 250, 154), "Color Detect");
 
                         ui.separator();
 
@@ -8144,7 +8144,7 @@ impl CrosshairApp {
 
                         }
 
-                        ui.colored_label(egui::Color32::from_rgb(255, 165, 0), "🔢 Pixel Counter");
+                        ui.colored_label(egui::Color32::from_rgb(255, 165, 0), "Pixel Counter");
 
                         ui.separator();
 
@@ -9690,7 +9690,7 @@ impl CrosshairApp {
 
                     if !image_presets.is_empty() {
 
-                        ui.colored_label(egui::Color32::from_rgb(0, 191, 255), "🖼 Image Detect");
+                        ui.colored_label(egui::Color32::from_rgb(0, 191, 255), "Image Detect");
 
                         ui.separator();
 
@@ -9716,7 +9716,7 @@ impl CrosshairApp {
 
                         }
 
-                        ui.colored_label(egui::Color32::from_rgb(0, 250, 154), "🎨 Color Detect");
+                        ui.colored_label(egui::Color32::from_rgb(0, 250, 154), "Color Detect");
 
                         ui.separator();
 
@@ -13475,7 +13475,7 @@ impl CrosshairApp {
 
                     if !image_presets.is_empty() {
 
-                        ui.colored_label(egui::Color32::from_rgb(0, 191, 255), "🖼 Image Detect");
+                        ui.colored_label(egui::Color32::from_rgb(0, 191, 255), "Image Detect");
 
                         ui.separator();
 
@@ -13501,7 +13501,7 @@ impl CrosshairApp {
 
                         }
 
-                        ui.colored_label(egui::Color32::from_rgb(0, 250, 154), "🎨 Color Detect");
+                        ui.colored_label(egui::Color32::from_rgb(0, 250, 154), "Color Detect");
 
                         ui.separator();
 
@@ -13529,7 +13529,7 @@ impl CrosshairApp {
 
                         }
 
-                        ui.colored_label(egui::Color32::from_rgb(255, 165, 0), "🔢 Pixel Counter");
+                        ui.colored_label(egui::Color32::from_rgb(255, 165, 0), "Pixel Counter");
 
                         ui.separator();
 
@@ -15178,7 +15178,7 @@ impl CrosshairApp {
 
                     if !image_presets.is_empty() {
 
-                        ui.colored_label(egui::Color32::from_rgb(0, 191, 255), "🖼 Image Detect");
+                        ui.colored_label(egui::Color32::from_rgb(0, 191, 255), "Image Detect");
 
                         ui.separator();
 
@@ -15204,7 +15204,7 @@ impl CrosshairApp {
 
                         }
 
-                        ui.colored_label(egui::Color32::from_rgb(0, 250, 154), "🎨 Color Detect");
+                        ui.colored_label(egui::Color32::from_rgb(0, 250, 154), "Color Detect");
 
                         ui.separator();
 
@@ -15865,7 +15865,7 @@ impl CrosshairApp {
 
                     if !image_presets.is_empty() {
 
-                        ui.colored_label(egui::Color32::from_rgb(0, 191, 255), "🖼 Image Detect");
+                        ui.colored_label(egui::Color32::from_rgb(0, 191, 255), "Image Detect");
 
                         ui.separator();
 
@@ -15891,7 +15891,7 @@ impl CrosshairApp {
 
                         }
 
-                        ui.colored_label(egui::Color32::from_rgb(0, 250, 154), "🎨 Color Detect");
+                        ui.colored_label(egui::Color32::from_rgb(0, 250, 154), "Color Detect");
 
                         ui.separator();
 
@@ -15919,7 +15919,7 @@ impl CrosshairApp {
 
                         }
 
-                        ui.colored_label(egui::Color32::from_rgb(255, 165, 0), "🔢 Pixel Counter");
+                        ui.colored_label(egui::Color32::from_rgb(255, 165, 0), "Pixel Counter");
 
                         ui.separator();
 
@@ -20483,6 +20483,7 @@ impl CrosshairApp {
         response
     }
 }
+
 
 
 
