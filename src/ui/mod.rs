@@ -665,6 +665,7 @@ pub struct CrosshairApp {
     video_preview_cache: HashMap<u32, VideoPreviewCache>,
     video_frame_tx: crossbeam_channel::Sender<crate::media::VideoFrameRequest>,
     video_preview_requested: HashMap<u32, (String, u64)>,
+    window_preview_requested: HashMap<u32, Instant>,
     video_chroma_pick_preset_id: Option<u32>,
     active_video_preview_preset_id: Option<u32>,
     active_video_preview_started_at: Option<Instant>,
@@ -837,6 +838,7 @@ impl CrosshairApp {
             video_preview_cache: HashMap::new(),
             video_frame_tx,
             video_preview_requested: HashMap::new(),
+            window_preview_requested: HashMap::new(),
             video_chroma_pick_preset_id: None,
             active_video_preview_preset_id: None,
             active_video_preview_started_at: None,
@@ -8076,6 +8078,52 @@ impl eframe::App for CrosshairApp {
                         .find(|p| p.id == preset_id)
                     {
                         preset.run_output = Some(output);
+                    }
+                    ctx.request_repaint();
+                }
+                UiCommand::WindowPreviewLoaded {
+                    cache_id,
+                    source_window_key,
+                    source_window_extra_keys,
+                    match_duplicate_window_titles,
+                    frame,
+                } => {
+                    let image = ColorImage::from_rgba_unmultiplied([frame.width, frame.height], &frame.rgba);
+                    if let Some(cache) = self.zoom_preview_cache.get_mut(&cache_id) {
+                        cache.view.texture.set(image, TextureOptions::LINEAR);
+                        cache.updated_at = Instant::now();
+                        cache.source_window_key = source_window_key;
+                        cache.source_window_extra_keys = source_window_extra_keys;
+                        cache.match_duplicate_window_titles = match_duplicate_window_titles;
+                        cache.view.title = frame.title;
+                        cache.view.screen_x = frame.screen_x;
+                        cache.view.screen_y = frame.screen_y;
+                        cache.view.logical_width = frame.logical_width;
+                        cache.view.logical_height = frame.logical_height;
+                    } else {
+                        let texture = ctx.load_texture(
+                            format!("window-preview-{cache_id}"),
+                            image,
+                            TextureOptions::LINEAR,
+                        );
+                        let view = ZoomPreviewView {
+                            texture,
+                            title: frame.title,
+                            screen_x: frame.screen_x,
+                            screen_y: frame.screen_y,
+                            logical_width: frame.logical_width,
+                            logical_height: frame.logical_height,
+                        };
+                        self.zoom_preview_cache.insert(
+                            cache_id,
+                            ZoomPreviewCache {
+                                updated_at: Instant::now(),
+                                source_window_key,
+                                source_window_extra_keys,
+                                match_duplicate_window_titles,
+                                view,
+                            },
+                        );
                     }
                     ctx.request_repaint();
                 }

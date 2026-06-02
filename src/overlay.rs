@@ -676,6 +676,14 @@ mod windows_overlay {
             height: usize,
             rgba: Vec<u8>,
         },
+
+        WindowPreviewLoaded {
+            cache_id: u32,
+            source_window_key: Option<String>,
+            source_window_extra_keys: Vec<String>,
+            match_duplicate_window_titles: bool,
+            frame: crate::window_list::WindowPreviewFrame,
+        },
     }
 
     pub struct OverlayHandle {

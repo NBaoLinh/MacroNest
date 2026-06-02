@@ -2222,52 +2222,38 @@ impl CrosshairApp {
             return Some(cache.view.clone());
         }
 
-        let frame = window_list::capture_window_preview_with_candidates(
-            target_window_title.map(|s| s.as_str()),
-            extra_target_window_titles,
-            match_duplicate_window_titles,
-            720,
-        )?;
-        let image = ColorImage::from_rgba_unmultiplied([frame.width, frame.height], &frame.rgba);
-        let view = if let Some(cache) = self.zoom_preview_cache.get_mut(&cache_id) {
-            cache.view.texture.set(image, TextureOptions::LINEAR);
-            cache.updated_at = Instant::now();
-            cache.source_window_key = target_window_title.cloned();
-            cache.source_window_extra_keys = extra_target_window_titles.to_vec();
-            cache.match_duplicate_window_titles = match_duplicate_window_titles;
-            cache.view.title = frame.title.clone();
-            cache.view.screen_x = frame.screen_x;
-            cache.view.screen_y = frame.screen_y;
-            cache.view.logical_width = frame.logical_width;
-            cache.view.logical_height = frame.logical_height;
-            cache.view.clone()
+        let should_request = if let Some(last_req) = self.window_preview_requested.get(&cache_id) {
+            last_req.elapsed() >= refresh_every
         } else {
-            let texture = ctx.load_texture(
-                format!("window-preview-{cache_id}"),
-                image,
-                TextureOptions::LINEAR,
-            );
-            let view = ZoomPreviewView {
-                texture,
-                title: frame.title.clone(),
-                screen_x: frame.screen_x,
-                screen_y: frame.screen_y,
-                logical_width: frame.logical_width,
-                logical_height: frame.logical_height,
-            };
-            self.zoom_preview_cache.insert(
-                cache_id,
-                ZoomPreviewCache {
-                    updated_at: Instant::now(),
-                    source_window_key: target_window_title.cloned(),
-                    source_window_extra_keys: extra_target_window_titles.to_vec(),
-                    match_duplicate_window_titles,
-                    view: view.clone(),
-                },
-            );
-            view
+            true
         };
-        Some(view)
+
+        if should_request {
+            self.window_preview_requested.insert(cache_id, Instant::now());
+            
+            let ui_tx = self.ui_tx.clone();
+            let target_title = target_window_title.cloned();
+            let extra_titles = extra_target_window_titles.to_vec();
+            
+            std::thread::spawn(move || {
+                if let Some(frame) = crate::window_list::capture_window_preview_with_candidates(
+                    target_title.as_deref(),
+                    &extra_titles,
+                    match_duplicate_window_titles,
+                    720,
+                ) {
+                    let _ = ui_tx.send(crate::overlay::UiCommand::WindowPreviewLoaded {
+                        cache_id,
+                        source_window_key: target_title,
+                        source_window_extra_keys: extra_titles,
+                        match_duplicate_window_titles,
+                        frame,
+                    });
+                }
+            });
+        }
+
+        self.zoom_preview_cache.get(&cache_id).map(|cache| cache.view.clone())
     }
 
     pub(crate) fn zoom_preview_for_preset(
