@@ -18988,7 +18988,7 @@ impl CrosshairApp {
     }
 
     fn builtin_expression_function_suggestions() -> &'static [&'static str] {
-        &["abs()", "min()", "max()", "random()", "var.toNumber"]
+        &["abs()", "min()", "max()", "random()"]
     }
 
     fn object_property_suggestions(base: &str) -> Option<&'static [&'static str]> {
@@ -19073,7 +19073,6 @@ impl CrosshairApp {
             "min()" => "min(a, b)".to_string(),
             "max()" => "max(a, b)".to_string(),
             "random()" => "random(min, max)".to_string(),
-            "var.toNumber" => "var.toNumber".to_string(),
             _ => Self::timer_suggestion_label(suggestion, timer_names),
         }
     }
