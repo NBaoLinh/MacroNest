@@ -494,6 +494,10 @@ mod windows_overlay {
 
         PlayVideoPreset(u32),
 
+        PlayVideoPresetFrom(u32, u64),
+
+        StopVideoPlayback,
+
         SetMacrosMasterEnabled(bool),
 
         UpdateVisionSettings(VisionSettings),
@@ -684,6 +688,8 @@ mod windows_overlay {
             match_duplicate_window_titles: bool,
             frame: crate::window_list::WindowPreviewFrame,
         },
+
+        VideoPlaybackFinished(u32),
     }
 
     pub struct OverlayHandle {
@@ -4921,6 +4927,14 @@ mod windows_overlay {
                     let _ = play_video_preset_by_id(preset_id);
                 }
 
+                OverlayCommand::PlayVideoPresetFrom(preset_id, start_ms) => {
+                    let _ = play_video_preset_by_id_from(preset_id, start_ms);
+                }
+
+                OverlayCommand::StopVideoPlayback => {
+                    stop_active_video_preset_playback();
+                }
+
                 OverlayCommand::SetMacrosMasterEnabled(enabled) => {
                     let mut hook_state = HOOK_STATE.lock();
 
@@ -7185,7 +7199,25 @@ mod windows_overlay {
                 .context("Video preset was not found")?
         };
 
-        spawn_video_preset_playback(preset);
+        let start_ms = preset.clip.start_ms;
+        spawn_video_preset_playback_from(preset, start_ms);
+
+        Ok(())
+    }
+
+    fn play_video_preset_by_id_from(preset_id: u32, start_ms: u64) -> Result<()> {
+        let preset = {
+            let hook_state = HOOK_STATE.lock();
+
+            hook_state
+                .video_presets
+                .iter()
+                .find(|preset| preset.id == preset_id)
+                .cloned()
+                .context("Video preset was not found")?
+        };
+
+        spawn_video_preset_playback_from(preset, start_ms);
 
         Ok(())
     }
@@ -7201,7 +7233,7 @@ mod windows_overlay {
         }
     }
 
-    fn spawn_video_preset_playback(preset: VideoPreset) {
+    fn spawn_video_preset_playback_from(preset: VideoPreset, start_ms: u64) {
         if preset.clip.file_path.trim().is_empty() {
             return;
         }
@@ -7216,7 +7248,7 @@ mod windows_overlay {
         }
 
         thread::spawn(move || {
-            let _ = unsafe { run_video_preset_window(&preset, stop_flag.clone()) };
+            let _ = unsafe { run_video_preset_window(&preset, start_ms, stop_flag.clone()) };
 
             let mut guard = ACTIVE_VIDEO_STOP.lock();
 
@@ -7230,7 +7262,7 @@ mod windows_overlay {
 
     unsafe fn run_video_preset_window(
         preset: &VideoPreset,
-
+        start_ms: u64,
         stop_flag: Arc<AtomicBool>,
     ) -> Result<()> {
         let screen_w = GetSystemMetrics(SM_CXSCREEN).max(1);
@@ -7292,7 +7324,7 @@ mod windows_overlay {
         let old_bitmap = SelectObject(mem_dc, HGDIOBJ(bitmap.0));
 
         let (mut capture, metadata) =
-            media::open_video_capture(&preset.clip.file_path, preset.clip.start_ms)?;
+            media::open_video_capture(&preset.clip.file_path, start_ms)?;
 
         let chroma_key = if preset.clip.chroma_key_enabled {
             Some((
@@ -7334,7 +7366,7 @@ mod windows_overlay {
 
         let _ = audio::play_video_audio_preview(
             &preset.clip.file_path,
-            preset.clip.start_ms,
+            start_ms,
             clip_end_ms,
         );
 
@@ -7360,7 +7392,7 @@ mod windows_overlay {
                 break;
             }
 
-            let elapsed_video_ms = position_ms.saturating_sub(preset.clip.start_ms);
+            let elapsed_video_ms = position_ms.saturating_sub(start_ms);
 
             let elapsed_real_ms = playback_start.elapsed().as_millis() as u64;
 
@@ -7457,6 +7489,14 @@ mod windows_overlay {
         let _ = DestroyWindow(hwnd);
 
         audio::stop_video_audio_preview();
+
+        let ui_tx = {
+            let state = HOOK_STATE.lock();
+            state.ui_tx.clone()
+        };
+        if let Some(tx) = ui_tx {
+            let _ = tx.send(UiCommand::VideoPlaybackFinished(preset.id));
+        }
 
         Ok(())
     }
@@ -17155,6 +17195,10 @@ mod fallback {
 
         PlayVideoPreset(u32),
 
+        PlayVideoPresetFrom(u32, u64),
+
+        StopVideoPlayback,
+
         UpdateKeyboardArrowMouseSettings {
             enabled: bool,
 
@@ -17198,6 +17242,8 @@ mod fallback {
         MacroRealtimeStepRemoved(u32, u32),
 
         CustomCommandResult { preset_id: u32, output: String },
+
+        VideoPlaybackFinished(u32),
     }
 
     pub struct OverlayHandle;

@@ -1636,8 +1636,8 @@ impl CrosshairApp {
                         .inner
                         .on_hover_text(Self::tr_lang(
                             language,
-                            "Preview inside the app",
-                            "Preview inside the app",
+                            "Preview overlay video",
+                            "Xem thử video overlay",
                         ))
                         .clicked()
                     {
@@ -1916,20 +1916,17 @@ impl CrosshairApp {
         }
 
         if stop_video_preview {
-            self.stop_active_video_preview();
+            self.stop_active_video_overlay_preview();
         }
 
-        if let Some((preset_id, start_ms, clip)) = preview_video_request {
-            if let Err(error) = self.start_video_preview(preset_id, &clip, start_ms) {
-                self.status = error.to_string();
-            } else {
-                self.status = Self::tr_lang(
-                    language,
-                    "Previewing video inside the app.",
-                    "Previewing video inside the app.",
-                )
-                .to_owned();
-            }
+        if let Some((preset_id, start_ms, _clip)) = preview_video_request {
+            self.start_active_video_overlay_preview(preset_id, start_ms);
+            self.status = Self::tr_lang(
+                language,
+                "Previewing video overlay.",
+                "Đang xem thử video overlay.",
+            )
+            .to_owned();
         }
 
         if changed {
