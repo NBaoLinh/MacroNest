@@ -5894,7 +5894,7 @@ impl CrosshairApp {
 
                                                     );
 
-                                                    if !referenced_vars.is_empty() {
+                                                    if !preset.collapsed && !referenced_vars.is_empty() {
                                                         let active_vars_expanded_id = ui.make_persistent_id(
                                                             (group.id, preset.id, "active-vars-expanded"),
                                                         );

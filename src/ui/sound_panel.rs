@@ -1,6 +1,5 @@
 use crate::audio;
 use crate::model::*;
-use crate::overlay::OverlayCommand;
 use crate::ui::{AudioCardOutcome, AudioEditorTarget, CrosshairApp, video_duration};
 use eframe::egui::{self, *};
 
@@ -814,6 +813,7 @@ impl CrosshairApp {
         id_source: impl std::hash::Hash + Copy,
         clip: &mut VideoClipSettings,
         total_ms: u64,
+        waveform: Option<&[f32]>,
         preview_cursor_ms: &mut u64,
         trim_timeline_zoom: &mut f32,
         desired_height: f32,
@@ -951,13 +951,38 @@ impl CrosshairApp {
                         },
                     );
 
-                    painter.line_segment(
-                        [
-                            egui::pos2(rect.left(), rect.center().y),
-                            egui::pos2(rect.right(), rect.center().y),
-                        ],
-                        Stroke::new(2.0, Color32::from_gray(120)),
-                    );
+                    if let Some(waveform) = waveform.filter(|waveform| !waveform.is_empty()) {
+                        let bar_width = rect.width() / waveform.len().max(1) as f32;
+                        let wave_color = if dark_theme {
+                            Color32::from_rgb(112, 188, 206)
+                        } else {
+                            Color32::from_rgb(86, 118, 160)
+                        };
+                        for (index, level) in waveform.iter().enumerate() {
+                            let amplitude = level.clamp(0.04, 1.0);
+                            let center_x = rect.left() + (index as f32 + 0.5) * bar_width;
+                            let half_height = amplitude * rect.height() * 0.42;
+                            let wave_rect = egui::Rect::from_min_max(
+                                egui::pos2(
+                                    center_x - (bar_width * 0.35).max(1.0),
+                                    rect.center().y - half_height,
+                                ),
+                                egui::pos2(
+                                    center_x + (bar_width * 0.35).max(1.0),
+                                    rect.center().y + half_height,
+                                ),
+                            );
+                            painter.rect_filled(wave_rect, 1.0, wave_color);
+                        }
+                    } else {
+                        painter.line_segment(
+                            [
+                                egui::pos2(rect.left(), rect.center().y),
+                                egui::pos2(rect.right(), rect.center().y),
+                            ],
+                            Stroke::new(2.0, Color32::from_gray(120)),
+                        );
+                    }
 
                     painter.line_segment(
                         [
@@ -1464,13 +1489,16 @@ impl CrosshairApp {
         ui.label(RichText::new(Self::tr_lang(language, "Video Presets", "Preset video")).strong());
 
         let mut remove_video_preset = None;
-        let mut preview_video_request: Option<(u32, u64)> = None;
+        let mut preview_video_request: Option<(u32, u64, VideoClipSettings)> = None;
         let mut stop_video_preview = false;
         let mut hovered_video_timeline: Option<(u32, u64, u64, bool, bool, bool)> = None;
         for index in 0..self.state.audio_settings.video_presets.len() {
             let preset_id = self.state.audio_settings.video_presets[index].id;
             let clip_snapshot = self.state.audio_settings.video_presets[index].clip.clone();
             let mut choose_video_for = None;
+            let waveform_path = clip_snapshot.file_path.trim().to_owned();
+            self.refresh_audio_waveform_for_path(&waveform_path);
+            let waveform = self.audio_waveforms.get(&waveform_path).cloned();
             let mut duration = self
                 .video_preset_clip_duration_ms
                 .get(&preset_id)
@@ -1482,6 +1510,27 @@ impl CrosshairApp {
                 .get(&preset_id)
                 .copied()
                 .unwrap_or(clip_snapshot.start_ms);
+            let clip_end_ms = if clip_snapshot.end_ms > clip_snapshot.start_ms {
+                clip_snapshot.end_ms
+            } else {
+                duration
+                    .filter(|duration_ms| *duration_ms > clip_snapshot.start_ms)
+                    .unwrap_or(clip_snapshot.start_ms.saturating_add(1))
+            };
+            if self.active_video_preview_preset_id == Some(preset_id) {
+                if let Some(started_at) = self.active_video_preview_started_at {
+                    let elapsed_ms = started_at.elapsed().as_millis() as u64;
+                    preview_cursor_ms = (self.active_video_preview_start_ms + elapsed_ms)
+                        .min(clip_end_ms.max(self.active_video_preview_start_ms));
+                    if preview_cursor_ms >= clip_end_ms {
+                        stop_video_preview = true;
+                    } else {
+                        ui.ctx().request_repaint();
+                    }
+                } else {
+                    stop_video_preview = true;
+                }
+            }
             if let Some(total_ms) = duration {
                 preview_cursor_ms = preview_cursor_ms.min(total_ms);
             }
@@ -1587,15 +1636,16 @@ impl CrosshairApp {
                         .inner
                         .on_hover_text(Self::tr_lang(
                             language,
-                            "Preview fullscreen",
-                            "Xem thử fullscreen",
+                            "Preview inside the app",
+                            "Preview inside the app",
                         ))
                         .clicked()
                     {
                         if previewing_this_preset {
                             stop_video_preview = true;
                         } else {
-                            preview_video_request = Some((preset.id, preview_cursor_ms));
+                            preview_video_request =
+                                Some((preset.id, preview_cursor_ms, preset.clip.clone()));
                         }
                     }
                     let pick_active = self.video_chroma_pick_preset_id == Some(preset.id);
@@ -1713,6 +1763,7 @@ impl CrosshairApp {
                                 ("video-trim", preset.id),
                                 &mut preset.clip,
                                 total_ms,
+                                waveform.as_deref(),
                                 &mut preview_cursor_ms,
                                 &mut self.trim_timeline_zoom,
                                 112.0,
@@ -1820,12 +1871,28 @@ impl CrosshairApp {
         {
             if has_file {
                 if preview_from_trim_start {
-                    preview_video_request = Some((preset_id, clip_start_ms));
+                    if let Some(clip) = self
+                        .state
+                        .audio_settings
+                        .video_presets
+                        .iter()
+                        .find(|preset| preset.id == preset_id)
+                        .map(|preset| preset.clip.clone())
+                    {
+                        preview_video_request = Some((preset_id, clip_start_ms, clip));
+                    }
                 } else if preview_at_playhead {
                     if self.active_video_preview_preset_id == Some(preset_id) {
                         stop_video_preview = true;
-                    } else {
-                        preview_video_request = Some((preset_id, preview_cursor_ms));
+                    } else if let Some(clip) = self
+                        .state
+                        .audio_settings
+                        .video_presets
+                        .iter()
+                        .find(|preset| preset.id == preset_id)
+                        .map(|preset| preset.clip.clone())
+                    {
+                        preview_video_request = Some((preset_id, preview_cursor_ms, clip));
                     }
                 }
             }
@@ -1834,7 +1901,6 @@ impl CrosshairApp {
         if let Some(preset_id) = remove_video_preset {
             if self.active_video_preview_preset_id == Some(preset_id) {
                 stop_video_preview = true;
-                self.active_video_preview_preset_id = None;
             }
             self.state
                 .audio_settings
@@ -1850,23 +1916,20 @@ impl CrosshairApp {
         }
 
         if stop_video_preview {
-            let _ = self
-                .overlay_tx
-                .send(OverlayCommand::StopVideoPresetPlayback);
-            self.active_video_preview_preset_id = None;
+            self.stop_active_video_preview();
         }
 
-        if let Some((preset_id, start_ms)) = preview_video_request {
-            let _ = self
-                .overlay_tx
-                .send(OverlayCommand::PlayVideoPresetFromMs { preset_id, start_ms });
-            self.active_video_preview_preset_id = Some(preset_id);
-            self.status = Self::tr_lang(
-                language,
-                "Playing video preset fullscreen.",
-                "Đang phát preset video fullscreen.",
-            )
-            .to_owned();
+        if let Some((preset_id, start_ms, clip)) = preview_video_request {
+            if let Err(error) = self.start_video_preview(preset_id, &clip, start_ms) {
+                self.status = error.to_string();
+            } else {
+                self.status = Self::tr_lang(
+                    language,
+                    "Previewing video inside the app.",
+                    "Previewing video inside the app.",
+                )
+                .to_owned();
+            }
         }
 
         if changed {

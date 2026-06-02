@@ -484,26 +484,52 @@ pub fn load_waveform(path: &str, buckets: usize) -> Result<Vec<f32>> {
         bail!("Audio file was not found");
     }
 
-    let mut decoder = open_decoder(path)?;
     let bucket_count = buckets.max(32);
-    let estimated_total_samples = decoder.total_duration().map(|duration| {
-        (duration.as_secs_f64() * decoder.sample_rate() as f64 * decoder.channels() as f64).round()
-            as usize
-    });
+
+    if let Ok(mut decoder) = open_decoder(path) {
+        let estimated_total_samples = decoder.total_duration().map(|duration| {
+            (duration.as_secs_f64() * decoder.sample_rate() as f64 * decoder.channels() as f64)
+                .round() as usize
+        });
+        let samples_per_bucket = estimated_total_samples
+            .map(|total| (total / bucket_count).max(1))
+            .unwrap_or(2048);
+        let mut samples = Vec::new();
+        for sample in decoder.by_ref() {
+            samples.push(sample);
+        }
+        return Ok(normalize_waveform_peaks(
+            &samples,
+            bucket_count,
+            samples_per_bucket,
+        ));
+    }
+
+    let decoded = decode_media_audio(path)?;
+    let estimated_total_samples = Some(decoded.samples.len());
     let samples_per_bucket = estimated_total_samples
         .map(|total| (total / bucket_count).max(1))
         .unwrap_or(2048);
+    Ok(normalize_waveform_peaks(
+        &decoded.samples,
+        bucket_count,
+        samples_per_bucket,
+    ))
+}
 
+fn normalize_waveform_peaks(
+    samples: &[f32],
+    bucket_count: usize,
+    samples_per_bucket: usize,
+) -> Vec<f32> {
     let mut peaks = vec![0.0f32; bucket_count];
-    let mut sample_index = 0usize;
-    for sample in decoder.by_ref() {
-        let bucket = (sample_index / samples_per_bucket).min(bucket_count - 1);
-        peaks[bucket] = peaks[bucket].max(sample.abs());
-        sample_index += 1;
+    if samples.is_empty() {
+        return peaks;
     }
 
-    if sample_index == 0 {
-        return Ok(peaks);
+    for (sample_index, sample) in samples.iter().enumerate() {
+        let bucket = (sample_index / samples_per_bucket).min(bucket_count - 1);
+        peaks[bucket] = peaks[bucket].max(sample.abs());
     }
 
     let peak_max = peaks
@@ -516,7 +542,7 @@ pub fn load_waveform(path: &str, buckets: usize) -> Result<Vec<f32>> {
         }
     }
 
-    Ok(peaks)
+    peaks
 }
 
 fn clipped_source_from_ms(

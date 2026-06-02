@@ -665,6 +665,8 @@ pub struct CrosshairApp {
     video_preview_cache: HashMap<u32, VideoPreviewCache>,
     video_chroma_pick_preset_id: Option<u32>,
     active_video_preview_preset_id: Option<u32>,
+    active_video_preview_started_at: Option<Instant>,
+    active_video_preview_start_ms: u64,
     vision_color_pick_texture: Option<TextureHandle>,
     vision_color_pick_preview_color: Option<RgbaColor>,
     vietnamese_input_enabled_texture: Option<TextureHandle>,
@@ -832,6 +834,8 @@ impl CrosshairApp {
             video_preview_cache: HashMap::new(),
             video_chroma_pick_preset_id: None,
             active_video_preview_preset_id: None,
+            active_video_preview_started_at: None,
+            active_video_preview_start_ms: 0,
             vision_color_pick_texture: None,
             vision_color_pick_preview_color: None,
             vietnamese_input_enabled_texture: None,
@@ -1820,6 +1824,7 @@ impl CrosshairApp {
         let duration = crate::media::load_video_metadata(&path_str)
             .ok()
             .map(|meta| meta.duration_ms);
+        self.stop_active_video_preview();
         self.clear_video_preview_for_preset(preset_id);
         if let Some(preset) = self
             .state
@@ -1828,13 +1833,14 @@ impl CrosshairApp {
             .iter_mut()
             .find(|preset| preset.id == preset_id)
         {
-            preset.clip.file_path = path_str;
+            preset.clip.file_path = path_str.clone();
             preset.clip.start_ms = 0;
             preset.clip.end_ms = duration.unwrap_or(0);
             preset.clip.enabled = true;
             self.video_preset_clip_duration_ms
                 .insert(preset_id, duration);
             self.video_preview_cursor_ms.insert(preset_id, 0);
+            self.refresh_audio_waveform_for_path(&path_str);
             self.sync_audio_settings();
             self.persist();
         }
@@ -1961,6 +1967,43 @@ impl CrosshairApp {
             view
         };
         Some(view)
+    }
+
+    fn start_video_preview(
+        &mut self,
+        preset_id: u32,
+        clip: &VideoClipSettings,
+        start_ms: u64,
+    ) -> anyhow::Result<()> {
+        let trimmed = clip.file_path.trim();
+        if trimmed.is_empty() {
+            anyhow::bail!("Choose a video file first");
+        }
+
+        let clip_end_ms = if clip.end_ms > clip.start_ms {
+            clip.end_ms
+        } else {
+            crate::media::load_video_metadata(trimmed)
+                .ok()
+                .map(|meta| meta.duration_ms)
+                .filter(|duration_ms| *duration_ms > start_ms)
+                .unwrap_or(start_ms.saturating_add(1))
+        };
+        let next_start_ms = start_ms.min(clip_end_ms.saturating_sub(1));
+
+        crate::audio::play_video_audio_preview(trimmed, next_start_ms, clip_end_ms)?;
+        self.active_video_preview_preset_id = Some(preset_id);
+        self.active_video_preview_started_at = Some(Instant::now());
+        self.active_video_preview_start_ms = next_start_ms;
+        self.video_preview_cursor_ms.insert(preset_id, next_start_ms);
+        Ok(())
+    }
+
+    fn stop_active_video_preview(&mut self) {
+        crate::audio::stop_video_audio_preview();
+        self.active_video_preview_preset_id = None;
+        self.active_video_preview_started_at = None;
+        self.active_video_preview_start_ms = 0;
     }
 
     fn clear_video_preview_for_preset(&mut self, preset_id: u32) {
@@ -8069,6 +8112,19 @@ impl eframe::App for CrosshairApp {
                     for item in &mut self.state.audio_settings.library {
                         if item.clip.file_path.trim() == path {
                             self.library_clip_duration_ms.insert(item.id, duration_ms);
+                        }
+                    }
+                    for preset in &mut self.state.audio_settings.video_presets {
+                        if preset.clip.file_path.trim() == path
+                            && self
+                                .video_preset_clip_duration_ms
+                                .get(&preset.id)
+                                .copied()
+                                .flatten()
+                                .is_none()
+                        {
+                            self.video_preset_clip_duration_ms
+                                .insert(preset.id, duration_ms);
                         }
                     }
                     if self.state.audio_settings.startup.file_path.trim() == path {
