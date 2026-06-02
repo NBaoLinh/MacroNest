@@ -8,6 +8,8 @@ use eframe::egui::{self, *};
 struct VideoTrimTimelineOutcome {
     changed: bool,
     hovered: bool,
+    preview_at_playhead: bool,
+    preview_from_trim_start: bool,
 }
 
 impl CrosshairApp {
@@ -1017,7 +1019,13 @@ impl CrosshairApp {
                     let pan_right = ui.input(|input| input.key_down(egui::Key::D));
                     let keyboard_panning = pan_left ^ pan_right;
                     let timeline_hovered = response.hovered() || hovered_pointer_pos.is_some();
-                    outcome.hovered = timeline_hovered;
+                    outcome.hovered = timeline_hovered && !keyboard_panning;
+                    outcome.preview_at_playhead = outcome.hovered
+                        && !ui.ctx().wants_keyboard_input()
+                        && ui.input(|input| input.key_pressed(egui::Key::Space));
+                    outcome.preview_from_trim_start = outcome.hovered
+                        && !ui.ctx().wants_keyboard_input()
+                        && ui.input(|input| input.key_pressed(egui::Key::S));
                     let showing_hover_preview = hovered_pointer_pos.is_some()
                         && !keyboard_panning
                         && !start_response.is_pointer_button_down_on()
@@ -1456,11 +1464,9 @@ impl CrosshairApp {
         ui.label(RichText::new(Self::tr_lang(language, "Video Presets", "Preset video")).strong());
 
         let mut remove_video_preset = None;
-        let space_pressed = ui.input(|input| input.key_pressed(egui::Key::Space));
-        let s_pressed = ui.input(|input| input.key_pressed(egui::Key::S));
         let mut preview_video_request: Option<(u32, u64)> = None;
         let mut stop_video_preview = false;
-        let mut hovered_video_timeline: Option<(u32, u64, u64, bool)> = None;
+        let mut hovered_video_timeline: Option<(u32, u64, u64, bool, bool, bool)> = None;
         for index in 0..self.state.audio_settings.video_presets.len() {
             let preset_id = self.state.audio_settings.video_presets[index].id;
             let clip_snapshot = self.state.audio_settings.video_presets[index].clip.clone();
@@ -1718,6 +1724,8 @@ impl CrosshairApp {
                                     preview_cursor_ms,
                                     preset.clip.start_ms,
                                     !preset.clip.file_path.trim().is_empty(),
+                                    timeline_outcome.preview_at_playhead,
+                                    timeline_outcome.preview_from_trim_start,
                                 ));
                             }
                             ui.add_space(1.0);
@@ -1801,12 +1809,19 @@ impl CrosshairApp {
             }
         }
 
-        if let Some((preset_id, preview_cursor_ms, clip_start_ms, has_file)) = hovered_video_timeline
+        if let Some((
+            preset_id,
+            preview_cursor_ms,
+            clip_start_ms,
+            has_file,
+            preview_at_playhead,
+            preview_from_trim_start,
+        )) = hovered_video_timeline
         {
             if has_file {
-                if s_pressed {
+                if preview_from_trim_start {
                     preview_video_request = Some((preset_id, clip_start_ms));
-                } else if space_pressed {
+                } else if preview_at_playhead {
                     if self.active_video_preview_preset_id == Some(preset_id) {
                         stop_video_preview = true;
                     } else {
@@ -1814,8 +1829,6 @@ impl CrosshairApp {
                     }
                 }
             }
-        } else if space_pressed && self.active_video_preview_preset_id.is_some() {
-            stop_video_preview = true;
         }
 
         if let Some(preset_id) = remove_video_preset {
