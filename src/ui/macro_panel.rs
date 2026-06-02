@@ -5898,6 +5898,57 @@ impl CrosshairApp {
                                                         let active_vars_expanded_id = ui.make_persistent_id(
                                                             (group.id, preset.id, "active-vars-expanded"),
                                                         );
+                                                        let active_vars_label = Self::tr_lang(
+                                                            language,
+                                                            "Active Variables:",
+                                                            "Active Variables:",
+                                                        );
+                                                        let label_font =
+                                                            egui::FontId::new(11.0, egui::FontFamily::Proportional);
+                                                        let badge_font =
+                                                            egui::FontId::new(11.0, egui::FontFamily::Proportional);
+                                                        let label_width = ui
+                                                            .painter()
+                                                            .layout_no_wrap(
+                                                                active_vars_label.to_owned(),
+                                                                label_font,
+                                                                ui.visuals().weak_text_color(),
+                                                            )
+                                                            .size()
+                                                            .x;
+                                                        let vars_map =
+                                                            crate::overlay::RUNTIME_VARIABLES.lock();
+                                                        let badge_width_sum: f32 = referenced_vars
+                                                            .iter()
+                                                            .map(|var_name| {
+                                                                let val_str = vars_map
+                                                                    .get(var_name)
+                                                                    .copied()
+                                                                    .map(|v| v.to_string())
+                                                                    .unwrap_or_else(|| "?".to_string());
+                                                                let badge_text =
+                                                                    format!("{} = {}", var_name, val_str);
+                                                                ui.painter()
+                                                                    .layout_no_wrap(
+                                                                        badge_text,
+                                                                        badge_font.clone(),
+                                                                        ui.visuals().text_color(),
+                                                                    )
+                                                                    .size()
+                                                                    .x
+                                                                    + 14.0
+                                                            })
+                                                            .sum();
+                                                        drop(vars_map);
+                                                        let badge_gap_width = if referenced_vars.is_empty() {
+                                                            0.0
+                                                        } else {
+                                                            4.0 * referenced_vars.len().saturating_sub(1) as f32
+                                                        };
+                                                        let available_vars_width = ui.available_width().max(0.0);
+                                                        let active_vars_overflow =
+                                                            label_width + 8.0 + badge_width_sum + badge_gap_width
+                                                                > available_vars_width;
                                                         let mut active_vars_expanded = ui
                                                             .ctx()
                                                             .data(|data| {
@@ -5905,45 +5956,46 @@ impl CrosshairApp {
                                                                     active_vars_expanded_id,
                                                                 )
                                                             })
-                                                            .unwrap_or(false);
+                                                            .unwrap_or(true);
+                                                        if !active_vars_overflow {
+                                                            active_vars_expanded = true;
+                                                        }
 
                                                         ui.add_space(4.0);
                                                         ui.horizontal(|ui| {
                                                             ui.spacing_mut().item_spacing =
                                                                 vec2(4.0, 4.0);
                                                             ui.label(
-                                                                RichText::new(Self::tr_lang(
-                                                                    language,
-                                                                    "Active Variables:",
-                                                                    "Active Variables:",
-                                                                ))
+                                                                RichText::new(active_vars_label)
                                                                 .size(11.0)
                                                                 .weak(),
                                                             );
-                                                            let toggle_icon = if active_vars_expanded {
-                                                                0xe5cf
-                                                            } else {
-                                                                0xe5cc
-                                                            };
-                                                            if ui
-                                                                .add_sized(
-                                                                    [20.0, 20.0],
-                                                                    Button::new(
-                                                                        Self::material_icon_text(
-                                                                            toggle_icon,
-                                                                            14.0,
+                                                            if active_vars_overflow {
+                                                                let toggle_icon = if active_vars_expanded {
+                                                                    0xe5cf
+                                                                } else {
+                                                                    0xe5cc
+                                                                };
+                                                                if ui
+                                                                    .add_sized(
+                                                                        [20.0, 20.0],
+                                                                        Button::new(
+                                                                            Self::material_icon_text(
+                                                                                toggle_icon,
+                                                                                14.0,
+                                                                            ),
                                                                         ),
-                                                                    ),
-                                                                )
-                                                                .on_hover_text(Self::tr_lang(
-                                                                    language,
-                                                                    "Show or hide active variables.",
-                                                                    "Show or hide active variables.",
-                                                                ))
-                                                                .clicked()
-                                                            {
-                                                                active_vars_expanded =
-                                                                    !active_vars_expanded;
+                                                                    )
+                                                                    .on_hover_text(Self::tr_lang(
+                                                                        language,
+                                                                        "Show or hide active variables.",
+                                                                        "Show or hide active variables.",
+                                                                    ))
+                                                                    .clicked()
+                                                                {
+                                                                    active_vars_expanded =
+                                                                        !active_vars_expanded;
+                                                                }
                                                             }
                                                         });
 
