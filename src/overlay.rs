@@ -493,6 +493,8 @@ mod windows_overlay {
         UpdateAudioSettings(AudioSettings),
 
         PlayVideoPreset(u32),
+        PlayVideoPresetFromMs { preset_id: u32, start_ms: u64 },
+        StopVideoPresetPlayback,
 
         SetMacrosMasterEnabled(bool),
 
@@ -4902,6 +4904,14 @@ mod windows_overlay {
                     let _ = play_video_preset_by_id(preset_id);
                 }
 
+                OverlayCommand::PlayVideoPresetFromMs { preset_id, start_ms } => {
+                    let _ = play_video_preset_from_ms_by_id(preset_id, start_ms);
+                }
+
+                OverlayCommand::StopVideoPresetPlayback => {
+                    stop_active_video_preset_playback();
+                }
+
                 OverlayCommand::SetMacrosMasterEnabled(enabled) => {
                     let mut hook_state = HOOK_STATE.lock();
 
@@ -7169,23 +7179,58 @@ mod windows_overlay {
         Ok(())
     }
 
+    fn play_video_preset_from_ms_by_id(preset_id: u32, start_ms: u64) -> Result<()> {
+        let mut preset = {
+            let hook_state = HOOK_STATE.lock();
+
+            hook_state
+                .video_presets
+                .iter()
+                .find(|preset| preset.id == preset_id)
+                .cloned()
+                .context("Video preset was not found")?
+        };
+
+        let clip_end_ms = if preset.clip.end_ms > preset.clip.start_ms {
+            preset.clip.end_ms
+        } else {
+            u64::MAX
+        };
+        let next_start_ms = if clip_end_ms == u64::MAX {
+            start_ms
+        } else {
+            start_ms.min(clip_end_ms.saturating_sub(1))
+        };
+        preset.clip.start_ms = next_start_ms;
+
+        spawn_video_preset_playback(preset);
+
+        Ok(())
+    }
+
+    fn stop_active_video_preset_playback() {
+        audio::stop_video_audio_preview();
+        let previous = {
+            let mut guard = ACTIVE_VIDEO_STOP.lock();
+            guard.take()
+        };
+        if let Some(previous) = previous {
+            previous.store(true, Ordering::Relaxed);
+        }
+    }
+
     fn spawn_video_preset_playback(preset: VideoPreset) {
         if preset.clip.file_path.trim().is_empty() {
             return;
         }
 
-        audio::stop_video_audio_preview();
+        stop_active_video_preset_playback();
 
         let stop_flag = Arc::new(AtomicBool::new(false));
 
-        let previous = {
+        {
             let mut guard = ACTIVE_VIDEO_STOP.lock();
-
-            guard.replace(stop_flag.clone())
-        };
-
-        if let Some(previous) = previous {
-            previous.store(true, Ordering::Relaxed);
+            guard.replace(stop_flag.clone());
         }
 
         thread::spawn(move || {
@@ -17101,6 +17146,8 @@ mod fallback {
         UpdateAudioSettings(AudioSettings),
 
         PlayVideoPreset(u32),
+        PlayVideoPresetFromMs { preset_id: u32, start_ms: u64 },
+        StopVideoPresetPlayback,
 
         UpdateKeyboardArrowMouseSettings {
             enabled: bool,
