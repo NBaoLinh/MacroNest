@@ -1491,6 +1491,8 @@ impl CrosshairApp {
         let mut remove_video_preset = None;
         let mut preview_video_request: Option<(u32, u64, VideoClipSettings)> = None;
         let mut stop_video_preview = false;
+        let mut stop_video_overlay = false;
+        let mut preview_video_overlay_request: Option<(u32, u64)> = None;
         let mut hovered_video_timeline: Option<(u32, u64, u64, bool, bool, bool)> = None;
         for index in 0..self.state.audio_settings.video_presets.len() {
             let preset_id = self.state.audio_settings.video_presets[index].id;
@@ -1599,7 +1601,8 @@ impl CrosshairApp {
                 ui.horizontal_wrapped(|ui| {
                     let button_size = [118.0, 26.0];
                     let previewing_this_preset =
-                        self.active_video_preview_preset_id == Some(preset.id);
+                        self.active_video_overlay_preset_id == Some(preset.id)
+                        || self.active_video_preview_preset_id == Some(preset.id);
                     if ui
                         .add_sized(
                             button_size,
@@ -1641,11 +1644,13 @@ impl CrosshairApp {
                         ))
                         .clicked()
                     {
-                        if previewing_this_preset {
+                        if self.active_video_overlay_preset_id == Some(preset.id) {
+                            stop_video_overlay = true;
+                        } else if self.active_video_preview_preset_id == Some(preset.id) {
                             stop_video_preview = true;
                         } else {
-                            preview_video_request =
-                                Some((preset.id, preview_cursor_ms, preset.clip.clone()));
+                            preview_video_overlay_request =
+                                Some((preset.id, preview_cursor_ms));
                         }
                     }
                     let pick_active = self.video_chroma_pick_preset_id == Some(preset.id);
@@ -1902,6 +1907,9 @@ impl CrosshairApp {
             if self.active_video_preview_preset_id == Some(preset_id) {
                 stop_video_preview = true;
             }
+            if self.active_video_overlay_preset_id == Some(preset_id) {
+                stop_video_overlay = true;
+            }
             self.state
                 .audio_settings
                 .video_presets
@@ -1916,10 +1924,27 @@ impl CrosshairApp {
         }
 
         if stop_video_preview {
+            self.stop_active_video_preview();
+        }
+
+        if stop_video_overlay {
             self.stop_active_video_overlay_preview();
         }
 
-        if let Some((preset_id, start_ms, _clip)) = preview_video_request {
+        if let Some((preset_id, start_ms, clip)) = preview_video_request {
+            if let Err(error) = self.start_video_preview(preset_id, &clip, start_ms) {
+                self.status = error.to_string();
+            } else {
+                self.status = Self::tr_lang(
+                    language,
+                    "Previewing video inside the app.",
+                    "Đang xem thử video trong app.",
+                )
+                .to_owned();
+            }
+        }
+
+        if let Some((preset_id, start_ms)) = preview_video_overlay_request {
             self.start_active_video_overlay_preview(preset_id, start_ms);
             self.status = Self::tr_lang(
                 language,

@@ -668,6 +668,7 @@ pub struct CrosshairApp {
     active_video_preview_preset_id: Option<u32>,
     active_video_preview_started_at: Option<Instant>,
     active_video_preview_start_ms: u64,
+    active_video_overlay_preset_id: Option<u32>,
     vision_color_pick_texture: Option<TextureHandle>,
     vision_color_pick_preview_color: Option<RgbaColor>,
     vietnamese_input_enabled_texture: Option<TextureHandle>,
@@ -841,6 +842,7 @@ impl CrosshairApp {
             active_video_preview_preset_id: None,
             active_video_preview_started_at: None,
             active_video_preview_start_ms: 0,
+            active_video_overlay_preset_id: None,
             vision_color_pick_texture: None,
             vision_color_pick_preview_color: None,
             vietnamese_input_enabled_texture: None,
@@ -1829,6 +1831,7 @@ impl CrosshairApp {
         let duration = crate::media::load_video_metadata(&path_str)
             .ok()
             .map(|meta| meta.duration_ms);
+        self.stop_active_video_preview();
         self.stop_active_video_overlay_preview();
         self.clear_video_preview_for_preset(preset_id);
         if let Some(preset) = self
@@ -1954,14 +1957,46 @@ impl CrosshairApp {
     fn start_active_video_overlay_preview(&mut self, preset_id: u32, start_ms: u64) {
         let _ = self.overlay_tx.send(OverlayCommand::StopVideoPlayback);
         let _ = self.overlay_tx.send(OverlayCommand::PlayVideoPresetFrom(preset_id, start_ms));
-        self.active_video_preview_preset_id = Some(preset_id);
-        self.active_video_preview_started_at = Some(Instant::now());
-        self.active_video_preview_start_ms = start_ms;
-        self.video_preview_cursor_ms.insert(preset_id, start_ms);
+        self.active_video_overlay_preset_id = Some(preset_id);
     }
 
     fn stop_active_video_overlay_preview(&mut self) {
         let _ = self.overlay_tx.send(OverlayCommand::StopVideoPlayback);
+        self.active_video_overlay_preset_id = None;
+    }
+
+    fn start_video_preview(
+        &mut self,
+        preset_id: u32,
+        clip: &VideoClipSettings,
+        start_ms: u64,
+    ) -> anyhow::Result<()> {
+        let trimmed = clip.file_path.trim();
+        if trimmed.is_empty() {
+            anyhow::bail!("Choose a video file first");
+        }
+
+        let clip_end_ms = if clip.end_ms > clip.start_ms {
+            clip.end_ms
+        } else {
+            crate::media::load_video_metadata(trimmed)
+                .ok()
+                .map(|meta| meta.duration_ms)
+                .filter(|duration_ms| *duration_ms > start_ms)
+                .unwrap_or(start_ms.saturating_add(1))
+        };
+        let next_start_ms = start_ms.min(clip_end_ms.saturating_sub(1));
+
+        crate::audio::play_video_audio_preview(trimmed, next_start_ms, clip_end_ms)?;
+        self.active_video_preview_preset_id = Some(preset_id);
+        self.active_video_preview_started_at = Some(Instant::now());
+        self.active_video_preview_start_ms = next_start_ms;
+        self.video_preview_cursor_ms.insert(preset_id, next_start_ms);
+        Ok(())
+    }
+
+    fn stop_active_video_preview(&mut self) {
+        crate::audio::stop_video_audio_preview();
         self.active_video_preview_preset_id = None;
         self.active_video_preview_started_at = None;
         self.active_video_preview_start_ms = 0;
@@ -8188,10 +8223,8 @@ impl eframe::App for CrosshairApp {
                     ctx.request_repaint();
                 }
                 UiCommand::VideoPlaybackFinished(preset_id) => {
-                    if self.active_video_preview_preset_id == Some(preset_id) {
-                        self.active_video_preview_preset_id = None;
-                        self.active_video_preview_started_at = None;
-                        self.active_video_preview_start_ms = 0;
+                    if self.active_video_overlay_preset_id == Some(preset_id) {
+                        self.active_video_overlay_preset_id = None;
                     }
                     ctx.request_repaint();
                 }

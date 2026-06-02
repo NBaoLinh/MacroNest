@@ -242,6 +242,9 @@ mod windows_overlay {
 
     static ACTIVE_VIDEO_STOP: Lazy<Mutex<Option<Arc<AtomicBool>>>> = Lazy::new(|| Mutex::new(None));
 
+    static ACTIVE_VIDEO_THREAD: Lazy<Mutex<Option<thread::JoinHandle<()>>>> =
+        Lazy::new(|| Mutex::new(None));
+
     static SYNTHETIC_MOUSE_TRIGGER_SUPPRESSION: Lazy<Mutex<HashMap<String, usize>>> =
         Lazy::new(|| Mutex::new(HashMap::new()));
 
@@ -7240,6 +7243,14 @@ mod windows_overlay {
 
         stop_active_video_preset_playback();
 
+        let previous_thread = {
+            let mut guard = ACTIVE_VIDEO_THREAD.lock();
+            guard.take()
+        };
+        if let Some(handle) = previous_thread {
+            let _ = handle.join();
+        }
+
         let stop_flag = Arc::new(AtomicBool::new(false));
 
         {
@@ -7247,7 +7258,7 @@ mod windows_overlay {
             guard.replace(stop_flag.clone());
         }
 
-        thread::spawn(move || {
+        let handle = thread::spawn(move || {
             let _ = unsafe { run_video_preset_window(&preset, start_ms, stop_flag.clone()) };
 
             let mut guard = ACTIVE_VIDEO_STOP.lock();
@@ -7258,6 +7269,11 @@ mod windows_overlay {
                 }
             }
         });
+
+        {
+            let mut guard = ACTIVE_VIDEO_THREAD.lock();
+            guard.replace(handle);
+        }
     }
 
     unsafe fn run_video_preset_window(
