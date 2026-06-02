@@ -673,6 +673,32 @@ impl CrosshairApp {
 
                                     ui.label(Self::tr_lang(
                                         language,
+                                        "Color grouping",
+                                        "NhÃ³m mÃ u",
+                                    ));
+                                    ui.horizontal_wrapped(|ui| {
+                                        live_sync |= ui
+                                            .checkbox(
+                                                &mut preset.require_connected_target_colors,
+                                                Self::tr_lang(
+                                                    language,
+                                                    "Connected colors",
+                                                    "MÃ u liá»n ká»",
+                                                ),
+                                            )
+                                            .changed();
+                                        if preset.target_colors.len() < 2 {
+                                            ui.weak(Self::tr_lang(
+                                                language,
+                                                "Needs 2+ colors",
+                                                "Cáº§n tÃ» 2 mÃ u",
+                                            ));
+                                        }
+                                    });
+                                    ui.end_row();
+
+                                    ui.label(Self::tr_lang(
+                                        language,
                                         "Color priority",
                                         "Ưu tiên màu",
                                     ));

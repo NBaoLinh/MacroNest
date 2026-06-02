@@ -10948,6 +10948,53 @@ mod windows_overlay {
         }
 
         #[test]
+        fn test_connected_color_match_requires_adjacent_colors() {
+            let red = RgbaColor { r: 255, g: 0, b: 0, a: 255 };
+            let blue = RgbaColor { r: 0, g: 0, b: 255, a: 255 };
+
+            let adjacent_screen = window_list::ScreenCaptureFrame {
+                screen_x: 0,
+                screen_y: 0,
+                width: 2,
+                height: 1,
+                rgba: vec![
+                    255, 0, 0, 255,
+                    0, 0, 255, 255,
+                ],
+            };
+
+            let separated_screen = window_list::ScreenCaptureFrame {
+                screen_x: 0,
+                screen_y: 0,
+                width: 3,
+                height: 1,
+                rgba: vec![
+                    255, 0, 0, 255,
+                    0, 0, 0, 255,
+                    0, 0, 255, 255,
+                ],
+            };
+
+            let adjacent_hit = find_connected_color_match(
+                &adjacent_screen,
+                &[red, blue],
+                0,
+                None,
+                None,
+            );
+            assert!(adjacent_hit.is_some());
+
+            let separated_hit = find_connected_color_match(
+                &separated_screen,
+                &[red, blue],
+                0,
+                None,
+                None,
+            );
+            assert!(separated_hit.is_none());
+        }
+
+        #[test]
 
         fn test_interpolate_variables() {
             // Variable resolution in interpolate_variables
@@ -13099,6 +13146,216 @@ mod windows_overlay {
         matched_color: RgbaColor,
     }
 
+    #[derive(Clone, Copy, Debug)]
+    struct ColorMatchPixel {
+        target_index: usize,
+        score: u32,
+    }
+
+    #[derive(Clone, Debug)]
+    struct ConnectedColorClusterHit {
+        x: i32,
+        y: i32,
+        score: u32,
+        distance_sq: i32,
+        matched_color: RgbaColor,
+    }
+
+    fn color_match_pixel_for_coordinate(
+        screen: &window_list::ScreenCaptureFrame,
+        targets: &[RgbaColor],
+        tolerance: i16,
+        x: i32,
+        y: i32,
+        region: Option<&VisionRegion>,
+    ) -> Option<ColorMatchPixel> {
+        if x < 0 || y < 0 || x >= screen.width as i32 || y >= screen.height as i32 {
+            return None;
+        }
+
+        if !image_search_region_contains_point(region, screen.screen_x + x, screen.screen_y + y) {
+            return None;
+        }
+
+        let index = ((y as usize) * screen.width + (x as usize)) * 4;
+        if index + 3 >= screen.rgba.len() {
+            return None;
+        }
+
+        let r = screen.rgba[index] as i16;
+        let g = screen.rgba[index + 1] as i16;
+        let b = screen.rgba[index + 2] as i16;
+
+        let mut best_match: Option<ColorMatchPixel> = None;
+
+        for (target_index, target) in targets.iter().enumerate() {
+            let dr = (r - target.r as i16).abs();
+            let dg = (g - target.g as i16).abs();
+            let db = (b - target.b as i16).abs();
+
+            if dr > tolerance || dg > tolerance || db > tolerance {
+                continue;
+            }
+
+            let candidate = ColorMatchPixel {
+                target_index,
+                score: (dr as u32) + (dg as u32) + (db as u32),
+            };
+
+            let replace = match best_match {
+                None => true,
+                Some(current) => candidate.score < current.score,
+            };
+
+            if replace {
+                best_match = Some(candidate);
+            }
+        }
+
+        best_match
+    }
+
+    fn build_color_match_pixel_map(
+        screen: &window_list::ScreenCaptureFrame,
+        targets: &[RgbaColor],
+        tolerance: i16,
+        region: Option<&VisionRegion>,
+    ) -> Vec<Option<ColorMatchPixel>> {
+        let width = screen.width as i32;
+        let height = screen.height as i32;
+
+        let mut pixel_map = vec![None; screen.width * screen.height];
+
+        for y in 0..height {
+            for x in 0..width {
+                let index = (y as usize) * screen.width + (x as usize);
+                pixel_map[index] =
+                    color_match_pixel_for_coordinate(screen, targets, tolerance, x, y, region);
+            }
+        }
+
+        pixel_map
+    }
+
+    fn find_connected_color_match(
+        screen: &window_list::ScreenCaptureFrame,
+        targets: &[RgbaColor],
+        tolerance: u8,
+        region: Option<&VisionRegion>,
+        reference: Option<(i32, i32)>,
+    ) -> Option<ColorMatchHit> {
+        let width = screen.width as i32;
+        let height = screen.height as i32;
+
+        if width <= 0 || height <= 0 || targets.len() < 2 {
+            return None;
+        }
+
+        let tolerance = tolerance as i16;
+        let pixel_map = build_color_match_pixel_map(screen, targets, tolerance, region);
+        let mut visited = vec![false; pixel_map.len()];
+        let mut stack = Vec::new();
+        let mut best_hit: Option<ConnectedColorClusterHit> = None;
+        let reference = reference.unwrap_or((width / 2, height / 2));
+
+        for y in 0..height {
+            for x in 0..width {
+                let start_index = (y as usize) * screen.width + (x as usize);
+                if visited[start_index] || pixel_map[start_index].is_none() {
+                    continue;
+                }
+
+                stack.clear();
+                stack.push((x, y));
+                visited[start_index] = true;
+
+                let mut seen_targets = vec![false; targets.len()];
+                let mut unique_target_count = 0usize;
+                let mut score_sum = 0u32;
+                let mut pixel_count = 0i32;
+                let mut sum_x = 0i32;
+                let mut sum_y = 0i32;
+                let mut first_target_index = 0usize;
+
+                while let Some((cx, cy)) = stack.pop() {
+                    let index = (cy as usize) * screen.width + (cx as usize);
+                    let Some(pixel_match) = pixel_map[index] else {
+                        continue;
+                    };
+
+                    if pixel_count == 0 {
+                        first_target_index = pixel_match.target_index;
+                    }
+
+                    if !seen_targets[pixel_match.target_index] {
+                        seen_targets[pixel_match.target_index] = true;
+                        unique_target_count += 1;
+                    }
+
+                    score_sum = score_sum.saturating_add(pixel_match.score);
+                    pixel_count += 1;
+                    sum_x += cx;
+                    sum_y += cy;
+
+                    for ny in (cy - 1).max(0)..=(cy + 1).min(height - 1) {
+                        for nx in (cx - 1).max(0)..=(cx + 1).min(width - 1) {
+                            if nx == cx && ny == cy {
+                                continue;
+                            }
+
+                            let neighbor_index = (ny as usize) * screen.width + (nx as usize);
+                            if visited[neighbor_index] || pixel_map[neighbor_index].is_none() {
+                                continue;
+                            }
+
+                            visited[neighbor_index] = true;
+                            stack.push((nx, ny));
+                        }
+                    }
+                }
+
+                if unique_target_count != targets.len() || pixel_count <= 0 {
+                    continue;
+                }
+
+                let cluster_x = sum_x / pixel_count;
+                let cluster_y = sum_y / pixel_count;
+                let avg_score = score_sum / (pixel_count as u32);
+                let distance_sq =
+                    (cluster_x - reference.0).pow(2) + (cluster_y - reference.1).pow(2);
+
+                let candidate = ConnectedColorClusterHit {
+                    x: cluster_x,
+                    y: cluster_y,
+                    score: avg_score,
+                    distance_sq,
+                    matched_color: targets[first_target_index],
+                };
+
+                let replace = match best_hit.as_ref() {
+                    None => true,
+                    Some(current) if candidate.score < current.score => true,
+                    Some(current) if candidate.score == current.score => {
+                        candidate.distance_sq < current.distance_sq
+                    }
+                    _ => false,
+                };
+
+                if replace {
+                    best_hit = Some(candidate);
+                }
+            }
+        }
+
+        best_hit.map(|hit| ColorMatchHit {
+            x: hit.x,
+            y: hit.y,
+            score: hit.score,
+            distance_sq: hit.distance_sq,
+            matched_color: hit.matched_color,
+        })
+    }
+
     fn find_color_match_in_range(
         screen: &window_list::ScreenCaptureFrame,
 
@@ -13796,7 +14053,17 @@ mod windows_overlay {
                 None
             };
 
-            let hit = if let Some((anchor_x, anchor_y)) = anchor {
+            let hit = if preset.require_connected_target_colors && target_colors.len() >= 2 {
+                let anchor_reference = anchor
+                    .map(|(anchor_x, anchor_y)| (anchor_x - screen.screen_x, anchor_y - screen.screen_y));
+                find_connected_color_match(
+                    &screen,
+                    &target_colors,
+                    preset.color_tolerance,
+                    configured_region.as_ref(),
+                    anchor_reference,
+                )
+            } else if let Some((anchor_x, anchor_y)) = anchor {
                 find_color_match_from_anchor(
                     &screen,
                     &target_colors,
@@ -13875,6 +14142,11 @@ mod windows_overlay {
                 status: if anchor.is_some() {
                     format!(
                         "Matched colors from priority point at {moved_x}, {moved_y} with tolerance {} and offset {:+}, {:+}.",
+                        preset.color_tolerance, preset.move_offset_x, preset.move_offset_y
+                    )
+                } else if preset.require_connected_target_colors && target_colors.len() >= 2 {
+                    format!(
+                        "Matched connected colors at {moved_x}, {moved_y} with tolerance {} and offset {:+}, {:+}.",
                         preset.color_tolerance, preset.move_offset_x, preset.move_offset_y
                     )
                 } else if preset.dual_color_scan_midpoint {

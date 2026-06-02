@@ -1676,6 +1676,8 @@ pub struct VisionPreset {
     #[serde(default)]
     pub dual_color_scan_midpoint: bool,
     #[serde(default)]
+    pub require_connected_target_colors: bool,
+    #[serde(default)]
     pub is_pixel_counter: bool,
     #[serde(default)]
     pub pixel_counter_variable_name: String,
@@ -1722,6 +1724,7 @@ impl VisionPreset {
             color_tolerance: default_image_search_color_tolerance(),
             color_scan_rate_hz: default_image_search_color_scan_rate_hz(),
             dual_color_scan_midpoint: false,
+            require_connected_target_colors: false,
             is_pixel_counter: false,
             pixel_counter_variable_name: String::new(),
             last_capture_screen_x: None,

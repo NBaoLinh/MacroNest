@@ -8357,6 +8357,7 @@ impl CrosshairApp {
                                                         self.state.vision_presets.iter().find(|p| p.id == id)
 
                                                     }).map(|p| p.is_pixel_counter).unwrap_or(false);
+                                                 let supports_move_mouse = selected_id.is_some() && !is_pixel;
 
                                                     if matches!(step.action, MacroAction::StartVisionSearch | MacroAction::StopVision) {
 
@@ -8373,17 +8374,13 @@ impl CrosshairApp {
                                                          .close_behavior(egui::PopupCloseBehavior::CloseOnClickOutside)
                                                          .width(110.0)
                                                          .selected_text(outputs_label)
-                                                         .show_ui(ui, |ui| {
-                                                             ui.set_min_width(200.0);
-                                                             egui::Grid::new("vision_outputs_grid_hold_stop")
+                                                          .show_ui(ui, |ui| {
+                                                              ui.set_min_width(200.0);
+                                                              egui::Grid::new("vision_outputs_grid_hold_stop")
                                                                  .num_columns(2)
                                                                  .spacing([8.0, 6.0])
                                                                  .show(ui, |ui| {
                                                                      if !is_pixel {
-                                                                         let resp = ui.checkbox(&mut step.vision_move_cursor_on_match, Self::tr_lang(language, "Move Mouse", "Di chuột"));
-                                                                         live_sync |= resp.changed();
-                                                                         ui.end_row();
-
                                                                          let resp_label = ui.label("Pos X:");
                                                                          let prev_override = ui.visuals().override_text_color;
                                                                          ui.visuals_mut().override_text_color = None;
@@ -8411,8 +8408,16 @@ impl CrosshairApp {
                                                                          live_sync |= resp.changed();
                                                                          ui.end_row();
                                                                      }
-                                                                 });
-                                                         });
+                                                                  });
+                                                          });
+                                                     if supports_move_mouse {
+                                                         ui.add_space(4.0);
+                                                         let resp = ui.checkbox(
+                                                             &mut step.vision_move_cursor_on_match,
+                                                             Self::tr_lang(language, "Move Mouse", "Di chuột"),
+                                                         );
+                                                         live_sync |= resp.changed();
+                                                     }
                                                  }
 
                                                 } else if step.action == MacroAction::ApplyMouseSensitivityPreset {
@@ -13742,6 +13747,7 @@ impl CrosshairApp {
                                                         self.state.vision_presets.iter().find(|p| p.id == id)
 
                                                     }).map(|p| p.is_pixel_counter).unwrap_or(false);
+                                                     let supports_move_mouse = selected_id.is_some() && !is_pixel;
 
                                                     if matches!(step.action, MacroAction::StartVisionSearch | MacroAction::StopVision) {
 
@@ -13765,10 +13771,6 @@ impl CrosshairApp {
                                                                      .spacing([8.0, 6.0])
                                                                      .show(ui, |ui| {
                                                                          if !is_pixel {
-                                                                             let resp = ui.checkbox(&mut step.vision_move_cursor_on_match, Self::tr_lang(language, "Move Mouse", "Di chuột"));
-                                                                             live_sync |= resp.changed();
-                                                                             ui.end_row();
-
                                                                              let resp_label = ui.label("Pos X:");
                                                                              let prev_override = ui.visuals().override_text_color;
                                                                              ui.visuals_mut().override_text_color = None;
@@ -13798,6 +13800,14 @@ impl CrosshairApp {
                                                                          }
                                                                      });
                                                              });
+                                                     if supports_move_mouse {
+                                                         ui.add_space(4.0);
+                                                         let resp = ui.checkbox(
+                                                             &mut step.vision_move_cursor_on_match,
+                                                             Self::tr_lang(language, "Move Mouse", "Di chuột"),
+                                                         );
+                                                         live_sync |= resp.changed();
+                                                     }
                                                      }
 
                                                 } else if step.action == MacroAction::EnableZoomPreset {
@@ -16134,6 +16144,7 @@ impl CrosshairApp {
                                                      });
 
                                                      let is_pixel = selected_preset.map(|p| p.is_pixel_counter).unwrap_or(false);
+                                                     let supports_move_mouse = selected_preset.is_some() && !is_pixel;
 
                                                      if matches!(step.action, MacroAction::StartVisionSearch | MacroAction::StopVision) {
 
@@ -16157,10 +16168,6 @@ impl CrosshairApp {
                                                                      .spacing([8.0, 6.0])
                                                                      .show(ui, |ui| {
                                                                          if !is_pixel {
-                                                                             let resp = ui.checkbox(&mut step.vision_move_cursor_on_match, Self::tr_lang(language, "Move Mouse", "Di chuột"));
-                                                                             live_sync |= resp.changed();
-                                                                             ui.end_row();
-
                                                                              let resp_label = ui.label("Pos X:");
                                                                              let prev_override = ui.visuals().override_text_color;
                                                                              ui.visuals_mut().override_text_color = None;
@@ -16190,6 +16197,14 @@ impl CrosshairApp {
                                                                          }
                                                                      });
                                                              });
+                                                     if supports_move_mouse {
+                                                         ui.add_space(4.0);
+                                                         let resp = ui.checkbox(
+                                                             &mut step.vision_move_cursor_on_match,
+                                                             Self::tr_lang(language, "Move Mouse", "Di chuột"),
+                                                         );
+                                                         live_sync |= resp.changed();
+                                                     }
                                                      }
 
                                                 } else {
@@ -20752,6 +20767,7 @@ impl CrosshairApp {
         response
     }
 }
+
 
 
 
