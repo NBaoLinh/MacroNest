@@ -5918,26 +5918,33 @@ impl CrosshairApp {
                                                             .x;
                                                         let vars_map =
                                                             crate::overlay::RUNTIME_VARIABLES.lock();
-                                                        let badge_width_sum: f32 = referenced_vars
+                                                        let badge_texts: Vec<(String, bool)> = referenced_vars
                                                             .iter()
                                                             .map(|var_name| {
-                                                                let val_str = vars_map
-                                                                    .get(var_name)
-                                                                    .copied()
+                                                                let val = vars_map.get(var_name).copied();
+                                                                let val_str = val
                                                                     .map(|v| v.to_string())
                                                                     .unwrap_or_else(|| "?".to_string());
-                                                                let badge_text =
-                                                                    format!("{} = {}", var_name, val_str);
+                                                                (format!("{} = {}", var_name, val_str), val.is_some())
+                                                            })
+                                                            .collect();
+                                                        let badge_widths: Vec<f32> = badge_texts
+                                                            .iter()
+                                                            .map(|(badge_text, _)| {
                                                                 ui.painter()
                                                                     .layout_no_wrap(
-                                                                        badge_text,
+                                                                        badge_text.clone(),
                                                                         badge_font.clone(),
                                                                         ui.visuals().text_color(),
                                                                     )
                                                                     .size()
                                                                     .x
-                                                                    + 14.0
+                                                                    + 18.0
                                                             })
+                                                            .collect();
+                                                        let badge_width_sum: f32 = badge_widths
+                                                            .iter()
+                                                            .copied()
                                                             .sum();
                                                         drop(vars_map);
                                                         let badge_gap_width = if referenced_vars.is_empty() {
@@ -5946,8 +5953,12 @@ impl CrosshairApp {
                                                             4.0 * referenced_vars.len().saturating_sub(1) as f32
                                                         };
                                                         let available_vars_width = ui.available_width().max(0.0);
+                                                        let toggle_width = 24.0;
                                                         let active_vars_overflow =
-                                                            label_width + 8.0 + badge_width_sum + badge_gap_width
+                                                            label_width
+                                                                + 8.0
+                                                                + badge_width_sum
+                                                                + badge_gap_width
                                                                 > available_vars_width;
                                                         let mut active_vars_expanded = ui
                                                             .ctx()
@@ -5956,7 +5967,7 @@ impl CrosshairApp {
                                                                     active_vars_expanded_id,
                                                                 )
                                                             })
-                                                            .unwrap_or(true);
+                                                            .unwrap_or(!active_vars_overflow);
                                                         if !active_vars_overflow {
                                                             active_vars_expanded = true;
                                                         }
@@ -5970,6 +5981,65 @@ impl CrosshairApp {
                                                                 .size(11.0)
                                                                 .weak(),
                                                             );
+                                                            let mut consumed_width = label_width + 4.0;
+                                                            let preview_width_limit =
+                                                                (available_vars_width
+                                                                    - if active_vars_overflow {
+                                                                        toggle_width + 4.0
+                                                                    } else {
+                                                                        0.0
+                                                                    })
+                                                                    .max(0.0);
+
+                                                            for ((badge_text, has_value), badge_width) in badge_texts
+                                                                .iter()
+                                                                .zip(badge_widths.iter())
+                                                            {
+                                                                if active_vars_overflow
+                                                                    && !active_vars_expanded
+                                                                    && consumed_width + badge_width
+                                                                        > preview_width_limit
+                                                                {
+                                                                    break;
+                                                                }
+
+                                                                let (
+                                                                    fill_color,
+                                                                    stroke_color,
+                                                                    text_color,
+                                                                ) = Self::active_variable_badge_colors(
+                                                                    *has_value,
+                                                                );
+
+                                                                egui::Frame::none()
+                                                                    .fill(fill_color)
+                                                                    .stroke(egui::Stroke::new(
+                                                                        1.0,
+                                                                        stroke_color,
+                                                                    ))
+                                                                    .inner_margin(
+                                                                        egui::Margin::symmetric(6, 2),
+                                                                    )
+                                                                    .rounding(4.0)
+                                                                    .show(ui, |ui| {
+                                                                        ui.add(
+                                                                            egui::Label::new(
+                                                                                RichText::new(
+                                                                                    badge_text.clone(),
+                                                                                )
+                                                                                .size(11.0)
+                                                                                .strong()
+                                                                                .color(text_color),
+                                                                            )
+                                                                            .wrap_mode(
+                                                                                egui::TextWrapMode::Truncate,
+                                                                            ),
+                                                                        );
+                                                                    });
+
+                                                                consumed_width += badge_width + 4.0;
+                                                            }
+
                                                             if active_vars_overflow {
                                                                 let toggle_icon = if active_vars_expanded {
                                                                     0xe5cf
@@ -6006,28 +6076,18 @@ impl CrosshairApp {
                                                             );
                                                         });
 
-                                                        if active_vars_expanded {
+                                                        if active_vars_overflow && active_vars_expanded {
                                                             ui.horizontal_wrapped(|ui| {
                                                                 ui.spacing_mut().item_spacing =
                                                                     vec2(4.0, 4.0);
 
-                                                                let vars_map =
-                                                                    crate::overlay::RUNTIME_VARIABLES
-                                                                        .lock();
-                                                                for var_name in &referenced_vars {
-                                                                    let val =
-                                                                        vars_map.get(var_name).copied();
-                                                                    let val_str = val
-                                                                        .map(|v| v.to_string())
-                                                                        .unwrap_or_else(|| {
-                                                                            "?".to_string()
-                                                                        });
+                                                                for (badge_text, has_value) in &badge_texts {
                                                                     let (
                                                                         fill_color,
                                                                         stroke_color,
                                                                         text_color,
                                                                     ) = Self::active_variable_badge_colors(
-                                                                        val.is_some(),
+                                                                        *has_value,
                                                                     );
 
                                                                     egui::Frame::none()
@@ -6044,15 +6104,18 @@ impl CrosshairApp {
                                                                         )
                                                                         .rounding(4.0)
                                                                         .show(ui, |ui| {
-                                                                            ui.label(
-                                                                                RichText::new(format!(
-                                                                                    "{} = {}",
-                                                                                    var_name,
-                                                                                    val_str
-                                                                                ))
-                                                                                .size(11.0)
-                                                                                .strong()
-                                                                                .color(text_color),
+                                                                            ui.add(
+                                                                                egui::Label::new(
+                                                                                    RichText::new(
+                                                                                        badge_text.clone(),
+                                                                                    )
+                                                                                    .size(11.0)
+                                                                                    .strong()
+                                                                                    .color(text_color),
+                                                                                )
+                                                                                .wrap_mode(
+                                                                                    egui::TextWrapMode::Truncate,
+                                                                                ),
                                                                             );
                                                                         });
                                                                 }
