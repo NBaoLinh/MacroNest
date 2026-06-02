@@ -336,8 +336,17 @@ impl CrosshairApp {
                             ui.label(egui::RichText::new("- abs(a)").monospace());
                             ui.label(egui::RichText::new("- atan(a)").monospace());
                             ui.label(egui::RichText::new("- atan2(y, x)").monospace());
+                            ui.label(egui::RichText::new("- sqrt(a)").monospace());
+                            ui.label(egui::RichText::new("- pow(a, b)").monospace());
+                            ui.label(egui::RichText::new("- ceil(a) / floor(a)").monospace());
+                            ui.label(egui::RichText::new("- factorial(n)").monospace());
+                            ui.label(egui::RichText::new("- gcd(a, b, ...) / lcm(a, b, ...)").monospace());
+                            ui.label(egui::RichText::new("- isqrt(n)").monospace());
+                            ui.label(egui::RichText::new("- comb(n, k) / perm(n, k)").monospace());
                             ui.label(egui::RichText::new("- sin(angleDeg) * 1000").monospace());
                             ui.label(egui::RichText::new("- cos(angleDeg) * 1000").monospace());
+                            ui.label(egui::RichText::new("- degrees(rad) / radians(deg)").monospace());
+                            ui.label(egui::RichText::new("- pi").monospace());
                             ui.label(egui::RichText::new("- myVar.toNumber").monospace());
                         });
 
@@ -18636,7 +18645,27 @@ impl CrosshairApp {
     fn is_builtin_expression_identifier(token: &str) -> bool {
         matches!(
             token.trim().to_ascii_lowercase().as_str(),
-            "abs" | "min" | "max" | "random" | "atan" | "atan2" | "sin" | "cos"
+            "abs"
+                | "min"
+                | "max"
+                | "random"
+                | "atan"
+                | "atan2"
+                | "sin"
+                | "cos"
+                | "sqrt"
+                | "pow"
+                | "ceil"
+                | "floor"
+                | "degrees"
+                | "radians"
+                | "factorial"
+                | "gcd"
+                | "lcm"
+                | "isqrt"
+                | "comb"
+                | "perm"
+                | "pi"
                 | "tonumber"
         )
     }
@@ -19236,7 +19265,29 @@ impl CrosshairApp {
     }
 
     fn builtin_expression_function_suggestions() -> &'static [&'static str] {
-        &["abs()", "min()", "max()", "random()", "atan()", "atan2()", "sin()", "cos()"]
+        &[
+            "abs()",
+            "min()",
+            "max()",
+            "random()",
+            "atan()",
+            "atan2()",
+            "sin()",
+            "cos()",
+            "sqrt()",
+            "pow()",
+            "ceil()",
+            "floor()",
+            "degrees()",
+            "radians()",
+            "factorial()",
+            "gcd()",
+            "lcm()",
+            "isqrt()",
+            "comb()",
+            "perm()",
+            "pi",
+        ]
     }
 
     fn object_property_suggestions(base: &str) -> Option<&'static [&'static str]> {
@@ -19325,6 +19376,19 @@ impl CrosshairApp {
             "atan2()" => "atan2(y, x)".to_string(),
             "sin()" => "sin(angleDeg) * 1000".to_string(),
             "cos()" => "cos(angleDeg) * 1000".to_string(),
+            "sqrt()" => "sqrt(a)".to_string(),
+            "pow()" => "pow(a, b)".to_string(),
+            "ceil()" => "ceil(a)".to_string(),
+            "floor()" => "floor(a)".to_string(),
+            "degrees()" => "degrees(rad)".to_string(),
+            "radians()" => "radians(deg)".to_string(),
+            "factorial()" => "factorial(n)".to_string(),
+            "gcd()" => "gcd(a, b, ...)".to_string(),
+            "lcm()" => "lcm(a, b, ...)".to_string(),
+            "isqrt()" => "isqrt(n)".to_string(),
+            "comb()" => "comb(n, k)".to_string(),
+            "perm()" => "perm(n, k)".to_string(),
+            "pi" => "pi".to_string(),
             _ => Self::timer_suggestion_label(suggestion, timer_names),
         }
     }

@@ -10118,8 +10118,8 @@ mod windows_overlay {
         let expr_trimmed = expr_raw.trim().to_string();
         let interpolated = interpolate_variables(&expr_trimmed);
 
-        if let Ok(val) = interpolated.parse::<i32>() {
-            set_variable_value(target_trimmed, val);
+        if let Ok(val) = interpolated.parse::<f64>() {
+            set_variable_value(target_trimmed, clamp_f64_to_i32(val));
             TEXT_VARIABLES.lock().remove(target_trimmed);
         } else {
             let has_math_op = interpolated
@@ -10134,6 +10134,19 @@ mod windows_overlay {
                 || lower.contains("atan2(")
                 || lower.contains("sin(")
                 || lower.contains("cos(")
+                || lower.contains("sqrt(")
+                || lower.contains("pow(")
+                || lower.contains("ceil(")
+                || lower.contains("floor(")
+                || lower.contains("degrees(")
+                || lower.contains("radians(")
+                || lower.contains("factorial(")
+                || lower.contains("gcd(")
+                || lower.contains("lcm(")
+                || lower.contains("isqrt(")
+                || lower.contains("comb(")
+                || lower.contains("perm(")
+                || lower == "pi"
                 || lower.contains(".tonumber");
 
             if has_math_op || has_math_func {
@@ -10487,26 +10500,91 @@ mod windows_overlay {
         }
     }
 
-    pub(crate) fn evaluate_math_expression(expr: &str) -> i32 {
-        let mut expr_str = expr.trim().to_string();
-
-        if expr_str.is_empty() {
+    fn clamp_f64_to_i32(value: f64) -> i32 {
+        if !value.is_finite() {
             return 0;
         }
 
-        // Vòng lặp giải quyết tất cả các hàm (random, min, max, abs) và dấu ngoặc đơn lồng nhau
+        value.round().clamp(i32::MIN as f64, i32::MAX as f64) as i32
+    }
+
+    fn gcd_i64(mut a: i64, mut b: i64) -> i64 {
+        a = a.abs();
+        b = b.abs();
+
+        while b != 0 {
+            let temp = b;
+            b = a % b;
+            a = temp;
+        }
+
+        a
+    }
+
+    fn lcm_i64(a: i64, b: i64) -> i64 {
+        if a == 0 || b == 0 {
+            return 0;
+        }
+
+        let gcd = gcd_i64(a, b);
+        let reduced = a / gcd;
+        reduced.checked_mul(b).unwrap_or(i64::MAX).abs()
+    }
+
+    fn factorial_u128(n: u64) -> u128 {
+        let mut result = 1u128;
+        for value in 2..=n {
+            result = result.saturating_mul(value as u128);
+        }
+        result
+    }
+
+    fn permutation_u128(n: u64, k: u64) -> u128 {
+        if k > n {
+            return 0;
+        }
+
+        let mut result = 1u128;
+        for value in (n - k + 1)..=n {
+            result = result.saturating_mul(value as u128);
+        }
+        result
+    }
+
+    fn combination_u128(n: u64, k: u64) -> u128 {
+        if k > n {
+            return 0;
+        }
+
+        let choose = k.min(n - k);
+        if choose == 0 {
+            return 1;
+        }
+
+        let mut result = 1u128;
+        for i in 0..choose {
+            let numerator = (n - i) as u128;
+            let denominator = (i + 1) as u128;
+            result = result.saturating_mul(numerator) / denominator;
+        }
+        result
+    }
+
+    fn evaluate_math_expression_f64(expr: &str) -> f64 {
+        let mut expr_str = expr.trim().to_string();
+
+        if expr_str.is_empty() {
+            return 0.0;
+        }
 
         while let Some(open_idx) = expr_str.rfind('(') {
             let mut func_name = String::new();
-
             let mut func_start_idx = open_idx;
 
             while func_start_idx > 0 {
                 let prev_char = expr_str.chars().nth(func_start_idx - 1).unwrap_or('\0');
-
-                if prev_char.is_ascii_alphabetic() {
+                if prev_char.is_ascii_alphanumeric() {
                     func_name.insert(0, prev_char);
-
                     func_start_idx -= 1;
                 } else {
                     break;
@@ -10515,77 +10593,89 @@ mod windows_overlay {
 
             if let Some(close_offset) = expr_str[open_idx..].find(')') {
                 let close_idx = open_idx + close_offset;
-
                 let sub_expr = &expr_str[open_idx + 1..close_idx];
 
                 if !func_name.is_empty() {
                     let args: Vec<&str> = sub_expr.split(',').map(|s| s.trim()).collect();
-
-                    let mut resolved_args = Vec::new();
-
-                    for arg in args {
-                        resolved_args.push(evaluate_math_expression(arg));
-                    }
+                    let resolved_args: Vec<f64> = args
+                        .into_iter()
+                        .map(evaluate_math_expression_f64)
+                        .collect();
 
                     let result_val = match func_name.to_ascii_lowercase().as_str() {
                         "random" => {
-                            let min_val = resolved_args.first().copied().unwrap_or(0);
-
-                            let max_val = resolved_args.get(1).copied().unwrap_or(min_val);
-
-                            get_pseudo_random(min_val, max_val)
+                            let min_val = clamp_f64_to_i32(resolved_args.first().copied().unwrap_or(0.0));
+                            let max_val = clamp_f64_to_i32(resolved_args.get(1).copied().unwrap_or(min_val as f64));
+                            get_pseudo_random(min_val, max_val) as f64
                         }
-
-                        "min" => {
-                            let val1 = resolved_args.first().copied().unwrap_or(0);
-
-                            let val2 = resolved_args.get(1).copied().unwrap_or(0);
-
-                            val1.min(val2)
-                        }
-
-                        "max" => {
-                            let val1 = resolved_args.first().copied().unwrap_or(0);
-
-                            let val2 = resolved_args.get(1).copied().unwrap_or(0);
-
-                            val1.max(val2)
-                        }
-
-                        "abs" => {
-                            let val = resolved_args.first().copied().unwrap_or(0);
-
-                            val.abs()
-                        }
-
-                        "atan" => {
-                            let val = resolved_args.first().copied().unwrap_or(0) as f64;
-                            val.atan().to_degrees().round() as i32
-                        }
-
+                        "min" => resolved_args.first().copied().unwrap_or(0.0).min(resolved_args.get(1).copied().unwrap_or(0.0)),
+                        "max" => resolved_args.first().copied().unwrap_or(0.0).max(resolved_args.get(1).copied().unwrap_or(0.0)),
+                        "abs" => resolved_args.first().copied().unwrap_or(0.0).abs(),
+                        "atan" => resolved_args.first().copied().unwrap_or(0.0).atan().to_degrees(),
                         "atan2" => {
-                            let y = resolved_args.first().copied().unwrap_or(0) as f64;
-                            let x = resolved_args.get(1).copied().unwrap_or(0) as f64;
-                            y.atan2(x).to_degrees().round() as i32
+                            let y = resolved_args.first().copied().unwrap_or(0.0);
+                            let x = resolved_args.get(1).copied().unwrap_or(0.0);
+                            y.atan2(x).to_degrees()
                         }
-
-                        "sin" => {
-                            let angle_deg = resolved_args.first().copied().unwrap_or(0) as f64;
-                            (angle_deg.to_radians().sin() * 1000.0).round() as i32
+                        "sin" => resolved_args.first().copied().unwrap_or(0.0).to_radians().sin() * 1000.0,
+                        "cos" => resolved_args.first().copied().unwrap_or(0.0).to_radians().cos() * 1000.0,
+                        "sqrt" => {
+                            let value = resolved_args.first().copied().unwrap_or(0.0);
+                            if value < 0.0 { 0.0 } else { value.sqrt() }
                         }
-
-                        "cos" => {
-                            let angle_deg = resolved_args.first().copied().unwrap_or(0) as f64;
-                            (angle_deg.to_radians().cos() * 1000.0).round() as i32
+                        "pow" => {
+                            let base = resolved_args.first().copied().unwrap_or(0.0);
+                            let exponent = resolved_args.get(1).copied().unwrap_or(1.0);
+                            let value = base.powf(exponent);
+                            if value.is_finite() { value } else { 0.0 }
                         }
-
-                        _ => 0,
+                        "ceil" => resolved_args.first().copied().unwrap_or(0.0).ceil(),
+                        "floor" => resolved_args.first().copied().unwrap_or(0.0).floor(),
+                        "degrees" => resolved_args.first().copied().unwrap_or(0.0).to_degrees(),
+                        "radians" => resolved_args.first().copied().unwrap_or(0.0).to_radians(),
+                        "factorial" => {
+                            let value = clamp_f64_to_i32(resolved_args.first().copied().unwrap_or(0.0));
+                            if value < 0 { 0.0 } else { factorial_u128(value as u64).min(i32::MAX as u128) as f64 }
+                        }
+                        "gcd" => {
+                            let mut result = 0i64;
+                            for arg in resolved_args {
+                                result = gcd_i64(result, clamp_f64_to_i32(arg) as i64);
+                            }
+                            result as f64
+                        }
+                        "lcm" => {
+                            let mut iter = resolved_args.into_iter();
+                            if let Some(first) = iter.next() {
+                                let mut result = clamp_f64_to_i32(first) as i64;
+                                for arg in iter {
+                                    result = lcm_i64(result, clamp_f64_to_i32(arg) as i64);
+                                }
+                                result.min(i32::MAX as i64) as f64
+                            } else {
+                                0.0
+                            }
+                        }
+                        "isqrt" => {
+                            let value = resolved_args.first().copied().unwrap_or(0.0);
+                            if value < 0.0 { 0.0 } else { value.sqrt().floor() }
+                        }
+                        "comb" => {
+                            let n = clamp_f64_to_i32(resolved_args.first().copied().unwrap_or(0.0));
+                            let k = clamp_f64_to_i32(resolved_args.get(1).copied().unwrap_or(0.0));
+                            if n < 0 || k < 0 { 0.0 } else { combination_u128(n as u64, k as u64).min(i32::MAX as u128) as f64 }
+                        }
+                        "perm" => {
+                            let n = clamp_f64_to_i32(resolved_args.first().copied().unwrap_or(0.0));
+                            let k = clamp_f64_to_i32(resolved_args.get(1).copied().unwrap_or(0.0));
+                            if n < 0 || k < 0 { 0.0 } else { permutation_u128(n as u64, k as u64).min(i32::MAX as u128) as f64 }
+                        }
+                        _ => 0.0,
                     };
 
                     expr_str.replace_range(func_start_idx..=close_idx, &result_val.to_string());
                 } else {
-                    let sub_value = evaluate_math_expression(sub_expr);
-
+                    let sub_value = evaluate_math_expression_f64(sub_expr);
                     expr_str.replace_range(open_idx..=close_idx, &sub_value.to_string());
                 }
             } else {
@@ -10594,43 +10684,31 @@ mod windows_overlay {
         }
 
         let expr = expr_str.trim();
-
         if expr.is_empty() {
-            return 0;
+            return 0.0;
         }
 
-        // Try parsing as a direct integer
-
-        if let Ok(val) = expr.parse::<i32>() {
+        if let Ok(val) = expr.parse::<f64>() {
             return val;
         }
 
-        // Tokenize standard arithmetic operators (+, -, *, /) và nhận diện số âm
-
         let mut tokens = Vec::new();
-
         let mut current_token = String::new();
-
         let chars: Vec<char> = expr.chars().collect();
-
         let mut idx = 0;
 
         while idx < chars.len() {
             let c = chars[idx];
-
             if c.is_whitespace() {
                 if !current_token.is_empty() {
                     tokens.push(current_token.clone());
-
                     current_token.clear();
                 }
             } else if c == '+' || c == '*' || c == '/' {
                 if !current_token.is_empty() {
                     tokens.push(current_token.clone());
-
                     current_token.clear();
                 }
-
                 tokens.push(c.to_string());
             } else if c == '-' {
                 let is_unary = current_token.is_empty()
@@ -10639,22 +10717,18 @@ mod windows_overlay {
                             tokens.last().map(|s| s.as_str()),
                             Some("+") | Some("-") | Some("*") | Some("/")
                         ));
-
                 if is_unary {
                     current_token.push(c);
                 } else {
                     if !current_token.is_empty() {
                         tokens.push(current_token.clone());
-
                         current_token.clear();
                     }
-
                     tokens.push(c.to_string());
                 }
             } else {
                 current_token.push(c);
             }
-
             idx += 1;
         }
 
@@ -10663,102 +10737,82 @@ mod windows_overlay {
         }
 
         if tokens.is_empty() {
-            return 0;
+            return 0.0;
         }
 
-        let get_value = |token: &str| -> i32 {
-            if let Ok(num) = token.parse::<i32>() {
+        let get_value = |token: &str| -> f64 {
+            let normalized = token.trim();
+            if normalized.eq_ignore_ascii_case("pi") {
+                std::f64::consts::PI
+            } else if let Ok(num) = normalized.parse::<f64>() {
                 num
-            } else if let Some(obj_val) = get_object_property_value(token) {
-                obj_val
+            } else if let Some(obj_val) = get_object_property_value(normalized) {
+                obj_val as f64
             } else {
-                *RUNTIME_VARIABLES.lock().get(token).unwrap_or(&0)
+                *RUNTIME_VARIABLES.lock().get(normalized).unwrap_or(&0) as f64
             }
         };
 
         let mut values = Vec::new();
-
         let mut operators = Vec::new();
-
         let mut i = 0;
-
         while i < tokens.len() {
             let token = &tokens[i];
-
             if token == "+" || token == "-" || token == "*" || token == "/" {
                 operators.push(token.as_str());
-
-                i += 1;
             } else {
                 values.push(get_value(token));
-
-                i += 1;
             }
+            i += 1;
         }
 
         if values.is_empty() {
-            return 0;
+            return 0.0;
         }
 
-        // Pass 1: Evaluate * and / (highest precedence)
-
         let mut val_stack = Vec::new();
-
         let mut op_stack = Vec::new();
-
         val_stack.push(values[0]);
-
         let mut val_idx = 1;
 
         for op in operators {
-            let next_val = if val_idx < values.len() {
-                values[val_idx]
-            } else {
-                0
-            };
-
+            let next_val = if val_idx < values.len() { values[val_idx] } else { 0.0 };
             val_idx += 1;
 
             if op == "*" {
                 if let Some(prev) = val_stack.pop() {
-                    val_stack.push(prev.saturating_mul(next_val));
+                    val_stack.push(prev * next_val);
                 } else {
-                    val_stack.push(0);
+                    val_stack.push(0.0);
                 }
             } else if op == "/" {
                 if let Some(prev) = val_stack.pop() {
-                    let divisor = if next_val == 0 { 1 } else { next_val };
-
+                    let divisor = if next_val == 0.0 { 1.0 } else { next_val };
                     val_stack.push(prev / divisor);
                 } else {
-                    val_stack.push(0);
+                    val_stack.push(0.0);
                 }
             } else {
                 op_stack.push(op);
-
                 val_stack.push(next_val);
             }
         }
 
-        // Pass 2: Evaluate + and -
-
         let mut result = val_stack[0];
-
         for (idx, op) in op_stack.into_iter().enumerate() {
-            let next_val = if idx + 1 < val_stack.len() {
-                val_stack[idx + 1]
-            } else {
-                0
-            };
-
+            let next_val = if idx + 1 < val_stack.len() { val_stack[idx + 1] } else { 0.0 };
             if op == "+" {
-                result = result.saturating_add(next_val);
+                result += next_val;
             } else if op == "-" {
-                result = result.saturating_sub(next_val);
+                result -= next_val;
             }
         }
 
         result
+    }
+
+    pub(crate) fn evaluate_math_expression(expr: &str) -> i32 {
+        clamp_f64_to_i32(evaluate_math_expression_f64(expr))
     }
 
     #[cfg(test)]
@@ -10831,6 +10885,32 @@ mod windows_overlay {
             assert_eq!(evaluate_math_expression("cos(60)"), 500);
 
             assert_eq!(evaluate_math_expression("cos(0)"), 1000);
+
+            assert_eq!(evaluate_math_expression("sqrt(9)"), 3);
+
+            assert_eq!(evaluate_math_expression("pow(2, 3)"), 8);
+
+            assert_eq!(evaluate_math_expression("ceil(pi)"), 4);
+
+            assert_eq!(evaluate_math_expression("floor(pi)"), 3);
+
+            assert_eq!(evaluate_math_expression("degrees(pi)"), 180);
+
+            assert_eq!(evaluate_math_expression("radians(180)"), 3);
+
+            assert_eq!(evaluate_math_expression("factorial(5)"), 120);
+
+            assert_eq!(evaluate_math_expression("gcd(24, 36, 48)"), 12);
+
+            assert_eq!(evaluate_math_expression("lcm(4, 6, 8)"), 24);
+
+            assert_eq!(evaluate_math_expression("isqrt(17)"), 4);
+
+            assert_eq!(evaluate_math_expression("comb(5, 2)"), 10);
+
+            assert_eq!(evaluate_math_expression("perm(5, 2)"), 20);
+
+            assert_eq!(evaluate_math_expression("pi + 1"), 4);
 
             assert_eq!(evaluate_math_expression("min(20, 50)"), 20);
 
