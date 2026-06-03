@@ -4313,12 +4313,14 @@ impl CrosshairApp {
         let mut job = egui::text::LayoutJob::default();
         let weak_color = Color32::from_gray(224);
         let icon_format = egui::TextFormat {
-            font_id: egui::FontId::new(16.0, FontFamily::Name(MATERIAL_ICONS_FONT.into())),
+            font_id: egui::FontId::new(13.0, FontFamily::Name(MATERIAL_ICONS_FONT.into())),
+            line_height: Some(13.0),
             color: weak_color,
             ..Default::default()
         };
         let text_format = egui::TextFormat {
             font_id: egui::FontId::new(13.0, FontFamily::Proportional),
+            line_height: Some(13.0),
             color: weak_color,
             ..Default::default()
         };
