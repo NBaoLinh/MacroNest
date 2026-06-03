@@ -776,6 +776,8 @@ pub struct MacroStep {
     pub command_preset_use_powershell: bool,
     pub timed_override: bool,
     pub duration_override_ms: u64,
+    #[serde(default)]
+    pub duration_expr: String,
     pub smooth_mouse_path: bool,
     #[serde(default)]
     pub mouse_speed_expr: String,
@@ -906,6 +908,7 @@ impl Default for MacroStep {
             command_preset_use_powershell: false,
             timed_override: false,
             duration_override_ms: 1500,
+            duration_expr: String::new(),
             smooth_mouse_path: false,
             mouse_speed_expr: String::new(),
             mouse_speed_percent: 100,
@@ -994,6 +997,17 @@ impl MacroStep {
             (base_val.max(0) as u64) * multiplier
         } else {
             self.delay_ms
+        }
+    }
+
+    pub fn get_duration_ms(&self) -> u64 {
+        if !self.duration_expr.trim().is_empty() {
+            let trimmed = self.duration_expr.trim();
+            let interpolated = crate::overlay::interpolate_variables(trimmed);
+            let val = crate::overlay::evaluate_math_expression(&interpolated);
+            val.max(0) as u64
+        } else {
+            self.duration_override_ms
         }
     }
 

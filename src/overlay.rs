@@ -224,10 +224,13 @@ mod windows_overlay {
     static IMAGE_SEARCH_WAIT_GENERATIONS: Lazy<Mutex<HashMap<u32, u64>>> =
         Lazy::new(|| Mutex::new(HashMap::new()));
 
-    static HUD_DISPLAY: Lazy<Mutex<Option<HudDisplayState>>> = Lazy::new(|| Mutex::new(None));
+    pub(crate) static HUD_DISPLAY: Lazy<Mutex<Option<HudDisplayState>>> = Lazy::new(|| Mutex::new(None));
 
     static HUD_PREVIEW_DISPLAY: Lazy<Mutex<Option<HudDisplayState>>> =
         Lazy::new(|| Mutex::new(None));
+
+    pub(crate) static ACTIVE_VIDEO_PRESET_ID: Lazy<Mutex<Option<u32>>> = Lazy::new(|| Mutex::new(None));
+    pub(crate) static ACTIVE_VIDEO_EXPIRES: Lazy<Mutex<Option<Instant>>> = Lazy::new(|| Mutex::new(None));
 
     static MOUSE_RECORDING: Lazy<Mutex<Option<MouseRecordingSession>>> =
         Lazy::new(|| Mutex::new(None));
@@ -783,6 +786,9 @@ mod windows_overlay {
         geometry_presets: Vec<crate::model::GeometryPreset>,
         active_geometry_preset_ids: HashSet<u32>,
         active_geometry_steps: HashMap<(u32, usize), crate::model::GeometrySpec>,
+        active_geometry_steps_expires: HashMap<(u32, usize), Instant>,
+        active_crosshair_expires: Option<Instant>,
+        active_pin_expires: Option<Instant>,
         preview_geometry_spec: Option<GeometrySpec>,
         preview_geometry_preset_id: Option<u32>,
 
@@ -915,6 +921,9 @@ mod windows_overlay {
                 geometry_presets: Vec::new(),
                 active_geometry_preset_ids: HashSet::new(),
                 active_geometry_steps: HashMap::new(),
+                active_geometry_steps_expires: HashMap::new(),
+                active_crosshair_expires: None,
+                active_pin_expires: None,
                 preview_geometry_spec: None,
                 preview_geometry_preset_id: None,
 
@@ -5400,7 +5409,20 @@ mod windows_overlay {
 
     fn refresh_search_area_overlay(runtime: &mut Runtime) -> Result<()> {
         let (regions, preview_regions, geometry_shapes) = {
-            let hook_state = HOOK_STATE.lock();
+            let mut hook_state = HOOK_STATE.lock();
+
+            // Clear expired geometries
+            let now = Instant::now();
+            let mut expired = Vec::new();
+            for (key, expires_at) in &hook_state.active_geometry_steps_expires {
+                if now >= *expires_at {
+                    expired.push(*key);
+                }
+            }
+            for key in expired {
+                hook_state.active_geometry_steps.remove(&key);
+                hook_state.active_geometry_steps_expires.remove(&key);
+            }
 
             let regions = hook_state
                 .vision_presets
@@ -5415,6 +5437,60 @@ mod windows_overlay {
                 geometry_overlay_shapes(&hook_state),
             )
         };
+
+        // Check active crosshair expiration
+        let crosshair_expired = {
+            let mut hook_state = HOOK_STATE.lock();
+            if let Some(exp) = hook_state.active_crosshair_expires {
+                if Instant::now() >= exp {
+                    hook_state.active_crosshair_expires = None;
+                    true
+                } else {
+                    false
+                }
+            } else {
+                false
+            }
+        };
+        if crosshair_expired {
+            disable_crosshair_overlay();
+        }
+
+        // Check active pin expiration
+        let pin_expired = {
+            let mut hook_state = HOOK_STATE.lock();
+            if let Some(exp) = hook_state.active_pin_expires {
+                if Instant::now() >= exp {
+                    hook_state.active_pin_expires = None;
+                    true
+                } else {
+                    false
+                }
+            } else {
+                false
+            }
+        };
+        if pin_expired {
+            disable_pin_overlay();
+        }
+
+        // Check active video expiration
+        let video_expired = {
+            let mut expires_guard = ACTIVE_VIDEO_EXPIRES.lock();
+            if let Some(exp) = *expires_guard {
+                if Instant::now() >= exp {
+                    *expires_guard = None;
+                    true
+                } else {
+                    false
+                }
+            } else {
+                false
+            }
+        };
+        if video_expired {
+            stop_active_video_preset_playback();
+        }
 
         if regions.is_empty() && preview_regions.is_empty() && geometry_shapes.is_empty() {
             unsafe {
@@ -7059,7 +7135,7 @@ mod windows_overlay {
         mouse_path_playback_should_stop(preset_id, stop_immediately_on_retrigger)
     }
 
-    fn enable_crosshair_profile(spec: &str) -> Result<()> {
+    pub(crate) fn enable_crosshair_profile(spec: &str) -> Result<()> {
         let profile_name = spec.trim();
 
         if profile_name.is_empty() {
@@ -7127,7 +7203,7 @@ mod windows_overlay {
         send_overlay_command(OverlayCommand::Update(style));
     }
 
-    fn enable_pin_preset(spec: &str) -> Result<()> {
+    pub(crate) fn enable_pin_preset(spec: &str) -> Result<()> {
         let preset_id = spec
             .trim()
             .parse::<u32>()
@@ -7156,7 +7232,7 @@ mod windows_overlay {
         send_overlay_command(OverlayCommand::RefreshPinOverlay);
     }
 
-    fn disable_crosshair_profile(spec: &str) {
+    pub(crate) fn disable_crosshair_profile(spec: &str) {
         let profile_name = spec.trim();
 
         if profile_name.is_empty() {
@@ -7207,7 +7283,7 @@ mod windows_overlay {
         }
     }
 
-    fn disable_pin_preset(spec: &str) {
+    pub(crate) fn disable_pin_preset(spec: &str) {
         let preset_id = match spec.trim().parse::<u32>() {
             Ok(id) => id,
 
@@ -7310,6 +7386,7 @@ mod windows_overlay {
         if let Some(previous) = previous {
             previous.store(true, Ordering::Relaxed);
         }
+        *ACTIVE_VIDEO_PRESET_ID.lock() = None;
     }
 
     fn spawn_video_preset_playback_from(preset: VideoPreset, start_ms: u64) {
@@ -7333,6 +7410,7 @@ mod windows_overlay {
             let mut guard = ACTIVE_VIDEO_STOP.lock();
             guard.replace(stop_flag.clone());
         }
+        *ACTIVE_VIDEO_PRESET_ID.lock() = Some(preset.id);
 
         let handle = thread::spawn(move || {
             let _ = unsafe { run_video_preset_window(&preset, start_ms, stop_flag.clone()) };
@@ -7342,6 +7420,7 @@ mod windows_overlay {
             if let Some(active) = guard.as_ref() {
                 if Arc::ptr_eq(active, &stop_flag) {
                     *guard = None;
+                    *ACTIVE_VIDEO_PRESET_ID.lock() = None;
                 }
             }
         });
@@ -8010,6 +8089,13 @@ mod windows_overlay {
 
             MacroAction::EnableCrosshairProfile => {
                 let _ = enable_crosshair_profile(&step.key);
+                let duration = step.get_duration_ms();
+                let mut state = HOOK_STATE.lock();
+                if duration > 0 {
+                    state.active_crosshair_expires = Some(Instant::now() + Duration::from_millis(duration));
+                } else {
+                    state.active_crosshair_expires = None;
+                }
             }
 
             MacroAction::DisableCrosshair => {
@@ -8022,6 +8108,13 @@ mod windows_overlay {
 
             MacroAction::EnablePinPreset => {
                 let _ = enable_pin_preset(&step.key);
+                let duration = step.get_duration_ms();
+                let mut state = HOOK_STATE.lock();
+                if duration > 0 {
+                    state.active_pin_expires = Some(Instant::now() + Duration::from_millis(duration));
+                } else {
+                    state.active_pin_expires = None;
+                }
             }
 
             MacroAction::DisablePin => {
@@ -8050,6 +8143,13 @@ mod windows_overlay {
 
             MacroAction::PlayVideoPreset => {
                 let _ = play_video_preset(&step.key);
+                let duration = step.get_duration_ms();
+                let mut expires_guard = ACTIVE_VIDEO_EXPIRES.lock();
+                if duration > 0 {
+                    *expires_guard = Some(Instant::now() + Duration::from_millis(duration));
+                } else {
+                    *expires_guard = None;
+                }
             }
 
             MacroAction::StartVisionSearch => {
@@ -8520,6 +8620,13 @@ mod windows_overlay {
 
                 MacroAction::EnableCrosshairProfile => {
                     let _ = enable_crosshair_profile(&step.key);
+                    let duration = step.get_duration_ms();
+                    let mut state = HOOK_STATE.lock();
+                    if duration > 0 {
+                        state.active_crosshair_expires = Some(Instant::now() + Duration::from_millis(duration));
+                    } else {
+                        state.active_crosshair_expires = None;
+                    }
                 }
 
                 MacroAction::DisableCrosshair => {
@@ -8532,6 +8639,13 @@ mod windows_overlay {
 
                 MacroAction::EnablePinPreset => {
                     let _ = enable_pin_preset(&step.key);
+                    let duration = step.get_duration_ms();
+                    let mut state = HOOK_STATE.lock();
+                    if duration > 0 {
+                        state.active_pin_expires = Some(Instant::now() + Duration::from_millis(duration));
+                    } else {
+                        state.active_pin_expires = None;
+                    }
                 }
 
                 MacroAction::DisablePin => {
@@ -8573,6 +8687,13 @@ mod windows_overlay {
 
                 MacroAction::PlayVideoPreset => {
                     let _ = play_video_preset(&step.key);
+                    let duration = step.get_duration_ms();
+                    let mut expires_guard = ACTIVE_VIDEO_EXPIRES.lock();
+                    if duration > 0 {
+                        *expires_guard = Some(Instant::now() + Duration::from_millis(duration));
+                    } else {
+                        *expires_guard = None;
+                    }
                 }
 
                 MacroAction::StartVisionSearch => {
@@ -8612,6 +8733,13 @@ mod windows_overlay {
 
                 MacroAction::DrawGeometry => {
                     set_step_geometry_spec(preset_id, absolute_index, &step.geometry_spec);
+                    let duration = step.get_duration_ms();
+                    let mut state = HOOK_STATE.lock();
+                    if duration > 0 {
+                        state.active_geometry_steps_expires.insert((preset_id, absolute_index), Instant::now() + Duration::from_millis(duration));
+                    } else {
+                        state.active_geometry_steps_expires.remove(&(preset_id, absolute_index));
+                    }
                 }
 
                 MacroAction::ShowGeometryPreset => {
@@ -9041,6 +9169,13 @@ mod windows_overlay {
 
                 MacroAction::EnableCrosshairProfile => {
                     let _ = enable_crosshair_profile(&step.key);
+                    let duration = step.get_duration_ms();
+                    let mut state = HOOK_STATE.lock();
+                    if duration > 0 {
+                        state.active_crosshair_expires = Some(Instant::now() + Duration::from_millis(duration));
+                    } else {
+                        state.active_crosshair_expires = None;
+                    }
                 }
 
                 MacroAction::DisableCrosshair => {
@@ -9053,6 +9188,13 @@ mod windows_overlay {
 
                 MacroAction::EnablePinPreset => {
                     let _ = enable_pin_preset(&step.key);
+                    let duration = step.get_duration_ms();
+                    let mut state = HOOK_STATE.lock();
+                    if duration > 0 {
+                        state.active_pin_expires = Some(Instant::now() + Duration::from_millis(duration));
+                    } else {
+                        state.active_pin_expires = None;
+                    }
                 }
 
                 MacroAction::DisablePin => {
@@ -9094,6 +9236,13 @@ mod windows_overlay {
 
                 MacroAction::PlayVideoPreset => {
                     let _ = play_video_preset(&step.key);
+                    let duration = step.get_duration_ms();
+                    let mut expires_guard = ACTIVE_VIDEO_EXPIRES.lock();
+                    if duration > 0 {
+                        *expires_guard = Some(Instant::now() + Duration::from_millis(duration));
+                    } else {
+                        *expires_guard = None;
+                    }
                 }
 
                 MacroAction::StartVisionSearch => {
@@ -9133,6 +9282,13 @@ mod windows_overlay {
 
                 MacroAction::DrawGeometry => {
                     set_step_geometry_spec(preset_id, absolute_index, &step.geometry_spec);
+                    let duration = step.get_duration_ms();
+                    let mut state = HOOK_STATE.lock();
+                    if duration > 0 {
+                        state.active_geometry_steps_expires.insert((preset_id, absolute_index), Instant::now() + Duration::from_millis(duration));
+                    } else {
+                        state.active_geometry_steps_expires.remove(&(preset_id, absolute_index));
+                    }
                 }
 
                 MacroAction::ShowGeometryPreset => {
@@ -11482,8 +11638,9 @@ mod windows_overlay {
 
         let scale_y = screen_height as f32 / 1080.0;
 
-        let expires_at = if step.timed_override && step.duration_override_ms > 0 {
-            Some(Instant::now() + Duration::from_millis(step.duration_override_ms))
+        let duration = step.get_duration_ms();
+        let expires_at = if duration > 0 {
+            Some(Instant::now() + Duration::from_millis(duration))
         } else {
             None
         };
@@ -11619,10 +11776,13 @@ mod windows_overlay {
 
             auto_hide_on_owner_completion: true,
 
-            expires_at: if step.timed_override && step.duration_override_ms > 0 {
-                Some(Instant::now() + Duration::from_millis(step.duration_override_ms))
-            } else {
-                None
+            expires_at: {
+                let duration = step.get_duration_ms();
+                if duration > 0 {
+                    Some(Instant::now() + Duration::from_millis(duration))
+                } else {
+                    None
+                }
             },
         });
     }
@@ -11635,7 +11795,7 @@ mod windows_overlay {
         wake_command_queue();
     }
 
-    fn hide_hud_now() {
+    pub(crate) fn hide_hud_now() {
         *HUD_DISPLAY.lock() = None;
 
         wake_command_queue();
@@ -18675,6 +18835,55 @@ mod windows_overlay {
 
         Ok(widestring(&path.to_string_lossy()))
     }
+
+    pub(crate) fn is_geometry_active(preset_id: u32, step_index: usize) -> bool {
+        let hook_state = HOOK_STATE.lock();
+        hook_state.active_geometry_steps.contains_key(&(preset_id, step_index))
+    }
+
+    pub(crate) fn stop_geometry(preset_id: u32, step_index: usize) {
+        let mut hook_state = HOOK_STATE.lock();
+        hook_state.active_geometry_steps.remove(&(preset_id, step_index));
+        hook_state.active_geometry_steps_expires.remove(&(preset_id, step_index));
+        drop(hook_state);
+        send_overlay_command(OverlayCommand::RefreshSearchAreaOverlay);
+    }
+
+    pub(crate) fn is_crosshair_active(profile_name: &str) -> bool {
+        let name = profile_name.trim();
+        if name.is_empty() {
+            return false;
+        }
+        let hook_state = HOOK_STATE.lock();
+        hook_state.active_crosshair_profile_name.as_deref() == Some(name)
+    }
+
+    pub(crate) fn is_pin_active(preset_id_str: &str) -> bool {
+        let preset_id = match preset_id_str.trim().parse::<u32>() {
+            Ok(id) => id,
+            Err(_) => return false,
+        };
+        let hook_state = HOOK_STATE.lock();
+        hook_state.active_pin_preset_id == Some(preset_id)
+    }
+
+    pub(crate) fn is_hud_active(preset_id_str: &str) -> bool {
+        let preset_id = match preset_id_str.trim().parse::<u32>() {
+            Ok(id) => id,
+            Err(_) => return false,
+        };
+        let hud_state = HUD_DISPLAY.lock();
+        hud_state.as_ref().and_then(|h| h.preset_id) == Some(preset_id)
+    }
+
+    pub(crate) fn is_video_active(preset_id_str: &str) -> bool {
+        let preset_id = match preset_id_str.trim().parse::<u32>() {
+            Ok(id) => id,
+            Err(_) => return false,
+        };
+        let video_id = ACTIVE_VIDEO_PRESET_ID.lock();
+        *video_id == Some(preset_id)
+    }
 }
 
 #[cfg(windows)]
@@ -18806,6 +19015,40 @@ mod fallback {
     pub fn is_timer_preset_active(_t_id: Option<u32>) -> bool {
         false
     }
+
+    pub(crate) fn is_geometry_active(_preset_id: u32, _step_index: usize) -> bool {
+        false
+    }
+
+    pub(crate) fn stop_geometry(_preset_id: u32, _step_index: usize) {}
+
+    pub(crate) fn is_crosshair_active(_profile_name: &str) -> bool {
+        false
+    }
+
+    pub(crate) fn is_pin_active(_preset_id_str: &str) -> bool {
+        false
+    }
+
+    pub(crate) fn is_hud_active(_preset_id_str: &str) -> bool {
+        false
+    }
+
+    pub(crate) fn is_video_active(_preset_id_str: &str) -> bool {
+        false
+    }
+
+    pub(crate) fn enable_crosshair_profile(_spec: &str) -> Result<()> {
+        Ok(())
+    }
+
+    pub(crate) fn disable_crosshair_profile(_spec: &str) {}
+
+    pub(crate) fn enable_pin_preset(_spec: &str) -> Result<()> {
+        Ok(())
+    }
+
+    pub(crate) fn disable_pin_preset(_spec: &str) {}
 }
 
 #[cfg(not(windows))]
