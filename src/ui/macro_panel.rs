@@ -4698,6 +4698,41 @@ impl CrosshairApp {
         let command_presets_snapshot = self.state.command_presets.clone();
         let macro_group_virtualization_margin = 480.0;
 
+        let all_presets: Vec<(u32, String)> = self.state.macro_groups.iter().flat_map(|g| &g.presets).map(|p| (p.id, Self::format_macro_trigger_ui(language, p))).collect();
+
+        let all_groups: Vec<(u32, String, Vec<(u32, String)>)> = self.state.macro_groups.iter().map(|g| {
+            let presets: Vec<(u32, String)> = g.presets.iter().map(|p| (p.id, Self::format_macro_trigger_ui(language, p))).collect();
+            (g.id, g.name.clone(), presets)
+        }).collect();
+
+        let all_trigger_macro_warnings: Vec<(u32, bool)> = self.state.macro_groups
+            .iter()
+            .flat_map(|g| g.presets.iter())
+            .map(|preset| {
+                let has_infinite_loop = self.state.macro_infinite_loop_warning_enabled
+                    && preset.enabled
+                    && preset.steps.iter().any(|s| {
+                        s.action == MacroAction::LoopStart && s.is_infinite_loop()
+                    });
+                let has_vision_leak = preset.enabled
+                    && preset.steps.iter().any(|s| {
+                        s.action == MacroAction::StartVisionSearch && s.enabled
+                    })
+                    && !preset
+                        .steps
+                        .iter()
+                        .any(|s| s.action == MacroAction::StopVision && s.enabled);
+                (preset.id, has_infinite_loop || has_vision_leak)
+            })
+            .collect();
+
+        let geometry_preset_options: Vec<(u32, String)> = self
+            .state
+            .geometry_presets
+            .iter()
+            .map(|preset| (preset.id, preset.name.clone()))
+            .collect();
+
         for item in render_items {
 
             match item {
@@ -4947,58 +4982,17 @@ impl CrosshairApp {
                 }
 
                 {
-
-                    let all_presets: Vec<(u32, String)> = self.state.macro_groups.iter().flat_map(|g| &g.presets).map(|p| (p.id, Self::format_macro_trigger_ui(language, p))).collect();
-
-                    let all_groups: Vec<(u32, String, Vec<(u32, String)>)> = self.state.macro_groups.iter().map(|g| {
-
-                        let presets: Vec<(u32, String)> = g.presets.iter().map(|p| (p.id, Self::format_macro_trigger_ui(language, p))).collect();
-
-                        (g.id, g.name.clone(), presets)
-
-                    }).collect();
-
                     // Pre-compute group list for TriggerMacroPreset (avoids borrow conflict)
-
                     let current_folder_id = self.state.macro_groups[group_index].folder_id;
                     let all_groups_for_trigger: Vec<(u32, String, Vec<(u32, String)>)> = self.state.macro_groups
                         .iter()
-                        .filter(|g| g.folder_id == current_folder_id)
-                        .map(|g| (
-                            g.id,
-                            g.name.clone(),
-                            g.presets.iter()
-                                .map(|p| (p.id, Self::format_macro_trigger_ui(language, p)))
-                                .collect::<Vec<_>>(),
-                        ))
-                        .collect();
-                    let all_trigger_macro_warnings: Vec<(u32, bool)> = self.state.macro_groups
-                        .iter()
-                        .flat_map(|g| g.presets.iter())
-                        .map(|preset| {
-                            let has_infinite_loop = self.state.macro_infinite_loop_warning_enabled
-                                && preset.enabled
-                                && preset.steps.iter().any(|s| {
-                                    s.action == MacroAction::LoopStart && s.is_infinite_loop()
-                                });
-                            let has_vision_leak = preset.enabled
-                                && preset.steps.iter().any(|s| {
-                                    s.action == MacroAction::StartVisionSearch && s.enabled
-                                })
-                                && !preset
-                                    .steps
-                                    .iter()
-                                    .any(|s| s.action == MacroAction::StopVision && s.enabled);
-                            (preset.id, has_infinite_loop || has_vision_leak)
+                        .enumerate()
+                        .filter(|(_, g)| g.folder_id == current_folder_id)
+                        .map(|(idx, _)| {
+                            all_groups[idx].clone()
                         })
                         .collect();
 
-                    let geometry_preset_options: Vec<(u32, String)> = self
-                        .state
-                        .geometry_presets
-                        .iter()
-                        .map(|preset| (preset.id, preset.name.clone()))
-                        .collect();
                     let mut geometry_manual_color = self.vision_manual_color;
                     let mut geometry_manual_color_hex = self.vision_manual_color_hex.clone();
                     let mut request_geometry_screen_color_pick = false;
