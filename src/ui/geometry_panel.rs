@@ -491,11 +491,20 @@ impl CrosshairApp {
         is_fill: bool,
     ) -> bool {
         let mut changed = false;
+        let color_text = format!(
+            "#{:02X}{:02X}{:02X}{:02X}  rgba({}, {}, {}, {})",
+            color.r, color.g, color.b, color.a, color.r, color.g, color.b, color.a
+        );
         ui.label(label);
         changed |= ui
             .add_sized([208.0, 24.0], TextEdit::singleline(expr))
             .changed();
         Self::image_search_target_color_swatch(ui, Some(*color));
+        ui.add_sized(
+            [190.0, 24.0],
+            egui::Label::new(color_text.clone()).sense(egui::Sense::hover()),
+        )
+        .on_hover_text(color_text);
 
         let popup_id = ui.make_persistent_id((preset_id, object_id, label, "geometry-color-popup"));
         let mut popup_open = ui
