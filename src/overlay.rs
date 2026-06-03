@@ -17696,52 +17696,7 @@ mod windows_overlay {
         }
     }
 
-    fn draw_line_rgba(
-        pixels: &mut [u8],
-
-        width: usize,
-
-        height: usize,
-
-        x0: i32,
-
-        y0: i32,
-
-        x1: i32,
-
-        y1: i32,
-
-        color: [u8; 4],
-    ) {
-        let dx = x1 - x0;
-
-        let dy = y1 - y0;
-
-        let steps = dx.abs().max(dy.abs()).max(1);
-
-        for step in 0..=steps {
-            let t = step as f32 / steps as f32;
-
-            let x = x0 as f32 + dx as f32 * t;
-
-            let y = y0 as f32 + dy as f32 * t;
-
-            for ox in -1..=1 {
-                for oy in -1..=1 {
-                    blend_rgba_pixel(
-                        pixels,
-                        width,
-                        height,
-                        x.round() as i32 + ox,
-                        y.round() as i32 + oy,
-                        color,
-                    );
-                }
-            }
-        }
-    }
-
-    fn draw_line_thick_rgba(
+    fn draw_line_aa_impl(
         pixels: &mut [u8],
         width: usize,
         height: usize,
@@ -17755,24 +17710,70 @@ mod windows_overlay {
         let dx = x1 - x0;
         let dy = y1 - y0;
         let steps = dx.abs().max(dy.abs()).max(1);
-        let radius = (thickness.max(1) - 1) / 2;
+
+        let r = thickness as f32 * 0.5;
+        let r_inner = r - 0.5;
+        let r_outer = r + 0.5;
+
         for step in 0..=steps {
             let t = step as f32 / steps as f32;
-            let x = x0 as f32 + dx as f32 * t;
-            let y = y0 as f32 + dy as f32 * t;
-            for ox in -radius..=radius {
-                for oy in -radius..=radius {
-                    blend_rgba_pixel(
-                        pixels,
-                        width,
-                        height,
-                        x.round() as i32 + ox,
-                        y.round() as i32 + oy,
-                        color,
-                    );
+            let cx = x0 as f32 + dx as f32 * t;
+            let cy = y0 as f32 + dy as f32 * t;
+
+            let min_x = (cx - r_outer).floor() as i32;
+            let max_x = (cx + r_outer).ceil() as i32;
+            let min_y = (cy - r_outer).floor() as i32;
+            let max_y = (cy + r_outer).ceil() as i32;
+
+            for py in min_y..=max_y {
+                for px in min_x..=max_x {
+                    let dx_p = px as f32 - cx;
+                    let dy_p = py as f32 - cy;
+                    let dist = (dx_p * dx_p + dy_p * dy_p).sqrt();
+
+                    let brightness = if dist <= r_inner {
+                        1.0
+                    } else if dist >= r_outer {
+                        0.0
+                    } else {
+                        r_outer - dist
+                    };
+
+                    if brightness > 0.0 {
+                        let mut blended_color = color;
+                        blended_color[3] = (color[3] as f32 * brightness) as u8;
+                        blend_rgba_pixel(pixels, width, height, px, py, blended_color);
+                    }
                 }
             }
         }
+    }
+
+    fn draw_line_rgba(
+        pixels: &mut [u8],
+        width: usize,
+        height: usize,
+        x0: i32,
+        y0: i32,
+        x1: i32,
+        y1: i32,
+        color: [u8; 4],
+    ) {
+        draw_line_aa_impl(pixels, width, height, x0, y0, x1, y1, color, 1);
+    }
+
+    fn draw_line_thick_rgba(
+        pixels: &mut [u8],
+        width: usize,
+        height: usize,
+        x0: i32,
+        y0: i32,
+        x1: i32,
+        y1: i32,
+        color: [u8; 4],
+        thickness: i32,
+    ) {
+        draw_line_aa_impl(pixels, width, height, x0, y0, x1, y1, color, thickness);
     }
 
     fn draw_rect_outline_thick_rgba(
