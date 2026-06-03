@@ -12865,8 +12865,6 @@ mod windows_overlay {
             y: i32,
             radius: i32,
             fill: [u8; 4],
-            stroke: [u8; 4],
-            thickness: i32,
         },
         Line {
             x1: i32,
@@ -13035,14 +13033,12 @@ mod windows_overlay {
                 let y = geometry_eval_i32(&spec.y1_expr, 0);
                 let radius = geometry_eval_i32(&spec.radius_expr, spec.point_radius.round() as i32).max(1);
                 Some(GeometryRenderShape {
-                    bounds: (x - radius - thickness, y - radius - thickness, x + radius + thickness, y + radius + thickness),
+                    bounds: (x - radius, y - radius, x + radius, y + radius),
                     draw: GeometryRenderDraw::Point {
                         x,
                         y,
                         radius,
                         fill: fill_option.unwrap_or(stroke),
-                        stroke,
-                        thickness,
                     },
                 })
             }
@@ -17065,8 +17061,6 @@ mod windows_overlay {
                     y,
                     radius,
                     fill,
-                    stroke,
-                    thickness,
                 } => {
                     let left = x - min_x - radius;
                     let top = y - min_y - radius;
@@ -17080,17 +17074,6 @@ mod windows_overlay {
                         size,
                         size,
                         *fill,
-                    );
-                    draw_ellipse_outline_thick_rgba(
-                        pixels,
-                        width as usize,
-                        height as usize,
-                        left,
-                        top,
-                        size,
-                        size,
-                        *stroke,
-                        *thickness,
                     );
                 }
                 GeometryRenderDraw::Line {

@@ -313,8 +313,8 @@ impl CrosshairApp {
                             255,
                             "Size",
                             &mut spec.radius_expr,
-                            "Thickness",
-                            &mut spec.thickness_expr,
+                            "Opacity",
+                            &mut spec.opacity_expr,
                             begin_mouse_move_absolute_capture_target,
                         );
                     }
