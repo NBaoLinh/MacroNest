@@ -7926,7 +7926,7 @@ impl CrosshairApp {
 
                                                         ui.spacing_mut().button_padding.y = 0.0;
 
-                                                        ui.spacing_mut().item_spacing.x = 4.0;
+                                                        ui.spacing_mut().item_spacing.x = 2.0;
 
                                                         let preset_label = group_preset_options.iter()
 
@@ -8959,7 +8959,7 @@ impl CrosshairApp {
 
                                                      ui.scope(|ui| {
 
-                                                         ui.spacing_mut().item_spacing.x = 4.0;
+                                                         ui.spacing_mut().item_spacing.x = 2.0;
 
                                                          ui.spacing_mut().interact_size.y = 22.0;
 
@@ -9404,7 +9404,7 @@ impl CrosshairApp {
 
                                                     ui.scope(|ui| {
 
-                                                        ui.spacing_mut().item_spacing.x = 4.0;
+                                                        ui.spacing_mut().item_spacing.x = 2.0;
 
                                                         ui.spacing_mut().interact_size.y = 22.0;
 
@@ -9466,7 +9466,7 @@ impl CrosshairApp {
 
                                                     ui.scope(|ui| {
 
-                                                        ui.spacing_mut().item_spacing.x = 4.0;
+                                                        ui.spacing_mut().item_spacing.x = 2.0;
 
                                                         ui.spacing_mut().interact_size.y = 22.0;
 
@@ -9584,7 +9584,7 @@ impl CrosshairApp {
 
                                                      ui.scope(|ui| {
 
-                                                         ui.spacing_mut().item_spacing.x = 4.0;
+                                                         ui.spacing_mut().item_spacing.x = 2.0;
 
                                                          ui.spacing_mut().interact_size.y = 22.0;
 
@@ -10369,7 +10369,7 @@ impl CrosshairApp {
 
                                                     ui.scope(|ui| {
 
-                                                        ui.spacing_mut().item_spacing.x = 4.0;
+                                                        ui.spacing_mut().item_spacing.x = 2.0;
 
                                                         ui.spacing_mut().interact_size.y = 22.0;
 
@@ -13202,7 +13202,7 @@ impl CrosshairApp {
 
                                                         ui.spacing_mut().button_padding.y = 0.0;
 
-                                                        ui.spacing_mut().item_spacing.x = 4.0;
+                                                        ui.spacing_mut().item_spacing.x = 2.0;
 
                                                         let preset_label = group_preset_options.iter()
 
@@ -14446,7 +14446,7 @@ impl CrosshairApp {
 
                                                      ui.scope(|ui| {
 
-                                                         ui.spacing_mut().item_spacing.x = 4.0;
+                                                         ui.spacing_mut().item_spacing.x = 2.0;
 
                                                          ui.spacing_mut().interact_size.y = 18.0;
 
@@ -14901,7 +14901,7 @@ impl CrosshairApp {
 
                                                     ui.scope(|ui| {
 
-                                                        ui.spacing_mut().item_spacing.x = 4.0;
+                                                        ui.spacing_mut().item_spacing.x = 2.0;
 
                                                         ui.spacing_mut().interact_size.y = 18.0;
 
@@ -14963,7 +14963,7 @@ impl CrosshairApp {
 
                                                     ui.scope(|ui| {
 
-                                                        ui.spacing_mut().item_spacing.x = 4.0;
+                                                        ui.spacing_mut().item_spacing.x = 2.0;
 
                                                         ui.spacing_mut().interact_size.y = 18.0;
 
@@ -15081,7 +15081,7 @@ impl CrosshairApp {
 
                                                       ui.scope(|ui| {
 
-                                                          ui.spacing_mut().item_spacing.x = 4.0;
+                                                          ui.spacing_mut().item_spacing.x = 2.0;
 
                                                           ui.spacing_mut().interact_size.y = 22.0;
 
@@ -15888,7 +15888,7 @@ impl CrosshairApp {
 
                                                     ui.scope(|ui| {
 
-                                                        ui.spacing_mut().item_spacing.x = 4.0;
+                                                        ui.spacing_mut().item_spacing.x = 2.0;
 
                                                         ui.spacing_mut().interact_size.y = 22.0;
 
