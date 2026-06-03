@@ -1,5 +1,5 @@
 use crate::model::{GeometryObject, GeometryPreset, GeometryShapeKind, GeometrySpec};
-use crate::ui::{CrosshairApp, MouseCaptureKind, MouseMoveAbsoluteCaptureTarget};
+use crate::ui::{CrosshairApp, MouseCaptureKind, MouseMoveAbsoluteCaptureTarget, UiLanguage};
 use eframe::egui::{self, Button, ComboBox, Frame, Grid, TextEdit};
 
 impl CrosshairApp {
@@ -381,10 +381,7 @@ impl CrosshairApp {
                             &mut spec.thickness_expr,
                             begin_mouse_move_absolute_capture_target,
                         );
-                        changed |= ui
-                            .checkbox(&mut spec.filled, Self::tr_lang(language, "Filled", "Filled"))
-                            .changed();
-                        ui.end_row();
+                        changed |= Self::geometry_fill_mode_row(ui, language, &mut spec.filled);
                     }
                     GeometryShapeKind::Rectangle => {
                         changed |= Self::geometry_expr_pair_row(
@@ -420,10 +417,7 @@ impl CrosshairApp {
                             &mut spec.opacity_expr,
                             begin_mouse_move_absolute_capture_target,
                         );
-                        changed |= ui
-                            .checkbox(&mut spec.filled, Self::tr_lang(language, "Filled", "Filled"))
-                            .changed();
-                        ui.end_row();
+                        changed |= Self::geometry_fill_mode_row(ui, language, &mut spec.filled);
                     }
                     GeometryShapeKind::Label => {
                         changed |= Self::geometry_expr_pair_row(
@@ -487,10 +481,7 @@ impl CrosshairApp {
                             &mut spec.opacity_expr,
                             begin_mouse_move_absolute_capture_target,
                         );
-                        changed |= ui
-                            .checkbox(&mut spec.filled, Self::tr_lang(language, "Filled", "Filled"))
-                            .changed();
-                        ui.end_row();
+                        changed |= Self::geometry_fill_mode_row(ui, language, &mut spec.filled);
                     }
                     GeometryShapeKind::Polyline | GeometryShapeKind::Polygon => {
                         ui.label("Points");
@@ -510,10 +501,7 @@ impl CrosshairApp {
                             begin_mouse_move_absolute_capture_target,
                         );
                         if spec.shape == GeometryShapeKind::Polygon {
-                            changed |= ui
-                                .checkbox(&mut spec.filled, Self::tr_lang(language, "Filled", "Filled"))
-                                .changed();
-                            ui.end_row();
+                            changed |= Self::geometry_fill_mode_row(ui, language, &mut spec.filled);
                         }
                     }
                     GeometryShapeKind::Arc => {
@@ -591,13 +579,15 @@ impl CrosshairApp {
                     false,
                 );
 
-                if matches!(
-                    spec.shape,
-                    GeometryShapeKind::Circle
-                        | GeometryShapeKind::Rectangle
-                        | GeometryShapeKind::Ellipse
-                        | GeometryShapeKind::Polygon
-                ) {
+                if spec.filled
+                    && matches!(
+                        spec.shape,
+                        GeometryShapeKind::Circle
+                            | GeometryShapeKind::Rectangle
+                            | GeometryShapeKind::Ellipse
+                            | GeometryShapeKind::Polygon
+                    )
+                {
                     changed |= Self::geometry_color_row(
                         ui,
                         preset_id,
@@ -664,6 +654,41 @@ impl CrosshairApp {
         } else {
             ui.add_space(24.0);
         }
+        ui.end_row();
+        changed
+    }
+
+    fn geometry_fill_mode_row(
+        ui: &mut egui::Ui,
+        language: UiLanguage,
+        filled: &mut bool,
+    ) -> bool {
+        let mut changed = false;
+        ui.label(Self::tr_lang(language, "Mode", "Mode"));
+        ComboBox::from_id_salt(ui.next_auto_id())
+            .width(154.0)
+            .selected_text(if *filled {
+                Self::tr_lang(language, "Filled", "Filled")
+            } else {
+                Self::tr_lang(language, "Outline", "Outline")
+            })
+            .show_ui(ui, |ui| {
+                changed |= ui
+                    .selectable_value(
+                        filled,
+                        false,
+                        Self::tr_lang(language, "Outline", "Outline"),
+                    )
+                    .changed();
+                changed |= ui
+                    .selectable_value(
+                        filled,
+                        true,
+                        Self::tr_lang(language, "Filled", "Filled"),
+                    )
+                    .changed();
+            });
+        ui.add_space(154.0);
         ui.end_row();
         changed
     }
