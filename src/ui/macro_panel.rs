@@ -2246,7 +2246,7 @@ impl CrosshairApp {
                             cond_var_id,
                             76.0,
                             140.0,
-                              13.0, 13.0,
+                              17.0, 17.0,
                             Self::tr_lang(language, "value/expr", "biến/expr"),
                             false,
                         );
@@ -2296,7 +2296,7 @@ impl CrosshairApp {
                             cond_expr_id,
                             76.0,
                             180.0,
-                              13.0, 13.0,
+                              17.0, 17.0,
                             Self::tr_lang(language, "value/expr", "giá trị/expr"),
                             false,
                         );
@@ -2393,7 +2393,7 @@ impl CrosshairApp {
                             var_target_id,
                             76.0,
                             180.0,
-                              13.0, 13.0,
+                              17.0, 17.0,
                             Self::tr_lang(language, "Target text", "Van ban can tim"),
                             false,
                         );
@@ -2430,8 +2430,7 @@ impl CrosshairApp {
                         *live_sync |= resp_y.changed();
 
                         let resp_col = ui.add_sized(
-                            [76.0, 20.0],
-                            egui::TextEdit::singleline(&mut cond.target_color).hint_text("R,G,B"),
+                            [76.0, 17.0], egui::TextEdit::singleline(&mut cond.target_color).hint_text("R,G,B"),
                         );
 
                         *live_sync |= resp_col.changed();
@@ -2634,7 +2633,7 @@ impl CrosshairApp {
                             cond_expr_id,
                             76.0,
                             100.0,
-                              13.0, 13.0,
+                              17.0, 17.0,
                             Self::tr_lang(language, "value/expr", "giá trị/expr"),
                             false,
                         );
@@ -8491,12 +8490,12 @@ impl CrosshairApp {
                                                             let row_height = ui.spacing().interact_size.y;
                                                              let (rect, _) = ui.allocate_exact_size(egui::vec2(110.0, row_height), egui::Sense::hover());
                                                              let textbox_rect = egui::Rect::from_min_size(
-                                                                 egui::pos2(rect.min.x, rect.min.y + (rect.height() - 13.0) / 2.0),
-                                                                 egui::vec2(110.0, 13.0)
+                                                                 egui::pos2(rect.min.x, rect.min.y + (rect.height() - 17.0) / 2.0),
+                                                                 egui::vec2(110.0, 17.0)
                                                              );
                                                              let prev_interact_y = ui.spacing().interact_size.y;
                                                              let prev_padding = ui.spacing().button_padding;
-                                                             ui.spacing_mut().interact_size.y = 13.0;
+                                                             ui.spacing_mut().interact_size.y = 17.0;
                                                              ui.spacing_mut().button_padding.y = 0.0;
                                                              let response = ui.put(
                                                                  textbox_rect,
@@ -8926,7 +8925,7 @@ impl CrosshairApp {
 
                                                                   180.0,
 
-                                                                    13.0, 13.0,
+                                                                    17.0, 17.0,
 
                                                                   &Self::tr_lang(language, "Loop count", "Số lần lặp"),
 
@@ -9044,7 +9043,7 @@ impl CrosshairApp {
 
                                                                          140.0,
 
-                                                                         20.0, 20.0,
+                                                                         17.0, 17.0,
 
                                                                          Self::tr_lang(language, "variable", "biến"),
 
@@ -9104,7 +9103,7 @@ impl CrosshairApp {
 
                                                                          140.0,
 
-                                                                         20.0, 20.0,
+                                                                         17.0, 17.0,
 
                                                                          Self::tr_lang(language, "value/expr", "giá trị"),
 
@@ -9336,7 +9335,7 @@ impl CrosshairApp {
                                                             text_id,
                                                             110.0,
                                                             200.0,
-                                                              13.0, 13.0,
+                                                              17.0, 17.0,
                                                             &Self::tr_lang(language, "Text override", "Ghi đè văn bản"),
                                                             false,
                                                         );
@@ -9366,7 +9365,7 @@ impl CrosshairApp {
 
                                                             360.0,
 
-                                                            20.0,
+                                                            17.0,
 
                                                             44.0,
 
@@ -9536,7 +9535,7 @@ impl CrosshairApp {
 
                                                      ui.add_sized(
 
-                                                         [110.0, 13.0],
+                                                         [110.0, 17.0],
 
                                                          egui::Label::new(""),
 
@@ -9546,7 +9545,7 @@ impl CrosshairApp {
 
                                                      ui.add_sized(
 
-                                                         [110.0, 13.0],
+                                                         [110.0, 17.0],
 
                                                          egui::Label::new(Self::tr_lang(language, "No input", "No input")),
 
@@ -9678,7 +9677,7 @@ impl CrosshairApp {
 
                                                                        140.0,
 
-                                                                       20.0, 20.0,
+                                                                       17.0, 17.0,
 
                                                                        Self::tr_lang(language, "value/expr", "biến/expr"),
 
@@ -9738,7 +9737,7 @@ impl CrosshairApp {
 
                                                                        180.0,
 
-                                                                       20.0, 20.0,
+                                                                       17.0, 17.0,
 
                                                                        Self::tr_lang(language, "value/expr", "giá trị/expr"),
 
@@ -9798,9 +9797,7 @@ impl CrosshairApp {
 
                                                                        let resp_col = ui.add_sized(
 
-                                                                           [64.0, 20.0],
-
-                                                                           TextEdit::singleline(&mut step.if_target_color)
+                                                                           [64.0, 17.0], TextEdit::singleline(&mut step.if_target_color)
 
                                                                                .hint_text(RichText::new("#RRGGBB").color(hint_color).weak()),
 
@@ -10053,9 +10050,7 @@ impl CrosshairApp {
 
                                                                        let response2 = ui.add_sized(
 
-                                                                            [76.0, 20.0],
-
-                                                                            TextEdit::singleline(&mut step.key)
+                                                                            [76.0, 17.0], TextEdit::singleline(&mut step.key)
 
                                                                                 .layouter(&mut variable_layouter)
 
@@ -10259,7 +10254,7 @@ impl CrosshairApp {
 
                                                                             180.0,
 
-                                                                            20.0, 20.0,
+                                                                            17.0, 17.0,
 
                                                                             Self::tr_lang(language, "Target text", "Van ban can tim"),
 
@@ -10381,7 +10376,7 @@ impl CrosshairApp {
 
                                                                       140.0,
 
-                                                                      20.0, 20.0,
+                                                                      17.0, 17.0,
 
                                                                       Self::tr_lang(language, "variable", "biến"),
 
@@ -10417,7 +10412,7 @@ impl CrosshairApp {
 
                                                                       76.0,
 
-                                                                      180.0,   13.0, 13.0,
+                                                                      180.0,   17.0, 17.0,
 
                                                                       Self::tr_lang(language, "value/expr", "giá trị"),
 
@@ -10487,7 +10482,7 @@ impl CrosshairApp {
 
                                                         240.0,
 
-                                                          13.0, 13.0,
+                                                          17.0, 17.0,
 
                                                         "...",
 
@@ -10623,7 +10618,7 @@ impl CrosshairApp {
                                                     ui.spacing_mut().item_spacing.x = 2.0;
                                                     ui.spacing_mut().interact_size.y = 20.0;
                                                     ui.spacing_mut().button_padding.y = 0.0;
-                                                    let response = Self::render_variable_text_edit(ui, &mut step.duration_expr, duration_id, 74.0, 150.0,  20.0, 20.0, "0", false);
+                                                    let response = Self::render_variable_text_edit(ui, &mut step.duration_expr, duration_id, 74.0, 150.0,  17.0, 17.0, "0", false);
                                                     ui.weak("ms");
                                                     Self::apply_vietnamese_input_if_changed(
                                                         &response,
@@ -11273,7 +11268,7 @@ impl CrosshairApp {
 
                                          ui.add_sized([148.0, 20.0], egui::Label::new(RichText::new(Self::tr_lang(language, "Action", "Action")).strong()));
 
-                                         ui.add_sized([146.0, 13.0], egui::Label::new(""));
+                                         ui.add_sized([146.0, 17.0], egui::Label::new(""));
 
                                         let has_selected_steps = selected_steps_snapshot.iter().any(|(g_id, p_id, _)| *g_id == group.id && *p_id == preset.id);
 
@@ -14138,12 +14133,12 @@ impl CrosshairApp {
                                                             let row_height = ui.spacing().interact_size.y;
                                                              let (rect, _) = ui.allocate_exact_size(egui::vec2(96.0, row_height), egui::Sense::hover());
                                                              let textbox_rect = egui::Rect::from_min_size(
-                                                                 egui::pos2(rect.min.x, rect.min.y + (rect.height() - 13.0) / 2.0),
-                                                                 egui::vec2(96.0, 13.0)
+                                                                 egui::pos2(rect.min.x, rect.min.y + (rect.height() - 17.0) / 2.0),
+                                                                 egui::vec2(96.0, 17.0)
                                                              );
                                                              let prev_interact_y = ui.spacing().interact_size.y;
                                                              let prev_padding = ui.spacing().button_padding;
-                                                             ui.spacing_mut().interact_size.y = 13.0;
+                                                             ui.spacing_mut().interact_size.y = 17.0;
                                                              ui.spacing_mut().button_padding.y = 0.0;
                                                              let response = ui.put(
                                                                  textbox_rect,
@@ -14400,7 +14395,7 @@ impl CrosshairApp {
 
                                                                   180.0,
 
-                                                                    13.0, 13.0,
+                                                                    17.0, 17.0,
 
                                                                   &Self::tr_lang(language, "Loop count", "Số lần lặp"),
 
@@ -14518,7 +14513,7 @@ impl CrosshairApp {
 
                                                                          140.0,
 
-                                                                         20.0, 20.0,
+                                                                         17.0, 17.0,
 
                                                                          Self::tr_lang(language, "variable", "biến"),
 
@@ -14578,7 +14573,7 @@ impl CrosshairApp {
 
                                                                          180.0,
 
-                                                                         20.0, 20.0,
+                                                                         17.0, 17.0,
 
                                                                          Self::tr_lang(language, "value/expr", "giá trị"),
 
@@ -14821,7 +14816,7 @@ impl CrosshairApp {
                                                                 text_id,
                                                                 122.0,
                                                                 240.0,
-                                                                  13.0, 13.0,
+                                                                  17.0, 17.0,
                                                                 &Self::tr_lang(language, "Text override", "Ghi de van ban"),
                                                                 false,
                                                             );
@@ -14833,12 +14828,12 @@ impl CrosshairApp {
                                                                 duration_id,
                                                                 72.0,
                                                                 150.0,
-                                                                  20.0, 20.0,
+                                                                  17.0, 17.0,
                                                                 "0",
                                                                 false,
                                                             );
                                                             ui.add_sized(
-                                                                [20.0, 20.0],
+                                                                [20.0, 17.0],
                                                                 egui::Label::new(
                                                                     egui::RichText::new("ms").weak(),
                                                                 ),
@@ -14894,7 +14889,7 @@ impl CrosshairApp {
 
                                                              260.0,
 
-                                                                13.0, 36.0,
+                                                                17.0, 36.0,
 
                                                              Self::tr_lang(language, "Text to type", "Văn bảnh cần gõ"),
 
@@ -15062,7 +15057,7 @@ impl CrosshairApp {
 
                                                      ui.add_sized(
 
-                                                         [146.0, 13.0],
+                                                         [146.0, 17.0],
 
                                                          egui::Label::new(""),
 
@@ -15072,7 +15067,7 @@ impl CrosshairApp {
 
                                                      ui.add_sized(
 
-                                                         [146.0, 13.0],
+                                                         [146.0, 17.0],
 
                                                          egui::Label::new(Self::tr_lang(language, "No input", "No input")),
 
@@ -15201,7 +15196,7 @@ impl CrosshairApp {
 
                                                                         140.0,
 
-                                                                        20.0, 20.0,
+                                                                        17.0, 17.0,
 
                                                                         Self::tr_lang(language, "value/expr", "biến/expr"),
 
@@ -15261,7 +15256,7 @@ impl CrosshairApp {
 
                                                                         180.0,
 
-                                                                        20.0, 20.0,
+                                                                        17.0, 17.0,
 
                                                                         Self::tr_lang(language, "value/expr", "giá trị/expr"),
 
@@ -15321,9 +15316,7 @@ impl CrosshairApp {
 
                                                                         let resp_col = ui.add_sized(
 
-                                                                            [64.0, 20.0],
-
-                                                                            TextEdit::singleline(&mut step.if_target_color)
+                                                                            [64.0, 17.0], TextEdit::singleline(&mut step.if_target_color)
 
                                                                                 .hint_text(RichText::new("#RRGGBB").color(hint_color).weak()),
 
@@ -15576,9 +15569,7 @@ impl CrosshairApp {
 
                                                                         let response2 = ui.add_sized(
 
-                                                                             [76.0, 20.0],
-
-                                                                             TextEdit::singleline(&mut step.key)
+                                                                             [76.0, 17.0], TextEdit::singleline(&mut step.key)
 
                                                                                  .layouter(&mut variable_layouter)
 
@@ -15798,7 +15789,7 @@ impl CrosshairApp {
 
                                                                             180.0,
 
-                                                                            20.0, 20.0,
+                                                                            17.0, 17.0,
 
                                                                             Self::tr_lang(language, "Target text", "Van ban can tim"),
 
@@ -15926,7 +15917,7 @@ impl CrosshairApp {
 
                                                                       140.0,
 
-                                                                      20.0, 20.0,
+                                                                      17.0, 17.0,
 
                                                                       Self::tr_lang(language, "variable", "biến"),
 
@@ -15962,7 +15953,7 @@ impl CrosshairApp {
 
                                                                       76.0,
 
-                                                                      180.0,   13.0, 13.0,
+                                                                      180.0,   17.0, 17.0,
 
                                                                       Self::tr_lang(language, "value/expr", "giá trị"),
 
@@ -16292,7 +16283,7 @@ impl CrosshairApp {
 
                                                         ));
 
-                                                        ui.add_sized([146.0, 13.0], text_edit)
+                                                        ui.add_sized([146.0, 17.0], text_edit)
 
                                                     } else {
 
@@ -16310,7 +16301,7 @@ impl CrosshairApp {
 
                                                             240.0,
 
-                                                              13.0, 13.0,
+                                                              17.0, 17.0,
 
                                                             "...",
 
@@ -16359,7 +16350,7 @@ impl CrosshairApp {
 
                                             } else {
 
-                                                ui.add_sized([146.0, 13.0], egui::Label::new("-"));
+                                                ui.add_sized([146.0, 17.0], egui::Label::new("-"));
 
                                             }
 
@@ -16562,7 +16553,7 @@ impl CrosshairApp {
                                                             speed_id,
                                                             72.0,
                                                             120.0,
-                                                              13.0, 13.0,
+                                                              17.0, 17.0,
                                                             "x1",
                                                             false,
                                                         );
@@ -16649,11 +16640,11 @@ impl CrosshairApp {
                                                         duration_id,
                                                         72.0,
                                                         150.0,
-                                                          20.0, 20.0,
+                                                          17.0, 17.0,
                                                         "0",
                                                         false,
                                                     );
-                                                    child_ui.add_sized([20.0, 20.0], egui::Label::new(egui::RichText::new("ms").weak()));
+                                                    child_ui.add_sized([20.0, 17.0], egui::Label::new(egui::RichText::new("ms").weak()));
                                                     Self::apply_vietnamese_input_if_changed(
                                                         &response,
                                                         self.state.vietnamese_input_enabled,
@@ -21005,7 +20996,7 @@ impl CrosshairApp {
                 .id(id)
         } else {
             let mut edit = egui::TextEdit::singleline(text).hint_text(hint).id(id);
-            if animated_height <= 14.0 {
+            if animated_height <= 18.0 {
                 edit = edit.font(egui::TextStyle::Small);
             }
             edit
@@ -21035,6 +21026,8 @@ impl CrosshairApp {
         ui.spacing_mut().interact_size.y = animated_height;
         if animated_height <= 14.0 {
             ui.spacing_mut().button_padding.y = 0.0;
+        } else if animated_height <= 18.0 {
+            ui.spacing_mut().button_padding.y = 2.0;
         }
 
         let response = match highlight_mode {
@@ -21045,7 +21038,7 @@ impl CrosshairApp {
                 let mut layouter = |ui: &egui::Ui, string: &dyn TextBuffer, wrap_width: f32| {
                     let effective_wrap_width =
                         Self::highlight_job_wrap_width(has_focus, multiline_on_focus, wrap_width);
-                    let text_style = if animated_height <= 14.0 {
+                    let text_style = if animated_height <= 18.0 {
                         egui::TextStyle::Small
                     } else {
                         egui::TextStyle::Body
@@ -21065,7 +21058,7 @@ impl CrosshairApp {
                 let mut layouter = |ui: &egui::Ui, string: &dyn TextBuffer, wrap_width: f32| {
                     let effective_wrap_width =
                         Self::highlight_job_wrap_width(has_focus, multiline_on_focus, wrap_width);
-                    let text_style = if animated_height <= 14.0 {
+                    let text_style = if animated_height <= 18.0 {
                         egui::TextStyle::Small
                     } else {
                         egui::TextStyle::Body
@@ -21297,16 +21290,25 @@ impl CrosshairApp {
         let (pair_rect, _) =
             ui.allocate_exact_size(vec2(pair_width, height), egui::Sense::hover());
 
-        let x_label_rect = Rect::from_min_size(pair_rect.min, vec2(label_width, height));
+        let target_height = 17.0;
+        let y_offset = (height - target_height) / 2.0;
+
+        let x_label_rect = Rect::from_min_size(
+            pos2(pair_rect.min.x, pair_rect.min.y + y_offset), 
+            vec2(label_width, target_height)
+        );
         let x_input_rect = Rect::from_min_size(
-            pos2(pair_rect.min.x + label_width + inner_gap, pair_rect.min.y),
-            vec2(width, height),
+            pos2(pair_rect.min.x + label_width + inner_gap, pair_rect.min.y + y_offset),
+            vec2(width, target_height),
         );
         let y_label_x = pair_rect.min.x + label_width + inner_gap + width + pair_gap;
-        let y_label_rect = Rect::from_min_size(pos2(y_label_x, pair_rect.min.y), vec2(label_width, height));
+        let y_label_rect = Rect::from_min_size(
+            pos2(y_label_x, pair_rect.min.y + y_offset), 
+            vec2(label_width, target_height)
+        );
         let y_input_rect = Rect::from_min_size(
-            pos2(y_label_x + label_width + inner_gap, pair_rect.min.y),
-            vec2(width, height),
+            pos2(y_label_x + label_width + inner_gap, pair_rect.min.y + y_offset),
+            vec2(width, target_height),
         );
 
         ui.put(
