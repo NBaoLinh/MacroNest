@@ -123,6 +123,8 @@ pub(crate) enum VisionCaptureTarget {
 pub(crate) enum MouseCaptureKind {
     #[default]
     MoveMouseAbsolute,
+    GeometryPrimaryPos,
+    GeometrySecondaryPos,
     IfStartMousePos,
     IfStartPixelColor,
     ExtraCondMousePos,

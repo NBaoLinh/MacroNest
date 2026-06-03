@@ -1024,6 +1024,69 @@ impl CrosshairApp {
             None
         };
 
+        if target.group_id.is_none()
+            && matches!(
+                target.capture_kind,
+                MouseCaptureKind::GeometryPrimaryPos | MouseCaptureKind::GeometrySecondaryPos
+            )
+        {
+            let object_id = target.step_index as u32;
+            let pair_index = if matches!(target.capture_kind, MouseCaptureKind::GeometrySecondaryPos)
+            {
+                1
+            } else {
+                0
+            };
+            let object_result = self
+                .state
+                .geometry_presets
+                .iter_mut()
+                .find(|preset| preset.id == target.preset_id)
+                .and_then(|preset| preset.objects.iter_mut().find(|object| object.id == object_id));
+
+            let Some(object) = object_result else {
+                self.cancel_mouse_move_absolute_capture(ctx);
+                self.status = Self::tr_lang(
+                    self.state.ui_language,
+                    "Geometry target was not found.",
+                    "Khong tim thay hinh hoc de lay toa do.",
+                )
+                .to_owned();
+                return;
+            };
+
+            match pair_index {
+                0 => {
+                    object.spec.x1_expr = screen_x.to_string();
+                    object.spec.y1_expr = screen_y.to_string();
+                }
+                _ => {
+                    object.spec.x2_expr = screen_x.to_string();
+                    object.spec.y2_expr = screen_y.to_string();
+                }
+            }
+
+            self.mouse_move_absolute_capture_target = None;
+            self.mouse_move_absolute_capture_wait_for_mouse_release = false;
+            self.restore_mouse_move_absolute_capture_window(ctx);
+            self.mouse_move_absolute_capture_raise_window = true;
+            self.status = match self.state.ui_language {
+                UiLanguage::Vietnamese => {
+                    format!("Da lay toa do geometry {}, {}.", screen_x, screen_y)
+                }
+                _ => format!("Captured geometry position {}, {}.", screen_x, screen_y),
+            };
+            ctx.send_viewport_cmd(egui::ViewportCommand::Visible(true));
+            ctx.send_viewport_cmd(egui::ViewportCommand::Focus);
+            ctx.send_viewport_cmd(egui::ViewportCommand::RequestUserAttention(
+                egui::UserAttentionType::Informational,
+            ));
+            ctx.request_repaint_after(Duration::from_millis(33));
+            self.sync_geometry_presets();
+            self.persist();
+            return;
+        }
+
         let Some(step) = step_result else {
             self.cancel_mouse_move_absolute_capture(ctx);
             self.status = Self::tr_lang(

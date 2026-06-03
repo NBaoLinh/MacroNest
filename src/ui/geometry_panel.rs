@@ -1,5 +1,5 @@
 use crate::model::{GeometryObject, GeometryPreset, GeometryShapeKind, GeometrySpec};
-use crate::ui::CrosshairApp;
+use crate::ui::{CrosshairApp, MouseCaptureKind, MouseMoveAbsoluteCaptureTarget};
 use eframe::egui::{self, Button, ComboBox, Frame, Grid, TextEdit};
 
 impl CrosshairApp {
@@ -10,6 +10,7 @@ impl CrosshairApp {
         let mut request_screen_color_pick = false;
         let mut pending_screen_color_target: Option<(u32, u32, bool)> = None;
         let mut clear_preview_target = false;
+        let mut begin_mouse_move_absolute_capture_target = None;
 
         ui.add_space(2.0);
         ui.horizontal(|ui| {
@@ -125,9 +126,15 @@ impl CrosshairApp {
 
                                 let preview_active =
                                     self.geometry_preview_target == Some((preset.id, object.id));
-                                let preview_label = if preview_active { "Stop" } else { "Preview" };
                                 if ui
-                                    .add_sized([68.0, 24.0], Button::new(preview_label))
+                                    .add_sized(
+                                        [24.0, 24.0],
+                                        Button::new(Self::material_icon_text(
+                                            if preview_active { 0xe5cd } else { 0xe8f4 },
+                                            16.0,
+                                        )),
+                                    )
+                                    .on_hover_text(if preview_active { "Stop preview" } else { "Preview" })
                                     .clicked()
                                 {
                                     if preview_active {
@@ -167,6 +174,7 @@ impl CrosshairApp {
                                 &mut self.vision_manual_color_hex,
                                 &mut request_screen_color_pick,
                                 &mut pending_screen_color_target,
+                                &mut begin_mouse_move_absolute_capture_target,
                             );
                         });
                 }
@@ -219,6 +227,10 @@ impl CrosshairApp {
                 crate::ui::VisionCaptureMode::ColorSample,
             );
         }
+
+        if let Some(target) = begin_mouse_move_absolute_capture_target {
+            self.begin_mouse_move_absolute_capture(ui.ctx(), target);
+        }
     }
 
     pub(crate) fn geometry_shapes() -> [GeometryShapeKind; 10] {
@@ -261,6 +273,7 @@ impl CrosshairApp {
         manual_color_hex: &mut String,
         request_screen_color_pick: &mut bool,
         pending_screen_color_target: &mut Option<(u32, u32, bool)>,
+        begin_mouse_move_absolute_capture_target: &mut Option<MouseMoveAbsoluteCaptureTarget>,
     ) -> bool {
         let mut changed = false;
 
@@ -271,44 +284,100 @@ impl CrosshairApp {
             .show(ui, |ui| {
                 match spec.shape {
                     GeometryShapeKind::Point => {
-                        changed |= Self::geometry_expr_pair_row(ui, "X", &mut spec.x1_expr, "Y", &mut spec.y1_expr);
                         changed |= Self::geometry_expr_pair_row(
                             ui,
+                            preset_id,
+                            object_id,
+                            0,
+                            "X",
+                            &mut spec.x1_expr,
+                            "Y",
+                            &mut spec.y1_expr,
+                            begin_mouse_move_absolute_capture_target,
+                        );
+                        changed |= Self::geometry_expr_pair_row(
+                            ui,
+                            preset_id,
+                            object_id,
+                            255,
                             "Radius",
                             &mut spec.radius_expr,
                             "Thickness",
                             &mut spec.thickness_expr,
+                            begin_mouse_move_absolute_capture_target,
                         );
                     }
                     GeometryShapeKind::Line | GeometryShapeKind::Arrow => {
-                        changed |= Self::geometry_expr_pair_row(ui, "X1", &mut spec.x1_expr, "Y1", &mut spec.y1_expr);
-                        changed |= Self::geometry_expr_pair_row(ui, "X2", &mut spec.x2_expr, "Y2", &mut spec.y2_expr);
+                        changed |= Self::geometry_expr_pair_row(
+                            ui,
+                            preset_id,
+                            object_id,
+                            0,
+                            "X1",
+                            &mut spec.x1_expr,
+                            "Y1",
+                            &mut spec.y1_expr,
+                            begin_mouse_move_absolute_capture_target,
+                        );
+                        changed |= Self::geometry_expr_pair_row(
+                            ui,
+                            preset_id,
+                            object_id,
+                            1,
+                            "X2",
+                            &mut spec.x2_expr,
+                            "Y2",
+                            &mut spec.y2_expr,
+                            begin_mouse_move_absolute_capture_target,
+                        );
                         if spec.shape == GeometryShapeKind::Arrow {
                             changed |= Self::geometry_expr_pair_row(
                                 ui,
+                                preset_id,
+                                object_id,
+                                255,
                                 "Head",
                                 &mut spec.arrow_head_size_expr,
                                 "Thickness",
                                 &mut spec.thickness_expr,
+                                begin_mouse_move_absolute_capture_target,
                             );
                         } else {
                             changed |= Self::geometry_expr_pair_row(
                                 ui,
+                                preset_id,
+                                object_id,
+                                255,
                                 "Thickness",
                                 &mut spec.thickness_expr,
                                 "Opacity",
                                 &mut spec.opacity_expr,
+                                begin_mouse_move_absolute_capture_target,
                             );
                         }
                     }
                     GeometryShapeKind::Circle => {
-                        changed |= Self::geometry_expr_pair_row(ui, "CX", &mut spec.x1_expr, "CY", &mut spec.y1_expr);
                         changed |= Self::geometry_expr_pair_row(
                             ui,
+                            preset_id,
+                            object_id,
+                            0,
+                            "CX",
+                            &mut spec.x1_expr,
+                            "CY",
+                            &mut spec.y1_expr,
+                            begin_mouse_move_absolute_capture_target,
+                        );
+                        changed |= Self::geometry_expr_pair_row(
+                            ui,
+                            preset_id,
+                            object_id,
+                            255,
                             "Radius",
                             &mut spec.radius_expr,
                             "Thickness",
                             &mut spec.thickness_expr,
+                            begin_mouse_move_absolute_capture_target,
                         );
                         changed |= ui
                             .checkbox(&mut spec.filled, Self::tr_lang(language, "Filled", "Filled"))
@@ -316,20 +385,38 @@ impl CrosshairApp {
                         ui.end_row();
                     }
                     GeometryShapeKind::Rectangle => {
-                        changed |= Self::geometry_expr_pair_row(ui, "X", &mut spec.x1_expr, "Y", &mut spec.y1_expr);
                         changed |= Self::geometry_expr_pair_row(
                             ui,
+                            preset_id,
+                            object_id,
+                            0,
+                            "X",
+                            &mut spec.x1_expr,
+                            "Y",
+                            &mut spec.y1_expr,
+                            begin_mouse_move_absolute_capture_target,
+                        );
+                        changed |= Self::geometry_expr_pair_row(
+                            ui,
+                            preset_id,
+                            object_id,
+                            255,
                             "W",
                             &mut spec.width_expr,
                             "H",
                             &mut spec.height_expr,
+                            begin_mouse_move_absolute_capture_target,
                         );
                         changed |= Self::geometry_expr_pair_row(
                             ui,
+                            preset_id,
+                            object_id,
+                            255,
                             "Thickness",
                             &mut spec.thickness_expr,
                             "Opacity",
                             &mut spec.opacity_expr,
+                            begin_mouse_move_absolute_capture_target,
                         );
                         changed |= ui
                             .checkbox(&mut spec.filled, Self::tr_lang(language, "Filled", "Filled"))
@@ -337,34 +424,66 @@ impl CrosshairApp {
                         ui.end_row();
                     }
                     GeometryShapeKind::Label => {
-                        changed |= Self::geometry_expr_pair_row(ui, "X", &mut spec.x1_expr, "Y", &mut spec.y1_expr);
+                        changed |= Self::geometry_expr_pair_row(
+                            ui,
+                            preset_id,
+                            object_id,
+                            0,
+                            "X",
+                            &mut spec.x1_expr,
+                            "Y",
+                            &mut spec.y1_expr,
+                            begin_mouse_move_absolute_capture_target,
+                        );
                         ui.label("Text");
                         let response = ui.add_sized([360.0, 24.0], TextEdit::singleline(&mut spec.text));
                         changed |= response.changed();
                         ui.end_row();
                         changed |= Self::geometry_expr_pair_row(
                             ui,
+                            preset_id,
+                            object_id,
+                            255,
                             "Size",
                             &mut spec.font_size_expr,
                             "Opacity",
                             &mut spec.opacity_expr,
+                            begin_mouse_move_absolute_capture_target,
                         );
                     }
                     GeometryShapeKind::Ellipse => {
-                        changed |= Self::geometry_expr_pair_row(ui, "CX", &mut spec.x1_expr, "CY", &mut spec.y1_expr);
                         changed |= Self::geometry_expr_pair_row(
                             ui,
+                            preset_id,
+                            object_id,
+                            0,
+                            "CX",
+                            &mut spec.x1_expr,
+                            "CY",
+                            &mut spec.y1_expr,
+                            begin_mouse_move_absolute_capture_target,
+                        );
+                        changed |= Self::geometry_expr_pair_row(
+                            ui,
+                            preset_id,
+                            object_id,
+                            255,
                             "RX",
                             &mut spec.radius_x_expr,
                             "RY",
                             &mut spec.radius_y_expr,
+                            begin_mouse_move_absolute_capture_target,
                         );
                         changed |= Self::geometry_expr_pair_row(
                             ui,
+                            preset_id,
+                            object_id,
+                            255,
                             "Thickness",
                             &mut spec.thickness_expr,
                             "Opacity",
                             &mut spec.opacity_expr,
+                            begin_mouse_move_absolute_capture_target,
                         );
                         changed |= ui
                             .checkbox(&mut spec.filled, Self::tr_lang(language, "Filled", "Filled"))
@@ -379,10 +498,14 @@ impl CrosshairApp {
                         ui.end_row();
                         changed |= Self::geometry_expr_pair_row(
                             ui,
+                            preset_id,
+                            object_id,
+                            255,
                             "Thickness",
                             &mut spec.thickness_expr,
                             "Opacity",
                             &mut spec.opacity_expr,
+                            begin_mouse_move_absolute_capture_target,
                         );
                         if spec.shape == GeometryShapeKind::Polygon {
                             changed |= ui
@@ -392,27 +515,49 @@ impl CrosshairApp {
                         }
                     }
                     GeometryShapeKind::Arc => {
-                        changed |= Self::geometry_expr_pair_row(ui, "CX", &mut spec.x1_expr, "CY", &mut spec.y1_expr);
                         changed |= Self::geometry_expr_pair_row(
                             ui,
+                            preset_id,
+                            object_id,
+                            0,
+                            "CX",
+                            &mut spec.x1_expr,
+                            "CY",
+                            &mut spec.y1_expr,
+                            begin_mouse_move_absolute_capture_target,
+                        );
+                        changed |= Self::geometry_expr_pair_row(
+                            ui,
+                            preset_id,
+                            object_id,
+                            255,
                             "RX",
                             &mut spec.radius_x_expr,
                             "RY",
                             &mut spec.radius_y_expr,
+                            begin_mouse_move_absolute_capture_target,
                         );
                         changed |= Self::geometry_expr_pair_row(
                             ui,
+                            preset_id,
+                            object_id,
+                            255,
                             "Start",
                             &mut spec.start_angle_expr,
                             "End",
                             &mut spec.end_angle_expr,
+                            begin_mouse_move_absolute_capture_target,
                         );
                         changed |= Self::geometry_expr_pair_row(
                             ui,
+                            preset_id,
+                            object_id,
+                            255,
                             "Thickness",
                             &mut spec.thickness_expr,
                             "Opacity",
                             &mut spec.opacity_expr,
+                            begin_mouse_move_absolute_capture_target,
                         );
                     }
                 }
@@ -459,10 +604,14 @@ impl CrosshairApp {
 
     fn geometry_expr_pair_row(
         ui: &mut egui::Ui,
+        preset_id: u32,
+        object_id: u32,
+        pair_index: u8,
         label_a: &str,
         expr_a: &mut String,
         label_b: &str,
         expr_b: &mut String,
+        begin_mouse_move_absolute_capture_target: &mut Option<MouseMoveAbsoluteCaptureTarget>,
     ) -> bool {
         let mut changed = false;
         ui.label(label_a);
@@ -473,6 +622,32 @@ impl CrosshairApp {
         changed |= ui
             .add_sized([154.0, 24.0], TextEdit::singleline(expr_b))
             .changed();
+        if pair_index != 255 {
+            let capture_kind = if pair_index == 1 {
+                MouseCaptureKind::GeometrySecondaryPos
+            } else {
+                MouseCaptureKind::GeometryPrimaryPos
+            };
+            if ui
+                .add_sized(
+                    [24.0, 24.0],
+                    Button::new(Self::material_icon_text(0xe55f, 16.0)),
+                )
+                .on_hover_text("Pick coordinates from screen")
+                .clicked()
+            {
+                *begin_mouse_move_absolute_capture_target = Some(MouseMoveAbsoluteCaptureTarget {
+                    group_id: None,
+                    preset_id,
+                    step_index: object_id as usize,
+                    capture_kind,
+                    extra_cond_index: None,
+                    is_hold_stop: false,
+                });
+            }
+        } else {
+            ui.add_space(24.0);
+        }
         ui.end_row();
         changed
     }
