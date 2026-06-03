@@ -122,8 +122,6 @@ impl CrosshairApp {
     ) {
         let ctrl_height = ui.spacing().interact_size.y;
 
-        ui.add_space(4.0);
-
         let pick_btn = egui::Button::new("⛶");
         if ui
             .add_sized([ctrl_height, ctrl_height], pick_btn)
@@ -136,8 +134,6 @@ impl CrosshairApp {
         {
             *pending_ocr_step_capture = Some((group_id, preset_id, step_index));
         }
-
-        ui.add_space(4.0);
 
         let available_languages = crate::ocr::available_ocr_languages();
         let current_language = step.ocr_lang.clone().unwrap_or_default();
@@ -227,16 +223,18 @@ impl CrosshairApp {
             language_label
         ));
 
-        ui.add_space(4.0);
-
-        let previous_override = ui.visuals().override_text_color;
-        ui.visuals_mut().override_text_color = None;
-        let target_resp = ui.add(
-            egui::TextEdit::singleline(&mut step.ocr_target_text)
-                .desired_width(120.0)
-                .hint_text(Self::tr_lang(language, "Target Text", "Van ban can tim")),
+        let target_id = ui.id().with((step_index, "ocr-target-text"));
+        let target_resp = Self::render_variable_text_edit(
+            ui,
+            &mut step.ocr_target_text,
+            target_id,
+            120.0,
+            240.0,
+            20.0,
+            20.0,
+            &Self::tr_lang(language, "Target Text", "Van ban can tim"),
+            false,
         );
-        ui.visuals_mut().override_text_color = previous_override;
 
         Self::apply_vietnamese_input_if_changed(
             &target_resp,
