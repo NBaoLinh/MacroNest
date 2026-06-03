@@ -20987,7 +20987,11 @@ impl CrosshairApp {
                 .desired_rows(rows)
                 .id(id)
         } else {
-            egui::TextEdit::singleline(text).hint_text(hint).id(id)
+            let mut edit = egui::TextEdit::singleline(text).hint_text(hint).id(id);
+            if animated_height <= 12.0 {
+                edit = edit.font(egui::TextStyle::Small);
+            }
+            edit
         };
 
         // Temporarily clear override_text_color so hint/placeholder text is properly dimmed.
@@ -21001,7 +21005,12 @@ impl CrosshairApp {
         ui.visuals_mut().override_text_color = None;
 
         let prev_interact_y = ui.spacing().interact_size.y;
+        let prev_padding = ui.spacing().button_padding;
+        
         ui.spacing_mut().interact_size.y = animated_height;
+        if animated_height <= 12.0 {
+            ui.spacing_mut().button_padding.y = 0.0;
+        }
 
         let response = match highlight_mode {
             TextHighlightMode::None => {
@@ -21011,11 +21020,16 @@ impl CrosshairApp {
                 let mut layouter = |ui: &egui::Ui, string: &dyn TextBuffer, wrap_width: f32| {
                     let effective_wrap_width =
                         Self::highlight_job_wrap_width(has_focus, multiline_on_focus, wrap_width);
+                    let text_style = if animated_height <= 12.0 {
+                        egui::TextStyle::Small
+                    } else {
+                        egui::TextStyle::Body
+                    };
                     let job = Self::interpolation_highlight_job(
                         ui,
                         string.as_str(),
                         effective_wrap_width,
-                        egui::TextStyle::Body,
+                        text_style,
                     );
 
                     ui.fonts_mut(|fonts| fonts.layout_job(job))
@@ -21029,11 +21043,16 @@ impl CrosshairApp {
                 let mut layouter = |ui: &egui::Ui, string: &dyn TextBuffer, wrap_width: f32| {
                     let effective_wrap_width =
                         Self::highlight_job_wrap_width(has_focus, multiline_on_focus, wrap_width);
+                    let text_style = if animated_height <= 12.0 {
+                        egui::TextStyle::Small
+                    } else {
+                        egui::TextStyle::Body
+                    };
                     let job = Self::interpolation_highlight_job(
                         ui,
                         string.as_str(),
                         effective_wrap_width,
-                        egui::TextStyle::Body,
+                        text_style,
                     );
 
                     ui.fonts_mut(|fonts| fonts.layout_job(job))
@@ -21046,6 +21065,7 @@ impl CrosshairApp {
         };
 
         ui.spacing_mut().interact_size.y = prev_interact_y;
+        ui.spacing_mut().button_padding = prev_padding;
         ui.visuals_mut().override_text_color = prev_override;
 
         let now_focused = response.has_focus();
