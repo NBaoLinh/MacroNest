@@ -170,11 +170,12 @@ mod windows_overlay {
         ai, audio, hotkey, media,
         model::{
             AudioSettings, CommandPreset, CrosshairStyle, HotkeyBinding, HudPreset,
-            IfConditionType, MacroAction, MacroGroup, MacroPreset, MacroStep, MacroTriggerMode,
-            MousePathEvent, MousePathEventKind, MousePathPreset, MouseSensitivityPreset,
-            PinOverlayStyle, PinPreset, ProfileRecord, RgbaColor, SoundLibraryItem, SoundPreset,
-            TimerPreset, VideoPreset, VisionPreset, VisionSettings, WindowAnchor,
-            WindowExpandControls, WindowExpandDirection, WindowFocusPreset, WindowPreset,
+            GeometryPreset, GeometryShapeKind, GeometrySpec, IfConditionType, MacroAction,
+            MacroGroup, MacroPreset, MacroStep, MacroTriggerMode, MousePathEvent,
+            MousePathEventKind, MousePathPreset, MouseSensitivityPreset, PinOverlayStyle,
+            PinPreset, ProfileRecord, RgbaColor, SoundLibraryItem, SoundPreset, TimerPreset,
+            VideoPreset, VisionPreset, VisionSettings, WindowAnchor, WindowExpandControls,
+            WindowExpandDirection, WindowFocusPreset, WindowPreset,
         },
         render::{RenderedCrosshair, render_crosshair},
         storage::AppPaths,
@@ -478,6 +479,8 @@ mod windows_overlay {
         },
 
         UpdateVisionPresets(Vec<VisionPreset>),
+        UpdateGeometryPresets(Vec<crate::model::GeometryPreset>),
+        RefreshSearchAreaOverlay,
 
         InvalidateVisionWaits(Vec<u32>),
 
@@ -775,6 +778,9 @@ mod windows_overlay {
         keyboard_arrow_mouse_step_px: u32,
 
         vision_presets: Vec<VisionPreset>,
+        geometry_presets: Vec<crate::model::GeometryPreset>,
+        active_geometry_preset_ids: HashSet<u32>,
+        active_geometry_steps: HashMap<(u32, usize), crate::model::GeometrySpec>,
 
         vision_following_presets: HashSet<u32>,
 
@@ -902,6 +908,9 @@ mod windows_overlay {
                 keyboard_arrow_mouse_step_px: 12,
 
                 vision_presets: Vec::new(),
+                geometry_presets: Vec::new(),
+                active_geometry_preset_ids: HashSet::new(),
+                active_geometry_steps: HashMap::new(),
 
                 vision_following_presets: HashSet::new(),
 
@@ -4822,6 +4831,15 @@ mod windows_overlay {
                     let _ = refresh_search_area_overlay(runtime);
                 }
 
+                OverlayCommand::UpdateGeometryPresets(presets) => {
+                    HOOK_STATE.lock().geometry_presets = presets;
+                    let _ = refresh_search_area_overlay(runtime);
+                }
+
+                OverlayCommand::RefreshSearchAreaOverlay => {
+                    let _ = refresh_search_area_overlay(runtime);
+                }
+
                 OverlayCommand::InvalidateVisionWaits(preset_ids) => {
                     let mut guard = IMAGE_SEARCH_WAIT_GENERATIONS.lock();
 
@@ -5365,7 +5383,7 @@ mod windows_overlay {
     }
 
     fn refresh_search_area_overlay(runtime: &mut Runtime) -> Result<()> {
-        let (regions, preview_regions) = {
+        let (regions, preview_regions, geometry_shapes) = {
             let hook_state = HOOK_STATE.lock();
 
             let regions = hook_state
@@ -5375,10 +5393,14 @@ mod windows_overlay {
                 .filter_map(|preset| configured_image_search_region(preset))
                 .collect::<Vec<_>>();
 
-            (regions, hook_state.vision_capture_preview_regions.clone())
+            (
+                regions,
+                hook_state.vision_capture_preview_regions.clone(),
+                geometry_overlay_shapes(&hook_state),
+            )
         };
 
-        if regions.is_empty() && preview_regions.is_empty() {
+        if regions.is_empty() && preview_regions.is_empty() && geometry_shapes.is_empty() {
             unsafe {
                 let _ = ShowWindow(runtime.search_area_hwnd, SW_HIDE);
             }
@@ -5386,7 +5408,14 @@ mod windows_overlay {
             return Ok(());
         }
 
-        unsafe { paint_search_area_overlay(runtime.search_area_hwnd, &regions, &preview_regions) }
+        unsafe {
+            paint_search_area_overlay(
+                runtime.search_area_hwnd,
+                &regions,
+                &preview_regions,
+                &geometry_shapes,
+            )
+        }
     }
 
     fn desired_timer_interval_ms(runtime: &Runtime) -> u32 {
@@ -8377,6 +8406,7 @@ mod windows_overlay {
                                 TEXT_VARIABLES.lock().remove(&target_var);
                             }
                         }
+                        send_overlay_command(OverlayCommand::RefreshSearchAreaOverlay);
                     }
                 }
 
@@ -8529,7 +8559,32 @@ mod windows_overlay {
                                 preset.name, outcome.status
                             )));
                         }
+                        send_overlay_command(OverlayCommand::RefreshSearchAreaOverlay);
                     }
+                }
+
+                MacroAction::DrawGeometry => {
+                    set_step_geometry_spec(preset_id, absolute_index, &step.geometry_spec);
+                }
+
+                MacroAction::ShowGeometryPreset => {
+                    if let Some(geometry_preset_id) =
+                        step.geometry_preset_id.or_else(|| step.key.trim().parse::<u32>().ok())
+                    {
+                        set_geometry_preset_visible(geometry_preset_id, true);
+                    }
+                }
+
+                MacroAction::HideGeometryPreset => {
+                    if let Some(geometry_preset_id) =
+                        step.geometry_preset_id.or_else(|| step.key.trim().parse::<u32>().ok())
+                    {
+                        set_geometry_preset_visible(geometry_preset_id, false);
+                    }
+                }
+
+                MacroAction::ClearGeometryOverlay => {
+                    clear_geometry_overlay();
                 }
 
                 MacroAction::StopVisionWait => {
@@ -8868,6 +8923,7 @@ mod windows_overlay {
                                 TEXT_VARIABLES.lock().remove(&target_var);
                             }
                         }
+                        send_overlay_command(OverlayCommand::RefreshSearchAreaOverlay);
                     }
                 }
 
@@ -9024,7 +9080,32 @@ mod windows_overlay {
                                 preset.name, outcome.status
                             )));
                         }
+                        send_overlay_command(OverlayCommand::RefreshSearchAreaOverlay);
                     }
+                }
+
+                MacroAction::DrawGeometry => {
+                    set_step_geometry_spec(preset_id, absolute_index, &step.geometry_spec);
+                }
+
+                MacroAction::ShowGeometryPreset => {
+                    if let Some(geometry_preset_id) =
+                        step.geometry_preset_id.or_else(|| step.key.trim().parse::<u32>().ok())
+                    {
+                        set_geometry_preset_visible(geometry_preset_id, true);
+                    }
+                }
+
+                MacroAction::HideGeometryPreset => {
+                    if let Some(geometry_preset_id) =
+                        step.geometry_preset_id.or_else(|| step.key.trim().parse::<u32>().ok())
+                    {
+                        set_geometry_preset_visible(geometry_preset_id, false);
+                    }
+                }
+
+                MacroAction::ClearGeometryOverlay => {
+                    clear_geometry_overlay();
                 }
 
                 MacroAction::StopVisionWait => {
@@ -12754,6 +12835,403 @@ mod windows_overlay {
         pub(crate) angle_span_deg: Option<f32>,
     }
 
+    #[derive(Clone, Debug)]
+    struct GeometryRenderText {
+        x: i32,
+        y: i32,
+        font_size: i32,
+        color: [u8; 4],
+        text: String,
+    }
+
+    #[derive(Clone, Debug)]
+    struct GeometryRenderShape {
+        bounds: (i32, i32, i32, i32),
+        draw: GeometryRenderDraw,
+    }
+
+    #[derive(Clone, Debug)]
+    enum GeometryRenderDraw {
+        Point {
+            x: i32,
+            y: i32,
+            radius: i32,
+            fill: [u8; 4],
+            stroke: [u8; 4],
+            thickness: i32,
+        },
+        Line {
+            x1: i32,
+            y1: i32,
+            x2: i32,
+            y2: i32,
+            stroke: [u8; 4],
+            thickness: i32,
+        },
+        Rectangle {
+            x: i32,
+            y: i32,
+            width: i32,
+            height: i32,
+            stroke: [u8; 4],
+            fill: Option<[u8; 4]>,
+            thickness: i32,
+        },
+        Circle {
+            cx: i32,
+            cy: i32,
+            radius: i32,
+            stroke: [u8; 4],
+            fill: Option<[u8; 4]>,
+            thickness: i32,
+        },
+        Ellipse {
+            cx: i32,
+            cy: i32,
+            rx: i32,
+            ry: i32,
+            stroke: [u8; 4],
+            fill: Option<[u8; 4]>,
+            thickness: i32,
+        },
+        Arrow {
+            x1: i32,
+            y1: i32,
+            x2: i32,
+            y2: i32,
+            stroke: [u8; 4],
+            thickness: i32,
+            head_size: i32,
+        },
+        Polyline {
+            points: Vec<(i32, i32)>,
+            stroke: [u8; 4],
+            thickness: i32,
+        },
+        Polygon {
+            points: Vec<(i32, i32)>,
+            stroke: [u8; 4],
+            fill: Option<[u8; 4]>,
+            thickness: i32,
+        },
+        Arc {
+            cx: i32,
+            cy: i32,
+            rx: i32,
+            ry: i32,
+            start_angle_deg: f32,
+            end_angle_deg: f32,
+            stroke: [u8; 4],
+            thickness: i32,
+        },
+        Label(GeometryRenderText),
+    }
+
+    fn geometry_eval_i32(expr: &str, fallback: i32) -> i32 {
+        let trimmed = expr.trim();
+        if trimmed.is_empty() {
+            return fallback;
+        }
+        evaluate_interpolated_math_expression(trimmed)
+    }
+
+    fn geometry_eval_f32(expr: &str, fallback: f32) -> f32 {
+        let trimmed = expr.trim();
+        if trimmed.is_empty() {
+            return fallback;
+        }
+        let interpolated = interpolate_variables(trimmed);
+        evaluate_math_expression_f64(&interpolated) as f32
+    }
+
+    fn parse_geometry_color_literal(value: &str) -> Option<[u8; 4]> {
+        let trimmed = value.trim().trim_start_matches('#');
+        match trimmed.len() {
+            6 => {
+                let rgb = u32::from_str_radix(trimmed, 16).ok()?;
+                Some([
+                    ((rgb >> 16) & 0xFF) as u8,
+                    ((rgb >> 8) & 0xFF) as u8,
+                    (rgb & 0xFF) as u8,
+                    255,
+                ])
+            }
+            8 => {
+                let rgba = u32::from_str_radix(trimmed, 16).ok()?;
+                Some([
+                    ((rgba >> 24) & 0xFF) as u8,
+                    ((rgba >> 16) & 0xFF) as u8,
+                    ((rgba >> 8) & 0xFF) as u8,
+                    (rgba & 0xFF) as u8,
+                ])
+            }
+            _ => None,
+        }
+    }
+
+    fn geometry_resolve_color(expr: &str, fallback: RgbaColor, opacity: f32) -> [u8; 4] {
+        let mut base = [fallback.r, fallback.g, fallback.b, fallback.a];
+        let interpolated = interpolate_variables(expr.trim());
+        if !interpolated.trim().is_empty() {
+            if let Some(parsed) = parse_geometry_color_literal(&interpolated) {
+                base = parsed;
+            }
+        }
+        let alpha_scale = opacity.clamp(0.0, 1.0);
+        let scaled_alpha = ((base[3] as f32) * alpha_scale).round().clamp(0.0, 255.0) as u8;
+        [base[0], base[1], base[2], scaled_alpha]
+    }
+
+    fn geometry_parse_points(points_expr: &str) -> Vec<(i32, i32)> {
+        points_expr
+            .split(';')
+            .filter_map(|pair| {
+                let (x_expr, y_expr) = pair.split_once(',')?;
+                Some((
+                    geometry_eval_i32(x_expr, 0),
+                    geometry_eval_i32(y_expr, 0),
+                ))
+            })
+            .collect()
+    }
+
+    fn geometry_bounds_from_points(points: &[(i32, i32)], pad: i32) -> Option<(i32, i32, i32, i32)> {
+        let first = points.first()?;
+        let mut min_x = first.0;
+        let mut max_x = first.0;
+        let mut min_y = first.1;
+        let mut max_y = first.1;
+        for &(x, y) in points.iter().skip(1) {
+            min_x = min_x.min(x);
+            max_x = max_x.max(x);
+            min_y = min_y.min(y);
+            max_y = max_y.max(y);
+        }
+        Some((min_x - pad, min_y - pad, max_x + pad, max_y + pad))
+    }
+
+    fn geometry_render_shape_from_spec(spec: &GeometrySpec) -> Option<GeometryRenderShape> {
+        if !spec.visible {
+            return None;
+        }
+
+        let thickness = geometry_eval_i32(&spec.thickness_expr, spec.thickness.round() as i32).max(1);
+        let opacity = geometry_eval_f32(&spec.opacity_expr, spec.opacity).clamp(0.0, 1.0);
+        let stroke = geometry_resolve_color(&spec.stroke_color_expr, spec.stroke_color, opacity);
+        let fill = geometry_resolve_color(&spec.fill_color_expr, spec.fill_color, opacity);
+        let fill_option = spec.filled.then_some(fill);
+
+        match spec.shape {
+            GeometryShapeKind::Point => {
+                let x = geometry_eval_i32(&spec.x1_expr, 0);
+                let y = geometry_eval_i32(&spec.y1_expr, 0);
+                let radius = geometry_eval_i32(&spec.radius_expr, spec.point_radius.round() as i32).max(1);
+                Some(GeometryRenderShape {
+                    bounds: (x - radius - thickness, y - radius - thickness, x + radius + thickness, y + radius + thickness),
+                    draw: GeometryRenderDraw::Point {
+                        x,
+                        y,
+                        radius,
+                        fill: fill_option.unwrap_or(stroke),
+                        stroke,
+                        thickness,
+                    },
+                })
+            }
+            GeometryShapeKind::Line => {
+                let x1 = geometry_eval_i32(&spec.x1_expr, 0);
+                let y1 = geometry_eval_i32(&spec.y1_expr, 0);
+                let x2 = geometry_eval_i32(&spec.x2_expr, 0);
+                let y2 = geometry_eval_i32(&spec.y2_expr, 0);
+                Some(GeometryRenderShape {
+                    bounds: (
+                        x1.min(x2) - thickness,
+                        y1.min(y2) - thickness,
+                        x1.max(x2) + thickness,
+                        y1.max(y2) + thickness,
+                    ),
+                    draw: GeometryRenderDraw::Line {
+                        x1,
+                        y1,
+                        x2,
+                        y2,
+                        stroke,
+                        thickness,
+                    },
+                })
+            }
+            GeometryShapeKind::Circle => {
+                let cx = geometry_eval_i32(&spec.x1_expr, 0);
+                let cy = geometry_eval_i32(&spec.y1_expr, 0);
+                let radius = geometry_eval_i32(&spec.radius_expr, spec.point_radius.round() as i32).max(1);
+                Some(GeometryRenderShape {
+                    bounds: (
+                        cx - radius - thickness,
+                        cy - radius - thickness,
+                        cx + radius + thickness,
+                        cy + radius + thickness,
+                    ),
+                    draw: GeometryRenderDraw::Circle {
+                        cx,
+                        cy,
+                        radius,
+                        stroke,
+                        fill: fill_option,
+                        thickness,
+                    },
+                })
+            }
+            GeometryShapeKind::Rectangle => {
+                let x = geometry_eval_i32(&spec.x1_expr, 0);
+                let y = geometry_eval_i32(&spec.y1_expr, 0);
+                let width = geometry_eval_i32(&spec.width_expr, 1).max(1);
+                let height = geometry_eval_i32(&spec.height_expr, 1).max(1);
+                Some(GeometryRenderShape {
+                    bounds: (x - thickness, y - thickness, x + width + thickness, y + height + thickness),
+                    draw: GeometryRenderDraw::Rectangle {
+                        x,
+                        y,
+                        width,
+                        height,
+                        stroke,
+                        fill: fill_option,
+                        thickness,
+                    },
+                })
+            }
+            GeometryShapeKind::Label => {
+                let x = geometry_eval_i32(&spec.x1_expr, 0);
+                let y = geometry_eval_i32(&spec.y1_expr, 0);
+                let font_size = geometry_eval_i32(&spec.font_size_expr, spec.font_size.round() as i32).max(10);
+                let text = interpolate_variables(&spec.text);
+                let text_len = text.chars().count() as i32;
+                Some(GeometryRenderShape {
+                    bounds: (x, y, x + font_size.saturating_mul(text_len.max(1) / 2 + 1), y + font_size + 4),
+                    draw: GeometryRenderDraw::Label(GeometryRenderText {
+                        x,
+                        y,
+                        font_size,
+                        color: stroke,
+                        text,
+                    }),
+                })
+            }
+            GeometryShapeKind::Ellipse => {
+                let cx = geometry_eval_i32(&spec.x1_expr, 0);
+                let cy = geometry_eval_i32(&spec.y1_expr, 0);
+                let rx = geometry_eval_i32(&spec.radius_x_expr, 1).max(1);
+                let ry = geometry_eval_i32(&spec.radius_y_expr, 1).max(1);
+                Some(GeometryRenderShape {
+                    bounds: (cx - rx - thickness, cy - ry - thickness, cx + rx + thickness, cy + ry + thickness),
+                    draw: GeometryRenderDraw::Ellipse {
+                        cx,
+                        cy,
+                        rx,
+                        ry,
+                        stroke,
+                        fill: fill_option,
+                        thickness,
+                    },
+                })
+            }
+            GeometryShapeKind::Arrow => {
+                let x1 = geometry_eval_i32(&spec.x1_expr, 0);
+                let y1 = geometry_eval_i32(&spec.y1_expr, 0);
+                let x2 = geometry_eval_i32(&spec.x2_expr, 0);
+                let y2 = geometry_eval_i32(&spec.y2_expr, 0);
+                let head_size = geometry_eval_i32(&spec.arrow_head_size_expr, spec.arrow_head_size.round() as i32).max(4);
+                Some(GeometryRenderShape {
+                    bounds: (
+                        x1.min(x2) - head_size - thickness,
+                        y1.min(y2) - head_size - thickness,
+                        x1.max(x2) + head_size + thickness,
+                        y1.max(y2) + head_size + thickness,
+                    ),
+                    draw: GeometryRenderDraw::Arrow {
+                        x1,
+                        y1,
+                        x2,
+                        y2,
+                        stroke,
+                        thickness,
+                        head_size,
+                    },
+                })
+            }
+            GeometryShapeKind::Polyline => {
+                let points = geometry_parse_points(&spec.points_expr);
+                let bounds = geometry_bounds_from_points(&points, thickness)?;
+                Some(GeometryRenderShape {
+                    bounds,
+                    draw: GeometryRenderDraw::Polyline {
+                        points,
+                        stroke,
+                        thickness,
+                    },
+                })
+            }
+            GeometryShapeKind::Polygon => {
+                let points = geometry_parse_points(&spec.points_expr);
+                let bounds = geometry_bounds_from_points(&points, thickness)?;
+                Some(GeometryRenderShape {
+                    bounds,
+                    draw: GeometryRenderDraw::Polygon {
+                        points,
+                        stroke,
+                        fill: fill_option,
+                        thickness,
+                    },
+                })
+            }
+            GeometryShapeKind::Arc => {
+                let cx = geometry_eval_i32(&spec.x1_expr, 0);
+                let cy = geometry_eval_i32(&spec.y1_expr, 0);
+                let rx = geometry_eval_i32(&spec.radius_x_expr, 1).max(1);
+                let ry = geometry_eval_i32(&spec.radius_y_expr, 1).max(1);
+                let start_angle_deg = geometry_eval_f32(&spec.start_angle_expr, 0.0);
+                let end_angle_deg = geometry_eval_f32(&spec.end_angle_expr, 180.0);
+                Some(GeometryRenderShape {
+                    bounds: (cx - rx - thickness, cy - ry - thickness, cx + rx + thickness, cy + ry + thickness),
+                    draw: GeometryRenderDraw::Arc {
+                        cx,
+                        cy,
+                        rx,
+                        ry,
+                        start_angle_deg,
+                        end_angle_deg,
+                        stroke,
+                        thickness,
+                    },
+                })
+            }
+        }
+    }
+
+    fn geometry_overlay_shapes(hook_state: &HookState) -> Vec<GeometryRenderShape> {
+        let mut shapes = Vec::new();
+        for preset_id in &hook_state.active_geometry_preset_ids {
+            if let Some(preset) = hook_state
+                .geometry_presets
+                .iter()
+                .find(|preset| preset.id == *preset_id && preset.enabled)
+            {
+                for object in &preset.objects {
+                    if object.enabled {
+                        if let Some(shape) = geometry_render_shape_from_spec(&object.spec) {
+                            shapes.push(shape);
+                        }
+                    }
+                }
+            }
+        }
+        for spec in hook_state.active_geometry_steps.values() {
+            if let Some(shape) = geometry_render_shape_from_spec(spec) {
+                shapes.push(shape);
+            }
+        }
+        shapes
+    }
+
     fn rgba_to_color_mat(rgba: &[u8], width: usize, height: usize) -> Result<Mat> {
         if !HOOK_STATE.lock().opencv_dll_path.exists() {
             bail!("OpenCV library not found. Please install it in Settings.");
@@ -15339,6 +15817,37 @@ mod windows_overlay {
         })
     }
 
+    fn set_geometry_preset_visible(preset_id: u32, visible: bool) {
+        {
+            let mut hook_state = HOOK_STATE.lock();
+            if visible {
+                hook_state.active_geometry_preset_ids.insert(preset_id);
+            } else {
+                hook_state.active_geometry_preset_ids.remove(&preset_id);
+            }
+        }
+        send_overlay_command(OverlayCommand::RefreshSearchAreaOverlay);
+    }
+
+    fn set_step_geometry_spec(preset_id: u32, absolute_step_index: usize, spec: &GeometrySpec) {
+        {
+            let mut hook_state = HOOK_STATE.lock();
+            hook_state
+                .active_geometry_steps
+                .insert((preset_id, absolute_step_index), spec.clone());
+        }
+        send_overlay_command(OverlayCommand::RefreshSearchAreaOverlay);
+    }
+
+    fn clear_geometry_overlay() {
+        {
+            let mut hook_state = HOOK_STATE.lock();
+            hook_state.active_geometry_preset_ids.clear();
+            hook_state.active_geometry_steps.clear();
+        }
+        send_overlay_command(OverlayCommand::RefreshSearchAreaOverlay);
+    }
+
     fn macro_preset_trigger_matches(preset: &MacroPreset, binding: &HotkeyBinding) -> bool {
         if preset
             .hotkey
@@ -16222,6 +16731,8 @@ mod windows_overlay {
         regions: &[VisionRegion],
 
         preview_regions: &[VisionRegion],
+
+        geometry_shapes: &[GeometryRenderShape],
     ) -> Result<()> {
         let mut min_x = i32::MAX;
 
@@ -16265,6 +16776,14 @@ mod windows_overlay {
             max_x = max_x.max(r_right);
 
             max_y = max_y.max(r_bottom);
+        }
+
+        for shape in geometry_shapes {
+            let (left, top, right, bottom) = shape.bounds;
+            min_x = min_x.min(left);
+            min_y = min_y.min(top);
+            max_x = max_x.max(right);
+            max_y = max_y.max(bottom);
         }
 
         if min_x == i32::MAX {
@@ -16524,6 +17043,353 @@ mod windows_overlay {
             occupied_label_rects.push(text_rect);
         }
 
+        let mut geometry_texts = Vec::new();
+
+        for shape in geometry_shapes {
+            match &shape.draw {
+                GeometryRenderDraw::Point {
+                    x,
+                    y,
+                    radius,
+                    fill,
+                    stroke,
+                    thickness,
+                } => {
+                    let left = x - min_x - radius;
+                    let top = y - min_y - radius;
+                    let size = radius.saturating_mul(2).max(1);
+                    fill_ellipse_rgba(
+                        pixels,
+                        width as usize,
+                        height as usize,
+                        left,
+                        top,
+                        size,
+                        size,
+                        *fill,
+                    );
+                    draw_ellipse_outline_thick_rgba(
+                        pixels,
+                        width as usize,
+                        height as usize,
+                        left,
+                        top,
+                        size,
+                        size,
+                        *stroke,
+                        *thickness,
+                    );
+                }
+                GeometryRenderDraw::Line {
+                    x1,
+                    y1,
+                    x2,
+                    y2,
+                    stroke,
+                    thickness,
+                } => {
+                    draw_line_thick_rgba(
+                        pixels,
+                        width as usize,
+                        height as usize,
+                        x1 - min_x,
+                        y1 - min_y,
+                        x2 - min_x,
+                        y2 - min_y,
+                        *stroke,
+                        *thickness,
+                    );
+                }
+                GeometryRenderDraw::Rectangle {
+                    x,
+                    y,
+                    width: rect_width,
+                    height: rect_height,
+                    stroke,
+                    fill,
+                    thickness,
+                } => {
+                    let rel_left = x - min_x;
+                    let rel_top = y - min_y;
+                    if let Some(fill_color) = fill {
+                        fill_rect_rgba(
+                            pixels,
+                            width as usize,
+                            height as usize,
+                            rel_left,
+                            rel_top,
+                            *rect_width,
+                            *rect_height,
+                            *fill_color,
+                        );
+                    }
+                    draw_rect_outline_thick_rgba(
+                        pixels,
+                        width as usize,
+                        height as usize,
+                        rel_left,
+                        rel_top,
+                        *rect_width,
+                        *rect_height,
+                        *stroke,
+                        *thickness,
+                    );
+                }
+                GeometryRenderDraw::Circle {
+                    cx,
+                    cy,
+                    radius,
+                    stroke,
+                    fill,
+                    thickness,
+                } => {
+                    let left = cx - min_x - radius;
+                    let top = cy - min_y - radius;
+                    let size = radius.saturating_mul(2).max(1);
+                    if let Some(fill_color) = fill {
+                        fill_ellipse_rgba(
+                            pixels,
+                            width as usize,
+                            height as usize,
+                            left,
+                            top,
+                            size,
+                            size,
+                            *fill_color,
+                        );
+                    }
+                    draw_ellipse_outline_thick_rgba(
+                        pixels,
+                        width as usize,
+                        height as usize,
+                        left,
+                        top,
+                        size,
+                        size,
+                        *stroke,
+                        *thickness,
+                    );
+                }
+                GeometryRenderDraw::Ellipse {
+                    cx,
+                    cy,
+                    rx,
+                    ry,
+                    stroke,
+                    fill,
+                    thickness,
+                } => {
+                    let left = cx - min_x - rx;
+                    let top = cy - min_y - ry;
+                    let ellipse_width = rx.saturating_mul(2).max(1);
+                    let ellipse_height = ry.saturating_mul(2).max(1);
+                    if let Some(fill_color) = fill {
+                        fill_ellipse_rgba(
+                            pixels,
+                            width as usize,
+                            height as usize,
+                            left,
+                            top,
+                            ellipse_width,
+                            ellipse_height,
+                            *fill_color,
+                        );
+                    }
+                    draw_ellipse_outline_thick_rgba(
+                        pixels,
+                        width as usize,
+                        height as usize,
+                        left,
+                        top,
+                        ellipse_width,
+                        ellipse_height,
+                        *stroke,
+                        *thickness,
+                    );
+                }
+                GeometryRenderDraw::Arrow {
+                    x1,
+                    y1,
+                    x2,
+                    y2,
+                    stroke,
+                    thickness,
+                    head_size,
+                } => {
+                    let rel_x1 = x1 - min_x;
+                    let rel_y1 = y1 - min_y;
+                    let rel_x2 = x2 - min_x;
+                    let rel_y2 = y2 - min_y;
+                    draw_line_thick_rgba(
+                        pixels,
+                        width as usize,
+                        height as usize,
+                        rel_x1,
+                        rel_y1,
+                        rel_x2,
+                        rel_y2,
+                        *stroke,
+                        *thickness,
+                    );
+                    draw_arrow_head_rgba(
+                        pixels,
+                        width as usize,
+                        height as usize,
+                        rel_x1,
+                        rel_y1,
+                        rel_x2,
+                        rel_y2,
+                        *stroke,
+                        *thickness,
+                        *head_size,
+                    );
+                }
+                GeometryRenderDraw::Polyline {
+                    points,
+                    stroke,
+                    thickness,
+                } => {
+                    for segment in points.windows(2) {
+                        if let [from, to] = segment {
+                            draw_line_thick_rgba(
+                                pixels,
+                                width as usize,
+                                height as usize,
+                                from.0 - min_x,
+                                from.1 - min_y,
+                                to.0 - min_x,
+                                to.1 - min_y,
+                                *stroke,
+                                *thickness,
+                            );
+                        }
+                    }
+                }
+                GeometryRenderDraw::Polygon {
+                    points,
+                    stroke,
+                    fill,
+                    thickness,
+                } => {
+                    if let Some(fill_color) = fill {
+                        fill_polygon_rgba(
+                            pixels,
+                            width as usize,
+                            height as usize,
+                            points,
+                            min_x,
+                            min_y,
+                            *fill_color,
+                        );
+                    }
+                    for segment in points.windows(2) {
+                        if let [from, to] = segment {
+                            draw_line_thick_rgba(
+                                pixels,
+                                width as usize,
+                                height as usize,
+                                from.0 - min_x,
+                                from.1 - min_y,
+                                to.0 - min_x,
+                                to.1 - min_y,
+                                *stroke,
+                                *thickness,
+                            );
+                        }
+                    }
+                    if let (Some(first), Some(last)) = (points.first(), points.last()) {
+                        draw_line_thick_rgba(
+                            pixels,
+                            width as usize,
+                            height as usize,
+                            last.0 - min_x,
+                            last.1 - min_y,
+                            first.0 - min_x,
+                            first.1 - min_y,
+                            *stroke,
+                            *thickness,
+                        );
+                    }
+                }
+                GeometryRenderDraw::Arc {
+                    cx,
+                    cy,
+                    rx,
+                    ry,
+                    start_angle_deg,
+                    end_angle_deg,
+                    stroke,
+                    thickness,
+                } => {
+                    draw_arc_rgba(
+                        pixels,
+                        width as usize,
+                        height as usize,
+                        cx - min_x,
+                        cy - min_y,
+                        *rx,
+                        *ry,
+                        *start_angle_deg,
+                        *end_angle_deg,
+                        *stroke,
+                        *thickness,
+                    );
+                }
+                GeometryRenderDraw::Label(text) => geometry_texts.push(text.clone()),
+            }
+        }
+
+        for text in &geometry_texts {
+            let font_name = "Segoe UI"
+                .encode_utf16()
+                .chain(std::iter::once(0))
+                .collect::<Vec<_>>();
+            let font = CreateFontW(
+                -(text.font_size.max(10)),
+                0,
+                0,
+                0,
+                FW_MEDIUM.0 as i32,
+                0,
+                0,
+                0,
+                DEFAULT_CHARSET,
+                OUT_DEFAULT_PRECIS,
+                CLIP_DEFAULT_PRECIS,
+                ANTIALIASED_QUALITY,
+                FF_DONTCARE.0 as u32,
+                PCWSTR(font_name.as_ptr()),
+            );
+            let old_font = SelectObject(mem_dc, HGDIOBJ(font.0));
+            let _ = SetTextColor(
+                mem_dc,
+                COLORREF(
+                    (text.color[2] as u32) << 16
+                        | (text.color[1] as u32) << 8
+                        | text.color[0] as u32,
+                ),
+            );
+            let mut text_rect = RECT {
+                left: text.x - min_x,
+                top: text.y - min_y,
+                right: (text.x - min_x) + 600,
+                bottom: (text.y - min_y) + text.font_size + 8,
+            };
+            let mut wide_text = text
+                .text
+                .encode_utf16()
+                .chain(std::iter::once(0))
+                .collect::<Vec<_>>();
+            let _ = DrawTextW(
+                mem_dc,
+                &mut wide_text,
+                &mut text_rect,
+                DT_LEFT | DT_VCENTER | DT_SINGLELINE,
+            );
+            let _ = SelectObject(mem_dc, old_font);
+            let _ = DeleteObject(HGDIOBJ(font.0));
+        }
+
         for py in 0..height {
             for px in 0..width {
                 let index = ((py as usize) * (width as usize) + (px as usize)) * 4;
@@ -16531,7 +17397,12 @@ mod windows_overlay {
                 if index + 3 < pixels.len() {
                     let chunk = &mut pixels[index..index + 4];
 
-                    if chunk[0] == 255 && chunk[1] == 255 && chunk[2] == 255 && chunk[3] == 0 {
+                    if chunk[3] == 0
+                        && ((chunk[0] == 255 && chunk[1] == 255 && chunk[2] == 255)
+                            || chunk[0] != 0
+                            || chunk[1] != 0
+                            || chunk[2] != 0)
+                    {
                         chunk[3] = 255;
                     }
                 }
@@ -16816,6 +17687,239 @@ mod windows_overlay {
                     );
                 }
             }
+        }
+    }
+
+    fn draw_line_thick_rgba(
+        pixels: &mut [u8],
+        width: usize,
+        height: usize,
+        x0: i32,
+        y0: i32,
+        x1: i32,
+        y1: i32,
+        color: [u8; 4],
+        thickness: i32,
+    ) {
+        let dx = x1 - x0;
+        let dy = y1 - y0;
+        let steps = dx.abs().max(dy.abs()).max(1);
+        let radius = (thickness.max(1) - 1) / 2;
+        for step in 0..=steps {
+            let t = step as f32 / steps as f32;
+            let x = x0 as f32 + dx as f32 * t;
+            let y = y0 as f32 + dy as f32 * t;
+            for ox in -radius..=radius {
+                for oy in -radius..=radius {
+                    blend_rgba_pixel(
+                        pixels,
+                        width,
+                        height,
+                        x.round() as i32 + ox,
+                        y.round() as i32 + oy,
+                        color,
+                    );
+                }
+            }
+        }
+    }
+
+    fn draw_rect_outline_thick_rgba(
+        pixels: &mut [u8],
+        width: usize,
+        height: usize,
+        left: i32,
+        top: i32,
+        rect_width: i32,
+        rect_height: i32,
+        color: [u8; 4],
+        thickness: i32,
+    ) {
+        let right = left + rect_width.max(1) - 1;
+        let bottom = top + rect_height.max(1) - 1;
+        draw_line_thick_rgba(pixels, width, height, left, top, right, top, color, thickness);
+        draw_line_thick_rgba(pixels, width, height, right, top, right, bottom, color, thickness);
+        draw_line_thick_rgba(
+            pixels,
+            width,
+            height,
+            right,
+            bottom,
+            left,
+            bottom,
+            color,
+            thickness,
+        );
+        draw_line_thick_rgba(pixels, width, height, left, bottom, left, top, color, thickness);
+    }
+
+    fn draw_ellipse_outline_thick_rgba(
+        pixels: &mut [u8],
+        width: usize,
+        height: usize,
+        left: i32,
+        top: i32,
+        ellipse_width: i32,
+        ellipse_height: i32,
+        color: [u8; 4],
+        thickness: i32,
+    ) {
+        let steps = ((ellipse_width.max(ellipse_height) as f32) * std::f32::consts::TAU / 2.0)
+            .round()
+            .clamp(32.0, 480.0) as i32;
+        let center_x = left as f32 + ellipse_width as f32 * 0.5;
+        let center_y = top as f32 + ellipse_height as f32 * 0.5;
+        let radius_x = ellipse_width as f32 * 0.5;
+        let radius_y = ellipse_height as f32 * 0.5;
+        let mut prev_x = center_x + radius_x;
+        let mut prev_y = center_y;
+        for step in 1..=steps {
+            let angle = (step as f32 / steps as f32) * std::f32::consts::TAU;
+            let next_x = center_x + radius_x * angle.cos();
+            let next_y = center_y + radius_y * angle.sin();
+            draw_line_thick_rgba(
+                pixels,
+                width,
+                height,
+                prev_x.round() as i32,
+                prev_y.round() as i32,
+                next_x.round() as i32,
+                next_y.round() as i32,
+                color,
+                thickness,
+            );
+            prev_x = next_x;
+            prev_y = next_y;
+        }
+    }
+
+    fn draw_arrow_head_rgba(
+        pixels: &mut [u8],
+        width: usize,
+        height: usize,
+        x1: i32,
+        y1: i32,
+        x2: i32,
+        y2: i32,
+        color: [u8; 4],
+        thickness: i32,
+        head_size: i32,
+    ) {
+        let dx = (x2 - x1) as f32;
+        let dy = (y2 - y1) as f32;
+        let len = (dx * dx + dy * dy).sqrt().max(1.0);
+        let ux = dx / len;
+        let uy = dy / len;
+        let angle = 28.0_f32.to_radians();
+        let sin_a = angle.sin();
+        let cos_a = angle.cos();
+        for side in [-1.0_f32, 1.0_f32] {
+            let rx = ux * cos_a - side * uy * sin_a;
+            let ry = uy * cos_a + side * ux * sin_a;
+            let hx = x2 as f32 - rx * head_size as f32;
+            let hy = y2 as f32 - ry * head_size as f32;
+            draw_line_thick_rgba(
+                pixels,
+                width,
+                height,
+                x2,
+                y2,
+                hx.round() as i32,
+                hy.round() as i32,
+                color,
+                thickness,
+            );
+        }
+    }
+
+    fn fill_polygon_rgba(
+        pixels: &mut [u8],
+        width: usize,
+        height: usize,
+        points: &[(i32, i32)],
+        offset_x: i32,
+        offset_y: i32,
+        color: [u8; 4],
+    ) {
+        if points.len() < 3 {
+            return;
+        }
+        let min_y = points.iter().map(|(_, y)| *y).min().unwrap_or(0);
+        let max_y = points.iter().map(|(_, y)| *y).max().unwrap_or(0);
+        for y in min_y..=max_y {
+            let mut intersections = Vec::new();
+            for i in 0..points.len() {
+                let (x1, y1) = points[i];
+                let (x2, y2) = points[(i + 1) % points.len()];
+                if (y1 <= y && y2 > y) || (y2 <= y && y1 > y) {
+                    let dy = (y2 - y1) as f32;
+                    if dy.abs() > f32::EPSILON {
+                        let t = (y - y1) as f32 / dy;
+                        let x = x1 as f32 + (x2 - x1) as f32 * t;
+                        intersections.push(x.round() as i32);
+                    }
+                }
+            }
+            intersections.sort_unstable();
+            for pair in intersections.chunks(2) {
+                if let [start, end] = pair {
+                    for x in *start..=*end {
+                        blend_rgba_pixel(
+                            pixels,
+                            width,
+                            height,
+                            x - offset_x,
+                            y - offset_y,
+                            color,
+                        );
+                    }
+                }
+            }
+        }
+    }
+
+    fn draw_arc_rgba(
+        pixels: &mut [u8],
+        width: usize,
+        height: usize,
+        cx: i32,
+        cy: i32,
+        rx: i32,
+        ry: i32,
+        start_angle_deg: f32,
+        end_angle_deg: f32,
+        color: [u8; 4],
+        thickness: i32,
+    ) {
+        let mut delta = end_angle_deg - start_angle_deg;
+        if delta.abs() < f32::EPSILON {
+            delta = 360.0;
+        }
+        if delta < 0.0 {
+            delta += 360.0;
+        }
+        let steps = ((rx.max(ry) as f32) * delta.to_radians()).round().clamp(12.0, 480.0) as i32;
+        let mut prev_x = cx as f32 + rx as f32 * start_angle_deg.to_radians().cos();
+        let mut prev_y = cy as f32 + ry as f32 * start_angle_deg.to_radians().sin();
+        for step in 1..=steps {
+            let t = step as f32 / steps as f32;
+            let angle_deg = start_angle_deg + delta * t;
+            let angle_rad = angle_deg.to_radians();
+            let next_x = cx as f32 + rx as f32 * angle_rad.cos();
+            let next_y = cy as f32 + ry as f32 * angle_rad.sin();
+            draw_line_thick_rgba(
+                pixels,
+                width,
+                height,
+                prev_x.round() as i32,
+                prev_y.round() as i32,
+                next_x.round() as i32,
+                next_y.round() as i32,
+                color,
+                thickness,
+            );
+            prev_x = next_x;
+            prev_y = next_y;
         }
     }
 

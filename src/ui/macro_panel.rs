@@ -202,6 +202,11 @@ impl CrosshairApp {
 
         let if_popup_id = ui.make_persistent_id((id_source, "if-submenu-popup"));
 
+        let geometry_draw_popup_id = ui.make_persistent_id((id_source, "geometry-draw-submenu-popup"));
+
+        let geometry_preset_popup_id =
+            ui.make_persistent_id((id_source, "geometry-preset-submenu-popup"));
+
         ui.ctx().data_mut(|data| {
             data.insert_temp(owner_id, None::<MacroActionSubmenuKind>);
 
@@ -214,6 +219,10 @@ impl CrosshairApp {
             data.insert_temp(timer_popup_id, false);
 
             data.insert_temp(if_popup_id, false);
+
+            data.insert_temp(geometry_draw_popup_id, false);
+
+            data.insert_temp(geometry_preset_popup_id, false);
         });
 
         egui::Popup::close_id(ui.ctx(), mouse_popup_id);
@@ -223,6 +232,10 @@ impl CrosshairApp {
         egui::Popup::close_id(ui.ctx(), timer_popup_id);
 
         egui::Popup::close_id(ui.ctx(), if_popup_id);
+
+        egui::Popup::close_id(ui.ctx(), geometry_draw_popup_id);
+
+        egui::Popup::close_id(ui.ctx(), geometry_preset_popup_id);
 
         for (_, _, _, popup_key) in Self::mouse_click_action_groups().iter().copied() {
             let child_popup_id = ui.make_persistent_id((id_source, popup_key, "popup"));
@@ -4984,6 +4997,15 @@ impl CrosshairApp {
                         })
                         .collect();
 
+                    let geometry_preset_options: Vec<(u32, String)> = self
+                        .state
+                        .geometry_presets
+                        .iter()
+                        .map(|preset| (preset.id, preset.name.clone()))
+                        .collect();
+                    let mut geometry_manual_color = self.vision_manual_color;
+                    let mut geometry_manual_color_hex = self.vision_manual_color_hex.clone();
+                    let mut request_geometry_screen_color_pick = false;
                     let group = &mut self.state.macro_groups[group_index];
 
                     let folder_enabled = true;
@@ -7294,6 +7316,22 @@ impl CrosshairApp {
 
                                                             action_hover_id,
 
+                                                        );
+                                                        Self::render_geometry_draw_action_group_option(
+                                                            ui,
+                                                            language,
+                                                            (group.id, preset.id, "hold-stop-geometry-draw-group"),
+                                                            &mut step.action,
+                                                            &mut live_sync,
+                                                            action_hover_id,
+                                                        );
+                                                        Self::render_geometry_preset_action_group_option(
+                                                            ui,
+                                                            language,
+                                                            (group.id, preset.id, "hold-stop-geometry-preset-group"),
+                                                            &mut step.action,
+                                                            &mut live_sync,
+                                                            action_hover_id,
                                                         );
 
                                 });
@@ -10494,6 +10532,24 @@ impl CrosshairApp {
 
                                                 }
 
+                                            } else if matches!(
+                                                step.action,
+                                                MacroAction::DrawGeometry
+                                                    | MacroAction::ShowGeometryPreset
+                                                    | MacroAction::HideGeometryPreset
+                                                    | MacroAction::ClearGeometryOverlay
+                                            ) {
+                                                Self::render_geometry_macro_step_editor(
+                                                    ui,
+                                                    language,
+                                                    (group.id, preset.id, "hold-stop-geometry-step"),
+                                                    &geometry_preset_options,
+                                                    &mut geometry_manual_color,
+                                                    &mut geometry_manual_color_hex,
+                                                    &mut request_geometry_screen_color_pick,
+                                                    step,
+                                                    &mut live_sync,
+                                                );
                                             } else if Self::macro_action_uses_position(step.action) {
 
                                                 ui.add_space(2.0);
@@ -12557,6 +12613,22 @@ impl CrosshairApp {
 
                                                                 action_hover_id,
 
+                                                            );
+                                                            Self::render_geometry_draw_action_group_option(
+                                                                ui,
+                                                                language,
+                                                                (group.id, preset.id, step_index, "geometry-draw-group"),
+                                                                &mut step.action,
+                                                                &mut live_sync,
+                                                                action_hover_id,
+                                                            );
+                                                            Self::render_geometry_preset_action_group_option(
+                                                                ui,
+                                                                language,
+                                                                (group.id, preset.id, step_index, "geometry-preset-group"),
+                                                                &mut step.action,
+                                                                &mut live_sync,
+                                                                action_hover_id,
                                                             );
 
                                                         });
@@ -17587,6 +17659,9 @@ impl CrosshairApp {
 
                             });
 
+                            self.vision_manual_color = geometry_manual_color;
+                            self.vision_manual_color_hex = geometry_manual_color_hex.clone();
+
                         }
 
                         if let Some((preset_id, step_index)) = insert_step_after {
@@ -18655,6 +18730,36 @@ impl CrosshairApp {
         Self::extract_braced_vars(&step.text_override, vars);
 
         Self::extract_braced_vars(&step.command_preset_command, vars);
+
+        if matches!(step.action, MacroAction::DrawGeometry) {
+            for expr in [
+                &step.geometry_spec.x1_expr,
+                &step.geometry_spec.y1_expr,
+                &step.geometry_spec.x2_expr,
+                &step.geometry_spec.y2_expr,
+                &step.geometry_spec.x3_expr,
+                &step.geometry_spec.y3_expr,
+                &step.geometry_spec.x4_expr,
+                &step.geometry_spec.y4_expr,
+                &step.geometry_spec.width_expr,
+                &step.geometry_spec.height_expr,
+                &step.geometry_spec.radius_expr,
+                &step.geometry_spec.radius_x_expr,
+                &step.geometry_spec.radius_y_expr,
+                &step.geometry_spec.start_angle_expr,
+                &step.geometry_spec.end_angle_expr,
+                &step.geometry_spec.arrow_head_size_expr,
+                &step.geometry_spec.font_size_expr,
+                &step.geometry_spec.thickness_expr,
+                &step.geometry_spec.opacity_expr,
+                &step.geometry_spec.points_expr,
+                &step.geometry_spec.stroke_color_expr,
+                &step.geometry_spec.fill_color_expr,
+                &step.geometry_spec.text,
+            ] {
+                Self::extract_braced_vars(expr, vars);
+            }
+        }
     }
 
     fn is_builtin_expression_identifier(token: &str) -> bool {
@@ -19406,6 +19511,413 @@ impl CrosshairApp {
             "pi" => "pi".to_string(),
             _ => Self::timer_suggestion_label(suggestion, timer_names),
         }
+    }
+
+    fn geometry_draw_macro_actions() -> &'static [MacroAction] {
+        &[MacroAction::DrawGeometry]
+    }
+
+    fn geometry_preset_macro_actions() -> &'static [MacroAction] {
+        &[
+            MacroAction::ShowGeometryPreset,
+            MacroAction::HideGeometryPreset,
+            MacroAction::ClearGeometryOverlay,
+        ]
+    }
+
+    fn macro_action_is_geometry_draw(action: MacroAction) -> bool {
+        Self::geometry_draw_macro_actions().contains(&action)
+    }
+
+    fn macro_action_is_geometry_preset(action: MacroAction) -> bool {
+        Self::geometry_preset_macro_actions().contains(&action)
+    }
+
+    fn render_geometry_draw_action_group_option(
+        ui: &mut egui::Ui,
+        language: UiLanguage,
+        id_source: impl std::hash::Hash + Copy,
+        current: &mut MacroAction,
+        live_sync: &mut bool,
+        action_hover_id: egui::Id,
+    ) {
+        let selected = Self::macro_action_is_geometry_draw(*current);
+        let owner_id = ui.make_persistent_id("macro-action-submenu-owner");
+        let popup_id = ui.make_persistent_id((id_source, "geometry-draw-submenu-popup"));
+        let active_owner = ui
+            .ctx()
+            .data(|data| data.get_temp::<MacroActionSubmenuKind>(owner_id));
+        let top_level_hovered = ui
+            .ctx()
+            .data(|data| data.get_temp::<bool>(action_hover_id))
+            .unwrap_or(false);
+        let mut open = ui
+            .ctx()
+            .data(|data| data.get_temp::<bool>(popup_id))
+            .unwrap_or(false);
+
+        if active_owner.is_some_and(|kind| kind != MacroActionSubmenuKind::GeometryDraw) {
+            open = false;
+        }
+
+        if top_level_hovered {
+            open = false;
+            ui.ctx()
+                .data_mut(|data| data.insert_temp(owner_id, None::<MacroActionSubmenuKind>));
+            ui.ctx().request_repaint();
+        }
+
+        let inner = ui.allocate_ui_with_layout(
+            vec2(64.0, 42.0),
+            egui::Layout::top_down(egui::Align::Center),
+            |ui| {
+                let response = ui.add_sized(
+                    [34.0, 24.0],
+                    Button::new(Self::material_icon_text(0xe85b, 18.0)).selected(selected),
+                );
+
+                if response.hovered() || response.clicked() {
+                    Self::clear_macro_action_submenus(ui, id_source);
+                    open = true;
+                    ui.ctx().data_mut(|data| {
+                        data.insert_temp(owner_id, MacroActionSubmenuKind::GeometryDraw)
+                    });
+                }
+
+                let popup_rect_id = ui.make_persistent_id((id_source, "geometry-draw-submenu-rect"));
+                let popup_response = egui::Popup::from_response(&response)
+                    .id(popup_id)
+                    .open_bool(&mut open)
+                    .align(egui::RectAlign::BOTTOM_START)
+                    .layout(egui::Layout::top_down_justified(egui::Align::Min))
+                    .width(200.0)
+                    .close_behavior(egui::PopupCloseBehavior::IgnoreClicks)
+                    .show(|ui| {
+                        let rect = ui.max_rect();
+                        ui.ctx()
+                            .data_mut(|data| data.insert_temp(popup_rect_id, rect));
+                        for action in Self::geometry_draw_macro_actions().iter().copied() {
+                            Self::render_macro_action_option(
+                                ui,
+                                language,
+                                current,
+                                action,
+                                live_sync,
+                                action_hover_id,
+                                true,
+                            );
+                        }
+                    });
+
+                let popup_rect: Option<egui::Rect> =
+                    ui.ctx().data(|data| data.get_temp(popup_rect_id));
+
+                if open {
+                    if let Some(pointer_pos) = ui.ctx().pointer_hover_pos() {
+                        let mut keep_open_rect = response.rect.expand(10.0);
+                        if let Some(rect) = popup_rect {
+                            keep_open_rect = keep_open_rect.union(rect.expand(10.0));
+                            if rect.contains(pointer_pos) {
+                                ui.ctx().data_mut(|data| {
+                                    data.insert_temp(owner_id, MacroActionSubmenuKind::GeometryDraw)
+                                });
+                            }
+                        }
+                        if !keep_open_rect.contains(pointer_pos) {
+                            open = false;
+                            ui.ctx().data_mut(|data| {
+                                data.insert_temp(owner_id, None::<MacroActionSubmenuKind>)
+                            });
+                            ui.ctx().request_repaint();
+                        }
+                    } else {
+                        open = false;
+                        ui.ctx().data_mut(|data| {
+                            data.insert_temp(owner_id, None::<MacroActionSubmenuKind>)
+                        });
+                        ui.ctx().request_repaint();
+                    }
+                }
+
+                ui.ctx().data_mut(|data| data.insert_temp(popup_id, open));
+                let label_color = if selected {
+                    ui.visuals().strong_text_color()
+                } else {
+                    ui.visuals().text_color()
+                };
+                ui.label(
+                    RichText::new(Self::tr_lang(language, "Shape", "Shape"))
+                        .size(9.0)
+                        .color(label_color),
+                );
+
+                if let Some(popup) = popup_response {
+                    popup.response
+                } else {
+                    response
+                }
+            },
+        );
+
+        let response = inner.inner;
+
+        if !open {
+            Self::show_instant_hover_tooltip(
+                ui,
+                &response,
+                Self::tr_lang(
+                    language,
+                    "Geometry shape\nOpen geometry shape drawing actions.",
+                    "Geometry shape\nMo cac action ve hinh hoc.",
+                ),
+            );
+        }
+    }
+
+    fn render_geometry_preset_action_group_option(
+        ui: &mut egui::Ui,
+        language: UiLanguage,
+        id_source: impl std::hash::Hash + Copy,
+        current: &mut MacroAction,
+        live_sync: &mut bool,
+        action_hover_id: egui::Id,
+    ) {
+        let selected = Self::macro_action_is_geometry_preset(*current);
+        let owner_id = ui.make_persistent_id("macro-action-submenu-owner");
+        let popup_id = ui.make_persistent_id((id_source, "geometry-preset-submenu-popup"));
+        let active_owner = ui
+            .ctx()
+            .data(|data| data.get_temp::<MacroActionSubmenuKind>(owner_id));
+        let top_level_hovered = ui
+            .ctx()
+            .data(|data| data.get_temp::<bool>(action_hover_id))
+            .unwrap_or(false);
+        let mut open = ui
+            .ctx()
+            .data(|data| data.get_temp::<bool>(popup_id))
+            .unwrap_or(false);
+
+        if active_owner.is_some_and(|kind| kind != MacroActionSubmenuKind::GeometryPreset) {
+            open = false;
+        }
+
+        if top_level_hovered {
+            open = false;
+            ui.ctx()
+                .data_mut(|data| data.insert_temp(owner_id, None::<MacroActionSubmenuKind>));
+            ui.ctx().request_repaint();
+        }
+
+        let inner = ui.allocate_ui_with_layout(
+            vec2(64.0, 42.0),
+            egui::Layout::top_down(egui::Align::Center),
+            |ui| {
+                let response = ui.add_sized(
+                    [34.0, 24.0],
+                    Button::new(Self::material_icon_text(0xe8f4, 18.0)).selected(selected),
+                );
+
+                if response.hovered() || response.clicked() {
+                    Self::clear_macro_action_submenus(ui, id_source);
+                    open = true;
+                    ui.ctx().data_mut(|data| {
+                        data.insert_temp(owner_id, MacroActionSubmenuKind::GeometryPreset)
+                    });
+                }
+
+                let popup_rect_id =
+                    ui.make_persistent_id((id_source, "geometry-preset-submenu-rect"));
+                let popup_response = egui::Popup::from_response(&response)
+                    .id(popup_id)
+                    .open_bool(&mut open)
+                    .align(egui::RectAlign::BOTTOM_START)
+                    .layout(egui::Layout::top_down_justified(egui::Align::Min))
+                    .width(220.0)
+                    .close_behavior(egui::PopupCloseBehavior::IgnoreClicks)
+                    .show(|ui| {
+                        let rect = ui.max_rect();
+                        ui.ctx()
+                            .data_mut(|data| data.insert_temp(popup_rect_id, rect));
+                        for action in Self::geometry_preset_macro_actions().iter().copied() {
+                            Self::render_macro_action_option(
+                                ui,
+                                language,
+                                current,
+                                action,
+                                live_sync,
+                                action_hover_id,
+                                true,
+                            );
+                        }
+                    });
+
+                let popup_rect: Option<egui::Rect> =
+                    ui.ctx().data(|data| data.get_temp(popup_rect_id));
+
+                if open {
+                    if let Some(pointer_pos) = ui.ctx().pointer_hover_pos() {
+                        let mut keep_open_rect = response.rect.expand(10.0);
+                        if let Some(rect) = popup_rect {
+                            keep_open_rect = keep_open_rect.union(rect.expand(10.0));
+                            if rect.contains(pointer_pos) {
+                                ui.ctx().data_mut(|data| {
+                                    data.insert_temp(owner_id, MacroActionSubmenuKind::GeometryPreset)
+                                });
+                            }
+                        }
+                        if !keep_open_rect.contains(pointer_pos) {
+                            open = false;
+                            ui.ctx().data_mut(|data| {
+                                data.insert_temp(owner_id, None::<MacroActionSubmenuKind>)
+                            });
+                            ui.ctx().request_repaint();
+                        }
+                    } else {
+                        open = false;
+                        ui.ctx().data_mut(|data| {
+                            data.insert_temp(owner_id, None::<MacroActionSubmenuKind>)
+                        });
+                        ui.ctx().request_repaint();
+                    }
+                }
+
+                ui.ctx().data_mut(|data| data.insert_temp(popup_id, open));
+                let label_color = if selected {
+                    ui.visuals().strong_text_color()
+                } else {
+                    ui.visuals().text_color()
+                };
+                ui.label(
+                    RichText::new(Self::tr_lang(language, "Geometry", "Geometry"))
+                        .size(9.0)
+                        .color(label_color),
+                );
+
+                if let Some(popup) = popup_response {
+                    popup.response
+                } else {
+                    response
+                }
+            },
+        );
+
+        let response = inner.inner;
+
+        if !open {
+            Self::show_instant_hover_tooltip(
+                ui,
+                &response,
+                Self::tr_lang(
+                    language,
+                    "Geometry preset\nOpen show, hide, and clear geometry actions.",
+                    "Geometry preset\nMo cac action hien, an va xoa hinh hoc.",
+                ),
+            );
+        }
+    }
+
+    fn render_geometry_preset_selector(
+        ui: &mut egui::Ui,
+        language: UiLanguage,
+        id_source: impl std::hash::Hash,
+        preset_options: &[(u32, String)],
+        preset_id: &mut Option<u32>,
+        live_sync: &mut bool,
+    ) {
+        let selected_label = preset_id
+            .and_then(|id| preset_options.iter().find(|preset| preset.0 == id).map(|preset| preset.1.clone()))
+            .unwrap_or_else(|| Self::tr_lang(language, "Select geometry", "Chon geometry").to_owned());
+
+        ComboBox::from_id_salt(id_source)
+            .width(180.0)
+            .selected_text(selected_label)
+            .show_ui(ui, |ui| {
+                for (preset_entry_id, preset_entry_name) in preset_options {
+                    if ui
+                        .selectable_label(*preset_id == Some(*preset_entry_id), preset_entry_name)
+                        .clicked()
+                    {
+                        *preset_id = Some(*preset_entry_id);
+                        *live_sync = true;
+                    }
+                }
+            });
+    }
+
+    fn render_geometry_macro_step_editor(
+        ui: &mut egui::Ui,
+        language: UiLanguage,
+        id_prefix: impl std::hash::Hash + Copy,
+        preset_options: &[(u32, String)],
+        vision_manual_color: &mut RgbaColor,
+        vision_manual_color_hex: &mut String,
+        request_screen_color_pick: &mut bool,
+        step: &mut MacroStep,
+        live_sync: &mut bool,
+    ) {
+        ui.scope(|ui| {
+            ui.spacing_mut().item_spacing.x = 6.0;
+            ui.spacing_mut().item_spacing.y = 6.0;
+            ui.vertical(|ui| match step.action {
+                MacroAction::DrawGeometry => {
+                    ui.horizontal(|ui| {
+                        ui.label(Self::tr_lang(language, "Shape", "Shape"));
+                        ComboBox::from_id_salt((id_prefix, "geometry-shape"))
+                            .width(130.0)
+                            .selected_text(Self::geometry_shape_label(step.geometry_spec.shape))
+                            .show_ui(ui, |ui| {
+                                for shape in Self::geometry_shapes() {
+                                    *live_sync |= ui
+                                        .selectable_value(
+                                            &mut step.geometry_spec.shape,
+                                            shape,
+                                            Self::geometry_shape_label(shape),
+                                        )
+                                        .changed();
+                                }
+                            });
+                        *live_sync |= ui
+                            .checkbox(
+                                &mut step.geometry_spec.visible,
+                                Self::tr_lang(language, "Visible", "Visible"),
+                            )
+                            .changed();
+                    });
+                    ui.add_space(4.0);
+                    *live_sync |= Self::render_geometry_spec_editor(
+                        ui,
+                        language,
+                        0,
+                        0,
+                        &mut step.geometry_spec,
+                        vision_manual_color,
+                        vision_manual_color_hex,
+                        request_screen_color_pick,
+                    );
+                }
+                MacroAction::ShowGeometryPreset | MacroAction::HideGeometryPreset => {
+                    ui.horizontal(|ui| {
+                        ui.label(Self::tr_lang(language, "Preset", "Preset"));
+                        Self::render_geometry_preset_selector(
+                            ui,
+                            language,
+                            (id_prefix, "geometry-preset"),
+                            preset_options,
+                            &mut step.geometry_preset_id,
+                            live_sync,
+                        );
+                    });
+                }
+                MacroAction::ClearGeometryOverlay => {
+                    ui.label(Self::tr_lang(
+                        language,
+                        "Clears all currently visible geometry overlay objects.",
+                        "Xoa tat ca hinh hoc dang hien tren overlay.",
+                    ));
+                }
+                _ => {}
+            });
+        });
     }
 
     fn variable_value_kind(token: &str) -> VariableValueKind {

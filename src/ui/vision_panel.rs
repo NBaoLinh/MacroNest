@@ -1451,6 +1451,11 @@ impl CrosshairApp {
                                 ctx, group_id, preset_id, step_index, x, y, width, height,
                             );
                         }
+                        VisionCaptureTarget::GeometryColor => {
+                            self.cancel_image_search_capture(ctx);
+                            self.status =
+                                "Geometry color picking does not support area captures.".to_owned();
+                        }
                     }
                 } else {
                     self.cancel_image_search_capture(ctx);
@@ -1484,6 +1489,11 @@ impl CrosshairApp {
                     VisionCaptureTarget::OcrStepRegion { .. } => {
                         self.cancel_image_search_capture(ctx);
                         self.status = "OCR steps do not support color picking.".to_owned();
+                    }
+                    VisionCaptureTarget::GeometryColor => {
+                        self.cancel_image_search_capture(ctx);
+                        self.status =
+                            "Geometry color picking is only supported from point picks.".to_owned();
                     }
                 }
             }
@@ -1678,6 +1688,7 @@ impl CrosshairApp {
                 .iter()
                 .find(|preset| preset.id == preset_id)
                 .map(|preset| preset.name.clone()),
+            VisionCaptureTarget::GeometryColor => Some("Geometry Color".to_owned()),
             VisionCaptureTarget::OcrStepRegion { .. } => Some("Custom OCR".to_owned()),
         }
     }
@@ -1690,6 +1701,7 @@ impl CrosshairApp {
                 .iter()
                 .find(|preset| preset.id == preset_id)
                 .is_some_and(|preset| preset.search_region_is_circle),
+            VisionCaptureTarget::GeometryColor => false,
             VisionCaptureTarget::OcrPreset(_) => false,
             VisionCaptureTarget::OcrStepRegion { .. } => false,
         }
@@ -1776,6 +1788,10 @@ impl CrosshairApp {
                             true,
                         )
                     }
+                    VisionCaptureTarget::GeometryColor => (
+                        "Geometry color picking does not support template captures.".to_owned(),
+                        false,
+                    ),
                     VisionCaptureTarget::OcrPreset(_) => (
                         "OCR presets do not support template captures.".to_owned(),
                         false,
@@ -1816,6 +1832,10 @@ impl CrosshairApp {
                                 "Saved search area {}x{} at {}, {} for preset #{}.",
                                 width, height, screen_x, screen_y, preset_id
                             );
+                        }
+                        VisionCaptureTarget::GeometryColor => {
+                            self.status =
+                                "Geometry color picking does not support search regions.".to_owned();
                         }
                         VisionCaptureTarget::OcrPreset(preset_id) => {
                             if let Some(preset) = self
@@ -1986,6 +2006,15 @@ impl CrosshairApp {
             VisionCaptureTarget::OcrStepRegion { .. } => {
                 "OCR steps do not support color picking.".to_owned()
             }
+            VisionCaptureTarget::GeometryColor => {
+                self.vision_manual_color = color;
+                self.vision_manual_color_hex =
+                    format!("{:02X}{:02X}{:02X}", color.r, color.g, color.b);
+                format!(
+                    "Picked geometry color #{:02X}{:02X}{:02X}.",
+                    color.r, color.g, color.b
+                )
+            }
         }
     }
 
@@ -2016,6 +2045,9 @@ impl CrosshairApp {
             }
             VisionCaptureTarget::OcrStepRegion { .. } => {
                 "OCR steps do not support priority anchors.".to_owned()
+            }
+            VisionCaptureTarget::GeometryColor => {
+                "Geometry color picking does not support priority anchors.".to_owned()
             }
         }
     }
@@ -2145,11 +2177,29 @@ impl CrosshairApp {
                     color.r, color.g, color.b, preset_id
                 )
             }
+            VisionCaptureTarget::GeometryColor => {
+                self.vision_manual_color = color;
+                self.vision_manual_color_hex =
+                    format!("{:02X}{:02X}{:02X}", color.r, color.g, color.b);
+                format!(
+                    "Picked geometry color #{:02X}{:02X}{:02X}.",
+                    color.r, color.g, color.b
+                )
+            }
             VisionCaptureTarget::OcrPreset(_) => {
                 "OCR presets do not support color picking.".to_owned()
             }
             VisionCaptureTarget::OcrStepRegion { .. } => {
                 "OCR steps do not support color picking.".to_owned()
+            }
+            VisionCaptureTarget::GeometryColor => {
+                self.vision_manual_color = color;
+                self.vision_manual_color_hex =
+                    format!("{:02X}{:02X}{:02X}", color.r, color.g, color.b);
+                format!(
+                    "Picked geometry color #{:02X}{:02X}{:02X}.",
+                    color.r, color.g, color.b
+                )
             }
         };
         self.persist();
@@ -2297,6 +2347,10 @@ impl CrosshairApp {
                     width, height, screen_x, screen_y
                 );
             }
+            VisionCaptureTarget::GeometryColor => {
+                self.status =
+                    "Geometry color picking does not support search regions.".to_owned();
+            }
         }
         ctx.request_repaint();
     }
@@ -2373,6 +2427,15 @@ impl CrosshairApp {
             VisionCaptureTarget::OcrStepRegion { .. } => {
                 "OCR steps do not support color picking.".to_owned()
             }
+            VisionCaptureTarget::GeometryColor => {
+                self.vision_manual_color = color;
+                self.vision_manual_color_hex =
+                    format!("{:02X}{:02X}{:02X}", color.r, color.g, color.b);
+                format!(
+                    "Picked geometry color #{:02X}{:02X}{:02X}.",
+                    color.r, color.g, color.b
+                )
+            }
         };
         self.persist();
         self.status = status;
@@ -2433,6 +2496,10 @@ impl CrosshairApp {
             }
             VisionCaptureTarget::OcrStepRegion { .. } => {
                 self.status = "OCR steps do not support priority anchors.".to_owned();
+            }
+            VisionCaptureTarget::GeometryColor => {
+                self.status =
+                    "Geometry color picking does not support priority anchors.".to_owned();
             }
         }
         ctx.request_repaint();

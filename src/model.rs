@@ -175,6 +175,44 @@ fn default_image_search_distance_far_speed() -> f32 {
     5.0
 }
 
+fn default_geometry_stroke_color() -> RgbaColor {
+    RgbaColor {
+        r: 0,
+        g: 255,
+        b: 170,
+        a: 255,
+    }
+}
+
+fn default_geometry_fill_color() -> RgbaColor {
+    RgbaColor {
+        r: 0,
+        g: 255,
+        b: 170,
+        a: 80,
+    }
+}
+
+fn default_geometry_thickness() -> f32 {
+    2.0
+}
+
+fn default_geometry_opacity() -> f32 {
+    1.0
+}
+
+fn default_geometry_font_size() -> f32 {
+    18.0
+}
+
+fn default_geometry_point_radius() -> f32 {
+    6.0
+}
+
+fn default_geometry_arrow_head_size() -> f32 {
+    16.0
+}
+
 fn default_macro_mouse_click_delay_ms() -> u32 {
     16
 }
@@ -211,6 +249,7 @@ pub enum AppPanel {
     #[serde(alias = "Toolbox", alias = "Settings")]
     Hud,
     Ocr,
+    Geometry,
 }
 
 #[derive(Debug, Clone, Copy, Serialize, Deserialize, PartialEq, Eq, Default)]
@@ -442,6 +481,167 @@ pub enum MacroAction {
     EnableStep,
     DisableStep,
     OcrSearch,
+    DrawGeometry,
+    ShowGeometryPreset,
+    HideGeometryPreset,
+    ClearGeometryOverlay,
+}
+
+#[derive(Debug, Clone, Copy, Serialize, Deserialize, PartialEq, Eq, Hash, Default)]
+pub enum GeometryShapeKind {
+    #[default]
+    Point,
+    Line,
+    Circle,
+    Rectangle,
+    Label,
+    Ellipse,
+    Arrow,
+    Polyline,
+    Polygon,
+    Arc,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
+#[serde(default)]
+pub struct GeometrySpec {
+    pub shape: GeometryShapeKind,
+    pub x1_expr: String,
+    pub y1_expr: String,
+    pub x2_expr: String,
+    pub y2_expr: String,
+    pub x3_expr: String,
+    pub y3_expr: String,
+    pub x4_expr: String,
+    pub y4_expr: String,
+    pub width_expr: String,
+    pub height_expr: String,
+    pub radius_expr: String,
+    pub radius_x_expr: String,
+    pub radius_y_expr: String,
+    pub start_angle_expr: String,
+    pub end_angle_expr: String,
+    pub arrow_head_size_expr: String,
+    pub font_size_expr: String,
+    pub thickness_expr: String,
+    pub opacity_expr: String,
+    pub points_expr: String,
+    pub text: String,
+    pub stroke_color_expr: String,
+    pub fill_color_expr: String,
+    #[serde(default = "default_geometry_stroke_color")]
+    pub stroke_color: RgbaColor,
+    #[serde(default = "default_geometry_fill_color")]
+    pub fill_color: RgbaColor,
+    pub filled: bool,
+    #[serde(default = "default_true")]
+    pub visible: bool,
+    #[serde(default = "default_geometry_thickness")]
+    pub thickness: f32,
+    #[serde(default = "default_geometry_opacity")]
+    pub opacity: f32,
+    #[serde(default = "default_geometry_font_size")]
+    pub font_size: f32,
+    #[serde(default = "default_geometry_point_radius")]
+    pub point_radius: f32,
+    #[serde(default = "default_geometry_arrow_head_size")]
+    pub arrow_head_size: f32,
+}
+
+impl Default for GeometrySpec {
+    fn default() -> Self {
+        Self {
+            shape: GeometryShapeKind::Point,
+            x1_expr: "960".to_owned(),
+            y1_expr: "540".to_owned(),
+            x2_expr: "1120".to_owned(),
+            y2_expr: "540".to_owned(),
+            x3_expr: String::new(),
+            y3_expr: String::new(),
+            x4_expr: String::new(),
+            y4_expr: String::new(),
+            width_expr: "180".to_owned(),
+            height_expr: "120".to_owned(),
+            radius_expr: "60".to_owned(),
+            radius_x_expr: "90".to_owned(),
+            radius_y_expr: "60".to_owned(),
+            start_angle_expr: "0".to_owned(),
+            end_angle_expr: "180".to_owned(),
+            arrow_head_size_expr: "16".to_owned(),
+            font_size_expr: "18".to_owned(),
+            thickness_expr: "2".to_owned(),
+            opacity_expr: "1".to_owned(),
+            points_expr: "960,540;1120,540;1120,660".to_owned(),
+            text: "Label".to_owned(),
+            stroke_color_expr: String::new(),
+            fill_color_expr: String::new(),
+            stroke_color: default_geometry_stroke_color(),
+            fill_color: default_geometry_fill_color(),
+            filled: false,
+            visible: true,
+            thickness: default_geometry_thickness(),
+            opacity: default_geometry_opacity(),
+            font_size: default_geometry_font_size(),
+            point_radius: default_geometry_point_radius(),
+            arrow_head_size: default_geometry_arrow_head_size(),
+        }
+    }
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
+#[serde(default)]
+pub struct GeometryObject {
+    pub id: u32,
+    pub name: String,
+    pub enabled: bool,
+    pub spec: GeometrySpec,
+}
+
+impl GeometryObject {
+    pub fn new(id: u32, shape: GeometryShapeKind) -> Self {
+        let mut spec = GeometrySpec::default();
+        spec.shape = shape;
+        Self {
+            id,
+            name: format!("{shape:?} {id}"),
+            enabled: true,
+            spec,
+        }
+    }
+}
+
+impl Default for GeometryObject {
+    fn default() -> Self {
+        Self::new(1, GeometryShapeKind::Point)
+    }
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
+#[serde(default)]
+pub struct GeometryPreset {
+    pub id: u32,
+    pub name: String,
+    pub enabled: bool,
+    pub collapsed: bool,
+    pub objects: Vec<GeometryObject>,
+}
+
+impl GeometryPreset {
+    pub fn new(id: u32) -> Self {
+        Self {
+            id,
+            name: format!("Geometry {id}"),
+            enabled: true,
+            collapsed: true,
+            objects: vec![GeometryObject::new(1, GeometryShapeKind::Point)],
+        }
+    }
+}
+
+impl Default for GeometryPreset {
+    fn default() -> Self {
+        Self::new(1)
+    }
 }
 
 #[derive(Debug, Clone, Copy, Serialize, Deserialize, PartialEq, Eq, Hash, Default)]
@@ -552,7 +752,7 @@ impl Default for ExtraCondition {
     }
 }
 
-#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
 #[serde(default)]
 pub struct MacroStep {
     pub key: String,
@@ -674,6 +874,10 @@ pub struct MacroStep {
     #[serde(default)]
     pub vision_pos_var_y: String,
     #[serde(default)]
+    pub geometry_preset_id: Option<u32>,
+    #[serde(default)]
+    pub geometry_spec: GeometrySpec,
+    #[serde(default)]
     pub if_contain_case_sensitive: bool,
     #[serde(default)]
     pub if_contain_isolated: bool,
@@ -749,6 +953,8 @@ impl Default for MacroStep {
             ocr_text_var: String::new(),
             vision_pos_var_x: String::new(),
             vision_pos_var_y: String::new(),
+            geometry_preset_id: None,
+            geometry_spec: GeometrySpec::default(),
             if_contain_case_sensitive: false,
             if_contain_isolated: false,
             trigger_macro_group_id: None,
@@ -900,7 +1106,7 @@ pub enum CaptureRequest {
     },
 }
 
-#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
 pub enum CapturedInput {
     Binding(HotkeyBinding),
     Step(MacroStep),
@@ -1460,7 +1666,7 @@ impl Default for MasterPreset {
     }
 }
 
-#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
 #[serde(default)]
 pub struct MacroPreset {
     pub id: u32,
@@ -1538,7 +1744,7 @@ impl Default for MacroFolder {
     }
 }
 
-#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
 #[serde(default)]
 pub struct MacroGroup {
     pub id: u32,
@@ -2039,6 +2245,12 @@ pub struct AppState {
     pub next_macro_group_id: u32,
     pub macro_presets: Vec<MacroPreset>,
     pub next_macro_preset_id: u32,
+    #[serde(default)]
+    pub geometry_presets: Vec<GeometryPreset>,
+    #[serde(default)]
+    pub next_geometry_preset_id: u32,
+    #[serde(default)]
+    pub next_geometry_object_id: u32,
     pub macros_master_enabled: bool,
     pub macros_master_hotkey: Option<HotkeyBinding>,
     #[serde(default = "default_true")]
@@ -2133,6 +2345,9 @@ impl Default for AppState {
             next_macro_group_id: 1,
             macro_presets: Vec::new(),
             next_macro_preset_id: 1,
+            geometry_presets: vec![GeometryPreset::new(1)],
+            next_geometry_preset_id: 2,
+            next_geometry_object_id: 2,
             macros_master_enabled: true,
             macros_master_hotkey: None,
             macro_infinite_loop_warning_enabled: true,

@@ -22,8 +22,9 @@ use crate::{
     ai, audio, hotkey,
     model::{
         AppPanel, AppState, AudioClipSettings, CaptureRequest, CapturedInput, CommandPreset,
-        CrosshairStyle, HotkeyBinding, MacroAction, MacroFolder, MacroGroup, MacroPreset,
-        MacroStep, MacroTriggerMode, MasterMacroGroupState, MasterMacroPresetState, MasterPreset,
+        CrosshairStyle, GeometryPreset, GeometryShapeKind, HotkeyBinding, MacroAction,
+        MacroFolder, MacroGroup, MacroPreset, MacroStep, MacroTriggerMode,
+        MasterMacroGroupState, MasterMacroPresetState, MasterPreset,
         MasterWindowFocusPresetState, MasterWindowPresetState, MasterZoomPresetState,
         MousePathEventKind, ProfileRecord, RgbaColor, SoundLibraryItem, TimerPreset, UiLanguage,
         UiThemeMode, VideoClipSettings, VietnameseInputMode, WindowAnchor, WindowExpandDirection,
@@ -38,6 +39,7 @@ use vi::{self, TELEX, VNI};
 
 mod command_panel;
 mod crosshair_panel;
+mod geometry_panel;
 mod hud_panel;
 mod macro_panel;
 mod macro_panel_ocr;
@@ -107,6 +109,7 @@ pub(crate) enum VisionCaptureMode {
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub(crate) enum VisionCaptureTarget {
     Preset(u32),
+    GeometryColor,
     OcrPreset(u32),
     /// Custom OCR region directly on a macro step (no separate OcrPreset needed)
     OcrStepRegion {
@@ -558,6 +561,8 @@ pub(crate) enum MacroActionSubmenuKind {
     ImageSearch,
     Timer,
     If,
+    GeometryDraw,
+    GeometryPreset,
 }
 
 #[derive(Clone, Copy, PartialEq, Eq)]
@@ -1019,6 +1024,12 @@ impl CrosshairApp {
     fn sync_timer_presets(&self) {
         let _ = self.overlay_tx.send(OverlayCommand::UpdateTimerPresets(
             self.state.timer_presets.clone(),
+        ));
+    }
+
+    fn sync_geometry_presets(&self) {
+        let _ = self.overlay_tx.send(OverlayCommand::UpdateGeometryPresets(
+            self.state.geometry_presets.clone(),
         ));
     }
 
@@ -3019,6 +3030,7 @@ impl CrosshairApp {
             AppPanel::Sound | AppPanel::Media => 0xe050,
             AppPanel::Hud => 0xe8b8,
             AppPanel::Ocr => 0xe8b6,
+            AppPanel::Geometry => 0xe158,
         }
     }
 
@@ -3035,6 +3047,7 @@ impl CrosshairApp {
             AppPanel::Media => "Editor",
             AppPanel::Hud => "HUD",
             AppPanel::Ocr => "OCR",
+            AppPanel::Geometry => "Geometry",
         };
         if panel == AppPanel::Ocr {
             Self::tr_lang(self.state.ui_language, "OCR", "Nhận dạng chữ (OCR)")
@@ -3713,6 +3726,10 @@ impl CrosshairApp {
             MacroAction::IfEnd => "IfEnd",
             MacroAction::SetVariable => "SetVariable",
             MacroAction::OcrSearch => "OcrSearch",
+            MacroAction::DrawGeometry => "DrawGeometry",
+            MacroAction::ShowGeometryPreset => "ShowGeometry",
+            MacroAction::HideGeometryPreset => "HideGeometry",
+            MacroAction::ClearGeometryOverlay => "ClearGeometry",
             _ => "Legacy (Deprecated)",
         }
     }
@@ -3820,6 +3837,18 @@ impl CrosshairApp {
                 MacroAction::OcrSearch => {
                     "Quét vùng màn hình qua Windows OCR Native để nhận diện chữ/số."
                 }
+                MacroAction::DrawGeometry => {
+                    "Vẽ một hình hình học lên overlay màn hình bằng tọa độ hoặc biểu thức."
+                }
+                MacroAction::ShowGeometryPreset => {
+                    "Hiện một preset hình học đã lưu từ tab Geometry."
+                }
+                MacroAction::HideGeometryPreset => {
+                    "Ẩn một preset hình học đang hiển thị trên màn hình."
+                }
+                MacroAction::ClearGeometryOverlay => {
+                    "Xóa toàn bộ hình học overlay đang hiển thị."
+                }
                 _ => "Tính năng cũ (Không dùng)",
             },
             _ => match action {
@@ -3923,6 +3952,18 @@ impl CrosshairApp {
                 MacroAction::OcrSearch => {
                     "Scan screen region via Windows OCR Native to extract text and numbers."
                 }
+                MacroAction::DrawGeometry => {
+                    "Draw one geometry shape on the screen overlay using coordinates or expressions."
+                }
+                MacroAction::ShowGeometryPreset => {
+                    "Show one saved geometry preset from the Geometry tab."
+                }
+                MacroAction::HideGeometryPreset => {
+                    "Hide one geometry preset that is currently visible on screen."
+                }
+                MacroAction::ClearGeometryOverlay => {
+                    "Clear all currently visible geometry overlay shapes."
+                }
                 _ => "Legacy (Deprecated)",
             },
         }
@@ -3995,6 +4036,10 @@ impl CrosshairApp {
             MacroAction::IfEnd => 0xe040,
             MacroAction::SetVariable => 0xe150,
             MacroAction::OcrSearch => 0xe8b6,
+            MacroAction::DrawGeometry => 0xe85b,
+            MacroAction::ShowGeometryPreset => 0xe8f4,
+            MacroAction::HideGeometryPreset => 0xe8f5,
+            MacroAction::ClearGeometryOverlay => 0xe14c,
             _ => 0xe8b5,
         };
         char::from_u32(codepoint).unwrap_or('?')
@@ -4071,6 +4116,10 @@ impl CrosshairApp {
                 MacroAction::Else => "Ngược lại",
                 MacroAction::IfEnd => "Hết Nếu",
                 MacroAction::SetVariable => "Gán biến",
+                MacroAction::DrawGeometry => "Vẽ hình",
+                MacroAction::ShowGeometryPreset => "Hiện hình",
+                MacroAction::HideGeometryPreset => "Ẩn hình",
+                MacroAction::ClearGeometryOverlay => "Xóa hình",
                 MacroAction::OcrSearch => "Quét OCR",
                 _ => "Cũ (Bỏ)",
             }),
@@ -4139,6 +4188,10 @@ impl CrosshairApp {
                 MacroAction::Else => "Else",
                 MacroAction::IfEnd => "IfEnd",
                 MacroAction::SetVariable => "SetVar",
+                MacroAction::DrawGeometry => "DrawGeo",
+                MacroAction::ShowGeometryPreset => "ShowGeo",
+                MacroAction::HideGeometryPreset => "HideGeo",
+                MacroAction::ClearGeometryOverlay => "ClearGeo",
                 MacroAction::OcrSearch => "OcrSearch",
                 _ => "Legacy",
             },
@@ -4206,6 +4259,10 @@ impl CrosshairApp {
                 MacroAction::Else => "Else",
                 MacroAction::IfEnd => "IfEnd",
                 MacroAction::SetVariable => "SetVar",
+                MacroAction::DrawGeometry => "DrawGeo",
+                MacroAction::ShowGeometryPreset => "ShowGeo",
+                MacroAction::HideGeometryPreset => "HideGeo",
+                MacroAction::ClearGeometryOverlay => "ClearGeo",
                 MacroAction::OcrSearch => "OCR",
                 _ => "Legacy",
             },
@@ -8708,6 +8765,7 @@ impl eframe::App for CrosshairApp {
                         AppPanel::Mouse,
                         AppPanel::Vision,
                         AppPanel::Ocr,
+                        AppPanel::Geometry,
                         AppPanel::Sound,
                     ];
                     for panel in panels {
@@ -8791,6 +8849,7 @@ impl eframe::App for CrosshairApp {
                                 AppPanel::Mouse => self.render_mouse_panel(ui),
                                 AppPanel::Vision => self.render_vision_panel(ui, ctx),
                                 AppPanel::Ocr => self.render_ocr_panel(ui),
+                                AppPanel::Geometry => self.render_geometry_panel(ui),
                                 AppPanel::Zoom => self.render_pin_panel(ui),
                                 AppPanel::Modes => unreachable!(),
                                 AppPanel::Macros => unreachable!(),

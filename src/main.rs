@@ -100,6 +100,9 @@ fn main() -> Result<()> {
     overlay.send(OverlayCommand::UpdateVisionPresets(
         state.vision_presets.clone(),
     ));
+    overlay.send(OverlayCommand::UpdateGeometryPresets(
+        state.geometry_presets.clone(),
+    ));
     let macro_groups = ui::build_runtime_macro_groups(&state);
     overlay.send(OverlayCommand::UpdateMacroPresets(macro_groups));
     overlay.send(OverlayCommand::UpdateAudioSettings(
