@@ -7136,15 +7136,7 @@ impl CrosshairApp {
 
                                             .width(168.0)
 
-                                            .selected_text(format!(
-
-                                                "{} {}",
-
-                                                Self::macro_action_icon(step.action),
-
-                                                Self::macro_action_selected_label(step.action, language)
-
-                                            ))
+                                            .selected_text(Self::macro_action_selected_widget_text(step.action, language))
 
                                             .show_ui(ui, |ui| {
 
@@ -12415,15 +12407,7 @@ impl CrosshairApp {
 
                                                 .width(148.0)
 
-                                                .selected_text(format!(
-
-                                                    "{} {}",
-
-                                                    Self::macro_action_icon(step.action),
-
-                                                    Self::macro_action_selected_label(step.action, language)
-
-                                                ))
+                                                .selected_text(Self::macro_action_selected_widget_text(step.action, language))
 
                                                 .show_ui(ui, |ui| {
 
@@ -13279,7 +13263,7 @@ impl CrosshairApp {
 
                                                         egui::ComboBox::from_id_salt((group.id, preset.id, step_index, "step-multi-select"))
 
-                                                            .width(100.0)
+                                                            .width(146.0)
 
                                                             .selected_text(steps_label)
 
@@ -13424,27 +13408,27 @@ impl CrosshairApp {
 
                                                         .unwrap_or_else(|| Self::tr_lang(language, "Select pin", "Chọn ghim").to_owned());
 
+                                                    egui::ComboBox::from_id_salt((group.id, preset.id, step_index, "pin-preset-step"))
+                                                        .width(146.0)
+                                                        .selected_text(selected_label)
+                                                        .show_ui(ui, |ui| {
+                                                            for preset_option in &self.state.pin_presets {
+                                                                if ui
+                                                                    .selectable_label(
+                                                                        selected_id == Some(preset_option.id),
+                                                                        &preset_option.name,
+                                                                    )
+                                                                    .clicked()
+                                                                {
+                                                                    step.key = preset_option.id.to_string();
+                                                                    live_sync = true;
+                                                                }
+                                                            }
+                                                        });
                                                     ui.scope(|ui| {
                                                         ui.spacing_mut().item_spacing.x = 2.0;
                                                         ui.spacing_mut().interact_size.y = 18.0;
                                                         ui.spacing_mut().button_padding.y = 0.0;
-                                                        egui::ComboBox::from_id_salt((group.id, preset.id, step_index, "pin-preset-step"))
-                                                            .width(120.0)
-                                                            .selected_text(selected_label)
-                                                            .show_ui(ui, |ui| {
-                                                                for preset_option in &self.state.pin_presets {
-                                                                    if ui
-                                                                        .selectable_label(
-                                                                            selected_id == Some(preset_option.id),
-                                                                            &preset_option.name,
-                                                                        )
-                                                                        .clicked()
-                                                                    {
-                                                                        step.key = preset_option.id.to_string();
-                                                                        live_sync = true;
-                                                                    }
-                                                                }
-                                                            });
                                                         Self::render_overlay_eye_button(
                                                             ui,
                                                             language,
@@ -14806,70 +14790,113 @@ impl CrosshairApp {
 
                                                         });
 
+                                                    egui::ComboBox::from_id_salt((group.id, preset.id, step_index, "toolbox-preset-step"))
+                                                        .width(146.0)
+                                                        .selected_text(selected_label)
+                                                        .show_ui(ui, |ui| {
+                                                            for toolbox_preset in &self.state.hud_presets {
+                                                                if ui
+                                                                    .selectable_label(
+                                                                        selected_id == Some(toolbox_preset.id),
+                                                                        &toolbox_preset.name,
+                                                                    )
+                                                                    .clicked()
+                                                                {
+                                                                    step.key = toolbox_preset.id.to_string();
+                                                                    live_sync = true;
+                                                                }
+                                                            }
+                                                        });
+
                                                     ui.scope(|ui| {
                                                         ui.spacing_mut().item_spacing.x = 2.0;
                                                         ui.spacing_mut().interact_size.y = 18.0;
                                                         ui.spacing_mut().button_padding.y = 0.0;
                                                         ui.with_layout(egui::Layout::left_to_right(egui::Align::Center), |ui| {
-                                                            egui::ComboBox::from_id_salt((group.id, preset.id, step_index, "toolbox-preset-step"))
-                                                            .width(120.0)
-                                                            .selected_text(selected_label)
-                                                            .show_ui(ui, |ui| {
-                                                                for toolbox_preset in &self.state.hud_presets {
-                                                                    if ui
-                                                                        .selectable_label(
-                                                                            selected_id == Some(toolbox_preset.id),
-                                                                            &toolbox_preset.name,
-                                                                        )
-                                                                        .clicked()
-                                                                    {
-                                                                        step.key = toolbox_preset.id.to_string();
-                                                                        live_sync = true;
-                                                                    }
-                                                                }
-                                                            });
-
                                                             Self::render_overlay_eye_button(
-                                                            ui,
-                                                            language,
-                                                            step,
-                                                            group.id,
-                                                            preset.id,
-                                                            step_index,
-                                                            false,
-                                                            &self.state.hud_presets,
-                                                            &mut self.draw_geometry_step_preview_target,
-                                                            &self.overlay_tx,
-                                                            [18.0, 18.0],
-                                                            12.0,
-                                                        );
+                                                                ui,
+                                                                language,
+                                                                step,
+                                                                group.id,
+                                                                preset.id,
+                                                                step_index,
+                                                                false,
+                                                                &self.state.hud_presets,
+                                                                &mut self.draw_geometry_step_preview_target,
+                                                                &self.overlay_tx,
+                                                                [20.0, 18.0],
+                                                                12.0,
+                                                            );
 
                                                             let text_id = ui.id().with((step_index, "showhud-text-override"));
                                                             let response = Self::render_variable_text_edit(
-                                                            ui,
-                                                            &mut step.text_override,
-                                                            text_id,
-                                                            122.0,
-                                                            240.0,
-                                                            18.0,
-                                                            18.0,
-                                                            &Self::tr_lang(language, "Text override", "Ghi đè văn bản"),
-                                                            false,
-                                                        );
+                                                                ui,
+                                                                &mut step.text_override,
+                                                                text_id,
+                                                                122.0,
+                                                                240.0,
+                                                                18.0,
+                                                                18.0,
+                                                                &Self::tr_lang(language, "Text override", "Ghi de van ban"),
+                                                                false,
+                                                            );
+
+                                                            let duration_id = ui.id().with((group.id, preset.id, step_index, "showhud-duration-expr"));
+                                                            let duration_response = Self::render_variable_text_edit(
+                                                                ui,
+                                                                &mut step.duration_expr,
+                                                                duration_id,
+                                                                72.0,
+                                                                150.0,
+                                                                18.0,
+                                                                18.0,
+                                                                "0",
+                                                                false,
+                                                            );
+                                                            ui.add_sized(
+                                                                [20.0, 18.0],
+                                                                egui::Label::new(
+                                                                    egui::RichText::new("ms").weak(),
+                                                                ),
+                                                            );
                                                             Self::apply_vietnamese_input_if_changed(
-                                                            &response,
-                                                            self.state.vietnamese_input_enabled,
-                                                            self.state.vietnamese_input_mode,
-                                                            &mut step.text_override,
-                                                        );
+                                                                &response,
+                                                                self.state.vietnamese_input_enabled,
+                                                                self.state.vietnamese_input_mode,
+                                                                &mut step.text_override,
+                                                            );
                                                             live_sync |= response.changed();
                                                             Self::render_variable_suggestions(
-                                                            ui,
-                                                            &response,
-                                                            &mut step.text_override,
-                                                            &timer_names,
-                                                            language,
-                                                        );
+                                                                ui,
+                                                                &response,
+                                                                &mut step.text_override,
+                                                                &timer_names,
+                                                                language,
+                                                            );
+
+                                                            Self::apply_vietnamese_input_if_changed(
+                                                                &duration_response,
+                                                                self.state.vietnamese_input_enabled,
+                                                                self.state.vietnamese_input_mode,
+                                                                &mut step.duration_expr,
+                                                            );
+                                                            live_sync |= duration_response.changed();
+                                                            Self::render_variable_suggestions(
+                                                                ui,
+                                                                &duration_response,
+                                                                &mut step.duration_expr,
+                                                                &timer_names,
+                                                                language,
+                                                            );
+
+                                                            let tooltip_text = Self::tr_lang(
+                                                                language,
+                                                                "Display duration (0 = show until macro/overlay ends, supports variables/math)",
+                                                                "Thá»i gian hiá»ƒn thá»‹ (0 = hiá»‡n Ä‘áº¿n khi dá»«ng macro/overlay, há»— trá»£ biáº¿n/phÃ©p tÃ­nh)",
+                                                            );
+                                                            if duration_response.hovered() {
+                                                                egui::show_tooltip_text(ui.ctx(), ui.layer_id(), duration_response.id, tooltip_text);
+                                                            }
                                                         });
                                                     });
 
@@ -16633,8 +16660,7 @@ impl CrosshairApp {
                                                 );
                                             } else if matches!(
                                                 step.action,
-                                                MacroAction::ShowHud
-                                                    | MacroAction::DrawGeometry
+                                                MacroAction::DrawGeometry
                                                     | MacroAction::EnableCrosshairProfile
                                                     | MacroAction::EnablePinPreset
                                                     | MacroAction::PlayVideoPreset
@@ -16642,15 +16668,29 @@ impl CrosshairApp {
                                                 let duration_id = ui.id().with((group.id, preset.id, step_index, "duration-expr-full"));
                                                 ui.scope(|ui| {
                                                     ui.spacing_mut().item_spacing.x = 2.0;
-                                                    ui.spacing_mut().interact_size.y = 18.0;
+                                                    ui.spacing_mut().interact_size.y = 20.0;
                                                     ui.spacing_mut().button_padding.y = 0.0;
-                                                    let response = ui
-                                                        .with_layout(egui::Layout::left_to_right(egui::Align::Center), |ui| {
-                                                            let response = Self::render_variable_text_edit(ui, &mut step.duration_expr, duration_id, 72.0, 150.0, 18.0, 18.0, "0", false);
-                                                            ui.weak("ms");
-                                                            response
-                                                        })
-                                                        .inner;
+                                                    let (rect, _) = ui.allocate_exact_size(egui::vec2(96.0, 20.0), egui::Sense::hover());
+                                                    let mut child_ui = ui.new_child(
+                                                        egui::UiBuilder::new()
+                                                            .max_rect(rect)
+                                                            .layout(egui::Layout::left_to_right(egui::Align::Center))
+                                                    );
+                                                    child_ui.spacing_mut().item_spacing.x = 2.0;
+                                                    child_ui.spacing_mut().button_padding.y = 0.0;
+                                                    child_ui.spacing_mut().interact_size.y = 20.0;
+                                                    let response = Self::render_variable_text_edit(
+                                                        &mut child_ui,
+                                                        &mut step.duration_expr,
+                                                        duration_id,
+                                                        72.0,
+                                                        150.0,
+                                                        20.0,
+                                                        20.0,
+                                                        "0",
+                                                        false,
+                                                    );
+                                                    child_ui.add_sized([20.0, 20.0], egui::Label::new(egui::RichText::new("ms").weak()));
                                                     Self::apply_vietnamese_input_if_changed(
                                                         &response,
                                                         self.state.vietnamese_input_enabled,
@@ -19878,9 +19918,9 @@ impl CrosshairApp {
                             });
 
                         let collapse_icon = if step.geometry_collapsed { 0xe5cc } else { 0xe5cf };
-                        let collapse_btn = Button::new(Self::material_icon_text(collapse_icon, 16.0));
+                        let collapse_btn = Button::new(Self::material_icon_text(collapse_icon, 12.0));
                         if ui
-                            .add_sized([24.0, 24.0], collapse_btn)
+                            .add_sized([20.0, 20.0], collapse_btn)
                             .on_hover_text(if step.geometry_collapsed { "Expand" } else { "Collapse" })
                             .clicked()
                         {
@@ -19906,8 +19946,8 @@ impl CrosshairApp {
                             &[],
                             draw_geometry_step_preview_target,
                             overlay_tx,
-                            [24.0, 24.0],
-                            16.0,
+                            [20.0, 20.0],
+                            12.0,
                         );
                     });
                     if !step.geometry_collapsed {

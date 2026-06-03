@@ -4306,6 +4306,35 @@ impl CrosshairApp {
             .size(size)
     }
 
+    fn macro_action_selected_widget_text(
+        action: MacroAction,
+        language: UiLanguage,
+    ) -> egui::WidgetText {
+        let mut job = egui::text::LayoutJob::default();
+        let weak_color = Color32::from_gray(224);
+        let icon_format = egui::TextFormat {
+            font_id: egui::FontId::new(16.0, FontFamily::Name(MATERIAL_ICONS_FONT.into())),
+            color: weak_color,
+            ..Default::default()
+        };
+        let text_format = egui::TextFormat {
+            font_id: egui::FontId::new(13.0, FontFamily::Proportional),
+            color: weak_color,
+            ..Default::default()
+        };
+        job.append(
+            &char::from_u32(Self::macro_action_icon(action) as u32)
+                .unwrap_or('?')
+                .to_string(),
+            0.0,
+            icon_format,
+        );
+        job.append(" ", 0.0, text_format.clone());
+        let label = Self::macro_action_selected_label(action, language);
+        job.append(&label, 0.0, text_format);
+        egui::WidgetText::LayoutJob(job.into())
+    }
+
     fn ai_badge_text(with_label: bool) -> RichText {
         let text = "AI";
         let size = if with_label { 13.0 } else { 12.0 };
