@@ -5345,6 +5345,12 @@ impl CrosshairApp {
                                                     }
                                                 }
                                             }
+                                            if let Some((preview_group_id, _, _, _)) = self.draw_geometry_step_preview_target {
+                                                if preview_group_id == group.id {
+                                                    self.draw_geometry_step_preview_target = None;
+                                                    let _ = self.overlay_tx.send(crate::overlay::OverlayCommand::PreviewGeometrySpec(None));
+                                                }
+                                            }
                                         }
                                         ui.ctx().data_mut(|data| {
                                             data.remove::<bool>(ui.make_persistent_id((
@@ -6608,6 +6614,12 @@ impl CrosshairApp {
                                                     for step in &mut preset.steps {
                                                         if step.action == MacroAction::DrawGeometry {
                                                             step.geometry_collapsed = true;
+                                                        }
+                                                    }
+                                                    if let Some((_, preview_preset_id, _, _)) = self.draw_geometry_step_preview_target {
+                                                        if preview_preset_id == preset.id {
+                                                            self.draw_geometry_step_preview_target = None;
+                                                            let _ = self.overlay_tx.send(crate::overlay::OverlayCommand::PreviewGeometrySpec(None));
                                                         }
                                                     }
                                                 }
@@ -19798,6 +19810,13 @@ impl CrosshairApp {
                         {
                             step.geometry_collapsed = !step.geometry_collapsed;
                             *live_sync = true;
+                            if step.geometry_collapsed {
+                                let current_target = (group_id, macro_preset_id, step_index, is_hold_stop);
+                                if *draw_geometry_step_preview_target == Some(current_target) {
+                                    *draw_geometry_step_preview_target = None;
+                                    let _ = overlay_tx.send(crate::overlay::OverlayCommand::PreviewGeometrySpec(None));
+                                }
+                            }
                         }
 
                         let preview_active = *draw_geometry_step_preview_target == Some((group_id, macro_preset_id, step_index, is_hold_stop));
