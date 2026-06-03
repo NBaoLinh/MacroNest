@@ -14810,7 +14810,8 @@ impl CrosshairApp {
                                                         ui.spacing_mut().item_spacing.x = 2.0;
                                                         ui.spacing_mut().interact_size.y = 18.0;
                                                         ui.spacing_mut().button_padding.y = 0.0;
-                                                        egui::ComboBox::from_id_salt((group.id, preset.id, step_index, "toolbox-preset-step"))
+                                                        ui.with_layout(egui::Layout::left_to_right(egui::Align::Center), |ui| {
+                                                            egui::ComboBox::from_id_salt((group.id, preset.id, step_index, "toolbox-preset-step"))
                                                             .width(120.0)
                                                             .selected_text(selected_label)
                                                             .show_ui(ui, |ui| {
@@ -14828,7 +14829,7 @@ impl CrosshairApp {
                                                                 }
                                                             });
 
-                                                        Self::render_overlay_eye_button(
+                                                            Self::render_overlay_eye_button(
                                                             ui,
                                                             language,
                                                             step,
@@ -14839,12 +14840,12 @@ impl CrosshairApp {
                                                             &self.state.hud_presets,
                                                             &mut self.draw_geometry_step_preview_target,
                                                             &self.overlay_tx,
-                                                            [22.0, 20.0],
+                                                            [18.0, 18.0],
                                                             12.0,
                                                         );
 
-                                                        let text_id = ui.id().with((step_index, "showhud-text-override"));
-                                                        let response = Self::render_variable_text_edit(
+                                                            let text_id = ui.id().with((step_index, "showhud-text-override"));
+                                                            let response = Self::render_variable_text_edit(
                                                             ui,
                                                             &mut step.text_override,
                                                             text_id,
@@ -14855,20 +14856,21 @@ impl CrosshairApp {
                                                             &Self::tr_lang(language, "Text override", "Ghi đè văn bản"),
                                                             false,
                                                         );
-                                                        Self::apply_vietnamese_input_if_changed(
+                                                            Self::apply_vietnamese_input_if_changed(
                                                             &response,
                                                             self.state.vietnamese_input_enabled,
                                                             self.state.vietnamese_input_mode,
                                                             &mut step.text_override,
                                                         );
-                                                        live_sync |= response.changed();
-                                                        Self::render_variable_suggestions(
+                                                            live_sync |= response.changed();
+                                                            Self::render_variable_suggestions(
                                                             ui,
                                                             &response,
                                                             &mut step.text_override,
                                                             &timer_names,
                                                             language,
                                                         );
+                                                        });
                                                     });
 
                                                 } else if step.action == MacroAction::TypeText {
@@ -16642,8 +16644,13 @@ impl CrosshairApp {
                                                     ui.spacing_mut().item_spacing.x = 2.0;
                                                     ui.spacing_mut().interact_size.y = 18.0;
                                                     ui.spacing_mut().button_padding.y = 0.0;
-                                                    let response = Self::render_variable_text_edit(ui, &mut step.duration_expr, duration_id, 72.0, 150.0, 18.0, 18.0, "0", false);
-                                                    ui.weak("ms");
+                                                    let response = ui
+                                                        .with_layout(egui::Layout::left_to_right(egui::Align::Center), |ui| {
+                                                            let response = Self::render_variable_text_edit(ui, &mut step.duration_expr, duration_id, 72.0, 150.0, 18.0, 18.0, "0", false);
+                                                            ui.weak("ms");
+                                                            response
+                                                        })
+                                                        .inner;
                                                     Self::apply_vietnamese_input_if_changed(
                                                         &response,
                                                         self.state.vietnamese_input_enabled,
