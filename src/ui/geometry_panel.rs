@@ -1,4 +1,4 @@
-use crate::model::{GeometryObject, GeometryPreset, GeometryShapeKind, GeometrySpec};
+use crate::model::{GeometryObject, GeometryPreset, GeometryShapeKind, GeometrySpec, VietnameseInputMode};
 use crate::ui::{CrosshairApp, MouseCaptureKind, MouseMoveAbsoluteCaptureTarget, UiLanguage};
 use eframe::egui::{self, Button, ComboBox, Frame, Grid, TextEdit};
 
@@ -180,6 +180,8 @@ impl CrosshairApp {
                                 &mut request_screen_color_pick,
                                 &mut pending_screen_color_target,
                                 &mut begin_mouse_move_absolute_capture_target,
+                                self.state.vietnamese_input_enabled,
+                                self.state.vietnamese_input_mode,
                             );
                         });
                 }
@@ -285,6 +287,8 @@ impl CrosshairApp {
         request_screen_color_pick: &mut bool,
         pending_screen_color_target: &mut Option<(u32, u32, bool)>,
         begin_mouse_move_absolute_capture_target: &mut Option<MouseMoveAbsoluteCaptureTarget>,
+        vietnamese_input_enabled: bool,
+        vietnamese_input_mode: VietnameseInputMode,
     ) -> bool {
         let mut changed = false;
 
@@ -441,8 +445,28 @@ impl CrosshairApp {
                             begin_mouse_move_absolute_capture_target,
                         );
                         ui.label("Text");
-                        let response = ui.add_sized([360.0, 24.0], TextEdit::singleline(&mut spec.text));
+                        let text_id = ui.make_persistent_id((preset_id, object_id, "label-text"));
+                        let response = Self::render_interpolated_text_edit(
+                            ui,
+                            &mut spec.text,
+                            text_id,
+                            154.0, // normal width
+                            360.0, // expanded width
+                            24.0,  // normal height
+                            24.0,  // expanded height
+                            "Text", // hint
+                            false, // multiline_on_focus
+                        );
                         changed |= response.changed();
+                        Self::apply_vietnamese_input_if_changed(
+                            &response,
+                            vietnamese_input_enabled,
+                            vietnamese_input_mode,
+                            &mut spec.text,
+                        );
+                        ui.label("");
+                        ui.label("");
+                        ui.add_space(24.0);
                         ui.end_row();
                         changed |= Self::geometry_expr_pair_row(
                             ui,

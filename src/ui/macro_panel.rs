@@ -10549,6 +10549,8 @@ impl CrosshairApp {
                                                     &mut request_geometry_screen_color_pick,
                                                     step,
                                                     &mut live_sync,
+                                                    self.state.vietnamese_input_enabled,
+                                                    self.state.vietnamese_input_mode,
                                                 );
                                             } else if Self::macro_action_uses_position(step.action) {
 
@@ -19854,6 +19856,8 @@ impl CrosshairApp {
         request_screen_color_pick: &mut bool,
         step: &mut MacroStep,
         live_sync: &mut bool,
+        vietnamese_input_enabled: bool,
+        vietnamese_input_mode: VietnameseInputMode,
     ) {
         let mut pending_screen_color_target = None;
         let mut begin_mouse_move_absolute_capture_target = None;
@@ -19898,6 +19902,8 @@ impl CrosshairApp {
                         request_screen_color_pick,
                         &mut pending_screen_color_target,
                         &mut begin_mouse_move_absolute_capture_target,
+                        vietnamese_input_enabled,
+                        vietnamese_input_mode,
                     );
                 }
                 MacroAction::ShowGeometryPreset | MacroAction::HideGeometryPreset => {
@@ -21070,7 +21076,7 @@ impl CrosshairApp {
         )
     }
 
-    fn render_interpolated_text_edit(
+    pub(crate) fn render_interpolated_text_edit(
         ui: &mut egui::Ui,
 
         text: &mut String,
