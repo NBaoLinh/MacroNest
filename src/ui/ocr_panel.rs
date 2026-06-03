@@ -73,7 +73,7 @@ impl CrosshairApp {
                     // Editable Name
                     let name_width = Self::preset_header_name_width(ui);
                     let response = ui.add_sized(
-                        [name_width, 24.0],
+                        [name_width, 21.0],
                         egui::TextEdit::singleline(&mut preset.name),
                     );
                     Self::apply_vietnamese_input_if_changed(

@@ -104,7 +104,7 @@ impl CrosshairApp {
                     let mut disabled_by_button = false;
                     let name_width = Self::preset_header_name_width(ui);
                     let response =
-                        ui.add_sized([name_width, 24.0], TextEdit::singleline(&mut preset.name));
+                        ui.add_sized([name_width, 21.0], TextEdit::singleline(&mut preset.name));
                     Self::apply_vietnamese_input_if_changed(
                         &response,
                         self.state.vietnamese_input_enabled,
@@ -327,7 +327,7 @@ impl CrosshairApp {
                 ui.horizontal(|ui| {
                     let name_width = Self::preset_header_name_width(ui);
                     let response =
-                        ui.add_sized([name_width, 24.0], TextEdit::singleline(&mut preset.name));
+                        ui.add_sized([name_width, 21.0], TextEdit::singleline(&mut preset.name));
                     Self::apply_vietnamese_input_if_changed(
                         &response,
                         self.state.vietnamese_input_enabled,

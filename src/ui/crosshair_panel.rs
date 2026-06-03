@@ -95,7 +95,7 @@ impl CrosshairApp {
                         ui.label("Preset name");
                         ui.horizontal_wrapped(|ui| {
                             let response = ui.add_sized(
-                                [220.0, 24.0],
+                                [220.0, 21.0],
                                 TextEdit::singleline(&mut self.save_name),
                             );
                             Self::apply_vietnamese_input_if_changed(
@@ -589,7 +589,7 @@ impl CrosshairApp {
                     ui.horizontal(|ui| {
                         let name_width = Self::preset_header_name_width(ui);
                         let response = ui
-                            .add_sized([name_width, 24.0], TextEdit::singleline(&mut preset.name));
+                            .add_sized([name_width, 21.0], TextEdit::singleline(&mut preset.name));
                         Self::apply_vietnamese_input_if_changed(
                             &response,
                             self.state.vietnamese_input_enabled,
@@ -629,7 +629,7 @@ impl CrosshairApp {
                             }
                             if ui
                                 .add_sized(
-                                    [84.0, 24.0],
+                                    [84.0, 21.0],
                                     Button::new(Self::tr_lang(language, "Copy", "Copy")),
                                 )
                                 .clicked()

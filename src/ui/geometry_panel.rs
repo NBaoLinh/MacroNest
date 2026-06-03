@@ -35,7 +35,7 @@ impl CrosshairApp {
                 ui.horizontal(|ui| {
                     let name_width = Self::preset_header_name_width(ui);
                     let response =
-                        ui.add_sized([name_width, 24.0], TextEdit::singleline(&mut preset.name));
+                        ui.add_sized([name_width, 21.0], TextEdit::singleline(&mut preset.name));
                     Self::apply_vietnamese_input_if_changed(
                         &response,
                         self.state.vietnamese_input_enabled,
@@ -92,7 +92,7 @@ impl CrosshairApp {
                             16.0,
                         ));
                         if ui
-                            .add_sized([24.0, 24.0], preview_all_btn)
+                            .add_sized([24.0, 21.0], preview_all_btn)
                             .on_hover_text(if preview_all_active { "Stop Preview All" } else { "Preview All" })
                             .clicked()
                         {
@@ -165,7 +165,7 @@ impl CrosshairApp {
                                 if preview_active { 0xe8f5 } else { 0xe8f4 },
                                 16.0,
                             ));
-                            let preview_response = ui.add_sized([24.0, 24.0], preview_btn);
+                            let preview_response = ui.add_sized([24.0, 21.0], preview_btn);
                             if preview_response.on_hover_text(if preview_active { "Stop preview" } else { "Preview" }).clicked() {
                                 if preview_active {
                                     self.geometry_preview_target = None;
@@ -184,7 +184,7 @@ impl CrosshairApp {
 
                             if ui
                                 .add_sized(
-                                    [24.0, 24.0],
+                                    [24.0, 21.0],
                                     Button::new(Self::material_icon_text(0xe5cd, 16.0)),
                                 )
                                 .on_hover_text(Self::tr_lang(language, "Delete object", "Delete object"))
@@ -790,7 +790,7 @@ impl CrosshairApp {
                                 ui.spacing_mut().item_spacing.x = 4.0;
                                 if ui
                                     .add_sized(
-                                        [24.0, 24.0],
+                                        [24.0, 21.0],
                                         Button::new(Self::material_icon_text(0xe55f, 16.0)),
                                     )
                                     .on_hover_text("Pick coordinates from screen")
@@ -807,7 +807,7 @@ impl CrosshairApp {
                                 }
                                 if ui
                                     .add_sized(
-                                        [24.0, 24.0],
+                                        [24.0, 21.0],
                                         Button::new(Self::material_icon_text(0xe5cd, 16.0)),
                                     )
                                     .on_hover_text("Delete point")
@@ -1088,7 +1088,7 @@ impl CrosshairApp {
             };
             if ui
                 .add_sized(
-                    [24.0, 24.0],
+                    [24.0, 21.0],
                     Button::new(Self::material_icon_text(0xe55f, 16.0)),
                 )
                 .on_hover_text("Pick coordinates from screen")
@@ -1206,7 +1206,7 @@ impl CrosshairApp {
                 .unwrap_or(false);
 
             let palette_button = ui
-                .add_sized([24.0, 24.0], Button::new(Self::material_icon_text(0xe40a, 16.0)))
+                .add_sized([24.0, 21.0], Button::new(Self::material_icon_text(0xe40a, 16.0)))
                 .on_hover_text("Choose color");
             if palette_button.clicked() {
                 *manual_color = *color;
@@ -1301,7 +1301,7 @@ impl CrosshairApp {
                 .data_mut(|data| data.insert_temp(popup_id, popup_open));
 
             let screen_pick_response = ui
-                .add_sized([24.0, 24.0], Button::new(Self::material_icon_text(0xe3b8, 16.0)))
+                .add_sized([24.0, 21.0], Button::new(Self::material_icon_text(0xe3b8, 16.0)))
                 .on_hover_text("Pick from screen");
             if screen_pick_response.clicked() {
                 *request_screen_color_pick = true;

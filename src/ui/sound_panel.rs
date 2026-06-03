@@ -189,7 +189,7 @@ impl CrosshairApp {
             );
             ui.add_space(4.0);
             let help = ui.add_sized(
-                [24.0, 24.0],
+                [24.0, 21.0],
                 Button::new(Self::material_icon_text(0xe887, 16.0))
                     .fill(ui.visuals().faint_bg_color)
                     .stroke(Stroke::new(
@@ -837,7 +837,7 @@ impl CrosshairApp {
             );
             ui.add_space(4.0);
             let help = ui.add_sized(
-                [24.0, 24.0],
+                [24.0, 21.0],
                 Button::new(Self::material_icon_text(0xe887, 16.0))
                     .fill(ui.visuals().faint_bg_color)
                     .stroke(Stroke::new(
@@ -1395,7 +1395,7 @@ impl CrosshairApp {
                 ui.horizontal(|ui| {
                     let name_width = Self::preset_header_name_width(ui);
                     let response =
-                        ui.add_sized([name_width, 24.0], TextEdit::singleline(&mut preset.name));
+                        ui.add_sized([name_width, 21.0], TextEdit::singleline(&mut preset.name));
                     Self::apply_vietnamese_input_if_changed(
                         &response,
                         self.state.vietnamese_input_enabled,
@@ -1406,7 +1406,7 @@ impl CrosshairApp {
                     ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
                         if ui
                             .add_sized(
-                                [36.0, 24.0],
+                                [36.0, 21.0],
                                 Button::new(Self::material_icon_text(0xe872, 18.0)),
                             )
                             .on_hover_text(Self::tr_lang(
@@ -1420,7 +1420,7 @@ impl CrosshairApp {
                         }
                         if ui
                             .add_sized(
-                                [84.0, 24.0],
+                                [84.0, 21.0],
                                 Button::new(if preset.collapsed {
                                     Self::tr_lang(language, "Show", "Show")
                                 } else {
@@ -1560,7 +1560,7 @@ impl CrosshairApp {
                 ui.horizontal(|ui| {
                     let name_width = Self::preset_header_name_width(ui);
                     let response =
-                        ui.add_sized([name_width, 24.0], TextEdit::singleline(&mut preset.name));
+                        ui.add_sized([name_width, 21.0], TextEdit::singleline(&mut preset.name));
                     Self::apply_vietnamese_input_if_changed(
                         &response,
                         self.state.vietnamese_input_enabled,
@@ -1571,7 +1571,7 @@ impl CrosshairApp {
                     ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
                         if ui
                             .add_sized(
-                                [36.0, 24.0],
+                                [36.0, 21.0],
                                 Button::new(Self::material_icon_text(0xe872, 18.0)),
                             )
                             .on_hover_text(Self::tr_lang(
@@ -1585,7 +1585,7 @@ impl CrosshairApp {
                         }
                         if ui
                             .add_sized(
-                                [84.0, 24.0],
+                                [84.0, 21.0],
                                 Button::new(if preset.collapsed {
                                     Self::tr_lang(language, "Show", "Show")
                                 } else {

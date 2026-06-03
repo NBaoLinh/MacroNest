@@ -168,7 +168,7 @@ impl CrosshairApp {
                     ui.horizontal(|ui| {
                         let name_width = Self::preset_header_name_width(ui);
                         let response = ui
-                            .add_sized([name_width, 24.0], TextEdit::singleline(&mut preset.name));
+                            .add_sized([name_width, 21.0], TextEdit::singleline(&mut preset.name));
                         Self::apply_vietnamese_input_if_changed(
                             &response,
                             self.state.vietnamese_input_enabled,
@@ -453,7 +453,7 @@ impl CrosshairApp {
                                             .unwrap_or(false);
 
                                         let manual_button = ui.add_sized(
-                                            [24.0, 24.0],
+                                            [24.0, 21.0],
                                             Button::new(Self::material_icon_text(0xe40a, 18.0)),
                                         )
                                         .on_hover_text(Self::tr_lang(language, "Manual color input", "Chọn màu thủ công"));
@@ -1048,7 +1048,7 @@ impl CrosshairApp {
 
     pub(crate) fn image_search_color_tile(ui: &mut egui::Ui, color: RgbaColor) -> egui::Response {
         ui.add_sized(
-            [24.0, 24.0],
+            [24.0, 21.0],
             Button::new("")
                 .fill(Color32::from_rgba_unmultiplied(
                     color.r, color.g, color.b, 255,
@@ -1066,7 +1066,7 @@ impl CrosshairApp {
         language: UiLanguage,
     ) -> egui::Response {
         ui.add_sized(
-            [24.0, 24.0],
+            [24.0, 21.0],
             Button::new(Self::material_icon_text(0xe145, 18.0)),
         )
         .on_hover_text(Self::tr_lang(language, "Pick color", "Pick color"))

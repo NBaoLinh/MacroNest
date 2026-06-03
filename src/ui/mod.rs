@@ -3312,7 +3312,7 @@ impl CrosshairApp {
             .unwrap_or(false);
         ui.vertical(|ui| {
             ui.horizontal(|ui| {
-                ui.spacing_mut().interact_size.y = 24.0;
+                ui.spacing_mut().interact_size.y = 21.0;
                 let display_primary = primary
                     .as_deref()
                     .map(|current| Self::simplify_window_title(current))
@@ -3348,7 +3348,7 @@ impl CrosshairApp {
 
                 let add_btn = Button::new(Self::material_icon_text(0xe145, 12.0));
                 if ui
-                    .add_sized([24.0, 24.0], add_btn)
+                    .add_sized([24.0, 21.0], add_btn)
                     .on_hover_text(Self::tr_lang(language, "+ Window", "+ Cửa sổ"))
                     .clicked()
                 {
@@ -3371,7 +3371,7 @@ impl CrosshairApp {
                     let toggle_icon = if extras_expanded { 0xe5cf } else { 0xe5cc };
                     if ui
                         .add_sized(
-                            [24.0, 24.0],
+                            [24.0, 21.0],
                             Button::new(Self::material_icon_text(toggle_icon, 14.0)),
                         )
                         .on_hover_text(Self::tr_lang(
@@ -3390,7 +3390,7 @@ impl CrosshairApp {
                 let mut remove_index = None;
                 for (index, extra) in extras.iter_mut().enumerate() {
                     ui.horizontal(|ui| {
-                        ui.spacing_mut().interact_size.y = 24.0;
+                        ui.spacing_mut().interact_size.y = 21.0;
                         let display_extra = Self::simplify_window_title(extra);
                         let truncated_extra = Self::truncate_window_title(&display_extra, 40);
                         egui::ComboBox::from_id_salt((id_source, "extra-target-window", index))
@@ -3412,7 +3412,7 @@ impl CrosshairApp {
                                 }
                             });
                         let remove_btn = Button::new(Self::material_icon_text(0xe14c, 12.0));
-                        if ui.add_sized([24.0, 24.0], remove_btn).clicked() {
+                        if ui.add_sized([24.0, 21.0], remove_btn).clicked() {
                             remove_index = Some(index);
                         }
                     });
@@ -3592,7 +3592,7 @@ impl CrosshairApp {
             .unwrap_or(false);
         ui.vertical(|ui| {
             ui.horizontal(|ui| {
-                ui.spacing_mut().interact_size.y = 24.0;
+                ui.spacing_mut().interact_size.y = 21.0;
                 changed |= Self::render_window_target_combo_with_duplicate_mode(
                     ui,
                     (id_source, "primary"),
@@ -3606,7 +3606,7 @@ impl CrosshairApp {
 
                 let add_btn = Button::new(Self::material_icon_text(0xe145, 12.0));
                 if ui
-                    .add_sized([24.0, 24.0], add_btn)
+                    .add_sized([24.0, 21.0], add_btn)
                     .on_hover_text(Self::tr_lang(language, "+ Window", "+ Cửa sổ"))
                     .clicked()
                 {
@@ -3629,7 +3629,7 @@ impl CrosshairApp {
                     let toggle_icon = if extras_expanded { 0xe5cf } else { 0xe5cc };
                     if ui
                         .add_sized(
-                            [24.0, 24.0],
+                            [24.0, 21.0],
                             Button::new(Self::material_icon_text(toggle_icon, 14.0)),
                         )
                         .on_hover_text(Self::tr_lang(
@@ -3648,7 +3648,7 @@ impl CrosshairApp {
                 let mut remove_index = None;
                 for (index, extra) in extras.iter_mut().enumerate() {
                     ui.horizontal(|ui| {
-                        ui.spacing_mut().interact_size.y = 24.0;
+                        ui.spacing_mut().interact_size.y = 21.0;
                         let mut extra_target = Some(extra.clone());
                         if Self::render_window_target_combo_with_duplicate_mode(
                             ui,
@@ -3666,7 +3666,7 @@ impl CrosshairApp {
                             }
                         }
                         let remove_btn = Button::new(Self::material_icon_text(0xe14c, 12.0));
-                        if ui.add_sized([24.0, 24.0], remove_btn).clicked() {
+                        if ui.add_sized([24.0, 21.0], remove_btn).clicked() {
                             remove_index = Some(index);
                         }
                     });
@@ -4644,18 +4644,18 @@ impl CrosshairApp {
     }
 
     fn sound_style_toggle_button(ui: &mut egui::Ui, label: &str) -> egui::Response {
-        ui.add_sized([84.0, 24.0], Button::new(label))
+        ui.add_sized([84.0, 21.0], Button::new(label))
     }
 
     fn sound_style_remove_button(ui: &mut egui::Ui) -> egui::Response {
         ui.add_sized(
-            [36.0, 24.0],
+            [36.0, 21.0],
             Button::new(Self::material_icon_text(0xe872, 18.0)),
         )
     }
 
     fn sound_style_icon_button(ui: &mut egui::Ui, icon: RichText) -> egui::Response {
-        ui.add_sized([36.0, 24.0], Button::new(icon))
+        ui.add_sized([36.0, 21.0], Button::new(icon))
     }
 
     fn is_copy_feedback_active(until: Option<Instant>) -> bool {
@@ -4675,7 +4675,7 @@ impl CrosshairApp {
             ui.visuals().widgets.noninteractive.bg_stroke.color
         };
         ui.add_sized(
-            [36.0, 24.0],
+            [36.0, 21.0],
             Button::new(Self::material_icon_text(icon, 18.0))
                 .fill(fill)
                 .stroke(egui::Stroke::new(1.0, stroke)),
