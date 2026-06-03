@@ -139,12 +139,16 @@ impl CrosshairApp {
                                 {
                                     if preview_active {
                                         self.geometry_preview_target = None;
+                                        self.geometry_preview_sent = None;
                                         let _ = self.overlay_tx.send(crate::overlay::OverlayCommand::PreviewGeometrySpec(None));
                                     } else {
                                         self.geometry_preview_target = Some((preset.id, object.id));
-                                        let _ = self.overlay_tx.send(crate::overlay::OverlayCommand::PreviewGeometrySpec(
-                                            Some(object.spec.clone()),
-                                        ));
+                                        self.geometry_preview_sent = Some(object.spec.clone());
+                                        let _ = self.overlay_tx.send(
+                                            crate::overlay::OverlayCommand::PreviewGeometrySpec(
+                                                Some(object.spec.clone()),
+                                            ),
+                                        );
                                     }
                                 }
 
@@ -201,6 +205,7 @@ impl CrosshairApp {
 
         if clear_preview_target {
             self.geometry_preview_target = None;
+            self.geometry_preview_sent = None;
             let _ = self
                 .overlay_tx
                 .send(crate::overlay::OverlayCommand::PreviewGeometrySpec(None));
@@ -214,10 +219,14 @@ impl CrosshairApp {
                 .map(|object| object.spec.clone());
             if preview_spec.is_none() {
                 self.geometry_preview_target = None;
+                self.geometry_preview_sent = None;
             }
-            let _ = self
-                .overlay_tx
-                .send(crate::overlay::OverlayCommand::PreviewGeometrySpec(preview_spec));
+            if self.geometry_preview_sent != preview_spec {
+                self.geometry_preview_sent = preview_spec.clone();
+                let _ = self
+                    .overlay_tx
+                    .send(crate::overlay::OverlayCommand::PreviewGeometrySpec(preview_spec));
+            }
         }
 
         if request_screen_color_pick {
