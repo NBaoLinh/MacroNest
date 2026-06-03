@@ -4640,7 +4640,7 @@ impl CrosshairApp {
     }
 
     fn sized_button(ui: &mut egui::Ui, width: f32, label: &str) -> egui::Response {
-        ui.add_sized([width, 24.0], Button::new(label))
+        ui.add_sized([width, 21.0], Button::new(label))
     }
 
     fn sound_style_toggle_button(ui: &mut egui::Ui, label: &str) -> egui::Response {
