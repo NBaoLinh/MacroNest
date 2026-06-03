@@ -8692,6 +8692,8 @@ mod windows_overlay {
                     let _ = send_key_event(step);
                 }
 
+                MacroAction::Legacy => {}
+
                 _ => {
                     let _ = send_key_event(step);
                 }
@@ -9175,6 +9177,8 @@ mod windows_overlay {
                 MacroAction::KeyDown => {
                     let _ = send_key_event(step);
                 }
+
+                MacroAction::Legacy => {}
 
                 _ => {
                     let _ = send_key_event(step);

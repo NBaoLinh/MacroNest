@@ -484,6 +484,8 @@ pub enum MacroAction {
     DrawGeometry,
     ShowGeometryPreset,
     HideGeometryPreset,
+    #[serde(other)]
+    Legacy,
 }
 
 #[derive(Debug, Clone, Copy, Serialize, Deserialize, PartialEq, Eq, Hash, Default)]
