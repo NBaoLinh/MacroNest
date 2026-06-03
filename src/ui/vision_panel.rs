@@ -1491,9 +1491,7 @@ impl CrosshairApp {
                         self.status = "OCR steps do not support color picking.".to_owned();
                     }
                     VisionCaptureTarget::GeometryColor => {
-                        self.cancel_image_search_capture(ctx);
-                        self.status =
-                            "Geometry color picking is only supported from point picks.".to_owned();
+                        self.finish_image_search_color_pick_from_screen(ctx, screen_x, screen_y);
                     }
                 }
             }
