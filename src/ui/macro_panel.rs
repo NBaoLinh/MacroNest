@@ -8145,34 +8145,39 @@ impl CrosshairApp {
 
                                                         });
 
-                                                    egui::ComboBox::from_id_salt((group.id, preset.id, "hold-stop-pin-preset"))
-                                                        .width(134.0)
-                                                        .selected_text(selected_label)
-                                                        .show_ui(ui, |ui| {
-                                                            for preset_option in &self.state.pin_presets {
-                                                                if ui
-                                                                    .selectable_label(selected_id == Some(preset_option.id), &preset_option.name)
-                                                                    .clicked()
-                                                                {
-                                                                    step.key = preset_option.id.to_string();
-                                                                    live_sync = true;
+                                                    ui.scope(|ui| {
+                                                        ui.spacing_mut().item_spacing.x = 2.0;
+                                                        ui.spacing_mut().interact_size.y = 22.0;
+                                                        ui.spacing_mut().button_padding.y = 0.0;
+                                                        egui::ComboBox::from_id_salt((group.id, preset.id, "hold-stop-pin-preset"))
+                                                            .width(134.0)
+                                                            .selected_text(selected_label)
+                                                            .show_ui(ui, |ui| {
+                                                                for preset_option in &self.state.pin_presets {
+                                                                    if ui
+                                                                        .selectable_label(selected_id == Some(preset_option.id), &preset_option.name)
+                                                                        .clicked()
+                                                                    {
+                                                                        step.key = preset_option.id.to_string();
+                                                                        live_sync = true;
+                                                                    }
                                                                 }
-                                                            }
-                                                        });
-                                                    Self::render_overlay_eye_button(
-                                                        ui,
-                                                        language,
-                                                        step,
-                                                        group.id,
-                                                        preset.id,
-                                                        0,
-                                                        true,
-                                                        &self.state.hud_presets,
-                                                        &mut self.draw_geometry_step_preview_target,
-                                                        &self.overlay_tx,
-                                                        [22.0, 20.0],
-                                                        12.0,
-                                                    );
+                                                            });
+                                                        Self::render_overlay_eye_button(
+                                                            ui,
+                                                            language,
+                                                            step,
+                                                            group.id,
+                                                            preset.id,
+                                                            0,
+                                                            true,
+                                                            &self.state.hud_presets,
+                                                            &mut self.draw_geometry_step_preview_target,
+                                                            &self.overlay_tx,
+                                                            [22.0, 20.0],
+                                                            12.0,
+                                                        );
+                                                    });
 
                                                 } else if step.action == MacroAction::PlayMousePathPreset {
 
@@ -10639,8 +10644,10 @@ impl CrosshairApp {
                                                     | MacroAction::PlayVideoPreset
                                             ) {
                                                 let duration_id = ui.id().with((group.id, preset.id, "duration-expr-hold-stop"));
-                                                ui.horizontal(|ui| {
+                                                ui.scope(|ui| {
                                                     ui.spacing_mut().item_spacing.x = 2.0;
+                                                    ui.spacing_mut().interact_size.y = 22.0;
+                                                    ui.spacing_mut().button_padding.y = 0.0;
                                                     let response = Self::render_variable_text_edit(ui, &mut step.duration_expr, duration_id, 74.0, 150.0, 22.0, 22.0, "0", false);
                                                     ui.weak("ms");
                                                     Self::apply_vietnamese_input_if_changed(
@@ -13417,37 +13424,42 @@ impl CrosshairApp {
 
                                                         .unwrap_or_else(|| Self::tr_lang(language, "Select pin", "Chọn ghim").to_owned());
 
-                                                    egui::ComboBox::from_id_salt((group.id, preset.id, step_index, "pin-preset-step"))
-                                                        .width(120.0)
-                                                        .selected_text(selected_label)
-                                                        .show_ui(ui, |ui| {
-                                                            for preset_option in &self.state.pin_presets {
-                                                                if ui
-                                                                    .selectable_label(
-                                                                        selected_id == Some(preset_option.id),
-                                                                        &preset_option.name,
-                                                                    )
-                                                                    .clicked()
-                                                                {
-                                                                    step.key = preset_option.id.to_string();
-                                                                    live_sync = true;
+                                                    ui.scope(|ui| {
+                                                        ui.spacing_mut().item_spacing.x = 2.0;
+                                                        ui.spacing_mut().interact_size.y = 18.0;
+                                                        ui.spacing_mut().button_padding.y = 0.0;
+                                                        egui::ComboBox::from_id_salt((group.id, preset.id, step_index, "pin-preset-step"))
+                                                            .width(120.0)
+                                                            .selected_text(selected_label)
+                                                            .show_ui(ui, |ui| {
+                                                                for preset_option in &self.state.pin_presets {
+                                                                    if ui
+                                                                        .selectable_label(
+                                                                            selected_id == Some(preset_option.id),
+                                                                            &preset_option.name,
+                                                                        )
+                                                                        .clicked()
+                                                                    {
+                                                                        step.key = preset_option.id.to_string();
+                                                                        live_sync = true;
+                                                                    }
                                                                 }
-                                                            }
-                                                        });
-                                                    Self::render_overlay_eye_button(
-                                                        ui,
-                                                        language,
-                                                        step,
-                                                        group.id,
-                                                        preset.id,
-                                                        step_index,
-                                                        false,
-                                                        &self.state.hud_presets,
-                                                        &mut self.draw_geometry_step_preview_target,
-                                                        &self.overlay_tx,
-                                                        [22.0, 20.0],
-                                                        12.0,
-                                                    );
+                                                            });
+                                                        Self::render_overlay_eye_button(
+                                                            ui,
+                                                            language,
+                                                            step,
+                                                            group.id,
+                                                            preset.id,
+                                                            step_index,
+                                                            false,
+                                                            &self.state.hud_presets,
+                                                            &mut self.draw_geometry_step_preview_target,
+                                                            &self.overlay_tx,
+                                                            [22.0, 20.0],
+                                                            12.0,
+                                                        );
+                                                    });
 
                                                 } else if step.action == MacroAction::PlayMousePathPreset {
 
@@ -16626,8 +16638,10 @@ impl CrosshairApp {
                                                     | MacroAction::PlayVideoPreset
                                             ) {
                                                 let duration_id = ui.id().with((group.id, preset.id, step_index, "duration-expr-full"));
-                                                ui.horizontal(|ui| {
+                                                ui.scope(|ui| {
                                                     ui.spacing_mut().item_spacing.x = 2.0;
+                                                    ui.spacing_mut().interact_size.y = 18.0;
+                                                    ui.spacing_mut().button_padding.y = 0.0;
                                                     let response = Self::render_variable_text_edit(ui, &mut step.duration_expr, duration_id, 72.0, 150.0, 18.0, 18.0, "0", false);
                                                     ui.weak("ms");
                                                     Self::apply_vietnamese_input_if_changed(

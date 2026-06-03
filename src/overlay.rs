@@ -13445,7 +13445,7 @@ mod windows_overlay {
                 .find(|preset| preset.id == preview_preset_id)
             {
                 for object in &preset.objects {
-                    if !is_active || !object.enabled {
+                    if !is_active && object.enabled {
                         if let Some(shape) = geometry_render_shape_from_spec(&object.spec) {
                             shapes.push(shape);
                         }
