@@ -20927,9 +20927,13 @@ impl CrosshairApp {
 
         let row_height = ui.spacing().interact_size.y.max(20.0);
 
+        let normal_row_height = row_height.min(normal_height).max(18.0);
+
+        let expanded_row_height = row_height.min(expanded_height).max(18.0);
+
         let target_height = if has_focus {
             if !multiline_on_focus {
-                row_height
+                expanded_row_height
             } else {
                 let chars_per_line = ((expanded_width / 7.2) as usize).max(10);
 
@@ -20946,11 +20950,11 @@ impl CrosshairApp {
                 if rows > 1 {
                     (rows as f32 * 20.0 + 6.0).max(expanded_height).max(row_height)
                 } else {
-                    row_height
+                    expanded_row_height
                 }
             }
         } else {
-            row_height
+            normal_row_height
         };
 
         let animated_width = ui

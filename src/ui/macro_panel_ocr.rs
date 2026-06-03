@@ -230,8 +230,8 @@ impl CrosshairApp {
             target_id,
             120.0,
             240.0,
-            20.0,
-            20.0,
+            18.0,
+            18.0,
             &Self::tr_lang(language, "Target Text", "Van ban can tim"),
             false,
         );
