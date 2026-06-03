@@ -1456,6 +1456,11 @@ impl CrosshairApp {
                             self.status =
                                 "Geometry color picking does not support area captures.".to_owned();
                         }
+                        VisionCaptureTarget::MacroStepGeometryColor { .. } => {
+                            self.cancel_image_search_capture(ctx);
+                            self.status =
+                                "Geometry color picking does not support area captures.".to_owned();
+                        }
                     }
                 } else {
                     self.cancel_image_search_capture(ctx);
@@ -1491,6 +1496,9 @@ impl CrosshairApp {
                         self.status = "OCR steps do not support color picking.".to_owned();
                     }
                     VisionCaptureTarget::GeometryColor => {
+                        self.finish_image_search_color_pick_from_screen(ctx, screen_x, screen_y);
+                    }
+                    VisionCaptureTarget::MacroStepGeometryColor { .. } => {
                         self.finish_image_search_color_pick_from_screen(ctx, screen_x, screen_y);
                     }
                 }
@@ -1688,6 +1696,7 @@ impl CrosshairApp {
                 .map(|preset| preset.name.clone()),
             VisionCaptureTarget::GeometryColor => Some("Geometry Color".to_owned()),
             VisionCaptureTarget::OcrStepRegion { .. } => Some("Custom OCR".to_owned()),
+            VisionCaptureTarget::MacroStepGeometryColor { .. } => Some("Macro Step Geometry Color".to_owned()),
         }
     }
 
@@ -1702,6 +1711,7 @@ impl CrosshairApp {
             VisionCaptureTarget::GeometryColor => false,
             VisionCaptureTarget::OcrPreset(_) => false,
             VisionCaptureTarget::OcrStepRegion { .. } => false,
+            VisionCaptureTarget::MacroStepGeometryColor { .. } => false,
         }
     }
 
@@ -1798,6 +1808,10 @@ impl CrosshairApp {
                         "OCR steps do not support template captures.".to_owned(),
                         false,
                     ),
+                    VisionCaptureTarget::MacroStepGeometryColor { .. } => (
+                        "Geometry color picking does not support template captures.".to_owned(),
+                        false,
+                    ),
                 };
                 if sync_required {
                     self.sync_vision_presets();
@@ -1864,6 +1878,10 @@ impl CrosshairApp {
                                 ctx, group_id, preset_id, step_index, screen_x, screen_y, width,
                                 height,
                             );
+                        }
+                        VisionCaptureTarget::MacroStepGeometryColor { .. } => {
+                            self.status =
+                                "Geometry color picking does not support search regions.".to_owned();
                         }
                     }
                 } else {
@@ -2053,6 +2071,40 @@ impl CrosshairApp {
                     color.r, color.g, color.b
                 )
             }
+            VisionCaptureTarget::MacroStepGeometryColor { group_id, preset_id, step_index, is_fill, is_hold_stop } => {
+                self.vision_manual_color = color;
+                self.vision_manual_color_hex =
+                    format!("{:02X}{:02X}{:02X}{:02X}", color.r, color.g, color.b, color.a);
+                let step = self.state.macro_groups.iter_mut()
+                    .find(|g| g.id == group_id)
+                    .and_then(|g| g.presets.iter_mut().find(|p| p.id == preset_id))
+                    .and_then(|p| {
+                        if is_hold_stop {
+                            Some(&mut p.hold_stop_step)
+                        } else {
+                            p.steps.get_mut(step_index)
+                        }
+                    });
+                if let Some(step) = step {
+                    if is_fill {
+                        step.geometry_spec.fill_color = color;
+                        step.geometry_spec.fill_color_expr.clear();
+                    } else {
+                        step.geometry_spec.stroke_color = color;
+                        step.geometry_spec.stroke_color_expr.clear();
+                    }
+                    if self.draw_geometry_step_preview_target == Some((group_id, preset_id, step_index, is_hold_stop)) {
+                        let _ = self.overlay_tx.send(
+                            crate::overlay::OverlayCommand::PreviewGeometrySpec(Some(step.geometry_spec.clone())),
+                        );
+                    }
+                    self.sync_macro_presets();
+                }
+                format!(
+                    "Picked geometry color #{:02X}{:02X}{:02X}.",
+                    color.r, color.g, color.b
+                )
+            }
         }
     }
 
@@ -2085,6 +2137,9 @@ impl CrosshairApp {
                 "OCR steps do not support priority anchors.".to_owned()
             }
             VisionCaptureTarget::GeometryColor => {
+                "Geometry color picking does not support priority anchors.".to_owned()
+            }
+            VisionCaptureTarget::MacroStepGeometryColor { .. } => {
                 "Geometry color picking does not support priority anchors.".to_owned()
             }
         }
@@ -2341,6 +2396,10 @@ impl CrosshairApp {
                 self.status =
                     "Geometry color picking does not support search regions.".to_owned();
             }
+            VisionCaptureTarget::MacroStepGeometryColor { .. } => {
+                self.status =
+                    "Geometry color picking does not support search regions.".to_owned();
+            }
         }
         ctx.request_repaint();
     }
@@ -2466,6 +2525,40 @@ impl CrosshairApp {
                     color.r, color.g, color.b
                 )
             }
+            VisionCaptureTarget::MacroStepGeometryColor { group_id, preset_id, step_index, is_fill, is_hold_stop } => {
+                self.vision_manual_color = color;
+                self.vision_manual_color_hex =
+                    format!("{:02X}{:02X}{:02X}{:02X}", color.r, color.g, color.b, color.a);
+                let step = self.state.macro_groups.iter_mut()
+                    .find(|g| g.id == group_id)
+                    .and_then(|g| g.presets.iter_mut().find(|p| p.id == preset_id))
+                    .and_then(|p| {
+                        if is_hold_stop {
+                            Some(&mut p.hold_stop_step)
+                        } else {
+                            p.steps.get_mut(step_index)
+                        }
+                    });
+                if let Some(step) = step {
+                    if is_fill {
+                        step.geometry_spec.fill_color = color;
+                        step.geometry_spec.fill_color_expr.clear();
+                    } else {
+                        step.geometry_spec.stroke_color = color;
+                        step.geometry_spec.stroke_color_expr.clear();
+                    }
+                    if self.draw_geometry_step_preview_target == Some((group_id, preset_id, step_index, is_hold_stop)) {
+                        let _ = self.overlay_tx.send(
+                            crate::overlay::OverlayCommand::PreviewGeometrySpec(Some(step.geometry_spec.clone())),
+                        );
+                    }
+                    self.sync_macro_presets();
+                }
+                format!(
+                    "Picked geometry color #{:02X}{:02X}{:02X}.",
+                    color.r, color.g, color.b
+                )
+            }
         };
         self.persist();
         self.status = status;
@@ -2528,6 +2621,10 @@ impl CrosshairApp {
                 self.status = "OCR steps do not support priority anchors.".to_owned();
             }
             VisionCaptureTarget::GeometryColor => {
+                self.status =
+                    "Geometry color picking does not support priority anchors.".to_owned();
+            }
+            VisionCaptureTarget::MacroStepGeometryColor { .. } => {
                 self.status =
                     "Geometry color picking does not support priority anchors.".to_owned();
             }

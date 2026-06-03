@@ -117,6 +117,14 @@ pub(crate) enum VisionCaptureTarget {
         preset_id: u32,
         step_index: usize,
     },
+    /// Color pick targeting a DrawGeometry macro step's geometry spec
+    MacroStepGeometryColor {
+        group_id: u32,
+        preset_id: u32,
+        step_index: usize,
+        is_fill: bool,
+        is_hold_stop: bool,
+    },
 }
 
 #[derive(Clone, Copy, PartialEq, Eq, Default)]
@@ -713,6 +721,11 @@ pub struct CrosshairApp {
     geometry_preview_target: Option<(u32, u32)>,
     geometry_preset_preview_target: Option<u32>,
     geometry_preview_sent: Option<GeometrySpec>,
+    /// Target for color picking a DrawGeometry macro step spec (group_id, preset_id, step_index, is_fill, is_hold_stop)
+    macro_step_geometry_color_pick_target: Option<(u32, u32, usize, bool, bool)>,
+    /// Which DrawGeometry macro step is currently being previewed on overlay (group_id, preset_id, step_index, is_hold_stop)
+    draw_geometry_step_preview_target: Option<(u32, u32, usize, bool)>,
+    draw_geometry_step_preview_sent: Option<crate::model::GeometrySpec>,
     variable_inspector_open: bool,
     ocr_lang_pack_open: bool,
     ocr_lang_settings_focus: Option<String>,
@@ -898,6 +911,9 @@ impl CrosshairApp {
             geometry_preview_target: None,
             geometry_preset_preview_target: None,
             geometry_preview_sent: None,
+            macro_step_geometry_color_pick_target: None,
+            draw_geometry_step_preview_target: None,
+            draw_geometry_step_preview_sent: None,
             variable_inspector_open: false,
             ocr_lang_pack_open: false,
             ocr_lang_settings_focus: None,
@@ -8438,6 +8454,43 @@ impl eframe::App for CrosshairApp {
             self.geometry_preset_preview_target = None;
             let _ = self.overlay_tx.send(crate::overlay::OverlayCommand::PreviewGeometrySpec(None));
             let _ = self.overlay_tx.send(crate::overlay::OverlayCommand::PreviewGeometryPreset(None));
+        }
+
+        let keep_macro_geometry_preview = viewport_focused && self.state.active_panel == AppPanel::Macros;
+        if !keep_macro_geometry_preview && self.draw_geometry_step_preview_target.is_some() {
+            self.draw_geometry_step_preview_target = None;
+            self.draw_geometry_step_preview_sent = None;
+            let _ = self.overlay_tx.send(crate::overlay::OverlayCommand::PreviewGeometrySpec(None));
+        } else if let Some((group_id, preset_id, step_index, is_hold_stop)) = self.draw_geometry_step_preview_target {
+            let preview_spec = self.state.macro_groups.iter()
+                .find(|g| g.id == group_id)
+                .and_then(|g| g.presets.iter().find(|p| p.id == preset_id))
+                .and_then(|p| {
+                    if is_hold_stop {
+                        Some(&p.hold_stop_step)
+                    } else {
+                        p.steps.get(step_index)
+                    }
+                })
+                .and_then(|step| {
+                    if step.action == crate::model::MacroAction::DrawGeometry {
+                        Some(step.geometry_spec.clone())
+                    } else {
+                        None
+                    }
+                });
+
+            if preview_spec.is_none() {
+                self.draw_geometry_step_preview_target = None;
+                self.draw_geometry_step_preview_sent = None;
+            }
+
+            if self.draw_geometry_step_preview_sent != preview_spec {
+                self.draw_geometry_step_preview_sent = preview_spec.clone();
+                let _ = self
+                    .overlay_tx
+                    .send(crate::overlay::OverlayCommand::PreviewGeometrySpec(preview_spec));
+            }
         }
 
         if viewport_focused

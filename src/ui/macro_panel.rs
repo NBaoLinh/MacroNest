@@ -4999,6 +4999,7 @@ impl CrosshairApp {
                     let mut geometry_manual_color = self.vision_manual_color;
                     let mut geometry_manual_color_hex = self.vision_manual_color_hex.clone();
                     let mut request_geometry_screen_color_pick = false;
+                    let mut pending_geometry_macro_step_color_pick: Option<(u32, u32, usize, bool, bool)> = None;
                     let group = &mut self.state.macro_groups[group_index];
 
                     let folder_enabled = true;
@@ -10527,10 +10528,18 @@ impl CrosshairApp {
                                                     ui,
                                                     language,
                                                     (group.id, preset.id, "hold-stop-geometry-step"),
+                                                    group.id,
+                                                    preset.id,
+                                                    0,
+                                                    true,
                                                     &geometry_preset_options,
                                                     &mut geometry_manual_color,
                                                     &mut geometry_manual_color_hex,
                                                     &mut request_geometry_screen_color_pick,
+                                                    &mut begin_mouse_move_absolute_capture_target,
+                                                    &mut pending_geometry_macro_step_color_pick,
+                                                    &mut self.draw_geometry_step_preview_target,
+                                                    &self.overlay_tx,
                                                     step,
                                                     &mut live_sync,
                                                     self.state.vietnamese_input_enabled,
@@ -16621,10 +16630,18 @@ impl CrosshairApp {
                                                     ui,
                                                     language,
                                                     (group.id, preset.id, step_index, "normal-geometry-step"),
+                                                    group.id,
+                                                    preset.id,
+                                                    step_index,
+                                                    false,
                                                     &geometry_preset_options,
                                                     &mut geometry_manual_color,
                                                     &mut geometry_manual_color_hex,
                                                     &mut request_geometry_screen_color_pick,
+                                                    &mut begin_mouse_move_absolute_capture_target,
+                                                    &mut pending_geometry_macro_step_color_pick,
+                                                    &mut self.draw_geometry_step_preview_target,
+                                                    &self.overlay_tx,
                                                     step,
                                                     &mut live_sync,
                                                     self.state.vietnamese_input_enabled,
@@ -18095,6 +18112,14 @@ impl CrosshairApp {
 
                         self.begin_mouse_move_absolute_capture(ui.ctx(), target);
 
+                    }
+
+                    if let Some((group_id, preset_id, step_index, is_fill, is_hold_stop)) = pending_geometry_macro_step_color_pick {
+                        self.begin_image_search_capture(
+                            ui.ctx(),
+                            crate::ui::VisionCaptureTarget::MacroStepGeometryColor { group_id, preset_id, step_index, is_fill, is_hold_stop },
+                            crate::ui::VisionCaptureMode::ColorSample,
+                        );
                     }
 
                     if let Some((group_id, preset_id, step_index, selected_id)) =
@@ -19707,17 +19732,24 @@ impl CrosshairApp {
         ui: &mut egui::Ui,
         language: UiLanguage,
         id_prefix: impl std::hash::Hash + Copy,
+        group_id: u32,
+        macro_preset_id: u32,
+        step_index: usize,
+        is_hold_stop: bool,
         preset_options: &[(u32, String)],
         vision_manual_color: &mut RgbaColor,
         vision_manual_color_hex: &mut String,
         request_screen_color_pick: &mut bool,
+        begin_mouse_move_absolute_capture_target: &mut Option<MouseMoveAbsoluteCaptureTarget>,
+        pending_macro_step_color_pick: &mut Option<(u32, u32, usize, bool, bool)>,
+        draw_geometry_step_preview_target: &mut Option<(u32, u32, usize, bool)>,
+        overlay_tx: &crossbeam_channel::Sender<crate::overlay::OverlayCommand>,
         step: &mut MacroStep,
         live_sync: &mut bool,
         vietnamese_input_enabled: bool,
         vietnamese_input_mode: VietnameseInputMode,
     ) {
         let mut pending_screen_color_target = None;
-        let mut begin_mouse_move_absolute_capture_target = None;
         ui.scope(|ui| {
             ui.spacing_mut().item_spacing.x = 6.0;
             ui.spacing_mut().item_spacing.y = 6.0;
@@ -19740,23 +19772,49 @@ impl CrosshairApp {
                                         .changed();
                                 }
                             });
+
+                        let preview_active = *draw_geometry_step_preview_target == Some((group_id, macro_preset_id, step_index, is_hold_stop));
+                        let preview_btn = Button::new(Self::material_icon_text(
+                            if preview_active { 0xe8f5 } else { 0xe8f4 },
+                            16.0,
+                        ));
+                        let preview_response = ui.add_sized([24.0, 24.0], preview_btn);
+                        if preview_response.on_hover_text(if preview_active { "Stop preview" } else { "Preview" }).clicked() {
+                            if preview_active {
+                                *draw_geometry_step_preview_target = None;
+                                let _ = overlay_tx.send(crate::overlay::OverlayCommand::PreviewGeometrySpec(None));
+                            } else {
+                                *draw_geometry_step_preview_target = Some((group_id, macro_preset_id, step_index, is_hold_stop));
+                                let _ = overlay_tx.send(
+                                    crate::overlay::OverlayCommand::PreviewGeometrySpec(
+                                        Some(step.geometry_spec.clone()),
+                                    ),
+                                );
+                            }
+                        }
                     });
                     ui.add_space(4.0);
                     *live_sync |= Self::render_geometry_spec_editor(
                         ui,
                         language,
-                        0,
-                        0,
+                        macro_preset_id,
+                        step_index as u32,
                         true,
                         &mut step.geometry_spec,
                         vision_manual_color,
                         vision_manual_color_hex,
                         request_screen_color_pick,
                         &mut pending_screen_color_target,
-                        &mut begin_mouse_move_absolute_capture_target,
+                        begin_mouse_move_absolute_capture_target,
                         vietnamese_input_enabled,
                         vietnamese_input_mode,
+                        Some(group_id),
                     );
+                    if *request_screen_color_pick {
+                        if let Some((_, _, is_fill)) = pending_screen_color_target {
+                            *pending_macro_step_color_pick = Some((group_id, macro_preset_id, step_index, is_fill, is_hold_stop));
+                        }
+                    }
                 }
                 MacroAction::ShowGeometryPreset => {
                     ui.horizontal(|ui| {

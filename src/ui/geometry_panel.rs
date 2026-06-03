@@ -212,6 +212,7 @@ impl CrosshairApp {
                                 &mut begin_mouse_move_absolute_capture_target,
                                 self.state.vietnamese_input_enabled,
                                 self.state.vietnamese_input_mode,
+                                None,
                             );
                         });
                 }
@@ -333,6 +334,7 @@ impl CrosshairApp {
         begin_mouse_move_absolute_capture_target: &mut Option<MouseMoveAbsoluteCaptureTarget>,
         vietnamese_input_enabled: bool,
         vietnamese_input_mode: VietnameseInputMode,
+        group_id_override: Option<u32>,
     ) -> bool {
         let mut changed = false;
 
@@ -355,6 +357,7 @@ impl CrosshairApp {
                             begin_mouse_move_absolute_capture_target,
                             vietnamese_input_enabled,
                             vietnamese_input_mode,
+                            group_id_override,
                         );
                         changed |= Self::geometry_expr_pair_row(
                             ui,
@@ -368,6 +371,7 @@ impl CrosshairApp {
                             begin_mouse_move_absolute_capture_target,
                             vietnamese_input_enabled,
                             vietnamese_input_mode,
+                            group_id_override,
                         );
                     }
                     GeometryShapeKind::Line | GeometryShapeKind::Arrow => {
@@ -383,6 +387,7 @@ impl CrosshairApp {
                             begin_mouse_move_absolute_capture_target,
                             vietnamese_input_enabled,
                             vietnamese_input_mode,
+                            group_id_override,
                         );
                         changed |= Self::geometry_expr_pair_row(
                             ui,
@@ -396,6 +401,7 @@ impl CrosshairApp {
                             begin_mouse_move_absolute_capture_target,
                             vietnamese_input_enabled,
                             vietnamese_input_mode,
+                            group_id_override,
                         );
                         if spec.shape == GeometryShapeKind::Arrow {
                             changed |= Self::geometry_expr_pair_row(
@@ -410,6 +416,7 @@ impl CrosshairApp {
                                 begin_mouse_move_absolute_capture_target,
                                 vietnamese_input_enabled,
                                 vietnamese_input_mode,
+                                group_id_override,
                             );
                         } else {
                             changed |= Self::geometry_expr_pair_row(
@@ -424,6 +431,7 @@ impl CrosshairApp {
                                 begin_mouse_move_absolute_capture_target,
                                 vietnamese_input_enabled,
                                 vietnamese_input_mode,
+                                group_id_override,
                             );
                         }
                     }
@@ -440,6 +448,7 @@ impl CrosshairApp {
                             begin_mouse_move_absolute_capture_target,
                             vietnamese_input_enabled,
                             vietnamese_input_mode,
+                            group_id_override,
                         );
                         changed |= Self::geometry_expr_pair_row(
                             ui,
@@ -453,6 +462,7 @@ impl CrosshairApp {
                             begin_mouse_move_absolute_capture_target,
                             vietnamese_input_enabled,
                             vietnamese_input_mode,
+                            group_id_override,
                         );
                         changed |= Self::geometry_fill_mode_row(ui, language, &mut spec.filled);
                     }
@@ -469,6 +479,7 @@ impl CrosshairApp {
                             begin_mouse_move_absolute_capture_target,
                             vietnamese_input_enabled,
                             vietnamese_input_mode,
+                            group_id_override,
                         );
                         changed |= Self::geometry_expr_pair_row(
                             ui,
@@ -482,6 +493,7 @@ impl CrosshairApp {
                             begin_mouse_move_absolute_capture_target,
                             vietnamese_input_enabled,
                             vietnamese_input_mode,
+                            group_id_override,
                         );
                         changed |= Self::geometry_expr_pair_row(
                             ui,
@@ -495,6 +507,7 @@ impl CrosshairApp {
                             begin_mouse_move_absolute_capture_target,
                             vietnamese_input_enabled,
                             vietnamese_input_mode,
+                            group_id_override,
                         );
                         changed |= Self::geometry_fill_mode_row(ui, language, &mut spec.filled);
                     }
@@ -511,6 +524,7 @@ impl CrosshairApp {
                             begin_mouse_move_absolute_capture_target,
                             vietnamese_input_enabled,
                             vietnamese_input_mode,
+                            group_id_override,
                         );
                         ui.label("Text");
                         let text_id = ui.make_persistent_id((preset_id, object_id, "label-text"));
@@ -548,6 +562,7 @@ impl CrosshairApp {
                             begin_mouse_move_absolute_capture_target,
                             vietnamese_input_enabled,
                             vietnamese_input_mode,
+                            group_id_override,
                         );
                     }
                     GeometryShapeKind::Ellipse => {
@@ -563,6 +578,7 @@ impl CrosshairApp {
                             begin_mouse_move_absolute_capture_target,
                             vietnamese_input_enabled,
                             vietnamese_input_mode,
+                            group_id_override,
                         );
                         changed |= Self::geometry_expr_pair_row(
                             ui,
@@ -576,6 +592,7 @@ impl CrosshairApp {
                             begin_mouse_move_absolute_capture_target,
                             vietnamese_input_enabled,
                             vietnamese_input_mode,
+                            group_id_override,
                         );
                         changed |= Self::geometry_expr_pair_row(
                             ui,
@@ -589,6 +606,7 @@ impl CrosshairApp {
                             begin_mouse_move_absolute_capture_target,
                             vietnamese_input_enabled,
                             vietnamese_input_mode,
+                            group_id_override,
                         );
                         changed |= Self::geometry_fill_mode_row(ui, language, &mut spec.filled);
                     }
@@ -661,7 +679,7 @@ impl CrosshairApp {
                                     .clicked()
                                 {
                                     *begin_mouse_move_absolute_capture_target = Some(MouseMoveAbsoluteCaptureTarget {
-                                        group_id: None,
+                                        group_id: group_id_override,
                                         preset_id,
                                         step_index: object_id as usize,
                                         capture_kind: MouseCaptureKind::GeometryPrimaryPos,
@@ -720,6 +738,7 @@ impl CrosshairApp {
                             begin_mouse_move_absolute_capture_target,
                             vietnamese_input_enabled,
                             vietnamese_input_mode,
+                            group_id_override,
                         );
                         if spec.shape == GeometryShapeKind::Polygon {
                             changed |= Self::geometry_fill_mode_row(ui, language, &mut spec.filled);
@@ -738,6 +757,7 @@ impl CrosshairApp {
                             begin_mouse_move_absolute_capture_target,
                             vietnamese_input_enabled,
                             vietnamese_input_mode,
+                            group_id_override,
                         );
                         changed |= Self::geometry_expr_pair_row(
                             ui,
@@ -751,6 +771,7 @@ impl CrosshairApp {
                             begin_mouse_move_absolute_capture_target,
                             vietnamese_input_enabled,
                             vietnamese_input_mode,
+                            group_id_override,
                         );
                         changed |= Self::geometry_expr_pair_row(
                             ui,
@@ -764,6 +785,7 @@ impl CrosshairApp {
                             begin_mouse_move_absolute_capture_target,
                             vietnamese_input_enabled,
                             vietnamese_input_mode,
+                            group_id_override,
                         );
                         changed |= Self::geometry_expr_pair_row(
                             ui,
@@ -777,6 +799,7 @@ impl CrosshairApp {
                             begin_mouse_move_absolute_capture_target,
                             vietnamese_input_enabled,
                             vietnamese_input_mode,
+                            group_id_override,
                         );
                     }
                 }
@@ -853,6 +876,7 @@ impl CrosshairApp {
         begin_mouse_move_absolute_capture_target: &mut Option<MouseMoveAbsoluteCaptureTarget>,
         vietnamese_input_enabled: bool,
         vietnamese_input_mode: VietnameseInputMode,
+        group_id_override: Option<u32>,
     ) -> bool {
         let mut changed = false;
         ui.label(label_a);
@@ -911,7 +935,7 @@ impl CrosshairApp {
                 .clicked()
             {
                 *begin_mouse_move_absolute_capture_target = Some(MouseMoveAbsoluteCaptureTarget {
-                    group_id: None,
+                    group_id: group_id_override,
                     preset_id,
                     step_index: object_id as usize,
                     capture_kind,

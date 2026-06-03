@@ -1024,11 +1024,73 @@ impl CrosshairApp {
             None
         };
 
+        if target.group_id.is_some()
+            && matches!(
+                target.capture_kind,
+                MouseCaptureKind::GeometryPrimaryPos | MouseCaptureKind::GeometrySecondaryPos
+            )
+        {
+            let is_secondary = matches!(target.capture_kind, MouseCaptureKind::GeometrySecondaryPos);
+            let step = step_result;
+            if let Some(step) = step {
+                if let Some(point_idx) = target.extra_cond_index {
+                    // Polyline/polygon point
+                    let mut points: Vec<(String, String)> = step.geometry_spec.points_expr
+                        .split(';')
+                        .filter(|s| !s.is_empty())
+                        .map(|pair| {
+                            if let Some((x, y)) = pair.split_once(',') {
+                                (x.trim().to_owned(), y.trim().to_owned())
+                            } else {
+                                (pair.trim().to_owned(), String::new())
+                            }
+                        })
+                        .collect();
+                    if point_idx < points.len() {
+                        points[point_idx] = (screen_x.to_string(), screen_y.to_string());
+                        step.geometry_spec.points_expr = points
+                            .iter()
+                            .map(|(x, y)| format!("{},{}", x, y))
+                            .collect::<Vec<_>>()
+                            .join(";");
+                    }
+                } else if is_secondary {
+                    step.geometry_spec.x2_expr = screen_x.to_string();
+                    step.geometry_spec.y2_expr = screen_y.to_string();
+                } else {
+                    step.geometry_spec.x1_expr = screen_x.to_string();
+                    step.geometry_spec.y1_expr = screen_y.to_string();
+                }
+            }
+            self.mouse_move_absolute_capture_target = None;
+            self.mouse_move_absolute_capture_wait_for_mouse_release = false;
+            self.restore_mouse_move_absolute_capture_window(ctx);
+            self.mouse_move_absolute_capture_raise_window = true;
+            self.status = match self.state.ui_language {
+                UiLanguage::Vietnamese => {
+                    format!("Da lay toa do geometry {}, {}.", screen_x, screen_y)
+                }
+                _ => format!("Captured geometry position {}, {}.", screen_x, screen_y),
+            };
+            ctx.send_viewport_cmd(egui::ViewportCommand::Visible(true));
+            ctx.send_viewport_cmd(egui::ViewportCommand::Focus);
+            ctx.send_viewport_cmd(egui::ViewportCommand::RequestUserAttention(
+                egui::UserAttentionType::Informational,
+            ));
+            ctx.request_repaint_after(Duration::from_millis(33));
+            self.persist();
+            if target.group_id.is_some() {
+                self.sync_macro_presets();
+            }
+            return;
+        }
+
         if target.group_id.is_none()
             && matches!(
                 target.capture_kind,
                 MouseCaptureKind::GeometryPrimaryPos | MouseCaptureKind::GeometrySecondaryPos
             )
+
         {
             let object_id = target.step_index as u32;
             let pair_index = if matches!(target.capture_kind, MouseCaptureKind::GeometrySecondaryPos)
