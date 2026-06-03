@@ -13247,17 +13247,16 @@ mod windows_overlay {
             shapes.push(shape);
         }
         if let Some(preview_preset_id) = hook_state.preview_geometry_preset_id {
-            if !hook_state.active_geometry_preset_ids.contains(&preview_preset_id) {
-                if let Some(preset) = hook_state
-                    .geometry_presets
-                    .iter()
-                    .find(|preset| preset.id == preview_preset_id)
-                {
-                    for object in &preset.objects {
-                        if object.enabled {
-                            if let Some(shape) = geometry_render_shape_from_spec(&object.spec) {
-                                shapes.push(shape);
-                            }
+            let is_active = hook_state.active_geometry_preset_ids.contains(&preview_preset_id);
+            if let Some(preset) = hook_state
+                .geometry_presets
+                .iter()
+                .find(|preset| preset.id == preview_preset_id)
+            {
+                for object in &preset.objects {
+                    if !is_active || !object.enabled {
+                        if let Some(shape) = geometry_render_shape_from_spec(&object.spec) {
+                            shapes.push(shape);
                         }
                     }
                 }

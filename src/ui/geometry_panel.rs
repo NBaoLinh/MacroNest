@@ -98,19 +98,9 @@ impl CrosshairApp {
                         {
                             if preview_all_active {
                                 self.geometry_preset_preview_target = None;
-                                for object in &mut preset.objects {
-                                    if object.enabled {
-                                        object.enabled = false;
-                                    }
-                                }
-                                changed = true;
                                 let _ = self.overlay_tx.send(crate::overlay::OverlayCommand::PreviewGeometryPreset(None));
                             } else {
                                 self.geometry_preset_preview_target = Some(preset.id);
-                                for object in &mut preset.objects {
-                                    object.enabled = true;
-                                }
-                                changed = true;
                                 let _ = self.overlay_tx.send(crate::overlay::OverlayCommand::PreviewGeometryPreset(Some(preset.id)));
                             }
                         }
@@ -128,7 +118,7 @@ impl CrosshairApp {
                     if object.enabled {
                         frame = frame
                             .stroke(egui::Stroke::new(1.0, egui::Color32::from_rgb(0, 255, 170)))
-                            .fill(egui::Color32::from_rgba_unmultiplied(0, 255, 170, 5));
+                            .fill(egui::Color32::from_rgba_unmultiplied(0, 255, 170, 30));
                     }
                     frame.inner_margin(8).show(ui, |ui| {
                         ui.horizontal(|ui| {
