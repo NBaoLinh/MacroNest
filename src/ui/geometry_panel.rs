@@ -300,7 +300,7 @@ impl CrosshairApp {
                             preset_id,
                             object_id,
                             255,
-                            "Radius",
+                            "Size",
                             &mut spec.radius_expr,
                             "Thickness",
                             &mut spec.thickness_expr,
@@ -562,11 +562,23 @@ impl CrosshairApp {
                     }
                 }
 
+                let stroke_label = if matches!(
+                    spec.shape,
+                    GeometryShapeKind::Circle
+                        | GeometryShapeKind::Rectangle
+                        | GeometryShapeKind::Ellipse
+                        | GeometryShapeKind::Polygon
+                ) {
+                    "Stroke"
+                } else {
+                    "Color"
+                };
+
                 changed |= Self::geometry_color_row(
                     ui,
                     preset_id,
                     object_id,
-                    "Stroke",
+                    stroke_label,
                     &mut spec.stroke_color,
                     &mut spec.stroke_color_expr,
                     manual_color,
@@ -666,20 +678,24 @@ impl CrosshairApp {
         is_fill: bool,
     ) -> bool {
         let mut changed = false;
-        let color_text = format!(
-            "#{:02X}{:02X}{:02X}{:02X}  rgba({}, {}, {}, {})",
+        let color_tooltip = format!(
+            "#{:02X}{:02X}{:02X}{:02X} rgba({}, {}, {}, {})",
             color.r, color.g, color.b, color.a, color.r, color.g, color.b, color.a
         );
         ui.label(label);
-        changed |= ui
-            .add_sized([208.0, 24.0], TextEdit::singleline(expr))
-            .changed();
-        Self::image_search_target_color_swatch(ui, Some(*color));
-        ui.add_sized(
-            [190.0, 24.0],
-            egui::Label::new(color_text.clone()).sense(egui::Sense::hover()),
-        )
-        .on_hover_text(color_text);
+        let expr_response = ui.add_sized(
+            [250.0, 24.0],
+            TextEdit::singleline(expr).hint_text("{A} or #RRGGBB"),
+        );
+        changed |= expr_response.changed();
+        expr_response.on_hover_text("Optional color expression. Example: {A} or #BAD1C4");
+
+        let _swatch_response = ui
+            .scope(|ui| {
+                Self::image_search_target_color_swatch(ui, Some(*color));
+            })
+            .response
+            .on_hover_text(color_tooltip);
 
         let popup_id = ui.make_persistent_id((preset_id, object_id, label, "geometry-color-popup"));
         let mut popup_open = ui
@@ -688,11 +704,14 @@ impl CrosshairApp {
             .unwrap_or(false);
 
         let palette_button = ui
-            .add_sized([24.0, 24.0], Button::new(Self::material_icon_text(0xe40a, 18.0)))
+            .add_sized([24.0, 24.0], Button::new(Self::material_icon_text(0xe40a, 16.0)))
             .on_hover_text("Choose color");
         if palette_button.clicked() {
             *manual_color = *color;
-            *manual_color_hex = format!("{:02X}{:02X}{:02X}", color.r, color.g, color.b);
+            *manual_color_hex = format!(
+                "{:02X}{:02X}{:02X}{:02X}",
+                color.r, color.g, color.b, color.a
+            );
             popup_open = true;
         }
 
@@ -779,10 +798,10 @@ impl CrosshairApp {
         ui.ctx()
             .data_mut(|data| data.insert_temp(popup_id, popup_open));
 
-        if ui
+        let screen_pick_response = ui
             .add_sized([24.0, 24.0], Button::new(Self::material_icon_text(0xe3b8, 16.0)))
-            .on_hover_text("Pick from screen")
-            .clicked()
+            .on_hover_text("Pick from screen");
+        if screen_pick_response.clicked()
         {
             *request_screen_color_pick = true;
             *pending_screen_color_target = Some((preset_id, object_id, is_fill));
