@@ -53,6 +53,10 @@ impl CrosshairApp {
                             {
                                 clear_preview_target = true;
                             }
+                            if self.geometry_preset_preview_target == Some(preset.id) {
+                                self.geometry_preset_preview_target = None;
+                                let _ = self.overlay_tx.send(crate::overlay::OverlayCommand::PreviewGeometryPreset(None));
+                            }
                         }
                         if Self::sound_style_toggle_button(
                             ui,
@@ -82,6 +86,24 @@ impl CrosshairApp {
                             preset.collapsed = false;
                             changed = true;
                         }
+                        let preview_all_active = self.geometry_preset_preview_target == Some(preset.id);
+                        let preview_all_btn = Button::new(Self::material_icon_text(
+                            if preview_all_active { 0xe8f5 } else { 0xe8f4 },
+                            16.0,
+                        ));
+                        if ui
+                            .add_sized([24.0, 24.0], preview_all_btn)
+                            .on_hover_text(if preview_all_active { "Stop Preview All" } else { "Preview All" })
+                            .clicked()
+                        {
+                            if preview_all_active {
+                                self.geometry_preset_preview_target = None;
+                                let _ = self.overlay_tx.send(crate::overlay::OverlayCommand::PreviewGeometryPreset(None));
+                            } else {
+                                self.geometry_preset_preview_target = Some(preset.id);
+                                let _ = self.overlay_tx.send(crate::overlay::OverlayCommand::PreviewGeometryPreset(Some(preset.id)));
+                            }
+                        }
                     });
                 });
 
@@ -92,80 +114,89 @@ impl CrosshairApp {
                 let mut remove_object_id = None;
                 for object in &mut preset.objects {
                     ui.add_space(6.0);
-                    Frame::group(ui.style())
-                        .inner_margin(8)
-                        .show(ui, |ui| {
-                            ui.horizontal(|ui| {
-                                ui.checkbox(&mut object.enabled, "");
-                                let response = ui.add_sized(
-                                    [180.0, 24.0],
-                                    TextEdit::singleline(&mut object.name),
-                                );
-                                Self::apply_vietnamese_input_if_changed(
-                                    &response,
-                                    self.state.vietnamese_input_enabled,
-                                    self.state.vietnamese_input_mode,
-                                    &mut object.name,
-                                );
-                                changed |= response.changed();
-
-                                ComboBox::from_id_salt((preset.id, object.id, "shape"))
-                                    .width(132.0)
-                                    .selected_text(Self::geometry_shape_label(object.spec.shape))
-                                    .show_ui(ui, |ui| {
-                                        for shape in Self::geometry_shapes() {
-                                            changed |= ui
-                                                .selectable_value(
-                                                    &mut object.spec.shape,
-                                                    shape,
-                                                    Self::geometry_shape_label(shape),
-                                                )
-                                                .changed();
-                                        }
-                                    });
-
-                                let preview_active =
-                                    self.geometry_preview_target == Some((preset.id, object.id));
-                                if ui
-                                    .add_sized(
-                                        [24.0, 24.0],
-                                        Button::new(Self::material_icon_text(
-                                            if preview_active { 0xe8f5 } else { 0xe8f4 },
-                                            16.0,
-                                        )),
-                                    )
-                                    .on_hover_text(if preview_active { "Stop preview" } else { "Preview" })
-                                    .clicked()
-                                {
-                                    if preview_active {
-                                        self.geometry_preview_target = None;
-                                        self.geometry_preview_sent = None;
-                                        let _ = self.overlay_tx.send(crate::overlay::OverlayCommand::PreviewGeometrySpec(None));
-                                    } else {
-                                        self.geometry_preview_target = Some((preset.id, object.id));
-                                        self.geometry_preview_sent = Some(object.spec.clone());
-                                        let _ = self.overlay_tx.send(
-                                            crate::overlay::OverlayCommand::PreviewGeometrySpec(
-                                                Some(object.spec.clone()),
-                                            ),
-                                        );
-                                    }
+                    let mut frame = Frame::group(ui.style());
+                    if object.enabled {
+                        frame = frame
+                            .stroke(egui::Stroke::new(1.0, egui::Color32::from_rgb(0, 255, 170)))
+                            .fill(egui::Color32::from_rgba_unmultiplied(0, 255, 170, 5));
+                    }
+                    frame.inner_margin(8).show(ui, |ui| {
+                        ui.horizontal(|ui| {
+                            let preview_active =
+                                self.geometry_preview_target == Some((preset.id, object.id));
+                            if ui.checkbox(&mut object.enabled, "").changed() {
+                                changed = true;
+                                if !object.enabled && preview_active {
+                                    self.geometry_preview_target = None;
+                                    self.geometry_preview_sent = None;
+                                    let _ = self.overlay_tx.send(crate::overlay::OverlayCommand::PreviewGeometrySpec(None));
                                 }
+                            }
+                            let response = ui.add_sized(
+                                [180.0, 24.0],
+                                TextEdit::singleline(&mut object.name),
+                            );
+                            Self::apply_vietnamese_input_if_changed(
+                                &response,
+                                self.state.vietnamese_input_enabled,
+                                self.state.vietnamese_input_mode,
+                                &mut object.name,
+                            );
+                            changed |= response.changed();
 
-                                if ui
-                                    .add_sized(
-                                        [24.0, 24.0],
-                                        Button::new(Self::material_icon_text(0xe5cd, 16.0)),
-                                    )
-                                    .on_hover_text(Self::tr_lang(language, "Delete object", "Delete object"))
-                                    .clicked()
-                                {
-                                    remove_object_id = Some(object.id);
-                                    if self.geometry_preview_target == Some((preset.id, object.id)) {
-                                        clear_preview_target = true;
+                            ComboBox::from_id_salt((preset.id, object.id, "shape"))
+                                .width(132.0)
+                                .selected_text(Self::geometry_shape_label(object.spec.shape))
+                                .show_ui(ui, |ui| {
+                                    for shape in Self::geometry_shapes() {
+                                        changed |= ui
+                                            .selectable_value(
+                                                &mut object.spec.shape,
+                                                shape,
+                                                Self::geometry_shape_label(shape),
+                                            )
+                                            .changed();
                                     }
+                                });
+
+                            let preview_btn = Button::new(Self::material_icon_text(
+                                if preview_active { 0xe8f5 } else { 0xe8f4 },
+                                16.0,
+                            ));
+                            if ui
+                                .add_enabled(object.enabled, preview_btn)
+                                .on_hover_text(if preview_active { "Stop preview" } else { "Preview" })
+                                .clicked()
+                            {
+                                if preview_active {
+                                    self.geometry_preview_target = None;
+                                    self.geometry_preview_sent = None;
+                                    let _ = self.overlay_tx.send(crate::overlay::OverlayCommand::PreviewGeometrySpec(None));
+                                } else {
+                                    self.geometry_preview_target = Some((preset.id, object.id));
+                                    self.geometry_preview_sent = Some(object.spec.clone());
+                                    let _ = self.overlay_tx.send(
+                                        crate::overlay::OverlayCommand::PreviewGeometrySpec(
+                                            Some(object.spec.clone()),
+                                        ),
+                                    );
                                 }
-                            });
+                            }
+
+                            if ui
+                                .add_sized(
+                                    [24.0, 24.0],
+                                    Button::new(Self::material_icon_text(0xe5cd, 16.0)),
+                                )
+                                .on_hover_text(Self::tr_lang(language, "Delete object", "Delete object"))
+                                .clicked()
+                            {
+                                remove_object_id = Some(object.id);
+                                if self.geometry_preview_target == Some((preset.id, object.id)) {
+                                    clear_preview_target = true;
+                                }
+                            }
+                        });
 
                             ui.add_space(6.0);
                             changed |= Self::render_geometry_spec_editor(
@@ -228,6 +259,20 @@ impl CrosshairApp {
                 let _ = self
                     .overlay_tx
                     .send(crate::overlay::OverlayCommand::PreviewGeometrySpec(preview_spec));
+            }
+        }
+
+        if let Some(preview_preset_id) = self.geometry_preset_preview_target {
+            let exists = self
+                .state
+                .geometry_presets
+                .iter()
+                .any(|preset| preset.id == preview_preset_id);
+            if !exists {
+                self.geometry_preset_preview_target = None;
+                let _ = self
+                    .overlay_tx
+                    .send(crate::overlay::OverlayCommand::PreviewGeometryPreset(None));
             }
         }
 

@@ -481,6 +481,7 @@ mod windows_overlay {
         UpdateVisionPresets(Vec<VisionPreset>),
         UpdateGeometryPresets(Vec<crate::model::GeometryPreset>),
         PreviewGeometrySpec(Option<GeometrySpec>),
+        PreviewGeometryPreset(Option<u32>),
         RefreshSearchAreaOverlay,
 
         InvalidateVisionWaits(Vec<u32>),
@@ -783,6 +784,7 @@ mod windows_overlay {
         active_geometry_preset_ids: HashSet<u32>,
         active_geometry_steps: HashMap<(u32, usize), crate::model::GeometrySpec>,
         preview_geometry_spec: Option<GeometrySpec>,
+        preview_geometry_preset_id: Option<u32>,
 
         vision_following_presets: HashSet<u32>,
 
@@ -914,6 +916,7 @@ mod windows_overlay {
                 active_geometry_preset_ids: HashSet::new(),
                 active_geometry_steps: HashMap::new(),
                 preview_geometry_spec: None,
+                preview_geometry_preset_id: None,
 
                 vision_following_presets: HashSet::new(),
 
@@ -4841,6 +4844,11 @@ mod windows_overlay {
 
                 OverlayCommand::PreviewGeometrySpec(spec) => {
                     HOOK_STATE.lock().preview_geometry_spec = spec;
+                    let _ = refresh_search_area_overlay(runtime);
+                }
+
+                OverlayCommand::PreviewGeometryPreset(preset_id) => {
+                    HOOK_STATE.lock().preview_geometry_preset_id = preset_id;
                     let _ = refresh_search_area_overlay(runtime);
                 }
 
@@ -13021,7 +13029,7 @@ mod windows_overlay {
             return None;
         }
 
-        let thickness = geometry_eval_i32(&spec.thickness_expr, spec.thickness.round() as i32).max(1);
+        let thickness = geometry_eval_i32(&spec.thickness_expr, spec.thickness.round() as i32).max(1).min(200);
         let opacity = geometry_eval_f32(&spec.opacity_expr, spec.opacity).clamp(0.0, 1.0);
         let stroke = geometry_resolve_color(&spec.stroke_color_expr, spec.stroke_color, opacity);
         let fill = geometry_resolve_color(&spec.fill_color_expr, spec.fill_color, opacity);
@@ -13031,7 +13039,7 @@ mod windows_overlay {
             GeometryShapeKind::Point => {
                 let x = geometry_eval_i32(&spec.x1_expr, 0);
                 let y = geometry_eval_i32(&spec.y1_expr, 0);
-                let radius = geometry_eval_i32(&spec.radius_expr, spec.point_radius.round() as i32).max(1);
+                let radius = geometry_eval_i32(&spec.radius_expr, spec.point_radius.round() as i32).max(1).min(4000);
                 Some(GeometryRenderShape {
                     bounds: (x - radius, y - radius, x + radius, y + radius),
                     draw: GeometryRenderDraw::Point {
@@ -13067,7 +13075,7 @@ mod windows_overlay {
             GeometryShapeKind::Circle => {
                 let cx = geometry_eval_i32(&spec.x1_expr, 0);
                 let cy = geometry_eval_i32(&spec.y1_expr, 0);
-                let radius = geometry_eval_i32(&spec.radius_expr, spec.point_radius.round() as i32).max(1);
+                let radius = geometry_eval_i32(&spec.radius_expr, spec.point_radius.round() as i32).max(1).min(4000);
                 Some(GeometryRenderShape {
                     bounds: (
                         cx - radius - thickness,
@@ -13088,8 +13096,8 @@ mod windows_overlay {
             GeometryShapeKind::Rectangle => {
                 let x = geometry_eval_i32(&spec.x1_expr, 0);
                 let y = geometry_eval_i32(&spec.y1_expr, 0);
-                let width = geometry_eval_i32(&spec.width_expr, 1).max(1);
-                let height = geometry_eval_i32(&spec.height_expr, 1).max(1);
+                let width = geometry_eval_i32(&spec.width_expr, 1).max(1).min(8000);
+                let height = geometry_eval_i32(&spec.height_expr, 1).max(1).min(8000);
                 Some(GeometryRenderShape {
                     bounds: (x - thickness, y - thickness, x + width + thickness, y + height + thickness),
                     draw: GeometryRenderDraw::Rectangle {
@@ -13106,7 +13114,7 @@ mod windows_overlay {
             GeometryShapeKind::Label => {
                 let x = geometry_eval_i32(&spec.x1_expr, 0);
                 let y = geometry_eval_i32(&spec.y1_expr, 0);
-                let font_size = geometry_eval_i32(&spec.font_size_expr, spec.font_size.round() as i32).max(10);
+                let font_size = geometry_eval_i32(&spec.font_size_expr, spec.font_size.round() as i32).max(10).min(500);
                 let text = interpolate_variables(&spec.text);
                 let text_len = text.chars().count() as i32;
                 Some(GeometryRenderShape {
@@ -13123,8 +13131,8 @@ mod windows_overlay {
             GeometryShapeKind::Ellipse => {
                 let cx = geometry_eval_i32(&spec.x1_expr, 0);
                 let cy = geometry_eval_i32(&spec.y1_expr, 0);
-                let rx = geometry_eval_i32(&spec.radius_x_expr, 1).max(1);
-                let ry = geometry_eval_i32(&spec.radius_y_expr, 1).max(1);
+                let rx = geometry_eval_i32(&spec.radius_x_expr, 1).max(1).min(4000);
+                let ry = geometry_eval_i32(&spec.radius_y_expr, 1).max(1).min(4000);
                 Some(GeometryRenderShape {
                     bounds: (cx - rx - thickness, cy - ry - thickness, cx + rx + thickness, cy + ry + thickness),
                     draw: GeometryRenderDraw::Ellipse {
@@ -13143,7 +13151,7 @@ mod windows_overlay {
                 let y1 = geometry_eval_i32(&spec.y1_expr, 0);
                 let x2 = geometry_eval_i32(&spec.x2_expr, 0);
                 let y2 = geometry_eval_i32(&spec.y2_expr, 0);
-                let head_size = geometry_eval_i32(&spec.arrow_head_size_expr, spec.arrow_head_size.round() as i32).max(4);
+                let head_size = geometry_eval_i32(&spec.arrow_head_size_expr, spec.arrow_head_size.round() as i32).max(4).min(500);
                 Some(GeometryRenderShape {
                     bounds: (
                         x1.min(x2) - head_size - thickness,
@@ -13190,8 +13198,8 @@ mod windows_overlay {
             GeometryShapeKind::Arc => {
                 let cx = geometry_eval_i32(&spec.x1_expr, 0);
                 let cy = geometry_eval_i32(&spec.y1_expr, 0);
-                let rx = geometry_eval_i32(&spec.radius_x_expr, 1).max(1);
-                let ry = geometry_eval_i32(&spec.radius_y_expr, 1).max(1);
+                let rx = geometry_eval_i32(&spec.radius_x_expr, 1).max(1).min(4000);
+                let ry = geometry_eval_i32(&spec.radius_y_expr, 1).max(1).min(4000);
                 let start_angle_deg = geometry_eval_f32(&spec.start_angle_expr, 0.0);
                 let end_angle_deg = geometry_eval_f32(&spec.end_angle_expr, 180.0);
                 Some(GeometryRenderShape {
@@ -13237,6 +13245,23 @@ mod windows_overlay {
             && let Some(shape) = geometry_render_shape_from_spec(spec)
         {
             shapes.push(shape);
+        }
+        if let Some(preview_preset_id) = hook_state.preview_geometry_preset_id {
+            if !hook_state.active_geometry_preset_ids.contains(&preview_preset_id) {
+                if let Some(preset) = hook_state
+                    .geometry_presets
+                    .iter()
+                    .find(|preset| preset.id == preview_preset_id)
+                {
+                    for object in &preset.objects {
+                        if object.enabled {
+                            if let Some(shape) = geometry_render_shape_from_spec(&object.spec) {
+                                shapes.push(shape);
+                            }
+                        }
+                    }
+                }
+            }
         }
         shapes
     }
