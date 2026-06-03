@@ -28,7 +28,7 @@ impl CrosshairApp {
 
         for preset_index in 0..self.state.geometry_presets.len() {
             let preset = &mut self.state.geometry_presets[preset_index];
-            Self::show_preset_card(ui, preset.enabled, |ui| {
+            Self::show_preset_card(ui, false, |ui| {
                 ui.horizontal(|ui| {
                     let name_width = Self::preset_header_name_width(ui);
                     let response =
@@ -40,42 +40,42 @@ impl CrosshairApp {
                         &mut preset.name,
                     );
                     changed |= response.changed();
-
-                    ui.checkbox(&mut preset.enabled, Self::tr_lang(language, "On", "On"));
-                    changed |= ui
-                        .add_sized(
-                            [118.0, 24.0],
-                            Button::new(Self::tr_lang(
-                                language,
-                                if preset.collapsed { "Show" } else { "Hide" },
-                                if preset.collapsed { "Show" } else { "Hide" },
-                            )),
+                    ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
+                        if Self::sound_style_remove_button(ui)
+                            .on_hover_text(Self::tr_lang(language, "Delete preset", "Delete preset"))
+                            .clicked()
+                        {
+                            remove_preset_id = Some(preset.id);
+                        }
+                        if Self::sound_style_toggle_button(
+                            ui,
+                            if preset.collapsed {
+                                Self::tr_lang(language, "Show", "Show")
+                            } else {
+                                Self::tr_lang(language, "Hide", "Hide")
+                            },
                         )
-                        .clicked();
-                    if ui
-                        .add_sized([28.0, 24.0], Button::new("X"))
-                        .on_hover_text(Self::tr_lang(language, "Delete preset", "Delete preset"))
                         .clicked()
-                    {
-                        remove_preset_id = Some(preset.id);
-                    }
-                    if ui
-                        .add_sized([92.0, 24.0], Button::new(Self::tr_lang(language, "+ Object", "+ Object")))
-                        .clicked()
-                    {
-                        let object_id = self.state.next_geometry_object_id.max(1);
-                        self.state.next_geometry_object_id = object_id + 1;
-                        preset.objects.push(GeometryObject::new(object_id, GeometryShapeKind::Point));
-                        preset.collapsed = false;
-                        changed = true;
-                    }
-                    if ui
-                        .add_sized([24.0, 24.0], Button::new(if preset.collapsed { ">" } else { "v" }))
-                        .clicked()
-                    {
-                        preset.collapsed = !preset.collapsed;
-                        changed = true;
-                    }
+                        {
+                            preset.collapsed = !preset.collapsed;
+                            changed = true;
+                        }
+                        if ui
+                            .add_sized(
+                                [92.0, 24.0],
+                                Button::new(Self::tr_lang(language, "+ Object", "+ Object")),
+                            )
+                            .clicked()
+                        {
+                            let object_id = self.state.next_geometry_object_id.max(1);
+                            self.state.next_geometry_object_id = object_id + 1;
+                            preset
+                                .objects
+                                .push(GeometryObject::new(object_id, GeometryShapeKind::Point));
+                            preset.collapsed = false;
+                            changed = true;
+                        }
+                    });
                 });
 
                 if preset.collapsed {
