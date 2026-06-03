@@ -1055,14 +1055,37 @@ impl CrosshairApp {
                 return;
             };
 
-            match pair_index {
-                0 => {
-                    object.spec.x1_expr = screen_x.to_string();
-                    object.spec.y1_expr = screen_y.to_string();
+            if let Some(point_idx) = target.extra_cond_index {
+                let mut points = object
+                    .spec
+                    .points_expr
+                    .split(';')
+                    .map(|pair| {
+                        if let Some((x, y)) = pair.split_once(',') {
+                            (x.trim().to_owned(), y.trim().to_owned())
+                        } else {
+                            (pair.trim().to_owned(), String::new())
+                        }
+                    })
+                    .collect::<Vec<_>>();
+                if point_idx < points.len() {
+                    points[point_idx] = (screen_x.to_string(), screen_y.to_string());
+                    object.spec.points_expr = points
+                        .iter()
+                        .map(|(x, y)| format!("{},{}", x, y))
+                        .collect::<Vec<_>>()
+                        .join(";");
                 }
-                _ => {
-                    object.spec.x2_expr = screen_x.to_string();
-                    object.spec.y2_expr = screen_y.to_string();
+            } else {
+                match pair_index {
+                    0 => {
+                        object.spec.x1_expr = screen_x.to_string();
+                        object.spec.y1_expr = screen_y.to_string();
+                    }
+                    _ => {
+                        object.spec.x2_expr = screen_x.to_string();
+                        object.spec.y2_expr = screen_y.to_string();
+                    }
                 }
             }
 

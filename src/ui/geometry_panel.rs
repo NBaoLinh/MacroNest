@@ -130,7 +130,7 @@ impl CrosshairApp {
                                     .add_sized(
                                         [24.0, 24.0],
                                         Button::new(Self::material_icon_text(
-                                            if preview_active { 0xe5cd } else { 0xe8f4 },
+                                            if preview_active { 0xe8f5 } else { 0xe8f4 },
                                             16.0,
                                         )),
                                     )
@@ -289,7 +289,7 @@ impl CrosshairApp {
         let mut changed = false;
 
         Grid::new((preset_id, object_id, "geometry-spec-grid"))
-            .num_columns(4)
+            .num_columns(5)
             .spacing([10.0, 6.0])
             .min_col_width(72.0)
             .show(ui, |ui| {
@@ -493,11 +493,87 @@ impl CrosshairApp {
                         changed |= Self::geometry_fill_mode_row(ui, language, &mut spec.filled);
                     }
                     GeometryShapeKind::Polyline | GeometryShapeKind::Polygon => {
-                        ui.label("Points");
-                        let response =
-                            ui.add_sized([520.0, 24.0], TextEdit::singleline(&mut spec.points_expr));
-                        changed |= response.changed();
+                        let mut points: Vec<(String, String)> = spec.points_expr
+                            .split(';')
+                            .filter(|s| !s.is_empty())
+                            .map(|pair| {
+                                if let Some((x, y)) = pair.split_once(',') {
+                                    (x.trim().to_owned(), y.trim().to_owned())
+                                } else {
+                                    (pair.trim().to_owned(), String::new())
+                                }
+                            })
+                            .collect();
+
+                        let mut points_changed = false;
+                        let mut remove_point_idx = None;
+                        for (idx, (x_val, y_val)) in points.iter_mut().enumerate() {
+                            ui.label(format!("P{}", idx + 1));
+                            let response_x = ui.add_sized([154.0, 24.0], TextEdit::singleline(x_val));
+                            points_changed |= response_x.changed();
+
+                            ui.label("Y");
+                            let response_y = ui.add_sized([154.0, 24.0], TextEdit::singleline(y_val));
+                            points_changed |= response_y.changed();
+
+                            ui.horizontal(|ui| {
+                                ui.spacing_mut().item_spacing.x = 4.0;
+                                if ui
+                                    .add_sized(
+                                        [24.0, 24.0],
+                                        Button::new(Self::material_icon_text(0xe55f, 16.0)),
+                                    )
+                                    .on_hover_text("Pick coordinates from screen")
+                                    .clicked()
+                                {
+                                    *begin_mouse_move_absolute_capture_target = Some(MouseMoveAbsoluteCaptureTarget {
+                                        group_id: None,
+                                        preset_id,
+                                        step_index: object_id as usize,
+                                        capture_kind: MouseCaptureKind::GeometryPrimaryPos,
+                                        extra_cond_index: Some(idx),
+                                        is_hold_stop: false,
+                                    });
+                                }
+                                if ui
+                                    .add_sized(
+                                        [24.0, 24.0],
+                                        Button::new(Self::material_icon_text(0xe5cd, 16.0)),
+                                    )
+                                    .on_hover_text("Delete point")
+                                    .clicked()
+                                {
+                                    remove_point_idx = Some(idx);
+                                }
+                            });
+                            ui.end_row();
+                        }
+
+                        if let Some(idx) = remove_point_idx {
+                            points.remove(idx);
+                            points_changed = true;
+                        }
+
+                        // Add new point button
+                        ui.add_space(1.0);
+                        if ui.button("+ Add Point").clicked() {
+                            points.push(("960".to_owned(), "540".to_owned()));
+                            points_changed = true;
+                        }
+                        ui.label("");
+                        ui.label("");
+                        ui.add_space(24.0);
                         ui.end_row();
+
+                        if points_changed {
+                            spec.points_expr = points
+                                .iter()
+                                .map(|(x, y)| format!("{},{}", x, y))
+                                .collect::<Vec<_>>()
+                                .join(";");
+                            changed = true;
+                        }
+
                         changed |= Self::geometry_expr_pair_row(
                             ui,
                             preset_id,
@@ -734,7 +810,7 @@ impl CrosshairApp {
 
             let _swatch_response = ui
                 .scope(|ui| {
-                    Self::image_search_target_color_swatch(ui, Some(*color));
+                    Self::image_search_target_color_swatch(ui, Some(*color), egui::vec2(24.0, 24.0));
                 })
                 .response
                 .on_hover_text(color_tooltip.clone());

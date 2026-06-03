@@ -1032,8 +1032,8 @@ impl CrosshairApp {
         preset.target_color.into_iter().collect()
     }
 
-    pub(crate) fn image_search_target_color_swatch(ui: &mut egui::Ui, color: Option<RgbaColor>) {
-        let (rect, _) = ui.allocate_exact_size(vec2(18.0, 18.0), Sense::hover());
+    pub(crate) fn image_search_target_color_swatch(ui: &mut egui::Ui, color: Option<RgbaColor>, size: egui::Vec2) {
+        let (rect, _) = ui.allocate_exact_size(size, Sense::hover());
         let fill = color.map_or(Color32::from_rgba_premultiplied(42, 48, 56, 220), |color| {
             Color32::from_rgba_unmultiplied(color.r, color.g, color.b, 255)
         });
