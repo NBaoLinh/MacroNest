@@ -5273,7 +5273,7 @@ impl CrosshairApp {
 
                                         .add_sized(
 
-                                            [36.0, 21.0],
+                                            [36.0, 24.0],
 
                                             Button::new(Self::material_icon_text(
 
@@ -6196,7 +6196,7 @@ impl CrosshairApp {
 
                                             let paste_response = ui.add_enabled_ui(self.macro_preset_clipboard.is_some(), |ui| {
 
-                                                ui.add_sized([60.0, 21.0], Button::new(Self::tr_lang(language, "Paste", "Paste")))
+                                                ui.add_sized([60.0, 24.0], Button::new(Self::tr_lang(language, "Paste", "Paste")))
 
                                             }).inner;
 
@@ -6246,7 +6246,7 @@ impl CrosshairApp {
 
                                               let preset_export_button = ui.add_sized(
 
-                                                  [60.0, 21.0],
+                                                  [60.0, 24.0],
 
                                                   Button::new(preset_export_label).fill(if preset_export_feedback {
 
@@ -6550,7 +6550,7 @@ impl CrosshairApp {
 
                                                 .add_sized(
 
-                                                    [64.0, 21.0],
+                                                    [64.0, 24.0],
 
                                                     Button::new(Self::capture_button_text(
 
@@ -6663,7 +6663,7 @@ impl CrosshairApp {
 
                                                 .add_sized(
 
-                                                    [36.0, 21.0],
+                                                    [36.0, 24.0],
 
                                                     Button::new(Self::material_icon_text(
 

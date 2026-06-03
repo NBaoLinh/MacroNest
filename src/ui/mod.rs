@@ -4640,22 +4640,22 @@ impl CrosshairApp {
     }
 
     fn sized_button(ui: &mut egui::Ui, width: f32, label: &str) -> egui::Response {
-        ui.add_sized([width, 21.0], Button::new(label))
+        ui.add_sized([width, 24.0], Button::new(label))
     }
 
     fn sound_style_toggle_button(ui: &mut egui::Ui, label: &str) -> egui::Response {
-        ui.add_sized([84.0, 21.0], Button::new(label))
+        ui.add_sized([84.0, 24.0], Button::new(label))
     }
 
     fn sound_style_remove_button(ui: &mut egui::Ui) -> egui::Response {
         ui.add_sized(
-            [36.0, 21.0],
+            [36.0, 24.0],
             Button::new(Self::material_icon_text(0xe872, 18.0)),
         )
     }
 
     fn sound_style_icon_button(ui: &mut egui::Ui, icon: RichText) -> egui::Response {
-        ui.add_sized([36.0, 21.0], Button::new(icon))
+        ui.add_sized([36.0, 24.0], Button::new(icon))
     }
 
     fn is_copy_feedback_active(until: Option<Instant>) -> bool {
@@ -4675,7 +4675,7 @@ impl CrosshairApp {
             ui.visuals().widgets.noninteractive.bg_stroke.color
         };
         ui.add_sized(
-            [36.0, 21.0],
+            [36.0, 24.0],
             Button::new(Self::material_icon_text(icon, 18.0))
                 .fill(fill)
                 .stroke(egui::Stroke::new(1.0, stroke)),
