@@ -10646,40 +10646,44 @@ impl CrosshairApp {
                                                     | MacroAction::PlayVideoPreset
                                             ) {
                                                 let duration_id = ui.id().with((group.id, preset.id, "duration-expr-hold-stop"));
-                                                let response = Self::render_variable_text_edit(
-                                                    ui,
-                                                    &mut step.duration_expr,
-                                                    duration_id,
-                                                    98.0,
-                                                    150.0,
-                                                    22.0,
-                                                    22.0,
-                                                    "0",
-                                                    false,
-                                                );
-                                                Self::apply_vietnamese_input_if_changed(
-                                                    &response,
-                                                    self.state.vietnamese_input_enabled,
-                                                    self.state.vietnamese_input_mode,
-                                                    &mut step.duration_expr,
-                                                );
-                                                live_sync |= response.changed();
-                                                Self::render_variable_suggestions(
-                                                    ui,
-                                                    &response,
-                                                    &mut step.duration_expr,
-                                                    &timer_names,
-                                                    language,
-                                                );
+                                                ui.horizontal(|ui| {
+                                                    ui.spacing_mut().item_spacing.x = 2.0;
+                                                    let response = Self::render_variable_text_edit(
+                                                        ui,
+                                                        &mut step.duration_expr,
+                                                        duration_id,
+                                                        74.0,
+                                                        150.0,
+                                                        22.0,
+                                                        22.0,
+                                                        "ms",
+                                                        false,
+                                                    );
+                                                    ui.weak("ms");
+                                                    Self::apply_vietnamese_input_if_changed(
+                                                        &response,
+                                                        self.state.vietnamese_input_enabled,
+                                                        self.state.vietnamese_input_mode,
+                                                        &mut step.duration_expr,
+                                                    );
+                                                    live_sync |= response.changed();
+                                                    Self::render_variable_suggestions(
+                                                        ui,
+                                                        &response,
+                                                        &mut step.duration_expr,
+                                                        &timer_names,
+                                                        language,
+                                                    );
 
-                                                let tooltip_text = Self::tr_lang(
-                                                    language,
-                                                    "Display duration (0 = show until macro/overlay ends, supports variables/math)",
-                                                    "Thời gian hiển thị (0 = hiện đến khi dừng macro/overlay, hỗ trợ biến/phép tính)",
-                                                );
-                                                if response.hovered() {
-                                                    egui::show_tooltip_text(ui.ctx(), ui.layer_id(), response.id, tooltip_text);
-                                                }
+                                                    let tooltip_text = Self::tr_lang(
+                                                        language,
+                                                        "Display duration (0 = show until macro/overlay ends, supports variables/math)",
+                                                        "Thời gian hiển thị (0 = hiện đến khi dừng macro/overlay, hỗ trợ biến/phép tính)",
+                                                    );
+                                                    if response.hovered() {
+                                                        egui::show_tooltip_text(ui.ctx(), ui.layer_id(), response.id, tooltip_text);
+                                                    }
+                                                });
                                             } else {
 
                                                 ui.add_sized([24.0, 22.0], egui::Label::new(""));
@@ -16647,40 +16651,44 @@ impl CrosshairApp {
                                                     | MacroAction::PlayVideoPreset
                                             ) {
                                                 let duration_id = ui.id().with((group.id, preset.id, step_index, "duration-expr-full"));
-                                                let response = Self::render_variable_text_edit(
-                                                    ui,
-                                                    &mut step.duration_expr,
-                                                    duration_id,
-                                                    96.0,
-                                                    150.0,
-                                                    18.0,
-                                                    18.0,
-                                                    "0",
-                                                    false,
-                                                );
-                                                Self::apply_vietnamese_input_if_changed(
-                                                    &response,
-                                                    self.state.vietnamese_input_enabled,
-                                                    self.state.vietnamese_input_mode,
-                                                    &mut step.duration_expr,
-                                                );
-                                                live_sync |= response.changed();
-                                                Self::render_variable_suggestions(
-                                                    ui,
-                                                    &response,
-                                                    &mut step.duration_expr,
-                                                    &timer_names,
-                                                    language,
-                                                );
+                                                ui.horizontal(|ui| {
+                                                    ui.spacing_mut().item_spacing.x = 2.0;
+                                                    let response = Self::render_variable_text_edit(
+                                                        ui,
+                                                        &mut step.duration_expr,
+                                                        duration_id,
+                                                        72.0,
+                                                        150.0,
+                                                        18.0,
+                                                        18.0,
+                                                        "ms",
+                                                        false,
+                                                    );
+                                                    ui.weak("ms");
+                                                    Self::apply_vietnamese_input_if_changed(
+                                                        &response,
+                                                        self.state.vietnamese_input_enabled,
+                                                        self.state.vietnamese_input_mode,
+                                                        &mut step.duration_expr,
+                                                    );
+                                                    live_sync |= response.changed();
+                                                    Self::render_variable_suggestions(
+                                                        ui,
+                                                        &response,
+                                                        &mut step.duration_expr,
+                                                        &timer_names,
+                                                        language,
+                                                    );
 
-                                                let tooltip_text = Self::tr_lang(
-                                                    language,
-                                                    "Display duration (0 = show until macro/overlay ends, supports variables/math)",
-                                                    "Thời gian hiển thị (0 = hiện đến khi dừng macro/overlay, hỗ trợ biến/phép tính)",
-                                                );
-                                                if response.hovered() {
-                                                    egui::show_tooltip_text(ui.ctx(), ui.layer_id(), response.id, tooltip_text);
-                                                }
+                                                    let tooltip_text = Self::tr_lang(
+                                                        language,
+                                                        "Display duration (0 = show until macro/overlay ends, supports variables/math)",
+                                                        "Thời gian hiển thị (0 = hiện đến khi dừng macro/overlay, hỗ trợ biến/phép tính)",
+                                                    );
+                                                    if response.hovered() {
+                                                        egui::show_tooltip_text(ui.ctx(), ui.layer_id(), response.id, tooltip_text);
+                                                    }
+                                                });
                                             } else if action_supports_capture
                                                 && !matches!(
                                                     step.action,
@@ -19863,8 +19871,6 @@ impl CrosshairApp {
     ) {
         let mut pending_screen_color_target = None;
         ui.scope(|ui| {
-            ui.spacing_mut().item_spacing.x = 6.0;
-            ui.spacing_mut().item_spacing.y = 6.0;
             ui.vertical(|ui| match step.action {
                 MacroAction::DrawGeometry => {
                     step.geometry_spec.visible = true;
