@@ -563,8 +563,7 @@ pub(crate) enum MacroActionSubmenuKind {
     ImageSearch,
     Timer,
     If,
-    GeometryDraw,
-    GeometryPreset,
+    Geometry,
 }
 
 #[derive(Clone, Copy, PartialEq, Eq)]
@@ -8442,6 +8441,14 @@ impl eframe::App for CrosshairApp {
         let keep_ocr_preview = viewport_focused && self.state.active_panel == AppPanel::Ocr;
         if !keep_ocr_preview && self.disable_ocr_preview_modes() {
             self.persist();
+        }
+        let keep_geometry_preview = viewport_focused && self.state.active_panel == AppPanel::Geometry;
+        if !keep_geometry_preview && (self.geometry_preview_target.is_some() || self.geometry_preset_preview_target.is_some()) {
+            self.geometry_preview_target = None;
+            self.geometry_preview_sent = None;
+            self.geometry_preset_preview_target = None;
+            let _ = self.overlay_tx.send(crate::overlay::OverlayCommand::PreviewGeometrySpec(None));
+            let _ = self.overlay_tx.send(crate::overlay::OverlayCommand::PreviewGeometryPreset(None));
         }
 
         if viewport_focused

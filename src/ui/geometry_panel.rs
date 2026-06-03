@@ -133,11 +133,6 @@ impl CrosshairApp {
                             };
                             if checkbox_response.changed() {
                                 changed = true;
-                                if !object.enabled && preview_active {
-                                    self.geometry_preview_target = None;
-                                    self.geometry_preview_sent = None;
-                                    let _ = self.overlay_tx.send(crate::overlay::OverlayCommand::PreviewGeometrySpec(None));
-                                }
                             }
                             let response = ui.add_sized(
                                 [180.0, 24.0],
@@ -170,10 +165,8 @@ impl CrosshairApp {
                                 if preview_active { 0xe8f5 } else { 0xe8f4 },
                                 16.0,
                             ));
-                            let preview_response = ui.add_enabled_ui(object.enabled, |ui| {
-                                ui.add_sized([24.0, 24.0], preview_btn)
-                            });
-                            if preview_response.inner.on_hover_text(if preview_active { "Stop preview" } else { "Preview" }).clicked() {
+                            let preview_response = ui.add_sized([24.0, 24.0], preview_btn);
+                            if preview_response.on_hover_text(if preview_active { "Stop preview" } else { "Preview" }).clicked() {
                                 if preview_active {
                                     self.geometry_preview_target = None;
                                     self.geometry_preview_sent = None;

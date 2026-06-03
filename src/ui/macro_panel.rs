@@ -202,10 +202,7 @@ impl CrosshairApp {
 
         let if_popup_id = ui.make_persistent_id((id_source, "if-submenu-popup"));
 
-        let geometry_draw_popup_id = ui.make_persistent_id((id_source, "geometry-draw-submenu-popup"));
-
-        let geometry_preset_popup_id =
-            ui.make_persistent_id((id_source, "geometry-preset-submenu-popup"));
+        let geometry_popup_id = ui.make_persistent_id((id_source, "geometry-submenu-popup"));
 
         ui.ctx().data_mut(|data| {
             data.insert_temp(owner_id, None::<MacroActionSubmenuKind>);
@@ -220,9 +217,7 @@ impl CrosshairApp {
 
             data.insert_temp(if_popup_id, false);
 
-            data.insert_temp(geometry_draw_popup_id, false);
-
-            data.insert_temp(geometry_preset_popup_id, false);
+            data.insert_temp(geometry_popup_id, false);
         });
 
         egui::Popup::close_id(ui.ctx(), mouse_popup_id);
@@ -233,9 +228,7 @@ impl CrosshairApp {
 
         egui::Popup::close_id(ui.ctx(), if_popup_id);
 
-        egui::Popup::close_id(ui.ctx(), geometry_draw_popup_id);
-
-        egui::Popup::close_id(ui.ctx(), geometry_preset_popup_id);
+        egui::Popup::close_id(ui.ctx(), geometry_popup_id);
 
         for (_, _, _, popup_key) in Self::mouse_click_action_groups().iter().copied() {
             let child_popup_id = ui.make_persistent_id((id_source, popup_key, "popup"));
@@ -7317,18 +7310,10 @@ impl CrosshairApp {
                                                             action_hover_id,
 
                                                         );
-                                                        Self::render_geometry_draw_action_group_option(
+                                                        Self::render_geometry_action_group_option(
                                                             ui,
                                                             language,
-                                                            (group.id, preset.id, "hold-stop-geometry-draw-group"),
-                                                            &mut step.action,
-                                                            &mut live_sync,
-                                                            action_hover_id,
-                                                        );
-                                                        Self::render_geometry_preset_action_group_option(
-                                                            ui,
-                                                            language,
-                                                            (group.id, preset.id, "hold-stop-geometry-preset-group"),
+                                                            (group.id, preset.id, "hold-stop-geometry-group"),
                                                             &mut step.action,
                                                             &mut live_sync,
                                                             action_hover_id,
@@ -12616,18 +12601,10 @@ impl CrosshairApp {
                                                                 action_hover_id,
 
                                                             );
-                                                            Self::render_geometry_draw_action_group_option(
+                                                            Self::render_geometry_action_group_option(
                                                                 ui,
                                                                 language,
-                                                                (group.id, preset.id, step_index, "geometry-draw-group"),
-                                                                &mut step.action,
-                                                                &mut live_sync,
-                                                                action_hover_id,
-                                                            );
-                                                            Self::render_geometry_preset_action_group_option(
-                                                                ui,
-                                                                language,
-                                                                (group.id, preset.id, step_index, "geometry-preset-group"),
+                                                                (group.id, preset.id, step_index, "geometry-group"),
                                                                 &mut step.action,
                                                                 &mut live_sync,
                                                                 action_hover_id,
@@ -16628,6 +16605,26 @@ impl CrosshairApp {
                                                     ))
                                                     .changed();
 
+                                            } else if matches!(
+                                                step.action,
+                                                MacroAction::DrawGeometry
+                                                    | MacroAction::ShowGeometryPreset
+                                                    | MacroAction::HideGeometryPreset
+                                                    | MacroAction::ClearGeometryOverlay
+                                            ) {
+                                                Self::render_geometry_macro_step_editor(
+                                                    ui,
+                                                    language,
+                                                    (group.id, preset.id, step_index, "normal-geometry-step"),
+                                                    &geometry_preset_options,
+                                                    &mut geometry_manual_color,
+                                                    &mut geometry_manual_color_hex,
+                                                    &mut request_geometry_screen_color_pick,
+                                                    step,
+                                                    &mut live_sync,
+                                                    self.state.vietnamese_input_enabled,
+                                                    self.state.vietnamese_input_mode,
+                                                );
                                             } else if step.action == MacroAction::ShowHud {
 
                                                 let mut temp_ms = if step.timed_override { step.duration_override_ms } else { 0 };
@@ -19515,27 +19512,20 @@ impl CrosshairApp {
         }
     }
 
-    fn geometry_draw_macro_actions() -> &'static [MacroAction] {
-        &[MacroAction::DrawGeometry]
-    }
-
-    fn geometry_preset_macro_actions() -> &'static [MacroAction] {
+    fn geometry_macro_actions() -> &'static [MacroAction] {
         &[
+            MacroAction::DrawGeometry,
             MacroAction::ShowGeometryPreset,
             MacroAction::HideGeometryPreset,
             MacroAction::ClearGeometryOverlay,
         ]
     }
 
-    fn macro_action_is_geometry_draw(action: MacroAction) -> bool {
-        Self::geometry_draw_macro_actions().contains(&action)
+    fn macro_action_is_geometry(action: MacroAction) -> bool {
+        Self::geometry_macro_actions().contains(&action)
     }
 
-    fn macro_action_is_geometry_preset(action: MacroAction) -> bool {
-        Self::geometry_preset_macro_actions().contains(&action)
-    }
-
-    fn render_geometry_draw_action_group_option(
+    fn render_geometry_action_group_option(
         ui: &mut egui::Ui,
         language: UiLanguage,
         id_source: impl std::hash::Hash + Copy,
@@ -19543,9 +19533,9 @@ impl CrosshairApp {
         live_sync: &mut bool,
         action_hover_id: egui::Id,
     ) {
-        let selected = Self::macro_action_is_geometry_draw(*current);
+        let selected = Self::macro_action_is_geometry(*current);
         let owner_id = ui.make_persistent_id("macro-action-submenu-owner");
-        let popup_id = ui.make_persistent_id((id_source, "geometry-draw-submenu-popup"));
+        let popup_id = ui.make_persistent_id((id_source, "geometry-submenu-popup"));
         let active_owner = ui
             .ctx()
             .data(|data| data.get_temp::<MacroActionSubmenuKind>(owner_id));
@@ -19558,148 +19548,7 @@ impl CrosshairApp {
             .data(|data| data.get_temp::<bool>(popup_id))
             .unwrap_or(false);
 
-        if active_owner.is_some_and(|kind| kind != MacroActionSubmenuKind::GeometryDraw) {
-            open = false;
-        }
-
-        if top_level_hovered {
-            open = false;
-            ui.ctx()
-                .data_mut(|data| data.insert_temp(owner_id, None::<MacroActionSubmenuKind>));
-            ui.ctx().request_repaint();
-        }
-
-        let inner = ui.allocate_ui_with_layout(
-            vec2(64.0, 42.0),
-            egui::Layout::top_down(egui::Align::Center),
-            |ui| {
-                let response = ui.add_sized(
-                    [34.0, 24.0],
-                    Button::new(Self::material_icon_text(0xe85b, 18.0)).selected(selected),
-                );
-
-                if response.hovered() || response.clicked() {
-                    Self::clear_macro_action_submenus(ui, id_source);
-                    open = true;
-                    ui.ctx().data_mut(|data| {
-                        data.insert_temp(owner_id, MacroActionSubmenuKind::GeometryDraw)
-                    });
-                }
-
-                let popup_rect_id = ui.make_persistent_id((id_source, "geometry-draw-submenu-rect"));
-                let popup_response = egui::Popup::from_response(&response)
-                    .id(popup_id)
-                    .open_bool(&mut open)
-                    .align(egui::RectAlign::BOTTOM_START)
-                    .layout(egui::Layout::top_down_justified(egui::Align::Min))
-                    .width(200.0)
-                    .close_behavior(egui::PopupCloseBehavior::IgnoreClicks)
-                    .show(|ui| {
-                        let rect = ui.max_rect();
-                        ui.ctx()
-                            .data_mut(|data| data.insert_temp(popup_rect_id, rect));
-                        for action in Self::geometry_draw_macro_actions().iter().copied() {
-                            Self::render_macro_action_option(
-                                ui,
-                                language,
-                                current,
-                                action,
-                                live_sync,
-                                action_hover_id,
-                                true,
-                            );
-                        }
-                    });
-
-                let popup_rect: Option<egui::Rect> =
-                    ui.ctx().data(|data| data.get_temp(popup_rect_id));
-
-                if open {
-                    if let Some(pointer_pos) = ui.ctx().pointer_hover_pos() {
-                        let mut keep_open_rect = response.rect.expand(10.0);
-                        if let Some(rect) = popup_rect {
-                            keep_open_rect = keep_open_rect.union(rect.expand(10.0));
-                            if rect.contains(pointer_pos) {
-                                ui.ctx().data_mut(|data| {
-                                    data.insert_temp(owner_id, MacroActionSubmenuKind::GeometryDraw)
-                                });
-                            }
-                        }
-                        if !keep_open_rect.contains(pointer_pos) {
-                            open = false;
-                            ui.ctx().data_mut(|data| {
-                                data.insert_temp(owner_id, None::<MacroActionSubmenuKind>)
-                            });
-                            ui.ctx().request_repaint();
-                        }
-                    } else {
-                        open = false;
-                        ui.ctx().data_mut(|data| {
-                            data.insert_temp(owner_id, None::<MacroActionSubmenuKind>)
-                        });
-                        ui.ctx().request_repaint();
-                    }
-                }
-
-                ui.ctx().data_mut(|data| data.insert_temp(popup_id, open));
-                let label_color = if selected {
-                    ui.visuals().strong_text_color()
-                } else {
-                    ui.visuals().text_color()
-                };
-                ui.label(
-                    RichText::new(Self::tr_lang(language, "Shape", "Shape"))
-                        .size(9.0)
-                        .color(label_color),
-                );
-
-                if let Some(popup) = popup_response {
-                    popup.response
-                } else {
-                    response
-                }
-            },
-        );
-
-        let response = inner.inner;
-
-        if !open {
-            Self::show_instant_hover_tooltip(
-                ui,
-                &response,
-                Self::tr_lang(
-                    language,
-                    "Geometry shape\nOpen geometry shape drawing actions.",
-                    "Geometry shape\nMo cac action ve hinh hoc.",
-                ),
-            );
-        }
-    }
-
-    fn render_geometry_preset_action_group_option(
-        ui: &mut egui::Ui,
-        language: UiLanguage,
-        id_source: impl std::hash::Hash + Copy,
-        current: &mut MacroAction,
-        live_sync: &mut bool,
-        action_hover_id: egui::Id,
-    ) {
-        let selected = Self::macro_action_is_geometry_preset(*current);
-        let owner_id = ui.make_persistent_id("macro-action-submenu-owner");
-        let popup_id = ui.make_persistent_id((id_source, "geometry-preset-submenu-popup"));
-        let active_owner = ui
-            .ctx()
-            .data(|data| data.get_temp::<MacroActionSubmenuKind>(owner_id));
-        let top_level_hovered = ui
-            .ctx()
-            .data(|data| data.get_temp::<bool>(action_hover_id))
-            .unwrap_or(false);
-        let mut open = ui
-            .ctx()
-            .data(|data| data.get_temp::<bool>(popup_id))
-            .unwrap_or(false);
-
-        if active_owner.is_some_and(|kind| kind != MacroActionSubmenuKind::GeometryPreset) {
+        if active_owner.is_some_and(|kind| kind != MacroActionSubmenuKind::Geometry) {
             open = false;
         }
 
@@ -19723,12 +19572,11 @@ impl CrosshairApp {
                     Self::clear_macro_action_submenus(ui, id_source);
                     open = true;
                     ui.ctx().data_mut(|data| {
-                        data.insert_temp(owner_id, MacroActionSubmenuKind::GeometryPreset)
+                        data.insert_temp(owner_id, MacroActionSubmenuKind::Geometry)
                     });
                 }
 
-                let popup_rect_id =
-                    ui.make_persistent_id((id_source, "geometry-preset-submenu-rect"));
+                let popup_rect_id = ui.make_persistent_id((id_source, "geometry-submenu-rect"));
                 let popup_response = egui::Popup::from_response(&response)
                     .id(popup_id)
                     .open_bool(&mut open)
@@ -19740,17 +19588,22 @@ impl CrosshairApp {
                         let rect = ui.max_rect();
                         ui.ctx()
                             .data_mut(|data| data.insert_temp(popup_rect_id, rect));
-                        for action in Self::geometry_preset_macro_actions().iter().copied() {
-                            Self::render_macro_action_option(
-                                ui,
-                                language,
-                                current,
-                                action,
-                                live_sync,
-                                action_hover_id,
-                                true,
-                            );
-                        }
+                        egui::Grid::new((id_source, "geometry-action-grid"))
+                            .num_columns(4)
+                            .spacing([6.0, 6.0])
+                            .show(ui, |ui| {
+                                for action in Self::geometry_macro_actions().iter().copied() {
+                                    Self::render_macro_action_option(
+                                        ui,
+                                        language,
+                                        current,
+                                        action,
+                                        live_sync,
+                                        action_hover_id,
+                                        true,
+                                    );
+                                }
+                            });
                     });
 
                 let popup_rect: Option<egui::Rect> =
@@ -19763,7 +19616,7 @@ impl CrosshairApp {
                             keep_open_rect = keep_open_rect.union(rect.expand(10.0));
                             if rect.contains(pointer_pos) {
                                 ui.ctx().data_mut(|data| {
-                                    data.insert_temp(owner_id, MacroActionSubmenuKind::GeometryPreset)
+                                    data.insert_temp(owner_id, MacroActionSubmenuKind::Geometry)
                                 });
                             }
                         }
@@ -19790,7 +19643,7 @@ impl CrosshairApp {
                     ui.visuals().text_color()
                 };
                 ui.label(
-                    RichText::new(Self::tr_lang(language, "Geometry", "Geometry"))
+                    RichText::new(Self::tr_lang(language, "Geometry", "Hình học"))
                         .size(9.0)
                         .color(label_color),
                 );
@@ -19811,8 +19664,8 @@ impl CrosshairApp {
                 &response,
                 Self::tr_lang(
                     language,
-                    "Geometry preset\nOpen show, hide, and clear geometry actions.",
-                    "Geometry preset\nMo cac action hien, an va xoa hinh hoc.",
+                    "Geometry\nOpen draw, show, hide, and clear geometry actions.",
+                    "Hình học\nMở các hành động vẽ, hiện, ẩn và xóa hình học.",
                 ),
             );
         }
