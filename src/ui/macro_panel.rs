@@ -12405,7 +12405,7 @@ impl CrosshairApp {
 
                                                 .close_behavior(egui::PopupCloseBehavior::CloseOnClickOutside)
 
-                                                .width(148.0)
+                                                .width(146.0)
 
                                                 .selected_text(Self::macro_action_selected_widget_text(step.action, language))
 
