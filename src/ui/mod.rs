@@ -3738,7 +3738,6 @@ impl CrosshairApp {
             MacroAction::DrawGeometry => "DrawGeometry",
             MacroAction::ShowGeometryPreset => "ShowGeometry",
             MacroAction::HideGeometryPreset => "HideGeometry",
-            MacroAction::ClearGeometryOverlay => "ClearGeometry",
             _ => "Legacy (Deprecated)",
         }
     }
@@ -3853,10 +3852,7 @@ impl CrosshairApp {
                     "Hiện một preset hình học đã lưu từ tab Geometry."
                 }
                 MacroAction::HideGeometryPreset => {
-                    "Ẩn một preset hình học đang hiển thị trên màn hình."
-                }
-                MacroAction::ClearGeometryOverlay => {
-                    "Xóa toàn bộ hình học overlay đang hiển thị."
+                    "Ẩn preset hình học (hoặc xóa toàn bộ hình học)."
                 }
                 _ => "Tính năng cũ (Không dùng)",
             },
@@ -3968,10 +3964,7 @@ impl CrosshairApp {
                     "Show one saved geometry preset from the Geometry tab."
                 }
                 MacroAction::HideGeometryPreset => {
-                    "Hide one geometry preset that is currently visible on screen."
-                }
-                MacroAction::ClearGeometryOverlay => {
-                    "Clear all currently visible geometry overlay shapes."
+                    "Hide geometry preset (or clear all geometry overlay)."
                 }
                 _ => "Legacy (Deprecated)",
             },
@@ -4048,7 +4041,6 @@ impl CrosshairApp {
             MacroAction::DrawGeometry => 0xe85b,
             MacroAction::ShowGeometryPreset => 0xe8f4,
             MacroAction::HideGeometryPreset => 0xe8f5,
-            MacroAction::ClearGeometryOverlay => 0xe14c,
             _ => 0xe8b5,
         };
         char::from_u32(codepoint).unwrap_or('?')
@@ -4128,7 +4120,6 @@ impl CrosshairApp {
                 MacroAction::DrawGeometry => "Vẽ hình",
                 MacroAction::ShowGeometryPreset => "Hiện hình",
                 MacroAction::HideGeometryPreset => "Ẩn hình",
-                MacroAction::ClearGeometryOverlay => "Xóa hình",
                 MacroAction::OcrSearch => "Quét OCR",
                 _ => "Cũ (Bỏ)",
             }),
@@ -4200,7 +4191,6 @@ impl CrosshairApp {
                 MacroAction::DrawGeometry => "DrawGeo",
                 MacroAction::ShowGeometryPreset => "ShowGeo",
                 MacroAction::HideGeometryPreset => "HideGeo",
-                MacroAction::ClearGeometryOverlay => "ClearGeo",
                 MacroAction::OcrSearch => "OcrSearch",
                 _ => "Legacy",
             },
@@ -4271,7 +4261,6 @@ impl CrosshairApp {
                 MacroAction::DrawGeometry => "DrawGeo",
                 MacroAction::ShowGeometryPreset => "ShowGeo",
                 MacroAction::HideGeometryPreset => "HideGeo",
-                MacroAction::ClearGeometryOverlay => "ClearGeo",
                 MacroAction::OcrSearch => "OCR",
                 _ => "Legacy",
             },

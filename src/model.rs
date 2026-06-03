@@ -484,7 +484,6 @@ pub enum MacroAction {
     DrawGeometry,
     ShowGeometryPreset,
     HideGeometryPreset,
-    ClearGeometryOverlay,
 }
 
 #[derive(Debug, Clone, Copy, Serialize, Deserialize, PartialEq, Eq, Hash, Default)]

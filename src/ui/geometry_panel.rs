@@ -338,8 +338,8 @@ impl CrosshairApp {
 
         Grid::new((preset_id, object_id, "geometry-spec-grid"))
             .num_columns(5)
-            .spacing([10.0, 6.0])
-            .min_col_width(72.0)
+            .spacing([4.0, 6.0])
+            .min_col_width(40.0)
             .show(ui, |ui| {
                 match spec.shape {
                     GeometryShapeKind::Point => {
@@ -353,6 +353,8 @@ impl CrosshairApp {
                             "Y",
                             &mut spec.y1_expr,
                             begin_mouse_move_absolute_capture_target,
+                            vietnamese_input_enabled,
+                            vietnamese_input_mode,
                         );
                         changed |= Self::geometry_expr_pair_row(
                             ui,
@@ -364,6 +366,8 @@ impl CrosshairApp {
                             "Opacity",
                             &mut spec.opacity_expr,
                             begin_mouse_move_absolute_capture_target,
+                            vietnamese_input_enabled,
+                            vietnamese_input_mode,
                         );
                     }
                     GeometryShapeKind::Line | GeometryShapeKind::Arrow => {
@@ -377,6 +381,8 @@ impl CrosshairApp {
                             "Y1",
                             &mut spec.y1_expr,
                             begin_mouse_move_absolute_capture_target,
+                            vietnamese_input_enabled,
+                            vietnamese_input_mode,
                         );
                         changed |= Self::geometry_expr_pair_row(
                             ui,
@@ -388,6 +394,8 @@ impl CrosshairApp {
                             "Y2",
                             &mut spec.y2_expr,
                             begin_mouse_move_absolute_capture_target,
+                            vietnamese_input_enabled,
+                            vietnamese_input_mode,
                         );
                         if spec.shape == GeometryShapeKind::Arrow {
                             changed |= Self::geometry_expr_pair_row(
@@ -400,6 +408,8 @@ impl CrosshairApp {
                                 "Thickness",
                                 &mut spec.thickness_expr,
                                 begin_mouse_move_absolute_capture_target,
+                                vietnamese_input_enabled,
+                                vietnamese_input_mode,
                             );
                         } else {
                             changed |= Self::geometry_expr_pair_row(
@@ -412,6 +422,8 @@ impl CrosshairApp {
                                 "Opacity",
                                 &mut spec.opacity_expr,
                                 begin_mouse_move_absolute_capture_target,
+                                vietnamese_input_enabled,
+                                vietnamese_input_mode,
                             );
                         }
                     }
@@ -426,6 +438,8 @@ impl CrosshairApp {
                             "CY",
                             &mut spec.y1_expr,
                             begin_mouse_move_absolute_capture_target,
+                            vietnamese_input_enabled,
+                            vietnamese_input_mode,
                         );
                         changed |= Self::geometry_expr_pair_row(
                             ui,
@@ -437,6 +451,8 @@ impl CrosshairApp {
                             "Thickness",
                             &mut spec.thickness_expr,
                             begin_mouse_move_absolute_capture_target,
+                            vietnamese_input_enabled,
+                            vietnamese_input_mode,
                         );
                         changed |= Self::geometry_fill_mode_row(ui, language, &mut spec.filled);
                     }
@@ -451,6 +467,8 @@ impl CrosshairApp {
                             "Y",
                             &mut spec.y1_expr,
                             begin_mouse_move_absolute_capture_target,
+                            vietnamese_input_enabled,
+                            vietnamese_input_mode,
                         );
                         changed |= Self::geometry_expr_pair_row(
                             ui,
@@ -462,6 +480,8 @@ impl CrosshairApp {
                             "H",
                             &mut spec.height_expr,
                             begin_mouse_move_absolute_capture_target,
+                            vietnamese_input_enabled,
+                            vietnamese_input_mode,
                         );
                         changed |= Self::geometry_expr_pair_row(
                             ui,
@@ -473,6 +493,8 @@ impl CrosshairApp {
                             "Opacity",
                             &mut spec.opacity_expr,
                             begin_mouse_move_absolute_capture_target,
+                            vietnamese_input_enabled,
+                            vietnamese_input_mode,
                         );
                         changed |= Self::geometry_fill_mode_row(ui, language, &mut spec.filled);
                     }
@@ -487,6 +509,8 @@ impl CrosshairApp {
                             "Y",
                             &mut spec.y1_expr,
                             begin_mouse_move_absolute_capture_target,
+                            vietnamese_input_enabled,
+                            vietnamese_input_mode,
                         );
                         ui.label("Text");
                         let text_id = ui.make_persistent_id((preset_id, object_id, "label-text"));
@@ -494,10 +518,10 @@ impl CrosshairApp {
                             ui,
                             &mut spec.text,
                             text_id,
-                            154.0, // normal width
-                            360.0, // expanded width
-                            24.0,  // normal height
-                            24.0,  // expanded height
+                            120.0, // normal width
+                            220.0, // expanded width
+                            18.0,  // normal height
+                            18.0,  // expanded height
                             "Text", // hint
                             false, // multiline_on_focus
                         );
@@ -522,6 +546,8 @@ impl CrosshairApp {
                             "Opacity",
                             &mut spec.opacity_expr,
                             begin_mouse_move_absolute_capture_target,
+                            vietnamese_input_enabled,
+                            vietnamese_input_mode,
                         );
                     }
                     GeometryShapeKind::Ellipse => {
@@ -535,6 +561,8 @@ impl CrosshairApp {
                             "CY",
                             &mut spec.y1_expr,
                             begin_mouse_move_absolute_capture_target,
+                            vietnamese_input_enabled,
+                            vietnamese_input_mode,
                         );
                         changed |= Self::geometry_expr_pair_row(
                             ui,
@@ -546,6 +574,8 @@ impl CrosshairApp {
                             "RY",
                             &mut spec.radius_y_expr,
                             begin_mouse_move_absolute_capture_target,
+                            vietnamese_input_enabled,
+                            vietnamese_input_mode,
                         );
                         changed |= Self::geometry_expr_pair_row(
                             ui,
@@ -557,6 +587,8 @@ impl CrosshairApp {
                             "Opacity",
                             &mut spec.opacity_expr,
                             begin_mouse_move_absolute_capture_target,
+                            vietnamese_input_enabled,
+                            vietnamese_input_mode,
                         );
                         changed |= Self::geometry_fill_mode_row(ui, language, &mut spec.filled);
                     }
@@ -577,12 +609,46 @@ impl CrosshairApp {
                         let mut remove_point_idx = None;
                         for (idx, (x_val, y_val)) in points.iter_mut().enumerate() {
                             ui.label(format!("P{}", idx + 1));
-                            let response_x = ui.add_sized([154.0, 24.0], TextEdit::singleline(x_val));
+                            let x_id = ui.make_persistent_id((preset_id, object_id, idx, "poly-x"));
+                            let response_x = Self::render_variable_text_edit(
+                                ui,
+                                x_val,
+                                x_id,
+                                120.0,
+                                220.0,
+                                18.0,
+                                18.0,
+                                "",
+                                false,
+                            );
                             points_changed |= response_x.changed();
+                            Self::apply_vietnamese_input_if_changed(
+                                &response_x,
+                                    vietnamese_input_enabled,
+                                    vietnamese_input_mode,
+                                    x_val,
+                            );
 
                             ui.label("Y");
-                            let response_y = ui.add_sized([154.0, 24.0], TextEdit::singleline(y_val));
+                            let y_id = ui.make_persistent_id((preset_id, object_id, idx, "poly-y"));
+                            let response_y = Self::render_variable_text_edit(
+                                ui,
+                                y_val,
+                                y_id,
+                                120.0,
+                                220.0,
+                                18.0,
+                                18.0,
+                                "",
+                                false,
+                            );
                             points_changed |= response_y.changed();
+                            Self::apply_vietnamese_input_if_changed(
+                                &response_y,
+                                    vietnamese_input_enabled,
+                                    vietnamese_input_mode,
+                                    y_val,
+                            );
 
                             ui.horizontal(|ui| {
                                 ui.spacing_mut().item_spacing.x = 4.0;
@@ -652,6 +718,8 @@ impl CrosshairApp {
                             "Opacity",
                             &mut spec.opacity_expr,
                             begin_mouse_move_absolute_capture_target,
+                            vietnamese_input_enabled,
+                            vietnamese_input_mode,
                         );
                         if spec.shape == GeometryShapeKind::Polygon {
                             changed |= Self::geometry_fill_mode_row(ui, language, &mut spec.filled);
@@ -668,6 +736,8 @@ impl CrosshairApp {
                             "CY",
                             &mut spec.y1_expr,
                             begin_mouse_move_absolute_capture_target,
+                            vietnamese_input_enabled,
+                            vietnamese_input_mode,
                         );
                         changed |= Self::geometry_expr_pair_row(
                             ui,
@@ -679,6 +749,8 @@ impl CrosshairApp {
                             "RY",
                             &mut spec.radius_y_expr,
                             begin_mouse_move_absolute_capture_target,
+                            vietnamese_input_enabled,
+                            vietnamese_input_mode,
                         );
                         changed |= Self::geometry_expr_pair_row(
                             ui,
@@ -690,6 +762,8 @@ impl CrosshairApp {
                             "End",
                             &mut spec.end_angle_expr,
                             begin_mouse_move_absolute_capture_target,
+                            vietnamese_input_enabled,
+                            vietnamese_input_mode,
                         );
                         changed |= Self::geometry_expr_pair_row(
                             ui,
@@ -701,6 +775,8 @@ impl CrosshairApp {
                             "Opacity",
                             &mut spec.opacity_expr,
                             begin_mouse_move_absolute_capture_target,
+                            vietnamese_input_enabled,
+                            vietnamese_input_mode,
                         );
                     }
                 }
@@ -730,6 +806,8 @@ impl CrosshairApp {
                     request_screen_color_pick,
                     pending_screen_color_target,
                     false,
+                    vietnamese_input_enabled,
+                    vietnamese_input_mode,
                 );
 
                 if spec.filled
@@ -754,6 +832,8 @@ impl CrosshairApp {
                         request_screen_color_pick,
                         pending_screen_color_target,
                         true,
+                        vietnamese_input_enabled,
+                        vietnamese_input_mode,
                     );
                 }
             });
@@ -771,16 +851,51 @@ impl CrosshairApp {
         label_b: &str,
         expr_b: &mut String,
         begin_mouse_move_absolute_capture_target: &mut Option<MouseMoveAbsoluteCaptureTarget>,
+        vietnamese_input_enabled: bool,
+        vietnamese_input_mode: VietnameseInputMode,
     ) -> bool {
         let mut changed = false;
         ui.label(label_a);
-        changed |= ui
-            .add_sized([154.0, 24.0], TextEdit::singleline(expr_a))
-            .changed();
+        let id_a = ui.make_persistent_id((preset_id, object_id, pair_index, "expr-a"));
+        let response_a = Self::render_variable_text_edit(
+            ui,
+            expr_a,
+            id_a,
+            120.0,
+            220.0,
+            18.0,
+            18.0,
+            "",
+            false,
+        );
+        changed |= response_a.changed();
+        Self::apply_vietnamese_input_if_changed(
+            &response_a,
+            vietnamese_input_enabled,
+            vietnamese_input_mode,
+            expr_a,
+        );
+
         ui.label(label_b);
-        changed |= ui
-            .add_sized([154.0, 24.0], TextEdit::singleline(expr_b))
-            .changed();
+        let id_b = ui.make_persistent_id((preset_id, object_id, pair_index, "expr-b"));
+        let response_b = Self::render_variable_text_edit(
+            ui,
+            expr_b,
+            id_b,
+            120.0,
+            220.0,
+            18.0,
+            18.0,
+            "",
+            false,
+        );
+        changed |= response_b.changed();
+        Self::apply_vietnamese_input_if_changed(
+            &response_b,
+            vietnamese_input_enabled,
+            vietnamese_input_mode,
+            expr_b,
+        );
         if pair_index != 255 {
             let capture_kind = if pair_index == 1 {
                 MouseCaptureKind::GeometrySecondaryPos
@@ -819,7 +934,7 @@ impl CrosshairApp {
         let mut changed = false;
         ui.label(Self::tr_lang(language, "Mode", "Mode"));
         ComboBox::from_id_salt(ui.next_auto_id())
-            .width(154.0)
+            .width(120.0)
             .selected_text(if *filled {
                 Self::tr_lang(language, "Filled", "Filled")
             } else {
@@ -841,7 +956,7 @@ impl CrosshairApp {
                     )
                     .changed();
             });
-        ui.add_space(154.0);
+        ui.add_space(120.0);
         ui.end_row();
         changed
     }
@@ -859,6 +974,8 @@ impl CrosshairApp {
         request_screen_color_pick: &mut bool,
         pending_screen_color_target: &mut Option<(u32, u32, bool)>,
         is_fill: bool,
+        vietnamese_input_enabled: bool,
+        vietnamese_input_mode: VietnameseInputMode,
     ) -> bool {
         let mut changed = false;
         let color_tooltip = format!(
@@ -868,11 +985,25 @@ impl CrosshairApp {
         ui.label(label);
         ui.horizontal(|ui| {
             if allow_color_expression {
-                let expr_response = ui.add_sized(
-                    [176.0, 24.0],
-                    TextEdit::singleline(expr).hint_text("{A} or #RRGGBB"),
+                let color_expr_id = ui.make_persistent_id((preset_id, object_id, label, "color-expr"));
+                let expr_response = Self::render_variable_text_edit(
+                    ui,
+                    expr,
+                    color_expr_id,
+                    120.0,
+                    220.0,
+                    18.0,
+                    18.0,
+                    "{A} or #RRGGBB",
+                    false,
                 );
                 changed |= expr_response.changed();
+                Self::apply_vietnamese_input_if_changed(
+                    &expr_response,
+                    vietnamese_input_enabled,
+                    vietnamese_input_mode,
+                    expr,
+                );
                 expr_response.on_hover_text("Optional color expression. Example: {A} or #BAD1C4");
             }
 

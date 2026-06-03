@@ -10522,7 +10522,6 @@ impl CrosshairApp {
                                                 MacroAction::DrawGeometry
                                                     | MacroAction::ShowGeometryPreset
                                                     | MacroAction::HideGeometryPreset
-                                                    | MacroAction::ClearGeometryOverlay
                                             ) {
                                                 Self::render_geometry_macro_step_editor(
                                                     ui,
@@ -16362,6 +16361,13 @@ impl CrosshairApp {
 
                                                 }
 
+                                            } else if matches!(
+                                                step.action,
+                                                MacroAction::DrawGeometry
+                                                    | MacroAction::ShowGeometryPreset
+                                                    | MacroAction::HideGeometryPreset
+                                            ) {
+                                                ui.add_space(2.0);
                                             } else if Self::macro_action_uses_position(step.action) {
 
                                                 ui.add_space(2.0);
@@ -16610,7 +16616,6 @@ impl CrosshairApp {
                                                 MacroAction::DrawGeometry
                                                     | MacroAction::ShowGeometryPreset
                                                     | MacroAction::HideGeometryPreset
-                                                    | MacroAction::ClearGeometryOverlay
                                             ) {
                                                 Self::render_geometry_macro_step_editor(
                                                     ui,
@@ -19517,7 +19522,6 @@ impl CrosshairApp {
             MacroAction::DrawGeometry,
             MacroAction::ShowGeometryPreset,
             MacroAction::HideGeometryPreset,
-            MacroAction::ClearGeometryOverlay,
         ]
     }
 
@@ -19589,7 +19593,7 @@ impl CrosshairApp {
                         ui.ctx()
                             .data_mut(|data| data.insert_temp(popup_rect_id, rect));
                         egui::Grid::new((id_source, "geometry-action-grid"))
-                            .num_columns(4)
+                            .num_columns(3)
                             .spacing([6.0, 6.0])
                             .show(ui, |ui| {
                                 for action in Self::geometry_macro_actions().iter().copied() {
@@ -19719,6 +19723,7 @@ impl CrosshairApp {
             ui.spacing_mut().item_spacing.y = 6.0;
             ui.vertical(|ui| match step.action {
                 MacroAction::DrawGeometry => {
+                    step.geometry_spec.visible = true;
                     ui.horizontal(|ui| {
                         ui.label(Self::tr_lang(language, "Shape", "Shape"));
                         ComboBox::from_id_salt((id_prefix, "geometry-shape"))
@@ -19735,12 +19740,6 @@ impl CrosshairApp {
                                         .changed();
                                 }
                             });
-                        *live_sync |= ui
-                            .checkbox(
-                                &mut step.geometry_spec.visible,
-                                Self::tr_lang(language, "Visible", "Visible"),
-                            )
-                            .changed();
                     });
                     ui.add_space(4.0);
                     *live_sync |= Self::render_geometry_spec_editor(
@@ -19759,7 +19758,7 @@ impl CrosshairApp {
                         vietnamese_input_mode,
                     );
                 }
-                MacroAction::ShowGeometryPreset | MacroAction::HideGeometryPreset => {
+                MacroAction::ShowGeometryPreset => {
                     ui.horizontal(|ui| {
                         ui.label(Self::tr_lang(language, "Preset", "Preset"));
                         Self::render_geometry_preset_selector(
@@ -19772,12 +19771,30 @@ impl CrosshairApp {
                         );
                     });
                 }
-                MacroAction::ClearGeometryOverlay => {
-                    ui.label(Self::tr_lang(
-                        language,
-                        "Clears all currently visible geometry overlay objects.",
-                        "Xoa tat ca hinh hoc dang hien tren overlay.",
-                    ));
+                MacroAction::HideGeometryPreset => {
+                    ui.horizontal(|ui| {
+                        let mut clear_all = step.geometry_preset_id.is_none();
+                        let changed = ui.checkbox(&mut clear_all, Self::tr_lang(language, "Clear all", "Xóa hết")).changed();
+                        if changed {
+                            if clear_all {
+                                step.geometry_preset_id = None;
+                            } else {
+                                step.geometry_preset_id = preset_options.first().map(|o| o.0).or(Some(1));
+                            }
+                            *live_sync = true;
+                        }
+                        if !clear_all {
+                            ui.label(Self::tr_lang(language, "Preset", "Preset"));
+                            Self::render_geometry_preset_selector(
+                                ui,
+                                language,
+                                (id_prefix, "geometry-preset"),
+                                preset_options,
+                                &mut step.geometry_preset_id,
+                                live_sync,
+                            );
+                        }
+                    });
                 }
                 _ => {}
             });
@@ -20896,7 +20913,7 @@ impl CrosshairApp {
         )
     }
 
-    fn render_variable_text_edit(
+    pub(crate) fn render_variable_text_edit(
         ui: &mut egui::Ui,
 
         text: &mut String,

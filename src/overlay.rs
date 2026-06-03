@@ -8596,11 +8596,9 @@ mod windows_overlay {
                         step.geometry_preset_id.or_else(|| step.key.trim().parse::<u32>().ok())
                     {
                         set_geometry_preset_visible(geometry_preset_id, false);
+                    } else {
+                        clear_geometry_overlay();
                     }
-                }
-
-                MacroAction::ClearGeometryOverlay => {
-                    clear_geometry_overlay();
                 }
 
                 MacroAction::StopVisionWait => {
@@ -9117,11 +9115,9 @@ mod windows_overlay {
                         step.geometry_preset_id.or_else(|| step.key.trim().parse::<u32>().ok())
                     {
                         set_geometry_preset_visible(geometry_preset_id, false);
+                    } else {
+                        clear_geometry_overlay();
                     }
-                }
-
-                MacroAction::ClearGeometryOverlay => {
-                    clear_geometry_overlay();
                 }
 
                 MacroAction::StopVisionWait => {
