@@ -19855,6 +19855,7 @@ impl CrosshairApp {
         step: &mut MacroStep,
         live_sync: &mut bool,
     ) {
+        let mut pending_screen_color_target = None;
         ui.scope(|ui| {
             ui.spacing_mut().item_spacing.x = 6.0;
             ui.spacing_mut().item_spacing.y = 6.0;
@@ -19893,6 +19894,7 @@ impl CrosshairApp {
                         vision_manual_color,
                         vision_manual_color_hex,
                         request_screen_color_pick,
+                        &mut pending_screen_color_target,
                     );
                 }
                 MacroAction::ShowGeometryPreset | MacroAction::HideGeometryPreset => {

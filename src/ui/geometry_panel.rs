@@ -8,6 +8,7 @@ impl CrosshairApp {
         let mut changed = false;
         let mut remove_preset_id = None;
         let mut request_screen_color_pick = false;
+        let mut pending_screen_color_target: Option<(u32, u32, bool)> = None;
 
         ui.add_space(2.0);
         ui.horizontal(|ui| {
@@ -136,6 +137,7 @@ impl CrosshairApp {
                                 &mut self.vision_manual_color,
                                 &mut self.vision_manual_color_hex,
                                 &mut request_screen_color_pick,
+                                &mut pending_screen_color_target,
                             );
                         });
                 }
@@ -160,6 +162,7 @@ impl CrosshairApp {
         }
 
         if request_screen_color_pick {
+            self.geometry_color_pick_target = pending_screen_color_target;
             self.begin_image_search_capture(
                 ui.ctx(),
                 crate::ui::VisionCaptureTarget::GeometryColor,
@@ -207,6 +210,7 @@ impl CrosshairApp {
         manual_color: &mut crate::model::RgbaColor,
         manual_color_hex: &mut String,
         request_screen_color_pick: &mut bool,
+        pending_screen_color_target: &mut Option<(u32, u32, bool)>,
     ) -> bool {
         let mut changed = false;
 
@@ -365,13 +369,16 @@ impl CrosshairApp {
 
                 changed |= Self::geometry_color_row(
                     ui,
-                    language,
+                    preset_id,
+                    object_id,
                     "Stroke",
                     &mut spec.stroke_color,
                     &mut spec.stroke_color_expr,
                     manual_color,
                     manual_color_hex,
                     request_screen_color_pick,
+                    pending_screen_color_target,
+                    false,
                 );
 
                 if matches!(
@@ -383,13 +390,16 @@ impl CrosshairApp {
                 ) {
                     changed |= Self::geometry_color_row(
                         ui,
-                        language,
+                        preset_id,
+                        object_id,
                         "Fill",
                         &mut spec.fill_color,
                         &mut spec.fill_color_expr,
                         manual_color,
                         manual_color_hex,
                         request_screen_color_pick,
+                        pending_screen_color_target,
+                        true,
                     );
                 }
             });
@@ -419,33 +429,36 @@ impl CrosshairApp {
 
     fn geometry_color_row(
         ui: &mut egui::Ui,
-        language: crate::model::UiLanguage,
+        preset_id: u32,
+        object_id: u32,
         label: &str,
         color: &mut crate::model::RgbaColor,
         expr: &mut String,
         manual_color: &mut crate::model::RgbaColor,
         manual_color_hex: &mut String,
         request_screen_color_pick: &mut bool,
+        pending_screen_color_target: &mut Option<(u32, u32, bool)>,
+        is_fill: bool,
     ) -> bool {
         let mut changed = false;
         ui.label(label);
         changed |= ui
             .add_sized([208.0, 24.0], TextEdit::singleline(expr))
             .changed();
-        changed |= Self::edit_rgba_color(ui, color).changed();
+        let picker_response = Self::edit_rgba_color(ui, color);
+        if picker_response.changed() {
+            *expr = String::new();
+            *manual_color = *color;
+            *manual_color_hex = format!("{:02X}{:02X}{:02X}", color.r, color.g, color.b);
+            changed = true;
+        }
         if ui
-            .add_sized([86.0, 24.0], Button::new(Self::tr_lang(language, "Pick screen", "Pick screen")))
+            .add_sized([24.0, 24.0], Button::new(Self::material_icon_text(0xe3b8, 16.0)))
+            .on_hover_text("Pick from screen")
             .clicked()
         {
             *request_screen_color_pick = true;
-        }
-        if ui
-            .add_sized([88.0, 24.0], Button::new(Self::tr_lang(language, "Use picker", "Use picker")))
-            .clicked()
-        {
-            *color = *manual_color;
-            *manual_color_hex = format!("{:02X}{:02X}{:02X}", color.r, color.g, color.b);
-            changed = true;
+            *pending_screen_color_target = Some((preset_id, object_id, is_fill));
         }
         ui.end_row();
         changed
