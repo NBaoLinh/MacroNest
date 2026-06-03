@@ -21000,6 +21000,9 @@ impl CrosshairApp {
 
         ui.visuals_mut().override_text_color = None;
 
+        let prev_interact_y = ui.spacing().interact_size.y;
+        ui.spacing_mut().interact_size.y = animated_height;
+
         let response = match highlight_mode {
             TextHighlightMode::None => {
                 ui.add_sized([animated_width, animated_height], text_edit)
@@ -21042,6 +21045,7 @@ impl CrosshairApp {
             }
         };
 
+        ui.spacing_mut().interact_size.y = prev_interact_y;
         ui.visuals_mut().override_text_color = prev_override;
 
         let now_focused = response.has_focus();
