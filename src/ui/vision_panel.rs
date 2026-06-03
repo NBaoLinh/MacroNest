@@ -2007,7 +2007,47 @@ impl CrosshairApp {
             VisionCaptureTarget::GeometryColor => {
                 self.vision_manual_color = color;
                 self.vision_manual_color_hex =
-                    format!("{:02X}{:02X}{:02X}", color.r, color.g, color.b);
+                    format!("{:02X}{:02X}{:02X}{:02X}", color.r, color.g, color.b, color.a);
+                let mut applied = false;
+                if let Some((preset_id, object_id, is_fill)) = self.geometry_color_pick_target.take()
+                {
+                    if let Some(preset) = self
+                        .state
+                        .geometry_presets
+                        .iter_mut()
+                        .find(|preset| preset.id == preset_id)
+                    {
+                        if let Some(object) =
+                            preset.objects.iter_mut().find(|object| object.id == object_id)
+                        {
+                            if is_fill {
+                                object.spec.fill_color = color;
+                                object.spec.fill_color_expr.clear();
+                            } else {
+                                object.spec.stroke_color = color;
+                                object.spec.stroke_color_expr.clear();
+                            }
+                            applied = true;
+                        }
+                    }
+                    if applied {
+                        if self.geometry_preview_target == Some((preset_id, object_id)) {
+                            let preview_spec = self
+                                .state
+                                .geometry_presets
+                                .iter()
+                                .find(|preset| preset.id == preset_id)
+                                .and_then(|preset| {
+                                    preset.objects.iter().find(|object| object.id == object_id)
+                                })
+                                .map(|object| object.spec.clone());
+                            let _ = self.overlay_tx.send(
+                                crate::overlay::OverlayCommand::PreviewGeometrySpec(preview_spec),
+                            );
+                        }
+                        self.sync_geometry_presets();
+                    }
+                }
                 format!(
                     "Picked geometry color #{:02X}{:02X}{:02X}.",
                     color.r, color.g, color.b
@@ -2151,89 +2191,7 @@ impl CrosshairApp {
             b: capture.rgba[2],
             a: 255,
         };
-        let status = match target {
-            VisionCaptureTarget::Preset(preset_id) => {
-                if let Some(preset) = self
-                    .state
-                    .vision_presets
-                    .iter_mut()
-                    .find(|preset| preset.id == preset_id)
-                {
-                    preset.collapsed = false;
-                    preset.use_color_matching = true;
-                    if preset.target_colors.is_empty() {
-                        if let Some(existing) = preset.target_color {
-                            preset.target_colors.push(existing);
-                        }
-                    }
-                    preset.target_colors.push(color);
-                    preset.target_color = preset.target_colors.first().copied();
-                }
-                self.sync_vision_presets();
-                format!(
-                    "Picked color #{:02X}{:02X}{:02X} for preset #{}.",
-                    color.r, color.g, color.b, preset_id
-                )
-            }
-            VisionCaptureTarget::GeometryColor => {
-                self.vision_manual_color = color;
-                self.vision_manual_color_hex =
-                    format!("{:02X}{:02X}{:02X}", color.r, color.g, color.b);
-                format!(
-                    "Picked geometry color #{:02X}{:02X}{:02X}.",
-                    color.r, color.g, color.b
-                )
-            }
-            VisionCaptureTarget::OcrPreset(_) => {
-                "OCR presets do not support color picking.".to_owned()
-            }
-            VisionCaptureTarget::OcrStepRegion { .. } => {
-                "OCR steps do not support color picking.".to_owned()
-            }
-            VisionCaptureTarget::GeometryColor => {
-                self.vision_manual_color = color;
-                self.vision_manual_color_hex =
-                    format!("{:02X}{:02X}{:02X}", color.r, color.g, color.b);
-                let mut applied = false;
-                if let Some((preset_id, object_id, is_fill)) = self.geometry_color_pick_target.take()
-                {
-                    if let Some(preset) = self
-                        .state
-                        .geometry_presets
-                        .iter_mut()
-                        .find(|preset| preset.id == preset_id)
-                    {
-                        if let Some(object) =
-                            preset.objects.iter_mut().find(|object| object.id == object_id)
-                        {
-                            if is_fill {
-                                object.spec.fill_color = color;
-                                object.spec.fill_color_expr.clear();
-                            } else {
-                                object.spec.stroke_color = color;
-                                object.spec.stroke_color_expr.clear();
-                            }
-                            applied = true;
-                        }
-                    }
-                    if applied {
-                        self.sync_geometry_presets();
-                        self.persist();
-                    }
-                }
-                if applied {
-                    format!(
-                        "Picked geometry color #{:02X}{:02X}{:02X}.",
-                        color.r, color.g, color.b
-                    )
-                } else {
-                    format!(
-                        "Picked geometry color #{:02X}{:02X}{:02X}.",
-                        color.r, color.g, color.b
-                    )
-                }
-            }
-        };
+        let status = self.apply_image_search_color_pick(target, color);
         self.persist();
         self.status = status;
         ctx.request_repaint();
