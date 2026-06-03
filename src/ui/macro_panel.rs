@@ -15139,11 +15139,8 @@ impl CrosshairApp {
                                                               ui.horizontal(|ui| {
 
                                                                     ui.add_sized(
-
-                                                                        [56.0, 22.0],
-
+                                                                        [28.0, 22.0],
                                                                         egui::Label::new(Self::tr_lang(language, "IF", "NẾU")),
-
                                                                     );
 
                                                                     let cond_text = match step.if_condition_type {
@@ -20978,7 +20975,12 @@ impl CrosshairApp {
 
         // Calculate dynamic height based on text content when focused
 
+        let row_height = ui.spacing().interact_size.y.max(18.0);
+
         let target_height = if has_focus {
+            if !multiline_on_focus {
+                row_height
+            } else {
             let chars_per_line = ((expanded_width / 7.2) as usize).max(10);
 
             let mut estimated_rows = 0;
@@ -20991,13 +20993,14 @@ impl CrosshairApp {
 
             let rows = estimated_rows.clamp(1, 12);
 
-            if multiline_on_focus || rows > 1 {
-                (rows as f32 * 18.0 + 6.0).max(expanded_height)
-            } else {
-                expanded_height
+                if rows > 1 {
+                    (rows as f32 * 18.0 + 6.0).max(expanded_height).max(row_height)
+                } else {
+                    expanded_height.max(row_height)
+                }
             }
         } else {
-            normal_height
+            row_height.min(normal_height).max(18.0)
         };
 
         let animated_width = ui
