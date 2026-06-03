@@ -339,7 +339,7 @@ impl CrosshairApp {
         let mut changed = false;
 
         Grid::new((preset_id, object_id, "geometry-spec-grid"))
-            .num_columns(5)
+            .num_columns(4)
             .spacing([4.0, 6.0])
             .min_col_width(40.0)
             .show(ui, |ui| {
@@ -1057,55 +1057,57 @@ impl CrosshairApp {
         if !label_b.is_empty() {
             ui.label(label_b);
             let id_b = ui.make_persistent_id((preset_id, object_id, row_id, "expr-b"));
-            let response_b = Self::render_variable_text_edit(
-                ui,
-                expr_b,
-                id_b,
-                width_b,
-                expanded_width_b,
-                18.0,
-                18.0,
-                "",
-                false,
-            );
-            changed |= response_b.changed();
-            Self::apply_vietnamese_input_if_changed(
-                &response_b,
-                vietnamese_input_enabled,
-                vietnamese_input_mode,
-                expr_b,
-            );
+            ui.horizontal(|ui| {
+                ui.spacing_mut().item_spacing.x = 4.0;
+                let response_b = Self::render_variable_text_edit(
+                    ui,
+                    expr_b,
+                    id_b,
+                    width_b,
+                    expanded_width_b,
+                    18.0,
+                    18.0,
+                    "",
+                    false,
+                );
+                changed |= response_b.changed();
+                Self::apply_vietnamese_input_if_changed(
+                    &response_b,
+                    vietnamese_input_enabled,
+                    vietnamese_input_mode,
+                    expr_b,
+                );
+
+                if pair_index != 255 {
+                    let capture_kind = if pair_index == 1 {
+                        MouseCaptureKind::GeometrySecondaryPos
+                    } else {
+                        MouseCaptureKind::GeometryPrimaryPos
+                    };
+                    if ui
+                        .add_sized(
+                            [24.0, 21.0],
+                            Button::new(Self::material_icon_text(0xe55f, 16.0)),
+                        )
+                        .on_hover_text("Pick coordinates from screen")
+                        .clicked()
+                    {
+                        *begin_mouse_move_absolute_capture_target = Some(MouseMoveAbsoluteCaptureTarget {
+                            group_id: group_id_override,
+                            preset_id,
+                            step_index: object_id as usize,
+                            capture_kind,
+                            extra_cond_index: None,
+                            is_hold_stop: false,
+                        });
+                    }
+                }
+            });
         } else {
             ui.label("");
             ui.label("");
         }
 
-        if pair_index != 255 {
-            let capture_kind = if pair_index == 1 {
-                MouseCaptureKind::GeometrySecondaryPos
-            } else {
-                MouseCaptureKind::GeometryPrimaryPos
-            };
-            if ui
-                .add_sized(
-                    [24.0, 21.0],
-                    Button::new(Self::material_icon_text(0xe55f, 16.0)),
-                )
-                .on_hover_text("Pick coordinates from screen")
-                .clicked()
-            {
-                *begin_mouse_move_absolute_capture_target = Some(MouseMoveAbsoluteCaptureTarget {
-                    group_id: group_id_override,
-                    preset_id,
-                    step_index: object_id as usize,
-                    capture_kind,
-                    extra_cond_index: None,
-                    is_hold_stop: false,
-                });
-            }
-        } else {
-            ui.add_space(24.0);
-        }
         ui.end_row();
         changed
     }

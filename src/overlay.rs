@@ -8462,44 +8462,54 @@ mod windows_overlay {
         }
 
         let expr_trimmed = expr_raw.trim().to_string();
-        let interpolated = interpolate_variables(&expr_trimmed);
-        if let Ok(val) = interpolated.parse::<f64>() {
-            set_variable_value(target_trimmed, clamp_f64_to_i32(val));
-            TEXT_VARIABLES.lock().remove(target_trimmed);
-        } else {
-            let has_math_op = interpolated
-                .chars()
-                .any(|c| c == '+' || c == '-' || c == '*' || c == '/' || c == '(' || c == ')');
-            let lower = interpolated.to_lowercase();
-            let has_math_func = lower.contains("min(")
-                || lower.contains("max(")
-                || lower.contains("abs(")
-                || lower.contains("random(")
-                || lower.contains("atan(")
-                || lower.contains("atan2(")
-                || lower.contains("sin(")
-                || lower.contains("cos(")
-                || lower.contains("sqrt(")
-                || lower.contains("pow(")
-                || lower.contains("ceil(")
-                || lower.contains("floor(")
-                || lower.contains("degrees(")
-                || lower.contains("radians(")
-                || lower.contains("factorial(")
-                || lower.contains("gcd(")
-                || lower.contains("lcm(")
-                || lower.contains("isqrt(")
-                || lower.contains("comb(")
-                || lower.contains("perm(")
-                || lower == "pi"
-                || lower.contains(".tonumber");
-            if has_math_op || has_math_func {
-                let val = evaluate_math_expression(&interpolated);
-                set_variable_value(target_trimmed, val);
+        if !expr_trimmed.contains('{') {
+            if let Ok(val) = expr_trimmed.parse::<f64>() {
+                set_variable_value(target_trimmed, clamp_f64_to_i32(val));
                 TEXT_VARIABLES.lock().remove(target_trimmed);
             } else {
-                set_text_variable_value(target_trimmed, &interpolated);
+                set_text_variable_value(target_trimmed, &expr_trimmed);
                 RUNTIME_VARIABLES.lock().remove(target_trimmed);
+            }
+        } else {
+            let interpolated = interpolate_variables(&expr_trimmed);
+            if let Ok(val) = interpolated.parse::<f64>() {
+                set_variable_value(target_trimmed, clamp_f64_to_i32(val));
+                TEXT_VARIABLES.lock().remove(target_trimmed);
+            } else {
+                let has_math_op = interpolated
+                    .chars()
+                    .any(|c| c == '+' || c == '-' || c == '*' || c == '/' || c == '(' || c == ')');
+                let lower = interpolated.to_lowercase();
+                let has_math_func = lower.contains("min(")
+                    || lower.contains("max(")
+                    || lower.contains("abs(")
+                    || lower.contains("random(")
+                    || lower.contains("atan(")
+                    || lower.contains("atan2(")
+                    || lower.contains("sin(")
+                    || lower.contains("cos(")
+                    || lower.contains("sqrt(")
+                    || lower.contains("pow(")
+                    || lower.contains("ceil(")
+                    || lower.contains("floor(")
+                    || lower.contains("degrees(")
+                    || lower.contains("radians(")
+                    || lower.contains("factorial(")
+                    || lower.contains("gcd(")
+                    || lower.contains("lcm(")
+                    || lower.contains("isqrt(")
+                    || lower.contains("comb(")
+                    || lower.contains("perm(")
+                    || lower == "pi"
+                    || lower.contains(".tonumber");
+                if has_math_op || has_math_func {
+                    let val = evaluate_math_expression(&interpolated);
+                    set_variable_value(target_trimmed, val);
+                    TEXT_VARIABLES.lock().remove(target_trimmed);
+                } else {
+                    set_text_variable_value(target_trimmed, &interpolated);
+                    RUNTIME_VARIABLES.lock().remove(target_trimmed);
+                }
             }
         }
     }

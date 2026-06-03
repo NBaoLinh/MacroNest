@@ -10502,6 +10502,7 @@ impl CrosshairApp {
                                                     &mut live_sync,
                                                     self.state.vietnamese_input_enabled,
                                                     self.state.vietnamese_input_mode,
+                                                    &timer_names,
                                                 );
                                             } else if Self::macro_action_uses_position(step.action) {
 
@@ -10590,7 +10591,6 @@ impl CrosshairApp {
                                             } else if matches!(
                                                 step.action,
                                                 MacroAction::ShowHud
-                                                    | MacroAction::DrawGeometry
                                                     | MacroAction::EnableCrosshairProfile
                                                     | MacroAction::EnablePinPreset
                                                     | MacroAction::PlayVideoPreset
@@ -16574,6 +16574,7 @@ impl CrosshairApp {
                                                     &mut live_sync,
                                                     self.state.vietnamese_input_enabled,
                                                     self.state.vietnamese_input_mode,
+                                                    &timer_names,
                                                 );
                                             } else if matches!(
                                                 step.action,
@@ -19810,6 +19811,7 @@ impl CrosshairApp {
         live_sync: &mut bool,
         vietnamese_input_enabled: bool,
         vietnamese_input_mode: VietnameseInputMode,
+        timer_names: &[String],
     ) {
         let mut pending_screen_color_target = None;
         ui.scope(|ui| {
@@ -19832,6 +19834,46 @@ impl CrosshairApp {
                                         .changed();
                                 }
                             });
+
+                        ui.add_space(6.0);
+                        ui.label(Self::tr_lang(language, "Duration", "Thời gian"));
+                        let duration_id = ui.make_persistent_id((group_id, macro_preset_id, step_index, is_hold_stop, "geometry-duration"));
+                        let response = Self::render_variable_text_edit(
+                            ui,
+                            &mut step.duration_expr,
+                            duration_id,
+                            56.0,
+                            120.0,
+                            18.0,
+                            18.0,
+                            "0",
+                            false,
+                        );
+                        ui.weak("ms");
+                        Self::apply_vietnamese_input_if_changed(
+                            &response,
+                            vietnamese_input_enabled,
+                            vietnamese_input_mode,
+                            &mut step.duration_expr,
+                        );
+                        *live_sync |= response.changed();
+                        Self::render_variable_suggestions(
+                            ui,
+                            &response,
+                            &mut step.duration_expr,
+                            timer_names,
+                            language,
+                        );
+                        let tooltip_text = Self::tr_lang(
+                            language,
+                            "Display duration (0 = show until macro/overlay ends, supports variables/math)",
+                            "Thời gian hiển thị (0 = hiện đến khi dừng macro/overlay, hỗ trợ biến/phép tính)",
+                        );
+                        if response.hovered() {
+                            egui::show_tooltip_text(ui.ctx(), ui.layer_id(), response.id, tooltip_text);
+                        }
+
+                        ui.add_space(6.0);
 
                         let collapse_icon = if step.geometry_collapsed { 0xe5cc } else { 0xe5cf };
                         let collapse_btn = Button::new(Self::material_icon_text(collapse_icon, 12.0));
@@ -20331,27 +20373,14 @@ impl CrosshairApp {
             .memory(|mem| mem.data.get_temp::<bool>(popup_open_key))
             .unwrap_or(false);
 
-        if response.has_focus() {
+        if response.changed() {
             popup_open = true;
-        } else {
-            let popup_rect = ui.memory(|mem| {
-                mem.data
-                    .get_temp::<egui::Rect>(response.id.with("popup_rect"))
-            });
-
-            if let Some(rect) = popup_rect {
-                let hover = ui.input(|i| {
-                    i.pointer
-                        .hover_pos()
-                        .map_or(false, |pos| rect.contains(pos))
-                });
-
-                if !hover {
-                    popup_open = false;
-                }
-            } else {
-                popup_open = false;
-            }
+        }
+        if response.clicked() {
+            popup_open = false;
+        }
+        if !response.has_focus() {
+            popup_open = false;
         }
 
         if !popup_open {
@@ -20664,27 +20693,14 @@ impl CrosshairApp {
             .memory(|mem| mem.data.get_temp::<bool>(popup_open_key))
             .unwrap_or(false);
 
-        if response.has_focus() {
+        if response.changed() {
             popup_open = true;
-        } else {
-            let popup_rect = ui.memory(|mem| {
-                mem.data
-                    .get_temp::<egui::Rect>(response.id.with("popup_rect_raw"))
-            });
-
-            if let Some(rect) = popup_rect {
-                let hover = ui.input(|i| {
-                    i.pointer
-                        .hover_pos()
-                        .map_or(false, |pos| rect.contains(pos))
-                });
-
-                if !hover {
-                    popup_open = false;
-                }
-            } else {
-                popup_open = false;
-            }
+        }
+        if response.clicked() {
+            popup_open = false;
+        }
+        if !response.has_focus() {
+            popup_open = false;
         }
 
         if !popup_open {

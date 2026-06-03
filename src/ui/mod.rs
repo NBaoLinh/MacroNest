@@ -4314,15 +4314,11 @@ impl CrosshairApp {
         let weak_color = Color32::from_gray(224);
         let icon_format = egui::TextFormat {
             font_id: egui::FontId::new(13.0, FontFamily::Name(MATERIAL_ICONS_FONT.into())),
-            line_height: Some(13.0),
-            valign: egui::Align::Center,
             color: weak_color,
             ..Default::default()
         };
         let text_format = egui::TextFormat {
             font_id: egui::FontId::new(13.0, FontFamily::Proportional),
-            line_height: Some(13.0),
-            valign: egui::Align::Center,
             color: weak_color,
             ..Default::default()
         };
