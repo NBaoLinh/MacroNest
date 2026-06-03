@@ -8174,7 +8174,7 @@ impl CrosshairApp {
                                                             &self.state.hud_presets,
                                                             &mut self.draw_geometry_step_preview_target,
                                                             &self.overlay_tx,
-                                                            [22.0, 20.0],
+                                                            [20.0, 18.0],
                                                             12.0,
                                                         );
                                                     });
@@ -13456,7 +13456,7 @@ impl CrosshairApp {
                                                             &self.state.hud_presets,
                                                             &mut self.draw_geometry_step_preview_target,
                                                             &self.overlay_tx,
-                                                            [22.0, 20.0],
+                                                            [20.0, 18.0],
                                                             12.0,
                                                         );
                                                     });
