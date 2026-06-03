@@ -6337,6 +6337,37 @@ mod windows_overlay {
             DT_CENTER | DT_VCENTER | DT_SINGLELINE,
         );
 
+        let text_alpha = display.text_color.a.max(1);
+
+        for py in 0..height {
+            for px in 0..width {
+                let index = ((py as usize) * (width as usize) + (px as usize)) * 4;
+
+                let chunk = &mut pixels[index..index + 4];
+
+                let looks_like_bg = chunk[0] == bg_b
+                    && chunk[1] == bg_g
+                    && chunk[2] == bg_r
+                    && chunk[3] == bg_alpha;
+
+                let alpha = if looks_like_bg {
+                    bg_alpha
+                } else if chunk[0] == 0 && chunk[1] == 0 && chunk[2] == 0 && chunk[3] == 0 {
+                    0
+                } else {
+                    text_alpha
+                };
+
+                chunk[3] = alpha;
+
+                chunk[0] = ((chunk[0] as u32 * alpha as u32) / 255) as u8;
+
+                chunk[1] = ((chunk[1] as u32 * alpha as u32) / 255) as u8;
+
+                chunk[2] = ((chunk[2] as u32 * alpha as u32) / 255) as u8;
+            }
+        }
+
         let size = SIZE {
             cx: width,
 
