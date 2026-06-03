@@ -5337,6 +5337,15 @@ impl CrosshairApp {
                                     {
 
                                         group.collapsed = !group.collapsed;
+                                        if group.collapsed {
+                                            for preset in &mut group.presets {
+                                                for step in &mut preset.steps {
+                                                    if step.action == MacroAction::DrawGeometry {
+                                                        step.geometry_collapsed = true;
+                                                    }
+                                                }
+                                            }
+                                        }
                                         ui.ctx().data_mut(|data| {
                                             data.remove::<bool>(ui.make_persistent_id((
                                                 (group.id, "macro-group-window-target"),
@@ -6595,6 +6604,13 @@ impl CrosshairApp {
                                             {
 
                                                 preset.collapsed = !preset.collapsed;
+                                                if preset.collapsed {
+                                                    for step in &mut preset.steps {
+                                                        if step.action == MacroAction::DrawGeometry {
+                                                            step.geometry_collapsed = true;
+                                                        }
+                                                    }
+                                                }
 
                                                 live_sync = true;
 
@@ -19773,6 +19789,17 @@ impl CrosshairApp {
                                 }
                             });
 
+                        let collapse_icon = if step.geometry_collapsed { 0xe5cc } else { 0xe5cf };
+                        let collapse_btn = Button::new(Self::material_icon_text(collapse_icon, 16.0));
+                        if ui
+                            .add_sized([24.0, 24.0], collapse_btn)
+                            .on_hover_text(if step.geometry_collapsed { "Expand" } else { "Collapse" })
+                            .clicked()
+                        {
+                            step.geometry_collapsed = !step.geometry_collapsed;
+                            *live_sync = true;
+                        }
+
                         let preview_active = *draw_geometry_step_preview_target == Some((group_id, macro_preset_id, step_index, is_hold_stop));
                         let preview_btn = Button::new(Self::material_icon_text(
                             if preview_active { 0xe8f5 } else { 0xe8f4 },
@@ -19793,23 +19820,25 @@ impl CrosshairApp {
                             }
                         }
                     });
-                    ui.add_space(4.0);
-                    *live_sync |= Self::render_geometry_spec_editor(
-                        ui,
-                        language,
-                        macro_preset_id,
-                        step_index as u32,
-                        true,
-                        &mut step.geometry_spec,
-                        vision_manual_color,
-                        vision_manual_color_hex,
-                        request_screen_color_pick,
-                        &mut pending_screen_color_target,
-                        begin_mouse_move_absolute_capture_target,
-                        vietnamese_input_enabled,
-                        vietnamese_input_mode,
-                        Some(group_id),
-                    );
+                    if !step.geometry_collapsed {
+                        ui.add_space(4.0);
+                        *live_sync |= Self::render_geometry_spec_editor(
+                            ui,
+                            language,
+                            macro_preset_id,
+                            step_index as u32,
+                            true,
+                            &mut step.geometry_spec,
+                            vision_manual_color,
+                            vision_manual_color_hex,
+                            request_screen_color_pick,
+                            &mut pending_screen_color_target,
+                            begin_mouse_move_absolute_capture_target,
+                            vietnamese_input_enabled,
+                            vietnamese_input_mode,
+                            Some(group_id),
+                        );
+                    }
                     if *request_screen_color_pick {
                         if let Some((_, _, is_fill)) = pending_screen_color_target {
                             *pending_macro_step_color_pick = Some((group_id, macro_preset_id, step_index, is_fill, is_hold_stop));

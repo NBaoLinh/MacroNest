@@ -878,6 +878,8 @@ pub struct MacroStep {
     pub geometry_preset_id: Option<u32>,
     #[serde(default)]
     pub geometry_spec: GeometrySpec,
+    #[serde(default = "default_true")]
+    pub geometry_collapsed: bool,
     #[serde(default)]
     pub if_contain_case_sensitive: bool,
     #[serde(default)]
@@ -956,6 +958,7 @@ impl Default for MacroStep {
             vision_pos_var_y: String::new(),
             geometry_preset_id: None,
             geometry_spec: GeometrySpec::default(),
+            geometry_collapsed: true,
             if_contain_case_sensitive: false,
             if_contain_isolated: false,
             trigger_macro_group_id: None,
