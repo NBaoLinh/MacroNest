@@ -169,6 +169,7 @@ impl CrosshairApp {
                                 language,
                                 preset.id,
                                 object.id,
+                                false,
                                 &mut object.spec,
                                 &mut self.vision_manual_color,
                                 &mut self.vision_manual_color_hex,
@@ -268,6 +269,7 @@ impl CrosshairApp {
         language: crate::model::UiLanguage,
         preset_id: u32,
         object_id: u32,
+        allow_color_expression: bool,
         spec: &mut GeometrySpec,
         manual_color: &mut crate::model::RgbaColor,
         manual_color_hex: &mut String,
@@ -583,6 +585,7 @@ impl CrosshairApp {
                     &mut spec.stroke_color_expr,
                     manual_color,
                     manual_color_hex,
+                    allow_color_expression,
                     request_screen_color_pick,
                     pending_screen_color_target,
                     false,
@@ -604,6 +607,7 @@ impl CrosshairApp {
                         &mut spec.fill_color_expr,
                         manual_color,
                         manual_color_hex,
+                        allow_color_expression,
                         request_screen_color_pick,
                         pending_screen_color_target,
                         true,
@@ -673,6 +677,7 @@ impl CrosshairApp {
         expr: &mut String,
         manual_color: &mut crate::model::RgbaColor,
         manual_color_hex: &mut String,
+        allow_color_expression: bool,
         request_screen_color_pick: &mut bool,
         pending_screen_color_target: &mut Option<(u32, u32, bool)>,
         is_fill: bool,
@@ -683,129 +688,133 @@ impl CrosshairApp {
             color.r, color.g, color.b, color.a, color.r, color.g, color.b, color.a
         );
         ui.label(label);
-        let expr_response = ui.add_sized(
-            [250.0, 24.0],
-            TextEdit::singleline(expr).hint_text("{A} or #RRGGBB"),
-        );
-        changed |= expr_response.changed();
-        expr_response.on_hover_text("Optional color expression. Example: {A} or #BAD1C4");
-
-        let _swatch_response = ui
-            .scope(|ui| {
-                Self::image_search_target_color_swatch(ui, Some(*color));
-            })
-            .response
-            .on_hover_text(color_tooltip);
-
-        let popup_id = ui.make_persistent_id((preset_id, object_id, label, "geometry-color-popup"));
-        let mut popup_open = ui
-            .ctx()
-            .data(|data| data.get_temp::<bool>(popup_id))
-            .unwrap_or(false);
-
-        let palette_button = ui
-            .add_sized([24.0, 24.0], Button::new(Self::material_icon_text(0xe40a, 16.0)))
-            .on_hover_text("Choose color");
-        if palette_button.clicked() {
-            *manual_color = *color;
-            *manual_color_hex = format!(
-                "{:02X}{:02X}{:02X}{:02X}",
-                color.r, color.g, color.b, color.a
-            );
-            popup_open = true;
-        }
-
-        let popup_response = egui::Popup::from_response(&palette_button)
-            .id(popup_id)
-            .open_bool(&mut popup_open)
-            .align(egui::RectAlign::BOTTOM_START)
-            .layout(egui::Layout::top_down_justified(egui::Align::Min))
-            .width(220.0)
-            .close_behavior(egui::PopupCloseBehavior::IgnoreClicks)
-            .show(|ui| {
-                ui.set_min_width(220.0);
-                let mut color32 = egui::Color32::from_rgba_unmultiplied(
-                    manual_color.r,
-                    manual_color.g,
-                    manual_color.b,
-                    manual_color.a,
+        ui.horizontal(|ui| {
+            if allow_color_expression {
+                let expr_response = ui.add_sized(
+                    [176.0, 24.0],
+                    TextEdit::singleline(expr).hint_text("{A} or #RRGGBB"),
                 );
-                if egui::color_picker::color_picker_color32(
-                    ui,
-                    &mut color32,
-                    egui::color_picker::Alpha::BlendOrAdditive,
-                ) {
-                    manual_color.r = color32.r();
-                    manual_color.g = color32.g();
-                    manual_color.b = color32.b();
-                    manual_color.a = color32.a();
-                    *manual_color_hex = format!(
-                        "{:02X}{:02X}{:02X}{:02X}",
-                        manual_color.r, manual_color.g, manual_color.b, manual_color.a
+                changed |= expr_response.changed();
+                expr_response.on_hover_text("Optional color expression. Example: {A} or #BAD1C4");
+            }
+
+            let _swatch_response = ui
+                .scope(|ui| {
+                    Self::image_search_target_color_swatch(ui, Some(*color));
+                })
+                .response
+                .on_hover_text(color_tooltip.clone());
+
+            let popup_id =
+                ui.make_persistent_id((preset_id, object_id, label, "geometry-color-popup"));
+            let mut popup_open = ui
+                .ctx()
+                .data(|data| data.get_temp::<bool>(popup_id))
+                .unwrap_or(false);
+
+            let palette_button = ui
+                .add_sized([24.0, 24.0], Button::new(Self::material_icon_text(0xe40a, 16.0)))
+                .on_hover_text("Choose color");
+            if palette_button.clicked() {
+                *manual_color = *color;
+                *manual_color_hex = format!(
+                    "{:02X}{:02X}{:02X}{:02X}",
+                    color.r, color.g, color.b, color.a
+                );
+                popup_open = true;
+            }
+
+            let popup_response = egui::Popup::from_response(&palette_button)
+                .id(popup_id)
+                .open_bool(&mut popup_open)
+                .align(egui::RectAlign::BOTTOM_START)
+                .layout(egui::Layout::top_down_justified(egui::Align::Min))
+                .width(220.0)
+                .close_behavior(egui::PopupCloseBehavior::IgnoreClicks)
+                .show(|ui| {
+                    ui.set_min_width(220.0);
+                    let mut color32 = egui::Color32::from_rgba_unmultiplied(
+                        manual_color.r,
+                        manual_color.g,
+                        manual_color.b,
+                        manual_color.a,
                     );
-                    *color = *manual_color;
-                    expr.clear();
-                    changed = true;
-                }
-                ui.add_space(4.0);
-                ui.horizontal(|ui| {
-                    ui.label("#");
-                    let hex_response = ui.add(
-                        TextEdit::singleline(manual_color_hex)
-                            .hint_text("RRGGBB or RRGGBBAA")
-                            .desired_width(132.0),
-                    );
-                    if hex_response.changed() {
-                        let hex = manual_color_hex.trim().trim_start_matches('#');
-                        if (hex.len() == 6 || hex.len() == 8)
-                            && let Ok(color_value) = u32::from_str_radix(hex, 16)
-                        {
-                            let (r, g, b, a) = if hex.len() == 6 {
-                                (
-                                    ((color_value >> 16) & 0xFF) as u8,
-                                    ((color_value >> 8) & 0xFF) as u8,
-                                    (color_value & 0xFF) as u8,
-                                    255,
-                                )
-                            } else {
-                                (
-                                    ((color_value >> 24) & 0xFF) as u8,
-                                    ((color_value >> 16) & 0xFF) as u8,
-                                    ((color_value >> 8) & 0xFF) as u8,
-                                    (color_value & 0xFF) as u8,
-                                )
-                            };
-                            *manual_color = crate::model::RgbaColor { r, g, b, a };
-                            *color = *manual_color;
-                            expr.clear();
-                            changed = true;
-                        }
+                    if egui::color_picker::color_picker_color32(
+                        ui,
+                        &mut color32,
+                        egui::color_picker::Alpha::BlendOrAdditive,
+                    ) {
+                        manual_color.r = color32.r();
+                        manual_color.g = color32.g();
+                        manual_color.b = color32.b();
+                        manual_color.a = color32.a();
+                        *manual_color_hex = format!(
+                            "{:02X}{:02X}{:02X}{:02X}",
+                            manual_color.r, manual_color.g, manual_color.b, manual_color.a
+                        );
+                        *color = *manual_color;
+                        expr.clear();
+                        changed = true;
                     }
+                    ui.add_space(4.0);
+                    ui.horizontal(|ui| {
+                        ui.label("#");
+                        let hex_response = ui.add(
+                            TextEdit::singleline(manual_color_hex)
+                                .hint_text("RRGGBB or RRGGBBAA")
+                                .desired_width(132.0),
+                        );
+                        if hex_response.changed() {
+                            let hex = manual_color_hex.trim().trim_start_matches('#');
+                            if (hex.len() == 6 || hex.len() == 8)
+                                && let Ok(color_value) = u32::from_str_radix(hex, 16)
+                            {
+                                let (r, g, b, a) = if hex.len() == 6 {
+                                    (
+                                        ((color_value >> 16) & 0xFF) as u8,
+                                        ((color_value >> 8) & 0xFF) as u8,
+                                        (color_value & 0xFF) as u8,
+                                        255,
+                                    )
+                                } else {
+                                    (
+                                        ((color_value >> 24) & 0xFF) as u8,
+                                        ((color_value >> 16) & 0xFF) as u8,
+                                        ((color_value >> 8) & 0xFF) as u8,
+                                        (color_value & 0xFF) as u8,
+                                    )
+                                };
+                                *manual_color = crate::model::RgbaColor { r, g, b, a };
+                                *color = *manual_color;
+                                expr.clear();
+                                changed = true;
+                            }
+                        }
+                    });
                 });
-            });
 
-        if popup_open
-            && let Some(pointer_pos) = ui.ctx().pointer_hover_pos()
-        {
-            let mut keep_open_rect = palette_button.rect.expand(10.0);
-            if let Some(popup) = &popup_response {
-                keep_open_rect = keep_open_rect.union(popup.response.rect.expand(10.0));
+            if popup_open
+                && let Some(pointer_pos) = ui.ctx().pointer_hover_pos()
+            {
+                let mut keep_open_rect = palette_button.rect.expand(10.0);
+                if let Some(popup) = &popup_response {
+                    keep_open_rect = keep_open_rect.union(popup.response.rect.expand(10.0));
+                }
+                if !keep_open_rect.contains(pointer_pos) {
+                    popup_open = false;
+                }
             }
-            if !keep_open_rect.contains(pointer_pos) {
-                popup_open = false;
-            }
-        }
-        ui.ctx()
-            .data_mut(|data| data.insert_temp(popup_id, popup_open));
+            ui.ctx()
+                .data_mut(|data| data.insert_temp(popup_id, popup_open));
 
-        let screen_pick_response = ui
-            .add_sized([24.0, 24.0], Button::new(Self::material_icon_text(0xe3b8, 16.0)))
-            .on_hover_text("Pick from screen");
-        if screen_pick_response.clicked()
-        {
-            *request_screen_color_pick = true;
-            *pending_screen_color_target = Some((preset_id, object_id, is_fill));
-        }
+            let screen_pick_response = ui
+                .add_sized([24.0, 24.0], Button::new(Self::material_icon_text(0xe3b8, 16.0)))
+                .on_hover_text("Pick from screen");
+            if screen_pick_response.clicked() {
+                *request_screen_color_pick = true;
+                *pending_screen_color_target = Some((preset_id, object_id, is_fill));
+            }
+        });
         ui.end_row();
         changed
     }

@@ -19891,6 +19891,7 @@ impl CrosshairApp {
                         language,
                         0,
                         0,
+                        true,
                         &mut step.geometry_spec,
                         vision_manual_color,
                         vision_manual_color_hex,

@@ -2464,7 +2464,47 @@ impl CrosshairApp {
             VisionCaptureTarget::GeometryColor => {
                 self.vision_manual_color = color;
                 self.vision_manual_color_hex =
-                    format!("{:02X}{:02X}{:02X}", color.r, color.g, color.b);
+                    format!("{:02X}{:02X}{:02X}{:02X}", color.r, color.g, color.b, color.a);
+                let mut applied = false;
+                if let Some((preset_id, object_id, is_fill)) = self.geometry_color_pick_target.take()
+                {
+                    if let Some(preset) = self
+                        .state
+                        .geometry_presets
+                        .iter_mut()
+                        .find(|preset| preset.id == preset_id)
+                    {
+                        if let Some(object) =
+                            preset.objects.iter_mut().find(|object| object.id == object_id)
+                        {
+                            if is_fill {
+                                object.spec.fill_color = color;
+                                object.spec.fill_color_expr.clear();
+                            } else {
+                                object.spec.stroke_color = color;
+                                object.spec.stroke_color_expr.clear();
+                            }
+                            applied = true;
+                        }
+                    }
+                    if applied {
+                        if self.geometry_preview_target == Some((preset_id, object_id)) {
+                            let preview_spec = self
+                                .state
+                                .geometry_presets
+                                .iter()
+                                .find(|preset| preset.id == preset_id)
+                                .and_then(|preset| {
+                                    preset.objects.iter().find(|object| object.id == object_id)
+                                })
+                                .map(|object| object.spec.clone());
+                            let _ = self.overlay_tx.send(
+                                crate::overlay::OverlayCommand::PreviewGeometrySpec(preview_spec),
+                            );
+                        }
+                        self.sync_geometry_presets();
+                    }
+                }
                 format!(
                     "Picked geometry color #{:02X}{:02X}{:02X}.",
                     color.r, color.g, color.b
