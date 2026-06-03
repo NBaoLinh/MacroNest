@@ -9,6 +9,7 @@ impl CrosshairApp {
         let mut remove_preset_id = None;
         let mut request_screen_color_pick = false;
         let mut pending_screen_color_target: Option<(u32, u32, bool)> = None;
+        let mut clear_preview_target = false;
 
         ui.add_space(2.0);
         ui.horizontal(|ui| {
@@ -47,6 +48,10 @@ impl CrosshairApp {
                             .clicked()
                         {
                             remove_preset_id = Some(preset.id);
+                            if self.geometry_preview_target.is_some_and(|(preview_preset_id, _)| preview_preset_id == preset.id)
+                            {
+                                clear_preview_target = true;
+                            }
                         }
                         if Self::sound_style_toggle_button(
                             ui,
@@ -118,12 +123,36 @@ impl CrosshairApp {
                                         }
                                     });
 
+                                let preview_active =
+                                    self.geometry_preview_target == Some((preset.id, object.id));
+                                let preview_label = if preview_active { "Stop" } else { "Preview" };
                                 if ui
-                                    .add_sized([28.0, 24.0], Button::new("X"))
+                                    .add_sized([68.0, 24.0], Button::new(preview_label))
+                                    .clicked()
+                                {
+                                    if preview_active {
+                                        self.geometry_preview_target = None;
+                                        let _ = self.overlay_tx.send(crate::overlay::OverlayCommand::PreviewGeometrySpec(None));
+                                    } else {
+                                        self.geometry_preview_target = Some((preset.id, object.id));
+                                        let _ = self.overlay_tx.send(crate::overlay::OverlayCommand::PreviewGeometrySpec(
+                                            Some(object.spec.clone()),
+                                        ));
+                                    }
+                                }
+
+                                if ui
+                                    .add_sized(
+                                        [24.0, 24.0],
+                                        Button::new(Self::material_icon_text(0xe5cd, 16.0)),
+                                    )
                                     .on_hover_text(Self::tr_lang(language, "Delete object", "Delete object"))
                                     .clicked()
                                 {
                                     remove_object_id = Some(object.id);
+                                    if self.geometry_preview_target == Some((preset.id, object.id)) {
+                                        clear_preview_target = true;
+                                    }
                                 }
                             });
 
@@ -159,6 +188,27 @@ impl CrosshairApp {
         if changed {
             self.sync_geometry_presets();
             self.persist();
+        }
+
+        if clear_preview_target {
+            self.geometry_preview_target = None;
+            let _ = self
+                .overlay_tx
+                .send(crate::overlay::OverlayCommand::PreviewGeometrySpec(None));
+        } else if let Some((preview_preset_id, preview_object_id)) = self.geometry_preview_target {
+            let preview_spec = self
+                .state
+                .geometry_presets
+                .iter()
+                .find(|preset| preset.id == preview_preset_id)
+                .and_then(|preset| preset.objects.iter().find(|object| object.id == preview_object_id))
+                .map(|object| object.spec.clone());
+            if preview_spec.is_none() {
+                self.geometry_preview_target = None;
+            }
+            let _ = self
+                .overlay_tx
+                .send(crate::overlay::OverlayCommand::PreviewGeometrySpec(preview_spec));
         }
 
         if request_screen_color_pick {
@@ -445,13 +495,106 @@ impl CrosshairApp {
         changed |= ui
             .add_sized([208.0, 24.0], TextEdit::singleline(expr))
             .changed();
-        let picker_response = Self::edit_rgba_color(ui, color);
-        if picker_response.changed() {
-            *expr = String::new();
+        Self::image_search_target_color_swatch(ui, Some(*color));
+
+        let popup_id = ui.make_persistent_id((preset_id, object_id, label, "geometry-color-popup"));
+        let mut popup_open = ui
+            .ctx()
+            .data(|data| data.get_temp::<bool>(popup_id))
+            .unwrap_or(false);
+
+        let palette_button = ui
+            .add_sized([24.0, 24.0], Button::new(Self::material_icon_text(0xe40a, 18.0)))
+            .on_hover_text("Choose color");
+        if palette_button.clicked() {
             *manual_color = *color;
             *manual_color_hex = format!("{:02X}{:02X}{:02X}", color.r, color.g, color.b);
-            changed = true;
+            popup_open = true;
         }
+
+        let popup_response = egui::Popup::from_response(&palette_button)
+            .id(popup_id)
+            .open_bool(&mut popup_open)
+            .align(egui::RectAlign::BOTTOM_START)
+            .layout(egui::Layout::top_down_justified(egui::Align::Min))
+            .width(220.0)
+            .close_behavior(egui::PopupCloseBehavior::IgnoreClicks)
+            .show(|ui| {
+                ui.set_min_width(220.0);
+                let mut color32 = egui::Color32::from_rgba_unmultiplied(
+                    manual_color.r,
+                    manual_color.g,
+                    manual_color.b,
+                    manual_color.a,
+                );
+                if egui::color_picker::color_picker_color32(
+                    ui,
+                    &mut color32,
+                    egui::color_picker::Alpha::BlendOrAdditive,
+                ) {
+                    manual_color.r = color32.r();
+                    manual_color.g = color32.g();
+                    manual_color.b = color32.b();
+                    manual_color.a = color32.a();
+                    *manual_color_hex = format!(
+                        "{:02X}{:02X}{:02X}{:02X}",
+                        manual_color.r, manual_color.g, manual_color.b, manual_color.a
+                    );
+                    *color = *manual_color;
+                    expr.clear();
+                    changed = true;
+                }
+                ui.add_space(4.0);
+                ui.horizontal(|ui| {
+                    ui.label("#");
+                    let hex_response = ui.add(
+                        TextEdit::singleline(manual_color_hex)
+                            .hint_text("RRGGBB or RRGGBBAA")
+                            .desired_width(132.0),
+                    );
+                    if hex_response.changed() {
+                        let hex = manual_color_hex.trim().trim_start_matches('#');
+                        if (hex.len() == 6 || hex.len() == 8)
+                            && let Ok(color_value) = u32::from_str_radix(hex, 16)
+                        {
+                            let (r, g, b, a) = if hex.len() == 6 {
+                                (
+                                    ((color_value >> 16) & 0xFF) as u8,
+                                    ((color_value >> 8) & 0xFF) as u8,
+                                    (color_value & 0xFF) as u8,
+                                    255,
+                                )
+                            } else {
+                                (
+                                    ((color_value >> 24) & 0xFF) as u8,
+                                    ((color_value >> 16) & 0xFF) as u8,
+                                    ((color_value >> 8) & 0xFF) as u8,
+                                    (color_value & 0xFF) as u8,
+                                )
+                            };
+                            *manual_color = crate::model::RgbaColor { r, g, b, a };
+                            *color = *manual_color;
+                            expr.clear();
+                            changed = true;
+                        }
+                    }
+                });
+            });
+
+        if popup_open
+            && let Some(pointer_pos) = ui.ctx().pointer_hover_pos()
+        {
+            let mut keep_open_rect = palette_button.rect.expand(10.0);
+            if let Some(popup) = &popup_response {
+                keep_open_rect = keep_open_rect.union(popup.response.rect.expand(10.0));
+            }
+            if !keep_open_rect.contains(pointer_pos) {
+                popup_open = false;
+            }
+        }
+        ui.ctx()
+            .data_mut(|data| data.insert_temp(popup_id, popup_open));
+
         if ui
             .add_sized([24.0, 24.0], Button::new(Self::material_icon_text(0xe3b8, 16.0)))
             .on_hover_text("Pick from screen")

@@ -480,6 +480,7 @@ mod windows_overlay {
 
         UpdateVisionPresets(Vec<VisionPreset>),
         UpdateGeometryPresets(Vec<crate::model::GeometryPreset>),
+        PreviewGeometrySpec(Option<GeometrySpec>),
         RefreshSearchAreaOverlay,
 
         InvalidateVisionWaits(Vec<u32>),
@@ -781,6 +782,7 @@ mod windows_overlay {
         geometry_presets: Vec<crate::model::GeometryPreset>,
         active_geometry_preset_ids: HashSet<u32>,
         active_geometry_steps: HashMap<(u32, usize), crate::model::GeometrySpec>,
+        preview_geometry_spec: Option<GeometrySpec>,
 
         vision_following_presets: HashSet<u32>,
 
@@ -911,6 +913,7 @@ mod windows_overlay {
                 geometry_presets: Vec::new(),
                 active_geometry_preset_ids: HashSet::new(),
                 active_geometry_steps: HashMap::new(),
+                preview_geometry_spec: None,
 
                 vision_following_presets: HashSet::new(),
 
@@ -4833,6 +4836,11 @@ mod windows_overlay {
 
                 OverlayCommand::UpdateGeometryPresets(presets) => {
                     HOOK_STATE.lock().geometry_presets = presets;
+                    let _ = refresh_search_area_overlay(runtime);
+                }
+
+                OverlayCommand::PreviewGeometrySpec(spec) => {
+                    HOOK_STATE.lock().preview_geometry_spec = spec;
                     let _ = refresh_search_area_overlay(runtime);
                 }
 
@@ -13228,6 +13236,11 @@ mod windows_overlay {
             if let Some(shape) = geometry_render_shape_from_spec(spec) {
                 shapes.push(shape);
             }
+        }
+        if let Some(spec) = &hook_state.preview_geometry_spec
+            && let Some(shape) = geometry_render_shape_from_spec(spec)
+        {
+            shapes.push(shape);
         }
         shapes
     }
