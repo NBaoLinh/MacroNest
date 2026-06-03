@@ -1787,7 +1787,7 @@ impl CrosshairApp {
 
             let keyboard_btn = ui
                 .add_sized(
-                    [22.0, 22.0],
+                    [20.0, 20.0],
                     egui::Button::new(Self::material_icon_text(0xe312, 14.0)) // icon bàn phím ⌨️
                         .fill(if active {
                             egui::Color32::from_rgba_premultiplied(72, 156, 116, 120)
@@ -2457,7 +2457,7 @@ impl CrosshairApp {
 
                         let pick_btn = ui
                             .add_sized(
-                                [22.0, 22.0],
+                                [20.0, 20.0],
                                 egui::Button::new(Self::material_icon_text(0xe3b4, 14.0)),
                             )
                             .on_hover_text(Self::tr_lang(
@@ -2660,7 +2660,7 @@ impl CrosshairApp {
 
                         let pick_btn = ui
                             .add_sized(
-                                [22.0, 22.0],
+                                [20.0, 20.0],
                                 egui::Button::new(Self::material_icon_text(0xe55c, 14.0)),
                             )
                             .on_hover_text(Self::tr_lang(
@@ -9358,7 +9358,7 @@ impl CrosshairApp {
 
                                                             360.0,
 
-                                                            22.0,
+                                                            20.0,
 
                                                             44.0,
 
@@ -9818,7 +9818,7 @@ impl CrosshairApp {
 
                                                                        let pick_btn = ui.add_sized(
 
-                                                                           [22.0, 22.0],
+                                                                           [20.0, 20.0],
 
                                                                            egui::Button::new(Self::material_icon_text(0xe3b4, 14.0)),
 
@@ -10075,7 +10075,7 @@ impl CrosshairApp {
 
                                                                        let pick_btn = ui.add_sized(
 
-                                                                           [22.0, 22.0],
+                                                                           [20.0, 20.0],
 
                                                                            egui::Button::new(Self::material_icon_text(0xe55c, 14.0)),
 
@@ -10563,7 +10563,7 @@ impl CrosshairApp {
                                                             y_id,
                                                             y_hint,
                                                             58.0,
-                                                            22.0,
+                                                            20.0,
                                                         );
                                                     Self::apply_vietnamese_input_if_changed(
                                                         &x_response,
@@ -12066,7 +12066,7 @@ impl CrosshairApp {
 
                                             ui.add_sized(
 
-                                                [label_width, 18.0],
+                                                [label_width, 20.0],
 
                                                 egui::Label::new(
 
@@ -14127,7 +14127,7 @@ impl CrosshairApp {
 
                                                             let response = ui.add_sized(
 
-                                                                [96.0, 18.0],
+                                                                [96.0, 20.0],
 
                                                                 TextEdit::singleline(&mut step.key)
 
@@ -14875,7 +14875,7 @@ impl CrosshairApp {
 
                                                              260.0,
 
-                                                             18.0,
+                                                              20.0,
 
                                                              36.0,
 
@@ -15332,7 +15332,7 @@ impl CrosshairApp {
 
                                                                         let pick_btn = ui.add_sized(
 
-                                                                            [22.0, 22.0],
+                                                                            [20.0, 20.0],
 
                                                                             egui::Button::new(Self::material_icon_text(0xe3b4, 14.0)),
 
@@ -15589,7 +15589,7 @@ impl CrosshairApp {
 
                                                                         let pick_btn = ui.add_sized(
 
-                                                                            [22.0, 22.0],
+                                                                            [20.0, 20.0],
 
                                                                             egui::Button::new(Self::material_icon_text(0xe55c, 14.0)),
 
@@ -16387,7 +16387,7 @@ impl CrosshairApp {
                                                             y_id,
                                                             y_hint,
                                                             48.0,
-                                                            18.0,
+                                                            20.0,
                                                         );
                                                     Self::apply_vietnamese_input_if_changed(
                                                         &x_response,
@@ -16454,7 +16454,7 @@ impl CrosshairApp {
 
                                                         .add_sized(
 
-                                                            [62.0, 18.0],
+                                                            [62.0, 20.0],
 
                                                             Button::new(Self::pick_point_button_text(
 
@@ -17002,7 +17002,7 @@ impl CrosshairApp {
 
                                                       ui.add_sized(
 
-                                                          [62.0, 18.0],
+                                                          [62.0, 20.0],
 
                                                           egui::Label::new(
 
