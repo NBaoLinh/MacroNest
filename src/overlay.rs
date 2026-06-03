@@ -577,6 +577,7 @@ mod windows_overlay {
         active_geometry_preset_ids: HashSet<u32>,
         active_geometry_steps: HashMap<(u32, usize), crate::model::GeometrySpec>,
         active_geometry_steps_expires: HashMap<(u32, usize), Instant>,
+        active_geometry_animations: HashMap<(u32, usize), GeometryStepAnimationState>,
         active_crosshair_expires: Option<Instant>,
         active_pin_expires: Option<Instant>,
         preview_geometry_spec: Option<GeometrySpec>,
@@ -652,6 +653,7 @@ mod windows_overlay {
                 active_geometry_preset_ids: HashSet::new(),
                 active_geometry_steps: HashMap::new(),
                 active_geometry_steps_expires: HashMap::new(),
+                active_geometry_animations: HashMap::new(),
                 active_crosshair_expires: None,
                 active_pin_expires: None,
                 preview_geometry_spec: None,
@@ -4294,9 +4296,20 @@ mod windows_overlay {
                     expired.push(*key);
                 }
             }
-            for key in expired {
-                hook_state.active_geometry_steps.remove(&key);
-                hook_state.active_geometry_steps_expires.remove(&key);
+            for key in &expired {
+                hook_state.active_geometry_steps.remove(key);
+                hook_state.active_geometry_steps_expires.remove(key);
+                hook_state.active_geometry_animations.remove(key);
+            }
+
+            let mut expired_anims = Vec::new();
+            for (key, anim) in &hook_state.active_geometry_animations {
+                if now.duration_since(anim.start_time) >= anim.duration {
+                    expired_anims.push(*key);
+                }
+            }
+            for key in expired_anims {
+                hook_state.active_geometry_animations.remove(&key);
             }
 
             let regions = hook_state
@@ -4384,12 +4397,14 @@ mod windows_overlay {
     }
 
     fn desired_timer_interval_ms(runtime: &Runtime) -> u32 {
-        let capture_active = {
+        let (capture_active, anim_active) = {
             let hook_state = HOOK_STATE.lock();
-            !hook_state.vision_capture_preview_regions.is_empty()
-                || hook_state.vision_capture_mouse_blocked
+            let c_active = !hook_state.vision_capture_preview_regions.is_empty()
+                || hook_state.vision_capture_mouse_blocked;
+            let a_active = !hook_state.active_geometry_animations.is_empty();
+            (c_active, a_active)
         };
-        if capture_active {
+        if capture_active || anim_active {
             return 16;
         }
 
@@ -10650,6 +10665,14 @@ mod windows_overlay {
     }
 
     #[derive(Clone, Debug)]
+    struct GeometryStepAnimationState {
+        start_time: Instant,
+        duration: Duration,
+        start_shape: GeometryRenderShape,
+        target_spec: crate::model::GeometrySpec,
+    }
+
+    #[derive(Clone, Debug)]
     enum GeometryRenderDraw {
         Point {
             x: i32,
@@ -11001,6 +11024,163 @@ mod windows_overlay {
         }
     }
 
+    fn interpolate_color(c1: [u8; 4], c2: [u8; 4], t: f32) -> [u8; 4] {
+        [
+            (c1[0] as f32 + (c2[0] as f32 - c1[0] as f32) * t).round() as u8,
+            (c1[1] as f32 + (c2[1] as f32 - c1[1] as f32) * t).round() as u8,
+            (c1[2] as f32 + (c2[2] as f32 - c1[2] as f32) * t).round() as u8,
+            (c1[3] as f32 + (c2[3] as f32 - c1[3] as f32) * t).round() as u8,
+        ]
+    }
+
+    fn interpolate_color_opt(c1: Option<[u8; 4]>, c2: Option<[u8; 4]>, t: f32) -> Option<[u8; 4]> {
+        match (c1, c2) {
+            (Some(c1), Some(c2)) => Some(interpolate_color(c1, c2, t)),
+            (Some(c1), None) => Some(interpolate_color(c1, [c1[0], c1[1], c1[2], 0], t)),
+            (None, Some(c2)) => Some(interpolate_color([c2[0], c2[1], c2[2], 0], c2, t)),
+            (None, None) => None,
+        }
+    }
+
+    fn interpolate_i32(v1: i32, v2: i32, t: f32) -> i32 {
+        (v1 as f32 + (v2 as f32 - v1 as f32) * t).round() as i32
+    }
+
+    fn interpolate_f32(v1: f32, v2: f32, t: f32) -> f32 {
+        v1 + (v2 - v1) * t
+    }
+
+    fn interpolate_points(p1: &[(i32, i32)], p2: &[(i32, i32)], t: f32) -> Vec<(i32, i32)> {
+        let mut res = Vec::new();
+        let max_len = p1.len().max(p2.len());
+        for i in 0..max_len {
+            let pt1 = p1.get(i).cloned().unwrap_or_else(|| p1.last().cloned().unwrap_or((0, 0)));
+            let pt2 = p2.get(i).cloned().unwrap_or_else(|| p2.last().cloned().unwrap_or((0, 0)));
+            res.push((interpolate_i32(pt1.0, pt2.0, t), interpolate_i32(pt1.1, pt2.1, t)));
+        }
+        res
+    }
+
+    fn interpolate_shape(start: &GeometryRenderShape, target: &GeometryRenderShape, t: f32) -> GeometryRenderShape {
+        let bounds = (
+            interpolate_i32(start.bounds.0, target.bounds.0, t),
+            interpolate_i32(start.bounds.1, target.bounds.1, t),
+            interpolate_i32(start.bounds.2, target.bounds.2, t),
+            interpolate_i32(start.bounds.3, target.bounds.3, t),
+        );
+
+        let draw = match (&start.draw, &target.draw) {
+            (GeometryRenderDraw::Point { x: x1, y: y1, radius: r1, fill: f1 }, GeometryRenderDraw::Point { x: x2, y: y2, radius: r2, fill: f2 }) => {
+                GeometryRenderDraw::Point {
+                    x: interpolate_i32(*x1, *x2, t),
+                    y: interpolate_i32(*y1, *y2, t),
+                    radius: interpolate_i32(*r1, *r2, t),
+                    fill: interpolate_color(*f1, *f2, t),
+                }
+            }
+            (GeometryRenderDraw::Line { x1: sx1, y1: sy1, x2: sx2, y2: sy2, stroke: sf, thickness: st },
+             GeometryRenderDraw::Line { x1: tx1, y1: ty1, x2: tx2, y2: ty2, stroke: tf, thickness: tt }) => {
+                GeometryRenderDraw::Line {
+                    x1: interpolate_i32(*sx1, *tx1, t),
+                    y1: interpolate_i32(*sy1, *ty1, t),
+                    x2: interpolate_i32(*sx2, *tx2, t),
+                    y2: interpolate_i32(*sy2, *ty2, t),
+                    stroke: interpolate_color(*sf, *tf, t),
+                    thickness: interpolate_i32(*st, *tt, t),
+                }
+            }
+            (GeometryRenderDraw::Rectangle { x: sx, y: sy, width: sw, height: sh, stroke: ss, fill: sf, thickness: st },
+             GeometryRenderDraw::Rectangle { x: tx, y: ty, width: tw, height: th, stroke: ts, fill: tf, thickness: tt }) => {
+                GeometryRenderDraw::Rectangle {
+                    x: interpolate_i32(*sx, *tx, t),
+                    y: interpolate_i32(*sy, *ty, t),
+                    width: interpolate_i32(*sw, *tw, t),
+                    height: interpolate_i32(*sh, *th, t),
+                    stroke: interpolate_color(*ss, *ts, t),
+                    fill: interpolate_color_opt(*sf, *tf, t),
+                    thickness: interpolate_i32(*st, *tt, t),
+                }
+            }
+            (GeometryRenderDraw::Circle { cx: scx, cy: scy, radius: sr, stroke: ss, fill: sf, thickness: st },
+             GeometryRenderDraw::Circle { cx: tcx, cy: tcy, radius: tr, stroke: ts, fill: tf, thickness: tt }) => {
+                GeometryRenderDraw::Circle {
+                    cx: interpolate_i32(*scx, *tcx, t),
+                    cy: interpolate_i32(*scy, *tcy, t),
+                    radius: interpolate_i32(*sr, *tr, t),
+                    stroke: interpolate_color(*ss, *ts, t),
+                    fill: interpolate_color_opt(*sf, *tf, t),
+                    thickness: interpolate_i32(*st, *tt, t),
+                }
+            }
+            (GeometryRenderDraw::Ellipse { cx: scx, cy: scy, rx: srx, ry: sry, stroke: ss, fill: sf, thickness: st },
+             GeometryRenderDraw::Ellipse { cx: tcx, cy: tcy, rx: trx, ry: try_, stroke: ts, fill: tf, thickness: tt }) => {
+                GeometryRenderDraw::Ellipse {
+                    cx: interpolate_i32(*scx, *tcx, t),
+                    cy: interpolate_i32(*scy, *tcy, t),
+                    rx: interpolate_i32(*srx, *trx, t),
+                    ry: interpolate_i32(*sry, *try_, t),
+                    stroke: interpolate_color(*ss, *ts, t),
+                    fill: interpolate_color_opt(*sf, *tf, t),
+                    thickness: interpolate_i32(*st, *tt, t),
+                }
+            }
+            (GeometryRenderDraw::Arrow { x1: sx1, y1: sy1, x2: sx2, y2: sy2, stroke: sf, thickness: st, head_size: shs },
+             GeometryRenderDraw::Arrow { x1: tx1, y1: ty1, x2: tx2, y2: ty2, stroke: tf, thickness: tt, head_size: ths }) => {
+                GeometryRenderDraw::Arrow {
+                    x1: interpolate_i32(*sx1, *tx1, t),
+                    y1: interpolate_i32(*sy1, *ty1, t),
+                    x2: interpolate_i32(*sx2, *tx2, t),
+                    y2: interpolate_i32(*sy2, *ty2, t),
+                    stroke: interpolate_color(*sf, *tf, t),
+                    thickness: interpolate_i32(*st, *tt, t),
+                    head_size: interpolate_i32(*shs, *ths, t),
+                }
+            }
+            (GeometryRenderDraw::Polyline { points: sp, stroke: ss, thickness: st },
+             GeometryRenderDraw::Polyline { points: tp, stroke: ts, thickness: tt }) => {
+                GeometryRenderDraw::Polyline {
+                    points: interpolate_points(sp, tp, t),
+                    stroke: interpolate_color(*ss, *ts, t),
+                    thickness: interpolate_i32(*st, *tt, t),
+                }
+            }
+            (GeometryRenderDraw::Polygon { points: sp, stroke: ss, fill: sf, thickness: st },
+             GeometryRenderDraw::Polygon { points: tp, stroke: ts, fill: tf, thickness: tt }) => {
+                GeometryRenderDraw::Polygon {
+                    points: interpolate_points(sp, tp, t),
+                    stroke: interpolate_color(*ss, *ts, t),
+                    fill: interpolate_color_opt(*sf, *tf, t),
+                    thickness: interpolate_i32(*st, *tt, t),
+                }
+            }
+            (GeometryRenderDraw::Arc { cx: scx, cy: scy, rx: srx, ry: sry, start_angle_deg: ssa, end_angle_deg: sea, stroke: ss, thickness: st },
+             GeometryRenderDraw::Arc { cx: tcx, cy: tcy, rx: trx, ry: try_, start_angle_deg: tsa, end_angle_deg: tea, stroke: ts, thickness: tt }) => {
+                GeometryRenderDraw::Arc {
+                    cx: interpolate_i32(*scx, *tcx, t),
+                    cy: interpolate_i32(*scy, *tcy, t),
+                    rx: interpolate_i32(*srx, *trx, t),
+                    ry: interpolate_i32(*sry, *try_, t),
+                    start_angle_deg: interpolate_f32(*ssa, *tsa, t),
+                    end_angle_deg: interpolate_f32(*sea, *tea, t),
+                    stroke: interpolate_color(*ss, *ts, t),
+                    thickness: interpolate_i32(*st, *tt, t),
+                }
+            }
+            (GeometryRenderDraw::Label(sl), GeometryRenderDraw::Label(tl)) => {
+                GeometryRenderDraw::Label(GeometryRenderText {
+                    x: interpolate_i32(sl.x, tl.x, t),
+                    y: interpolate_i32(sl.y, tl.y, t),
+                    font_size: interpolate_i32(sl.font_size, tl.font_size, t),
+                    color: interpolate_color(sl.color, tl.color, t),
+                    text: if t < 0.5 { sl.text.clone() } else { tl.text.clone() },
+                })
+            }
+            (_, target_draw) => target_draw.clone()
+        };
+
+        GeometryRenderShape { bounds, draw }
+    }
+
     fn geometry_overlay_shapes(hook_state: &HookState) -> Vec<GeometryRenderShape> {
         let mut shapes = Vec::new();
         for preset_id in &hook_state.active_geometry_preset_ids {
@@ -11018,9 +11198,25 @@ mod windows_overlay {
                 }
             }
         }
-        for spec in hook_state.active_geometry_steps.values() {
-            if let Some(shape) = geometry_render_shape_from_spec(spec) {
-                shapes.push(shape);
+        for (key, spec) in &hook_state.active_geometry_steps {
+            if let Some(anim) = hook_state.active_geometry_animations.get(key) {
+                let elapsed = Instant::now().duration_since(anim.start_time);
+                let duration_secs = anim.duration.as_secs_f32();
+                let t = if duration_secs > 0.0 {
+                    (elapsed.as_secs_f32() / duration_secs).clamp(0.0, 1.0)
+                } else {
+                    1.0
+                };
+                if let Some(target_shape) = geometry_render_shape_from_spec(&anim.target_spec) {
+                    let interpolated = interpolate_shape(&anim.start_shape, &target_shape, t);
+                    shapes.push(interpolated);
+                } else if let Some(shape) = geometry_render_shape_from_spec(spec) {
+                    shapes.push(shape);
+                }
+            } else {
+                if let Some(shape) = geometry_render_shape_from_spec(spec) {
+                    shapes.push(shape);
+                }
             }
         }
         if let Some(spec) = &hook_state.preview_geometry_spec
@@ -13156,9 +13352,30 @@ mod windows_overlay {
     fn set_step_geometry_spec(preset_id: u32, absolute_step_index: usize, spec: &GeometrySpec) {
         {
             let mut hook_state = HOOK_STATE.lock();
+            let key = (preset_id, absolute_step_index);
+
+            if spec.geometry_animation_enabled {
+                if let Some(old_spec) = hook_state.active_geometry_steps.get(&key).cloned() {
+                    if let Some(start_shape) = geometry_render_shape_from_spec(&old_spec) {
+                        let duration_ms = geometry_eval_i32(&spec.geometry_animation_duration_expr, 300).max(0) as u64;
+                        if duration_ms > 0 {
+                            let anim = GeometryStepAnimationState {
+                                start_time: Instant::now(),
+                                duration: Duration::from_millis(duration_ms),
+                                start_shape,
+                                target_spec: spec.clone(),
+                            };
+                            hook_state.active_geometry_animations.insert(key, anim);
+                        }
+                    }
+                }
+            } else {
+                hook_state.active_geometry_animations.remove(&key);
+            }
+
             hook_state
                 .active_geometry_steps
-                .insert((preset_id, absolute_step_index), spec.clone());
+                .insert(key, spec.clone());
         }
         send_overlay_command(OverlayCommand::RefreshSearchAreaOverlay);
     }
@@ -13168,6 +13385,7 @@ mod windows_overlay {
             let mut hook_state = HOOK_STATE.lock();
             hook_state.active_geometry_preset_ids.clear();
             hook_state.active_geometry_steps.clear();
+            hook_state.active_geometry_animations.clear();
         }
         send_overlay_command(OverlayCommand::RefreshSearchAreaOverlay);
     }
@@ -15486,6 +15704,7 @@ mod windows_overlay {
         let mut hook_state = HOOK_STATE.lock();
         hook_state.active_geometry_steps.remove(&(preset_id, step_index));
         hook_state.active_geometry_steps_expires.remove(&(preset_id, step_index));
+        hook_state.active_geometry_animations.remove(&(preset_id, step_index));
         drop(hook_state);
         send_overlay_command(OverlayCommand::RefreshSearchAreaOverlay);
     }

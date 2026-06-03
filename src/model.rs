@@ -229,6 +229,10 @@ fn default_ocr_height() -> i32 {
     180
 }
 
+fn default_geometry_animation_duration_expr() -> String {
+    "300".to_owned()
+}
+
 #[derive(Debug, Clone, Copy, Serialize, Deserialize, PartialEq, Eq, Default)]
 pub enum AppPanel {
     #[default]
@@ -547,6 +551,10 @@ pub struct GeometrySpec {
     pub point_radius: f32,
     #[serde(default = "default_geometry_arrow_head_size")]
     pub arrow_head_size: f32,
+    #[serde(default)]
+    pub geometry_animation_enabled: bool,
+    #[serde(default = "default_geometry_animation_duration_expr")]
+    pub geometry_animation_duration_expr: String,
 }
 
 impl Default for GeometrySpec {
@@ -585,6 +593,8 @@ impl Default for GeometrySpec {
             font_size: default_geometry_font_size(),
             point_radius: default_geometry_point_radius(),
             arrow_head_size: default_geometry_arrow_head_size(),
+            geometry_animation_enabled: false,
+            geometry_animation_duration_expr: "300".to_owned(),
         }
     }
 }

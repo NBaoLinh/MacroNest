@@ -4531,6 +4531,7 @@ impl CrosshairApp {
         let mut remove_group = None;
 
         let mut live_sync = false;
+        let mut geom_presets_changed = false;
 
         let mut add_preset_to_group = None;
 
@@ -10503,6 +10504,8 @@ impl CrosshairApp {
                                                     self.state.vietnamese_input_enabled,
                                                     self.state.vietnamese_input_mode,
                                                     &timer_names,
+                                                    &mut self.state.geometry_presets,
+                                                    &mut geom_presets_changed,
                                                 );
                                             } else if Self::macro_action_uses_position(step.action) {
 
@@ -16575,6 +16578,8 @@ impl CrosshairApp {
                                                     self.state.vietnamese_input_enabled,
                                                     self.state.vietnamese_input_mode,
                                                     &timer_names,
+                                                    &mut self.state.geometry_presets,
+                                                    &mut geom_presets_changed,
                                                 );
                                             } else if matches!(
                                                 step.action,
@@ -18440,6 +18445,11 @@ impl CrosshairApp {
 
         }
 
+        if geom_presets_changed {
+            self.sync_geometry_presets();
+            self.persist();
+        }
+
         if let Some(folder_id) = release_folder_id {
 
             self.state
@@ -19812,6 +19822,8 @@ impl CrosshairApp {
         vietnamese_input_enabled: bool,
         vietnamese_input_mode: VietnameseInputMode,
         timer_names: &[String],
+        geometry_presets: &mut Vec<crate::model::GeometryPreset>,
+        geometry_presets_changed: &mut bool,
     ) {
         let mut pending_screen_color_target = None;
         ui.scope(|ui| {
@@ -19874,6 +19886,44 @@ impl CrosshairApp {
                         }
 
                         ui.add_space(6.0);
+                        let anim_response = ui.checkbox(
+                            &mut step.geometry_spec.geometry_animation_enabled,
+                            Self::tr_lang(language, "Anim", "Hiệu ứng"),
+                        );
+                        *live_sync |= anim_response.changed();
+
+                        if step.geometry_spec.geometry_animation_enabled {
+                            ui.label(Self::tr_lang(language, "Anim Duration", "T.gian Anim"));
+                            let anim_duration_id = ui.make_persistent_id((group_id, macro_preset_id, step_index, is_hold_stop, "geometry-anim-duration"));
+                            let response_anim = Self::render_variable_text_edit(
+                                ui,
+                                &mut step.geometry_spec.geometry_animation_duration_expr,
+                                anim_duration_id,
+                                45.0,
+                                120.0,
+                                18.0,
+                                18.0,
+                                "300",
+                                false,
+                            );
+                            ui.weak("ms");
+                            Self::apply_vietnamese_input_if_changed(
+                                &response_anim,
+                                vietnamese_input_enabled,
+                                vietnamese_input_mode,
+                                &mut step.geometry_spec.geometry_animation_duration_expr,
+                            );
+                            *live_sync |= response_anim.changed();
+                            Self::render_variable_suggestions(
+                                ui,
+                                &response_anim,
+                                &mut step.geometry_spec.geometry_animation_duration_expr,
+                                timer_names,
+                                language,
+                            );
+                        }
+
+                        ui.add_space(6.0);
 
                         let collapse_icon = if step.geometry_collapsed { 0xe5cc } else { 0xe5cf };
                         let collapse_btn = Button::new(Self::material_icon_text(collapse_icon, 12.0));
@@ -19926,6 +19976,42 @@ impl CrosshairApp {
                             vietnamese_input_mode,
                             Some(group_id),
                         );
+
+                        ui.add_space(4.0);
+                        ui.horizontal(|ui| {
+                            let save_preset_btn_text = Self::tr_lang(language, "Save as Preset", "Lưu làm preset");
+                            ui.menu_button(save_preset_btn_text, |ui| {
+                                if ui.button(Self::tr_lang(language, "+ New preset", "+ Preset mới")).clicked() {
+                                    let next_preset_id = geometry_presets.iter().map(|p| p.id).max().unwrap_or(0) + 1;
+                                    let mut new_preset = crate::model::GeometryPreset::new(next_preset_id);
+                                    new_preset.name = format!("Preset {}", next_preset_id);
+                                    new_preset.objects.clear();
+                                    let object_id = 1;
+                                    new_preset.objects.push(crate::model::GeometryObject {
+                                        id: object_id,
+                                        name: format!("{:?} {}", step.geometry_spec.shape, object_id),
+                                        enabled: true,
+                                        spec: step.geometry_spec.clone(),
+                                    });
+                                    geometry_presets.push(new_preset);
+                                    *geometry_presets_changed = true;
+                                    ui.close_menu();
+                                }
+                                for preset in geometry_presets.iter_mut() {
+                                    if ui.button(&preset.name).clicked() {
+                                        let object_id = preset.objects.iter().map(|o| o.id).max().unwrap_or(0) + 1;
+                                        preset.objects.push(crate::model::GeometryObject {
+                                            id: object_id,
+                                            name: format!("{:?} {}", step.geometry_spec.shape, object_id),
+                                            enabled: true,
+                                            spec: step.geometry_spec.clone(),
+                                        });
+                                        *geometry_presets_changed = true;
+                                        ui.close_menu();
+                                    }
+                                }
+                            });
+                        });
                     }
                     if *request_screen_color_pick {
                         if let Some((_, _, is_fill)) = pending_screen_color_target {
