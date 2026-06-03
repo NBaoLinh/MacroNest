@@ -18,7 +18,7 @@ impl CrosshairApp {
                 .button(Self::tr_lang(language, "+ Add geometry preset", "+ Add geometry preset"))
                 .clicked()
             {
-                let id = self.state.next_geometry_preset_id.max(1);
+                let id = self.state.geometry_presets.iter().map(|p| p.id).max().unwrap_or(0) + 1;
                 self.state.next_geometry_preset_id = id + 1;
                 self.state
                     .geometry_presets
@@ -78,7 +78,7 @@ impl CrosshairApp {
                             )
                             .clicked()
                         {
-                            let object_id = self.state.next_geometry_object_id.max(1);
+                            let object_id = preset.objects.iter().map(|o| o.id).max().unwrap_or(0) + 1;
                             self.state.next_geometry_object_id = object_id + 1;
                             preset
                                 .objects
@@ -98,9 +98,19 @@ impl CrosshairApp {
                         {
                             if preview_all_active {
                                 self.geometry_preset_preview_target = None;
+                                for object in &mut preset.objects {
+                                    if object.enabled {
+                                        object.enabled = false;
+                                    }
+                                }
+                                changed = true;
                                 let _ = self.overlay_tx.send(crate::overlay::OverlayCommand::PreviewGeometryPreset(None));
                             } else {
                                 self.geometry_preset_preview_target = Some(preset.id);
+                                for object in &mut preset.objects {
+                                    object.enabled = true;
+                                }
+                                changed = true;
                                 let _ = self.overlay_tx.send(crate::overlay::OverlayCommand::PreviewGeometryPreset(Some(preset.id)));
                             }
                         }
@@ -124,7 +134,14 @@ impl CrosshairApp {
                         ui.horizontal(|ui| {
                             let preview_active =
                                 self.geometry_preview_target == Some((preset.id, object.id));
-                            if ui.checkbox(&mut object.enabled, "").changed() {
+                            let checkbox_response = {
+                                let old_icon_width = ui.spacing().icon_width;
+                                ui.spacing_mut().icon_width = 20.0;
+                                let r = ui.checkbox(&mut object.enabled, "");
+                                ui.spacing_mut().icon_width = old_icon_width;
+                                r
+                            };
+                            if checkbox_response.changed() {
                                 changed = true;
                                 if !object.enabled && preview_active {
                                     self.geometry_preview_target = None;
@@ -163,11 +180,10 @@ impl CrosshairApp {
                                 if preview_active { 0xe8f5 } else { 0xe8f4 },
                                 16.0,
                             ));
-                            if ui
-                                .add_enabled(object.enabled, preview_btn)
-                                .on_hover_text(if preview_active { "Stop preview" } else { "Preview" })
-                                .clicked()
-                            {
+                            let preview_response = ui.add_enabled_ui(object.enabled, |ui| {
+                                ui.add_sized([24.0, 24.0], preview_btn)
+                            });
+                            if preview_response.inner.on_hover_text(if preview_active { "Stop preview" } else { "Preview" }).clicked() {
                                 if preview_active {
                                     self.geometry_preview_target = None;
                                     self.geometry_preview_sent = None;
