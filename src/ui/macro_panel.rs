@@ -1630,9 +1630,9 @@ impl CrosshairApp {
                                 &mut step.command_preset_use_powershell,
                                 true,
                                 "PowerShell",
-                            )
-                            .changed();
-                    });
+                             )
+                                        .changed();
+                                });
 
                     if trigger_ai {
                         if let Some(preset) = resolved_preset.as_ref() {
@@ -6910,11 +6910,9 @@ impl CrosshairApp {
 
                                         ),
 
-                                    )
-
-                                    .changed();
-
-                            } else {
+                                     )
+                                        .changed();
+                                } else {
 
                                 preset.stop_on_retrigger_immediate = false;
 
@@ -6978,11 +6976,9 @@ impl CrosshairApp {
 
                                         ),
 
-                                    )
-
-                                    .changed();
-
-                            } else {
+                                     )
+                                        .changed();
+                                } else {
 
                                 preset.hold_stop_step_enabled = false;
 
@@ -7022,11 +7018,9 @@ impl CrosshairApp {
 
                                         ),
 
-                                    )
-
-                                    .changed();
-
-                            } else {
+                                     )
+                                        .changed();
+                                } else {
 
                                 preset.release_requires_all_inputs_released = false;
 
@@ -16674,10 +16668,9 @@ impl CrosshairApp {
                                                         language,
                                                         "Only changes Smooth playback for this Mouse Path step. x1 = normal speed, x2 = 2x faster, x0.5 = half speed. Supports {var}.",
                                                         "Chi doi toc do Smooth cua step Mouse Path nay. x1 = toc do mac dinh, x2 = nhanh gap doi, x0.5 = mot nua. Ho tro {var}.",
-                                                    ))
-                                                    .changed();
-
-                                            } else if matches!(
+                                                    ) )
+                                        .changed();
+                                } else if matches!(
                                                 step.action,
                                                 MacroAction::DrawGeometry
                                                     | MacroAction::ShowGeometryPreset
@@ -20218,6 +20211,8 @@ impl CrosshairApp {
             ui.vertical(|ui| match step.action {
                 MacroAction::DrawGeometry => {
                     step.geometry_spec.visible = true;
+                    let current_preview_target = (group_id, macro_preset_id, step_index, is_hold_stop);
+                    let mut geometry_preview_dirty = false;
                     ui.horizontal(|ui| {
                         ui.label(Self::tr_lang(language, "Shape", "Hình dạng"));
                         ComboBox::from_id_salt((id_prefix, "geometry-shape"))
@@ -20225,13 +20220,15 @@ impl CrosshairApp {
                             .selected_text(Self::geometry_shape_label(step.geometry_spec.shape, language))
                             .show_ui(ui, |ui| {
                                 for shape in Self::geometry_shapes() {
-                                    *live_sync |= ui
+                                    let changed = ui
                                         .selectable_value(
                                             &mut step.geometry_spec.shape,
                                             shape,
                                             Self::geometry_shape_label(shape, language),
-                                        )
+                                         )
                                         .changed();
+                                    *live_sync |= changed;
+                                    geometry_preview_dirty |= changed;
                                 }
                             });
 
@@ -20321,7 +20318,7 @@ impl CrosshairApp {
                     });
                     if !step.geometry_collapsed {
                         ui.add_space(4.0);
-                        *live_sync |= Self::render_geometry_spec_editor(
+                        let geometry_editor_changed = Self::render_geometry_spec_editor(
                             ui,
                             language,
                             macro_preset_id,
@@ -20337,6 +20334,16 @@ impl CrosshairApp {
                             vietnamese_input_mode,
                             Some(group_id),
                         );
+                        *live_sync |= geometry_editor_changed;
+                        geometry_preview_dirty |= geometry_editor_changed;
+
+                        if geometry_preview_dirty
+                            && *draw_geometry_step_preview_target == Some(current_preview_target)
+                        {
+                            let _ = overlay_tx.send(crate::overlay::OverlayCommand::PreviewGeometrySpec(
+                                Some(step.geometry_spec.clone()),
+                            ));
+                        }
 
                         ui.add_space(4.0);
                         ui.horizontal(|ui| {
@@ -22267,6 +22274,8 @@ impl CrosshairApp {
         response
     }
 }
+
+
 
 
 
