@@ -8406,7 +8406,10 @@ impl CrosshairApp {
                                                         self.state.vision_presets.iter().find(|p| p.id == id)
 
                                                     }).map(|p| p.is_pixel_counter).unwrap_or(false);
-                                                 let supports_move_mouse = selected_id.is_some() && !is_pixel;
+                                                 let is_single_pixel = selected_id.and_then(|id| {
+                                                        self.state.vision_presets.iter().find(|p| p.id == id)
+                                                    }).map(|p| p.use_color_matching && p.search_region_is_single_pixel && !p.is_pixel_counter).unwrap_or(false);
+                                                 let supports_move_mouse = selected_id.is_some() && !is_pixel && !is_single_pixel;
 
                                                     if matches!(step.action, MacroAction::StartVisionSearch | MacroAction::StopVision) {
 
@@ -8429,7 +8432,16 @@ impl CrosshairApp {
                                                                  .num_columns(2)
                                                                  .spacing([8.0, 6.0])
                                                                  .show(ui, |ui| {
-                                                                     if !is_pixel {
+                                                                     if is_single_pixel {
+                                                                         let resp_label = ui.label(Self::tr_lang(language, "Color Var:", "Biến màu:"));
+                                                                         let prev_override = ui.visuals().override_text_color;
+                                                                         ui.visuals_mut().override_text_color = None;
+                                                                         let resp = ui.add(egui::TextEdit::singleline(&mut step.if_variable_name).hint_text("var_color"));
+                                                                         ui.visuals_mut().override_text_color = prev_override;
+                                                                         Self::apply_vietnamese_input_if_changed(&resp, self.state.vietnamese_input_enabled, self.state.vietnamese_input_mode, &mut step.if_variable_name);
+                                                                         live_sync |= resp.changed();
+                                                                         ui.end_row();
+                                                                     } else if !is_pixel {
                                                                          let resp_label = ui.label("Pos X:");
                                                                          let prev_override = ui.visuals().override_text_color;
                                                                          ui.visuals_mut().override_text_color = None;
@@ -13786,7 +13798,10 @@ impl CrosshairApp {
                                                         self.state.vision_presets.iter().find(|p| p.id == id)
 
                                                     }).map(|p| p.is_pixel_counter).unwrap_or(false);
-                                                     let supports_move_mouse = selected_id.is_some() && !is_pixel;
+                                                     let is_single_pixel = selected_id.and_then(|id| {
+                                                        self.state.vision_presets.iter().find(|p| p.id == id)
+                                                    }).map(|p| p.use_color_matching && p.search_region_is_single_pixel && !p.is_pixel_counter).unwrap_or(false);
+                                                     let supports_move_mouse = selected_id.is_some() && !is_pixel && !is_single_pixel;
 
                                                     if matches!(step.action, MacroAction::StartVisionSearch | MacroAction::StopVision) {
 
@@ -13809,7 +13824,16 @@ impl CrosshairApp {
                                                                      .num_columns(2)
                                                                      .spacing([8.0, 6.0])
                                                                      .show(ui, |ui| {
-                                                                         if !is_pixel {
+                                                                         if is_single_pixel {
+                                                                             let resp_label = ui.label(Self::tr_lang(language, "Color Var:", "Biến màu:"));
+                                                                             let prev_override = ui.visuals().override_text_color;
+                                                                             ui.visuals_mut().override_text_color = None;
+                                                                             let resp = ui.add(egui::TextEdit::singleline(&mut step.if_variable_name).hint_text("var_color"));
+                                                                             ui.visuals_mut().override_text_color = prev_override;
+                                                                             Self::apply_vietnamese_input_if_changed(&resp, self.state.vietnamese_input_enabled, self.state.vietnamese_input_mode, &mut step.if_variable_name);
+                                                                             live_sync |= resp.changed();
+                                                                             ui.end_row();
+                                                                         } else if !is_pixel {
                                                                              let resp_label = ui.label("Pos X:");
                                                                              let prev_override = ui.visuals().override_text_color;
                                                                              ui.visuals_mut().override_text_color = None;
@@ -16166,7 +16190,8 @@ impl CrosshairApp {
                                                      });
 
                                                      let is_pixel = selected_preset.map(|p| p.is_pixel_counter).unwrap_or(false);
-                                                     let supports_move_mouse = selected_preset.is_some() && !is_pixel;
+                                                     let is_single_pixel = selected_preset.map(|p| p.use_color_matching && p.search_region_is_single_pixel && !p.is_pixel_counter).unwrap_or(false);
+                                                     let supports_move_mouse = selected_preset.is_some() && !is_pixel && !is_single_pixel;
 
                                                      if matches!(step.action, MacroAction::StartVisionSearch | MacroAction::StopVision) {
 
@@ -16189,7 +16214,16 @@ impl CrosshairApp {
                                                                      .num_columns(2)
                                                                      .spacing([8.0, 6.0])
                                                                      .show(ui, |ui| {
-                                                                         if !is_pixel {
+                                                                         if is_single_pixel {
+                                                                             let resp_label = ui.label(Self::tr_lang(language, "Color Var:", "Biến màu:"));
+                                                                             let prev_override = ui.visuals().override_text_color;
+                                                                             ui.visuals_mut().override_text_color = None;
+                                                                             let resp = ui.add(egui::TextEdit::singleline(&mut step.if_variable_name).hint_text("var_color"));
+                                                                             ui.visuals_mut().override_text_color = prev_override;
+                                                                             Self::apply_vietnamese_input_if_changed(&resp, self.state.vietnamese_input_enabled, self.state.vietnamese_input_mode, &mut step.if_variable_name);
+                                                                             live_sync |= resp.changed();
+                                                                             ui.end_row();
+                                                                         } else if !is_pixel {
                                                                              let resp_label = ui.label("Pos X:");
                                                                              let prev_override = ui.visuals().override_text_color;
                                                                              ui.visuals_mut().override_text_color = None;
@@ -17465,18 +17499,7 @@ impl CrosshairApp {
 
                                  }
 
-                                if is_active {
-                                    let rect = row_response.rect;
-                                    let accent_rect = egui::Rect::from_min_max(
-                                        egui::pos2(rect.min.x + 6.0, rect.min.y + 6.0),
-                                        egui::pos2(rect.min.x + 16.0, rect.min.y + 16.0),
-                                    );
-                                    ui.painter().rect_filled(
-                                        accent_rect,
-                                        3.0,
-                                        Color32::from_rgba_unmultiplied(0, 255, 170, 220),
-                                    );
-                                }
+
 
                                 if row_response.secondary_clicked() {
 

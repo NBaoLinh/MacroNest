@@ -785,8 +785,7 @@ impl CrosshairApp {
                                 }
                             }
 
-                            if preset.is_pixel_counter || (preset.use_color_matching && preset.search_region_is_single_pixel) {
-                                if preset.is_pixel_counter {
+                            if preset.is_pixel_counter {
                                     ui.label(Self::tr_lang(language, "Color scan", "Quét màu"));
                                     ui.horizontal_wrapped(|ui| {
                                         ui.label(Self::tr_lang(language, "Tolerance", "Sai số"));
@@ -798,7 +797,6 @@ impl CrosshairApp {
                                             .changed();
                                     });
                                     ui.end_row();
-                                }
 
                                 ui.label(Self::tr_lang(language, "Variable", "Tên biến"));
                                 ui.horizontal_wrapped(|ui| {
@@ -808,11 +806,7 @@ impl CrosshairApp {
                                     } else {
                                         Color32::from_rgba_unmultiplied(100, 100, 100, 150)
                                     };
-                                    let hint_text = if preset.is_pixel_counter {
-                                        format!("pixel_count_{}", preset.id)
-                                    } else {
-                                        format!("color_code_{}", preset.id)
-                                    };
+                                    let hint_text = format!("pixel_count_{}", preset.id);
                                     let text_edit = egui::TextEdit::singleline(&mut preset.pixel_counter_variable_name)
                                         .desired_width(120.0)
                                         .hint_text(RichText::new(hint_text).color(hint_color).weak());

@@ -3928,6 +3928,11 @@ mod windows_overlay {
                         STOP_REQUESTED_MACRO_PRESETS.lock().insert(preset_id);
                         deactivate_hold_macro(preset_id);
                     }
+                    for (&preset_id, &is_enabled) in &next_enabled {
+                        if is_enabled {
+                            STOP_REQUESTED_MACRO_PRESETS.lock().remove(&preset_id);
+                        }
+                    }
                 }
 
                 OverlayCommand::UpdateAudioSettings(settings) => {
@@ -7950,30 +7955,90 @@ mod windows_overlay {
                         if_contain_isolated,
                     )
                 } else {
-                    let evaluate_operand = |expr: &str, fallback: i32| -> i32 {
-                        if expr.trim().is_empty() {
-                            fallback
+                    let is_math_expression_or_numeric = |s: &str| -> bool {
+                        let s_trimmed = s.trim();
+                        if s_trimmed.is_empty() {
+                            return false;
+                        }
+                        if s_trimmed.parse::<f64>().is_ok() {
+                            return true;
+                        }
+                        let allowed_chars = |c: char| {
+                            c.is_ascii_digit()
+                                || c == '.'
+                                || c == '+'
+                                || c == '-'
+                                || c == '*'
+                                || c == '/'
+                                || c == '('
+                                || c == ')'
+                                || c == ','
+                                || c.is_whitespace()
+                        };
+                        if s_trimmed.chars().all(allowed_chars) {
+                            return true;
+                        }
+                        let s_lower = s_trimmed.to_lowercase();
+                        let math_funcs = [
+                            "random(", "min(", "max(", "abs(", "atan(", "atan2(", "sin(", "cos(", "tan(", "sqrt(",
+                            "ln(", "log(",
+                        ];
+                        for func in &math_funcs {
+                            if s_lower.contains(func) {
+                                return true;
+                            }
+                        }
+                        false
+                    };
+
+                    let left_str = {
+                        let trimmed = variable_name.trim();
+                        if let Some(val) = RUNTIME_VARIABLES.lock().get(trimmed) {
+                            val.to_string()
+                        } else if let Some(val) = resolve_text_variable_value(trimmed) {
+                            val
                         } else {
-                            evaluate_interpolated_math_expression(expr)
+                            interpolate_variables(trimmed)
                         }
                     };
-                    let compare_values = |value: i32, operator: &str, comp: i32| match operator {
-                        ">" => value > comp,
-                        "<" => value < comp,
-                        "=" | "==" => value == comp,
-                        ">=" => value >= comp,
-                        "<=" => value <= comp,
-                        "!=" => value != comp,
-                        _ => false,
-                    };
-                    let cond_left = evaluate_operand(variable_name, compare_value);
                     let right_expr = if expression.is_empty() && !key.is_empty() {
                         key
                     } else {
                         expression
                     };
-                    let cond_right = evaluate_operand(right_expr, compare_value);
-                    compare_values(cond_left, operator, cond_right)
+                    let right_str = interpolate_variables(right_expr.trim());
+
+                    if is_math_expression_or_numeric(&left_str) && is_math_expression_or_numeric(&right_str) {
+                        let evaluate_operand = |expr: &str, fallback: i32| -> i32 {
+                            if expr.trim().is_empty() {
+                                fallback
+                            } else {
+                                evaluate_interpolated_math_expression(expr)
+                            }
+                        };
+                        let compare_values = |value: i32, operator: &str, comp: i32| match operator {
+                            ">" => value > comp,
+                            "<" => value < comp,
+                            "=" | "==" => value == comp,
+                            ">=" => value >= comp,
+                            "<=" => value <= comp,
+                            "!=" => value != comp,
+                            _ => false,
+                        };
+                        let cond_left = evaluate_operand(variable_name, compare_value);
+                        let cond_right = evaluate_operand(right_expr, compare_value);
+                        compare_values(cond_left, operator, cond_right)
+                    } else {
+                        match operator.trim() {
+                            ">" => left_str > right_str,
+                            "<" => left_str < right_str,
+                            "=" | "==" => left_str == right_str,
+                            ">=" => left_str >= right_str,
+                            "<=" => left_str <= right_str,
+                            "!=" => left_str != right_str,
+                            _ => false,
+                        }
+                    }
                 }
             }
 
@@ -9630,6 +9695,7 @@ mod windows_overlay {
 
     pub(crate) fn hide_hud_now() {
         *HUD_DISPLAY.lock() = None;
+        *HUD_PREVIEW_DISPLAY.lock() = None;
         wake_command_queue();
     }
 
@@ -15569,7 +15635,11 @@ mod windows_overlay {
             Err(_) => return false,
         };
         let hud_state = HUD_DISPLAY.lock();
-        hud_state.as_ref().and_then(|h| h.preset_id) == Some(preset_id)
+        if hud_state.as_ref().and_then(|h| h.preset_id) == Some(preset_id) {
+            return true;
+        }
+        let preview_state = HUD_PREVIEW_DISPLAY.lock();
+        preview_state.as_ref().and_then(|h| h.preset_id) == Some(preset_id)
     }
 
     pub(crate) fn is_video_active(preset_id_str: &str) -> bool {
