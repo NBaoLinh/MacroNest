@@ -14710,8 +14710,9 @@ mod windows_overlay {
         }
 
         use windows::Win32::Graphics::Gdi::{
-            DT_LEFT, DT_SINGLELINE, DT_VCENTER, DrawTextW, GetTextExtentPoint32W, SetBkMode,
-            SetTextColor, TRANSPARENT, TextOutW,
+            DT_LEFT, DT_SINGLELINE, DT_VCENTER, DrawTextW, GetTextExtentPoint32W, GetTextMetricsW,
+            SetBkMode, SetTextAlign, SetTextColor, TextOutW, TRANSPARENT, TA_BASELINE, TA_CENTER,
+            TEXTMETRICW,
         };
         use windows::Win32::Foundation::RECT;
         unsafe {
@@ -15013,22 +15014,20 @@ mod windows_overlay {
             let text_utf16 = &wide_text[..wide_text.len().saturating_sub(1)];
             let mut text_size = SIZE { cx: 0, cy: 0 };
             let _ = GetTextExtentPoint32W(mem_dc, text_utf16, &mut text_size);
+            let mut metrics = TEXTMETRICW::default();
+            let _ = GetTextMetricsW(mem_dc, &mut metrics);
             let pad = (text.font_size / 5).max(4);
             let center_x = text.x - min_x;
             let center_y = text.y - min_y;
-            let theta = text.rotation_deg.to_radians();
-            let half_w = (text_size.cx as f32) * 0.5;
-            let half_h = (text_size.cy as f32) * 0.5;
-            let rotated_half_x = half_w * theta.cos() - half_h * theta.sin();
-            let rotated_half_y = half_w * theta.sin() + half_h * theta.cos();
-            let anchor_x = (center_x as f32 - rotated_half_x).round() as i32;
-            let anchor_y = (center_y as f32 - rotated_half_y).round() as i32;
+            let baseline_y = center_y + ((metrics.tmAscent - metrics.tmDescent) / 2);
             let marker_rect = if text.rotation_deg.abs() < f32::EPSILON {
+                let half_w = (text_size.cx + 1) / 2;
+                let half_h = (text_size.cy + 1) / 2;
                 RECT {
-                    left: anchor_x - pad,
-                    top: anchor_y - pad,
-                    right: anchor_x + text_size.cx + pad,
-                    bottom: anchor_y + text_size.cy + pad,
+                    left: center_x - half_w - pad,
+                    top: center_y - half_h - pad,
+                    right: center_x + half_w + pad,
+                    bottom: center_y + half_h + pad,
                 }
             } else {
                 let radius = ((((text_size.cx * text_size.cx + text_size.cy * text_size.cy) as f32)
@@ -15037,10 +15036,10 @@ mod windows_overlay {
                     + pad)
                     .max(text.font_size + pad);
                 RECT {
-                    left: anchor_x - radius,
-                    top: anchor_y - radius,
-                    right: anchor_x + radius,
-                    bottom: anchor_y + radius,
+                    left: center_x - radius,
+                    top: center_y - radius,
+                    right: center_x + radius,
+                    bottom: center_y + radius,
                 }
             };
             let marker_start_y = marker_rect.top.max(0).min(height as i32);
@@ -15067,7 +15066,9 @@ mod windows_overlay {
                     pixels[index + 3] = 0;
                 }
             }
-            let _ = TextOutW(mem_dc, anchor_x, anchor_y, text_utf16);
+            let old_align = SetTextAlign(mem_dc, TA_CENTER | TA_BASELINE);
+            let _ = TextOutW(mem_dc, center_x, baseline_y, text_utf16);
+            let _ = SetTextAlign(mem_dc, windows::Win32::Graphics::Gdi::TEXT_ALIGN_OPTIONS(old_align));
             let text_alpha = text.color[3].max(1);
             let start_y = marker_rect.top.max(0).min(height as i32);
             let end_y = marker_rect.bottom.max(0).min(height as i32);
