@@ -20695,9 +20695,12 @@ impl CrosshairApp {
                             *live_sync |= ui
                                 .checkbox(
                                     &mut step.audio_sense_spec.pitch.show_sharps,
-                                    Self::tr_lang(language, "Sharps", "Dau thang"),
+                                    Self::tr_lang(language, "Use sharps", "Dung dau thang"),
                                 )
                                 .changed();
+                        });
+                        ui.add_space(4.0);
+                        ui.with_layout(egui::Layout::left_to_right(egui::Align::Center), |ui| {
                             ui.label(Self::tr_lang(language, "Note", "Note"));
                             *live_sync |= Self::render_audio_sense_var_box(
                                 ui,
@@ -20794,47 +20797,49 @@ impl CrosshairApp {
                                 .changed();
                         });
                         ui.add_space(4.0);
-                        ui.with_layout(egui::Layout::left_to_right(egui::Align::Center), |ui| {
-                            ui.label("X");
-                            *live_sync |= Self::render_audio_sense_var_box(
-                                ui,
-                                language,
-                                ui.id().with((id_prefix, "spatial-x-var")),
-                                &mut step.audio_sense_spec.spatial.output_x_var,
-                                timer_names,
-                                64.0,
-                            );
-                            ui.label("Y");
-                            *live_sync |= Self::render_audio_sense_var_box(
-                                ui,
-                                language,
-                                ui.id().with((id_prefix, "spatial-y-var")),
-                                &mut step.audio_sense_spec.spatial.output_y_var,
-                                timer_names,
-                                64.0,
-                            );
-                        });
-                        ui.add_space(4.0);
-                        ui.with_layout(egui::Layout::left_to_right(egui::Align::Center), |ui| {
-                            ui.label("Pan");
-                            *live_sync |= Self::render_audio_sense_var_box(
-                                ui,
-                                language,
-                                ui.id().with((id_prefix, "spatial-pan-var")),
-                                &mut step.audio_sense_spec.spatial.output_pan_var,
-                                timer_names,
-                                64.0,
-                            );
-                            ui.label("Level");
-                            *live_sync |= Self::render_audio_sense_var_box(
-                                ui,
-                                language,
-                                ui.id().with((id_prefix, "spatial-level-var")),
-                                &mut step.audio_sense_spec.spatial.output_level_var,
-                                timer_names,
-                                64.0,
-                            );
-                        });
+                        egui::Grid::new(ui.id().with((id_prefix, "spatial-vars-grid")))
+                            .num_columns(4)
+                            .spacing([8.0, 4.0])
+                            .show(ui, |ui| {
+                                ui.label("X");
+                                *live_sync |= Self::render_audio_sense_var_box(
+                                    ui,
+                                    language,
+                                    ui.id().with((id_prefix, "spatial-x-var")),
+                                    &mut step.audio_sense_spec.spatial.output_x_var,
+                                    timer_names,
+                                    64.0,
+                                );
+                                ui.label("Y");
+                                *live_sync |= Self::render_audio_sense_var_box(
+                                    ui,
+                                    language,
+                                    ui.id().with((id_prefix, "spatial-y-var")),
+                                    &mut step.audio_sense_spec.spatial.output_y_var,
+                                    timer_names,
+                                    64.0,
+                                );
+                                ui.end_row();
+
+                                ui.label("Pan");
+                                *live_sync |= Self::render_audio_sense_var_box(
+                                    ui,
+                                    language,
+                                    ui.id().with((id_prefix, "spatial-pan-var")),
+                                    &mut step.audio_sense_spec.spatial.output_pan_var,
+                                    timer_names,
+                                    64.0,
+                                );
+                                ui.label("Level");
+                                *live_sync |= Self::render_audio_sense_var_box(
+                                    ui,
+                                    language,
+                                    ui.id().with((id_prefix, "spatial-level-var")),
+                                    &mut step.audio_sense_spec.spatial.output_level_var,
+                                    timer_names,
+                                    64.0,
+                                );
+                            });
                         ui.add_space(2.0);
                         ui.weak(Self::tr_lang(
                             language,
