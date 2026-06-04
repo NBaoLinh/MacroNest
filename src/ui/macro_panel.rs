@@ -19884,45 +19884,6 @@ impl CrosshairApp {
                         if response.hovered() {
                             egui::show_tooltip_text(ui.ctx(), ui.layer_id(), response.id, tooltip_text);
                         }
-
-                        ui.add_space(6.0);
-                        let anim_response = ui.checkbox(
-                            &mut step.geometry_spec.geometry_animation_enabled,
-                            Self::tr_lang(language, "Anim", "Hiệu ứng"),
-                        );
-                        *live_sync |= anim_response.changed();
-
-                        if step.geometry_spec.geometry_animation_enabled {
-                            ui.label(Self::tr_lang(language, "Duration", "T.gian"));
-                            let anim_duration_id = ui.make_persistent_id((group_id, macro_preset_id, step_index, is_hold_stop, "geometry-anim-duration"));
-                            let response_anim = Self::render_variable_text_edit(
-                                ui,
-                                &mut step.geometry_spec.geometry_animation_duration_expr,
-                                anim_duration_id,
-                                45.0,
-                                120.0,
-                                18.0,
-                                18.0,
-                                "300",
-                                false,
-                            );
-                            ui.weak("ms");
-                            Self::apply_vietnamese_input_if_changed(
-                                &response_anim,
-                                vietnamese_input_enabled,
-                                vietnamese_input_mode,
-                                &mut step.geometry_spec.geometry_animation_duration_expr,
-                            );
-                            *live_sync |= response_anim.changed();
-                            Self::render_variable_suggestions(
-                                ui,
-                                &response_anim,
-                                &mut step.geometry_spec.geometry_animation_duration_expr,
-                                timer_names,
-                                language,
-                            );
-                        }
-
                         ui.add_space(6.0);
 
                         let collapse_icon = if step.geometry_collapsed { 0xe5cc } else { 0xe5cf };
