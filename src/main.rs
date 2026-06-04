@@ -65,14 +65,21 @@ fn main() -> Result<()> {
     app_icon::ensure_ico_file(&paths.icon_file, 64)?;
     app_icon::ensure_disabled_ico_file(&paths.icon_file_disabled, 64)?;
     let (mut state, _) = paths.load_state()?;
-    let mut vision_changed = false;
+    let mut state_changed = false;
     for preset in &mut state.vision_presets {
         if preset.is_pixel_counter && !preset.use_color_matching {
             preset.use_color_matching = true;
-            vision_changed = true;
+            state_changed = true;
         }
     }
-    if vision_changed {
+    for preset in &mut state.geometry_presets {
+        let old_len = preset.objects.len();
+        preset.objects.retain(|obj| obj.name != "Point 1" && obj.name != "Point 2" && obj.name != "Point 3");
+        if preset.objects.len() != old_len {
+            state_changed = true;
+        }
+    }
+    if state_changed {
         let _ = paths.save_state(&state);
     }
     state.show_window = true;

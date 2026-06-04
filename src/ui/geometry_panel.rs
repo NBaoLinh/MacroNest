@@ -12,9 +12,6 @@ impl CrosshairApp {
         let mut clear_preview_target = false;
         let mut begin_mouse_move_absolute_capture_target = None;
 
-        let all_available_preset_objects: Vec<(String, String, GeometrySpec)> = self.state.geometry_presets.iter()
-            .flat_map(|p| p.objects.iter().map(|o| (p.name.clone(), o.name.clone(), o.spec.clone())))
-            .collect();
 
         ui.add_space(2.0);
         ui.horizontal(|ui| {
@@ -91,41 +88,13 @@ impl CrosshairApp {
                             changed = true;
                         }
 
-                        let add_preset_btn_text = Self::tr_lang(language, "+ Add object", "+ Thêm object");
-                        ui.menu_button(add_preset_btn_text, |ui| {
-                            if all_available_preset_objects.is_empty() {
-                                ui.label(Self::tr_lang(language, "No presets available", "Không có preset nào"));
-                            } else {
-                                let mut current_preset_name = String::new();
-                                for (p_name, o_name, spec) in &all_available_preset_objects {
-                                    if current_preset_name != *p_name {
-                                        current_preset_name = p_name.clone();
-                                        ui.weak(format!("-- {} --", p_name));
-                                    }
-                                    if ui.button(o_name).clicked() {
-                                        let object_id = preset.objects.iter().map(|o| o.id).max().unwrap_or(0) + 1;
-                                        self.state.next_geometry_object_id = object_id + 1;
-                                        let cloned_obj = GeometryObject {
-                                            id: object_id,
-                                            name: format!("{} (Copy)", o_name),
-                                            enabled: true,
-                                            spec: spec.clone(),
-                                        };
-                                        preset.objects.push(cloned_obj);
-                                        preset.collapsed = false;
-                                        changed = true;
-                                        ui.close_menu();
-                                    }
-                                }
-                            }
-                        });
                         let preview_all_active = self.geometry_preset_preview_target == Some(preset.id);
                         let preview_all_btn = Button::new(Self::material_icon_text(
                             if preview_all_active { 0xe8f5 } else { 0xe8f4 },
-                            16.0,
+                            18.0,
                         ));
                         if ui
-                            .add_sized([24.0, 21.0], preview_all_btn)
+                            .add_sized([36.0, 24.0], preview_all_btn)
                             .on_hover_text(if preview_all_active { "Stop Preview All" } else { "Preview All" })
                             .clicked()
                         {
