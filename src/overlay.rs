@@ -10769,7 +10769,7 @@ mod windows_overlay {
     }
 
     fn geometry_resolve_color(expr: &str, fallback: RgbaColor, opacity: f32) -> [u8; 4] {
-        let mut base = [fallback.r, fallback.g, fallback.b, fallback.a];
+        let mut base = [fallback.r, fallback.g, fallback.b, 255];
         let interpolated = interpolate_variables(expr.trim());
         if !interpolated.trim().is_empty() {
             if let Some(parsed) = parse_geometry_color_literal(&interpolated) {
