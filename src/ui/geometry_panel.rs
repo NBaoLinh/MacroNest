@@ -386,10 +386,11 @@ impl CrosshairApp {
             let mut points_changed = false;
             let mut remove_point_idx = None;
 
-            ui.vertical(|ui| {
-                for (idx, (x_val, y_val)) in points.iter_mut().enumerate() {
-                    ui.horizontal(|ui| {
-                        ui.spacing_mut().item_spacing.x = 6.0;
+            Grid::new((preset_id, object_id, "poly-points-grid"))
+                .num_columns(6)
+                .spacing([6.0, 6.0])
+                .show(ui, |ui| {
+                    for (idx, (x_val, y_val)) in points.iter_mut().enumerate() {
                         ui.label(format!("P{}", idx + 1));
                         let x_id = ui.make_persistent_id((preset_id, object_id, idx, "poly-x"));
                         let response_x = Self::render_variable_text_edit(
@@ -459,20 +460,20 @@ impl CrosshairApp {
                         {
                             remove_point_idx = Some(idx);
                         }
-                    });
-                }
+                        ui.end_row();
+                    }
+                });
 
-                if let Some(idx) = remove_point_idx {
-                    points.remove(idx);
-                    points_changed = true;
-                }
+            if let Some(idx) = remove_point_idx {
+                points.remove(idx);
+                points_changed = true;
+            }
 
-                ui.add_space(2.0);
-                if ui.button("+ Add Point").clicked() {
-                    points.push(("960".to_owned(), "540".to_owned()));
-                    points_changed = true;
-                }
-            });
+            ui.add_space(2.0);
+            if ui.button("+ Add Point").clicked() {
+                points.push(("960".to_owned(), "540".to_owned()));
+                points_changed = true;
+            }
 
             if points_changed {
                 spec.points_expr = points
@@ -486,28 +487,32 @@ impl CrosshairApp {
             ui.add_space(6.0);
 
             Grid::new((preset_id, object_id, "geometry-spec-grid"))
-                .num_columns(4)
-                .spacing([4.0, 6.0])
-                .min_col_width(40.0)
+                .num_columns(2)
+                .spacing([8.0, 6.0])
                 .show(ui, |ui| {
-                    changed |= Self::geometry_expr_pair_row(
+                    changed |= Self::geometry_expr_row(
                         ui,
                         preset_id,
                         object_id,
-                        "styling",
-                        255,
+                        "thickness",
                         "Thickness",
                         &mut spec.thickness_expr,
                         120.0,
                         120.0,
+                        vietnamese_input_enabled,
+                        vietnamese_input_mode,
+                    );
+                    changed |= Self::geometry_expr_row(
+                        ui,
+                        preset_id,
+                        object_id,
+                        "opacity",
                         "Opacity",
                         &mut spec.opacity_expr,
                         120.0,
                         120.0,
-                        begin_mouse_move_absolute_capture_target,
                         vietnamese_input_enabled,
                         vietnamese_input_mode,
-                        group_id_override,
                     );
                     if spec.shape == GeometryShapeKind::Polygon {
                         changed |= Self::geometry_fill_mode_row(ui, language, &mut spec.filled);
@@ -1086,6 +1091,43 @@ impl CrosshairApp {
         changed
     }
 
+    fn geometry_expr_row(
+        ui: &mut egui::Ui,
+        preset_id: u32,
+        object_id: u32,
+        row_id: &str,
+        label: &str,
+        expr: &mut String,
+        width: f32,
+        expanded_width: f32,
+        vietnamese_input_enabled: bool,
+        vietnamese_input_mode: VietnameseInputMode,
+    ) -> bool {
+        let mut changed = false;
+        ui.label(label);
+        let id = ui.make_persistent_id((preset_id, object_id, row_id, "expr"));
+        let response = Self::render_variable_text_edit(
+            ui,
+            expr,
+            id,
+            width,
+            expanded_width,
+            18.0,
+            18.0,
+            "",
+            false,
+        );
+        changed |= response.changed();
+        Self::apply_vietnamese_input_if_changed(
+            &response,
+            vietnamese_input_enabled,
+            vietnamese_input_mode,
+            expr,
+        );
+        ui.end_row();
+        changed
+    }
+
     fn geometry_expr_pair_row(
         ui: &mut egui::Ui,
         preset_id: u32,
@@ -1221,7 +1263,6 @@ impl CrosshairApp {
                     )
                     .changed();
             });
-        ui.add_space(120.0);
         ui.end_row();
         changed
     }

@@ -4407,8 +4407,11 @@ mod windows_overlay {
             let a_active = !hook_state.active_geometry_animations.is_empty();
             (c_active, a_active)
         };
-        if capture_active || anim_active {
+        if capture_active {
             return 16;
+        }
+        if anim_active {
+            return 25;
         }
 
         let timer_interval = {
@@ -10672,7 +10675,7 @@ mod windows_overlay {
         start_time: Instant,
         duration: Duration,
         start_shape: GeometryRenderShape,
-        target_spec: crate::model::GeometrySpec,
+        target_shape: GeometryRenderShape,
     }
 
     #[derive(Clone, Debug)]
@@ -11217,14 +11220,9 @@ mod windows_overlay {
                 } else {
                     1.0
                 };
-                if let Some(target_shape) = geometry_render_shape_from_spec(&anim.target_spec) {
-                    let interpolated = interpolate_shape(&anim.start_shape, &target_shape, t);
-                    hook_state.last_drawn_shapes.insert(key, interpolated.clone());
-                    shapes.push(interpolated);
-                } else if let Some(shape) = geometry_render_shape_from_spec(&spec) {
-                    hook_state.last_drawn_shapes.insert(key, shape.clone());
-                    shapes.push(shape);
-                }
+                let interpolated = interpolate_shape(&anim.start_shape, &anim.target_shape, t);
+                hook_state.last_drawn_shapes.insert(key, interpolated.clone());
+                shapes.push(interpolated);
             } else {
                 if let Some(shape) = geometry_render_shape_from_spec(&spec) {
                     hook_state.last_drawn_shapes.insert(key, shape.clone());
@@ -13371,13 +13369,15 @@ mod windows_overlay {
                 if let Some(start_shape) = hook_state.last_drawn_shapes.get(&key).cloned() {
                     let duration_ms = geometry_eval_i32(&spec.geometry_animation_duration_expr, 300).max(0) as u64;
                     if duration_ms > 0 {
-                        let anim = GeometryStepAnimationState {
-                            start_time: Instant::now(),
-                            duration: Duration::from_millis(duration_ms),
-                            start_shape,
-                            target_spec: spec.clone(),
-                        };
-                        hook_state.active_geometry_animations.insert(key, anim);
+                        if let Some(target_shape) = geometry_render_shape_from_spec(spec) {
+                            let anim = GeometryStepAnimationState {
+                                start_time: Instant::now(),
+                                duration: Duration::from_millis(duration_ms),
+                                start_shape,
+                                target_shape,
+                            };
+                            hook_state.active_geometry_animations.insert(key, anim);
+                        }
                     }
                 }
             } else {
