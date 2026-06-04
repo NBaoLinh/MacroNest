@@ -386,84 +386,82 @@ impl CrosshairApp {
             let mut points_changed = false;
             let mut remove_point_idx = None;
 
-            ui.horizontal(|ui| {
-                Grid::new((preset_id, object_id, "poly-points-grid"))
-                    .num_columns(6)
-                    .spacing([6.0, 6.0])
-                    .show(ui, |ui| {
-                        for (idx, (x_val, y_val)) in points.iter_mut().enumerate() {
-                            ui.label(format!("P{}", idx + 1));
-                            let x_id = ui.make_persistent_id((preset_id, object_id, idx, "poly-x"));
-                            let response_x = Self::render_variable_text_edit(
-                                ui,
-                                x_val,
-                                x_id,
-                                80.0,
-                                120.0,
-                                18.0,
-                                18.0,
-                                "",
-                                false,
-                            );
-                            points_changed |= response_x.changed();
-                            Self::apply_vietnamese_input_if_changed(
-                                &response_x,
-                                vietnamese_input_enabled,
-                                vietnamese_input_mode,
-                                x_val,
-                            );
+            ui.vertical(|ui| {
+                ui.spacing_mut().item_spacing.y = 4.0;
+                for (idx, (x_val, y_val)) in points.iter_mut().enumerate() {
+                    ui.horizontal(|ui| {
+                        ui.spacing_mut().item_spacing.x = 4.0;
+                        ui.add_sized([24.0, 18.0], egui::Label::new(format!("P{}", idx + 1)));
+                        let x_id = ui.make_persistent_id((preset_id, object_id, idx, "poly-x"));
+                        let response_x = Self::render_variable_text_edit(
+                            ui,
+                            x_val,
+                            x_id,
+                            80.0,
+                            120.0,
+                            18.0,
+                            18.0,
+                            "",
+                            false,
+                        );
+                        points_changed |= response_x.changed();
+                        Self::apply_vietnamese_input_if_changed(
+                            &response_x,
+                            vietnamese_input_enabled,
+                            vietnamese_input_mode,
+                            x_val,
+                        );
 
-                            ui.label("Y");
-                            let y_id = ui.make_persistent_id((preset_id, object_id, idx, "poly-y"));
-                            let response_y = Self::render_variable_text_edit(
-                                ui,
-                                y_val,
-                                y_id,
-                                80.0,
-                                120.0,
-                                18.0,
-                                18.0,
-                                "",
-                                false,
-                            );
-                            points_changed |= response_y.changed();
-                            Self::apply_vietnamese_input_if_changed(
-                                &response_y,
-                                vietnamese_input_enabled,
-                                vietnamese_input_mode,
-                                y_val,
-                            );
+                        ui.add_sized([16.0, 18.0], egui::Label::new("Y"));
+                        let y_id = ui.make_persistent_id((preset_id, object_id, idx, "poly-y"));
+                        let response_y = Self::render_variable_text_edit(
+                            ui,
+                            y_val,
+                            y_id,
+                            80.0,
+                            120.0,
+                            18.0,
+                            18.0,
+                            "",
+                            false,
+                        );
+                        points_changed |= response_y.changed();
+                        Self::apply_vietnamese_input_if_changed(
+                            &response_y,
+                            vietnamese_input_enabled,
+                            vietnamese_input_mode,
+                            y_val,
+                        );
 
-                            if ui
-                                .add_sized(
-                                    [24.0, 21.0],
-                                    Button::new(Self::material_icon_text(0xe55f, 16.0)),
-                                )
-                                .on_hover_text("Pick coordinates from screen")
-                                .clicked()
-                            {
-                                *begin_mouse_move_absolute_capture_target = Some(MouseMoveAbsoluteCaptureTarget {
-                                    group_id: group_id_override,
-                                    preset_id,
-                                    step_index: object_id as usize,
-                                    capture_kind: MouseCaptureKind::GeometryPrimaryPos,
-                                    extra_cond_index: Some(idx),
-                                    is_hold_stop: false,
-                                });
-                            }
-                            if ui
-                                .add_sized(
-                                    [24.0, 21.0],
-                                    Button::new(Self::material_icon_text(0xe5cd, 16.0)),
-                                )
-                                .on_hover_text("Delete point")
-                                .clicked()
-                            {
-                                remove_point_idx = Some(idx);
-                            }
-                            ui.end_row();
+                        if ui
+                            .add_sized(
+                                [24.0, 21.0],
+                                Button::new(Self::material_icon_text(0xe55f, 16.0)),
+                            )
+                            .on_hover_text("Pick coordinates from screen")
+                            .clicked()
+                        {
+                            *begin_mouse_move_absolute_capture_target = Some(MouseMoveAbsoluteCaptureTarget {
+                                group_id: group_id_override,
+                                preset_id,
+                                step_index: object_id as usize,
+                                capture_kind: MouseCaptureKind::GeometryPrimaryPos,
+                                extra_cond_index: Some(idx),
+                                is_hold_stop: false,
+                            });
+                        }
+                        if ui
+                            .add_sized(
+                                [24.0, 21.0],
+                                Button::new(Self::material_icon_text(0xe5cd, 16.0)),
+                            )
+                            .on_hover_text("Delete point")
+                            .clicked()
+                        {
+                            remove_point_idx = Some(idx);
                         }
                     });
+                }
             });
 
             if let Some(idx) = remove_point_idx {
@@ -849,7 +847,7 @@ impl CrosshairApp {
                                 vietnamese_input_mode,
                                 group_id_override,
                             );
-                            ui.label("Text");
+                            ui.add_sized([60.0, 18.0], egui::Label::new("Text"));
                             let text_id = ui.make_persistent_id((preset_id, object_id, "label-text"));
                             let response = Self::render_interpolated_text_edit(
                                 ui,
@@ -1106,7 +1104,7 @@ impl CrosshairApp {
         vietnamese_input_mode: VietnameseInputMode,
     ) -> bool {
         let mut changed = false;
-        ui.label(label);
+        ui.add_sized([60.0, 18.0], egui::Label::new(label));
         let id = ui.make_persistent_id((preset_id, object_id, row_id, "expr"));
         let response = Self::render_variable_text_edit(
             ui,
@@ -1152,7 +1150,7 @@ impl CrosshairApp {
         let mut changed = false;
 
         if !label_a.is_empty() {
-            ui.label(label_a);
+            ui.add_sized([60.0, 18.0], egui::Label::new(label_a));
             let id_a = ui.make_persistent_id((preset_id, object_id, row_id, "expr-a"));
             let response_a = Self::render_variable_text_edit(
                 ui,
@@ -1178,7 +1176,7 @@ impl CrosshairApp {
         }
 
         if !label_b.is_empty() {
-            ui.label(label_b);
+            ui.add_sized([60.0, 18.0], egui::Label::new(label_b));
             let id_b = ui.make_persistent_id((preset_id, object_id, row_id, "expr-b"));
             ui.horizontal(|ui| {
                 ui.spacing_mut().item_spacing.x = 4.0;
@@ -1241,7 +1239,7 @@ impl CrosshairApp {
         filled: &mut bool,
     ) -> bool {
         let mut changed = false;
-        ui.label(Self::tr_lang(language, "Mode", "Mode"));
+        ui.add_sized([60.0, 18.0], egui::Label::new(Self::tr_lang(language, "Mode", "Mode")));
         ComboBox::from_id_salt(ui.next_auto_id())
             .width(120.0)
             .selected_text(if *filled {
@@ -1290,7 +1288,7 @@ impl CrosshairApp {
             "#{:02X}{:02X}{:02X}{:02X} rgba({}, {}, {}, {})",
             color.r, color.g, color.b, color.a, color.r, color.g, color.b, color.a
         );
-        ui.label(label);
+        ui.add_sized([60.0, 18.0], egui::Label::new(label));
         ui.horizontal(|ui| {
             if allow_color_expression {
                 let color_expr_id = ui.make_persistent_id((preset_id, object_id, label, "color-expr"));

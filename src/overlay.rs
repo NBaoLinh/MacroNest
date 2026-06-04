@@ -14663,6 +14663,7 @@ mod windows_overlay {
             }
         }
 
+        let mut rects_to_fix = occupied_label_rects.clone();
         for text in &geometry_texts {
             let font_name = "Segoe UI"
                 .encode_utf16()
@@ -14712,20 +14713,24 @@ mod windows_overlay {
             );
             let _ = SelectObject(mem_dc, old_font);
             let _ = DeleteObject(HGDIOBJ(font.0));
+            rects_to_fix.push(text_rect);
         }
 
-        for py in 0..height {
-            for px in 0..width {
-                let index = ((py as usize) * (width as usize) + (px as usize)) * 4;
-                if index + 3 < pixels.len() {
-                    let chunk = &mut pixels[index..index + 4];
-                    if chunk[3] == 0
-                        && ((chunk[0] == 255 && chunk[1] == 255 && chunk[2] == 255)
-                            || chunk[0] != 0
-                            || chunk[1] != 0
-                            || chunk[2] != 0)
-                    {
-                        chunk[3] = 255;
+        for rect in rects_to_fix {
+            let start_y = (rect.top).max(0).min(height as i32);
+            let end_y = (rect.bottom).max(0).min(height as i32);
+            let start_x = (rect.left).max(0).min(width as i32);
+            let end_x = (rect.right).max(0).min(width as i32);
+            for py in start_y..end_y {
+                for px in start_x..end_x {
+                    let index = ((py as usize) * (width as usize) + (px as usize)) * 4;
+                    if index + 3 < pixels.len() {
+                        let chunk = &mut pixels[index..index + 4];
+                        if chunk[3] == 0
+                            && (chunk[0] != 0 || chunk[1] != 0 || chunk[2] != 0)
+                        {
+                            chunk[3] = 255;
+                        }
                     }
                 }
             }
