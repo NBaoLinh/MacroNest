@@ -189,7 +189,7 @@ fn default_geometry_fill_color() -> RgbaColor {
         r: 0,
         g: 255,
         b: 170,
-        a: 80,
+        a: 255,
     }
 }
 
@@ -577,7 +577,7 @@ impl Default for GeometrySpec {
             font_size_expr: "18".to_owned(),
             thickness_expr: "2".to_owned(),
             opacity_expr: "1".to_owned(),
-            fill_opacity_expr: "1".to_owned(),
+            fill_opacity_expr: "0.3".to_owned(),
             points_expr: "960,540;1120,540;1120,660".to_owned(),
             text: "Label".to_owned(),
             stroke_color_expr: String::new(),
@@ -588,7 +588,7 @@ impl Default for GeometrySpec {
             visible: true,
             thickness: default_geometry_thickness(),
             opacity: default_geometry_opacity(),
-            fill_opacity: default_geometry_opacity(),
+            fill_opacity: 0.3,
             font_size: default_geometry_font_size(),
             point_radius: default_geometry_point_radius(),
             arrow_head_size: default_geometry_arrow_head_size(),
