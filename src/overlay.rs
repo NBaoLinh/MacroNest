@@ -14710,8 +14710,8 @@ mod windows_overlay {
         }
 
         use windows::Win32::Graphics::Gdi::{
-            DT_CALCRECT, DT_LEFT, DT_SINGLELINE, DT_VCENTER, DrawTextW, SetBkMode, SetTextColor,
-            TRANSPARENT,
+            DT_LEFT, DT_SINGLELINE, DT_VCENTER, DrawTextW, GetTextExtentPoint32W, SetBkMode,
+            SetTextColor, TRANSPARENT, TextOutW,
         };
         use windows::Win32::Foundation::RECT;
         unsafe {
@@ -15010,29 +15010,36 @@ mod windows_overlay {
                 .encode_utf16()
                 .chain(std::iter::once(0))
                 .collect::<Vec<_>>();
-            let mut measure_rect = RECT {
-                left: text.x - min_x,
-                top: text.y - min_y,
-                right: (text.x - min_x) + (text.font_size.max(10) * text.text.chars().count().max(1) as i32 * 2),
-                bottom: (text.y - min_y) + text.font_size.max(10) * 3,
-            };
-            let _ = DrawTextW(
-                mem_dc,
-                &mut wide_text,
-                &mut measure_rect,
-                DT_LEFT | DT_SINGLELINE | DT_CALCRECT,
-            );
+            let text_utf16 = &wide_text[..wide_text.len().saturating_sub(1)];
+            let mut text_size = SIZE { cx: 0, cy: 0 };
+            let _ = GetTextExtentPoint32W(mem_dc, text_utf16, &mut text_size);
             let pad = (text.font_size / 5).max(4);
-            let mut text_rect = RECT {
-                left: measure_rect.left - pad,
-                top: measure_rect.top - pad,
-                right: measure_rect.right + pad,
-                bottom: measure_rect.bottom + pad,
+            let anchor_x = text.x - min_x;
+            let anchor_y = text.y - min_y;
+            let marker_rect = if text.rotation_deg.abs() < f32::EPSILON {
+                RECT {
+                    left: anchor_x - pad,
+                    top: anchor_y - pad,
+                    right: anchor_x + text_size.cx + pad,
+                    bottom: anchor_y + text_size.cy + pad,
+                }
+            } else {
+                let radius = ((((text_size.cx * text_size.cx + text_size.cy * text_size.cy) as f32)
+                    .sqrt()
+                    .ceil() as i32)
+                    + pad)
+                    .max(text.font_size + pad);
+                RECT {
+                    left: anchor_x - radius,
+                    top: anchor_y - radius,
+                    right: anchor_x + radius,
+                    bottom: anchor_y + radius,
+                }
             };
-            let marker_start_y = text_rect.top.max(0).min(height as i32);
-            let marker_end_y = text_rect.bottom.max(0).min(height as i32);
-            let marker_start_x = text_rect.left.max(0).min(width as i32);
-            let marker_end_x = text_rect.right.max(0).min(width as i32);
+            let marker_start_y = marker_rect.top.max(0).min(height as i32);
+            let marker_end_y = marker_rect.bottom.max(0).min(height as i32);
+            let marker_start_x = marker_rect.left.max(0).min(width as i32);
+            let marker_end_x = marker_rect.right.max(0).min(width as i32);
             for py in marker_start_y..marker_end_y {
                 for px in marker_start_x..marker_end_x {
                     let index = ((py as usize) * (width as usize) + (px as usize)) * 4;
@@ -15045,19 +15052,12 @@ mod windows_overlay {
                     pixels[index + 3] = 0;
                 }
             }
-            text_rect.left += pad;
-            text_rect.top += pad;
-            let _ = DrawTextW(
-                mem_dc,
-                &mut wide_text,
-                &mut text_rect,
-                DT_LEFT | DT_VCENTER | DT_SINGLELINE,
-            );
+            let _ = TextOutW(mem_dc, anchor_x, anchor_y, text_utf16);
             let text_alpha = text.color[3].max(1);
-            let start_y = text_rect.top.max(0).min(height as i32);
-            let end_y = text_rect.bottom.max(0).min(height as i32);
-            let start_x = text_rect.left.max(0).min(width as i32);
-            let end_x = text_rect.right.max(0).min(width as i32);
+            let start_y = marker_rect.top.max(0).min(height as i32);
+            let end_y = marker_rect.bottom.max(0).min(height as i32);
+            let start_x = marker_rect.left.max(0).min(width as i32);
+            let end_x = marker_rect.right.max(0).min(width as i32);
             for py in start_y..end_y {
                 for px in start_x..end_x {
                     let index = ((py as usize) * (width as usize) + (px as usize)) * 4;
