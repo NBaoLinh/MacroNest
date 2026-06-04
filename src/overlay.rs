@@ -15014,8 +15014,15 @@ mod windows_overlay {
             let mut text_size = SIZE { cx: 0, cy: 0 };
             let _ = GetTextExtentPoint32W(mem_dc, text_utf16, &mut text_size);
             let pad = (text.font_size / 5).max(4);
-            let anchor_x = text.x - min_x;
-            let anchor_y = text.y - min_y;
+            let center_x = text.x - min_x;
+            let center_y = text.y - min_y;
+            let theta = text.rotation_deg.to_radians();
+            let half_w = (text_size.cx as f32) * 0.5;
+            let half_h = (text_size.cy as f32) * 0.5;
+            let rotated_half_x = half_w * theta.cos() - half_h * theta.sin();
+            let rotated_half_y = half_w * theta.sin() + half_h * theta.cos();
+            let anchor_x = (center_x as f32 - rotated_half_x).round() as i32;
+            let anchor_y = (center_y as f32 - rotated_half_y).round() as i32;
             let marker_rect = if text.rotation_deg.abs() < f32::EPSILON {
                 RECT {
                     left: anchor_x - pad,
@@ -15040,12 +15047,20 @@ mod windows_overlay {
             let marker_end_y = marker_rect.bottom.max(0).min(height as i32);
             let marker_start_x = marker_rect.left.max(0).min(width as i32);
             let marker_end_x = marker_rect.right.max(0).min(width as i32);
+            let backup_width = (marker_end_x - marker_start_x).max(0) as usize;
+            let backup_height = (marker_end_y - marker_start_y).max(0) as usize;
+            let mut background_backup = vec![0_u8; backup_width * backup_height * 4];
             for py in marker_start_y..marker_end_y {
                 for px in marker_start_x..marker_end_x {
                     let index = ((py as usize) * (width as usize) + (px as usize)) * 4;
                     if index + 3 >= pixels.len() {
                         continue;
                     }
+                    let backup_index = (((py - marker_start_y) as usize) * backup_width
+                        + (px - marker_start_x) as usize)
+                        * 4;
+                    background_backup[backup_index..backup_index + 4]
+                        .copy_from_slice(&pixels[index..index + 4]);
                     pixels[index] = label_bg[2];
                     pixels[index + 1] = label_bg[1];
                     pixels[index + 2] = label_bg[0];
@@ -15064,16 +15079,16 @@ mod windows_overlay {
                     if index + 3 >= pixels.len() {
                         continue;
                     }
+                    let backup_index = (((py - marker_start_y) as usize) * backup_width
+                        + (px - marker_start_x) as usize)
+                        * 4;
 
                     let chunk = &mut pixels[index..index + 4];
                     let is_background = chunk[0] == label_bg[2]
                         && chunk[1] == label_bg[1]
                         && chunk[2] == label_bg[0];
                     if is_background {
-                        chunk[0] = 0;
-                        chunk[1] = 0;
-                        chunk[2] = 0;
-                        chunk[3] = 0;
+                        chunk.copy_from_slice(&background_backup[backup_index..backup_index + 4]);
                     } else {
                         chunk[3] = chunk[3].max(text_alpha);
                     }
