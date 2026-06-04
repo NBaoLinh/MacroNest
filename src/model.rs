@@ -1008,13 +1008,30 @@ impl MacroStep {
     }
 
     pub fn get_duration_ms(&self) -> u64 {
-        if !self.duration_expr.trim().is_empty() {
-            let trimmed = self.duration_expr.trim();
-            let interpolated = crate::overlay::interpolate_variables(trimmed);
-            let val = crate::overlay::evaluate_math_expression(&interpolated);
-            val.max(0) as u64
-        } else {
-            self.duration_override_ms
+        match self.action {
+            MacroAction::EnableCrosshairProfile
+            | MacroAction::EnablePinPreset
+            | MacroAction::ShowHud
+            | MacroAction::DrawGeometry => {
+                if !self.duration_expr.trim().is_empty() {
+                    let trimmed = self.duration_expr.trim();
+                    let interpolated = crate::overlay::interpolate_variables(trimmed);
+                    let val = crate::overlay::evaluate_math_expression(&interpolated);
+                    val.max(0) as u64
+                } else {
+                    0
+                }
+            }
+            _ => {
+                if !self.duration_expr.trim().is_empty() {
+                    let trimmed = self.duration_expr.trim();
+                    let interpolated = crate::overlay::interpolate_variables(trimmed);
+                    let val = crate::overlay::evaluate_math_expression(&interpolated);
+                    val.max(0) as u64
+                } else {
+                    self.duration_override_ms
+                }
+            }
         }
     }
 
