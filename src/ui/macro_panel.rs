@@ -19893,7 +19893,7 @@ impl CrosshairApp {
                         *live_sync |= anim_response.changed();
 
                         if step.geometry_spec.geometry_animation_enabled {
-                            ui.label(Self::tr_lang(language, "Anim Duration", "T.gian Anim"));
+                            ui.label(Self::tr_lang(language, "Duration", "T.gian"));
                             let anim_duration_id = ui.make_persistent_id((group_id, macro_preset_id, step_index, is_hold_stop, "geometry-anim-duration"));
                             let response_anim = Self::render_variable_text_edit(
                                 ui,

@@ -370,101 +370,366 @@ impl CrosshairApp {
         group_id_override: Option<u32>,
     ) -> bool {
         let mut changed = false;
+        if matches!(spec.shape, GeometryShapeKind::Polyline | GeometryShapeKind::Polygon) {
+            let mut points: Vec<(String, String)> = spec.points_expr
+                .split(';')
+                .filter(|s| !s.is_empty())
+                .map(|pair| {
+                    if let Some((x, y)) = pair.split_once(',') {
+                        (x.trim().to_owned(), y.trim().to_owned())
+                    } else {
+                        (pair.trim().to_owned(), String::new())
+                    }
+                })
+                .collect();
 
-        Grid::new((preset_id, object_id, "geometry-spec-grid"))
-            .num_columns(4)
-            .spacing([4.0, 6.0])
-            .min_col_width(40.0)
-            .show(ui, |ui| {
-                match spec.shape {
-                    GeometryShapeKind::Point => {
-                        changed |= Self::geometry_expr_pair_row(
+            let mut points_changed = false;
+            let mut remove_point_idx = None;
+
+            ui.vertical(|ui| {
+                for (idx, (x_val, y_val)) in points.iter_mut().enumerate() {
+                    ui.horizontal(|ui| {
+                        ui.spacing_mut().item_spacing.x = 6.0;
+                        ui.label(format!("P{}", idx + 1));
+                        let x_id = ui.make_persistent_id((preset_id, object_id, idx, "poly-x"));
+                        let response_x = Self::render_variable_text_edit(
                             ui,
-                            preset_id,
-                            object_id,
-                            "pos",
-                            0,
-                            "X",
-                            &mut spec.x1_expr,
+                            x_val,
+                            x_id,
+                            80.0,
                             120.0,
-                            120.0,
-                            "Y",
-                            &mut spec.y1_expr,
-                            120.0,
-                            120.0,
-                            begin_mouse_move_absolute_capture_target,
-                            vietnamese_input_enabled,
-                            vietnamese_input_mode,
-                            group_id_override,
+                            18.0,
+                            18.0,
+                            "",
+                            false,
                         );
-                        changed |= Self::geometry_expr_pair_row(
+                        points_changed |= response_x.changed();
+                        Self::apply_vietnamese_input_if_changed(
+                            &response_x,
+                            vietnamese_input_enabled,
+                            vietnamese_input_mode,
+                            x_val,
+                        );
+
+                        ui.label("Y");
+                        let y_id = ui.make_persistent_id((preset_id, object_id, idx, "poly-y"));
+                        let response_y = Self::render_variable_text_edit(
+                            ui,
+                            y_val,
+                            y_id,
+                            80.0,
+                            120.0,
+                            18.0,
+                            18.0,
+                            "",
+                            false,
+                        );
+                        points_changed |= response_y.changed();
+                        Self::apply_vietnamese_input_if_changed(
+                            &response_y,
+                            vietnamese_input_enabled,
+                            vietnamese_input_mode,
+                            y_val,
+                        );
+
+                        if ui
+                            .add_sized(
+                                [24.0, 21.0],
+                                Button::new(Self::material_icon_text(0xe55f, 16.0)),
+                            )
+                            .on_hover_text("Pick coordinates from screen")
+                            .clicked()
+                        {
+                            *begin_mouse_move_absolute_capture_target = Some(MouseMoveAbsoluteCaptureTarget {
+                                group_id: group_id_override,
+                                preset_id,
+                                step_index: object_id as usize,
+                                capture_kind: MouseCaptureKind::GeometryPrimaryPos,
+                                extra_cond_index: Some(idx),
+                                is_hold_stop: false,
+                            });
+                        }
+                        if ui
+                            .add_sized(
+                                [24.0, 21.0],
+                                Button::new(Self::material_icon_text(0xe5cd, 16.0)),
+                            )
+                            .on_hover_text("Delete point")
+                            .clicked()
+                        {
+                            remove_point_idx = Some(idx);
+                        }
+                    });
+                }
+
+                if let Some(idx) = remove_point_idx {
+                    points.remove(idx);
+                    points_changed = true;
+                }
+
+                ui.add_space(2.0);
+                if ui.button("+ Add Point").clicked() {
+                    points.push(("960".to_owned(), "540".to_owned()));
+                    points_changed = true;
+                }
+            });
+
+            if points_changed {
+                spec.points_expr = points
+                    .iter()
+                    .map(|(x, y)| format!("{},{}", x, y))
+                    .collect::<Vec<_>>()
+                    .join(";");
+                changed = true;
+            }
+
+            ui.add_space(6.0);
+
+            Grid::new((preset_id, object_id, "geometry-spec-grid"))
+                .num_columns(4)
+                .spacing([4.0, 6.0])
+                .min_col_width(40.0)
+                .show(ui, |ui| {
+                    changed |= Self::geometry_expr_pair_row(
+                        ui,
+                        preset_id,
+                        object_id,
+                        "styling",
+                        255,
+                        "Thickness",
+                        &mut spec.thickness_expr,
+                        120.0,
+                        120.0,
+                        "Opacity",
+                        &mut spec.opacity_expr,
+                        120.0,
+                        120.0,
+                        begin_mouse_move_absolute_capture_target,
+                        vietnamese_input_enabled,
+                        vietnamese_input_mode,
+                        group_id_override,
+                    );
+                    if spec.shape == GeometryShapeKind::Polygon {
+                        changed |= Self::geometry_fill_mode_row(ui, language, &mut spec.filled);
+                    }
+
+                    let stroke_label = if spec.shape == GeometryShapeKind::Polygon {
+                        "Stroke"
+                    } else {
+                        "Color"
+                    };
+
+                    changed |= Self::geometry_color_row(
+                        ui,
+                        preset_id,
+                        object_id,
+                        stroke_label,
+                        &mut spec.stroke_color,
+                        &mut spec.stroke_color_expr,
+                        manual_color,
+                        manual_color_hex,
+                        allow_color_expression,
+                        request_screen_color_pick,
+                        pending_screen_color_target,
+                        false,
+                        vietnamese_input_enabled,
+                        vietnamese_input_mode,
+                    );
+
+                    if spec.filled && spec.shape == GeometryShapeKind::Polygon {
+                        changed |= Self::geometry_color_row(
                             ui,
                             preset_id,
                             object_id,
-                            "styling",
-                            255,
-                            "Size",
-                            &mut spec.radius_expr,
-                            120.0,
-                            120.0,
-                            "Opacity",
-                            &mut spec.opacity_expr,
-                            120.0,
-                            120.0,
-                            begin_mouse_move_absolute_capture_target,
+                            "Fill",
+                            &mut spec.fill_color,
+                            &mut spec.fill_color_expr,
+                            manual_color,
+                            manual_color_hex,
+                            allow_color_expression,
+                            request_screen_color_pick,
+                            pending_screen_color_target,
+                            true,
                             vietnamese_input_enabled,
                             vietnamese_input_mode,
-                            group_id_override,
                         );
                     }
-                    GeometryShapeKind::Line | GeometryShapeKind::Arrow => {
-                        changed |= Self::geometry_expr_pair_row(
-                            ui,
-                            preset_id,
-                            object_id,
-                            "pos1",
-                            0,
-                            "X1",
-                            &mut spec.x1_expr,
-                            120.0,
-                            120.0,
-                            "Y1",
-                            &mut spec.y1_expr,
-                            120.0,
-                            120.0,
-                            begin_mouse_move_absolute_capture_target,
-                            vietnamese_input_enabled,
-                            vietnamese_input_mode,
-                            group_id_override,
-                        );
-                        changed |= Self::geometry_expr_pair_row(
-                            ui,
-                            preset_id,
-                            object_id,
-                            "pos2",
-                            1,
-                            "X2",
-                            &mut spec.x2_expr,
-                            120.0,
-                            120.0,
-                            "Y2",
-                            &mut spec.y2_expr,
-                            120.0,
-                            120.0,
-                            begin_mouse_move_absolute_capture_target,
-                            vietnamese_input_enabled,
-                            vietnamese_input_mode,
-                            group_id_override,
-                        );
-                        if spec.shape == GeometryShapeKind::Arrow {
+                });
+        } else {
+            Grid::new((preset_id, object_id, "geometry-spec-grid"))
+                .num_columns(4)
+                .spacing([4.0, 6.0])
+                .min_col_width(40.0)
+                .show(ui, |ui| {
+                    match spec.shape {
+                        GeometryShapeKind::Point => {
                             changed |= Self::geometry_expr_pair_row(
                                 ui,
                                 preset_id,
                                 object_id,
-                                "arrow_styling",
+                                "pos",
+                                0,
+                                "X",
+                                &mut spec.x1_expr,
+                                120.0,
+                                120.0,
+                                "Y",
+                                &mut spec.y1_expr,
+                                120.0,
+                                120.0,
+                                begin_mouse_move_absolute_capture_target,
+                                vietnamese_input_enabled,
+                                vietnamese_input_mode,
+                                group_id_override,
+                            );
+                            changed |= Self::geometry_expr_pair_row(
+                                ui,
+                                preset_id,
+                                object_id,
+                                "styling",
                                 255,
-                                "Head",
-                                &mut spec.arrow_head_size_expr,
+                                "Size",
+                                &mut spec.radius_expr,
+                                120.0,
+                                120.0,
+                                "Opacity",
+                                &mut spec.opacity_expr,
+                                120.0,
+                                120.0,
+                                begin_mouse_move_absolute_capture_target,
+                                vietnamese_input_enabled,
+                                vietnamese_input_mode,
+                                group_id_override,
+                            );
+                        }
+                        GeometryShapeKind::Line | GeometryShapeKind::Arrow => {
+                            changed |= Self::geometry_expr_pair_row(
+                                ui,
+                                preset_id,
+                                object_id,
+                                "pos1",
+                                0,
+                                "X1",
+                                &mut spec.x1_expr,
+                                120.0,
+                                120.0,
+                                "Y1",
+                                &mut spec.y1_expr,
+                                120.0,
+                                120.0,
+                                begin_mouse_move_absolute_capture_target,
+                                vietnamese_input_enabled,
+                                vietnamese_input_mode,
+                                group_id_override,
+                            );
+                            changed |= Self::geometry_expr_pair_row(
+                                ui,
+                                preset_id,
+                                object_id,
+                                "pos2",
+                                1,
+                                "X2",
+                                &mut spec.x2_expr,
+                                120.0,
+                                120.0,
+                                "Y2",
+                                &mut spec.y2_expr,
+                                120.0,
+                                120.0,
+                                begin_mouse_move_absolute_capture_target,
+                                vietnamese_input_enabled,
+                                vietnamese_input_mode,
+                                group_id_override,
+                            );
+                            if spec.shape == GeometryShapeKind::Arrow {
+                                changed |= Self::geometry_expr_pair_row(
+                                    ui,
+                                    preset_id,
+                                    object_id,
+                                    "arrow_styling",
+                                    255,
+                                    "Head",
+                                    &mut spec.arrow_head_size_expr,
+                                    120.0,
+                                    120.0,
+                                    "Thickness",
+                                    &mut spec.thickness_expr,
+                                    120.0,
+                                    120.0,
+                                    begin_mouse_move_absolute_capture_target,
+                                    vietnamese_input_enabled,
+                                    vietnamese_input_mode,
+                                    group_id_override,
+                                );
+                                changed |= Self::geometry_expr_pair_row(
+                                    ui,
+                                    preset_id,
+                                    object_id,
+                                    "opacity",
+                                    255,
+                                    "Opacity",
+                                    &mut spec.opacity_expr,
+                                    120.0,
+                                    120.0,
+                                    "",
+                                    &mut String::new(),
+                                    0.0,
+                                    0.0,
+                                    begin_mouse_move_absolute_capture_target,
+                                    vietnamese_input_enabled,
+                                    vietnamese_input_mode,
+                                    group_id_override,
+                                );
+                            } else {
+                                changed |= Self::geometry_expr_pair_row(
+                                    ui,
+                                    preset_id,
+                                    object_id,
+                                    "styling",
+                                    255,
+                                    "Thickness",
+                                    &mut spec.thickness_expr,
+                                    120.0,
+                                    120.0,
+                                    "Opacity",
+                                    &mut spec.opacity_expr,
+                                    120.0,
+                                    120.0,
+                                    begin_mouse_move_absolute_capture_target,
+                                    vietnamese_input_enabled,
+                                    vietnamese_input_mode,
+                                    group_id_override,
+                                );
+                            }
+                        }
+                        GeometryShapeKind::Circle => {
+                            changed |= Self::geometry_expr_pair_row(
+                                ui,
+                                preset_id,
+                                object_id,
+                                "pos",
+                                0,
+                                "CX",
+                                &mut spec.x1_expr,
+                                120.0,
+                                120.0,
+                                "CY",
+                                &mut spec.y1_expr,
+                                120.0,
+                                120.0,
+                                begin_mouse_move_absolute_capture_target,
+                                vietnamese_input_enabled,
+                                vietnamese_input_mode,
+                                group_id_override,
+                            );
+                            changed |= Self::geometry_expr_pair_row(
+                                ui,
+                                preset_id,
+                                object_id,
+                                "styling",
+                                255,
+                                "Radius",
+                                &mut spec.radius_expr,
                                 120.0,
                                 120.0,
                                 "Thickness",
@@ -495,7 +760,250 @@ impl CrosshairApp {
                                 vietnamese_input_mode,
                                 group_id_override,
                             );
-                        } else {
+                            changed |= Self::geometry_fill_mode_row(ui, language, &mut spec.filled);
+                        }
+                        GeometryShapeKind::Rectangle => {
+                            changed |= Self::geometry_expr_pair_row(
+                                ui,
+                                preset_id,
+                                object_id,
+                                "pos",
+                                0,
+                                "X",
+                                &mut spec.x1_expr,
+                                120.0,
+                                120.0,
+                                "Y",
+                                &mut spec.y1_expr,
+                                120.0,
+                                120.0,
+                                begin_mouse_move_absolute_capture_target,
+                                vietnamese_input_enabled,
+                                vietnamese_input_mode,
+                                group_id_override,
+                            );
+                            changed |= Self::geometry_expr_pair_row(
+                                ui,
+                                preset_id,
+                                object_id,
+                                "dims",
+                                255,
+                                "W",
+                                &mut spec.width_expr,
+                                120.0,
+                                120.0,
+                                "H",
+                                &mut spec.height_expr,
+                                120.0,
+                                120.0,
+                                begin_mouse_move_absolute_capture_target,
+                                vietnamese_input_enabled,
+                                vietnamese_input_mode,
+                                group_id_override,
+                            );
+                            changed |= Self::geometry_expr_pair_row(
+                                ui,
+                                preset_id,
+                                object_id,
+                                "styling",
+                                255,
+                                "Thickness",
+                                &mut spec.thickness_expr,
+                                120.0,
+                                120.0,
+                                "Opacity",
+                                &mut spec.opacity_expr,
+                                120.0,
+                                120.0,
+                                begin_mouse_move_absolute_capture_target,
+                                vietnamese_input_enabled,
+                                vietnamese_input_mode,
+                                group_id_override,
+                            );
+                            changed |= Self::geometry_fill_mode_row(ui, language, &mut spec.filled);
+                        }
+                        GeometryShapeKind::Label => {
+                            changed |= Self::geometry_expr_pair_row(
+                                ui,
+                                preset_id,
+                                object_id,
+                                "pos",
+                                0,
+                                "X",
+                                &mut spec.x1_expr,
+                                120.0,
+                                120.0,
+                                "Y",
+                                &mut spec.y1_expr,
+                                120.0,
+                                120.0,
+                                begin_mouse_move_absolute_capture_target,
+                                vietnamese_input_enabled,
+                                vietnamese_input_mode,
+                                group_id_override,
+                            );
+                            ui.label("Text");
+                            let text_id = ui.make_persistent_id((preset_id, object_id, "label-text"));
+                            let response = Self::render_interpolated_text_edit(
+                                ui,
+                                &mut spec.text,
+                                text_id,
+                                120.0,
+                                120.0,
+                                18.0,
+                                18.0,
+                                "Text",
+                                false,
+                            );
+                            changed |= response.changed();
+                            Self::apply_vietnamese_input_if_changed(
+                                &response,
+                                vietnamese_input_enabled,
+                                vietnamese_input_mode,
+                                &mut spec.text,
+                            );
+                            ui.label("");
+                            ui.label("");
+                            ui.add_space(24.0);
+                            ui.end_row();
+                            changed |= Self::geometry_expr_pair_row(
+                                ui,
+                                preset_id,
+                                object_id,
+                                "styling",
+                                255,
+                                "Size",
+                                &mut spec.font_size_expr,
+                                120.0,
+                                120.0,
+                                "Opacity",
+                                &mut spec.opacity_expr,
+                                120.0,
+                                120.0,
+                                begin_mouse_move_absolute_capture_target,
+                                vietnamese_input_enabled,
+                                vietnamese_input_mode,
+                                group_id_override,
+                            );
+                        }
+                        GeometryShapeKind::Ellipse => {
+                            changed |= Self::geometry_expr_pair_row(
+                                ui,
+                                preset_id,
+                                object_id,
+                                "pos",
+                                0,
+                                "CX",
+                                &mut spec.x1_expr,
+                                120.0,
+                                120.0,
+                                "CY",
+                                &mut spec.y1_expr,
+                                120.0,
+                                120.0,
+                                begin_mouse_move_absolute_capture_target,
+                                vietnamese_input_enabled,
+                                vietnamese_input_mode,
+                                group_id_override,
+                            );
+                            changed |= Self::geometry_expr_pair_row(
+                                ui,
+                                preset_id,
+                                object_id,
+                                "dims",
+                                255,
+                                "RX",
+                                &mut spec.radius_x_expr,
+                                120.0,
+                                120.0,
+                                "RY",
+                                &mut spec.radius_y_expr,
+                                120.0,
+                                120.0,
+                                begin_mouse_move_absolute_capture_target,
+                                vietnamese_input_enabled,
+                                vietnamese_input_mode,
+                                group_id_override,
+                            );
+                            changed |= Self::geometry_expr_pair_row(
+                                ui,
+                                preset_id,
+                                object_id,
+                                "styling",
+                                255,
+                                "Thickness",
+                                &mut spec.thickness_expr,
+                                120.0,
+                                120.0,
+                                "Opacity",
+                                &mut spec.opacity_expr,
+                                120.0,
+                                120.0,
+                                begin_mouse_move_absolute_capture_target,
+                                vietnamese_input_enabled,
+                                vietnamese_input_mode,
+                                group_id_override,
+                            );
+                            changed |= Self::geometry_fill_mode_row(ui, language, &mut spec.filled);
+                        }
+                        GeometryShapeKind::Arc => {
+                            changed |= Self::geometry_expr_pair_row(
+                                ui,
+                                preset_id,
+                                object_id,
+                                "pos",
+                                0,
+                                "CX",
+                                &mut spec.x1_expr,
+                                120.0,
+                                120.0,
+                                "CY",
+                                &mut spec.y1_expr,
+                                120.0,
+                                120.0,
+                                begin_mouse_move_absolute_capture_target,
+                                vietnamese_input_enabled,
+                                vietnamese_input_mode,
+                                group_id_override,
+                            );
+                            changed |= Self::geometry_expr_pair_row(
+                                ui,
+                                preset_id,
+                                object_id,
+                                "dims",
+                                255,
+                                "RX",
+                                &mut spec.radius_x_expr,
+                                120.0,
+                                120.0,
+                                "RY",
+                                &mut spec.radius_y_expr,
+                                120.0,
+                                120.0,
+                                begin_mouse_move_absolute_capture_target,
+                                vietnamese_input_enabled,
+                                vietnamese_input_mode,
+                                group_id_override,
+                            );
+                            changed |= Self::geometry_expr_pair_row(
+                                ui,
+                                preset_id,
+                                object_id,
+                                "angles",
+                                255,
+                                "Start",
+                                &mut spec.start_angle_expr,
+                                120.0,
+                                120.0,
+                                "End",
+                                &mut spec.end_angle_expr,
+                                120.0,
+                                120.0,
+                                begin_mouse_move_absolute_capture_target,
+                                vietnamese_input_enabled,
+                                vietnamese_input_mode,
+                                group_id_override,
+                            );
                             changed |= Self::geometry_expr_pair_row(
                                 ui,
                                 preset_id,
@@ -516,526 +1024,64 @@ impl CrosshairApp {
                                 group_id_override,
                             );
                         }
+                        GeometryShapeKind::Polyline | GeometryShapeKind::Polygon => unreachable!(),
                     }
-                    GeometryShapeKind::Circle => {
-                        changed |= Self::geometry_expr_pair_row(
-                            ui,
-                            preset_id,
-                            object_id,
-                            "pos",
-                            0,
-                            "CX",
-                            &mut spec.x1_expr,
-                            120.0,
-                            120.0,
-                            "CY",
-                            &mut spec.y1_expr,
-                            120.0,
-                            120.0,
-                            begin_mouse_move_absolute_capture_target,
-                            vietnamese_input_enabled,
-                            vietnamese_input_mode,
-                            group_id_override,
-                        );
-                        changed |= Self::geometry_expr_pair_row(
-                            ui,
-                            preset_id,
-                            object_id,
-                            "styling",
-                            255,
-                            "Radius",
-                            &mut spec.radius_expr,
-                            120.0,
-                            120.0,
-                            "Thickness",
-                            &mut spec.thickness_expr,
-                            120.0,
-                            120.0,
-                            begin_mouse_move_absolute_capture_target,
-                            vietnamese_input_enabled,
-                            vietnamese_input_mode,
-                            group_id_override,
-                        );
-                        changed |= Self::geometry_expr_pair_row(
-                            ui,
-                            preset_id,
-                            object_id,
-                            "opacity",
-                            255,
-                            "Opacity",
-                            &mut spec.opacity_expr,
-                            120.0,
-                            120.0,
-                            "",
-                            &mut String::new(),
-                            0.0,
-                            0.0,
-                            begin_mouse_move_absolute_capture_target,
-                            vietnamese_input_enabled,
-                            vietnamese_input_mode,
-                            group_id_override,
-                        );
-                        changed |= Self::geometry_fill_mode_row(ui, language, &mut spec.filled);
-                    }
-                    GeometryShapeKind::Rectangle => {
-                        changed |= Self::geometry_expr_pair_row(
-                            ui,
-                            preset_id,
-                            object_id,
-                            "pos",
-                            0,
-                            "X",
-                            &mut spec.x1_expr,
-                            120.0,
-                            120.0,
-                            "Y",
-                            &mut spec.y1_expr,
-                            120.0,
-                            120.0,
-                            begin_mouse_move_absolute_capture_target,
-                            vietnamese_input_enabled,
-                            vietnamese_input_mode,
-                            group_id_override,
-                        );
-                        changed |= Self::geometry_expr_pair_row(
-                            ui,
-                            preset_id,
-                            object_id,
-                            "dims",
-                            255,
-                            "W",
-                            &mut spec.width_expr,
-                            120.0,
-                            120.0,
-                            "H",
-                            &mut spec.height_expr,
-                            120.0,
-                            120.0,
-                            begin_mouse_move_absolute_capture_target,
-                            vietnamese_input_enabled,
-                            vietnamese_input_mode,
-                            group_id_override,
-                        );
-                        changed |= Self::geometry_expr_pair_row(
-                            ui,
-                            preset_id,
-                            object_id,
-                            "styling",
-                            255,
-                            "Thickness",
-                            &mut spec.thickness_expr,
-                            120.0,
-                            120.0,
-                            "Opacity",
-                            &mut spec.opacity_expr,
-                            120.0,
-                            120.0,
-                            begin_mouse_move_absolute_capture_target,
-                            vietnamese_input_enabled,
-                            vietnamese_input_mode,
-                            group_id_override,
-                        );
-                        changed |= Self::geometry_fill_mode_row(ui, language, &mut spec.filled);
-                    }
-                    GeometryShapeKind::Label => {
-                        changed |= Self::geometry_expr_pair_row(
-                            ui,
-                            preset_id,
-                            object_id,
-                            "pos",
-                            0,
-                            "X",
-                            &mut spec.x1_expr,
-                            120.0,
-                            120.0,
-                            "Y",
-                            &mut spec.y1_expr,
-                            120.0,
-                            120.0,
-                            begin_mouse_move_absolute_capture_target,
-                            vietnamese_input_enabled,
-                            vietnamese_input_mode,
-                            group_id_override,
-                        );
-                        ui.label("Text");
-                        let text_id = ui.make_persistent_id((preset_id, object_id, "label-text"));
-                        let response = Self::render_interpolated_text_edit(
-                            ui,
-                            &mut spec.text,
-                            text_id,
-                            120.0, // normal width
-                            120.0, // expanded width
-                            18.0,  // normal height
-                            18.0,  // expanded height
-                            "Text", // hint
-                            false, // multiline_on_focus
-                        );
-                        changed |= response.changed();
-                        Self::apply_vietnamese_input_if_changed(
-                            &response,
-                            vietnamese_input_enabled,
-                            vietnamese_input_mode,
-                            &mut spec.text,
-                        );
-                        ui.label("");
-                        ui.label("");
-                        ui.add_space(24.0);
-                        ui.end_row();
-                        changed |= Self::geometry_expr_pair_row(
-                            ui,
-                            preset_id,
-                            object_id,
-                            "styling",
-                            255,
-                            "Size",
-                            &mut spec.font_size_expr,
-                            120.0,
-                            120.0,
-                            "Opacity",
-                            &mut spec.opacity_expr,
-                            120.0,
-                            120.0,
-                            begin_mouse_move_absolute_capture_target,
-                            vietnamese_input_enabled,
-                            vietnamese_input_mode,
-                            group_id_override,
-                        );
-                    }
-                    GeometryShapeKind::Ellipse => {
-                        changed |= Self::geometry_expr_pair_row(
-                            ui,
-                            preset_id,
-                            object_id,
-                            "pos",
-                            0,
-                            "CX",
-                            &mut spec.x1_expr,
-                            120.0,
-                            120.0,
-                            "CY",
-                            &mut spec.y1_expr,
-                            120.0,
-                            120.0,
-                            begin_mouse_move_absolute_capture_target,
-                            vietnamese_input_enabled,
-                            vietnamese_input_mode,
-                            group_id_override,
-                        );
-                        changed |= Self::geometry_expr_pair_row(
-                            ui,
-                            preset_id,
-                            object_id,
-                            "dims",
-                            255,
-                            "RX",
-                            &mut spec.radius_x_expr,
-                            120.0,
-                            120.0,
-                            "RY",
-                            &mut spec.radius_y_expr,
-                            120.0,
-                            120.0,
-                            begin_mouse_move_absolute_capture_target,
-                            vietnamese_input_enabled,
-                            vietnamese_input_mode,
-                            group_id_override,
-                        );
-                        changed |= Self::geometry_expr_pair_row(
-                            ui,
-                            preset_id,
-                            object_id,
-                            "styling",
-                            255,
-                            "Thickness",
-                            &mut spec.thickness_expr,
-                            120.0,
-                            120.0,
-                            "Opacity",
-                            &mut spec.opacity_expr,
-                            120.0,
-                            120.0,
-                            begin_mouse_move_absolute_capture_target,
-                            vietnamese_input_enabled,
-                            vietnamese_input_mode,
-                            group_id_override,
-                        );
-                        changed |= Self::geometry_fill_mode_row(ui, language, &mut spec.filled);
-                    }
-                    GeometryShapeKind::Polyline | GeometryShapeKind::Polygon => {
-                        let mut points: Vec<(String, String)> = spec.points_expr
-                            .split(';')
-                            .filter(|s| !s.is_empty())
-                            .map(|pair| {
-                                if let Some((x, y)) = pair.split_once(',') {
-                                    (x.trim().to_owned(), y.trim().to_owned())
-                                } else {
-                                    (pair.trim().to_owned(), String::new())
-                                }
-                            })
-                            .collect();
 
-                        let mut points_changed = false;
-                        let mut remove_point_idx = None;
-                        for (idx, (x_val, y_val)) in points.iter_mut().enumerate() {
-                            ui.label(format!("P{}", idx + 1));
-                            let x_id = ui.make_persistent_id((preset_id, object_id, idx, "poly-x"));
-                            let response_x = Self::render_variable_text_edit(
-                                ui,
-                                x_val,
-                                x_id,
-                                120.0,
-                                120.0,
-                                18.0,
-                                18.0,
-                                "",
-                                false,
-                            );
-                            points_changed |= response_x.changed();
-                            Self::apply_vietnamese_input_if_changed(
-                                &response_x,
-                                    vietnamese_input_enabled,
-                                    vietnamese_input_mode,
-                                    x_val,
-                            );
-
-                            ui.label("Y");
-                            let y_id = ui.make_persistent_id((preset_id, object_id, idx, "poly-y"));
-                            let response_y = Self::render_variable_text_edit(
-                                ui,
-                                y_val,
-                                y_id,
-                                120.0,
-                                120.0,
-                                18.0,
-                                18.0,
-                                "",
-                                false,
-                            );
-                            points_changed |= response_y.changed();
-                            Self::apply_vietnamese_input_if_changed(
-                                &response_y,
-                                    vietnamese_input_enabled,
-                                    vietnamese_input_mode,
-                                    y_val,
-                            );
-
-                            ui.horizontal(|ui| {
-                                ui.spacing_mut().item_spacing.x = 4.0;
-                                if ui
-                                    .add_sized(
-                                        [24.0, 21.0],
-                                        Button::new(Self::material_icon_text(0xe55f, 16.0)),
-                                    )
-                                    .on_hover_text("Pick coordinates from screen")
-                                    .clicked()
-                                {
-                                    *begin_mouse_move_absolute_capture_target = Some(MouseMoveAbsoluteCaptureTarget {
-                                        group_id: group_id_override,
-                                        preset_id,
-                                        step_index: object_id as usize,
-                                        capture_kind: MouseCaptureKind::GeometryPrimaryPos,
-                                        extra_cond_index: Some(idx),
-                                        is_hold_stop: false,
-                                    });
-                                }
-                                if ui
-                                    .add_sized(
-                                        [24.0, 21.0],
-                                        Button::new(Self::material_icon_text(0xe5cd, 16.0)),
-                                    )
-                                    .on_hover_text("Delete point")
-                                    .clicked()
-                                {
-                                    remove_point_idx = Some(idx);
-                                }
-                            });
-                            ui.end_row();
-                        }
-
-                        if let Some(idx) = remove_point_idx {
-                            points.remove(idx);
-                            points_changed = true;
-                        }
-
-                        // Add new point button
-                        ui.add_space(1.0);
-                        if ui.button("+ Add Point").clicked() {
-                            points.push(("960".to_owned(), "540".to_owned()));
-                            points_changed = true;
-                        }
-                        ui.label("");
-                        ui.label("");
-                        ui.add_space(24.0);
-                        ui.end_row();
-
-                        if points_changed {
-                            spec.points_expr = points
-                                .iter()
-                                .map(|(x, y)| format!("{},{}", x, y))
-                                .collect::<Vec<_>>()
-                                .join(";");
-                            changed = true;
-                        }
-
-                        changed |= Self::geometry_expr_pair_row(
-                            ui,
-                            preset_id,
-                            object_id,
-                            "styling",
-                            255,
-                            "Thickness",
-                            &mut spec.thickness_expr,
-                            120.0,
-                            120.0,
-                            "Opacity",
-                            &mut spec.opacity_expr,
-                            120.0,
-                            120.0,
-                            begin_mouse_move_absolute_capture_target,
-                            vietnamese_input_enabled,
-                            vietnamese_input_mode,
-                            group_id_override,
-                        );
-                        if spec.shape == GeometryShapeKind::Polygon {
-                            changed |= Self::geometry_fill_mode_row(ui, language, &mut spec.filled);
-                        }
-                    }
-                    GeometryShapeKind::Arc => {
-                        changed |= Self::geometry_expr_pair_row(
-                            ui,
-                            preset_id,
-                            object_id,
-                            "pos",
-                            0,
-                            "CX",
-                            &mut spec.x1_expr,
-                            120.0,
-                            120.0,
-                            "CY",
-                            &mut spec.y1_expr,
-                            120.0,
-                            120.0,
-                            begin_mouse_move_absolute_capture_target,
-                            vietnamese_input_enabled,
-                            vietnamese_input_mode,
-                            group_id_override,
-                        );
-                        changed |= Self::geometry_expr_pair_row(
-                            ui,
-                            preset_id,
-                            object_id,
-                            "dims",
-                            255,
-                            "RX",
-                            &mut spec.radius_x_expr,
-                            120.0,
-                            120.0,
-                            "RY",
-                            &mut spec.radius_y_expr,
-                            120.0,
-                            120.0,
-                            begin_mouse_move_absolute_capture_target,
-                            vietnamese_input_enabled,
-                            vietnamese_input_mode,
-                            group_id_override,
-                        );
-                        changed |= Self::geometry_expr_pair_row(
-                            ui,
-                            preset_id,
-                            object_id,
-                            "angles",
-                            255,
-                            "Start",
-                            &mut spec.start_angle_expr,
-                            120.0,
-                            120.0,
-                            "End",
-                            &mut spec.end_angle_expr,
-                            120.0,
-                            120.0,
-                            begin_mouse_move_absolute_capture_target,
-                            vietnamese_input_enabled,
-                            vietnamese_input_mode,
-                            group_id_override,
-                        );
-                        changed |= Self::geometry_expr_pair_row(
-                            ui,
-                            preset_id,
-                            object_id,
-                            "styling",
-                            255,
-                            "Thickness",
-                            &mut spec.thickness_expr,
-                            120.0,
-                            120.0,
-                            "Opacity",
-                            &mut spec.opacity_expr,
-                            120.0,
-                            120.0,
-                            begin_mouse_move_absolute_capture_target,
-                            vietnamese_input_enabled,
-                            vietnamese_input_mode,
-                            group_id_override,
-                        );
-                    }
-                }
-
-                let stroke_label = if matches!(
-                    spec.shape,
-                    GeometryShapeKind::Circle
-                        | GeometryShapeKind::Rectangle
-                        | GeometryShapeKind::Ellipse
-                        | GeometryShapeKind::Polygon
-                ) {
-                    "Stroke"
-                } else {
-                    "Color"
-                };
-
-                changed |= Self::geometry_color_row(
-                    ui,
-                    preset_id,
-                    object_id,
-                    stroke_label,
-                    &mut spec.stroke_color,
-                    &mut spec.stroke_color_expr,
-                    manual_color,
-                    manual_color_hex,
-                    allow_color_expression,
-                    request_screen_color_pick,
-                    pending_screen_color_target,
-                    false,
-                    vietnamese_input_enabled,
-                    vietnamese_input_mode,
-                );
-
-                if spec.filled
-                    && matches!(
+                    let stroke_label = if matches!(
                         spec.shape,
                         GeometryShapeKind::Circle
                             | GeometryShapeKind::Rectangle
                             | GeometryShapeKind::Ellipse
-                            | GeometryShapeKind::Polygon
-                    )
-                {
+                    ) {
+                        "Stroke"
+                    } else {
+                        "Color"
+                    };
+
                     changed |= Self::geometry_color_row(
                         ui,
                         preset_id,
                         object_id,
-                        "Fill",
-                        &mut spec.fill_color,
-                        &mut spec.fill_color_expr,
+                        stroke_label,
+                        &mut spec.stroke_color,
+                        &mut spec.stroke_color_expr,
                         manual_color,
                         manual_color_hex,
                         allow_color_expression,
                         request_screen_color_pick,
                         pending_screen_color_target,
-                        true,
+                        false,
                         vietnamese_input_enabled,
                         vietnamese_input_mode,
                     );
-                }
-            });
+
+                    if spec.filled
+                        && matches!(
+                            spec.shape,
+                            GeometryShapeKind::Circle
+                                | GeometryShapeKind::Rectangle
+                                | GeometryShapeKind::Ellipse
+                        )
+                    {
+                        changed |= Self::geometry_color_row(
+                            ui,
+                            preset_id,
+                            object_id,
+                            "Fill",
+                            &mut spec.fill_color,
+                            &mut spec.fill_color_expr,
+                            manual_color,
+                            manual_color_hex,
+                            allow_color_expression,
+                            request_screen_color_pick,
+                            pending_screen_color_target,
+                            true,
+                            vietnamese_input_enabled,
+                            vietnamese_input_mode,
+                        );
+                    }
+                });
+        }
 
         changed
     }

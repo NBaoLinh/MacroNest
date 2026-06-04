@@ -578,6 +578,7 @@ mod windows_overlay {
         active_geometry_steps: HashMap<(u32, usize), crate::model::GeometrySpec>,
         active_geometry_steps_expires: HashMap<(u32, usize), Instant>,
         active_geometry_animations: HashMap<(u32, usize), GeometryStepAnimationState>,
+        last_drawn_shapes: HashMap<(u32, usize), GeometryRenderShape>,
         active_crosshair_expires: Option<Instant>,
         active_pin_expires: Option<Instant>,
         preview_geometry_spec: Option<GeometrySpec>,
@@ -654,6 +655,7 @@ mod windows_overlay {
                 active_geometry_steps: HashMap::new(),
                 active_geometry_steps_expires: HashMap::new(),
                 active_geometry_animations: HashMap::new(),
+                last_drawn_shapes: HashMap::new(),
                 active_crosshair_expires: None,
                 active_pin_expires: None,
                 preview_geometry_spec: None,
@@ -4300,6 +4302,7 @@ mod windows_overlay {
                 hook_state.active_geometry_steps.remove(key);
                 hook_state.active_geometry_steps_expires.remove(key);
                 hook_state.active_geometry_animations.remove(key);
+                hook_state.last_drawn_shapes.remove(key);
             }
 
             let mut expired_anims = Vec::new();
@@ -4321,7 +4324,7 @@ mod windows_overlay {
             (
                 regions,
                 hook_state.vision_capture_preview_regions.clone(),
-                geometry_overlay_shapes(&hook_state),
+                geometry_overlay_shapes(&mut hook_state),
             )
         };
         // Check active crosshair expiration
@@ -11181,7 +11184,7 @@ mod windows_overlay {
         GeometryRenderShape { bounds, draw }
     }
 
-    fn geometry_overlay_shapes(hook_state: &HookState) -> Vec<GeometryRenderShape> {
+    fn geometry_overlay_shapes(hook_state: &mut HookState) -> Vec<GeometryRenderShape> {
         let mut shapes = Vec::new();
         for preset_id in &hook_state.active_geometry_preset_ids {
             if let Some(preset) = hook_state
@@ -11198,8 +11201,15 @@ mod windows_overlay {
                 }
             }
         }
-        for (key, spec) in &hook_state.active_geometry_steps {
-            if let Some(anim) = hook_state.active_geometry_animations.get(key) {
+        
+        let active_steps: Vec<((u32, usize), GeometrySpec)> = hook_state
+            .active_geometry_steps
+            .iter()
+            .map(|(k, v)| (*k, v.clone()))
+            .collect();
+
+        for (key, spec) in active_steps {
+            if let Some(anim) = hook_state.active_geometry_animations.get(&key) {
                 let elapsed = Instant::now().duration_since(anim.start_time);
                 let duration_secs = anim.duration.as_secs_f32();
                 let t = if duration_secs > 0.0 {
@@ -11209,12 +11219,15 @@ mod windows_overlay {
                 };
                 if let Some(target_shape) = geometry_render_shape_from_spec(&anim.target_spec) {
                     let interpolated = interpolate_shape(&anim.start_shape, &target_shape, t);
+                    hook_state.last_drawn_shapes.insert(key, interpolated.clone());
                     shapes.push(interpolated);
-                } else if let Some(shape) = geometry_render_shape_from_spec(spec) {
+                } else if let Some(shape) = geometry_render_shape_from_spec(&spec) {
+                    hook_state.last_drawn_shapes.insert(key, shape.clone());
                     shapes.push(shape);
                 }
             } else {
-                if let Some(shape) = geometry_render_shape_from_spec(spec) {
+                if let Some(shape) = geometry_render_shape_from_spec(&spec) {
+                    hook_state.last_drawn_shapes.insert(key, shape.clone());
                     shapes.push(shape);
                 }
             }
@@ -13355,18 +13368,16 @@ mod windows_overlay {
             let key = (preset_id, absolute_step_index);
 
             if spec.geometry_animation_enabled {
-                if let Some(old_spec) = hook_state.active_geometry_steps.get(&key).cloned() {
-                    if let Some(start_shape) = geometry_render_shape_from_spec(&old_spec) {
-                        let duration_ms = geometry_eval_i32(&spec.geometry_animation_duration_expr, 300).max(0) as u64;
-                        if duration_ms > 0 {
-                            let anim = GeometryStepAnimationState {
-                                start_time: Instant::now(),
-                                duration: Duration::from_millis(duration_ms),
-                                start_shape,
-                                target_spec: spec.clone(),
-                            };
-                            hook_state.active_geometry_animations.insert(key, anim);
-                        }
+                if let Some(start_shape) = hook_state.last_drawn_shapes.get(&key).cloned() {
+                    let duration_ms = geometry_eval_i32(&spec.geometry_animation_duration_expr, 300).max(0) as u64;
+                    if duration_ms > 0 {
+                        let anim = GeometryStepAnimationState {
+                            start_time: Instant::now(),
+                            duration: Duration::from_millis(duration_ms),
+                            start_shape,
+                            target_spec: spec.clone(),
+                        };
+                        hook_state.active_geometry_animations.insert(key, anim);
                     }
                 }
             } else {
@@ -13386,6 +13397,7 @@ mod windows_overlay {
             hook_state.active_geometry_preset_ids.clear();
             hook_state.active_geometry_steps.clear();
             hook_state.active_geometry_animations.clear();
+            hook_state.last_drawn_shapes.clear();
         }
         send_overlay_command(OverlayCommand::RefreshSearchAreaOverlay);
     }
@@ -15705,6 +15717,7 @@ mod windows_overlay {
         hook_state.active_geometry_steps.remove(&(preset_id, step_index));
         hook_state.active_geometry_steps_expires.remove(&(preset_id, step_index));
         hook_state.active_geometry_animations.remove(&(preset_id, step_index));
+        hook_state.last_drawn_shapes.remove(&(preset_id, step_index));
         drop(hook_state);
         send_overlay_command(OverlayCommand::RefreshSearchAreaOverlay);
     }
