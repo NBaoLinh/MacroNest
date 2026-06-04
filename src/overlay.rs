@@ -10762,6 +10762,34 @@ mod windows_overlay {
         text: String,
     }
 
+    fn geometry_label_bounds(
+        x: i32,
+        y: i32,
+        font_size: i32,
+        text: &str,
+        rotation_deg: f32,
+    ) -> (i32, i32, i32, i32) {
+        let text_len = text.chars().count().max(1) as i32;
+        let width_est = ((font_size as f32) * (text_len as f32 * 0.72 + 0.8)).ceil() as i32 + 12;
+        let height_est = ((font_size as f32) * 1.45).ceil() as i32 + 12;
+        let (virtual_left, virtual_top, virtual_width, virtual_height) =
+            window_list::virtual_screen_bounds();
+        let virtual_right = virtual_left + virtual_width;
+        let virtual_bottom = virtual_top + virtual_height;
+        let pad = font_size.clamp(16, 64);
+        let (left, top, right, bottom) = if rotation_deg.abs() < f32::EPSILON {
+            (x, y, x + width_est.max(1), y + height_est.max(1))
+        } else {
+            let radius = width_est.max(height_est).max(font_size).max(1);
+            (x - radius, y - radius, x + radius, y + radius)
+        };
+        let clamped_left = left.clamp(virtual_left, virtual_right.saturating_sub(1));
+        let clamped_top = top.clamp(virtual_top, virtual_bottom.saturating_sub(1));
+        let clamped_right = right.clamp(clamped_left + 1, virtual_right + pad);
+        let clamped_bottom = bottom.clamp(clamped_top + 1, virtual_bottom + pad);
+        (clamped_left, clamped_top, clamped_right, clamped_bottom)
+    }
+
     #[derive(Clone, Debug)]
     struct GeometryRenderShape {
         bounds: (i32, i32, i32, i32),
@@ -11079,11 +11107,13 @@ mod windows_overlay {
             GeometryShapeKind::Label => {
                 let x = geometry_eval_i32(&spec.x1_expr, 0);
                 let y = geometry_eval_i32(&spec.y1_expr, 0);
-                let font_size = geometry_eval_i32(&spec.font_size_expr, spec.font_size.round() as i32).max(10).min(150);
+                let font_size = geometry_eval_i32(&spec.font_size_expr, spec.font_size.round() as i32)
+                    .max(10)
+                    .min(256);
                 let text = interpolate_variables(&spec.text);
-                let text_len = text.chars().count() as i32;
+                let bounds = geometry_label_bounds(x, y, font_size, &text, rotation_deg);
                 Some(GeometryRenderShape {
-                    bounds: (x, y, x + font_size.saturating_mul(text_len.max(1) / 2 + 1), y + font_size + 4),
+                    bounds,
                     draw: GeometryRenderDraw::Label(GeometryRenderText {
                         x,
                         y,
@@ -14680,7 +14710,8 @@ mod windows_overlay {
         }
 
         use windows::Win32::Graphics::Gdi::{
-            DT_LEFT, DT_SINGLELINE, DT_VCENTER, DrawTextW, SetBkMode, SetTextColor, TRANSPARENT,
+            DT_CALCRECT, DT_LEFT, DT_SINGLELINE, DT_VCENTER, DrawTextW, SetBkMode, SetTextColor,
+            TRANSPARENT,
         };
         use windows::Win32::Foundation::RECT;
         unsafe {
@@ -14940,12 +14971,13 @@ mod windows_overlay {
             }
         }
 
-        let mut rects_to_fix = occupied_label_rects.clone();
+        let rects_to_fix = occupied_label_rects.clone();
         for text in &geometry_texts {
             let font_name = "Segoe UI"
                 .encode_utf16()
                 .chain(std::iter::once(0))
                 .collect::<Vec<_>>();
+            let label_bg = [1_u8, 2_u8, 3_u8];
             let rotation_tenths = (text.rotation_deg * 10.0).round() as i32;
             let font = CreateFontW(
                 -(text.font_size.max(10)),
@@ -14964,6 +14996,7 @@ mod windows_overlay {
                 PCWSTR(font_name.as_ptr()),
             );
             let old_font = SelectObject(mem_dc, HGDIOBJ(font.0));
+            let _ = SetBkMode(mem_dc, TRANSPARENT);
             let _ = SetTextColor(
                 mem_dc,
                 COLORREF(
@@ -14972,26 +15005,82 @@ mod windows_overlay {
                         | text.color[0] as u32,
                 ),
             );
-            let mut text_rect = RECT {
-                left: text.x - min_x,
-                top: text.y - min_y,
-                right: (text.x - min_x) + 800,
-                bottom: (text.y - min_y) + text.font_size + 80,
-            };
             let mut wide_text = text
                 .text
                 .encode_utf16()
                 .chain(std::iter::once(0))
                 .collect::<Vec<_>>();
+            let mut measure_rect = RECT {
+                left: text.x - min_x,
+                top: text.y - min_y,
+                right: (text.x - min_x) + (text.font_size.max(10) * text.text.chars().count().max(1) as i32 * 2),
+                bottom: (text.y - min_y) + text.font_size.max(10) * 3,
+            };
+            let _ = DrawTextW(
+                mem_dc,
+                &mut wide_text,
+                &mut measure_rect,
+                DT_LEFT | DT_SINGLELINE | DT_CALCRECT,
+            );
+            let pad = (text.font_size / 5).max(4);
+            let mut text_rect = RECT {
+                left: measure_rect.left - pad,
+                top: measure_rect.top - pad,
+                right: measure_rect.right + pad,
+                bottom: measure_rect.bottom + pad,
+            };
+            let marker_start_y = text_rect.top.max(0).min(height as i32);
+            let marker_end_y = text_rect.bottom.max(0).min(height as i32);
+            let marker_start_x = text_rect.left.max(0).min(width as i32);
+            let marker_end_x = text_rect.right.max(0).min(width as i32);
+            for py in marker_start_y..marker_end_y {
+                for px in marker_start_x..marker_end_x {
+                    let index = ((py as usize) * (width as usize) + (px as usize)) * 4;
+                    if index + 3 >= pixels.len() {
+                        continue;
+                    }
+                    pixels[index] = label_bg[2];
+                    pixels[index + 1] = label_bg[1];
+                    pixels[index + 2] = label_bg[0];
+                    pixels[index + 3] = 0;
+                }
+            }
+            text_rect.left += pad;
+            text_rect.top += pad;
             let _ = DrawTextW(
                 mem_dc,
                 &mut wide_text,
                 &mut text_rect,
                 DT_LEFT | DT_VCENTER | DT_SINGLELINE,
             );
+            let text_alpha = text.color[3].max(1);
+            let start_y = text_rect.top.max(0).min(height as i32);
+            let end_y = text_rect.bottom.max(0).min(height as i32);
+            let start_x = text_rect.left.max(0).min(width as i32);
+            let end_x = text_rect.right.max(0).min(width as i32);
+            for py in start_y..end_y {
+                for px in start_x..end_x {
+                    let index = ((py as usize) * (width as usize) + (px as usize)) * 4;
+                    if index + 3 >= pixels.len() {
+                        continue;
+                    }
+
+                    let chunk = &mut pixels[index..index + 4];
+                    let is_background = chunk[0] == label_bg[2]
+                        && chunk[1] == label_bg[1]
+                        && chunk[2] == label_bg[0];
+                    if is_background {
+                        chunk[0] = 0;
+                        chunk[1] = 0;
+                        chunk[2] = 0;
+                        chunk[3] = 0;
+                    } else {
+                        chunk[3] = chunk[3].max(text_alpha);
+                    }
+                }
+            }
             let _ = SelectObject(mem_dc, old_font);
             let _ = DeleteObject(HGDIOBJ(font.0));
-            rects_to_fix.push(text_rect);
         }
 
         for rect in rects_to_fix {
