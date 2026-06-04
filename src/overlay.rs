@@ -13799,7 +13799,23 @@ mod windows_overlay {
             if spec_changed {
                 hook_state.active_geometry_steps.insert(key, spec.clone());
                 let now = Instant::now();
-                let refresh_interval = Duration::from_millis(16);
+                let refresh_interval = geometry_render_shape_from_spec(spec)
+                    .map(|shape| {
+                        let (left, top, right, bottom) = shape.bounds;
+                        let width = (right - left).max(1) as i64;
+                        let height = (bottom - top).max(1) as i64;
+                        let area = width.saturating_mul(height);
+                        if area > 600_000 {
+                            Duration::from_millis(66)
+                        } else if area > 300_000 {
+                            Duration::from_millis(50)
+                        } else if area > 120_000 {
+                            Duration::from_millis(33)
+                        } else {
+                            Duration::from_millis(16)
+                        }
+                    })
+                    .unwrap_or_else(|| Duration::from_millis(16));
                 should_refresh = hook_state
                     .last_geometry_overlay_refresh_at
                     .is_none_or(|last| now.duration_since(last) >= refresh_interval);
