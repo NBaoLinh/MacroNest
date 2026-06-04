@@ -20679,6 +20679,9 @@ impl CrosshairApp {
                             timer_names,
                             72.0,
                         );
+                    });
+                    ui.add_space(4.0);
+                    ui.with_layout(egui::Layout::left_to_right(egui::Align::Center), |ui| {
                         ui.label(Self::tr_lang(language, "Conf", "Tin cay"));
                         *live_sync |= Self::render_audio_sense_var_box(
                             ui,
@@ -20759,6 +20762,9 @@ impl CrosshairApp {
                             timer_names,
                             64.0,
                         );
+                    });
+                    ui.add_space(4.0);
+                    ui.with_layout(egui::Layout::left_to_right(egui::Align::Center), |ui| {
                         ui.label("Pan");
                         *live_sync |= Self::render_audio_sense_var_box(
                             ui,
@@ -21173,6 +21179,16 @@ impl CrosshairApp {
                 }
             }
         } else {
+            for builtin in Self::builtin_variable_suggestions() {
+                if builtin
+                    .to_ascii_lowercase()
+                    .starts_with(&last_word_trimmed.to_ascii_lowercase())
+                    && !builtin.eq_ignore_ascii_case(&last_word_trimmed)
+                {
+                    suggestions.push((*builtin).to_string());
+                }
+            }
+
             for name in &suggestion_names {
                 let name_no_space = name.replace(" ", "");
 
