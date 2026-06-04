@@ -104,6 +104,7 @@ pub(crate) enum VisionCaptureMode {
     SearchRegion,
     ColorSample,
     ColorPriorityAnchor,
+    SinglePixel,
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]

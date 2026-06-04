@@ -12026,6 +12026,48 @@ mod windows_overlay {
             });
         }
 
+        if preset.use_color_matching && preset.search_region_is_single_pixel {
+            let configured_region = configured_image_search_region(preset);
+            let Some(region) = configured_region else {
+                bail!("No pixel has been picked yet.");
+            };
+
+            let screen = window_list::capture_virtual_screen_region(
+                region.left,
+                region.top,
+                1,
+                1,
+            )
+            .context("Failed to capture the selected pixel")?;
+
+            if screen.rgba.len() < 4 {
+                bail!("Failed to read captured pixel color.");
+            }
+
+            let r = screen.rgba[0];
+            let g = screen.rgba[1];
+            let b = screen.rgba[2];
+            let hex_color = format!("#{:02X}{:02X}{:02X}", r, g, b);
+
+            let var_name = if let Some(over) = variable_override.filter(|s| !s.trim().is_empty()) {
+                over.trim().to_string()
+            } else if preset.pixel_counter_variable_name.is_empty() {
+                format!("color_code_{}", preset.id)
+            } else {
+                preset.pixel_counter_variable_name.clone()
+            };
+
+            {
+                let mut vars = TEXT_VARIABLES.lock();
+                vars.insert(var_name.clone(), hex_color.clone());
+            }
+
+            return Ok(VisionRunOutcome {
+                matched: true,
+                status: format!("Saved pixel color {hex_color} to variable '{var_name}'"),
+            });
+        }
+
         if preset.use_color_matching {
             let target_colors = image_search_target_colors(preset);
             if target_colors.is_empty() {

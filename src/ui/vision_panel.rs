@@ -150,6 +150,7 @@ impl CrosshairApp {
                 let mut start_search_region_capture = None;
                 let mut start_color_pick_capture = None;
                 let mut start_color_priority_anchor_capture = None;
+                let mut start_single_pixel_capture = None;
                 let template_file = self.vision_template_file_for_preset(preset_snapshot.id);
                 let open_windows = self.open_windows.clone();
                 let preset = &mut self.state.vision_presets[index];
@@ -368,12 +369,43 @@ impl CrosshairApp {
                             ui.label(Self::tr_lang(language, "Area", "Khu vực"));
                             ui.horizontal_wrapped(|ui| {
                                 ui.monospace(Self::image_search_search_area_text(preset));
-                                if ui
-                                    .button(Self::tr_lang(language, "Pick area", "Chọn khu vực"))
-                                    .clicked()
-                                {
-                                    start_search_region_capture = Some(preset.id);
+                                
+                                let mut is_single = preset.search_region_is_single_pixel;
+                                if preset.use_color_matching && !preset.is_pixel_counter {
+                                    if ui
+                                        .checkbox(&mut is_single, Self::tr_lang(language, "1 pixel", "Một pixel"))
+                                        .changed()
+                                    {
+                                        preset.search_region_is_single_pixel = is_single;
+                                        if is_single {
+                                            preset.search_region_width = Some(1);
+                                            preset.search_region_height = Some(1);
+                                        } else {
+                                            preset.search_region_width = None;
+                                            preset.search_region_height = None;
+                                            preset.search_region_screen_x = None;
+                                            preset.search_region_screen_y = None;
+                                        }
+                                        live_sync = true;
+                                    }
                                 }
+
+                                if preset.search_region_is_single_pixel {
+                                    if ui
+                                        .button(Self::tr_lang(language, "Pick pixel", "Chọn pixel"))
+                                        .clicked()
+                                    {
+                                        start_single_pixel_capture = Some(preset.id);
+                                    }
+                                } else {
+                                    if ui
+                                        .button(Self::tr_lang(language, "Pick area", "Chọn khu vực"))
+                                        .clicked()
+                                    {
+                                        start_search_region_capture = Some(preset.id);
+                                    }
+                                }
+
                                 if ui
                                     .button(Self::tr_lang(language, "Clear area", "Xóa khu vực"))
                                     .clicked()
@@ -384,16 +416,19 @@ impl CrosshairApp {
                                     preset.search_region_height = None;
                                     live_sync = true;
                                 }
-                                 live_sync |= ui
-                                     .checkbox(
-                                         &mut preset.show_search_region_overlay,
-                                         Self::tr_lang(language, "Overlay", "Hiển thị overlay"),
-                                     )
-                                     .changed();
+
+                                if !preset.search_region_is_single_pixel {
+                                     live_sync |= ui
+                                         .checkbox(
+                                             &mut preset.show_search_region_overlay,
+                                             Self::tr_lang(language, "Overlay", "Hiển thị overlay"),
+                                         )
+                                         .changed();
+                                }
                             });
                             ui.end_row();
 
-                            if preset.use_color_matching {
+                            if preset.use_color_matching && !preset.search_region_is_single_pixel {
                                 ui.label(Self::tr_lang(language, "Color", "Màu sắc"));
                                 ui.vertical(|ui| {
                                     let colors = Self::image_search_target_colors(&preset);
@@ -570,7 +605,7 @@ impl CrosshairApp {
                                 ui.end_row();
                             }
 
-                            if !preset.is_pixel_counter {
+                            if !preset.is_pixel_counter && !preset.search_region_is_single_pixel {
                                 ui.label(Self::tr_lang(language, "Mouse", "Chuột"));
                                 ui.horizontal_wrapped(|ui| {
                                     if Self::sized_button(
@@ -650,7 +685,7 @@ impl CrosshairApp {
                                 });
                                 ui.end_row();
 
-                                if preset.use_color_matching {
+                                if preset.use_color_matching && !preset.search_region_is_single_pixel {
                                     ui.label(Self::tr_lang(language, "Color scan", "Quét màu"));
                                     ui.horizontal_wrapped(|ui| {
                                         ui.label(Self::tr_lang(language, "Tolerance", "Sai số"));
@@ -750,18 +785,20 @@ impl CrosshairApp {
                                 }
                             }
 
-                            if preset.is_pixel_counter {
-                                ui.label(Self::tr_lang(language, "Color scan", "Quét màu"));
-                                ui.horizontal_wrapped(|ui| {
-                                    ui.label(Self::tr_lang(language, "Tolerance", "Sai số"));
-                                    live_sync |= ui
-                                        .add(
-                                            DragValue::new(&mut preset.color_tolerance)
-                                                .range(0..=96),
-                                        )
-                                        .changed();
-                                });
-                                ui.end_row();
+                            if preset.is_pixel_counter || (preset.use_color_matching && preset.search_region_is_single_pixel) {
+                                if preset.is_pixel_counter {
+                                    ui.label(Self::tr_lang(language, "Color scan", "Quét màu"));
+                                    ui.horizontal_wrapped(|ui| {
+                                        ui.label(Self::tr_lang(language, "Tolerance", "Sai số"));
+                                        live_sync |= ui
+                                            .add(
+                                                DragValue::new(&mut preset.color_tolerance)
+                                                    .range(0..=96),
+                                            )
+                                            .changed();
+                                    });
+                                    ui.end_row();
+                                }
 
                                 ui.label(Self::tr_lang(language, "Variable", "Tên biến"));
                                 ui.horizontal_wrapped(|ui| {
@@ -771,9 +808,14 @@ impl CrosshairApp {
                                     } else {
                                         Color32::from_rgba_unmultiplied(100, 100, 100, 150)
                                     };
+                                    let hint_text = if preset.is_pixel_counter {
+                                        format!("pixel_count_{}", preset.id)
+                                    } else {
+                                        format!("color_code_{}", preset.id)
+                                    };
                                     let text_edit = egui::TextEdit::singleline(&mut preset.pixel_counter_variable_name)
                                         .desired_width(120.0)
-                                        .hint_text(RichText::new(format!("pixel_count_{}", preset.id)).color(hint_color).weak());
+                                        .hint_text(RichText::new(hint_text).color(hint_color).weak());
                                     live_sync |= ui.add(text_edit).changed();
                                 });
                                 ui.end_row();
@@ -824,6 +866,13 @@ impl CrosshairApp {
                         ctx,
                         VisionCaptureTarget::Preset(preset_id),
                         VisionCaptureMode::ColorPriorityAnchor,
+                    );
+                }
+                if let Some(preset_id) = start_single_pixel_capture {
+                    self.begin_image_search_capture(
+                        ctx,
+                        VisionCaptureTarget::Preset(preset_id),
+                        VisionCaptureMode::SinglePixel,
                     );
                 }
                 if cancel_active_capture_local {
@@ -992,21 +1041,28 @@ impl CrosshairApp {
     }
 
     pub(crate) fn image_search_search_area_text(preset: &VisionPreset) -> String {
-        match (
-            preset.search_region_screen_x,
-            preset.search_region_screen_y,
-            preset.search_region_width,
-            preset.search_region_height,
-        ) {
-            (Some(x), Some(y), Some(width), Some(height)) if width > 0 && height > 0 => {
-                let shape = if preset.search_region_is_circle {
-                    "Circle"
-                } else {
-                    "Rect"
-                };
-                format!("{shape} {x}, {y}  {width}x{height}")
+        if preset.search_region_is_single_pixel {
+            match (preset.search_region_screen_x, preset.search_region_screen_y) {
+                (Some(x), Some(y)) => format!("Pixel {x}, {y}"),
+                _ => "Not selected".to_owned(),
             }
-            _ => "Any screen".to_owned(),
+        } else {
+            match (
+                preset.search_region_screen_x,
+                preset.search_region_screen_y,
+                preset.search_region_width,
+                preset.search_region_height,
+            ) {
+                (Some(x), Some(y), Some(width), Some(height)) if width > 0 && height > 0 => {
+                    let shape = if preset.search_region_is_circle {
+                        "Circle"
+                    } else {
+                        "Rect"
+                    };
+                    format!("{shape} {x}, {y}  {width}x{height}")
+                }
+                _ => "Any screen".to_owned(),
+            }
         }
     }
 
@@ -1310,6 +1366,9 @@ impl CrosshairApp {
                 "Click a point on screen to set the color priority anchor. Press Esc to cancel."
                     .to_owned()
             }
+            VisionCaptureMode::SinglePixel => {
+                "Click a pixel on screen to pick the search coordinate. Press Esc to cancel.".to_owned()
+            }
         };
         let is_region_mode = matches!(
             mode,
@@ -1335,7 +1394,7 @@ impl CrosshairApp {
             .vision_capture_mode
             .unwrap_or(VisionCaptureMode::Template)
         {
-            VisionCaptureMode::ColorSample | VisionCaptureMode::ColorPriorityAnchor => {
+            VisionCaptureMode::ColorSample | VisionCaptureMode::ColorPriorityAnchor | VisionCaptureMode::SinglePixel => {
                 // Do nothing on mouse down, wait for mouse up to capture!
             }
             VisionCaptureMode::Template | VisionCaptureMode::SearchRegion => {
@@ -1387,7 +1446,7 @@ impl CrosshairApp {
                     ctx.request_repaint();
                 }
             }
-            VisionCaptureMode::ColorSample | VisionCaptureMode::ColorPriorityAnchor => {}
+            VisionCaptureMode::ColorSample | VisionCaptureMode::ColorPriorityAnchor | VisionCaptureMode::SinglePixel => {}
         }
     }
 
@@ -1467,7 +1526,7 @@ impl CrosshairApp {
                     self.status = "Image area capture cancelled.".to_owned();
                 }
             }
-            VisionCaptureMode::ColorSample | VisionCaptureMode::ColorPriorityAnchor => {
+            VisionCaptureMode::ColorSample | VisionCaptureMode::ColorPriorityAnchor | VisionCaptureMode::SinglePixel => {
                 let Some(target) = self.vision_capture_target else {
                     self.cancel_image_search_capture(ctx);
                     self.status = "No image search preset is active.".to_owned();
@@ -1475,17 +1534,26 @@ impl CrosshairApp {
                 };
                 match target {
                     VisionCaptureTarget::Preset(preset_id) => {
-                        let priority_anchor = matches!(
-                            self.vision_capture_mode,
-                            Some(VisionCaptureMode::ColorPriorityAnchor)
-                        );
-                        self.finish_image_search_point_capture_command_from_screen(
-                            ctx,
-                            preset_id,
-                            priority_anchor,
-                            screen_x,
-                            screen_y,
-                        );
+                        if matches!(self.vision_capture_mode, Some(VisionCaptureMode::SinglePixel)) {
+                            self.finish_image_search_single_pixel_capture_from_screen(
+                                ctx,
+                                preset_id,
+                                screen_x,
+                                screen_y,
+                            );
+                        } else {
+                            let priority_anchor = matches!(
+                                self.vision_capture_mode,
+                                Some(VisionCaptureMode::ColorPriorityAnchor)
+                            );
+                            self.finish_image_search_point_capture_command_from_screen(
+                                ctx,
+                                preset_id,
+                                priority_anchor,
+                                screen_x,
+                                screen_y,
+                            );
+                        }
                     }
                     VisionCaptureTarget::OcrPreset(_) => {
                         self.cancel_image_search_capture(ctx);
@@ -1676,6 +1744,7 @@ impl CrosshairApp {
             VisionCaptureMode::ColorPriorityAnchor => {
                 "Image priority point capture cancelled.".to_owned()
             }
+            VisionCaptureMode::SinglePixel => "Single pixel capture cancelled.".to_owned(),
         };
         ctx.request_repaint();
     }
@@ -1896,6 +1965,14 @@ impl CrosshairApp {
             VisionCaptureMode::ColorPriorityAnchor => {
                 let center = rect.center();
                 self.finish_image_search_color_priority_anchor_pick(ctx, center);
+            }
+            VisionCaptureMode::SinglePixel => {
+                let center = rect.center();
+                let screen_x = center.x.round() as i32;
+                let screen_y = center.y.round() as i32;
+                if let Some(VisionCaptureTarget::Preset(preset_id)) = self.vision_capture_target {
+                    self.finish_image_search_single_pixel_capture_from_screen(ctx, preset_id, screen_x, screen_y);
+                }
             }
         }
     }
@@ -2271,6 +2348,35 @@ impl CrosshairApp {
         let _ = self.overlay_tx.send(OverlayCommand::SetUiVisible(true));
 
         self.status = self.apply_image_search_priority_anchor(target, screen_x, screen_y);
+        self.persist();
+        ctx.request_repaint();
+    }
+
+    pub(crate) fn finish_image_search_single_pixel_capture_from_screen(
+        &mut self,
+        ctx: &egui::Context,
+        preset_id: u32,
+        screen_x: i32,
+        screen_y: i32,
+    ) {
+        self.clear_image_search_capture_state();
+        self.restore_image_search_capture_window(ctx);
+        ctx.send_viewport_cmd(egui::ViewportCommand::Visible(true));
+        ctx.send_viewport_cmd(egui::ViewportCommand::Minimized(false));
+        let _ = self.overlay_tx.send(OverlayCommand::SetUiVisible(true));
+
+        if let Some(preset) = self
+            .state
+            .vision_presets
+            .iter_mut()
+            .find(|p| p.id == preset_id)
+        {
+            preset.search_region_screen_x = Some(screen_x);
+            preset.search_region_screen_y = Some(screen_y);
+            preset.search_region_width = Some(1);
+            preset.search_region_height = Some(1);
+            self.status = format!("Selected pixel at {screen_x}, {screen_y}.");
+        }
         self.persist();
         ctx.request_repaint();
     }

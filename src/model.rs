@@ -1929,6 +1929,8 @@ pub struct VisionPreset {
     pub is_pixel_counter: bool,
     #[serde(default)]
     pub pixel_counter_variable_name: String,
+    #[serde(default)]
+    pub search_region_is_single_pixel: bool,
     pub last_capture_screen_x: Option<i32>,
     pub last_capture_screen_y: Option<i32>,
     pub search_region_screen_x: Option<i32>,
@@ -1975,6 +1977,7 @@ impl VisionPreset {
             require_connected_target_colors: false,
             is_pixel_counter: false,
             pixel_counter_variable_name: String::new(),
+            search_region_is_single_pixel: false,
             last_capture_screen_x: None,
             last_capture_screen_y: None,
             search_region_screen_x: None,
