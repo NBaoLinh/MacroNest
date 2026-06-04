@@ -581,6 +581,7 @@ mod windows_overlay {
         active_geometry_preset_ids: HashSet<u32>,
         active_geometry_steps: HashMap<(u32, usize), crate::model::GeometrySpec>,
         active_geometry_steps_expires: HashMap<(u32, usize), Instant>,
+        last_geometry_overlay_refresh_at: Option<Instant>,
         active_crosshair_expires: Option<Instant>,
         active_pin_expires: Option<Instant>,
         preview_geometry_spec: Option<GeometrySpec>,
@@ -658,6 +659,7 @@ mod windows_overlay {
                 active_geometry_preset_ids: HashSet::new(),
                 active_geometry_steps: HashMap::new(),
                 active_geometry_steps_expires: HashMap::new(),
+                last_geometry_overlay_refresh_at: None,
                 active_crosshair_expires: None,
                 active_pin_expires: None,
                 preview_geometry_spec: None,
@@ -13785,15 +13787,30 @@ mod windows_overlay {
     }
 
     fn set_step_geometry_spec(preset_id: u32, absolute_step_index: usize, spec: &GeometrySpec) {
+        let mut should_refresh = false;
         {
             let mut hook_state = HOOK_STATE.lock();
             let key = (preset_id, absolute_step_index);
-
-            hook_state
+            let spec_changed = hook_state
                 .active_geometry_steps
-                .insert(key, spec.clone());
+                .get(&key)
+                .is_none_or(|existing| existing != spec);
+
+            if spec_changed {
+                hook_state.active_geometry_steps.insert(key, spec.clone());
+                let now = Instant::now();
+                let refresh_interval = Duration::from_millis(16);
+                should_refresh = hook_state
+                    .last_geometry_overlay_refresh_at
+                    .is_none_or(|last| now.duration_since(last) >= refresh_interval);
+                if should_refresh {
+                    hook_state.last_geometry_overlay_refresh_at = Some(now);
+                }
+            }
         }
-        send_overlay_command(OverlayCommand::RefreshSearchAreaOverlay);
+        if should_refresh {
+            send_overlay_command(OverlayCommand::RefreshSearchAreaOverlay);
+        }
     }
 
     fn clear_geometry_overlay() {
@@ -13801,6 +13818,7 @@ mod windows_overlay {
             let mut hook_state = HOOK_STATE.lock();
             hook_state.active_geometry_preset_ids.clear();
             hook_state.active_geometry_steps.clear();
+            hook_state.last_geometry_overlay_refresh_at = None;
         }
         send_overlay_command(OverlayCommand::RefreshSearchAreaOverlay);
     }
