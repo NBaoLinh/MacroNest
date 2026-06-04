@@ -519,27 +519,27 @@ fn default_audio_sense_duration_ms() -> u64 {
 }
 
 fn default_audio_sense_output_note_var() -> String {
-    "pitch_note".to_owned()
+    String::new()
 }
 
 fn default_audio_sense_output_confidence_var() -> String {
-    "pitch_confidence".to_owned()
+    String::new()
 }
 
 fn default_audio_sense_output_level_var() -> String {
-    "audio_level".to_owned()
+    String::new()
 }
 
 fn default_audio_sense_output_x_var() -> String {
-    "audio_x".to_owned()
+    String::new()
 }
 
 fn default_audio_sense_output_y_var() -> String {
-    "audio_y".to_owned()
+    String::new()
 }
 
 fn default_audio_sense_output_pan_var() -> String {
-    "audio_pan".to_owned()
+    String::new()
 }
 
 fn default_audio_sense_center_x() -> i32 {

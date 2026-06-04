@@ -20540,6 +20540,33 @@ impl CrosshairApp {
         live_sync: &mut bool,
         audio_sense_presets_changed: &mut bool,
     ) {
+        let mut cleared_legacy_defaults = false;
+        for var in [
+            &mut step.audio_sense_spec.pitch.output_note_var,
+            &mut step.audio_sense_spec.pitch.output_confidence_var,
+            &mut step.audio_sense_spec.pitch.output_level_var,
+            &mut step.audio_sense_spec.spatial.output_x_var,
+            &mut step.audio_sense_spec.spatial.output_y_var,
+            &mut step.audio_sense_spec.spatial.output_pan_var,
+            &mut step.audio_sense_spec.spatial.output_level_var,
+        ] {
+            if matches!(
+                var.as_str(),
+                "pitch_note"
+                    | "pitch_confidence"
+                    | "audio_level"
+                    | "audio_x"
+                    | "audio_y"
+                    | "audio_pan"
+            ) {
+                var.clear();
+                cleared_legacy_defaults = true;
+            }
+        }
+        if cleared_legacy_defaults {
+            *live_sync = true;
+        }
+
         ui.scope(|ui| {
             match step.action {
                 MacroAction::StartAudioSensePreset => {
@@ -20739,24 +20766,27 @@ impl CrosshairApp {
                             live_sync,
                         );
                         ui.add_space(4.0);
-                        ui.horizontal(|ui| {
-                            ui.label("X");
+                        ui.with_layout(egui::Layout::left_to_right(egui::Align::Center), |ui| {
+                            ui.label(Self::tr_lang(language, "Center X", "Tam X"));
                             *live_sync |= ui
-                                .add(
+                                .add_sized(
+                                    [68.0, 20.0],
                                     DragValue::new(&mut step.audio_sense_spec.spatial.center_x)
                                         .speed(1),
                                 )
                                 .changed();
-                            ui.label("Y");
+                            ui.label(Self::tr_lang(language, "Center Y", "Tam Y"));
                             *live_sync |= ui
-                                .add(
+                                .add_sized(
+                                    [68.0, 20.0],
                                     DragValue::new(&mut step.audio_sense_spec.spatial.center_y)
                                         .speed(1),
                                 )
                                 .changed();
                             ui.label(Self::tr_lang(language, "Radius", "Ban kinh"));
                             *live_sync |= ui
-                                .add(
+                                .add_sized(
+                                    [68.0, 20.0],
                                     DragValue::new(&mut step.audio_sense_spec.spatial.radius)
                                         .range(0..=5000)
                                         .speed(1),
