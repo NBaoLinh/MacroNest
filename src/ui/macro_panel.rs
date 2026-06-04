@@ -6854,7 +6854,7 @@ impl CrosshairApp {
 
                                         &mut preset.pass_through_press,
 
-                                        Self::tr_lang(language, "Pass trigger through", "Pass trigger through"),
+                                        Self::tr_lang(language, "Pass trigger through", "Cho phép phím đi qua"),
 
                                     )
 
@@ -6866,7 +6866,7 @@ impl CrosshairApp {
 
                                             "Let the trigger input keep going to the game or app while it also starts this macro.",
 
-                                            "Let the trigger input keep going to the game or app while it also starts this macro.",
+                                            "Cho phép phím kích hoạt tiếp tục truyền đến trò chơi hoặc ứng dụng trong khi cũng bắt đầu chạy macro này.",
 
                                         ),
 
@@ -6880,7 +6880,7 @@ impl CrosshairApp {
 
                                         &mut preset.stop_on_retrigger_immediate,
 
-                                        Self::tr_lang(language, "Stop on trigger again", "Stop on trigger again"),
+                                        Self::tr_lang(language, "Stop on trigger again", "Dừng khi kích hoạt lại"),
 
                                     )
 
@@ -6892,7 +6892,7 @@ impl CrosshairApp {
 
                                             "Press the trigger again to stop this macro immediately, without waiting for a StopIfTriggerPressedAgain step.",
 
-                                            "Press the trigger again to stop this macro immediately, without waiting for a StopIfTriggerPressedAgain step.",
+                                            "Nhấn lại phím kích hoạt để dừng macro này ngay lập tức, không cần chờ bước StopIfTriggerPressedAgain.",
 
                                         ),
 
@@ -6914,7 +6914,7 @@ impl CrosshairApp {
 
                                         &mut preset.pass_through_hold,
 
-                                        Self::tr_lang(language, "Pass trigger through", "Pass trigger through"),
+                                        Self::tr_lang(language, "Pass trigger through", "Cho phép phím đi qua"),
 
                                     )
 
@@ -6926,7 +6926,7 @@ impl CrosshairApp {
 
                                             "While this hold trigger is active, let the same input keep going to the game or app too.",
 
-                                            "While this hold trigger is active, let the same input keep going to the game or app too.",
+                                            "Trong khi phím giữ đang hoạt động, cho phép phím đó tiếp tục truyền đến trò chơi hoặc ứng dụng.",
 
                                         ),
 
@@ -19832,17 +19832,17 @@ impl CrosshairApp {
                 MacroAction::DrawGeometry => {
                     step.geometry_spec.visible = true;
                     ui.horizontal(|ui| {
-                        ui.label(Self::tr_lang(language, "Shape", "Shape"));
+                        ui.label(Self::tr_lang(language, "Shape", "Hình dạng"));
                         ComboBox::from_id_salt((id_prefix, "geometry-shape"))
                             .width(130.0)
-                            .selected_text(Self::geometry_shape_label(step.geometry_spec.shape))
+                            .selected_text(Self::geometry_shape_label(step.geometry_spec.shape, language))
                             .show_ui(ui, |ui| {
                                 for shape in Self::geometry_shapes() {
                                     *live_sync |= ui
                                         .selectable_value(
                                             &mut step.geometry_spec.shape,
                                             shape,
-                                            Self::geometry_shape_label(shape),
+                                            Self::geometry_shape_label(shape, language),
                                         )
                                         .changed();
                                 }

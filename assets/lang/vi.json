@@ -417,5 +417,10 @@
   "Wait for completion": "Đợi chạy xong",
   "TRIGGER WARNING": "CẢNH BÁO KÍCH HOẠT",
   "This macro preset can run continuously or keep working in the background. Triggering it from another macro can make it run immediately without a hold key.": "Preset macro này có thể chạy liên tục hoặc chạy nền. Kích hoạt nó từ macro khác có thể làm nó chạy ngay mà không cần giữ phím.",
-  "Timer": "Hẹn giờ"
+  "Timer": "Hẹn giờ",
+  "Geometry": "Hình học",
+  "Pass trigger through": "Cho phép phím đi qua",
+  "Let the trigger input keep going to the game or app while it also starts this macro.": "Cho phép phím kích hoạt tiếp tục truyền đến trò chơi hoặc ứng dụng trong khi cũng bắt đầu chạy macro này.",
+  "While this hold trigger is active, let the same input keep going to the game or app too.": "Trong khi phím giữ đang hoạt động, cho phép phím đó tiếp tục truyền đến trò chơi hoặc ứng dụng.",
+  "Shape": "Hình dạng"
 }
