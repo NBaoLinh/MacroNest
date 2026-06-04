@@ -19690,7 +19690,6 @@ impl CrosshairApp {
     fn audio_sense_macro_actions() -> &'static [MacroAction] {
         &[
             MacroAction::StartAudioSensePreset,
-            MacroAction::StopAudioSensePreset,
             MacroAction::StartPitchDetect,
             MacroAction::StartSpatialAudioDetect,
             MacroAction::StopAudioSense,
@@ -20659,7 +20658,7 @@ impl CrosshairApp {
                         }
                     });
                 }
-                MacroAction::StopAudioSensePreset => {
+                MacroAction::StopAudioSensePreset | MacroAction::StopAudioSense => {
                     ui.horizontal(|ui| {
                         *live_sync |= ui
                             .checkbox(
@@ -20700,38 +20699,42 @@ impl CrosshairApp {
                                 .changed();
                         });
                         ui.add_space(4.0);
-                        ui.with_layout(egui::Layout::left_to_right(egui::Align::Center), |ui| {
-                            ui.label(Self::tr_lang(language, "Note", "Note"));
-                            *live_sync |= Self::render_audio_sense_var_box(
-                                ui,
-                                language,
-                                ui.id().with((id_prefix, "pitch-note-var")),
-                                &mut step.audio_sense_spec.pitch.output_note_var,
-                                timer_names,
-                                72.0,
-                            );
-                        });
-                        ui.add_space(4.0);
-                        ui.with_layout(egui::Layout::left_to_right(egui::Align::Center), |ui| {
-                            ui.label(Self::tr_lang(language, "Conf", "Tin cay"));
-                            *live_sync |= Self::render_audio_sense_var_box(
-                                ui,
-                                language,
-                                ui.id().with((id_prefix, "pitch-conf-var")),
-                                &mut step.audio_sense_spec.pitch.output_confidence_var,
-                                timer_names,
-                                72.0,
-                            );
-                            ui.label(Self::tr_lang(language, "Level", "Muc"));
-                            *live_sync |= Self::render_audio_sense_var_box(
-                                ui,
-                                language,
-                                ui.id().with((id_prefix, "pitch-level-var")),
-                                &mut step.audio_sense_spec.pitch.output_level_var,
-                                timer_names,
-                                72.0,
-                            );
-                        });
+                        egui::Grid::new(ui.id().with((id_prefix, "pitch-vars-grid")))
+                            .num_columns(4)
+                            .spacing([6.0, 4.0])
+                            .show(ui, |ui| {
+                                ui.label(Self::tr_lang(language, "Note", "Note"));
+                                *live_sync |= Self::render_audio_sense_var_box(
+                                    ui,
+                                    language,
+                                    ui.id().with((id_prefix, "pitch-note-var")),
+                                    &mut step.audio_sense_spec.pitch.output_note_var,
+                                    timer_names,
+                                    78.0,
+                                );
+                                ui.label(Self::tr_lang(language, "Conf", "Tin cay"));
+                                *live_sync |= Self::render_audio_sense_var_box(
+                                    ui,
+                                    language,
+                                    ui.id().with((id_prefix, "pitch-conf-var")),
+                                    &mut step.audio_sense_spec.pitch.output_confidence_var,
+                                    timer_names,
+                                    78.0,
+                                );
+                                ui.end_row();
+
+                                ui.label(Self::tr_lang(language, "Level", "Muc"));
+                                *live_sync |= Self::render_audio_sense_var_box(
+                                    ui,
+                                    language,
+                                    ui.id().with((id_prefix, "pitch-level-var")),
+                                    &mut step.audio_sense_spec.pitch.output_level_var,
+                                    timer_names,
+                                    78.0,
+                                );
+                                ui.label("");
+                                ui.label("");
+                            });
                         ui.add_space(4.0);
                         ui.horizontal(|ui| {
                             if ui
@@ -20799,7 +20802,7 @@ impl CrosshairApp {
                         ui.add_space(4.0);
                         egui::Grid::new(ui.id().with((id_prefix, "spatial-vars-grid")))
                             .num_columns(4)
-                            .spacing([8.0, 4.0])
+                            .spacing([6.0, 4.0])
                             .show(ui, |ui| {
                                 ui.label("X");
                                 *live_sync |= Self::render_audio_sense_var_box(
@@ -20808,7 +20811,7 @@ impl CrosshairApp {
                                     ui.id().with((id_prefix, "spatial-x-var")),
                                     &mut step.audio_sense_spec.spatial.output_x_var,
                                     timer_names,
-                                    64.0,
+                                    72.0,
                                 );
                                 ui.label("Y");
                                 *live_sync |= Self::render_audio_sense_var_box(
@@ -20817,7 +20820,7 @@ impl CrosshairApp {
                                     ui.id().with((id_prefix, "spatial-y-var")),
                                     &mut step.audio_sense_spec.spatial.output_y_var,
                                     timer_names,
-                                    64.0,
+                                    72.0,
                                 );
                                 ui.end_row();
 
@@ -20828,7 +20831,7 @@ impl CrosshairApp {
                                     ui.id().with((id_prefix, "spatial-pan-var")),
                                     &mut step.audio_sense_spec.spatial.output_pan_var,
                                     timer_names,
-                                    64.0,
+                                    72.0,
                                 );
                                 ui.label("Level");
                                 *live_sync |= Self::render_audio_sense_var_box(
@@ -20837,7 +20840,7 @@ impl CrosshairApp {
                                     ui.id().with((id_prefix, "spatial-level-var")),
                                     &mut step.audio_sense_spec.spatial.output_level_var,
                                     timer_names,
-                                    64.0,
+                                    72.0,
                                 );
                             });
                         ui.add_space(2.0);
@@ -20870,14 +20873,6 @@ impl CrosshairApp {
                             }
                         });
                     });
-                }
-                MacroAction::StopAudioSense => {
-                    *live_sync |= ui
-                        .checkbox(
-                            &mut step.audio_sense_stop_all,
-                            Self::tr_lang(language, "Stop all", "Dung het"),
-                        )
-                        .changed();
                 }
                 _ => {}
             }
