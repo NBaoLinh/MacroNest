@@ -1,6 +1,7 @@
 #![windows_subsystem = "windows"]
 
 mod ai;
+mod audiosense;
 mod app_icon;
 mod audio;
 mod hotkey;
@@ -106,6 +107,9 @@ fn main() -> Result<()> {
     });
     overlay.send(OverlayCommand::UpdateVisionPresets(
         state.vision_presets.clone(),
+    ));
+    overlay.send(OverlayCommand::UpdateAudioSensePresets(
+        state.audio_sense_presets.clone(),
     ));
     overlay.send(OverlayCommand::UpdateGeometryPresets(
         state.geometry_presets.clone(),

@@ -204,6 +204,8 @@ impl CrosshairApp {
 
         let geometry_popup_id = ui.make_persistent_id((id_source, "geometry-submenu-popup"));
 
+        let audio_sense_popup_id = ui.make_persistent_id((id_source, "audiosense-submenu-popup"));
+
         ui.ctx().data_mut(|data| {
             data.insert_temp(owner_id, None::<MacroActionSubmenuKind>);
 
@@ -218,6 +220,8 @@ impl CrosshairApp {
             data.insert_temp(if_popup_id, false);
 
             data.insert_temp(geometry_popup_id, false);
+
+            data.insert_temp(audio_sense_popup_id, false);
         });
 
         egui::Popup::close_id(ui.ctx(), mouse_popup_id);
@@ -229,6 +233,8 @@ impl CrosshairApp {
         egui::Popup::close_id(ui.ctx(), if_popup_id);
 
         egui::Popup::close_id(ui.ctx(), geometry_popup_id);
+
+        egui::Popup::close_id(ui.ctx(), audio_sense_popup_id);
 
         for (_, _, _, popup_key) in Self::mouse_click_action_groups().iter().copied() {
             let child_popup_id = ui.make_persistent_id((id_source, popup_key, "popup"));
@@ -4734,6 +4740,13 @@ impl CrosshairApp {
             .map(|preset| (preset.id, preset.name.clone()))
             .collect();
 
+        let audio_sense_preset_options: Vec<(u32, String)> = self
+            .state
+            .audio_sense_presets
+            .iter()
+            .map(|preset| (preset.id, preset.name.clone()))
+            .collect();
+
         for item in render_items {
 
             match item {
@@ -7333,6 +7346,14 @@ impl CrosshairApp {
                                                             ui,
                                                             language,
                                                             (group.id, preset.id, "hold-stop-geometry-group"),
+                                                            &mut step.action,
+                                                            &mut live_sync,
+                                                            action_hover_id,
+                                                        );
+                                                        Self::render_audio_sense_action_group_option(
+                                                            ui,
+                                                            language,
+                                                            (group.id, preset.id, "hold-stop-audiosense-group"),
                                                             &mut step.action,
                                                             &mut live_sync,
                                                             action_hover_id,
@@ -10495,31 +10516,53 @@ impl CrosshairApp {
                                                 MacroAction::DrawGeometry
                                                     | MacroAction::ShowGeometryPreset
                                                     | MacroAction::HideGeometryPreset
+                                                    | MacroAction::StartAudioSensePreset
+                                                    | MacroAction::StopAudioSensePreset
+                                                    | MacroAction::StartPitchDetect
+                                                    | MacroAction::StartSpatialAudioDetect
+                                                    | MacroAction::StopAudioSense
                                             ) {
-                                                Self::render_geometry_macro_step_editor(
-                                                    ui,
-                                                    language,
-                                                    (group.id, preset.id, "hold-stop-geometry-step"),
-                                                    group.id,
-                                                    preset.id,
-                                                    0,
-                                                    true,
-                                                    &geometry_preset_options,
-                                                    &mut geometry_manual_color,
-                                                    &mut geometry_manual_color_hex,
-                                                    &mut request_geometry_screen_color_pick,
-                                                    &mut begin_mouse_move_absolute_capture_target,
-                                                    &mut pending_geometry_macro_step_color_pick,
-                                                    &mut self.draw_geometry_step_preview_target,
-                                                    &self.overlay_tx,
-                                                    step,
-                                                    &mut live_sync,
-                                                    self.state.vietnamese_input_enabled,
-                                                    self.state.vietnamese_input_mode,
-                                                    &timer_names,
-                                                    &mut self.state.geometry_presets,
-                                                    &mut geom_presets_changed,
-                                                );
+                                                if matches!(
+                                                    step.action,
+                                                    MacroAction::DrawGeometry
+                                                        | MacroAction::ShowGeometryPreset
+                                                        | MacroAction::HideGeometryPreset
+                                                ) {
+                                                    Self::render_geometry_macro_step_editor(
+                                                        ui,
+                                                        language,
+                                                        (group.id, preset.id, "hold-stop-geometry-step"),
+                                                        group.id,
+                                                        preset.id,
+                                                        0,
+                                                        true,
+                                                        &geometry_preset_options,
+                                                        &mut geometry_manual_color,
+                                                        &mut geometry_manual_color_hex,
+                                                        &mut request_geometry_screen_color_pick,
+                                                        &mut begin_mouse_move_absolute_capture_target,
+                                                        &mut pending_geometry_macro_step_color_pick,
+                                                        &mut self.draw_geometry_step_preview_target,
+                                                        &self.overlay_tx,
+                                                        step,
+                                                        &mut live_sync,
+                                                        self.state.vietnamese_input_enabled,
+                                                        self.state.vietnamese_input_mode,
+                                                        &timer_names,
+                                                        &mut self.state.geometry_presets,
+                                                        &mut geom_presets_changed,
+                                                    );
+                                                } else {
+                                                    Self::render_audio_sense_step_editor(
+                                                        ui,
+                                                        language,
+                                                        (group.id, preset.id, "hold-stop-audiosense-step"),
+                                                        &audio_sense_preset_options,
+                                                        &self.audio_sense_devices,
+                                                        step,
+                                                        &mut live_sync,
+                                                    );
+                                                }
                                             } else if Self::macro_action_uses_position(step.action) {
 
                                                 ui.add_space(2.0);
@@ -12602,6 +12645,14 @@ impl CrosshairApp {
                                                                 ui,
                                                                 language,
                                                                 (group.id, preset.id, step_index, "geometry-group"),
+                                                                &mut step.action,
+                                                                &mut live_sync,
+                                                                action_hover_id,
+                                                            );
+                                                            Self::render_audio_sense_action_group_option(
+                                                                ui,
+                                                                language,
+                                                                (group.id, preset.id, step_index, "audiosense-group"),
                                                                 &mut step.action,
                                                                 &mut live_sync,
                                                                 action_hover_id,
@@ -16373,6 +16424,11 @@ impl CrosshairApp {
                                                 MacroAction::DrawGeometry
                                                     | MacroAction::ShowGeometryPreset
                                                     | MacroAction::HideGeometryPreset
+                                                    | MacroAction::StartAudioSensePreset
+                                                    | MacroAction::StopAudioSensePreset
+                                                    | MacroAction::StartPitchDetect
+                                                    | MacroAction::StartSpatialAudioDetect
+                                                    | MacroAction::StopAudioSense
                                             ) {
                                                 ui.add_space(2.0);
                                             } else if Self::macro_action_uses_position(step.action) {
@@ -16622,31 +16678,53 @@ impl CrosshairApp {
                                                 MacroAction::DrawGeometry
                                                     | MacroAction::ShowGeometryPreset
                                                     | MacroAction::HideGeometryPreset
+                                                    | MacroAction::StartAudioSensePreset
+                                                    | MacroAction::StopAudioSensePreset
+                                                    | MacroAction::StartPitchDetect
+                                                    | MacroAction::StartSpatialAudioDetect
+                                                    | MacroAction::StopAudioSense
                                             ) {
-                                                Self::render_geometry_macro_step_editor(
-                                                    ui,
-                                                    language,
-                                                    (group.id, preset.id, step_index, "normal-geometry-step"),
-                                                    group.id,
-                                                    preset.id,
-                                                    step_index,
-                                                    false,
-                                                    &geometry_preset_options,
-                                                    &mut geometry_manual_color,
-                                                    &mut geometry_manual_color_hex,
-                                                    &mut request_geometry_screen_color_pick,
-                                                    &mut begin_mouse_move_absolute_capture_target,
-                                                    &mut pending_geometry_macro_step_color_pick,
-                                                    &mut self.draw_geometry_step_preview_target,
-                                                    &self.overlay_tx,
-                                                    step,
-                                                    &mut live_sync,
-                                                    self.state.vietnamese_input_enabled,
-                                                    self.state.vietnamese_input_mode,
-                                                    &timer_names,
-                                                    &mut self.state.geometry_presets,
-                                                    &mut geom_presets_changed,
-                                                );
+                                                if matches!(
+                                                    step.action,
+                                                    MacroAction::DrawGeometry
+                                                        | MacroAction::ShowGeometryPreset
+                                                        | MacroAction::HideGeometryPreset
+                                                ) {
+                                                    Self::render_geometry_macro_step_editor(
+                                                        ui,
+                                                        language,
+                                                        (group.id, preset.id, step_index, "normal-geometry-step"),
+                                                        group.id,
+                                                        preset.id,
+                                                        step_index,
+                                                        false,
+                                                        &geometry_preset_options,
+                                                        &mut geometry_manual_color,
+                                                        &mut geometry_manual_color_hex,
+                                                        &mut request_geometry_screen_color_pick,
+                                                        &mut begin_mouse_move_absolute_capture_target,
+                                                        &mut pending_geometry_macro_step_color_pick,
+                                                        &mut self.draw_geometry_step_preview_target,
+                                                        &self.overlay_tx,
+                                                        step,
+                                                        &mut live_sync,
+                                                        self.state.vietnamese_input_enabled,
+                                                        self.state.vietnamese_input_mode,
+                                                        &timer_names,
+                                                        &mut self.state.geometry_presets,
+                                                        &mut geom_presets_changed,
+                                                    );
+                                                } else {
+                                                    Self::render_audio_sense_step_editor(
+                                                        ui,
+                                                        language,
+                                                        (group.id, preset.id, step_index, "normal-audiosense-step"),
+                                                        &audio_sense_preset_options,
+                                                        &self.audio_sense_devices,
+                                                        step,
+                                                        &mut live_sync,
+                                                    );
+                                                }
                                             } else if matches!(
                                                 step.action,
                                                 MacroAction::DrawGeometry
@@ -19590,6 +19668,20 @@ impl CrosshairApp {
         Self::geometry_macro_actions().contains(&action)
     }
 
+    fn audio_sense_macro_actions() -> &'static [MacroAction] {
+        &[
+            MacroAction::StartAudioSensePreset,
+            MacroAction::StopAudioSensePreset,
+            MacroAction::StartPitchDetect,
+            MacroAction::StartSpatialAudioDetect,
+            MacroAction::StopAudioSense,
+        ]
+    }
+
+    fn macro_action_is_audio_sense(action: MacroAction) -> bool {
+        Self::audio_sense_macro_actions().contains(&action)
+    }
+
     fn render_geometry_action_group_option(
         ui: &mut egui::Ui,
         language: UiLanguage,
@@ -19734,6 +19826,185 @@ impl CrosshairApp {
                 ),
             );
         }
+    }
+
+    fn render_audio_sense_action_group_option(
+        ui: &mut egui::Ui,
+        language: UiLanguage,
+        id_source: impl std::hash::Hash + Copy,
+        current: &mut MacroAction,
+        live_sync: &mut bool,
+        action_hover_id: egui::Id,
+    ) {
+        let selected = Self::macro_action_is_audio_sense(*current);
+        let owner_id = ui.make_persistent_id("macro-action-submenu-owner");
+        let popup_id = ui.make_persistent_id((id_source, "audiosense-submenu-popup"));
+        let active_owner = ui
+            .ctx()
+            .data(|data| data.get_temp::<MacroActionSubmenuKind>(owner_id));
+        let top_level_hovered = ui
+            .ctx()
+            .data(|data| data.get_temp::<bool>(action_hover_id))
+            .unwrap_or(false);
+        let mut open = ui
+            .ctx()
+            .data(|data| data.get_temp::<bool>(popup_id))
+            .unwrap_or(false);
+
+        if active_owner.is_some_and(|kind| kind != MacroActionSubmenuKind::AudioSense) {
+            open = false;
+        }
+
+        if top_level_hovered {
+            open = false;
+            ui.ctx()
+                .data_mut(|data| data.insert_temp(owner_id, None::<MacroActionSubmenuKind>));
+            ui.ctx().request_repaint();
+        }
+
+        let inner = ui.allocate_ui_with_layout(
+            vec2(64.0, 42.0),
+            egui::Layout::top_down(egui::Align::Center),
+            |ui| {
+                let response = ui.add_sized(
+                    [34.0, 24.0],
+                    Button::new(Self::material_icon_text(0xe050, 18.0)).selected(selected),
+                );
+
+                if response.hovered() || response.clicked() {
+                    Self::clear_macro_action_submenus(ui, id_source);
+                    open = true;
+                    ui.ctx().data_mut(|data| {
+                        data.insert_temp(owner_id, MacroActionSubmenuKind::AudioSense)
+                    });
+                }
+
+                let popup_rect_id = ui.make_persistent_id((id_source, "audiosense-submenu-rect"));
+                let popup_response = egui::Popup::from_response(&response)
+                    .id(popup_id)
+                    .open_bool(&mut open)
+                    .align(egui::RectAlign::BOTTOM_START)
+                    .layout(egui::Layout::top_down_justified(egui::Align::Min))
+                    .width(220.0)
+                    .close_behavior(egui::PopupCloseBehavior::IgnoreClicks)
+                    .show(|ui| {
+                        let rect = ui.max_rect();
+                        ui.ctx()
+                            .data_mut(|data| data.insert_temp(popup_rect_id, rect));
+                        egui::Grid::new((id_source, "audiosense-action-grid"))
+                            .num_columns(3)
+                            .spacing([6.0, 6.0])
+                            .show(ui, |ui| {
+                                for action in Self::audio_sense_macro_actions().iter().copied() {
+                                    Self::render_macro_action_option(
+                                        ui,
+                                        language,
+                                        current,
+                                        action,
+                                        live_sync,
+                                        action_hover_id,
+                                        true,
+                                    );
+                                }
+                            });
+                    });
+
+                let popup_rect: Option<egui::Rect> =
+                    ui.ctx().data(|data| data.get_temp(popup_rect_id));
+
+                if open {
+                    if let Some(pointer_pos) = ui.ctx().pointer_hover_pos() {
+                        let mut keep_open_rect = response.rect.expand(10.0);
+                        if let Some(rect) = popup_rect {
+                            keep_open_rect = keep_open_rect.union(rect.expand(10.0));
+                            if rect.contains(pointer_pos) {
+                                ui.ctx().data_mut(|data| {
+                                    data.insert_temp(owner_id, MacroActionSubmenuKind::AudioSense)
+                                });
+                            }
+                        }
+                        if !keep_open_rect.contains(pointer_pos) {
+                            open = false;
+                            ui.ctx().data_mut(|data| {
+                                data.insert_temp(owner_id, None::<MacroActionSubmenuKind>)
+                            });
+                            ui.ctx().request_repaint();
+                        }
+                    } else {
+                        open = false;
+                        ui.ctx().data_mut(|data| {
+                            data.insert_temp(owner_id, None::<MacroActionSubmenuKind>)
+                        });
+                        ui.ctx().request_repaint();
+                    }
+                }
+
+                ui.ctx().data_mut(|data| data.insert_temp(popup_id, open));
+                let label_color = if selected {
+                    ui.visuals().strong_text_color()
+                } else {
+                    ui.visuals().text_color()
+                };
+                ui.label(
+                    RichText::new(Self::tr_lang(language, "Audio", "Am thanh"))
+                        .size(9.0)
+                        .color(label_color),
+                );
+
+                if let Some(popup) = popup_response {
+                    popup.response
+                } else {
+                    response
+                }
+            },
+        );
+
+        let response = inner.inner;
+
+        if !open {
+            Self::show_instant_hover_tooltip(
+                ui,
+                &response,
+                Self::tr_lang(
+                    language,
+                    "AudioSense\nOpen pitch and spatial audio actions.",
+                    "AudioSense\nMo cac hanh dong cao do va huong am.",
+                ),
+            );
+        }
+    }
+
+    fn render_audio_sense_preset_selector(
+        ui: &mut egui::Ui,
+        language: UiLanguage,
+        id_source: impl std::hash::Hash,
+        preset_options: &[(u32, String)],
+        preset_id: &mut Option<u32>,
+        live_sync: &mut bool,
+    ) {
+        let selected_label = preset_id
+            .and_then(|id| {
+                preset_options
+                    .iter()
+                    .find(|preset| preset.0 == id)
+                    .map(|preset| preset.1.clone())
+            })
+            .unwrap_or_else(|| Self::tr_lang(language, "Select AudioSense", "Chon AudioSense").to_owned());
+
+        ComboBox::from_id_salt(id_source)
+            .width(180.0)
+            .selected_text(selected_label)
+            .show_ui(ui, |ui| {
+                for (preset_entry_id, preset_entry_name) in preset_options {
+                    if ui
+                        .selectable_label(*preset_id == Some(*preset_entry_id), preset_entry_name)
+                        .clicked()
+                    {
+                        *preset_id = Some(*preset_entry_id);
+                        *live_sync = true;
+                    }
+                }
+            });
     }
 
     fn render_geometry_preset_selector(
@@ -20104,6 +20375,290 @@ impl CrosshairApp {
                             );
                         }
                     });
+                }
+                _ => {}
+            });
+        });
+    }
+
+    fn render_audio_sense_monitor_settings_inline(
+        ui: &mut egui::Ui,
+        language: UiLanguage,
+        id_prefix: impl std::hash::Hash + Copy,
+        audio_sense_devices: &[String],
+        settings: &mut AudioSenseMonitorSettings,
+        live_sync: &mut bool,
+    ) {
+        ui.horizontal(|ui| {
+            ui.label(Self::tr_lang(language, "Source", "Nguon"));
+            ComboBox::from_id_salt((id_prefix, "source"))
+                .width(108.0)
+                .selected_text(match settings.source {
+                    AudioSenseSource::System => Self::tr_lang(language, "System", "He thong"),
+                    AudioSenseSource::Microphone => {
+                        Self::tr_lang(language, "Microphone", "Micro")
+                    }
+                })
+                .show_ui(ui, |ui| {
+                    *live_sync |= ui
+                        .selectable_value(
+                            &mut settings.source,
+                            AudioSenseSource::System,
+                            Self::tr_lang(language, "System", "He thong"),
+                        )
+                        .changed();
+                    *live_sync |= ui
+                        .selectable_value(
+                            &mut settings.source,
+                            AudioSenseSource::Microphone,
+                            Self::tr_lang(language, "Microphone", "Micro"),
+                        )
+                        .changed();
+                });
+
+            if settings.source == AudioSenseSource::Microphone {
+                ComboBox::from_id_salt((id_prefix, "device"))
+                    .width(176.0)
+                    .selected_text(
+                        settings
+                            .input_device_name
+                            .clone()
+                            .unwrap_or_else(|| {
+                                Self::tr_lang(language, "Default microphone", "Micro mac dinh")
+                                    .to_owned()
+                            }),
+                    )
+                    .show_ui(ui, |ui| {
+                        if ui
+                            .selectable_label(
+                                settings.input_device_name.is_none(),
+                                Self::tr_lang(
+                                    language,
+                                    "Default microphone",
+                                    "Micro mac dinh",
+                                ),
+                            )
+                            .clicked()
+                        {
+                            settings.input_device_name = None;
+                            *live_sync = true;
+                        }
+                        for device in audio_sense_devices {
+                            if ui
+                                .selectable_label(
+                                    settings.input_device_name.as_deref() == Some(device.as_str()),
+                                    device,
+                                )
+                                .clicked()
+                            {
+                                settings.input_device_name = Some(device.clone());
+                                *live_sync = true;
+                            }
+                        }
+                    });
+            }
+
+            ui.label("Hz");
+            *live_sync |= ui
+                .add(
+                    DragValue::new(&mut settings.updates_per_second)
+                        .range(1..=30)
+                        .speed(0.2),
+                )
+                .changed();
+            *live_sync |= ui
+                .checkbox(
+                    &mut settings.listen_forever,
+                    Self::tr_lang(language, "Forever", "Vinh vien"),
+                )
+                .changed();
+            if !settings.listen_forever {
+                ui.label("ms");
+                *live_sync |= ui
+                    .add(
+                        DragValue::new(&mut settings.duration_ms)
+                            .range(100..=60_000)
+                            .speed(10.0),
+                    )
+                    .changed();
+            }
+        });
+    }
+
+    fn render_audio_sense_step_editor(
+        ui: &mut egui::Ui,
+        language: UiLanguage,
+        id_prefix: impl std::hash::Hash + Copy,
+        preset_options: &[(u32, String)],
+        audio_sense_devices: &[String],
+        step: &mut MacroStep,
+        live_sync: &mut bool,
+    ) {
+        ui.scope(|ui| {
+            ui.vertical(|ui| match step.action {
+                MacroAction::StartAudioSensePreset => {
+                    ui.horizontal(|ui| {
+                        ui.label(Self::tr_lang(language, "Preset", "Preset"));
+                        Self::render_audio_sense_preset_selector(
+                            ui,
+                            language,
+                            (id_prefix, "audio-preset"),
+                            preset_options,
+                            &mut step.audio_sense_preset_id,
+                            live_sync,
+                        );
+                    });
+                }
+                MacroAction::StopAudioSensePreset => {
+                    ui.horizontal(|ui| {
+                        *live_sync |= ui
+                            .checkbox(
+                                &mut step.audio_sense_stop_all,
+                                Self::tr_lang(language, "Stop all", "Dung het"),
+                            )
+                            .changed();
+                        if !step.audio_sense_stop_all {
+                            ui.label(Self::tr_lang(language, "Preset", "Preset"));
+                            Self::render_audio_sense_preset_selector(
+                                ui,
+                                language,
+                                (id_prefix, "audio-preset"),
+                                preset_options,
+                                &mut step.audio_sense_preset_id,
+                                live_sync,
+                            );
+                        }
+                    });
+                }
+                MacroAction::StartPitchDetect => {
+                    step.audio_sense_spec.kind = AudioSensePresetKind::Pitch;
+                    Self::render_audio_sense_monitor_settings_inline(
+                        ui,
+                        language,
+                        (id_prefix, "pitch-monitor"),
+                        audio_sense_devices,
+                        &mut step.audio_sense_spec.pitch.monitor,
+                        live_sync,
+                    );
+                    ui.add_space(4.0);
+                    ui.horizontal(|ui| {
+                        *live_sync |= ui
+                            .checkbox(
+                                &mut step.audio_sense_spec.pitch.show_sharps,
+                                Self::tr_lang(language, "Sharps", "Dau thang"),
+                            )
+                            .changed();
+                        ui.label(Self::tr_lang(language, "Note var", "Bien note"));
+                        *live_sync |= ui
+                            .add_sized(
+                                [118.0, 20.0],
+                                TextEdit::singleline(
+                                    &mut step.audio_sense_spec.pitch.output_note_var,
+                                ),
+                            )
+                            .changed();
+                        ui.label(Self::tr_lang(language, "Confidence", "Tin cay"));
+                        *live_sync |= ui
+                            .add_sized(
+                                [96.0, 20.0],
+                                TextEdit::singleline(
+                                    &mut step.audio_sense_spec.pitch.output_confidence_var,
+                                ),
+                            )
+                            .changed();
+                        ui.label(Self::tr_lang(language, "Level", "Am luong"));
+                        *live_sync |= ui
+                            .add_sized(
+                                [96.0, 20.0],
+                                TextEdit::singleline(
+                                    &mut step.audio_sense_spec.pitch.output_level_var,
+                                ),
+                            )
+                            .changed();
+                    });
+                }
+                MacroAction::StartSpatialAudioDetect => {
+                    step.audio_sense_spec.kind = AudioSensePresetKind::Spatial;
+                    Self::render_audio_sense_monitor_settings_inline(
+                        ui,
+                        language,
+                        (id_prefix, "spatial-monitor"),
+                        audio_sense_devices,
+                        &mut step.audio_sense_spec.spatial.monitor,
+                        live_sync,
+                    );
+                    ui.add_space(4.0);
+                    ui.horizontal(|ui| {
+                        ui.label("X");
+                        *live_sync |= ui
+                            .add(DragValue::new(&mut step.audio_sense_spec.spatial.center_x).speed(1))
+                            .changed();
+                        ui.label("Y");
+                        *live_sync |= ui
+                            .add(DragValue::new(&mut step.audio_sense_spec.spatial.center_y).speed(1))
+                            .changed();
+                        ui.label(Self::tr_lang(language, "Radius", "Ban kinh"));
+                        *live_sync |= ui
+                            .add(
+                                DragValue::new(&mut step.audio_sense_spec.spatial.radius)
+                                    .range(0..=5000)
+                                    .speed(1),
+                            )
+                            .changed();
+                    });
+                    ui.add_space(4.0);
+                    ui.horizontal(|ui| {
+                        ui.label("X var");
+                        *live_sync |= ui
+                            .add_sized(
+                                [82.0, 20.0],
+                                TextEdit::singleline(
+                                    &mut step.audio_sense_spec.spatial.output_x_var,
+                                ),
+                            )
+                            .changed();
+                        ui.label("Y var");
+                        *live_sync |= ui
+                            .add_sized(
+                                [82.0, 20.0],
+                                TextEdit::singleline(
+                                    &mut step.audio_sense_spec.spatial.output_y_var,
+                                ),
+                            )
+                            .changed();
+                        ui.label("Pan var");
+                        *live_sync |= ui
+                            .add_sized(
+                                [82.0, 20.0],
+                                TextEdit::singleline(
+                                    &mut step.audio_sense_spec.spatial.output_pan_var,
+                                ),
+                            )
+                            .changed();
+                        ui.label("Level");
+                        *live_sync |= ui
+                            .add_sized(
+                                [82.0, 20.0],
+                                TextEdit::singleline(
+                                    &mut step.audio_sense_spec.spatial.output_level_var,
+                                ),
+                            )
+                            .changed();
+                    });
+                    ui.add_space(2.0);
+                    ui.weak(Self::tr_lang(
+                        language,
+                        "Spatial Audio uses stereo left/right balance and maps it to X/Y.",
+                        "Huong am dung can bang trai/phai de xap xi toa do X/Y.",
+                    ));
+                }
+                MacroAction::StopAudioSense => {
+                    *live_sync |= ui
+                        .checkbox(
+                            &mut step.audio_sense_stop_all,
+                            Self::tr_lang(language, "Stop all", "Dung het"),
+                        )
+                        .changed();
                 }
                 _ => {}
             });

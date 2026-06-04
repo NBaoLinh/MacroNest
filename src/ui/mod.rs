@@ -19,9 +19,9 @@ use parking_lot::Mutex;
 use resvg::usvg;
 
 use crate::{
-    ai, audio, hotkey,
+    ai, audio, audiosense, hotkey,
     model::{
-        AppPanel, AppState, AudioClipSettings, CaptureRequest, CapturedInput, CommandPreset,
+        AppPanel, AppState, AudioClipSettings, AudioSensePreset, CaptureRequest, CapturedInput, CommandPreset,
         CrosshairStyle, GeometryPreset, GeometryShapeKind, GeometrySpec, HotkeyBinding, MacroAction,
         MacroFolder, MacroGroup, MacroPreset, MacroStep, MacroTriggerMode,
         MasterMacroGroupState, MasterMacroPresetState, MasterPreset,
@@ -39,6 +39,7 @@ use vi::{self, TELEX, VNI};
 
 mod command_panel;
 mod crosshair_panel;
+mod audiosense_panel;
 mod geometry_panel;
 mod hud_panel;
 mod macro_panel;
@@ -573,6 +574,7 @@ pub(crate) enum MacroActionSubmenuKind {
     Timer,
     If,
     Geometry,
+    AudioSense,
 }
 
 #[derive(Clone, Copy, PartialEq, Eq)]
@@ -722,6 +724,11 @@ pub struct CrosshairApp {
     geometry_preview_target: Option<(u32, u32)>,
     geometry_preset_preview_target: Option<u32>,
     geometry_preview_sent: Option<GeometrySpec>,
+    audio_sense_devices: Vec<String>,
+    pitch_monitor: audiosense::PitchMonitor,
+    spatial_monitor: audiosense::SpatialMonitor,
+    active_pitch_preview_preset_id: Option<u32>,
+    active_spatial_preview_preset_id: Option<u32>,
     /// Target for color picking a DrawGeometry macro step spec (group_id, preset_id, step_index, is_fill, is_hold_stop)
     macro_step_geometry_color_pick_target: Option<(u32, u32, usize, bool, bool)>,
     /// Which DrawGeometry macro step is currently being previewed on overlay (group_id, preset_id, step_index, is_hold_stop)
@@ -912,6 +919,11 @@ impl CrosshairApp {
             geometry_preview_target: None,
             geometry_preset_preview_target: None,
             geometry_preview_sent: None,
+            audio_sense_devices: audiosense::list_capture_devices().unwrap_or_default(),
+            pitch_monitor: audiosense::PitchMonitor::new(),
+            spatial_monitor: audiosense::SpatialMonitor::new(),
+            active_pitch_preview_preset_id: None,
+            active_spatial_preview_preset_id: None,
             macro_step_geometry_color_pick_target: None,
             draw_geometry_step_preview_target: None,
             draw_geometry_step_preview_sent: None,
@@ -1056,6 +1068,12 @@ impl CrosshairApp {
     fn sync_geometry_presets(&self) {
         let _ = self.overlay_tx.send(OverlayCommand::UpdateGeometryPresets(
             self.state.geometry_presets.clone(),
+        ));
+    }
+
+    fn sync_audio_sense_presets(&self) {
+        let _ = self.overlay_tx.send(OverlayCommand::UpdateAudioSensePresets(
+            self.state.audio_sense_presets.clone(),
         ));
     }
 
@@ -3051,6 +3069,7 @@ impl CrosshairApp {
             AppPanel::Pin | AppPanel::Zoom => 0xe55f,
             AppPanel::Mouse => 0xe323,
             AppPanel::Vision => 0xe8b6,
+            AppPanel::AudioSense => 0xe050,
             AppPanel::Macros | AppPanel::Modes => 0xe312,
             AppPanel::Commands => 0xe32a,
             AppPanel::Sound | AppPanel::Media => 0xe050,
@@ -3067,6 +3086,7 @@ impl CrosshairApp {
             AppPanel::Pin | AppPanel::Zoom => "Pin",
             AppPanel::Mouse => "Mouse",
             AppPanel::Vision => "Vision",
+            AppPanel::AudioSense => "AudioSense",
             AppPanel::Macros | AppPanel::Modes => "Macro",
             AppPanel::Commands => "Commands",
             AppPanel::Sound => "Media",
@@ -3708,6 +3728,11 @@ impl CrosshairApp {
             MacroAction::PlayVideoPreset => "PlayVideo",
             MacroAction::StartVisionSearch => "StartImageSearch",
             MacroAction::ScanVisionOnce => "ScanImageOnce",
+            MacroAction::StartAudioSensePreset => "StartAudioPreset",
+            MacroAction::StopAudioSensePreset => "StopAudioPreset",
+            MacroAction::StartPitchDetect => "PitchDetect",
+            MacroAction::StartSpatialAudioDetect => "SpatialAudio",
+            MacroAction::StopAudioSense => "StopAudioSense",
 
             MacroAction::StopVisionWait => "StopImageSearchWait",
             MacroAction::StopVision => "StopImageSearch",
@@ -3802,6 +3827,21 @@ impl CrosshairApp {
                 }
                 MacroAction::ScanVisionOnce => {
                     "Quét tìm hình ảnh hoặc màu hoặc đếm pixel một lần duy nhất bằng preset đã chọn."
+                }
+                MacroAction::StartAudioSensePreset => {
+                    "Bắt đầu chạy preset AudioSense đã lưu từ tab AudioSense."
+                }
+                MacroAction::StopAudioSensePreset => {
+                    "Dừng một preset AudioSense đang chạy hoặc dừng toàn bộ AudioSense."
+                }
+                MacroAction::StartPitchDetect => {
+                    "Bắt đầu lắng nghe để phát hiện cao độ âm thanh và ghi ra biến."
+                }
+                MacroAction::StartSpatialAudioDetect => {
+                    "Bắt đầu lắng nghe để suy ra hướng âm thanh stereo và ghi ra tọa độ."
+                }
+                MacroAction::StopAudioSense => {
+                    "Dừng AudioSense tùy chỉnh đang chạy hoặc dừng toàn bộ AudioSense."
                 }
 
                 MacroAction::StopVisionWait => "Dừng chờ kết quả tìm kiếm hình ảnh.",
@@ -3919,6 +3959,21 @@ impl CrosshairApp {
                 MacroAction::ScanVisionOnce => {
                     "Scan for the selected image, color, or pixel counter preset exactly once."
                 }
+                MacroAction::StartAudioSensePreset => {
+                    "Start one saved AudioSense preset from the AudioSense tab."
+                }
+                MacroAction::StopAudioSensePreset => {
+                    "Stop one running AudioSense preset or stop all AudioSense monitors."
+                }
+                MacroAction::StartPitchDetect => {
+                    "Start listening for pitch detection and write the detected note into variables."
+                }
+                MacroAction::StartSpatialAudioDetect => {
+                    "Start listening for stereo direction and write approximate coordinates into variables."
+                }
+                MacroAction::StopAudioSense => {
+                    "Stop custom AudioSense monitoring or stop every active AudioSense monitor."
+                }
 
                 MacroAction::StopVisionWait => "Stop waiting for one image-search preset to match.",
                 MacroAction::StopVision => {
@@ -4023,6 +4078,11 @@ impl CrosshairApp {
             MacroAction::PlayVideoPreset => 0xe04b,
             MacroAction::StartVisionSearch => 0xe8b6,
             MacroAction::ScanVisionOnce => 0xe8b6,
+            MacroAction::StartAudioSensePreset => 0xe050,
+            MacroAction::StopAudioSensePreset => 0xe047,
+            MacroAction::StartPitchDetect => 0xe050,
+            MacroAction::StartSpatialAudioDetect => 0xe5d0,
+            MacroAction::StopAudioSense => 0xe047,
 
             MacroAction::StopVisionWait => 0xe047,
             MacroAction::StopVision => 0xe047,
@@ -4103,6 +4163,11 @@ impl CrosshairApp {
                 MacroAction::PlayVideoPreset => "Video",
                 MacroAction::StartVisionSearch => "Tìm ảnh",
                 MacroAction::ScanVisionOnce => "Quét 1 lần",
+                MacroAction::StartAudioSensePreset => "AudioSense",
+                MacroAction::StopAudioSensePreset => "Dừng Audio",
+                MacroAction::StartPitchDetect => "Cao độ",
+                MacroAction::StartSpatialAudioDetect => "Hướng âm",
+                MacroAction::StopAudioSense => "Tắt Audio",
 
                 MacroAction::StopVisionWait => "Chờ",
                 MacroAction::StopVision => "Dừng",
@@ -4174,6 +4239,11 @@ impl CrosshairApp {
                 MacroAction::PlayVideoPreset => "Video",
                 MacroAction::StartVisionSearch => "Start",
                 MacroAction::ScanVisionOnce => "Scan Once",
+                MacroAction::StartAudioSensePreset => "AudioPreset",
+                MacroAction::StopAudioSensePreset => "StopAudio",
+                MacroAction::StartPitchDetect => "Pitch",
+                MacroAction::StartSpatialAudioDetect => "Spatial",
+                MacroAction::StopAudioSense => "StopAudio",
 
                 MacroAction::StopVisionWait => "Wait",
                 MacroAction::StopVision => "Stop",
@@ -4244,6 +4314,11 @@ impl CrosshairApp {
                 MacroAction::PlaySoundPreset => "Sound",
                 MacroAction::StartVisionSearch => "Start",
                 MacroAction::ScanVisionOnce => "Scan Once",
+                MacroAction::StartAudioSensePreset => "AudioPreset",
+                MacroAction::StopAudioSensePreset => "StopAudio",
+                MacroAction::StartPitchDetect => "Pitch",
+                MacroAction::StartSpatialAudioDetect => "Spatial",
+                MacroAction::StopAudioSense => "StopAudio",
 
                 MacroAction::StopVisionWait => "Wait",
                 MacroAction::StopVision => "Stop",
@@ -8865,6 +8940,7 @@ impl eframe::App for CrosshairApp {
                         AppPanel::Pin,
                         AppPanel::Mouse,
                         AppPanel::Vision,
+                        AppPanel::AudioSense,
                         AppPanel::Ocr,
                         AppPanel::Geometry,
                         AppPanel::Sound,
@@ -8912,6 +8988,15 @@ impl eframe::App for CrosshairApp {
             self.clear_pin_preview_cache();
         }
 
+        if self.state.active_panel != AppPanel::AudioSense {
+            if self.active_pitch_preview_preset_id.take().is_some() {
+                self.pitch_monitor.stop();
+            }
+            if self.active_spatial_preview_preset_id.take().is_some() {
+                self.spatial_monitor.stop();
+            }
+        }
+
         egui::CentralPanel::default()
             .frame(
                 egui::Frame::new()
@@ -8949,6 +9034,7 @@ impl eframe::App for CrosshairApp {
                                 AppPanel::Pin => self.render_pin_panel(ui),
                                 AppPanel::Mouse => self.render_mouse_panel(ui),
                                 AppPanel::Vision => self.render_vision_panel(ui, ctx),
+                                AppPanel::AudioSense => self.render_audiosense_panel(ui),
                                 AppPanel::Ocr => self.render_ocr_panel(ui),
                                 AppPanel::Geometry => self.render_geometry_panel(ui),
                                 AppPanel::Zoom => self.render_pin_panel(ui),

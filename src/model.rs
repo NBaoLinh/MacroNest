@@ -240,6 +240,7 @@ pub enum AppPanel {
     Mouse,
     #[serde(alias = "ImageSearch")]
     Vision,
+    AudioSense,
     Zoom,
     Modes,
     Macros,
@@ -432,6 +433,11 @@ pub enum MacroAction {
     StartVisionSearch,
     #[serde(alias = "ScanImageOnce", alias = "ScanVisionOnce")]
     ScanVisionOnce,
+    StartAudioSensePreset,
+    StopAudioSensePreset,
+    StartPitchDetect,
+    StartSpatialAudioDetect,
+    StopAudioSense,
 
     #[serde(alias = "StopImageSearchWait")]
     StopVisionWait,
@@ -488,6 +494,210 @@ pub enum MacroAction {
     HideGeometryPreset,
     #[serde(other)]
     Legacy,
+}
+
+#[derive(Debug, Clone, Copy, Serialize, Deserialize, PartialEq, Eq, Hash, Default)]
+pub enum AudioSensePresetKind {
+    #[default]
+    Pitch,
+    Spatial,
+}
+
+#[derive(Debug, Clone, Copy, Serialize, Deserialize, PartialEq, Eq, Hash, Default)]
+pub enum AudioSenseSource {
+    #[default]
+    System,
+    Microphone,
+}
+
+fn default_audio_sense_updates_per_second() -> u32 {
+    6
+}
+
+fn default_audio_sense_duration_ms() -> u64 {
+    1500
+}
+
+fn default_audio_sense_output_note_var() -> String {
+    "pitch_note".to_owned()
+}
+
+fn default_audio_sense_output_confidence_var() -> String {
+    "pitch_confidence".to_owned()
+}
+
+fn default_audio_sense_output_level_var() -> String {
+    "audio_level".to_owned()
+}
+
+fn default_audio_sense_output_x_var() -> String {
+    "audio_x".to_owned()
+}
+
+fn default_audio_sense_output_y_var() -> String {
+    "audio_y".to_owned()
+}
+
+fn default_audio_sense_output_pan_var() -> String {
+    "audio_pan".to_owned()
+}
+
+fn default_audio_sense_center_x() -> i32 {
+    960
+}
+
+fn default_audio_sense_center_y() -> i32 {
+    540
+}
+
+fn default_audio_sense_radius() -> i32 {
+    320
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
+#[serde(default)]
+pub struct AudioSenseMonitorSettings {
+    pub source: AudioSenseSource,
+    pub input_device_name: Option<String>,
+    #[serde(default = "default_audio_sense_updates_per_second")]
+    pub updates_per_second: u32,
+    pub listen_forever: bool,
+    #[serde(default = "default_audio_sense_duration_ms")]
+    pub duration_ms: u64,
+}
+
+impl Default for AudioSenseMonitorSettings {
+    fn default() -> Self {
+        Self {
+            source: AudioSenseSource::System,
+            input_device_name: None,
+            updates_per_second: default_audio_sense_updates_per_second(),
+            listen_forever: false,
+            duration_ms: default_audio_sense_duration_ms(),
+        }
+    }
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
+#[serde(default)]
+pub struct PitchAudioSenseSettings {
+    pub monitor: AudioSenseMonitorSettings,
+    pub show_sharps: bool,
+    #[serde(default = "default_audio_sense_output_note_var")]
+    pub output_note_var: String,
+    #[serde(default = "default_audio_sense_output_confidence_var")]
+    pub output_confidence_var: String,
+    #[serde(default = "default_audio_sense_output_level_var")]
+    pub output_level_var: String,
+}
+
+impl Default for PitchAudioSenseSettings {
+    fn default() -> Self {
+        Self {
+            monitor: AudioSenseMonitorSettings::default(),
+            show_sharps: true,
+            output_note_var: default_audio_sense_output_note_var(),
+            output_confidence_var: default_audio_sense_output_confidence_var(),
+            output_level_var: default_audio_sense_output_level_var(),
+        }
+    }
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
+#[serde(default)]
+pub struct SpatialAudioSenseSettings {
+    pub monitor: AudioSenseMonitorSettings,
+    #[serde(default = "default_audio_sense_output_x_var")]
+    pub output_x_var: String,
+    #[serde(default = "default_audio_sense_output_y_var")]
+    pub output_y_var: String,
+    #[serde(default = "default_audio_sense_output_pan_var")]
+    pub output_pan_var: String,
+    #[serde(default = "default_audio_sense_output_level_var")]
+    pub output_level_var: String,
+    #[serde(default = "default_audio_sense_center_x")]
+    pub center_x: i32,
+    #[serde(default = "default_audio_sense_center_y")]
+    pub center_y: i32,
+    #[serde(default = "default_audio_sense_radius")]
+    pub radius: i32,
+}
+
+impl Default for SpatialAudioSenseSettings {
+    fn default() -> Self {
+        Self {
+            monitor: AudioSenseMonitorSettings::default(),
+            output_x_var: default_audio_sense_output_x_var(),
+            output_y_var: default_audio_sense_output_y_var(),
+            output_pan_var: default_audio_sense_output_pan_var(),
+            output_level_var: default_audio_sense_output_level_var(),
+            center_x: default_audio_sense_center_x(),
+            center_y: default_audio_sense_center_y(),
+            radius: default_audio_sense_radius(),
+        }
+    }
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
+#[serde(default)]
+pub struct AudioSensePreset {
+    pub id: u32,
+    pub name: String,
+    pub enabled: bool,
+    pub collapsed: bool,
+    pub kind: AudioSensePresetKind,
+    pub pitch: PitchAudioSenseSettings,
+    pub spatial: SpatialAudioSenseSettings,
+}
+
+impl AudioSensePreset {
+    pub fn new_pitch(id: u32) -> Self {
+        Self {
+            id,
+            name: format!("Pitch Detect {id}"),
+            enabled: true,
+            collapsed: true,
+            kind: AudioSensePresetKind::Pitch,
+            pitch: PitchAudioSenseSettings::default(),
+            spatial: SpatialAudioSenseSettings::default(),
+        }
+    }
+
+    pub fn new_spatial(id: u32) -> Self {
+        Self {
+            id,
+            name: format!("Spatial Audio {id}"),
+            enabled: true,
+            collapsed: true,
+            kind: AudioSensePresetKind::Spatial,
+            pitch: PitchAudioSenseSettings::default(),
+            spatial: SpatialAudioSenseSettings::default(),
+        }
+    }
+}
+
+impl Default for AudioSensePreset {
+    fn default() -> Self {
+        Self::new_pitch(1)
+    }
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
+#[serde(default)]
+pub struct AudioSenseSpec {
+    pub kind: AudioSensePresetKind,
+    pub pitch: PitchAudioSenseSettings,
+    pub spatial: SpatialAudioSenseSettings,
+}
+
+impl Default for AudioSenseSpec {
+    fn default() -> Self {
+        Self {
+            kind: AudioSensePresetKind::Pitch,
+            pitch: PitchAudioSenseSettings::default(),
+            spatial: SpatialAudioSenseSettings::default(),
+        }
+    }
 }
 
 #[derive(Debug, Clone, Copy, Serialize, Deserialize, PartialEq, Eq, Hash, Default)]
@@ -884,6 +1094,14 @@ pub struct MacroStep {
     #[serde(default)]
     pub vision_pos_var_y: String,
     #[serde(default)]
+    pub audio_sense_preset_id: Option<u32>,
+    #[serde(default)]
+    pub audio_sense_spec: AudioSenseSpec,
+    #[serde(default = "default_true")]
+    pub audio_sense_collapsed: bool,
+    #[serde(default)]
+    pub audio_sense_stop_all: bool,
+    #[serde(default)]
     pub geometry_preset_id: Option<u32>,
     #[serde(default)]
     pub geometry_spec: GeometrySpec,
@@ -966,6 +1184,10 @@ impl Default for MacroStep {
             ocr_text_var: String::new(),
             vision_pos_var_x: String::new(),
             vision_pos_var_y: String::new(),
+            audio_sense_preset_id: None,
+            audio_sense_spec: AudioSenseSpec::default(),
+            audio_sense_collapsed: true,
+            audio_sense_stop_all: false,
             geometry_preset_id: None,
             geometry_spec: GeometrySpec::default(),
             geometry_collapsed: true,
@@ -2305,6 +2527,10 @@ pub struct AppState {
     #[serde(alias = "next_image_search_preset_id")]
     pub next_vision_preset_id: u32,
     #[serde(default)]
+    pub audio_sense_presets: Vec<AudioSensePreset>,
+    #[serde(default)]
+    pub next_audio_sense_preset_id: u32,
+    #[serde(default)]
     pub timer_presets: Vec<TimerPreset>,
     #[serde(default)]
     pub next_timer_preset_id: u32,
@@ -2398,6 +2624,8 @@ impl Default for AppState {
             macro_infinite_loop_warning_enabled: true,
             vision_presets: vec![VisionPreset::default()],
             next_vision_preset_id: 2,
+            audio_sense_presets: vec![AudioSensePreset::new_pitch(1)],
+            next_audio_sense_preset_id: 2,
             timer_presets: Vec::new(),
             next_timer_preset_id: 1,
             ai_settings: AiSettings::default(),

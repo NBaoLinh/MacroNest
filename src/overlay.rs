@@ -140,9 +140,10 @@ mod windows_overlay {
     }
 
     use crate::{
-        ai, audio, hotkey, media,
+        ai, audio, audiosense, hotkey, media,
         model::{
-            AudioSettings, CommandPreset, CrosshairStyle, HotkeyBinding, HudPreset,
+            AudioSensePreset, AudioSensePresetKind, AudioSenseSource, AudioSenseSpec, AudioSettings,
+            CommandPreset, CrosshairStyle, HotkeyBinding, HudPreset,
             GeometryPreset, GeometryShapeKind, GeometrySpec, IfConditionType, MacroAction,
             MacroGroup, MacroPreset, MacroStep, MacroTriggerMode, MousePathEvent,
             MousePathEventKind, MousePathPreset, MouseSensitivityPreset, PinOverlayStyle,
@@ -372,6 +373,7 @@ mod windows_overlay {
             step_px: u32,
         },
         UpdateVisionPresets(Vec<VisionPreset>),
+        UpdateAudioSensePresets(Vec<AudioSensePreset>),
         UpdateGeometryPresets(Vec<crate::model::GeometryPreset>),
         PreviewGeometrySpec(Option<GeometrySpec>),
         PreviewGeometryPreset(Option<u32>),
@@ -573,6 +575,8 @@ mod windows_overlay {
         keyboard_arrow_mouse_enabled: bool,
         keyboard_arrow_mouse_step_px: u32,
         vision_presets: Vec<VisionPreset>,
+        audio_sense_presets: Vec<AudioSensePreset>,
+        active_audio_sense_keys: HashSet<String>,
         geometry_presets: Vec<crate::model::GeometryPreset>,
         active_geometry_preset_ids: HashSet<u32>,
         active_geometry_steps: HashMap<(u32, usize), crate::model::GeometrySpec>,
@@ -648,6 +652,8 @@ mod windows_overlay {
                 keyboard_arrow_mouse_enabled: false,
                 keyboard_arrow_mouse_step_px: 12,
                 vision_presets: Vec::new(),
+                audio_sense_presets: Vec::new(),
+                active_audio_sense_keys: HashSet::new(),
                 geometry_presets: Vec::new(),
                 active_geometry_preset_ids: HashSet::new(),
                 active_geometry_steps: HashMap::new(),
@@ -3826,6 +3832,10 @@ mod windows_overlay {
                     let _ = refresh_search_area_overlay(runtime);
                 }
 
+                OverlayCommand::UpdateAudioSensePresets(presets) => {
+                    HOOK_STATE.lock().audio_sense_presets = presets;
+                }
+
                 OverlayCommand::UpdateGeometryPresets(presets) => {
                     HOOK_STATE.lock().geometry_presets = presets;
                     let _ = refresh_search_area_overlay(runtime);
@@ -6497,6 +6507,12 @@ mod windows_overlay {
                 let _ = start_vision_following(&step.key, Some(&step.if_variable_name));
             }
 
+            MacroAction::StartAudioSensePreset
+            | MacroAction::StartPitchDetect
+            | MacroAction::StartSpatialAudioDetect => {
+                start_audio_sense_from_step(step, preset_id, 0, false, true);
+            }
+
             MacroAction::ScanVisionOnce => {
                 if let Ok(preset) = vision_preset_by_id(&step.key) {
                     let outcome = match run_vision_once_with_options(
@@ -6528,6 +6544,10 @@ mod windows_overlay {
 
             MacroAction::StopVision => {
                 let _ = stop_vision_following(&step.key);
+            }
+
+            MacroAction::StopAudioSensePreset | MacroAction::StopAudioSense => {
+                stop_audio_sense_from_step(step, preset_id, 0, false);
             }
 
             MacroAction::ShowHud => {
@@ -6997,6 +7017,18 @@ mod windows_overlay {
                     let _ = start_vision_following(&step.key, Some(&step.if_variable_name));
                 }
 
+                MacroAction::StartAudioSensePreset
+                | MacroAction::StartPitchDetect
+                | MacroAction::StartSpatialAudioDetect => {
+                    start_audio_sense_from_step(
+                        step,
+                        preset_id,
+                        absolute_index,
+                        false,
+                        true,
+                    );
+                }
+
                 MacroAction::ScanVisionOnce => {
                     if let Some(preset) = vision_preset_by_id(&step.key).ok() {
                         let outcome = match run_vision_once_with_options(
@@ -7059,6 +7091,10 @@ mod windows_overlay {
 
                 MacroAction::StopVision => {
                     let _ = stop_vision_following(&step.key);
+                }
+
+                MacroAction::StopAudioSensePreset | MacroAction::StopAudioSense => {
+                    stop_audio_sense_from_step(step, preset_id, absolute_index, false);
                 }
 
                 MacroAction::ShowHud => {
@@ -7502,6 +7538,18 @@ mod windows_overlay {
                     let _ = start_vision_following(&step.key, Some(&step.if_variable_name));
                 }
 
+                MacroAction::StartAudioSensePreset
+                | MacroAction::StartPitchDetect
+                | MacroAction::StartSpatialAudioDetect => {
+                    start_audio_sense_from_step(
+                        step,
+                        preset_id,
+                        absolute_index,
+                        true,
+                        true,
+                    );
+                }
+
                 MacroAction::ScanVisionOnce => {
                     if let Some(preset) = vision_preset_by_id(&step.key).ok() {
                         let outcome = match run_vision_once_with_options(
@@ -7564,6 +7612,10 @@ mod windows_overlay {
 
                 MacroAction::StopVision => {
                     let _ = stop_vision_following(&step.key);
+                }
+
+                MacroAction::StopAudioSensePreset | MacroAction::StopAudioSense => {
+                    stop_audio_sense_from_step(step, preset_id, absolute_index, true);
                 }
 
                 MacroAction::ShowHud => {
@@ -12504,6 +12556,283 @@ mod windows_overlay {
     fn stop_vision_following_ids(preset_ids: &[u32]) {
         for preset_id in preset_ids {
             set_image_search_following_active(*preset_id, false);
+        }
+    }
+
+    fn audio_sense_monitor_key_for_preset(preset_id: u32) -> String {
+        format!("preset:{preset_id}")
+    }
+
+    fn custom_audio_sense_monitor_key(
+        macro_preset_id: u32,
+        step_index: usize,
+        is_hold_stop: bool,
+        kind: AudioSensePresetKind,
+    ) -> String {
+        let kind_tag = match kind {
+            AudioSensePresetKind::Pitch => "pitch",
+            AudioSensePresetKind::Spatial => "spatial",
+        };
+        format!("custom:{macro_preset_id}:{step_index}:{is_hold_stop}:{kind_tag}")
+    }
+
+    fn audio_sense_is_active(key: &str) -> bool {
+        HOOK_STATE
+            .lock()
+            .active_audio_sense_keys
+            .contains(key)
+    }
+
+    fn set_audio_sense_active(key: &str, active: bool) {
+        let mut hook_state = HOOK_STATE.lock();
+        if active {
+            hook_state.active_audio_sense_keys.insert(key.to_owned());
+        } else {
+            hook_state.active_audio_sense_keys.remove(key);
+        }
+    }
+
+    fn stop_all_audio_sense() {
+        HOOK_STATE.lock().active_audio_sense_keys.clear();
+    }
+
+    fn audio_sense_preset_by_id(spec: &str) -> Result<AudioSensePreset> {
+        let preset_id = spec
+            .trim()
+            .parse::<u32>()
+            .context("AudioSense preset id is invalid")?;
+        HOOK_STATE
+            .lock()
+            .audio_sense_presets
+            .iter()
+            .find(|preset| preset.id == preset_id)
+            .cloned()
+            .context("AudioSense preset was not found")
+    }
+
+    fn write_pitch_snapshot_vars(settings: &crate::model::PitchAudioSenseSettings, snapshot: &audiosense::PitchSnapshot) {
+        if !settings.output_note_var.trim().is_empty() {
+            set_text_variable_value(&settings.output_note_var, &snapshot.note);
+        }
+        if !settings.output_confidence_var.trim().is_empty() {
+            set_variable_value(
+                &settings.output_confidence_var,
+                clamp_f64_to_i32((snapshot.confidence * 1000.0) as f64),
+            );
+        }
+        if !settings.output_level_var.trim().is_empty() {
+            set_variable_value(
+                &settings.output_level_var,
+                clamp_f64_to_i32((snapshot.level * 1000.0) as f64),
+            );
+        }
+    }
+
+    fn write_spatial_snapshot_vars(
+        settings: &crate::model::SpatialAudioSenseSettings,
+        snapshot: &audiosense::SpatialSnapshot,
+    ) {
+        if !settings.output_x_var.trim().is_empty() {
+            set_variable_value(&settings.output_x_var, snapshot.x);
+        }
+        if !settings.output_y_var.trim().is_empty() {
+            set_variable_value(&settings.output_y_var, snapshot.y);
+        }
+        if !settings.output_pan_var.trim().is_empty() {
+            set_variable_value(
+                &settings.output_pan_var,
+                clamp_f64_to_i32((snapshot.pan * 1000.0) as f64),
+            );
+        }
+        if !settings.output_level_var.trim().is_empty() {
+            set_variable_value(
+                &settings.output_level_var,
+                clamp_f64_to_i32((snapshot.level * 1000.0) as f64),
+            );
+        }
+    }
+
+    fn run_pitch_monitor_loop(
+        monitor_key: String,
+        config: crate::model::PitchAudioSenseSettings,
+        stop_when_ui_foreground: bool,
+    ) {
+        let mut monitor = audiosense::PitchMonitor::new();
+        if let Err(error) = monitor.start(config.clone()) {
+            eprintln!("AudioSense pitch start failed: {error}");
+            set_audio_sense_active(&monitor_key, false);
+            return;
+        }
+
+        let update_hz = config.monitor.updates_per_second;
+        while audio_sense_is_active(&monitor_key) {
+            if stop_when_ui_foreground && is_ui_in_foreground() {
+                break;
+            }
+
+            let snapshot = monitor.snapshot();
+            if let Some(error) = snapshot.error.as_ref() {
+                eprintln!("AudioSense pitch error: {error}");
+                break;
+            }
+            if !snapshot.running {
+                break;
+            }
+
+            write_pitch_snapshot_vars(&config, &snapshot);
+            audiosense::sleep_detection_interval(update_hz);
+        }
+
+        monitor.stop();
+        set_audio_sense_active(&monitor_key, false);
+    }
+
+    fn run_spatial_monitor_loop(
+        monitor_key: String,
+        config: crate::model::SpatialAudioSenseSettings,
+        stop_when_ui_foreground: bool,
+    ) {
+        let mut monitor = audiosense::SpatialMonitor::new();
+        if let Err(error) = monitor.start(config.clone()) {
+            eprintln!("AudioSense spatial start failed: {error}");
+            set_audio_sense_active(&monitor_key, false);
+            return;
+        }
+
+        let update_hz = config.monitor.updates_per_second;
+        while audio_sense_is_active(&monitor_key) {
+            if stop_when_ui_foreground && is_ui_in_foreground() {
+                break;
+            }
+
+            let snapshot = monitor.snapshot();
+            if let Some(error) = snapshot.error.as_ref() {
+                eprintln!("AudioSense spatial error: {error}");
+                break;
+            }
+            if !snapshot.running {
+                break;
+            }
+
+            write_spatial_snapshot_vars(&config, &snapshot);
+            audiosense::sleep_detection_interval(update_hz);
+        }
+
+        monitor.stop();
+        set_audio_sense_active(&monitor_key, false);
+    }
+
+    fn start_audio_sense_preset(spec: &str, stop_when_ui_foreground: bool) -> Result<()> {
+        let preset = audio_sense_preset_by_id(spec)?;
+        let monitor_key = audio_sense_monitor_key_for_preset(preset.id);
+        if audio_sense_is_active(&monitor_key) {
+            return Ok(());
+        }
+
+        set_audio_sense_active(&monitor_key, true);
+        match preset.kind {
+            AudioSensePresetKind::Pitch => {
+                thread::spawn(move || run_pitch_monitor_loop(monitor_key, preset.pitch, stop_when_ui_foreground));
+            }
+            AudioSensePresetKind::Spatial => {
+                thread::spawn(move || run_spatial_monitor_loop(monitor_key, preset.spatial, stop_when_ui_foreground));
+            }
+        }
+        Ok(())
+    }
+
+    fn stop_audio_sense_preset(spec: &str) -> Result<()> {
+        let preset = audio_sense_preset_by_id(spec)?;
+        let monitor_key = audio_sense_monitor_key_for_preset(preset.id);
+        set_audio_sense_active(&monitor_key, false);
+        Ok(())
+    }
+
+    fn start_custom_audio_sense(
+        monitor_key: String,
+        spec: AudioSenseSpec,
+        stop_when_ui_foreground: bool,
+    ) {
+        if audio_sense_is_active(&monitor_key) {
+            return;
+        }
+
+        set_audio_sense_active(&monitor_key, true);
+        match spec.kind {
+            AudioSensePresetKind::Pitch => {
+                thread::spawn(move || run_pitch_monitor_loop(monitor_key, spec.pitch, stop_when_ui_foreground));
+            }
+            AudioSensePresetKind::Spatial => {
+                thread::spawn(move || run_spatial_monitor_loop(monitor_key, spec.spatial, stop_when_ui_foreground));
+            }
+        }
+    }
+
+    fn start_audio_sense_from_step(
+        step: &MacroStep,
+        macro_preset_id: u32,
+        step_index: usize,
+        is_hold_stop: bool,
+        stop_when_ui_foreground: bool,
+    ) {
+        match step.action {
+            MacroAction::StartAudioSensePreset => {
+                let _ = start_audio_sense_preset(&step.key, stop_when_ui_foreground);
+            }
+            MacroAction::StartPitchDetect | MacroAction::StartSpatialAudioDetect => {
+                let mut spec = step.audio_sense_spec.clone();
+                spec.kind = if step.action == MacroAction::StartSpatialAudioDetect {
+                    AudioSensePresetKind::Spatial
+                } else {
+                    AudioSensePresetKind::Pitch
+                };
+                let monitor_key = custom_audio_sense_monitor_key(
+                    macro_preset_id,
+                    step_index,
+                    is_hold_stop,
+                    spec.kind,
+                );
+                start_custom_audio_sense(monitor_key, spec, stop_when_ui_foreground);
+            }
+            _ => {}
+        }
+    }
+
+    fn stop_audio_sense_from_step(
+        step: &MacroStep,
+        macro_preset_id: u32,
+        step_index: usize,
+        is_hold_stop: bool,
+    ) {
+        match step.action {
+            MacroAction::StopAudioSensePreset => {
+                if step.audio_sense_stop_all {
+                    stop_all_audio_sense();
+                } else {
+                    let _ = stop_audio_sense_preset(&step.key);
+                }
+            }
+            MacroAction::StopAudioSense => {
+                if step.audio_sense_stop_all {
+                    stop_all_audio_sense();
+                } else {
+                    let pitch_key = custom_audio_sense_monitor_key(
+                        macro_preset_id,
+                        step_index,
+                        is_hold_stop,
+                        AudioSensePresetKind::Pitch,
+                    );
+                    let spatial_key = custom_audio_sense_monitor_key(
+                        macro_preset_id,
+                        step_index,
+                        is_hold_stop,
+                        AudioSensePresetKind::Spatial,
+                    );
+                    set_audio_sense_active(&pitch_key, false);
+                    set_audio_sense_active(&spatial_key, false);
+                }
+            }
+            _ => {}
         }
     }
 

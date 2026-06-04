@@ -30,6 +30,7 @@ vi = "0.8"
 [target.'cfg(windows)'.dependencies]
 libloading = "0.8"
 opencv = { version = "0.98.2", default-features = false, features = ["clang-runtime", "imgproc", "videoio"] }
+wasapi = "0.20"
 windows = { version = "0.61", features = [
     "Win32_Foundation",
     "Win32_Graphics_Dwm",
