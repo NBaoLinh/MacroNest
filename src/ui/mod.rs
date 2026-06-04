@@ -3829,6 +3829,12 @@ impl CrosshairApp {
                 MacroAction::DisableMacroPreset => {
                     "Tắt một preset macro khác trong cùng nhóm macro."
                 }
+                MacroAction::EnableStep => {
+                    "Bật một hoặc nhiều bước (step) cụ thể trong macro này."
+                }
+                MacroAction::DisableStep => {
+                    "Tắt một hoặc nhiều bước (step) cụ thể trong macro này."
+                }
                 MacroAction::MouseLeftClick => "Click chuột trái.",
                 MacroAction::MouseLeftDown => "Nhấn giữ chuột trái.",
                 MacroAction::MouseLeftUp => "Nhả chuột trái.",
@@ -3940,6 +3946,12 @@ impl CrosshairApp {
                 }
                 MacroAction::DisableMacroPreset => {
                     "Disable one other macro preset from the same macro group."
+                }
+                MacroAction::EnableStep => {
+                    "Enable one or more specific steps in this macro."
+                }
+                MacroAction::DisableStep => {
+                    "Disable one or more specific steps in this macro."
                 }
                 MacroAction::MouseLeftClick => "Press and release left mouse button.",
                 MacroAction::MouseLeftDown => "Hold left mouse button down.",
