@@ -3,6 +3,11 @@ use crate::ui::{CrosshairApp, MouseCaptureKind, MouseMoveAbsoluteCaptureTarget, 
 use eframe::egui::{self, Button, ComboBox, Frame, Grid, TextEdit};
 
 impl CrosshairApp {
+    const GEOMETRY_LABEL_COL_WIDTH: f32 = 48.0;
+    const GEOMETRY_FIELD_WIDTH: f32 = 96.0;
+    const GEOMETRY_FIELD_EXPANDED_WIDTH: f32 = 120.0;
+    const GEOMETRY_GRID_SPACING_X: f32 = 2.0;
+
     pub(crate) fn render_geometry_panel(&mut self, ui: &mut egui::Ui) {
         let language = self.state.ui_language;
         let mut changed = false;
@@ -473,7 +478,7 @@ impl CrosshairApp {
 
             Grid::new((preset_id, object_id, "geometry-spec-grid"))
                 .num_columns(2)
-                .spacing([8.0, 6.0])
+                .spacing([Self::GEOMETRY_GRID_SPACING_X, 6.0])
                 .show(ui, |ui| {
                     changed |= Self::geometry_expr_row(
                         ui,
@@ -575,8 +580,8 @@ impl CrosshairApp {
         } else {
             Grid::new((preset_id, object_id, "geometry-spec-grid"))
                 .num_columns(4)
-                .spacing([4.0, 6.0])
-                .min_col_width(40.0)
+                .spacing([Self::GEOMETRY_GRID_SPACING_X, 6.0])
+                .min_col_width(0.0)
                 .show(ui, |ui| {
                     match spec.shape {
                         GeometryShapeKind::Point => {
@@ -918,7 +923,10 @@ impl CrosshairApp {
                                 vietnamese_input_mode,
                                 group_id_override,
                             );
-                            ui.add_sized([60.0, 18.0], egui::Label::new(Self::tr_lang(language, "Text", "Văn bản")));
+                            ui.add_sized(
+                                [Self::GEOMETRY_LABEL_COL_WIDTH, 18.0],
+                                egui::Label::new(Self::tr_lang(language, "Text", "Văn bản")),
+                            );
                             let text_id = ui.make_persistent_id((preset_id, object_id, "label-text"));
                             let response = Self::render_interpolated_text_edit(
                                 ui,
@@ -1238,7 +1246,9 @@ impl CrosshairApp {
         vietnamese_input_mode: VietnameseInputMode,
     ) -> bool {
         let mut changed = false;
-        ui.add_sized([60.0, 18.0], egui::Label::new(label));
+        let width = width.min(Self::GEOMETRY_FIELD_WIDTH);
+        let expanded_width = expanded_width.min(Self::GEOMETRY_FIELD_EXPANDED_WIDTH);
+        ui.add_sized([Self::GEOMETRY_LABEL_COL_WIDTH, 18.0], egui::Label::new(label));
         let id = ui.make_persistent_id((preset_id, object_id, row_id, "expr"));
         let response = Self::render_variable_text_edit(
             ui,
@@ -1283,9 +1293,13 @@ impl CrosshairApp {
         group_id_override: Option<u32>,
     ) -> bool {
         let mut changed = false;
+        let width_a = width_a.min(Self::GEOMETRY_FIELD_WIDTH);
+        let expanded_width_a = expanded_width_a.min(Self::GEOMETRY_FIELD_EXPANDED_WIDTH);
+        let width_b = width_b.min(Self::GEOMETRY_FIELD_WIDTH);
+        let expanded_width_b = expanded_width_b.min(Self::GEOMETRY_FIELD_EXPANDED_WIDTH);
 
         if !label_a.is_empty() {
-            ui.add_sized([60.0, 18.0], egui::Label::new(label_a));
+            ui.add_sized([Self::GEOMETRY_LABEL_COL_WIDTH, 18.0], egui::Label::new(label_a));
             let id_a = ui.make_persistent_id((preset_id, object_id, row_id, "expr-a"));
             let response_a = Self::render_variable_text_edit(
                 ui,
@@ -1311,10 +1325,10 @@ impl CrosshairApp {
         }
 
         if !label_b.is_empty() {
-            ui.add_sized([60.0, 18.0], egui::Label::new(label_b));
+            ui.add_sized([Self::GEOMETRY_LABEL_COL_WIDTH, 18.0], egui::Label::new(label_b));
             let id_b = ui.make_persistent_id((preset_id, object_id, row_id, "expr-b"));
             ui.horizontal(|ui| {
-                ui.spacing_mut().item_spacing.x = 4.0;
+                ui.spacing_mut().item_spacing.x = Self::GEOMETRY_GRID_SPACING_X;
                 let response_b = Self::render_variable_text_edit(
                     ui,
                     expr_b,
@@ -1374,9 +1388,12 @@ impl CrosshairApp {
         filled: &mut bool,
     ) -> bool {
         let mut changed = false;
-        ui.add_sized([60.0, 18.0], egui::Label::new(Self::tr_lang(language, "Mode", "Chế độ")));
+        ui.add_sized(
+            [Self::GEOMETRY_LABEL_COL_WIDTH, 18.0],
+            egui::Label::new(Self::tr_lang(language, "Mode", "Chế độ")),
+        );
         ComboBox::from_id_salt(ui.next_auto_id())
-            .width(120.0)
+            .width(Self::GEOMETRY_FIELD_WIDTH)
             .selected_text(if *filled {
                 Self::tr_lang(language, "Filled", "Tô màu")
             } else {
@@ -1424,7 +1441,7 @@ impl CrosshairApp {
             "#{:02X}{:02X}{:02X}{:02X} rgba({}, {}, {}, {})",
             color.r, color.g, color.b, color.a, color.r, color.g, color.b, color.a
         );
-        ui.add_sized([60.0, 18.0], egui::Label::new(label));
+        ui.add_sized([Self::GEOMETRY_LABEL_COL_WIDTH, 18.0], egui::Label::new(label));
         ui.horizontal(|ui| {
             if allow_color_expression {
                 let color_expr_id = ui.make_persistent_id((preset_id, object_id, label, "color-expr"));
@@ -1432,8 +1449,8 @@ impl CrosshairApp {
                     ui,
                     expr,
                     color_expr_id,
-                    120.0,
-                    120.0,
+                    Self::GEOMETRY_FIELD_WIDTH,
+                    Self::GEOMETRY_FIELD_EXPANDED_WIDTH,
                     18.0,
                     18.0,
                     "{A} or #RRGGBB",

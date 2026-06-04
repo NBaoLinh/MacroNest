@@ -57,16 +57,8 @@ impl CrosshairApp {
         let mut remove_id = None;
         let mut changed = false;
 
-        for preset in &mut self.state.audio_sense_presets {
-            let is_pitch = preset.kind == AudioSensePresetKind::Pitch;
-            let is_preview_running = if is_pitch {
-                self.active_pitch_preview_preset_id == Some(preset.id)
-                    && self.pitch_monitor.snapshot().running
-            } else {
-                self.active_spatial_preview_preset_id == Some(preset.id)
-                    && self.spatial_monitor.snapshot().running
-            };
-
+        let preset_count = self.state.audio_sense_presets.len();
+        for (preset_index, preset) in self.state.audio_sense_presets.iter_mut().enumerate() {
             ui.add_space(6.0);
             Self::show_preset_card(ui, preset.enabled, |ui| {
                 ui.horizontal(|ui| {
@@ -91,42 +83,21 @@ impl CrosshairApp {
                     });
 
                     ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
-                        if ui.button("Delete").clicked() {
+                        if Self::sound_style_remove_button(ui).clicked() {
                             remove_id = Some(preset.id);
                         }
-                        if ui
-                            .button(if preset.collapsed {
+                        if Self::sound_style_toggle_button(
+                            ui,
+                            if preset.collapsed {
                                 Self::tr_lang(language, "Show", "Hien")
                             } else {
                                 Self::tr_lang(language, "Hide", "An")
-                            })
-                            .clicked()
+                            },
+                        )
+                        .clicked()
                         {
                             preset.collapsed = !preset.collapsed;
                             changed = true;
-                        }
-                        if is_preview_running {
-                            if ui.button("Stop").clicked() {
-                                if is_pitch {
-                                    self.pitch_monitor.stop();
-                                    self.active_pitch_preview_preset_id = None;
-                                } else {
-                                    self.spatial_monitor.stop();
-                                    self.active_spatial_preview_preset_id = None;
-                                }
-                            }
-                        } else if ui.button("Start").clicked() {
-                            if is_pitch {
-                                self.spatial_monitor.stop();
-                                self.active_spatial_preview_preset_id = None;
-                                let _ = self.pitch_monitor.start(preset.pitch.clone());
-                                self.active_pitch_preview_preset_id = Some(preset.id);
-                            } else {
-                                self.pitch_monitor.stop();
-                                self.active_pitch_preview_preset_id = None;
-                                let _ = self.spatial_monitor.start(preset.spatial.clone());
-                                self.active_spatial_preview_preset_id = Some(preset.id);
-                            }
                         }
                     });
                 });
@@ -262,6 +233,10 @@ impl CrosshairApp {
                     }
                 }
             });
+            ui.add_space(4.0);
+            if preset_index + 1 < preset_count {
+                ui.separator();
+            }
         }
 
         if let Some(remove_id) = remove_id {

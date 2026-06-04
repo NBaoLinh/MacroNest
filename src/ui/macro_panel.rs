@@ -5861,7 +5861,27 @@ impl CrosshairApp {
 
                                         (available_width - right_width - 8.0).max(260.0);
 
-                                    let label_width = 72.0;
+                                    let trigger_label_width = ui
+                                        .painter()
+                                        .layout_no_wrap(
+                                            Self::tr_lang(language, "Trigger", "Kich hoat").to_owned(),
+                                            egui::FontId::proportional(14.0),
+                                            ui.visuals().text_color(),
+                                        )
+                                        .size()
+                                        .x
+                                        .max(
+                                            ui.painter()
+                                                .layout_no_wrap(
+                                                    Self::tr_lang(language, "Release", "Tha").to_owned(),
+                                                    egui::FontId::proportional(14.0),
+                                                    ui.visuals().text_color(),
+                                                )
+                                                .size()
+                                                .x,
+                                        )
+                                        + 10.0;
+                                    let label_width = trigger_label_width.max(48.0);
 
                                     let binding_width = (left_width - label_width - 6.0).max(160.0);
 
