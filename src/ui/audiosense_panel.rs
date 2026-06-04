@@ -316,25 +316,6 @@ fn render_pitch_settings_ui(
 
     ui.add_space(4.0);
     ui.horizontal(|ui| {
-        ui.label(CrosshairApp::tr_lang(language, "Note var", "Bien note"));
-        changed |= ui
-            .add_sized([140.0, 20.0], TextEdit::singleline(&mut settings.output_note_var))
-            .changed();
-        ui.label(CrosshairApp::tr_lang(language, "Confidence var", "Bien tin cay"));
-        changed |= ui
-            .add_sized(
-                [140.0, 20.0],
-                TextEdit::singleline(&mut settings.output_confidence_var),
-            )
-            .changed();
-        ui.label(CrosshairApp::tr_lang(language, "Level var", "Bien am luong"));
-        changed |= ui
-            .add_sized([140.0, 20.0], TextEdit::singleline(&mut settings.output_level_var))
-            .changed();
-    });
-
-    ui.add_space(4.0);
-    ui.horizontal(|ui| {
         ui.label(format!(
             "{}: {}",
             CrosshairApp::tr_lang(language, "Current note", "Cao do hien tai"),
@@ -365,25 +346,6 @@ fn render_spatial_settings_ui(
         ui.label("Radius");
         changed |= ui
             .add(DragValue::new(&mut settings.radius).range(0..=5000).speed(1))
-            .changed();
-    });
-    ui.add_space(4.0);
-    ui.horizontal(|ui| {
-        ui.label("X var");
-        changed |= ui
-            .add_sized([120.0, 20.0], TextEdit::singleline(&mut settings.output_x_var))
-            .changed();
-        ui.label("Y var");
-        changed |= ui
-            .add_sized([120.0, 20.0], TextEdit::singleline(&mut settings.output_y_var))
-            .changed();
-        ui.label("Pan var");
-        changed |= ui
-            .add_sized([120.0, 20.0], TextEdit::singleline(&mut settings.output_pan_var))
-            .changed();
-        ui.label("Level var");
-        changed |= ui
-            .add_sized([120.0, 20.0], TextEdit::singleline(&mut settings.output_level_var))
             .changed();
     });
     ui.add_space(4.0);

@@ -12777,7 +12777,81 @@ mod windows_overlay {
     ) {
         match step.action {
             MacroAction::StartAudioSensePreset => {
-                let _ = start_audio_sense_preset(&step.key, stop_when_ui_foreground);
+                if let Some(preset_id) = step.audio_sense_preset_id {
+                    if let Ok(mut preset) = audio_sense_preset_by_id(&preset_id.to_string()) {
+                        match preset.kind {
+                            AudioSensePresetKind::Pitch => {
+                                if !step.audio_sense_spec.pitch.output_note_var.trim().is_empty() {
+                                    preset.pitch.output_note_var =
+                                        step.audio_sense_spec.pitch.output_note_var.clone();
+                                }
+                                if !step
+                                    .audio_sense_spec
+                                    .pitch
+                                    .output_confidence_var
+                                    .trim()
+                                    .is_empty()
+                                {
+                                    preset.pitch.output_confidence_var = step
+                                        .audio_sense_spec
+                                        .pitch
+                                        .output_confidence_var
+                                        .clone();
+                                }
+                                if !step.audio_sense_spec.pitch.output_level_var.trim().is_empty() {
+                                    preset.pitch.output_level_var =
+                                        step.audio_sense_spec.pitch.output_level_var.clone();
+                                }
+                                let monitor_key = audio_sense_monitor_key_for_preset(preset.id);
+                                if !audio_sense_is_active(&monitor_key) {
+                                    set_audio_sense_active(&monitor_key, true);
+                                    thread::spawn(move || {
+                                        run_pitch_monitor_loop(
+                                            monitor_key,
+                                            preset.pitch,
+                                            stop_when_ui_foreground,
+                                        )
+                                    });
+                                }
+                            }
+                            AudioSensePresetKind::Spatial => {
+                                if !step.audio_sense_spec.spatial.output_x_var.trim().is_empty() {
+                                    preset.spatial.output_x_var =
+                                        step.audio_sense_spec.spatial.output_x_var.clone();
+                                }
+                                if !step.audio_sense_spec.spatial.output_y_var.trim().is_empty() {
+                                    preset.spatial.output_y_var =
+                                        step.audio_sense_spec.spatial.output_y_var.clone();
+                                }
+                                if !step.audio_sense_spec.spatial.output_pan_var.trim().is_empty() {
+                                    preset.spatial.output_pan_var =
+                                        step.audio_sense_spec.spatial.output_pan_var.clone();
+                                }
+                                if !step
+                                    .audio_sense_spec
+                                    .spatial
+                                    .output_level_var
+                                    .trim()
+                                    .is_empty()
+                                {
+                                    preset.spatial.output_level_var =
+                                        step.audio_sense_spec.spatial.output_level_var.clone();
+                                }
+                                let monitor_key = audio_sense_monitor_key_for_preset(preset.id);
+                                if !audio_sense_is_active(&monitor_key) {
+                                    set_audio_sense_active(&monitor_key, true);
+                                    thread::spawn(move || {
+                                        run_spatial_monitor_loop(
+                                            monitor_key,
+                                            preset.spatial,
+                                            stop_when_ui_foreground,
+                                        )
+                                    });
+                                }
+                            }
+                        }
+                    }
+                }
             }
             MacroAction::StartPitchDetect | MacroAction::StartSpatialAudioDetect => {
                 let mut spec = step.audio_sense_spec.clone();
@@ -12809,7 +12883,9 @@ mod windows_overlay {
                 if step.audio_sense_stop_all {
                     stop_all_audio_sense();
                 } else {
-                    let _ = stop_audio_sense_preset(&step.key);
+                    if let Some(preset_id) = step.audio_sense_preset_id {
+                        let _ = stop_audio_sense_preset(&preset_id.to_string());
+                    }
                 }
             }
             MacroAction::StopAudioSense => {

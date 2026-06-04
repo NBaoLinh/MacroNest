@@ -4538,6 +4538,7 @@ impl CrosshairApp {
 
         let mut live_sync = false;
         let mut geom_presets_changed = false;
+        let mut audio_sense_presets_changed = false;
 
         let mut add_preset_to_group = None;
 
@@ -10558,9 +10559,11 @@ impl CrosshairApp {
                                                         language,
                                                         (group.id, preset.id, "hold-stop-audiosense-step"),
                                                         &audio_sense_preset_options,
+                                                        &mut self.state.audio_sense_presets,
                                                         &self.audio_sense_devices,
                                                         step,
                                                         &mut live_sync,
+                                                        &mut audio_sense_presets_changed,
                                                     );
                                                 }
                                             } else if Self::macro_action_uses_position(step.action) {
@@ -16720,9 +16723,11 @@ impl CrosshairApp {
                                                         language,
                                                         (group.id, preset.id, step_index, "normal-audiosense-step"),
                                                         &audio_sense_preset_options,
+                                                        &mut self.state.audio_sense_presets,
                                                         &self.audio_sense_devices,
                                                         step,
                                                         &mut live_sync,
+                                                        &mut audio_sense_presets_changed,
                                                     );
                                                 }
                                             } else if matches!(
@@ -18599,6 +18604,11 @@ impl CrosshairApp {
 
         if geom_presets_changed {
             self.sync_geometry_presets();
+            self.persist();
+        }
+
+        if audio_sense_presets_changed {
+            self.sync_audio_sense_presets();
             self.persist();
         }
 
@@ -20490,15 +20500,16 @@ impl CrosshairApp {
         language: UiLanguage,
         id_prefix: impl std::hash::Hash + Copy,
         preset_options: &[(u32, String)],
+        audio_sense_presets: &mut Vec<AudioSensePreset>,
         audio_sense_devices: &[String],
         step: &mut MacroStep,
         live_sync: &mut bool,
+        audio_sense_presets_changed: &mut bool,
     ) {
         ui.scope(|ui| {
             ui.vertical(|ui| match step.action {
                 MacroAction::StartAudioSensePreset => {
                     ui.horizontal(|ui| {
-                        ui.label(Self::tr_lang(language, "Preset", "Preset"));
                         Self::render_audio_sense_preset_selector(
                             ui,
                             language,
@@ -20508,6 +20519,89 @@ impl CrosshairApp {
                             live_sync,
                         );
                     });
+                    ui.add_space(4.0);
+                    let selected_kind = step
+                        .audio_sense_preset_id
+                        .and_then(|id| {
+                            audio_sense_presets
+                                .iter()
+                                .find(|preset| preset.id == id)
+                                .map(|preset| preset.kind)
+                        })
+                        .unwrap_or(AudioSensePresetKind::Pitch);
+                    match selected_kind {
+                        AudioSensePresetKind::Pitch => {
+                            ui.horizontal(|ui| {
+                                ui.label(Self::tr_lang(language, "Note var", "Bien note"));
+                                *live_sync |= ui
+                                    .add_sized(
+                                        [118.0, 20.0],
+                                        TextEdit::singleline(
+                                            &mut step.audio_sense_spec.pitch.output_note_var,
+                                        ),
+                                    )
+                                    .changed();
+                                ui.label(Self::tr_lang(language, "Confidence", "Tin cay"));
+                                *live_sync |= ui
+                                    .add_sized(
+                                        [96.0, 20.0],
+                                        TextEdit::singleline(
+                                            &mut step.audio_sense_spec.pitch.output_confidence_var,
+                                        ),
+                                    )
+                                    .changed();
+                                ui.label(Self::tr_lang(language, "Level", "Am luong"));
+                                *live_sync |= ui
+                                    .add_sized(
+                                        [96.0, 20.0],
+                                        TextEdit::singleline(
+                                            &mut step.audio_sense_spec.pitch.output_level_var,
+                                        ),
+                                    )
+                                    .changed();
+                            });
+                        }
+                        AudioSensePresetKind::Spatial => {
+                            ui.horizontal(|ui| {
+                                ui.label("X var");
+                                *live_sync |= ui
+                                    .add_sized(
+                                        [82.0, 20.0],
+                                        TextEdit::singleline(
+                                            &mut step.audio_sense_spec.spatial.output_x_var,
+                                        ),
+                                    )
+                                    .changed();
+                                ui.label("Y var");
+                                *live_sync |= ui
+                                    .add_sized(
+                                        [82.0, 20.0],
+                                        TextEdit::singleline(
+                                            &mut step.audio_sense_spec.spatial.output_y_var,
+                                        ),
+                                    )
+                                    .changed();
+                                ui.label("Pan var");
+                                *live_sync |= ui
+                                    .add_sized(
+                                        [82.0, 20.0],
+                                        TextEdit::singleline(
+                                            &mut step.audio_sense_spec.spatial.output_pan_var,
+                                        ),
+                                    )
+                                    .changed();
+                                ui.label("Level");
+                                *live_sync |= ui
+                                    .add_sized(
+                                        [82.0, 20.0],
+                                        TextEdit::singleline(
+                                            &mut step.audio_sense_spec.spatial.output_level_var,
+                                        ),
+                                    )
+                                    .changed();
+                            });
+                        }
+                    }
                 }
                 MacroAction::StopAudioSensePreset => {
                     ui.horizontal(|ui| {
@@ -20518,7 +20612,6 @@ impl CrosshairApp {
                             )
                             .changed();
                         if !step.audio_sense_stop_all {
-                            ui.label(Self::tr_lang(language, "Preset", "Preset"));
                             Self::render_audio_sense_preset_selector(
                                 ui,
                                 language,
@@ -20575,6 +20668,17 @@ impl CrosshairApp {
                                 ),
                             )
                             .changed();
+                    });
+                    ui.add_space(4.0);
+                    ui.horizontal(|ui| {
+                        if ui.button(Self::tr_lang(language, "Add as preset", "Them thanh preset")).clicked() {
+                            let next_id = audio_sense_presets.iter().map(|preset| preset.id).max().unwrap_or(0) + 1;
+                            let mut preset = AudioSensePreset::new_pitch(next_id);
+                            preset.name = format!("Pitch Detect {}", next_id);
+                            preset.pitch = step.audio_sense_spec.pitch.clone();
+                            audio_sense_presets.push(preset);
+                            *audio_sense_presets_changed = true;
+                        }
                     });
                 }
                 MacroAction::StartSpatialAudioDetect => {
@@ -20651,6 +20755,17 @@ impl CrosshairApp {
                         "Spatial Audio uses stereo left/right balance and maps it to X/Y.",
                         "Huong am dung can bang trai/phai de xap xi toa do X/Y.",
                     ));
+                    ui.add_space(4.0);
+                    ui.horizontal(|ui| {
+                        if ui.button(Self::tr_lang(language, "Add as preset", "Them thanh preset")).clicked() {
+                            let next_id = audio_sense_presets.iter().map(|preset| preset.id).max().unwrap_or(0) + 1;
+                            let mut preset = AudioSensePreset::new_spatial(next_id);
+                            preset.name = format!("Spatial Audio {}", next_id);
+                            preset.spatial = step.audio_sense_spec.spatial.clone();
+                            audio_sense_presets.push(preset);
+                            *audio_sense_presets_changed = true;
+                        }
+                    });
                 }
                 MacroAction::StopAudioSense => {
                     *live_sync |= ui
