@@ -10758,6 +10758,7 @@ mod windows_overlay {
         y: i32,
         font_size: i32,
         color: [u8; 4],
+        rotation_deg: f32,
         text: String,
     }
 
@@ -10785,28 +10786,10 @@ mod windows_overlay {
             stroke: [u8; 4],
             thickness: i32,
         },
-        Rectangle {
-            x: i32,
-            y: i32,
-            width: i32,
-            height: i32,
-            stroke: [u8; 4],
-            fill: Option<[u8; 4]>,
-            thickness: i32,
-        },
         Circle {
             cx: i32,
             cy: i32,
             radius: i32,
-            stroke: [u8; 4],
-            fill: Option<[u8; 4]>,
-            thickness: i32,
-        },
-        Ellipse {
-            cx: i32,
-            cy: i32,
-            rx: i32,
-            ry: i32,
             stroke: [u8; 4],
             fill: Option<[u8; 4]>,
             thickness: i32,
@@ -10831,16 +10814,6 @@ mod windows_overlay {
             fill: Option<[u8; 4]>,
             thickness: i32,
         },
-        Arc {
-            cx: i32,
-            cy: i32,
-            rx: i32,
-            ry: i32,
-            start_angle_deg: f32,
-            end_angle_deg: f32,
-            stroke: [u8; 4],
-            thickness: i32,
-        },
         Label(GeometryRenderText),
     }
 
@@ -10859,6 +10832,77 @@ mod windows_overlay {
         }
         let interpolated = interpolate_variables(trimmed);
         evaluate_math_expression_f64(&interpolated) as f32
+    }
+
+    fn geometry_rotate_point(x: f32, y: f32, cx: f32, cy: f32, rotation_deg: f32) -> (i32, i32) {
+        if rotation_deg.abs() < f32::EPSILON {
+            return (x.round() as i32, y.round() as i32);
+        }
+        let rad = rotation_deg.to_radians();
+        let cos = rad.cos();
+        let sin = rad.sin();
+        let dx = x - cx;
+        let dy = y - cy;
+        let rx = cx + dx * cos - dy * sin;
+        let ry = cy + dx * sin + dy * cos;
+        (rx.round() as i32, ry.round() as i32)
+    }
+
+    fn geometry_points_centroid(points: &[(i32, i32)]) -> Option<(f32, f32)> {
+        if points.is_empty() {
+            return None;
+        }
+        let (sum_x, sum_y) = points.iter().fold((0.0_f32, 0.0_f32), |(sx, sy), (x, y)| {
+            (sx + *x as f32, sy + *y as f32)
+        });
+        let count = points.len() as f32;
+        Some((sum_x / count, sum_y / count))
+    }
+
+    fn geometry_rotate_points(points: &[(i32, i32)], cx: f32, cy: f32, rotation_deg: f32) -> Vec<(i32, i32)> {
+        points
+            .iter()
+            .map(|(x, y)| geometry_rotate_point(*x as f32, *y as f32, cx, cy, rotation_deg))
+            .collect()
+    }
+
+    fn geometry_sample_ellipse_points(
+        cx: i32,
+        cy: i32,
+        rx: i32,
+        ry: i32,
+        start_angle_deg: f32,
+        end_angle_deg: f32,
+        rotation_deg: f32,
+        closed: bool,
+    ) -> Vec<(i32, i32)> {
+        let delta = (end_angle_deg - start_angle_deg).abs().max(1.0);
+        let steps = ((rx.max(ry) as f32) * delta.to_radians())
+            .round()
+            .clamp(24.0, 480.0) as i32;
+        let start = start_angle_deg;
+        let span = end_angle_deg - start_angle_deg;
+        let mut points = Vec::with_capacity((steps.max(1) + 1) as usize);
+        for i in 0..=steps.max(1) {
+            let t = i as f32 / steps.max(1) as f32;
+            let angle_deg = start + span * t;
+            let rad = angle_deg.to_radians();
+            let px = cx as f32 + rx as f32 * rad.cos();
+            let py = cy as f32 + ry as f32 * rad.sin();
+            points.push(geometry_rotate_point(
+                px,
+                py,
+                cx as f32,
+                cy as f32,
+                rotation_deg,
+            ));
+        }
+        if closed && points.len() > 2 && points.first() != points.last() {
+            if let Some(first) = points.first().copied() {
+                points.push(first);
+            }
+        }
+        points
     }
 
     fn parse_geometry_color_literal(value: &str) -> Option<[u8; 4]> {
@@ -10935,6 +10979,7 @@ mod windows_overlay {
         let thickness = geometry_eval_i32(&spec.thickness_expr, spec.thickness.round() as i32).max(1).min(50);
         let stroke_opacity = geometry_eval_f32(&spec.opacity_expr, spec.opacity).clamp(0.0, 1.0);
         let fill_opacity = geometry_eval_f32(&spec.fill_opacity_expr, spec.fill_opacity).clamp(0.0, 1.0);
+        let rotation_deg = geometry_eval_f32(&spec.rotation_expr, 0.0);
         let stroke = geometry_resolve_color(&spec.stroke_color_expr, spec.stroke_color, stroke_opacity);
         let fill = geometry_resolve_color(&spec.fill_color_expr, spec.fill_color, fill_opacity);
         let fill_option = spec.filled.then_some(fill);
@@ -10954,10 +10999,16 @@ mod windows_overlay {
                 })
             }
             GeometryShapeKind::Line => {
-                let x1 = geometry_eval_i32(&spec.x1_expr, 0);
-                let y1 = geometry_eval_i32(&spec.y1_expr, 0);
-                let x2 = geometry_eval_i32(&spec.x2_expr, 0);
-                let y2 = geometry_eval_i32(&spec.y2_expr, 0);
+                let mut x1 = geometry_eval_i32(&spec.x1_expr, 0);
+                let mut y1 = geometry_eval_i32(&spec.y1_expr, 0);
+                let mut x2 = geometry_eval_i32(&spec.x2_expr, 0);
+                let mut y2 = geometry_eval_i32(&spec.y2_expr, 0);
+                if rotation_deg.abs() >= f32::EPSILON {
+                    let cx = (x1 + x2) as f32 * 0.5;
+                    let cy = (y1 + y2) as f32 * 0.5;
+                    (x1, y1) = geometry_rotate_point(x1 as f32, y1 as f32, cx, cy, rotation_deg);
+                    (x2, y2) = geometry_rotate_point(x2 as f32, y2 as f32, cx, cy, rotation_deg);
+                }
                 Some(GeometryRenderShape {
                     bounds: (
                         x1.min(x2) - thickness,
@@ -11001,13 +11052,24 @@ mod windows_overlay {
                 let y = geometry_eval_i32(&spec.y1_expr, 0);
                 let width = geometry_eval_i32(&spec.width_expr, 1).max(1).min(2000);
                 let height = geometry_eval_i32(&spec.height_expr, 1).max(1).min(2000);
+                let cx = x as f32 + width as f32 * 0.5;
+                let cy = y as f32 + height as f32 * 0.5;
+                let points = geometry_rotate_points(
+                    &[
+                        (x, y),
+                        (x + width, y),
+                        (x + width, y + height),
+                        (x, y + height),
+                    ],
+                    cx,
+                    cy,
+                    rotation_deg,
+                );
+                let bounds = geometry_bounds_from_points(&points, thickness)?;
                 Some(GeometryRenderShape {
-                    bounds: (x - thickness, y - thickness, x + width + thickness, y + height + thickness),
-                    draw: GeometryRenderDraw::Rectangle {
-                        x,
-                        y,
-                        width,
-                        height,
+                    bounds,
+                    draw: GeometryRenderDraw::Polygon {
+                        points,
                         stroke,
                         fill: fill_option,
                         thickness,
@@ -11027,6 +11089,7 @@ mod windows_overlay {
                         y,
                         font_size,
                         color: stroke,
+                        rotation_deg,
                         text,
                     }),
                 })
@@ -11036,13 +11099,12 @@ mod windows_overlay {
                 let cy = geometry_eval_i32(&spec.y1_expr, 0);
                 let rx = geometry_eval_i32(&spec.radius_x_expr, 1).max(1).min(1000);
                 let ry = geometry_eval_i32(&spec.radius_y_expr, 1).max(1).min(1000);
+                let points = geometry_sample_ellipse_points(cx, cy, rx, ry, 0.0, 360.0, rotation_deg, true);
+                let bounds = geometry_bounds_from_points(&points, thickness)?;
                 Some(GeometryRenderShape {
-                    bounds: (cx - rx - thickness, cy - ry - thickness, cx + rx + thickness, cy + ry + thickness),
-                    draw: GeometryRenderDraw::Ellipse {
-                        cx,
-                        cy,
-                        rx,
-                        ry,
+                    bounds,
+                    draw: GeometryRenderDraw::Polygon {
+                        points,
                         stroke,
                         fill: fill_option,
                         thickness,
@@ -11050,11 +11112,17 @@ mod windows_overlay {
                 })
             }
             GeometryShapeKind::Arrow => {
-                let x1 = geometry_eval_i32(&spec.x1_expr, 0);
-                let y1 = geometry_eval_i32(&spec.y1_expr, 0);
-                let x2 = geometry_eval_i32(&spec.x2_expr, 0);
-                let y2 = geometry_eval_i32(&spec.y2_expr, 0);
+                let mut x1 = geometry_eval_i32(&spec.x1_expr, 0);
+                let mut y1 = geometry_eval_i32(&spec.y1_expr, 0);
+                let mut x2 = geometry_eval_i32(&spec.x2_expr, 0);
+                let mut y2 = geometry_eval_i32(&spec.y2_expr, 0);
                 let head_size = geometry_eval_i32(&spec.arrow_head_size_expr, spec.arrow_head_size.round() as i32).max(4).min(200);
+                if rotation_deg.abs() >= f32::EPSILON {
+                    let cx = (x1 + x2) as f32 * 0.5;
+                    let cy = (y1 + y2) as f32 * 0.5;
+                    (x1, y1) = geometry_rotate_point(x1 as f32, y1 as f32, cx, cy, rotation_deg);
+                    (x2, y2) = geometry_rotate_point(x2 as f32, y2 as f32, cx, cy, rotation_deg);
+                }
                 Some(GeometryRenderShape {
                     bounds: (
                         x1.min(x2) - head_size - thickness,
@@ -11074,7 +11142,11 @@ mod windows_overlay {
                 })
             }
             GeometryShapeKind::Polyline => {
-                let points = geometry_parse_points(&spec.points_expr);
+                let mut points = geometry_parse_points(&spec.points_expr);
+                if rotation_deg.abs() >= f32::EPSILON {
+                    let (cx, cy) = geometry_points_centroid(&points)?;
+                    points = geometry_rotate_points(&points, cx, cy, rotation_deg);
+                }
                 let bounds = geometry_bounds_from_points(&points, thickness)?;
                 Some(GeometryRenderShape {
                     bounds,
@@ -11086,7 +11158,11 @@ mod windows_overlay {
                 })
             }
             GeometryShapeKind::Polygon => {
-                let points = geometry_parse_points(&spec.points_expr);
+                let mut points = geometry_parse_points(&spec.points_expr);
+                if rotation_deg.abs() >= f32::EPSILON {
+                    let (cx, cy) = geometry_points_centroid(&points)?;
+                    points = geometry_rotate_points(&points, cx, cy, rotation_deg);
+                }
                 let bounds = geometry_bounds_from_points(&points, thickness)?;
                 Some(GeometryRenderShape {
                     bounds,
@@ -11105,15 +11181,21 @@ mod windows_overlay {
                 let ry = geometry_eval_i32(&spec.radius_y_expr, 1).max(1).min(1000);
                 let start_angle_deg = geometry_eval_f32(&spec.start_angle_expr, 0.0);
                 let end_angle_deg = geometry_eval_f32(&spec.end_angle_expr, 180.0);
+                let points = geometry_sample_ellipse_points(
+                    cx,
+                    cy,
+                    rx,
+                    ry,
+                    start_angle_deg,
+                    end_angle_deg,
+                    rotation_deg,
+                    false,
+                );
+                let bounds = geometry_bounds_from_points(&points, thickness)?;
                 Some(GeometryRenderShape {
-                    bounds: (cx - rx - thickness, cy - ry - thickness, cx + rx + thickness, cy + ry + thickness),
-                    draw: GeometryRenderDraw::Arc {
-                        cx,
-                        cy,
-                        rx,
-                        ry,
-                        start_angle_deg,
-                        end_angle_deg,
+                    bounds,
+                    draw: GeometryRenderDraw::Polyline {
+                        points,
                         stroke,
                         thickness,
                     },
@@ -14715,41 +14797,6 @@ mod windows_overlay {
                         *thickness,
                     );
                 }
-                GeometryRenderDraw::Rectangle {
-                    x,
-                    y,
-                    width: rect_width,
-                    height: rect_height,
-                    stroke,
-                    fill,
-                    thickness,
-                } => {
-                    let rel_left = x - min_x;
-                    let rel_top = y - min_y;
-                    if let Some(fill_color) = fill {
-                        fill_rect_rgba(
-                            pixels,
-                            width as usize,
-                            height as usize,
-                            rel_left,
-                            rel_top,
-                            *rect_width,
-                            *rect_height,
-                            *fill_color,
-                        );
-                    }
-                    draw_rect_outline_thick_rgba(
-                        pixels,
-                        width as usize,
-                        height as usize,
-                        rel_left,
-                        rel_top,
-                        *rect_width,
-                        *rect_height,
-                        *stroke,
-                        *thickness,
-                    );
-                }
                 GeometryRenderDraw::Circle {
                     cx,
                     cy,
@@ -14781,43 +14828,6 @@ mod windows_overlay {
                         top,
                         size,
                         size,
-                        *stroke,
-                        *thickness,
-                    );
-                }
-                GeometryRenderDraw::Ellipse {
-                    cx,
-                    cy,
-                    rx,
-                    ry,
-                    stroke,
-                    fill,
-                    thickness,
-                } => {
-                    let left = cx - min_x - rx;
-                    let top = cy - min_y - ry;
-                    let ellipse_width = rx.saturating_mul(2).max(1);
-                    let ellipse_height = ry.saturating_mul(2).max(1);
-                    if let Some(fill_color) = fill {
-                        fill_ellipse_rgba(
-                            pixels,
-                            width as usize,
-                            height as usize,
-                            left,
-                            top,
-                            ellipse_width,
-                            ellipse_height,
-                            *fill_color,
-                        );
-                    }
-                    draw_ellipse_outline_thick_rgba(
-                        pixels,
-                        width as usize,
-                        height as usize,
-                        left,
-                        top,
-                        ellipse_width,
-                        ellipse_height,
                         *stroke,
                         *thickness,
                     );
@@ -14926,30 +14936,6 @@ mod windows_overlay {
                         );
                     }
                 }
-                GeometryRenderDraw::Arc {
-                    cx,
-                    cy,
-                    rx,
-                    ry,
-                    start_angle_deg,
-                    end_angle_deg,
-                    stroke,
-                    thickness,
-                } => {
-                    draw_arc_rgba(
-                        pixels,
-                        width as usize,
-                        height as usize,
-                        cx - min_x,
-                        cy - min_y,
-                        *rx,
-                        *ry,
-                        *start_angle_deg,
-                        *end_angle_deg,
-                        *stroke,
-                        *thickness,
-                    );
-                }
                 GeometryRenderDraw::Label(text) => geometry_texts.push(text.clone()),
             }
         }
@@ -14960,11 +14946,12 @@ mod windows_overlay {
                 .encode_utf16()
                 .chain(std::iter::once(0))
                 .collect::<Vec<_>>();
+            let rotation_tenths = (text.rotation_deg * 10.0).round() as i32;
             let font = CreateFontW(
                 -(text.font_size.max(10)),
                 0,
-                0,
-                0,
+                rotation_tenths,
+                rotation_tenths,
                 FW_MEDIUM.0 as i32,
                 0,
                 0,
@@ -14988,8 +14975,8 @@ mod windows_overlay {
             let mut text_rect = RECT {
                 left: text.x - min_x,
                 top: text.y - min_y,
-                right: (text.x - min_x) + 600,
-                bottom: (text.y - min_y) + text.font_size + 8,
+                right: (text.x - min_x) + 800,
+                bottom: (text.y - min_y) + text.font_size + 80,
             };
             let mut wide_text = text
                 .text

@@ -503,6 +503,19 @@ impl CrosshairApp {
                         changed |= Self::geometry_fill_mode_row(ui, language, &mut spec.filled);
                     }
 
+                    changed |= Self::geometry_expr_row(
+                        ui,
+                        preset_id,
+                        object_id,
+                        "rotation",
+                        Self::tr_lang(language, "Rotate", "Xoay"),
+                        &mut spec.rotation_expr,
+                        120.0,
+                        120.0,
+                        vietnamese_input_enabled,
+                        vietnamese_input_mode,
+                    );
+
                     let stroke_label = if spec.shape == GeometryShapeKind::Polygon {
                         Self::tr_lang(language, "Stroke", "Viền")
                     } else {
@@ -1118,6 +1131,37 @@ impl CrosshairApp {
                             );
                         }
                         GeometryShapeKind::Polyline | GeometryShapeKind::Polygon => unreachable!(),
+                    }
+
+                    if matches!(
+                        spec.shape,
+                        GeometryShapeKind::Line
+                            | GeometryShapeKind::Rectangle
+                            | GeometryShapeKind::Label
+                            | GeometryShapeKind::Ellipse
+                            | GeometryShapeKind::Arrow
+                            | GeometryShapeKind::Arc
+                    ) {
+                        changed |= Self::geometry_expr_pair_row(
+                            ui,
+                            language,
+                            preset_id,
+                            object_id,
+                            "rotation",
+                            255,
+                            Self::tr_lang(language, "Rotate", "Xoay"),
+                            &mut spec.rotation_expr,
+                            120.0,
+                            120.0,
+                            "",
+                            &mut String::new(),
+                            0.0,
+                            0.0,
+                            begin_mouse_move_absolute_capture_target,
+                            vietnamese_input_enabled,
+                            vietnamese_input_mode,
+                            group_id_override,
+                        );
                     }
 
                     let stroke_label = if matches!(
