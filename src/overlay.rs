@@ -15310,6 +15310,25 @@ mod windows_overlay {
         }
     }
 
+    fn draw_square_brush_rgba(
+        pixels: &mut [u8],
+        width: usize,
+        height: usize,
+        cx: i32,
+        cy: i32,
+        thickness: i32,
+        color: [u8; 4],
+    ) {
+        let thickness = thickness.max(1);
+        let left_extent = (thickness - 1) / 2;
+        let right_extent = thickness / 2;
+        for py in (cy - left_extent)..=(cy + right_extent) {
+            for px in (cx - left_extent)..=(cx + right_extent) {
+                blend_rgba_pixel(pixels, width, height, px, py, color);
+            }
+        }
+    }
+
     fn draw_line_aa_impl(
         pixels: &mut [u8],
         width: usize,
@@ -15321,38 +15340,27 @@ mod windows_overlay {
         color: [u8; 4],
         thickness: i32,
     ) {
-        let dx = x1 - x0;
-        let dy = y1 - y0;
-        let steps = dx.abs().max(dy.abs()).max(1);
-        let r = thickness as f32 * 0.5;
-        let r_inner = r - 0.5;
-        let r_outer = r + 0.5;
-        for step in 0..=steps {
-            let t = step as f32 / steps as f32;
-            let cx = x0 as f32 + dx as f32 * t;
-            let cy = y0 as f32 + dy as f32 * t;
-            let min_x = (cx - r_outer).floor() as i32;
-            let max_x = (cx + r_outer).ceil() as i32;
-            let min_y = (cy - r_outer).floor() as i32;
-            let max_y = (cy + r_outer).ceil() as i32;
-            for py in min_y..=max_y {
-                for px in min_x..=max_x {
-                    let dx_p = px as f32 - cx;
-                    let dy_p = py as f32 - cy;
-                    let dist = (dx_p * dx_p + dy_p * dy_p).sqrt();
-                    let brightness = if dist <= r_inner {
-                        1.0
-                    } else if dist >= r_outer {
-                        0.0
-                    } else {
-                        r_outer - dist
-                    };
-                    if brightness > 0.0 {
-                        let mut blended_color = color;
-                        blended_color[3] = (color[3] as f32 * brightness) as u8;
-                        blend_rgba_pixel(pixels, width, height, px, py, blended_color);
-                    }
-                }
+        let mut x = x0;
+        let mut y = y0;
+        let dx = (x1 - x0).abs();
+        let sx = if x0 < x1 { 1 } else { -1 };
+        let dy = -(y1 - y0).abs();
+        let sy = if y0 < y1 { 1 } else { -1 };
+        let mut err = dx + dy;
+
+        loop {
+            draw_square_brush_rgba(pixels, width, height, x, y, thickness, color);
+            if x == x1 && y == y1 {
+                break;
+            }
+            let e2 = err * 2;
+            if e2 >= dy {
+                err += dy;
+                x += sx;
+            }
+            if e2 <= dx {
+                err += dx;
+                y += sy;
             }
         }
     }
