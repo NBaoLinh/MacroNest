@@ -8419,67 +8419,68 @@ impl CrosshairApp {
 
                                                     }
 
-                                                 if step.action == MacroAction::ScanVisionOnce {
-                                                     ui.add_space(4.0);
-                                                     let outputs_label = Self::tr_lang(language, "Outputs", "Đầu ra").to_owned();
-                                                     egui::ComboBox::from_id_salt((group.id, preset.id, "hold-stop-vision-outputs"))
-                                                         .close_behavior(egui::PopupCloseBehavior::CloseOnClickOutside)
-                                                         .width(110.0)
-                                                         .selected_text(outputs_label)
-                                                          .show_ui(ui, |ui| {
-                                                              ui.set_min_width(200.0);
-                                                              egui::Grid::new("vision_outputs_grid_hold_stop")
-                                                                 .num_columns(2)
-                                                                 .spacing([8.0, 6.0])
-                                                                 .show(ui, |ui| {
-                                                                     if is_single_pixel {
-                                                                         let resp_label = ui.label(Self::tr_lang(language, "Color Var:", "Biến màu:"));
-                                                                         let prev_override = ui.visuals().override_text_color;
-                                                                         ui.visuals_mut().override_text_color = None;
-                                                                         let resp = ui.add(egui::TextEdit::singleline(&mut step.if_variable_name).hint_text("var_color"));
-                                                                         ui.visuals_mut().override_text_color = prev_override;
-                                                                         Self::apply_vietnamese_input_if_changed(&resp, self.state.vietnamese_input_enabled, self.state.vietnamese_input_mode, &mut step.if_variable_name);
-                                                                         live_sync |= resp.changed();
-                                                                         ui.end_row();
-                                                                     } else if !is_pixel {
-                                                                         let resp_label = ui.label("Pos X:");
-                                                                         let prev_override = ui.visuals().override_text_color;
-                                                                         ui.visuals_mut().override_text_color = None;
-                                                                         let resp = ui.add(egui::TextEdit::singleline(&mut step.vision_pos_var_x).hint_text("var_x"));
-                                                                         ui.visuals_mut().override_text_color = prev_override;
-                                                                         Self::apply_vietnamese_input_if_changed(&resp, self.state.vietnamese_input_enabled, self.state.vietnamese_input_mode, &mut step.vision_pos_var_x);
-                                                                         live_sync |= resp.changed();
-                                                                         ui.end_row();
+                                                                                                   if step.action == MacroAction::ScanVisionOnce {
+                                                      ui.add_space(4.0);
+                                                      if is_single_pixel {
+                                                          ui.label(Self::tr_lang(language, "Color Var:", "Biến màu:"));
+                                                          let prev_override = ui.visuals().override_text_color;
+                                                          ui.visuals_mut().override_text_color = None;
+                                                          let resp = ui.add(egui::TextEdit::singleline(&mut step.if_variable_name).hint_text("var_color").desired_width(100.0));
+                                                          ui.visuals_mut().override_text_color = prev_override;
+                                                          Self::apply_vietnamese_input_if_changed(&resp, self.state.vietnamese_input_enabled, self.state.vietnamese_input_mode, &mut step.if_variable_name);
+                                                          live_sync |= resp.changed();
+                                                      } else {
+                                                          let outputs_label = Self::tr_lang(language, "Outputs", "Đầu ra").to_owned();
+                                                          egui::ComboBox::from_id_salt((group.id, preset.id, "hold-stop-vision-outputs"))
+                                                              .close_behavior(egui::PopupCloseBehavior::CloseOnClickOutside)
+                                                              .width(110.0)
+                                                              .selected_text(outputs_label)
+                                                               .show_ui(ui, |ui| {
+                                                                   ui.set_min_width(200.0);
+                                                                   egui::Grid::new("vision_outputs_grid_hold_stop")
+                                                                      .num_columns(2)
+                                                                      .spacing([8.0, 6.0])
+                                                                      .show(ui, |ui| {
+                                                                          if !is_pixel {
+                                                                              let resp_label = ui.label("Pos X:");
+                                                                              let prev_override = ui.visuals().override_text_color;
+                                                                              ui.visuals_mut().override_text_color = None;
+                                                                              let resp = ui.add(egui::TextEdit::singleline(&mut step.vision_pos_var_x).hint_text("var_x"));
+                                                                              ui.visuals_mut().override_text_color = prev_override;
+                                                                              Self::apply_vietnamese_input_if_changed(&resp, self.state.vietnamese_input_enabled, self.state.vietnamese_input_mode, &mut step.vision_pos_var_x);
+                                                                              live_sync |= resp.changed();
+                                                                              ui.end_row();
 
-                                                                         let resp_label = ui.label("Pos Y:");
-                                                                         let prev_override = ui.visuals().override_text_color;
-                                                                         ui.visuals_mut().override_text_color = None;
-                                                                         let resp = ui.add(egui::TextEdit::singleline(&mut step.vision_pos_var_y).hint_text("var_y"));
-                                                                         ui.visuals_mut().override_text_color = prev_override;
-                                                                         Self::apply_vietnamese_input_if_changed(&resp, self.state.vietnamese_input_enabled, self.state.vietnamese_input_mode, &mut step.vision_pos_var_y);
-                                                                         live_sync |= resp.changed();
-                                                                         ui.end_row();
-                                                                     } else {
-                                                                         let resp_label = ui.label(Self::tr_lang(language, "Count Var:", "Biến kết quả:"));
-                                                                         let prev_override = ui.visuals().override_text_color;
-                                                                         ui.visuals_mut().override_text_color = None;
-                                                                         let resp = ui.add(egui::TextEdit::singleline(&mut step.if_variable_name).hint_text("var_count"));
-                                                                         ui.visuals_mut().override_text_color = prev_override;
-                                                                         Self::apply_vietnamese_input_if_changed(&resp, self.state.vietnamese_input_enabled, self.state.vietnamese_input_mode, &mut step.if_variable_name);
-                                                                         live_sync |= resp.changed();
-                                                                         ui.end_row();
-                                                                     }
-                                                                  });
-                                                          });
-                                                     if supports_move_mouse {
-                                                         ui.add_space(4.0);
-                                                         let resp = ui.checkbox(
-                                                             &mut step.vision_move_cursor_on_match,
-                                                             Self::tr_lang(language, "Move Mouse", "Di chuột"),
-                                                         );
-                                                         live_sync |= resp.changed();
-                                                     }
-                                                 }
+                                                                              let resp_label = ui.label("Pos Y:");
+                                                                              let prev_override = ui.visuals().override_text_color;
+                                                                              ui.visuals_mut().override_text_color = None;
+                                                                              let resp = ui.add(egui::TextEdit::singleline(&mut step.vision_pos_var_y).hint_text("var_y"));
+                                                                              ui.visuals_mut().override_text_color = prev_override;
+                                                                              Self::apply_vietnamese_input_if_changed(&resp, self.state.vietnamese_input_enabled, self.state.vietnamese_input_mode, &mut step.vision_pos_var_y);
+                                                                              live_sync |= resp.changed();
+                                                                              ui.end_row();
+                                                                          } else {
+                                                                              let resp_label = ui.label(Self::tr_lang(language, "Count Var:", "Biến kết quả:"));
+                                                                              let prev_override = ui.visuals().override_text_color;
+                                                                              ui.visuals_mut().override_text_color = None;
+                                                                              let resp = ui.add(egui::TextEdit::singleline(&mut step.if_variable_name).hint_text("var_count"));
+                                                                              ui.visuals_mut().override_text_color = prev_override;
+                                                                              Self::apply_vietnamese_input_if_changed(&resp, self.state.vietnamese_input_enabled, self.state.vietnamese_input_mode, &mut step.if_variable_name);
+                                                                              live_sync |= resp.changed();
+                                                                              ui.end_row();
+                                                                          }
+                                                                       });
+                                                               });
+                                                      }
+                                                      if supports_move_mouse {
+                                                          ui.add_space(4.0);
+                                                          let resp = ui.checkbox(
+                                                              &mut step.vision_move_cursor_on_match,
+                                                              Self::tr_lang(language, "Move Mouse", "Di chuột"),
+                                                          );
+                                                          live_sync |= resp.changed();
+                                                      }
+                                                  }
 
                                                 } else if step.action == MacroAction::ApplyMouseSensitivityPreset {
 
@@ -13811,67 +13812,68 @@ impl CrosshairApp {
 
                                                     }
 
-                                                     if step.action == MacroAction::ScanVisionOnce {
-                                                         ui.add_space(4.0);
-                                                         let outputs_label = Self::tr_lang(language, "Outputs", "Đầu ra").to_owned();
-                                                         egui::ComboBox::from_id_salt((group.id, preset.id, step_index, "vision-outputs-rt"))
-                                                             .close_behavior(egui::PopupCloseBehavior::CloseOnClickOutside)
-                                                             .width(110.0)
-                                                             .selected_text(outputs_label)
-                                                             .show_ui(ui, |ui| {
-                                                                 ui.set_min_width(200.0);
-                                                                 egui::Grid::new("vision_outputs_grid_rt")
-                                                                     .num_columns(2)
-                                                                     .spacing([8.0, 6.0])
-                                                                     .show(ui, |ui| {
-                                                                         if is_single_pixel {
-                                                                             let resp_label = ui.label(Self::tr_lang(language, "Color Var:", "Biến màu:"));
-                                                                             let prev_override = ui.visuals().override_text_color;
-                                                                             ui.visuals_mut().override_text_color = None;
-                                                                             let resp = ui.add(egui::TextEdit::singleline(&mut step.if_variable_name).hint_text("var_color"));
-                                                                             ui.visuals_mut().override_text_color = prev_override;
-                                                                             Self::apply_vietnamese_input_if_changed(&resp, self.state.vietnamese_input_enabled, self.state.vietnamese_input_mode, &mut step.if_variable_name);
-                                                                             live_sync |= resp.changed();
-                                                                             ui.end_row();
-                                                                         } else if !is_pixel {
-                                                                             let resp_label = ui.label("Pos X:");
-                                                                             let prev_override = ui.visuals().override_text_color;
-                                                                             ui.visuals_mut().override_text_color = None;
-                                                                             let resp = ui.add(egui::TextEdit::singleline(&mut step.vision_pos_var_x).hint_text("var_x"));
-                                                                             ui.visuals_mut().override_text_color = prev_override;
-                                                                             Self::apply_vietnamese_input_if_changed(&resp, self.state.vietnamese_input_enabled, self.state.vietnamese_input_mode, &mut step.vision_pos_var_x);
-                                                                             live_sync |= resp.changed();
-                                                                             ui.end_row();
+                                                                                                           if step.action == MacroAction::ScanVisionOnce {
+                                                          ui.add_space(4.0);
+                                                          if is_single_pixel {
+                                                              ui.label(Self::tr_lang(language, "Color Var:", "Biến màu:"));
+                                                              let prev_override = ui.visuals().override_text_color;
+                                                              ui.visuals_mut().override_text_color = None;
+                                                              let resp = ui.add(egui::TextEdit::singleline(&mut step.if_variable_name).hint_text("var_color").desired_width(100.0));
+                                                              ui.visuals_mut().override_text_color = prev_override;
+                                                              Self::apply_vietnamese_input_if_changed(&resp, self.state.vietnamese_input_enabled, self.state.vietnamese_input_mode, &mut step.if_variable_name);
+                                                              live_sync |= resp.changed();
+                                                          } else {
+                                                              let outputs_label = Self::tr_lang(language, "Outputs", "Đầu ra").to_owned();
+                                                              egui::ComboBox::from_id_salt((group.id, preset.id, step_index, "vision-outputs-rt"))
+                                                                  .close_behavior(egui::PopupCloseBehavior::CloseOnClickOutside)
+                                                                  .width(110.0)
+                                                                  .selected_text(outputs_label)
+                                                                  .show_ui(ui, |ui| {
+                                                                      ui.set_min_width(200.0);
+                                                                      egui::Grid::new("vision_outputs_grid_rt")
+                                                                          .num_columns(2)
+                                                                          .spacing([8.0, 6.0])
+                                                                          .show(ui, |ui| {
+                                                                              if !is_pixel {
+                                                                                  let resp_label = ui.label("Pos X:");
+                                                                                  let prev_override = ui.visuals().override_text_color;
+                                                                                  ui.visuals_mut().override_text_color = None;
+                                                                                  let resp = ui.add(egui::TextEdit::singleline(&mut step.vision_pos_var_x).hint_text("var_x"));
+                                                                                  ui.visuals_mut().override_text_color = prev_override;
+                                                                                  Self::apply_vietnamese_input_if_changed(&resp, self.state.vietnamese_input_enabled, self.state.vietnamese_input_mode, &mut step.vision_pos_var_x);
+                                                                                  live_sync |= resp.changed();
+                                                                                  ui.end_row();
 
-                                                                             let resp_label = ui.label("Pos Y:");
-                                                                             let prev_override = ui.visuals().override_text_color;
-                                                                             ui.visuals_mut().override_text_color = None;
-                                                                             let resp = ui.add(egui::TextEdit::singleline(&mut step.vision_pos_var_y).hint_text("var_y"));
-                                                                             ui.visuals_mut().override_text_color = prev_override;
-                                                                             Self::apply_vietnamese_input_if_changed(&resp, self.state.vietnamese_input_enabled, self.state.vietnamese_input_mode, &mut step.vision_pos_var_y);
-                                                                             live_sync |= resp.changed();
-                                                                             ui.end_row();
-                                                                         } else {
-                                                                             let resp_label = ui.label(Self::tr_lang(language, "Count Var:", "Biến kết quả:"));
-                                                                             let prev_override = ui.visuals().override_text_color;
-                                                                             ui.visuals_mut().override_text_color = None;
-                                                                             let resp = ui.add(egui::TextEdit::singleline(&mut step.if_variable_name).hint_text("var_count"));
-                                                                             ui.visuals_mut().override_text_color = prev_override;
-                                                                             Self::apply_vietnamese_input_if_changed(&resp, self.state.vietnamese_input_enabled, self.state.vietnamese_input_mode, &mut step.if_variable_name);
-                                                                             live_sync |= resp.changed();
-                                                                             ui.end_row();
-                                                                         }
-                                                                     });
-                                                             });
-                                                     if supports_move_mouse {
-                                                         ui.add_space(4.0);
-                                                         let resp = ui.checkbox(
-                                                             &mut step.vision_move_cursor_on_match,
-                                                             Self::tr_lang(language, "Move Mouse", "Di chuột"),
-                                                         );
-                                                         live_sync |= resp.changed();
-                                                     }
-                                                     }
+                                                                                  let resp_label = ui.label("Pos Y:");
+                                                                                  let prev_override = ui.visuals().override_text_color;
+                                                                                  ui.visuals_mut().override_text_color = None;
+                                                                                  let resp = ui.add(egui::TextEdit::singleline(&mut step.vision_pos_var_y).hint_text("var_y"));
+                                                                                  ui.visuals_mut().override_text_color = prev_override;
+                                                                                  Self::apply_vietnamese_input_if_changed(&resp, self.state.vietnamese_input_enabled, self.state.vietnamese_input_mode, &mut step.vision_pos_var_y);
+                                                                                  live_sync |= resp.changed();
+                                                                                  ui.end_row();
+                                                                              } else {
+                                                                                  let resp_label = ui.label(Self::tr_lang(language, "Count Var:", "Biến kết quả:"));
+                                                                                  let prev_override = ui.visuals().override_text_color;
+                                                                                  ui.visuals_mut().override_text_color = None;
+                                                                                  let resp = ui.add(egui::TextEdit::singleline(&mut step.if_variable_name).hint_text("var_count"));
+                                                                                  ui.visuals_mut().override_text_color = prev_override;
+                                                                                  Self::apply_vietnamese_input_if_changed(&resp, self.state.vietnamese_input_enabled, self.state.vietnamese_input_mode, &mut step.if_variable_name);
+                                                                                  live_sync |= resp.changed();
+                                                                                  ui.end_row();
+                                                                              }
+                                                                          });
+                                                                  });
+                                                          }
+                                                          if supports_move_mouse {
+                                                              ui.add_space(4.0);
+                                                              let resp = ui.checkbox(
+                                                                  &mut step.vision_move_cursor_on_match,
+                                                                  Self::tr_lang(language, "Move Mouse", "Di chuột"),
+                                                              );
+                                                              live_sync |= resp.changed();
+                                                          }
+                                                      }
 
                                                 } else if step.action == MacroAction::EnableZoomPreset {
 
@@ -16201,67 +16203,68 @@ impl CrosshairApp {
 
                                                      }
 
-                                                     if step.action == MacroAction::ScanVisionOnce {
-                                                         ui.add_space(4.0);
-                                                         let outputs_label = Self::tr_lang(language, "Outputs", "Đầu ra").to_owned();
-                                                         egui::ComboBox::from_id_salt((group.id, preset.id, step_index, "vision-outputs-reg"))
-                                                             .close_behavior(egui::PopupCloseBehavior::CloseOnClickOutside)
-                                                             .width(110.0)
-                                                             .selected_text(outputs_label)
-                                                             .show_ui(ui, |ui| {
-                                                                 ui.set_min_width(200.0);
-                                                                 egui::Grid::new("vision_outputs_grid_reg")
-                                                                     .num_columns(2)
-                                                                     .spacing([8.0, 6.0])
-                                                                     .show(ui, |ui| {
-                                                                         if is_single_pixel {
-                                                                             let resp_label = ui.label(Self::tr_lang(language, "Color Var:", "Biến màu:"));
-                                                                             let prev_override = ui.visuals().override_text_color;
-                                                                             ui.visuals_mut().override_text_color = None;
-                                                                             let resp = ui.add(egui::TextEdit::singleline(&mut step.if_variable_name).hint_text("var_color"));
-                                                                             ui.visuals_mut().override_text_color = prev_override;
-                                                                             Self::apply_vietnamese_input_if_changed(&resp, self.state.vietnamese_input_enabled, self.state.vietnamese_input_mode, &mut step.if_variable_name);
-                                                                             live_sync |= resp.changed();
-                                                                             ui.end_row();
-                                                                         } else if !is_pixel {
-                                                                             let resp_label = ui.label("Pos X:");
-                                                                             let prev_override = ui.visuals().override_text_color;
-                                                                             ui.visuals_mut().override_text_color = None;
-                                                                             let resp = ui.add(egui::TextEdit::singleline(&mut step.vision_pos_var_x).hint_text("var_x"));
-                                                                             ui.visuals_mut().override_text_color = prev_override;
-                                                                             Self::apply_vietnamese_input_if_changed(&resp, self.state.vietnamese_input_enabled, self.state.vietnamese_input_mode, &mut step.vision_pos_var_x);
-                                                                             live_sync |= resp.changed();
-                                                                             ui.end_row();
+                                                                                                           if step.action == MacroAction::ScanVisionOnce {
+                                                          ui.add_space(4.0);
+                                                          if is_single_pixel {
+                                                              ui.label(Self::tr_lang(language, "Color Var:", "Biến màu:"));
+                                                              let prev_override = ui.visuals().override_text_color;
+                                                              ui.visuals_mut().override_text_color = None;
+                                                              let resp = ui.add(egui::TextEdit::singleline(&mut step.if_variable_name).hint_text("var_color").desired_width(100.0));
+                                                              ui.visuals_mut().override_text_color = prev_override;
+                                                              Self::apply_vietnamese_input_if_changed(&resp, self.state.vietnamese_input_enabled, self.state.vietnamese_input_mode, &mut step.if_variable_name);
+                                                              live_sync |= resp.changed();
+                                                          } else {
+                                                              let outputs_label = Self::tr_lang(language, "Outputs", "Đầu ra").to_owned();
+                                                              egui::ComboBox::from_id_salt((group.id, preset.id, step_index, "vision-outputs-reg"))
+                                                                  .close_behavior(egui::PopupCloseBehavior::CloseOnClickOutside)
+                                                                  .width(110.0)
+                                                                  .selected_text(outputs_label)
+                                                                  .show_ui(ui, |ui| {
+                                                                      ui.set_min_width(200.0);
+                                                                      egui::Grid::new("vision_outputs_grid_reg")
+                                                                          .num_columns(2)
+                                                                          .spacing([8.0, 6.0])
+                                                                          .show(ui, |ui| {
+                                                                              if !is_pixel {
+                                                                                  let resp_label = ui.label("Pos X:");
+                                                                                  let prev_override = ui.visuals().override_text_color;
+                                                                                  ui.visuals_mut().override_text_color = None;
+                                                                                  let resp = ui.add(egui::TextEdit::singleline(&mut step.vision_pos_var_x).hint_text("var_x"));
+                                                                                  ui.visuals_mut().override_text_color = prev_override;
+                                                                                  Self::apply_vietnamese_input_if_changed(&resp, self.state.vietnamese_input_enabled, self.state.vietnamese_input_mode, &mut step.vision_pos_var_x);
+                                                                                  live_sync |= resp.changed();
+                                                                                  ui.end_row();
 
-                                                                             let resp_label = ui.label("Pos Y:");
-                                                                             let prev_override = ui.visuals().override_text_color;
-                                                                             ui.visuals_mut().override_text_color = None;
-                                                                             let resp = ui.add(egui::TextEdit::singleline(&mut step.vision_pos_var_y).hint_text("var_y"));
-                                                                             ui.visuals_mut().override_text_color = prev_override;
-                                                                             Self::apply_vietnamese_input_if_changed(&resp, self.state.vietnamese_input_enabled, self.state.vietnamese_input_mode, &mut step.vision_pos_var_y);
-                                                                             live_sync |= resp.changed();
-                                                                             ui.end_row();
-                                                                         } else {
-                                                                             let resp_label = ui.label(Self::tr_lang(language, "Count Var:", "Biến kết quả:"));
-                                                                             let prev_override = ui.visuals().override_text_color;
-                                                                             ui.visuals_mut().override_text_color = None;
-                                                                             let resp = ui.add(egui::TextEdit::singleline(&mut step.if_variable_name).hint_text("var_count"));
-                                                                             ui.visuals_mut().override_text_color = prev_override;
-                                                                             Self::apply_vietnamese_input_if_changed(&resp, self.state.vietnamese_input_enabled, self.state.vietnamese_input_mode, &mut step.if_variable_name);
-                                                                             live_sync |= resp.changed();
-                                                                             ui.end_row();
-                                                                         }
-                                                                     });
-                                                             });
-                                                     if supports_move_mouse {
-                                                         ui.add_space(4.0);
-                                                         let resp = ui.checkbox(
-                                                             &mut step.vision_move_cursor_on_match,
-                                                             Self::tr_lang(language, "Move Mouse", "Di chuột"),
-                                                         );
-                                                         live_sync |= resp.changed();
-                                                     }
-                                                     }
+                                                                                  let resp_label = ui.label("Pos Y:");
+                                                                                  let prev_override = ui.visuals().override_text_color;
+                                                                                  ui.visuals_mut().override_text_color = None;
+                                                                                  let resp = ui.add(egui::TextEdit::singleline(&mut step.vision_pos_var_y).hint_text("var_y"));
+                                                                                  ui.visuals_mut().override_text_color = prev_override;
+                                                                                  Self::apply_vietnamese_input_if_changed(&resp, self.state.vietnamese_input_enabled, self.state.vietnamese_input_mode, &mut step.vision_pos_var_y);
+                                                                                  live_sync |= resp.changed();
+                                                                                  ui.end_row();
+                                                                              } else {
+                                                                                  let resp_label = ui.label(Self::tr_lang(language, "Count Var:", "Biến kết quả:"));
+                                                                                  let prev_override = ui.visuals().override_text_color;
+                                                                                  ui.visuals_mut().override_text_color = None;
+                                                                                  let resp = ui.add(egui::TextEdit::singleline(&mut step.if_variable_name).hint_text("var_count"));
+                                                                                  ui.visuals_mut().override_text_color = prev_override;
+                                                                                  Self::apply_vietnamese_input_if_changed(&resp, self.state.vietnamese_input_enabled, self.state.vietnamese_input_mode, &mut step.if_variable_name);
+                                                                                  live_sync |= resp.changed();
+                                                                                  ui.end_row();
+                                                                              }
+                                                                          });
+                                                                  });
+                                                          }
+                                                          if supports_move_mouse {
+                                                              ui.add_space(4.0);
+                                                              let resp = ui.checkbox(
+                                                                  &mut step.vision_move_cursor_on_match,
+                                                                  Self::tr_lang(language, "Move Mouse", "Di chuột"),
+                                                              );
+                                                              live_sync |= resp.changed();
+                                                          }
+                                                      }
 
                                                 } else {
 

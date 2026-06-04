@@ -9696,7 +9696,7 @@ mod windows_overlay {
     pub(crate) fn hide_hud_now() {
         *HUD_DISPLAY.lock() = None;
         *HUD_PREVIEW_DISPLAY.lock() = None;
-        wake_command_queue();
+        send_overlay_command(OverlayCommand::PreviewHudPreset(Vec::new()));
     }
 
     fn hide_toolbox_for_owner(owner_preset_id: u32) {
@@ -15775,6 +15775,8 @@ mod fallback {
     }
 
     pub(crate) fn disable_pin_preset(_spec: &str) {}
+
+    pub(crate) fn hide_hud_now() {}
 }
 
 #[cfg(not(windows))]
