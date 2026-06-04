@@ -152,14 +152,14 @@ impl CrosshairApp {
 
                             ComboBox::from_id_salt((preset.id, object.id, "shape"))
                                 .width(132.0)
-                                .selected_text(Self::geometry_shape_label(object.spec.shape))
+                                .selected_text(Self::geometry_shape_label(object.spec.shape, language))
                                 .show_ui(ui, |ui| {
                                     for shape in Self::geometry_shapes() {
                                         changed |= ui
                                             .selectable_value(
                                                 &mut object.spec.shape,
                                                 shape,
-                                                Self::geometry_shape_label(shape),
+                                                Self::geometry_shape_label(shape, language),
                                             )
                                             .changed();
                                     }
@@ -309,18 +309,32 @@ impl CrosshairApp {
         ]
     }
 
-    pub(crate) fn geometry_shape_label(shape: GeometryShapeKind) -> &'static str {
-        match shape {
-            GeometryShapeKind::Point => "Point",
-            GeometryShapeKind::Line => "Line",
-            GeometryShapeKind::Circle => "Circle",
-            GeometryShapeKind::Rectangle => "Rectangle",
-            GeometryShapeKind::Label => "Label",
-            GeometryShapeKind::Ellipse => "Ellipse",
-            GeometryShapeKind::Arrow => "Arrow",
-            GeometryShapeKind::Polyline => "Polyline",
-            GeometryShapeKind::Polygon => "Polygon",
-            GeometryShapeKind::Arc => "Arc",
+    pub(crate) fn geometry_shape_label(shape: GeometryShapeKind, language: crate::model::UiLanguage) -> &'static str {
+        match language {
+            crate::model::UiLanguage::Vietnamese => match shape {
+                GeometryShapeKind::Point => "Diem",
+                GeometryShapeKind::Line => "Duong thang",
+                GeometryShapeKind::Circle => "Hinh tron",
+                GeometryShapeKind::Rectangle => "Hinh chu nhat",
+                GeometryShapeKind::Label => "Van ban/Nhan",
+                GeometryShapeKind::Ellipse => "Hinh elip",
+                GeometryShapeKind::Arrow => "Mui ten",
+                GeometryShapeKind::Polyline => "Duong gap khuc",
+                GeometryShapeKind::Polygon => "Da giac",
+                GeometryShapeKind::Arc => "Cung tron",
+            },
+            _ => match shape {
+                GeometryShapeKind::Point => "Point",
+                GeometryShapeKind::Line => "Line",
+                GeometryShapeKind::Circle => "Circle",
+                GeometryShapeKind::Rectangle => "Rectangle",
+                GeometryShapeKind::Label => "Label",
+                GeometryShapeKind::Ellipse => "Ellipse",
+                GeometryShapeKind::Arrow => "Arrow",
+                GeometryShapeKind::Polyline => "Polyline",
+                GeometryShapeKind::Polygon => "Polygon",
+                GeometryShapeKind::Arc => "Arc",
+            }
         }
     }
 
@@ -409,7 +423,7 @@ impl CrosshairApp {
                                 [24.0, 21.0],
                                 Button::new(Self::material_icon_text(0xe55f, 16.0)),
                             )
-                            .on_hover_text("Pick coordinates from screen")
+                            .on_hover_text(Self::tr_lang(language, "Pick coordinates from screen", "Chon toa do tu man hinh"))
                             .clicked()
                         {
                             *begin_mouse_move_absolute_capture_target = Some(MouseMoveAbsoluteCaptureTarget {
@@ -426,7 +440,7 @@ impl CrosshairApp {
                                 [24.0, 21.0],
                                 Button::new(Self::material_icon_text(0xe5cd, 16.0)),
                             )
-                            .on_hover_text("Delete point")
+                            .on_hover_text(Self::tr_lang(language, "Delete point", "Xoa diem"))
                             .clicked()
                         {
                             remove_point_idx = Some(idx);
@@ -441,7 +455,7 @@ impl CrosshairApp {
             }
 
             ui.add_space(2.0);
-            if ui.button("+ Add Point").clicked() {
+            if ui.button(Self::tr_lang(language, "+ Add Point", "+ Them diem")).clicked() {
                 points.push(("960".to_owned(), "540".to_owned()));
                 points_changed = true;
             }
@@ -466,7 +480,7 @@ impl CrosshairApp {
                         preset_id,
                         object_id,
                         "thickness",
-                        "Thickness",
+                        Self::tr_lang(language, Self::tr_lang(language, "Thickness", "Do day"), "Do day"),
                         &mut spec.thickness_expr,
                         120.0,
                         120.0,
@@ -478,7 +492,7 @@ impl CrosshairApp {
                         preset_id,
                         object_id,
                         "opacity",
-                        "Opacity",
+                        Self::tr_lang(language, Self::tr_lang(language, "Opacity", "Do trong suot"), "Do trong suot"),
                         &mut spec.opacity_expr,
                         120.0,
                         120.0,
@@ -490,9 +504,9 @@ impl CrosshairApp {
                     }
 
                     let stroke_label = if spec.shape == GeometryShapeKind::Polygon {
-                        "Stroke"
+                        Self::tr_lang(language, Self::tr_lang(language, "Stroke", "Vien"), "Vien")
                     } else {
-                        "Color"
+                        Self::tr_lang(language, Self::tr_lang(language, "Color", "Mau sac"), "Mau sac")
                     };
 
                     changed |= Self::geometry_color_row(
@@ -517,7 +531,7 @@ impl CrosshairApp {
                             ui,
                             preset_id,
                             object_id,
-                            "Fill",
+                            Self::tr_lang(language, Self::tr_lang(language, "Fill", "Mau nen"), "Mau nen"),
                             &mut spec.fill_color,
                             &mut spec.fill_color_expr,
                             manual_color,
@@ -534,7 +548,7 @@ impl CrosshairApp {
                             preset_id,
                             object_id,
                             "fill_opacity",
-                            "Fill Opacity",
+                            Self::tr_lang(language, Self::tr_lang(language, "Fill Opacity", "Do trong suot nen"), "Do trong suot nen"),
                             &mut spec.fill_opacity_expr,
                             120.0,
                             120.0,
@@ -576,11 +590,11 @@ impl CrosshairApp {
                                 object_id,
                                 "styling",
                                 255,
-                                "Size",
+                                Self::tr_lang(language, Self::tr_lang(language, "Size", "Kich co"), "Kich co"),
                                 &mut spec.radius_expr,
                                 120.0,
                                 120.0,
-                                "Opacity",
+                                Self::tr_lang(language, Self::tr_lang(language, "Opacity", "Do trong suot"), "Do trong suot"),
                                 &mut spec.opacity_expr,
                                 120.0,
                                 120.0,
@@ -636,11 +650,11 @@ impl CrosshairApp {
                                     object_id,
                                     "arrow_styling",
                                     255,
-                                    "Head",
+                                    Self::tr_lang(language, "Head", "Mui ten"),
                                     &mut spec.arrow_head_size_expr,
                                     120.0,
                                     120.0,
-                                    "Thickness",
+                                    Self::tr_lang(language, Self::tr_lang(language, "Thickness", "Do day"), "Do day"),
                                     &mut spec.thickness_expr,
                                     120.0,
                                     120.0,
@@ -655,7 +669,7 @@ impl CrosshairApp {
                                     object_id,
                                     "opacity",
                                     255,
-                                    "Opacity",
+                                    Self::tr_lang(language, Self::tr_lang(language, "Opacity", "Do trong suot"), "Do trong suot"),
                                     &mut spec.opacity_expr,
                                     120.0,
                                     120.0,
@@ -675,11 +689,11 @@ impl CrosshairApp {
                                     object_id,
                                     "styling",
                                     255,
-                                    "Thickness",
+                                    Self::tr_lang(language, Self::tr_lang(language, "Thickness", "Do day"), "Do day"),
                                     &mut spec.thickness_expr,
                                     120.0,
                                     120.0,
-                                    "Opacity",
+                                    Self::tr_lang(language, Self::tr_lang(language, "Opacity", "Do trong suot"), "Do trong suot"),
                                     &mut spec.opacity_expr,
                                     120.0,
                                     120.0,
@@ -716,11 +730,11 @@ impl CrosshairApp {
                                 object_id,
                                 "styling",
                                 255,
-                                "Radius",
+                                Self::tr_lang(language, "Radius", "Ban kinh"),
                                 &mut spec.radius_expr,
                                 120.0,
                                 120.0,
-                                "Thickness",
+                                Self::tr_lang(language, "Thickness", "Do day"),
                                 &mut spec.thickness_expr,
                                 120.0,
                                 120.0,
@@ -736,11 +750,11 @@ impl CrosshairApp {
                                     object_id,
                                     "opacity",
                                     255,
-                                    "Opacity",
+                                    Self::tr_lang(language, "Opacity", "Do trong suot"),
                                     &mut spec.opacity_expr,
                                     120.0,
                                     120.0,
-                                    "Fill Opacity",
+                                    Self::tr_lang(language, "Fill Opacity", "Do trong suot nen"),
                                     &mut spec.fill_opacity_expr,
                                     120.0,
                                     120.0,
@@ -756,7 +770,7 @@ impl CrosshairApp {
                                     object_id,
                                     "opacity",
                                     255,
-                                    "Opacity",
+                                    Self::tr_lang(language, "Opacity", "Do trong suot"),
                                     &mut spec.opacity_expr,
                                     120.0,
                                     120.0,
@@ -817,11 +831,11 @@ impl CrosshairApp {
                                 object_id,
                                 "styling",
                                 255,
-                                "Thickness",
+                                Self::tr_lang(language, "Thickness", "Do day"),
                                 &mut spec.thickness_expr,
                                 120.0,
                                 120.0,
-                                "Opacity",
+                                Self::tr_lang(language, "Opacity", "Do trong suot"),
                                 &mut spec.opacity_expr,
                                 120.0,
                                 120.0,
@@ -837,7 +851,7 @@ impl CrosshairApp {
                                     object_id,
                                     "fill_opacity",
                                     255,
-                                    "Fill Opacity",
+                                    Self::tr_lang(language, "Fill Opacity", "Do trong suot nen"),
                                     &mut spec.fill_opacity_expr,
                                     120.0,
                                     120.0,
@@ -873,7 +887,7 @@ impl CrosshairApp {
                                 vietnamese_input_mode,
                                 group_id_override,
                             );
-                            ui.add_sized([60.0, 18.0], egui::Label::new("Text"));
+                            ui.add_sized([60.0, 18.0], egui::Label::new(Self::tr_lang(language, "Text", "Van ban")));
                             let text_id = ui.make_persistent_id((preset_id, object_id, "label-text"));
                             let response = Self::render_interpolated_text_edit(
                                 ui,
@@ -903,11 +917,11 @@ impl CrosshairApp {
                                 object_id,
                                 "styling",
                                 255,
-                                "Size",
+                                Self::tr_lang(language, "Size", "Kich co"),
                                 &mut spec.font_size_expr,
                                 120.0,
                                 120.0,
-                                "Opacity",
+                                Self::tr_lang(language, "Opacity", "Do trong suot"),
                                 &mut spec.opacity_expr,
                                 120.0,
                                 120.0,
@@ -962,11 +976,11 @@ impl CrosshairApp {
                                 object_id,
                                 "styling",
                                 255,
-                                "Thickness",
+                                Self::tr_lang(language, "Thickness", "Do day"),
                                 &mut spec.thickness_expr,
                                 120.0,
                                 120.0,
-                                "Opacity",
+                                Self::tr_lang(language, "Opacity", "Do trong suot"),
                                 &mut spec.opacity_expr,
                                 120.0,
                                 120.0,
@@ -982,7 +996,7 @@ impl CrosshairApp {
                                     object_id,
                                     "fill_opacity",
                                     255,
-                                    "Fill Opacity",
+                                    Self::tr_lang(language, "Fill Opacity", "Do trong suot nen"),
                                     &mut spec.fill_opacity_expr,
                                     120.0,
                                     120.0,
@@ -1043,11 +1057,11 @@ impl CrosshairApp {
                                 object_id,
                                 "angles",
                                 255,
-                                "Start",
+                                Self::tr_lang(language, "Start", "Bat dau"),
                                 &mut spec.start_angle_expr,
                                 120.0,
                                 120.0,
-                                "End",
+                                Self::tr_lang(language, "End", "Ket thuc"),
                                 &mut spec.end_angle_expr,
                                 120.0,
                                 120.0,
@@ -1062,11 +1076,11 @@ impl CrosshairApp {
                                 object_id,
                                 "styling",
                                 255,
-                                "Thickness",
+                                Self::tr_lang(language, "Thickness", "Do day"),
                                 &mut spec.thickness_expr,
                                 120.0,
                                 120.0,
-                                "Opacity",
+                                Self::tr_lang(language, "Opacity", "Do trong suot"),
                                 &mut spec.opacity_expr,
                                 120.0,
                                 120.0,
@@ -1085,9 +1099,9 @@ impl CrosshairApp {
                             | GeometryShapeKind::Rectangle
                             | GeometryShapeKind::Ellipse
                     ) {
-                        "Stroke"
+                        Self::tr_lang(language, "Stroke", "Vien")
                     } else {
-                        "Color"
+                        Self::tr_lang(language, "Color", "Mau sac")
                     };
 
                     changed |= Self::geometry_color_row(
@@ -1119,7 +1133,7 @@ impl CrosshairApp {
                             ui,
                             preset_id,
                             object_id,
-                            "Fill",
+                            Self::tr_lang(language, "Fill", "Mau nen"),
                             &mut spec.fill_color,
                             &mut spec.fill_color_expr,
                             manual_color,
@@ -1286,27 +1300,27 @@ impl CrosshairApp {
         filled: &mut bool,
     ) -> bool {
         let mut changed = false;
-        ui.add_sized([60.0, 18.0], egui::Label::new(Self::tr_lang(language, "Mode", "Mode")));
+        ui.add_sized([60.0, 18.0], egui::Label::new(Self::tr_lang(language, "Mode", "Che do")));
         ComboBox::from_id_salt(ui.next_auto_id())
             .width(120.0)
             .selected_text(if *filled {
-                Self::tr_lang(language, "Filled", "Filled")
+                Self::tr_lang(language, "Filled", "To mau")
             } else {
-                Self::tr_lang(language, "Outline", "Outline")
+                Self::tr_lang(language, "Outline", "Vien ngoai")
             })
             .show_ui(ui, |ui| {
                 changed |= ui
                     .selectable_value(
                         filled,
                         false,
-                        Self::tr_lang(language, "Outline", "Outline"),
+                        Self::tr_lang(language, "Outline", "Vien ngoai"),
                     )
                     .changed();
                 changed |= ui
                     .selectable_value(
                         filled,
                         true,
-                        Self::tr_lang(language, "Filled", "Filled"),
+                        Self::tr_lang(language, "Filled", "To mau"),
                     )
                     .changed();
             });
