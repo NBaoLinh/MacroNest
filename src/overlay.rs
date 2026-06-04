@@ -9661,7 +9661,7 @@ mod windows_overlay {
             y: (preset.y as f32 * scale_y).round() as i32,
             width: ((preset.width.max(1)) as f32 * scale_x).round().max(1.0) as i32,
             height: ((preset.height.max(1)) as f32 * scale_y).round().max(1.0) as i32,
-            auto_hide_on_owner_completion: expires_at.is_none(),
+            auto_hide_on_owner_completion: false,
             expires_at,
         });
         Ok(())
@@ -9725,7 +9725,7 @@ mod windows_overlay {
             y: 36,
             width: 600,
             height: 80,
-            auto_hide_on_owner_completion: true,
+            auto_hide_on_owner_completion: false,
             expires_at: {
                 let duration = step.get_duration_ms();
                 if duration > 0 {
@@ -14979,7 +14979,7 @@ mod windows_overlay {
                 .chain(std::iter::once(0))
                 .collect::<Vec<_>>();
             let label_bg = [1_u8, 2_u8, 3_u8];
-            let rotation_tenths = (text.rotation_deg * 10.0).round() as i32;
+            let rotation_tenths = (-(text.rotation_deg) * 10.0).round() as i32;
             let font = CreateFontW(
                 -(text.font_size.max(10)),
                 0,
