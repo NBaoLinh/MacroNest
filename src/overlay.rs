@@ -14964,7 +14964,40 @@ mod windows_overlay {
         color: [u8; 4],
         thickness: i32,
     ) {
-        draw_line_aa_impl(pixels, width, height, x0, y0, x1, y1, color, thickness);
+        if thickness <= 1 {
+            draw_line_rgba(pixels, width, height, x0, y0, x1, y1, color);
+            return;
+        }
+
+        let dx = (x1 - x0) as f32;
+        let dy = (y1 - y0) as f32;
+        let len = (dx * dx + dy * dy).sqrt();
+        if len < 0.1 {
+            let r = thickness.max(1);
+            fill_ellipse_rgba(pixels, width, height, x0 - r / 2, y0 - r / 2, r, r, color);
+            return;
+        }
+
+        let nx = -dy / len;
+        let ny = dx / len;
+        let r = thickness as f32 * 0.5;
+
+        let p1_x = (x0 as f32 + nx * r).round() as i32;
+        let p1_y = (y0 as f32 + ny * r).round() as i32;
+        let p2_x = (x0 as f32 - nx * r).round() as i32;
+        let p2_y = (y0 as f32 - ny * r).round() as i32;
+        let p3_x = (x1 as f32 - nx * r).round() as i32;
+        let p3_y = (y1 as f32 - ny * r).round() as i32;
+        let p4_x = (x1 as f32 + nx * r).round() as i32;
+        let p4_y = (y1 as f32 + ny * r).round() as i32;
+
+        let poly_points = vec![
+            (p1_x, p1_y),
+            (p2_x, p2_y),
+            (p3_x, p3_y),
+            (p4_x, p4_y),
+        ];
+        fill_polygon_rgba(pixels, width, height, &poly_points, 0, 0, color);
     }
 
     fn draw_rect_outline_thick_rgba(
