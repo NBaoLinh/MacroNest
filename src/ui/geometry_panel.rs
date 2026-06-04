@@ -153,7 +153,9 @@ impl CrosshairApp {
                             .stroke(egui::Stroke::new(1.0, egui::Color32::from_rgb(0, 255, 170)))
                             .fill(egui::Color32::from_rgba_unmultiplied(0, 255, 170, 30));
                     }
+                    let card_width = ui.available_width() - 16.0;
                     frame.inner_margin(8).show(ui, |ui| {
+                        ui.set_min_width(card_width);
                         ui.horizontal(|ui| {
                             let preview_active =
                                 self.geometry_preview_target == Some((preset.id, object.id));
@@ -558,6 +560,18 @@ impl CrosshairApp {
                             vietnamese_input_enabled,
                             vietnamese_input_mode,
                         );
+                        changed |= Self::geometry_expr_row(
+                            ui,
+                            preset_id,
+                            object_id,
+                            "fill_opacity",
+                            "Fill Opacity",
+                            &mut spec.fill_opacity_expr,
+                            120.0,
+                            120.0,
+                            vietnamese_input_enabled,
+                            vietnamese_input_mode,
+                        );
                     }
                 });
         } else {
@@ -746,25 +760,47 @@ impl CrosshairApp {
                                 vietnamese_input_mode,
                                 group_id_override,
                             );
-                            changed |= Self::geometry_expr_pair_row(
-                                ui,
-                                preset_id,
-                                object_id,
-                                "opacity",
-                                255,
-                                "Opacity",
-                                &mut spec.opacity_expr,
-                                120.0,
-                                120.0,
-                                "",
-                                &mut String::new(),
-                                0.0,
-                                0.0,
-                                begin_mouse_move_absolute_capture_target,
-                                vietnamese_input_enabled,
-                                vietnamese_input_mode,
-                                group_id_override,
-                            );
+                            if spec.filled {
+                                changed |= Self::geometry_expr_pair_row(
+                                    ui,
+                                    preset_id,
+                                    object_id,
+                                    "opacity",
+                                    255,
+                                    "Opacity",
+                                    &mut spec.opacity_expr,
+                                    120.0,
+                                    120.0,
+                                    "Fill Opacity",
+                                    &mut spec.fill_opacity_expr,
+                                    120.0,
+                                    120.0,
+                                    begin_mouse_move_absolute_capture_target,
+                                    vietnamese_input_enabled,
+                                    vietnamese_input_mode,
+                                    group_id_override,
+                                );
+                            } else {
+                                changed |= Self::geometry_expr_pair_row(
+                                    ui,
+                                    preset_id,
+                                    object_id,
+                                    "opacity",
+                                    255,
+                                    "Opacity",
+                                    &mut spec.opacity_expr,
+                                    120.0,
+                                    120.0,
+                                    "",
+                                    &mut String::new(),
+                                    0.0,
+                                    0.0,
+                                    begin_mouse_move_absolute_capture_target,
+                                    vietnamese_input_enabled,
+                                    vietnamese_input_mode,
+                                    group_id_override,
+                                );
+                            }
                             changed |= Self::geometry_fill_mode_row(ui, language, &mut spec.filled);
                         }
                         GeometryShapeKind::Rectangle => {
@@ -825,6 +861,27 @@ impl CrosshairApp {
                                 vietnamese_input_mode,
                                 group_id_override,
                             );
+                            if spec.filled {
+                                changed |= Self::geometry_expr_pair_row(
+                                    ui,
+                                    preset_id,
+                                    object_id,
+                                    "fill_opacity",
+                                    255,
+                                    "Fill Opacity",
+                                    &mut spec.fill_opacity_expr,
+                                    120.0,
+                                    120.0,
+                                    "",
+                                    &mut String::new(),
+                                    0.0,
+                                    0.0,
+                                    begin_mouse_move_absolute_capture_target,
+                                    vietnamese_input_enabled,
+                                    vietnamese_input_mode,
+                                    group_id_override,
+                                );
+                            }
                             changed |= Self::geometry_fill_mode_row(ui, language, &mut spec.filled);
                         }
                         GeometryShapeKind::Label => {
@@ -949,6 +1006,27 @@ impl CrosshairApp {
                                 vietnamese_input_mode,
                                 group_id_override,
                             );
+                            if spec.filled {
+                                changed |= Self::geometry_expr_pair_row(
+                                    ui,
+                                    preset_id,
+                                    object_id,
+                                    "fill_opacity",
+                                    255,
+                                    "Fill Opacity",
+                                    &mut spec.fill_opacity_expr,
+                                    120.0,
+                                    120.0,
+                                    "",
+                                    &mut String::new(),
+                                    0.0,
+                                    0.0,
+                                    begin_mouse_move_absolute_capture_target,
+                                    vietnamese_input_enabled,
+                                    vietnamese_input_mode,
+                                    group_id_override,
+                                );
+                            }
                             changed |= Self::geometry_fill_mode_row(ui, language, &mut spec.filled);
                         }
                         GeometryShapeKind::Arc => {

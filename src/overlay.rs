@@ -10815,9 +10815,10 @@ mod windows_overlay {
         }
 
         let thickness = geometry_eval_i32(&spec.thickness_expr, spec.thickness.round() as i32).max(1).min(50);
-        let opacity = geometry_eval_f32(&spec.opacity_expr, spec.opacity).clamp(0.0, 1.0);
-        let stroke = geometry_resolve_color(&spec.stroke_color_expr, spec.stroke_color, opacity);
-        let fill = geometry_resolve_color(&spec.fill_color_expr, spec.fill_color, opacity);
+        let stroke_opacity = geometry_eval_f32(&spec.opacity_expr, spec.opacity).clamp(0.0, 1.0);
+        let fill_opacity = geometry_eval_f32(&spec.fill_opacity_expr, spec.fill_opacity).clamp(0.0, 1.0);
+        let stroke = geometry_resolve_color(&spec.stroke_color_expr, spec.stroke_color, stroke_opacity);
+        let fill = geometry_resolve_color(&spec.fill_color_expr, spec.fill_color, fill_opacity);
         let fill_option = spec.filled.then_some(fill);
         match spec.shape {
             GeometryShapeKind::Point => {

@@ -18742,6 +18742,7 @@ impl CrosshairApp {
                 &step.geometry_spec.font_size_expr,
                 &step.geometry_spec.thickness_expr,
                 &step.geometry_spec.opacity_expr,
+                &step.geometry_spec.fill_opacity_expr,
                 &step.geometry_spec.points_expr,
                 &step.geometry_spec.stroke_color_expr,
                 &step.geometry_spec.fill_color_expr,
