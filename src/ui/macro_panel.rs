@@ -5329,6 +5329,66 @@ impl CrosshairApp {
 
                                     }
 
+                                    if self.show_share_buttons {
+
+                                        let group_export_feedback = Self::is_copy_feedback_active(
+                                            self.macro_group_export_feedback_until,
+                                        );
+
+                                        let group_export_label = if group_export_feedback {
+                                            Self::tr_lang(language, "Copied", "Copied")
+                                        } else {
+                                            Self::tr_lang(language, "Export", "Export")
+                                        };
+
+                                        if ui
+                                            .add_sized(
+                                                [72.0, 24.0],
+                                                Button::new(group_export_label).fill(
+                                                    if group_export_feedback {
+                                                        Color32::from_rgba_premultiplied(
+                                                            72, 156, 116, 140,
+                                                        )
+                                                    } else {
+                                                        ui.visuals().widgets.inactive.bg_fill
+                                                    },
+                                                )
+                                                .stroke(egui::Stroke::new(
+                                                    1.0,
+                                                    if group_export_feedback {
+                                                        Color32::from_rgb(126, 224, 182)
+                                                    } else {
+                                                        ui.visuals().widgets.inactive.bg_stroke.color
+                                                    },
+                                                )),
+                                            )
+                                            .on_hover_text(Self::tr_lang(
+                                                language,
+                                                "Copy Group Code",
+                                                "Sao chép mã nhóm",
+                                            ))
+                                            .clicked()
+                                        {
+                                            export_group = Some(group.id);
+                                        }
+
+                                        if ui
+                                            .add_sized(
+                                                [72.0, 24.0],
+                                                Button::new(Self::tr_lang(language, "Import", "Import")),
+                                            )
+                                            .on_hover_text(Self::tr_lang(
+                                                language,
+                                                "Import Group Code",
+                                                "Nhập mã nhóm",
+                                            ))
+                                            .clicked()
+                                        {
+                                            import_preset_to_group = Some((group.id, None));
+                                        }
+
+                                    }
+
                                     if Self::sound_style_toggle_button(
 
                                         ui,
@@ -5537,98 +5597,6 @@ impl CrosshairApp {
                                         {
 
                                             add_preset_to_group = Some(group.id);
-
-                                        }
-
-                                        if self.show_share_buttons {
-
-                                            let group_export_feedback = Self::is_copy_feedback_active(
-
-                                             self.macro_group_export_feedback_until,
-
-                                         );
-
-                                         let group_export_label = if group_export_feedback {
-
-                                             Self::tr_lang(language, "Copied", "Copied")
-
-                                         } else {
-
-                                             Self::tr_lang(language, "Export", "Xuất")
-
-                                         };
-
-                                         let group_export_button = ui.add_sized(
-
-                                             [84.0, 21.0],
-
-                                             Button::new(group_export_label).fill(if group_export_feedback {
-
-                                                 Color32::from_rgba_premultiplied(72, 156, 116, 140)
-
-                                             } else {
-
-                                                 ui.visuals().widgets.inactive.bg_fill
-
-                                             })
-
-                                             .stroke(egui::Stroke::new(
-
-                                                 1.0,
-
-                                                 if group_export_feedback {
-
-                                                     Color32::from_rgb(126, 224, 182)
-
-                                                 } else {
-
-                                                     ui.visuals().widgets.inactive.bg_stroke.color
-
-                                                 },
-
-                                             )),
-
-                                         );
-
-                                         if group_export_button
-
-                                             .on_hover_text(Self::tr_lang(
-
-                                                 language,
-
-                                                 "Copy Group Code",
-
-                                                 "Sao chép mã nhóm",
-
-                                             ))
-
-                                             .clicked()
-
-                                         {
-
-                                             export_group = Some(group.id);
-
-                                         }
-
-                                         if Self::sized_button(
-
-                                             ui,
-
-                                             84.0,
-
-                                             Self::tr_lang(language, "Import", "Nhập"),
-
-                                         )
-
-                                         .on_hover_text(Self::tr_lang(language, "Import Preset", "Nhập preset"))
-
-                                         .clicked()
-
-                                         {
-
-                                             import_preset_to_group = Some((group.id, None));
-
-                                         }
 
                                         }
 
@@ -11010,20 +10978,7 @@ impl CrosshairApp {
 
                                         let capture_active = self.capture_target.as_ref() == Some(&capture_target);
 
-                                        let has_selected_steps = selected_steps_snapshot.iter().any(|(g_id, p_id, _)| *g_id == group.id && *p_id == preset.id);
-                                        let selected_copy_feedback_active =
-                                            self.macro_selected_steps_copy_feedback_target
-                                                == Some((group.id, preset.id))
-                                                && Self::is_copy_feedback_active(
-                                                    self.macro_selected_steps_copy_feedback_until,
-                                                );
-                                        let selected_copy_feedback_active =
-                                            self.macro_selected_steps_copy_feedback_target
-                                                == Some((group.id, preset.id))
-                                                && Self::is_copy_feedback_active(
-                                                    self.macro_selected_steps_copy_feedback_until,
-                                                );
-                                        let (rect, _) = ui.allocate_exact_size(egui::vec2(216.0, 18.0), egui::Sense::hover());
+                                        let (rect, _) = ui.allocate_exact_size(egui::vec2(118.0, 18.0), egui::Sense::hover());
 
                                          let mut child_ui = ui.new_child(
 
@@ -11060,52 +11015,6 @@ impl CrosshairApp {
                                              live_sync = true;
 
                                          }
-
-                                        if child_ui
-                                            .add_enabled(
-                                                !self.macro_step_clipboard.is_empty(),
-                                                Button::new(Self::tr_lang(language, "Paste", "Paste"))
-                                                    .min_size(egui::vec2(42.0, 18.0)),
-                                            )
-                                            .on_hover_text(Self::tr_lang(
-                                                language,
-                                                "Paste copied step(s) at the top of this preset.",
-                                                "Paste copied step(s) at the top of this preset.",
-                                            ))
-                                            .clicked()
-                                        {
-                                            paste_steps_at_start = Some((group.id, preset.id));
-                                        }
-
-                                        if has_selected_steps {
-                                            if selected_copy_feedback_active {
-                                                child_ui.add_sized(
-                                                    [48.0, 18.0],
-                                                    egui::Label::new(
-                                                        RichText::new(Self::tr_lang(
-                                                            language,
-                                                            "Copied",
-                                                            "Copied",
-                                                        ))
-                                                        .color(Color32::from_rgb(126, 224, 182))
-                                                        .strong(),
-                                                    ),
-                                                );
-                                            } else if child_ui
-                                                .add(
-                                                    Button::new(Self::tr_lang(language, "Copy", "Copy"))
-                                                        .min_size(egui::vec2(40.0, 18.0)),
-                                                )
-                                                .on_hover_text(Self::tr_lang(
-                                                    language,
-                                                    "Copy the selected steps in this preset.",
-                                                    "Copy selected steps in this preset.",
-                                                ))
-                                                .clicked()
-                                            {
-                                                copy_selected_steps = Some((group.id, preset.id));
-                                            }
-                                        }
 
                                          let is_recording_this = self.active_macro_record_preset_id == Some(preset.id);
 
@@ -11408,6 +11317,27 @@ impl CrosshairApp {
                                          ui.add_sized([146.0, 21.0], egui::Label::new(""));
 
                                         let has_selected_steps = selected_steps_snapshot.iter().any(|(g_id, p_id, _)| *g_id == group.id && *p_id == preset.id);
+                                        let selected_copy_feedback_active =
+                                            self.macro_selected_steps_copy_feedback_target
+                                                == Some((group.id, preset.id))
+                                                && Self::is_copy_feedback_active(
+                                                    self.macro_selected_steps_copy_feedback_until,
+                                                );
+
+                                        let paste_btn = Button::new(Self::tr_lang(language, "Paste", "Paste"))
+                                            .min_size(egui::vec2(42.0, 20.0));
+
+                                        if ui
+                                            .add_enabled(!self.macro_step_clipboard.is_empty(), paste_btn)
+                                            .on_hover_text(Self::tr_lang(
+                                                language,
+                                                "Paste copied step(s) at the top of this preset.",
+                                                "Paste copied step(s) at the top of this preset.",
+                                            ))
+                                            .clicked()
+                                        {
+                                            paste_steps_at_start = Some((group.id, preset.id));
+                                        }
 
                                          if has_selected_steps {
 
