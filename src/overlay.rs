@@ -10789,7 +10789,9 @@ mod windows_overlay {
         let virtual_bottom = virtual_top + virtual_height;
         let pad = font_size.clamp(16, 64);
         let (left, top, right, bottom) = if rotation_deg.abs() < f32::EPSILON {
-            (x, y, x + width_est.max(1), y + height_est.max(1))
+            let half_w = (width_est.max(1) + 1) / 2;
+            let half_h = (height_est.max(1) + 1) / 2;
+            (x - half_w, y - half_h, x + half_w, y + half_h)
         } else {
             let radius = width_est.max(height_est).max(font_size).max(1);
             (x - radius, y - radius, x + radius, y + radius)
