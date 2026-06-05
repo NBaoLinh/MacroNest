@@ -164,6 +164,15 @@ pub(crate) enum MacroGroupFavoriteFilter {
     Star,
 }
 
+#[derive(Clone, Copy, PartialEq, Eq, Default)]
+pub(crate) enum MacroShareCodeKind {
+    #[default]
+    None,
+    Step,
+    Preset,
+    Group,
+}
+
 #[derive(Clone)]
 pub(crate) struct CommandAiDialog {
     preset_id: u32,
@@ -718,8 +727,13 @@ pub struct CrosshairApp {
     interception_installed: bool,
     copy_folder_feedback_until: Option<Instant>,
     macro_group_export_feedback_until: Option<Instant>,
+    macro_group_export_feedback_target: Option<u32>,
     macro_preset_export_feedback_until: Option<Instant>,
+    macro_preset_export_feedback_target: Option<u32>,
     macro_step_export_feedback_until: Option<Instant>,
+    macro_step_export_feedback_target: Option<(u32, usize)>,
+    macro_share_clipboard_kind: MacroShareCodeKind,
+    macro_share_clipboard_checked_at: Option<Instant>,
     vision_manual_color: RgbaColor,
     vision_manual_color_hex: String,
     geometry_color_pick_target: Option<(u32, u32, bool)>,
@@ -910,8 +924,13 @@ impl CrosshairApp {
             interception_installed: false, // will update below
             copy_folder_feedback_until: None,
             macro_group_export_feedback_until: None,
+            macro_group_export_feedback_target: None,
             macro_preset_export_feedback_until: None,
+            macro_preset_export_feedback_target: None,
             macro_step_export_feedback_until: None,
+            macro_step_export_feedback_target: None,
+            macro_share_clipboard_kind: MacroShareCodeKind::None,
+            macro_share_clipboard_checked_at: None,
             vision_manual_color: RgbaColor {
                 r: 0,
                 g: 255,
@@ -1323,7 +1342,7 @@ impl CrosshairApp {
         }
     }
 
-    fn export_macro_step(&mut self, step: &MacroStep) {
+    fn export_macro_step(&mut self, preset_id: u32, step_index: usize, step: &MacroStep) {
         match crate::macro_code::encode_step(step) {
             Ok(code) => {
                 self.status = Self::tr_lang(
@@ -1334,6 +1353,9 @@ impl CrosshairApp {
                 .to_owned();
                 self.macro_step_export_feedback_until =
                     Some(Instant::now() + Duration::from_millis(1200));
+                self.macro_step_export_feedback_target = Some((preset_id, step_index));
+                self.macro_share_clipboard_kind = MacroShareCodeKind::Step;
+                self.macro_share_clipboard_checked_at = Some(Instant::now());
                 if let Ok(mut clipboard) = Clipboard::new() {
                     let _ = clipboard.set_text(code);
                 }
@@ -1395,7 +1417,7 @@ impl CrosshairApp {
         }
     }
 
-    fn export_macro_preset(&mut self, preset: &MacroPreset) {
+    fn export_macro_preset(&mut self, preset_id: u32, preset: &MacroPreset) {
         match crate::macro_code::encode_preset(preset) {
             Ok(code) => {
                 self.status = Self::tr_lang(
@@ -1406,6 +1428,9 @@ impl CrosshairApp {
                 .to_owned();
                 self.macro_preset_export_feedback_until =
                     Some(Instant::now() + Duration::from_millis(1200));
+                self.macro_preset_export_feedback_target = Some(preset_id);
+                self.macro_share_clipboard_kind = MacroShareCodeKind::Preset;
+                self.macro_share_clipboard_checked_at = Some(Instant::now());
                 if let Ok(mut clipboard) = Clipboard::new() {
                     let _ = clipboard.set_text(code);
                 }
@@ -1468,7 +1493,7 @@ impl CrosshairApp {
         }
     }
 
-    fn export_macro_group(&mut self, group: &MacroGroup) {
+    fn export_macro_group(&mut self, group_id: u32, group: &MacroGroup) {
         match crate::macro_code::encode_group(group) {
             Ok(code) => {
                 self.status = Self::tr_lang(
@@ -1479,6 +1504,9 @@ impl CrosshairApp {
                 .to_owned();
                 self.macro_group_export_feedback_until =
                     Some(Instant::now() + Duration::from_millis(1200));
+                self.macro_group_export_feedback_target = Some(group_id);
+                self.macro_share_clipboard_kind = MacroShareCodeKind::Group;
+                self.macro_share_clipboard_checked_at = Some(Instant::now());
                 if let Ok(mut clipboard) = Clipboard::new() {
                     let _ = clipboard.set_text(code);
                 }
@@ -4748,6 +4776,44 @@ impl CrosshairApp {
 
     fn is_copy_feedback_active(until: Option<Instant>) -> bool {
         until.is_some_and(|deadline| Instant::now() < deadline)
+    }
+
+    fn macro_share_code_kind_from_text(text: &str) -> MacroShareCodeKind {
+        let payload = text.trim();
+        if payload.starts_with("MN2_STEP:") || payload.starts_with("MN_STEP:") {
+            MacroShareCodeKind::Step
+        } else if payload.starts_with("MN2_PRESET:") || payload.starts_with("MN_PRESET:") {
+            MacroShareCodeKind::Preset
+        } else if payload.starts_with("MN2_GROUP:") || payload.starts_with("MN_GROUP:") {
+            MacroShareCodeKind::Group
+        } else {
+            MacroShareCodeKind::None
+        }
+    }
+
+    fn refresh_macro_share_clipboard_kind(&mut self, force: bool) {
+        if !self.show_share_buttons {
+            self.macro_share_clipboard_kind = MacroShareCodeKind::None;
+            self.macro_share_clipboard_checked_at = None;
+            return;
+        }
+
+        if !force
+            && self
+                .macro_share_clipboard_checked_at
+                .is_some_and(|checked_at| checked_at.elapsed() < Duration::from_millis(250))
+        {
+            return;
+        }
+
+        let kind = Clipboard::new()
+            .ok()
+            .and_then(|mut clipboard| clipboard.get_text().ok())
+            .map(|text| Self::macro_share_code_kind_from_text(&text))
+            .unwrap_or(MacroShareCodeKind::None);
+
+        self.macro_share_clipboard_kind = kind;
+        self.macro_share_clipboard_checked_at = Some(Instant::now());
     }
 
     fn enabled_icon_button(ui: &mut egui::Ui, enabled: bool) -> egui::Response {

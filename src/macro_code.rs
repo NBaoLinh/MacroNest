@@ -94,8 +94,8 @@ fn z85_decode(encoded: &str) -> Result<Vec<u8>> {
 }
 
 fn encode_v2<T: Serialize>(value: &T, prefix: &str, kind: &str) -> Result<String> {
-    let binary =
-        rmp_serde::to_vec(value).with_context(|| format!("Failed to serialize the {kind}"))?;
+    let binary = rmp_serde::to_vec_named(value)
+        .with_context(|| format!("Failed to serialize the {kind}"))?;
     let compressed = compress_bytes(&binary)?;
     Ok(format!("{prefix}{}", z85_encode(&compressed)))
 }
@@ -152,4 +152,33 @@ pub fn encode_group(group: &MacroGroup) -> Result<String> {
 
 pub fn decode_group(code: &str) -> Result<MacroGroup> {
     decode_any(code, PREFIX_GROUP_V2, PREFIX_GROUP, "group")
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn step_round_trip_v2() {
+        let step = MacroStep::default();
+        let encoded = encode_step(&step).expect("encode step");
+        let decoded = decode_step(&encoded).expect("decode step");
+        assert_eq!(decoded, step);
+    }
+
+    #[test]
+    fn preset_round_trip_v2() {
+        let preset = MacroPreset::default();
+        let encoded = encode_preset(&preset).expect("encode preset");
+        let decoded = decode_preset(&encoded).expect("decode preset");
+        assert_eq!(decoded, preset);
+    }
+
+    #[test]
+    fn group_round_trip_v2() {
+        let group = MacroGroup::default();
+        let encoded = encode_group(&group).expect("encode group");
+        let decoded = decode_group(&encoded).expect("decode group");
+        assert_eq!(decoded, group);
+    }
 }
