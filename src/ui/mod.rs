@@ -1562,6 +1562,7 @@ impl CrosshairApp {
                 } else {
                     self.state.macro_groups.push(group);
                 }
+                self.pending_macro_group_scroll_target = Some(id);
                 self.reconcile_master_presets();
                 self.sync_macro_presets();
                 self.persist();
