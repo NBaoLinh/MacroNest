@@ -21,8 +21,6 @@ impl CrosshairApp {
 
         ui.add_space(2.0);
 
-        ui.add_space(8.0);
-
         // Add OCR preset button
         ui.horizontal(|ui| {
             if ui

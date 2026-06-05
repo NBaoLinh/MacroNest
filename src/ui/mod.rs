@@ -743,6 +743,8 @@ pub struct CrosshairApp {
     audio_sense_devices: Vec<String>,
     pitch_monitor: audiosense::PitchMonitor,
     spatial_monitor: audiosense::SpatialMonitor,
+    audio_sense_test_settings: crate::model::AudioSenseMonitorSettings,
+    audio_sense_test_active: bool,
     active_pitch_preview_preset_id: Option<u32>,
     active_spatial_preview_preset_id: Option<u32>,
     /// Target for color picking a DrawGeometry macro step spec (group_id, preset_id, step_index, is_fill, is_hold_stop)
@@ -945,6 +947,8 @@ impl CrosshairApp {
             audio_sense_devices: audiosense::list_capture_devices().unwrap_or_default(),
             pitch_monitor: audiosense::PitchMonitor::new(),
             spatial_monitor: audiosense::SpatialMonitor::new(),
+            audio_sense_test_settings: crate::model::AudioSenseMonitorSettings::default(),
+            audio_sense_test_active: false,
             active_pitch_preview_preset_id: None,
             active_spatial_preview_preset_id: None,
             macro_step_geometry_color_pick_target: None,
@@ -9094,8 +9098,9 @@ impl eframe::App for CrosshairApp {
         }
 
         if self.state.active_panel != AppPanel::AudioSense {
-            if self.active_pitch_preview_preset_id.take().is_some() {
+            if self.active_pitch_preview_preset_id.take().is_some() || self.audio_sense_test_active {
                 self.pitch_monitor.stop();
+                self.audio_sense_test_active = false;
             }
             if self.active_spatial_preview_preset_id.take().is_some() {
                 self.spatial_monitor.stop();

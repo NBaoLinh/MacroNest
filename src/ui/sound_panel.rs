@@ -1315,7 +1315,6 @@ impl CrosshairApp {
         ui.spacing_mut().item_spacing = vec2(6.0, 4.0);
         ui.add_space(2.0);
         let mut changed = false;
-        ui.add_space(6.0);
         ui.horizontal(|ui| {
             if ui
                 .button(self.tr("+ Add sound preset", "+ Thêm preset âm thanh"))
@@ -1383,6 +1382,8 @@ impl CrosshairApp {
                 changed = true;
             }
         });
+
+        ui.add_space(8.0);
 
         ui.add_space(8.0);
         ui.label(

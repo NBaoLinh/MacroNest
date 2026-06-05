@@ -22,6 +22,7 @@ pub struct PitchSnapshot {
     pub note: String,
     pub confidence: f32,
     pub level: f32,
+    pub waveform: Vec<f32>,
     pub error: Option<String>,
 }
 
@@ -32,6 +33,7 @@ impl Default for PitchSnapshot {
             note: "--".to_owned(),
             confidence: 0.0,
             level: 0.0,
+            waveform: Vec::new(),
             error: None,
         }
     }
@@ -330,6 +332,7 @@ fn run_pitch_loop(
     let mut last_detected_at = Instant::now()
         .checked_sub(PITCH_HOLD_TIME)
         .unwrap_or_else(Instant::now);
+    let mut waveform = VecDeque::with_capacity(160);
 
     audio_client.start_stream()?;
     while !stop_flag.load(Ordering::Relaxed) {
@@ -389,6 +392,11 @@ fn run_pitch_loop(
                 snapshot.note = last_note.clone();
                 snapshot.confidence = last_confidence;
                 snapshot.level = smoothed_level;
+                waveform.push_back(smoothed_level);
+                while waveform.len() > 160 {
+                    let _ = waveform.pop_front();
+                }
+                snapshot.waveform = waveform.iter().copied().collect();
                 snapshot.error = None;
                 last_publish = Instant::now();
             }

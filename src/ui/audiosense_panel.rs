@@ -1,9 +1,9 @@
 use crate::model::{
-    AudioSensePreset, AudioSensePresetKind, AudioSenseSource, PitchAudioSenseSettings,
-    SpatialAudioSenseSettings, UiLanguage,
+    AudioSensePreset, AudioSensePresetKind, AudioSenseSource,
+    PitchAudioSenseSettings, SpatialAudioSenseSettings, UiLanguage,
 };
 use crate::ui::CrosshairApp;
-use eframe::egui::{self, ComboBox, DragValue, TextEdit};
+use eframe::egui::{self, Color32, ComboBox, DragValue, Sense, TextEdit, vec2};
 
 impl CrosshairApp {
     pub(crate) fn render_audiosense_panel(&mut self, ui: &mut egui::Ui) {
@@ -50,9 +50,151 @@ impl CrosshairApp {
                 self.sync_audio_sense_presets();
                 self.persist();
             }
+
+            ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
+                let button_label = if self.audio_sense_test_active {
+                    Self::tr_lang(language, "Stop test", "Dung test")
+                } else {
+                    Self::tr_lang(language, "Test sound", "Test sound")
+                };
+                if ui.button(button_label).clicked() {
+                    if self.audio_sense_test_active {
+                        self.pitch_monitor.stop();
+                        self.audio_sense_test_active = false;
+                    } else {
+                        let config = PitchAudioSenseSettings {
+                            monitor: self.audio_sense_test_settings.clone(),
+                            output_note_var: String::new(),
+                            output_confidence_var: String::new(),
+                            output_level_var: String::new(),
+                            ..PitchAudioSenseSettings::default()
+                        };
+                        if self.pitch_monitor.start(config).is_ok() {
+                            self.audio_sense_test_active = true;
+                        }
+                    }
+                }
+
+                if self.audio_sense_test_settings.source == AudioSenseSource::Microphone {
+                    let mut device_changed = false;
+                    ComboBox::from_id_salt("audiosense-test-device")
+                        .width(210.0)
+                        .selected_text(
+                            self.audio_sense_test_settings
+                                .input_device_name
+                                .clone()
+                                .unwrap_or_else(|| {
+                                    Self::tr_lang(
+                                        language,
+                                        "Default microphone",
+                                        "Micro mac dinh",
+                                    )
+                                    .to_owned()
+                                }),
+                        )
+                        .show_ui(ui, |ui| {
+                            if ui
+                                .selectable_label(
+                                    self.audio_sense_test_settings.input_device_name.is_none(),
+                                    Self::tr_lang(
+                                        language,
+                                        "Default microphone",
+                                        "Micro mac dinh",
+                                    ),
+                                )
+                                .clicked()
+                            {
+                                self.audio_sense_test_settings.input_device_name = None;
+                                device_changed = true;
+                            }
+                            for device in &self.audio_sense_devices {
+                                if ui
+                                    .selectable_label(
+                                        self.audio_sense_test_settings.input_device_name.as_deref()
+                                            == Some(device.as_str()),
+                                        device,
+                                    )
+                                    .clicked()
+                                {
+                                    self.audio_sense_test_settings.input_device_name =
+                                        Some(device.clone());
+                                    device_changed = true;
+                                }
+                            }
+                        });
+                    if device_changed && self.audio_sense_test_active {
+                        self.restart_audio_sense_test();
+                    }
+                }
+
+                let mut source_changed = false;
+                ComboBox::from_id_salt("audiosense-test-source")
+                    .width(130.0)
+                    .selected_text(match self.audio_sense_test_settings.source {
+                        AudioSenseSource::System => Self::tr_lang(language, "System", "He thong"),
+                        AudioSenseSource::Microphone => {
+                            Self::tr_lang(language, "Microphone", "Micro")
+                        }
+                    })
+                    .show_ui(ui, |ui| {
+                        source_changed |= ui
+                            .selectable_value(
+                                &mut self.audio_sense_test_settings.source,
+                                AudioSenseSource::System,
+                                Self::tr_lang(language, "System", "He thong"),
+                            )
+                            .changed();
+                        source_changed |= ui
+                            .selectable_value(
+                                &mut self.audio_sense_test_settings.source,
+                                AudioSenseSource::Microphone,
+                                Self::tr_lang(language, "Microphone", "Micro"),
+                            )
+                            .changed();
+                    });
+                if source_changed && self.audio_sense_test_active {
+                    self.restart_audio_sense_test();
+                }
+            });
         });
 
         ui.add_space(8.0);
+
+        let test_snapshot = self.pitch_monitor.snapshot();
+        if self.audio_sense_test_active || !test_snapshot.waveform.is_empty() {
+            Self::show_preset_card(ui, self.audio_sense_test_active, |ui| {
+                ui.horizontal(|ui| {
+                    ui.label(
+                        egui::RichText::new(Self::tr_lang(
+                            language,
+                            "Live input preview",
+                            "Xem truoc am thanh",
+                        ))
+                        .strong(),
+                    );
+                    ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
+                        ui.label(format!(
+                            "{} {:.2}",
+                            Self::tr_lang(language, "Level", "Muc"),
+                            test_snapshot.level
+                        ));
+                        ui.separator();
+                        ui.label(format!(
+                            "{} {}",
+                            Self::tr_lang(language, "Note", "Note"),
+                            test_snapshot.note
+                        ));
+                    });
+                });
+                ui.add_space(4.0);
+                Self::render_audio_sense_live_waveform(ui, &test_snapshot.waveform);
+                if let Some(error) = test_snapshot.error.as_ref() {
+                    ui.add_space(4.0);
+                    ui.colored_label(Color32::from_rgb(255, 120, 120), error);
+                }
+            });
+            ui.add_space(8.0);
+        }
 
         let mut remove_id = None;
         let mut changed = false;
@@ -277,6 +419,54 @@ impl CrosshairApp {
         if changed {
             self.sync_audio_sense_presets();
             self.persist();
+        }
+    }
+
+    fn restart_audio_sense_test(&mut self) {
+        self.pitch_monitor.stop();
+        let config = PitchAudioSenseSettings {
+            monitor: self.audio_sense_test_settings.clone(),
+            output_note_var: String::new(),
+            output_confidence_var: String::new(),
+            output_level_var: String::new(),
+            ..PitchAudioSenseSettings::default()
+        };
+        self.audio_sense_test_active = self.pitch_monitor.start(config).is_ok();
+    }
+
+    fn render_audio_sense_live_waveform(ui: &mut egui::Ui, waveform: &[f32]) {
+        let desired_size = vec2(ui.available_width().max(220.0), 72.0);
+        let (rect, _) = ui.allocate_exact_size(desired_size, Sense::hover());
+        let painter = ui.painter_at(rect);
+        painter.rect_filled(rect, 8.0, ui.visuals().extreme_bg_color);
+
+        if waveform.is_empty() {
+            painter.line_segment(
+                [
+                    egui::pos2(rect.left(), rect.center().y),
+                    egui::pos2(rect.right(), rect.center().y),
+                ],
+                egui::Stroke::new(2.0, Color32::from_gray(120)),
+            );
+            return;
+        }
+
+        let bar_width = rect.width() / waveform.len().max(1) as f32;
+        for (index, level) in waveform.iter().enumerate() {
+            let amplitude = level.clamp(0.04, 1.0);
+            let center_x = rect.left() + (index as f32 + 0.5) * bar_width;
+            let half_height = amplitude * rect.height() * 0.42;
+            let wave_rect = egui::Rect::from_min_max(
+                egui::pos2(
+                    center_x - (bar_width * 0.35).max(1.0),
+                    rect.center().y - half_height,
+                ),
+                egui::pos2(
+                    center_x + (bar_width * 0.35).max(1.0),
+                    rect.center().y + half_height,
+                ),
+            );
+            painter.rect_filled(wave_rect, 1.0, Color32::from_rgb(96, 172, 224));
         }
     }
 }
