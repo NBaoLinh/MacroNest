@@ -11342,99 +11342,69 @@ impl CrosshairApp {
                                                 && Self::is_copy_feedback_active(
                                                     self.macro_selected_steps_copy_feedback_until,
                                                 );
+                                        ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
+                                            let paste_btn = Button::new(Self::tr_lang(language, "Paste", "Paste"))
+                                                .min_size(egui::vec2(42.0, 20.0));
 
-                                        let paste_btn = Button::new(Self::tr_lang(language, "Paste", "Paste"))
-                                            .min_size(egui::vec2(42.0, 20.0));
+                                            if ui
+                                                .add_enabled(!self.macro_step_clipboard.is_empty(), paste_btn)
+                                                .on_hover_text(Self::tr_lang(
+                                                    language,
+                                                    "Paste copied step(s) at the top of this preset.",
+                                                    "Paste copied step(s) at the top of this preset.",
+                                                ))
+                                                .clicked()
+                                            {
+                                                paste_steps_at_start = Some((group.id, preset.id));
+                                            }
 
-                                        if ui
-                                            .add_enabled(!self.macro_step_clipboard.is_empty(), paste_btn)
-                                            .on_hover_text(Self::tr_lang(
-                                                language,
-                                                "Paste copied step(s) at the top of this preset.",
-                                                "Paste copied step(s) at the top of this preset.",
-                                            ))
-                                            .clicked()
-                                        {
-                                            paste_steps_at_start = Some((group.id, preset.id));
-                                        }
+                                            if has_selected_steps {
+                                                if selected_copy_feedback_active {
+                                                    ui.add_sized(
+                                                        [56.0, 20.0],
+                                                        egui::Label::new(
+                                                            RichText::new(Self::tr_lang(
+                                                                language,
+                                                                "Copied",
+                                                                "Copied",
+                                                            ))
+                                                            .color(Color32::from_rgb(126, 224, 182))
+                                                            .strong(),
+                                                        ),
+                                                    );
+                                                } else {
+                                                    let copy_btn = Button::new(Self::tr_lang(language, "Copy", "Copy"))
+                                                        .min_size(egui::vec2(56.0, 20.0));
 
-                                         if has_selected_steps {
+                                                    if ui
+                                                        .add(copy_btn)
+                                                        .on_hover_text(Self::tr_lang(
+                                                            language,
+                                                            "Copy the selected steps in this preset.",
+                                                            "Copy selected steps in this preset.",
+                                                        ))
+                                                        .clicked()
+                                                    {
+                                                        copy_selected_steps = Some((group.id, preset.id));
+                                                    }
+                                                }
 
-                                             let delete_btn = Button::new(Self::tr_lang(language, "Delete", "Xóa"))
+                                                let delete_btn = Button::new(Self::tr_lang(language, "Delete", "Xoa"))
+                                                    .min_size(egui::vec2(64.0, 20.0));
 
-                                                 .min_size(egui::vec2(64.0, 20.0));
-
-                                             if ui
-
-                                                 .add(delete_btn)
-
-                                                 .on_hover_text(Self::tr_lang(language, "Delete selected steps", "Xóa các bước đã chọn"))
-
-                                                 .clicked()
-
-                                             {
-
-                                                 delete_selected_steps = Some((group.id, preset.id));
-
-                                             }
-
-                                             if selected_copy_feedback_active {
-
-                                                 ui.add_sized(
-
-                                                     [56.0, 20.0],
-
-                                                     egui::Label::new(
-
-                                                         RichText::new(Self::tr_lang(
-
-                                                             language,
-
-                                                             "Copied",
-
-                                                             "Copied",
-
-                                                         ))
-
-                                                         .color(Color32::from_rgb(126, 224, 182))
-
-                                                         .strong(),
-
-                                                     ),
-
-                                                 );
-
-                                             } else {
-
-                                                 let copy_btn = Button::new(Self::tr_lang(language, "Copy", "Copy"))
-
-                                                     .min_size(egui::vec2(56.0, 20.0));
-
-                                                 if ui
-
-                                                     .add(copy_btn)
-
-                                                     .on_hover_text(Self::tr_lang(
-
-                                                         language,
-
-                                                         "Copy the selected steps in this preset.",
-
-                                                         "Copy selected steps in this preset.",
-
-                                                     ))
-
-                                                     .clicked()
-
-                                                 {
-
-                                                     copy_selected_steps = Some((group.id, preset.id));
-
-                                                 }
-
-                                             }
-
-                                         }
+                                                if ui
+                                                    .add(delete_btn)
+                                                    .on_hover_text(Self::tr_lang(
+                                                        language,
+                                                        "Delete selected steps",
+                                                        "Xoa cac buoc da chon",
+                                                    ))
+                                                    .clicked()
+                                                {
+                                                    delete_selected_steps = Some((group.id, preset.id));
+                                                }
+                                            }
+                                        });
 
                                         if has_rec_hotkey && !capture_active {
 
@@ -18553,7 +18523,9 @@ impl CrosshairApp {
 
                     if let Some(group_id) = import_group_after {
 
-                        self.import_macro_group_from_clipboard(None, Some(group_id));
+                        ui.ctx().data_mut(|data| {
+                            data.insert_temp(egui::Id::new("pending_macro_group_share_import_after"), group_id);
+                        });
 
                     }
 
@@ -18716,6 +18688,12 @@ impl CrosshairApp {
 
             }
 
+        }
+
+        if let Some(group_id) = ui.ctx().data_mut(|data| {
+            data.remove_temp::<u32>(egui::Id::new("pending_macro_group_share_import_after"))
+        }) {
+            self.import_macro_group_from_clipboard(None, Some(group_id));
         }
 
         if let Some(folder_id) = enter_folder_id {
