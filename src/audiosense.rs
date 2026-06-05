@@ -355,8 +355,14 @@ fn run_pitch_loop(
             }
 
             let mono = bytes_to_mono_samples(&chunk, 2);
-            let level_visual = level_to_visual(rms_level(&mono));
+            let raw_level = rms_level(&mono);
+            let level_visual = level_to_visual(raw_level);
             smoothed_level = smoothed_level * 0.78 + level_visual * 0.22;
+            let waveform_level = (raw_level * 18.0).clamp(0.0, 1.0);
+            waveform.push_back(waveform_level);
+            while waveform.len() > 160 {
+                let _ = waveform.pop_front();
+            }
             for sample in mono {
                 pitch_samples.push_back(sample);
                 while pitch_samples.len() > PITCH_ANALYSIS_SAMPLES {
@@ -392,10 +398,6 @@ fn run_pitch_loop(
                 snapshot.note = last_note.clone();
                 snapshot.confidence = last_confidence;
                 snapshot.level = smoothed_level;
-                waveform.push_back(smoothed_level);
-                while waveform.len() > 160 {
-                    let _ = waveform.pop_front();
-                }
                 snapshot.waveform = waveform.iter().copied().collect();
                 snapshot.error = None;
                 last_publish = Instant::now();
