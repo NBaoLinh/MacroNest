@@ -433,10 +433,9 @@ pub enum MacroAction {
     StartVisionSearch,
     #[serde(alias = "ScanImageOnce", alias = "ScanVisionOnce")]
     ScanVisionOnce,
+    #[serde(alias = "StartPitchDetect", alias = "StartSpatialAudioDetect")]
     StartAudioSensePreset,
-    StopAudioSensePreset,
-    StartPitchDetect,
-    StartSpatialAudioDetect,
+    #[serde(alias = "StopAudioSensePreset")]
     StopAudioSense,
 
     #[serde(alias = "StopImageSearchWait")]
@@ -499,9 +498,8 @@ pub enum MacroAction {
 #[derive(Debug, Clone, Copy, Serialize, Deserialize, PartialEq, Eq, Hash, Default)]
 pub enum AudioSensePresetKind {
     #[default]
-    Pitch,
     #[serde(alias = "Spatial")]
-    Spatial,
+    Pitch,
 }
 
 #[derive(Debug, Clone, Copy, Serialize, Deserialize, PartialEq, Eq, Hash, Default)]

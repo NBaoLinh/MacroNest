@@ -22,7 +22,7 @@ use crate::{
     ai, audio, audiosense, hotkey,
     model::{
         AppPanel, AppState, AudioClipSettings, AudioSensePreset, AudioSensePresetKind, CaptureRequest,
-        CapturedInput, CommandPreset, CrosshairStyle, GeometryPreset, GeometryShapeKind, GeometrySpec, HotkeyBinding, MacroAction,
+        CapturedInput, CommandPreset, CrosshairStyle, GeometrySpec, HotkeyBinding, MacroAction,
         MacroFolder, MacroGroup, MacroPreset, MacroStep, MacroTriggerMode,
         MasterMacroGroupState, MasterMacroPresetState, MasterPreset,
         MasterWindowFocusPresetState, MasterWindowPresetState, MasterZoomPresetState,
@@ -1099,40 +1099,12 @@ impl CrosshairApp {
     }
 
     fn migrate_legacy_audio_sense_state(&mut self) -> bool {
-        let removed_spatial_ids = self
-            .state
-            .audio_sense_presets
-            .iter()
-            .filter(|preset| preset.kind == AudioSensePresetKind::Spatial)
-            .map(|preset| preset.id)
-            .collect::<HashSet<_>>();
         let mut changed = false;
-
-        if !removed_spatial_ids.is_empty() {
-            self.state
-                .audio_sense_presets
-                .retain(|preset| preset.kind != AudioSensePresetKind::Spatial);
-            changed = true;
-        }
 
         for group in &mut self.state.macro_groups {
             for preset in &mut group.presets {
                 for step in &mut preset.steps {
-                    if step.action == MacroAction::StartSpatialAudioDetect {
-                        step.action = MacroAction::StartAudioSensePreset;
-                        step.audio_sense_preset_id = None;
-                        step.audio_sense_spec.kind = AudioSensePresetKind::Pitch;
-                        changed = true;
-                    }
-                    if step.action == MacroAction::StopAudioSensePreset {
-                        step.action = MacroAction::StopAudioSense;
-                        changed = true;
-                    }
-                    if removed_spatial_ids.contains(&step.audio_sense_preset_id.unwrap_or_default()) {
-                        step.audio_sense_preset_id = None;
-                        changed = true;
-                    }
-                    if step.audio_sense_spec.kind == AudioSensePresetKind::Spatial {
+                    if step.audio_sense_spec.kind != AudioSensePresetKind::Pitch {
                         step.audio_sense_spec.kind = AudioSensePresetKind::Pitch;
                         changed = true;
                     }
@@ -3830,9 +3802,6 @@ impl CrosshairApp {
             MacroAction::StartVisionSearch => "StartImageSearch",
             MacroAction::ScanVisionOnce => "ScanImageOnce",
             MacroAction::StartAudioSensePreset => "StartAudio",
-            MacroAction::StopAudioSensePreset => "StopAudioPreset",
-            MacroAction::StartPitchDetect => "PitchDetect",
-            MacroAction::StartSpatialAudioDetect => "LegacyAudio",
             MacroAction::StopAudioSense => "StopAudioSense",
 
             MacroAction::StopVisionWait => "StopImageSearchWait",
@@ -3930,16 +3899,7 @@ impl CrosshairApp {
                     "Quét tìm hình ảnh hoặc màu hoặc đếm pixel một lần duy nhất bằng preset đã chọn."
                 }
                 MacroAction::StartAudioSensePreset => {
-                    "Bắt đầu chạy preset AudioSense đã lưu từ tab AudioSense."
-                }
-                MacroAction::StopAudioSensePreset => {
-                    "Dừng một preset AudioSense đang chạy hoặc dừng toàn bộ AudioSense."
-                }
-                MacroAction::StartPitchDetect => {
-                    "Bắt đầu lắng nghe để phát hiện cao độ âm thanh và ghi ra biến."
-                }
-                MacroAction::StartSpatialAudioDetect => {
-                    "Bắt đầu lắng nghe để suy ra hướng âm thanh stereo và ghi ra tọa độ."
+                    "Start pitch detection from an AudioSense preset or custom pitch settings."
                 }
                 MacroAction::StopAudioSense => {
                     "Dừng AudioSense tùy chỉnh đang chạy hoặc dừng toàn bộ AudioSense."
@@ -4061,16 +4021,7 @@ impl CrosshairApp {
                     "Scan for the selected image, color, or pixel counter preset exactly once."
                 }
                 MacroAction::StartAudioSensePreset => {
-                    "Start one saved AudioSense preset from the AudioSense tab."
-                }
-                MacroAction::StopAudioSensePreset => {
-                    "Stop one running AudioSense preset or stop all AudioSense monitors."
-                }
-                MacroAction::StartPitchDetect => {
-                    "Start listening for pitch detection and write the detected note into variables."
-                }
-                MacroAction::StartSpatialAudioDetect => {
-                    "Legacy Spatial Audio action removed from the app."
+                    "Start pitch detection from an AudioSense preset or custom pitch settings."
                 }
                 MacroAction::StopAudioSense => {
                     "Stop custom AudioSense monitoring or stop every active AudioSense monitor."
@@ -4180,9 +4131,6 @@ impl CrosshairApp {
             MacroAction::StartVisionSearch => 0xe8b6,
             MacroAction::ScanVisionOnce => 0xe8b6,
             MacroAction::StartAudioSensePreset => 0xe050,
-            MacroAction::StopAudioSensePreset => 0xe047,
-            MacroAction::StartPitchDetect => 0xe050,
-            MacroAction::StartSpatialAudioDetect => 0xe5d0,
             MacroAction::StopAudioSense => 0xe047,
 
             MacroAction::StopVisionWait => 0xe047,
@@ -4265,19 +4213,13 @@ impl CrosshairApp {
                 MacroAction::StartVisionSearch => "Tìm ảnh",
                 MacroAction::ScanVisionOnce => "Quét 1 lần",
                 MacroAction::StartAudioSensePreset => "AudioSense",
-                MacroAction::StopAudioSensePreset => "Dừng Audio",
-                MacroAction::StartPitchDetect => "Cao độ",
-                MacroAction::StartSpatialAudioDetect => "Hướng âm",
                 MacroAction::StopAudioSense => "Tắt Audio",
 
                 MacroAction::StopVisionWait => "Chờ",
-                MacroAction::StopVision => "Dừng",
-                MacroAction::LoopStart => "Lặp",
-                MacroAction::LoopEnd => "Kết thúc",
-                MacroAction::StopIfTriggerPressedAgain => "Dừng",
-                MacroAction::StopIfKeyPressed => "Thoát",
-                MacroAction::ShowHud => "Hiện HUD",
-                MacroAction::HideHud => "Ẩn HUD",
+                MacroAction::StartVisionSearch => "T??m ???nh",
+                MacroAction::ScanVisionOnce => "Qu??t 1 l???n",
+                MacroAction::StartAudioSensePreset => "AudioSense",
+                MacroAction::StopAudioSense => "T???t Audio",
                 MacroAction::LockKeys => "Khóa phím",
                 MacroAction::UnlockKeys => "Mở phím",
                 MacroAction::LockMouse => "Khóa chuột",
@@ -4341,9 +4283,6 @@ impl CrosshairApp {
                 MacroAction::StartVisionSearch => "Start",
                 MacroAction::ScanVisionOnce => "Scan Once",
                 MacroAction::StartAudioSensePreset => "StartAudio",
-                MacroAction::StopAudioSensePreset => "StopAudio",
-                MacroAction::StartPitchDetect => "Pitch",
-                MacroAction::StartSpatialAudioDetect => "Legacy",
                 MacroAction::StopAudioSense => "StopAudio",
 
                 MacroAction::StopVisionWait => "Wait",
@@ -4416,9 +4355,6 @@ impl CrosshairApp {
                 MacroAction::StartVisionSearch => "Start",
                 MacroAction::ScanVisionOnce => "Scan Once",
                 MacroAction::StartAudioSensePreset => "StartAudio",
-                MacroAction::StopAudioSensePreset => "StopAudio",
-                MacroAction::StartPitchDetect => "Pitch",
-                MacroAction::StartSpatialAudioDetect => "Legacy",
                 MacroAction::StopAudioSense => "StopAudio",
 
                 MacroAction::StopVisionWait => "Wait",
@@ -9351,4 +9287,7 @@ pub(crate) fn video_duration(clip: &VideoClipSettings) -> Option<u64> {
             .map(|meta| meta.duration_ms)
     }
 }
+
+
+
 

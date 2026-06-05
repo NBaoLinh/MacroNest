@@ -6763,13 +6763,11 @@ impl CrosshairApp {
                                                  && preset.steps.iter().any(|s| matches!(
                                                      s.action,
                                                      MacroAction::StartAudioSensePreset
-                                                         | MacroAction::StartPitchDetect
-                                                         | MacroAction::StartSpatialAudioDetect
                                                  ) && s.enabled)
 
                                                  && !preset.steps.iter().any(|s| matches!(
                                                      s.action,
-                                                     MacroAction::StopAudioSensePreset | MacroAction::StopAudioSense
+                                                     MacroAction::StopAudioSense
                                                  ) && s.enabled);
 
                                              if has_preset_inf_loop || has_preset_vision_leak || has_preset_audio_leak {
@@ -10550,9 +10548,6 @@ impl CrosshairApp {
                                                     | MacroAction::ShowGeometryPreset
                                                     | MacroAction::HideGeometryPreset
                                                     | MacroAction::StartAudioSensePreset
-                                                    | MacroAction::StopAudioSensePreset
-                                                    | MacroAction::StartPitchDetect
-                                                    | MacroAction::StartSpatialAudioDetect
                                                     | MacroAction::StopAudioSense
                                             ) {
                                                 if matches!(
@@ -11685,7 +11680,7 @@ impl CrosshairApp {
                                 let has_stop_audio = preset.steps.iter().any(|s| {
                                     matches!(
                                         s.action,
-                                        MacroAction::StopAudioSensePreset | MacroAction::StopAudioSense
+                                        MacroAction::StopAudioSense
                                     ) && s.enabled
                                 });
 
@@ -11787,11 +11782,7 @@ impl CrosshairApp {
                                     && matches!(
                                         step.action,
                                         MacroAction::StartAudioSensePreset
-                                            | MacroAction::StartPitchDetect
-                                            | MacroAction::StartSpatialAudioDetect
                                     )
-
-                                    && step.enabled
 
                                     && !has_stop_audio;
 
@@ -16516,9 +16507,6 @@ impl CrosshairApp {
                                                     | MacroAction::ShowGeometryPreset
                                                     | MacroAction::HideGeometryPreset
                                                     | MacroAction::StartAudioSensePreset
-                                                    | MacroAction::StopAudioSensePreset
-                                                    | MacroAction::StartPitchDetect
-                                                    | MacroAction::StartSpatialAudioDetect
                                                     | MacroAction::StopAudioSense
                                             ) {
                                                 ui.add_space(2.0);
@@ -16769,9 +16757,6 @@ impl CrosshairApp {
                                                     | MacroAction::ShowGeometryPreset
                                                     | MacroAction::HideGeometryPreset
                                                     | MacroAction::StartAudioSensePreset
-                                                    | MacroAction::StopAudioSensePreset
-                                                    | MacroAction::StartPitchDetect
-                                                    | MacroAction::StartSpatialAudioDetect
                                                     | MacroAction::StopAudioSense
                                             ) {
                                                 if matches!(
@@ -20734,21 +20719,6 @@ impl CrosshairApp {
             *live_sync = true;
         }
 
-        if step.action == MacroAction::StartPitchDetect {
-            step.action = MacroAction::StartAudioSensePreset;
-            step.audio_sense_preset_id = None;
-            step.audio_sense_spec.kind = AudioSensePresetKind::Pitch;
-            *live_sync = true;
-        } else if step.action == MacroAction::StartSpatialAudioDetect {
-            step.action = MacroAction::StartAudioSensePreset;
-            step.audio_sense_preset_id = None;
-            step.audio_sense_spec.kind = AudioSensePresetKind::Pitch;
-            *live_sync = true;
-        } else if step.action == MacroAction::StopAudioSensePreset {
-            step.action = MacroAction::StopAudioSense;
-            *live_sync = true;
-        }
-
         ui.scope(|ui| {
             match step.action {
                 MacroAction::StartAudioSensePreset => {
@@ -22261,6 +22231,8 @@ impl CrosshairApp {
         response
     }
 }
+
+
 
 
 
