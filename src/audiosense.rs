@@ -293,8 +293,8 @@ fn resolve_device(
 
 #[cfg(windows)]
 fn publish_interval(updates_per_second: u32) -> Duration {
-    let hz = updates_per_second.clamp(1, 30) as f32;
-    Duration::from_secs_f32((1.0 / hz).max(0.03))
+    let hz = updates_per_second.clamp(1, 60) as f32;
+    Duration::from_secs_f32((1.0 / hz).max(1.0 / 60.0))
 }
 
 #[cfg(windows)]

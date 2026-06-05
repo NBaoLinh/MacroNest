@@ -357,7 +357,7 @@ impl CrosshairApp {
                                     DragValue::new(
                                         &mut active_monitor_settings_mut(preset).updates_per_second,
                                     )
-                                    .range(1..=30)
+                                    .range(1..=60)
                                     .speed(0.2),
                                 )
                                 .changed();
@@ -445,15 +445,45 @@ impl CrosshairApp {
     ) -> crate::model::AudioSenseMonitorSettings {
         let mut monitor = settings.clone();
         monitor.listen_forever = true;
-        monitor.updates_per_second = monitor.updates_per_second.max(24);
+        monitor.updates_per_second = monitor.updates_per_second.max(60);
         monitor
     }
 
     fn render_audio_sense_live_waveform(ui: &mut egui::Ui, waveform: &[f32]) {
+        const WAVEFORM_SLOTS: usize = 160;
         let desired_size = vec2(ui.available_width().max(220.0), 72.0);
         let (rect, _) = ui.allocate_exact_size(desired_size, Sense::hover());
         let painter = ui.painter_at(rect);
         painter.rect_filled(rect, 8.0, ui.visuals().extreme_bg_color);
+
+        let bar_width = rect.width() / WAVEFORM_SLOTS as f32;
+        let zero_fill = WAVEFORM_SLOTS.saturating_sub(waveform.len());
+        for index in 0..WAVEFORM_SLOTS {
+            let level = if index < zero_fill {
+                0.0
+            } else {
+                waveform
+                    .get(index - zero_fill)
+                    .copied()
+                    .unwrap_or(0.0)
+            };
+            let amplitude = level.clamp(0.0, 1.0);
+            let center_x = rect.left() + (index as f32 + 0.5) * bar_width;
+            let half_height = amplitude * rect.height() * 0.42;
+            if half_height > 0.0 {
+                let wave_rect = egui::Rect::from_min_max(
+                    egui::pos2(
+                        center_x - (bar_width * 0.35).max(1.0),
+                        rect.center().y - half_height,
+                    ),
+                    egui::pos2(
+                        center_x + (bar_width * 0.35).max(1.0),
+                        rect.center().y + half_height,
+                    ),
+                );
+                painter.rect_filled(wave_rect, 1.0, Color32::from_rgb(96, 172, 224));
+            }
+        }
 
         if waveform.is_empty() {
             painter.line_segment(
@@ -463,25 +493,6 @@ impl CrosshairApp {
                 ],
                 egui::Stroke::new(2.0, Color32::from_gray(120)),
             );
-            return;
-        }
-
-        let bar_width = rect.width() / waveform.len().max(1) as f32;
-        for (index, level) in waveform.iter().enumerate() {
-            let amplitude = level.clamp(0.04, 1.0);
-            let center_x = rect.left() + (index as f32 + 0.5) * bar_width;
-            let half_height = amplitude * rect.height() * 0.42;
-            let wave_rect = egui::Rect::from_min_max(
-                egui::pos2(
-                    center_x - (bar_width * 0.35).max(1.0),
-                    rect.center().y - half_height,
-                ),
-                egui::pos2(
-                    center_x + (bar_width * 0.35).max(1.0),
-                    rect.center().y + half_height,
-                ),
-            );
-            painter.rect_filled(wave_rect, 1.0, Color32::from_rgb(96, 172, 224));
         }
     }
 }

@@ -511,7 +511,7 @@ pub enum AudioSenseSource {
 }
 
 fn default_audio_sense_updates_per_second() -> u32 {
-    6
+    60
 }
 
 fn default_audio_sense_duration_ms() -> u64 {
