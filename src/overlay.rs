@@ -748,6 +748,7 @@ mod windows_overlay {
         overlay_hwnd: HWND,
         mouse_trail_hwnd: HWND,
         search_area_hwnd: HWND,
+        dynamic_geometry_hwnd: HWND,
         hud_hwnd: HWND,
         pin_hwnd: HWND,
         last_pin_update: Instant,
@@ -763,6 +764,11 @@ mod windows_overlay {
         timer_hwnds: HashMap<u32, HWND>,
         ui_visible: bool,
         ui_foreground: bool,
+        cached_search_overlay_regions: Vec<VisionRegion>,
+        cached_search_overlay_preview_regions: Vec<VisionRegion>,
+        cached_search_overlay_static_geometry: Vec<GeometryRenderShape>,
+        search_area_overlay_visible: bool,
+        dynamic_geometry_overlay_visible: bool,
     }
 
     struct MouseRecordingSession {
@@ -1031,6 +1037,24 @@ mod windows_overlay {
                 Some(instance),
                 None,
             )?;
+            let dynamic_geometry_hwnd = CreateWindowExW(
+                WS_EX_LAYERED
+                    | WS_EX_TRANSPARENT
+                    | WS_EX_TOOLWINDOW
+                    | WS_EX_TOPMOST
+                    | WS_EX_NOACTIVATE,
+                w!("CrosshairOverlay"),
+                w!("CrosshairDynamicGeometry"),
+                WS_POPUP,
+                0,
+                0,
+                32,
+                32,
+                None,
+                None,
+                Some(instance),
+                None,
+            )?;
             let hud_hwnd = CreateWindowExW(
                 WS_EX_LAYERED
                     | WS_EX_TOOLWINDOW
@@ -1092,6 +1116,7 @@ mod windows_overlay {
                 overlay_hwnd,
                 mouse_trail_hwnd,
                 search_area_hwnd,
+                dynamic_geometry_hwnd,
                 hud_hwnd,
                 pin_hwnd,
                 last_pin_update: Instant::now() - Duration::from_secs(1),
@@ -1107,6 +1132,11 @@ mod windows_overlay {
                 timer_hwnds: HashMap::new(),
                 ui_visible: true,
                 ui_foreground: true,
+                cached_search_overlay_regions: Vec::new(),
+                cached_search_overlay_preview_regions: Vec::new(),
+                cached_search_overlay_static_geometry: Vec::new(),
+                search_area_overlay_visible: false,
+                dynamic_geometry_overlay_visible: false,
             });
             let _controller_hwnd = CreateWindowExW(
                 WINDOW_EX_STYLE::default(),
@@ -4386,27 +4416,64 @@ mod windows_overlay {
             stop_active_video_preset_playback();
         }
 
-        if regions.is_empty()
+        let search_layer_is_empty = regions.is_empty()
             && preview_regions.is_empty()
-            && static_geometry_shapes.is_empty()
-            && dynamic_geometry_shapes.is_empty()
-        {
-            unsafe {
-                let _ = ShowWindow(runtime.search_area_hwnd, SW_HIDE);
+            && static_geometry_shapes.is_empty();
+        let dynamic_layer_is_empty = dynamic_geometry_shapes.is_empty();
+
+        if search_layer_is_empty {
+            if runtime.search_area_overlay_visible {
+                unsafe {
+                    let _ = ShowWindow(runtime.search_area_hwnd, SW_HIDE);
+                }
+                runtime.search_area_overlay_visible = false;
             }
-
-            return Ok(());
+            runtime.cached_search_overlay_regions.clear();
+            runtime.cached_search_overlay_preview_regions.clear();
+            runtime.cached_search_overlay_static_geometry.clear();
+        } else {
+            let static_changed = !runtime.search_area_overlay_visible
+                || runtime.cached_search_overlay_regions != regions
+                || runtime.cached_search_overlay_preview_regions != preview_regions
+                || runtime.cached_search_overlay_static_geometry != static_geometry_shapes;
+            if static_changed {
+                unsafe {
+                    paint_search_area_overlay(
+                        runtime.search_area_hwnd,
+                        &regions,
+                        &preview_regions,
+                        &static_geometry_shapes,
+                        &[],
+                    )?;
+                }
+                runtime.cached_search_overlay_regions = regions.clone();
+                runtime.cached_search_overlay_preview_regions = preview_regions.clone();
+                runtime.cached_search_overlay_static_geometry = static_geometry_shapes.clone();
+                runtime.search_area_overlay_visible = true;
+            }
         }
 
-        unsafe {
-            paint_search_area_overlay(
-                runtime.search_area_hwnd,
-                &regions,
-                &preview_regions,
-                &static_geometry_shapes,
-                &dynamic_geometry_shapes,
-            )
+        if dynamic_layer_is_empty {
+            if runtime.dynamic_geometry_overlay_visible {
+                unsafe {
+                    let _ = ShowWindow(runtime.dynamic_geometry_hwnd, SW_HIDE);
+                }
+                runtime.dynamic_geometry_overlay_visible = false;
+            }
+        } else {
+            unsafe {
+                paint_search_area_overlay(
+                    runtime.dynamic_geometry_hwnd,
+                    &[],
+                    &[],
+                    &[],
+                    &dynamic_geometry_shapes,
+                )?;
+            }
+            runtime.dynamic_geometry_overlay_visible = true;
         }
+
+        Ok(())
     }
 
     fn desired_timer_interval_ms(runtime: &Runtime) -> u32 {
