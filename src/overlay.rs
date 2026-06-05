@@ -13120,6 +13120,15 @@ mod windows_overlay {
                             }
                         }
                     }
+                } else {
+                    let spec = step.audio_sense_spec.clone();
+                    let monitor_key = custom_audio_sense_monitor_key(
+                        macro_preset_id,
+                        step_index,
+                        is_hold_stop,
+                        spec.kind,
+                    );
+                    start_custom_audio_sense(monitor_key, spec, stop_when_ui_foreground);
                 }
             }
             MacroAction::StartPitchDetect | MacroAction::StartSpatialAudioDetect => {
@@ -13160,6 +13169,8 @@ mod windows_overlay {
             MacroAction::StopAudioSense => {
                 if step.audio_sense_stop_all {
                     stop_all_audio_sense();
+                } else if let Some(preset_id) = step.audio_sense_preset_id {
+                    let _ = stop_audio_sense_preset(&preset_id.to_string());
                 } else {
                     let pitch_key = custom_audio_sense_monitor_key(
                         macro_preset_id,
