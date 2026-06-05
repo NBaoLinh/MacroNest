@@ -21060,46 +21060,18 @@ impl CrosshairApp {
                             )
                             .changed();
                         if !step.audio_sense_stop_all {
-                            let mut stop_mode = if step.audio_sense_preset_id.is_some() {
-                                1_u8
-                            } else {
-                                0_u8
-                            };
-                            egui::ComboBox::from_id_salt(ui.id().with((id_prefix, "audio-stop-mode")))
-                                .selected_text(match stop_mode {
-                                    1 => Self::tr_lang(language, "Preset", "Preset"),
-                                    _ => Self::tr_lang(language, "Custom", "Custom"),
-                                })
-                                .width(90.0)
-                                .show_ui(ui, |ui| {
-                                    ui.selectable_value(
-                                        &mut stop_mode,
-                                        0,
-                                        Self::tr_lang(language, "Custom", "Custom"),
-                                    );
-                                    ui.selectable_value(
-                                        &mut stop_mode,
-                                        1,
-                                        Self::tr_lang(language, "Preset", "Preset"),
-                                    );
-                                });
-                            if stop_mode == 1 {
-                                if step.audio_sense_preset_id.is_none() {
-                                    step.audio_sense_preset_id = preset_options.first().map(|(id, _)| *id);
-                                    *live_sync = true;
-                                }
-                                Self::render_audio_sense_preset_selector(
-                                    ui,
-                                    language,
-                                    (id_prefix, "audio-preset"),
-                                    preset_options,
-                                    &mut step.audio_sense_preset_id,
-                                    live_sync,
-                                );
-                            } else if step.audio_sense_preset_id.is_some() {
-                                step.audio_sense_preset_id = None;
+                            if step.audio_sense_preset_id.is_none() {
+                                step.audio_sense_preset_id = preset_options.first().map(|(id, _)| *id);
                                 *live_sync = true;
                             }
+                            Self::render_audio_sense_preset_selector(
+                                ui,
+                                language,
+                                (id_prefix, "audio-preset"),
+                                preset_options,
+                                &mut step.audio_sense_preset_id,
+                                live_sync,
+                            );
                         }
                     });
                 }
