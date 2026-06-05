@@ -375,7 +375,7 @@ impl CrosshairApp {
                         .flatten();
                     let hovered_pointer_pos =
                         pointer_pos.filter(|pos| viewport_rect.contains(*pos));
-                    let pointer_time_ms = pointer_pos.map(|pointer| {
+                    let pointer_time_ms = hovered_pointer_pos.map(|pointer| {
                         let ratio = ((pointer.x - rect.left()) / rect.width()).clamp(0.0, 1.0);
                         (ratio * total_ms_f32).round() as u64
                     });
@@ -513,8 +513,12 @@ impl CrosshairApp {
                         }
                     }
 
-                    let move_left = interactive && ui.input(|input| input.key_down(egui::Key::Q));
-                    let move_right = interactive && ui.input(|input| input.key_down(egui::Key::W));
+                    let move_left = interactive
+                        && timeline_hovered
+                        && ui.input(|input| input.key_down(egui::Key::Q));
+                    let move_right = interactive
+                        && timeline_hovered
+                        && ui.input(|input| input.key_down(egui::Key::W));
                     if let Some(pointer_time_ms) = pointer_time_ms {
                         if move_left {
                             clip.start_ms = pointer_time_ms.min(clip.end_ms.saturating_sub(50));
@@ -1021,7 +1025,7 @@ impl CrosshairApp {
                     let pointer_pos = ui.ctx().input(|input| input.pointer.hover_pos());
                     let hovered_pointer_pos =
                         pointer_pos.filter(|pos| viewport_rect.contains(*pos));
-                    let pointer_time_ms = pointer_pos.map(|pointer| {
+                    let pointer_time_ms = hovered_pointer_pos.map(|pointer| {
                         let ratio = ((pointer.x - rect.left()) / rect.width()).clamp(0.0, 1.0);
                         (ratio * total_ms_f32).round() as u64
                     });
@@ -1165,8 +1169,10 @@ impl CrosshairApp {
                         }
                     }
 
-                    let move_left = ui.input(|input| input.key_down(egui::Key::Q));
-                    let move_right = ui.input(|input| input.key_down(egui::Key::W));
+                    let move_left =
+                        timeline_hovered && ui.input(|input| input.key_down(egui::Key::Q));
+                    let move_right =
+                        timeline_hovered && ui.input(|input| input.key_down(egui::Key::W));
                     if let Some(pointer_time_ms) = pointer_time_ms {
                         if move_left {
                             clip.start_ms = pointer_time_ms.min(clip.end_ms.saturating_sub(50));
