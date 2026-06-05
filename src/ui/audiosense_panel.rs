@@ -56,186 +56,208 @@ impl CrosshairApp {
 
         let mut remove_id = None;
         let mut changed = false;
+        let categories = [
+            (
+                Self::tr_lang(language, "Detect Pitch", "Phat hien cao do"),
+                AudioSensePresetKind::Pitch,
+            ),
+            (
+                Self::tr_lang(language, "Spatial Audio", "Am thanh dinh huong"),
+                AudioSensePresetKind::Spatial,
+            ),
+        ];
 
-        let preset_count = self.state.audio_sense_presets.len();
-        for (preset_index, preset) in self.state.audio_sense_presets.iter_mut().enumerate() {
-            ui.add_space(6.0);
-            Self::show_preset_card(ui, preset.enabled, |ui| {
-                ui.horizontal(|ui| {
-                    let name_width = Self::preset_header_name_width(ui);
-                    let response =
-                        ui.add_sized([name_width, 21.0], TextEdit::singleline(&mut preset.name));
-                    Self::apply_vietnamese_input_if_changed(
-                        &response,
-                        self.state.vietnamese_input_enabled,
-                        self.state.vietnamese_input_mode,
-                        &mut preset.name,
-                    );
-                    changed |= response.changed();
+        for (title, kind) in categories {
+            ui.add_space(8.0);
+            ui.label(egui::RichText::new(title).strong().size(14.0));
+            ui.add_space(4.0);
 
-                    ui.label(match preset.kind {
-                        AudioSensePresetKind::Pitch => {
-                            Self::tr_lang(language, "Pitch", "Cao do")
-                        }
-                        AudioSensePresetKind::Spatial => {
-                            Self::tr_lang(language, "Spatial", "Huong am")
-                        }
-                    });
+            let matching_indices = self
+                .state
+                .audio_sense_presets
+                .iter()
+                .enumerate()
+                .filter_map(|(index, preset)| (preset.kind == kind).then_some(index))
+                .collect::<Vec<_>>();
 
-                    ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
-                        if Self::sound_style_remove_button(ui).clicked() {
-                            remove_id = Some(preset.id);
-                        }
-                        if Self::sound_style_toggle_button(
-                            ui,
-                            if preset.collapsed {
-                                Self::tr_lang(language, "Show", "Hien")
-                            } else {
-                                Self::tr_lang(language, "Hide", "An")
-                            },
-                        )
-                        .clicked()
-                        {
-                            preset.collapsed = !preset.collapsed;
-                            changed = true;
-                        }
-                    });
-                });
-
-                if !preset.collapsed {
-                    ui.add_space(6.0);
+            for (position, preset_index) in matching_indices.iter().copied().enumerate() {
+                let preset = &mut self.state.audio_sense_presets[preset_index];
+                ui.add_space(6.0);
+                Self::show_preset_card(ui, preset.enabled, |ui| {
                     ui.horizontal(|ui| {
-                        ui.label(Self::tr_lang(language, "Source", "Nguon"));
-                        ComboBox::from_id_salt(("audiosense-source", preset.id))
-                            .width(120.0)
-                            .selected_text(match active_monitor_settings(preset).source {
-                                AudioSenseSource::System => Self::tr_lang(language, "System", "He thong"),
-                                AudioSenseSource::Microphone => {
-                                    Self::tr_lang(language, "Microphone", "Micro")
-                                }
-                            })
-                            .show_ui(ui, |ui| {
-                                changed |= ui
-                                    .selectable_value(
-                                        &mut active_monitor_settings_mut(preset).source,
-                                        AudioSenseSource::System,
-                                        Self::tr_lang(language, "System", "He thong"),
-                                    )
-                                    .changed();
-                                changed |= ui
-                                    .selectable_value(
-                                        &mut active_monitor_settings_mut(preset).source,
-                                        AudioSenseSource::Microphone,
-                                        Self::tr_lang(language, "Microphone", "Micro"),
-                                    )
-                                    .changed();
-                            });
+                        let name_width = Self::preset_header_name_width(ui);
+                        let response =
+                            ui.add_sized([name_width, 21.0], TextEdit::singleline(&mut preset.name));
+                        Self::apply_vietnamese_input_if_changed(
+                            &response,
+                            self.state.vietnamese_input_enabled,
+                            self.state.vietnamese_input_mode,
+                            &mut preset.name,
+                        );
+                        changed |= response.changed();
 
-                        if active_monitor_settings(preset).source == AudioSenseSource::Microphone {
-                            ComboBox::from_id_salt(("audiosense-device", preset.id))
-                                .width(210.0)
-                                .selected_text(
-                                    active_monitor_settings(preset)
-                                        .input_device_name
-                                        .clone()
-                                        .unwrap_or_else(|| {
-                                            Self::tr_lang(
-                                                language,
-                                                "Default microphone",
-                                                "Micro mac dinh",
-                                            )
-                                            .to_owned()
-                                        }),
-                                )
-                                .show_ui(ui, |ui| {
-                                    if ui
-                                        .selectable_label(
-                                            active_monitor_settings(preset)
-                                                .input_device_name
-                                                .is_none(),
-                                            Self::tr_lang(
-                                                language,
-                                                "Default microphone",
-                                                "Micro mac dinh",
-                                            ),
-                                        )
-                                        .clicked()
-                                    {
-                                        active_monitor_settings_mut(preset).input_device_name = None;
-                                        changed = true;
+                        ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
+                            if Self::sound_style_remove_button(ui).clicked() {
+                                remove_id = Some(preset.id);
+                            }
+                            if Self::sound_style_toggle_button(
+                                ui,
+                                if preset.collapsed {
+                                    Self::tr_lang(language, "Show", "Hien")
+                                } else {
+                                    Self::tr_lang(language, "Hide", "An")
+                                },
+                            )
+                            .clicked()
+                            {
+                                preset.collapsed = !preset.collapsed;
+                                changed = true;
+                            }
+                        });
+                    });
+
+                    if !preset.collapsed {
+                        ui.add_space(6.0);
+                        ui.horizontal(|ui| {
+                            ui.label(Self::tr_lang(language, "Source", "Nguon"));
+                            ComboBox::from_id_salt(("audiosense-source", preset.id))
+                                .width(120.0)
+                                .selected_text(match active_monitor_settings(preset).source {
+                                    AudioSenseSource::System => {
+                                        Self::tr_lang(language, "System", "He thong")
                                     }
-                                    for device in &self.audio_sense_devices {
+                                    AudioSenseSource::Microphone => {
+                                        Self::tr_lang(language, "Microphone", "Micro")
+                                    }
+                                })
+                                .show_ui(ui, |ui| {
+                                    changed |= ui
+                                        .selectable_value(
+                                            &mut active_monitor_settings_mut(preset).source,
+                                            AudioSenseSource::System,
+                                            Self::tr_lang(language, "System", "He thong"),
+                                        )
+                                        .changed();
+                                    changed |= ui
+                                        .selectable_value(
+                                            &mut active_monitor_settings_mut(preset).source,
+                                            AudioSenseSource::Microphone,
+                                            Self::tr_lang(language, "Microphone", "Micro"),
+                                        )
+                                        .changed();
+                                });
+
+                            if active_monitor_settings(preset).source == AudioSenseSource::Microphone {
+                                ComboBox::from_id_salt(("audiosense-device", preset.id))
+                                    .width(210.0)
+                                    .selected_text(
+                                        active_monitor_settings(preset)
+                                            .input_device_name
+                                            .clone()
+                                            .unwrap_or_else(|| {
+                                                Self::tr_lang(
+                                                    language,
+                                                    "Default microphone",
+                                                    "Micro mac dinh",
+                                                )
+                                                .to_owned()
+                                            }),
+                                    )
+                                    .show_ui(ui, |ui| {
                                         if ui
                                             .selectable_label(
                                                 active_monitor_settings(preset)
                                                     .input_device_name
-                                                    .as_deref()
-                                                    == Some(device.as_str()),
-                                                device,
+                                                    .is_none(),
+                                                Self::tr_lang(
+                                                    language,
+                                                    "Default microphone",
+                                                    "Micro mac dinh",
+                                                ),
                                             )
                                             .clicked()
                                         {
                                             active_monitor_settings_mut(preset).input_device_name =
-                                                Some(device.clone());
+                                                None;
                                             changed = true;
                                         }
-                                    }
-                                });
-                        }
-                    });
+                                        for device in &self.audio_sense_devices {
+                                            if ui
+                                                .selectable_label(
+                                                    active_monitor_settings(preset)
+                                                        .input_device_name
+                                                        .as_deref()
+                                                        == Some(device.as_str()),
+                                                    device,
+                                                )
+                                                .clicked()
+                                            {
+                                                active_monitor_settings_mut(preset)
+                                                    .input_device_name = Some(device.clone());
+                                                changed = true;
+                                            }
+                                        }
+                                    });
+                            }
+                        });
 
-                    ui.add_space(4.0);
-                    ui.horizontal(|ui| {
-                        ui.label("Hz");
-                        changed |= ui
-                            .add(
-                                DragValue::new(&mut active_monitor_settings_mut(preset).updates_per_second)
-                                    .range(1..=30)
-                                    .speed(0.2),
-                            )
-                            .changed();
-                        changed |= ui
-                            .checkbox(
-                                &mut active_monitor_settings_mut(preset).listen_forever,
-                                Self::tr_lang(language, "Listen forever", "Nghe vinh vien"),
-                            )
-                            .changed();
-                        if !active_monitor_settings(preset).listen_forever {
-                            ui.label("ms");
+                        ui.add_space(4.0);
+                        ui.horizontal(|ui| {
+                            ui.label("Hz");
                             changed |= ui
                                 .add(
-                                    DragValue::new(&mut active_monitor_settings_mut(preset).duration_ms)
-                                        .range(100..=60_000)
-                                        .speed(10.0),
+                                    DragValue::new(
+                                        &mut active_monitor_settings_mut(preset).updates_per_second,
+                                    )
+                                    .range(1..=30)
+                                    .speed(0.2),
                                 )
                                 .changed();
-                        }
-                    });
+                            changed |= ui
+                                .checkbox(
+                                    &mut active_monitor_settings_mut(preset).listen_forever,
+                                    Self::tr_lang(language, "Listen forever", "Nghe vinh vien"),
+                                )
+                                .changed();
+                            if !active_monitor_settings(preset).listen_forever {
+                                ui.label("ms");
+                                changed |= ui
+                                    .add(
+                                        DragValue::new(
+                                            &mut active_monitor_settings_mut(preset).duration_ms,
+                                        )
+                                        .range(100..=60_000)
+                                        .speed(10.0),
+                                    )
+                                    .changed();
+                            }
+                        });
 
-                    ui.add_space(4.0);
-                    match preset.kind {
-                        AudioSensePresetKind::Pitch => {
-                            changed |= render_pitch_settings_ui(
-                                ui,
-                                language,
-                                &mut preset.pitch,
-                                &self.pitch_monitor.snapshot(),
-                            );
-                        }
-                        AudioSensePresetKind::Spatial => {
-                            changed |= render_spatial_settings_ui(
-                                ui,
-                                language,
-                                &mut preset.spatial,
-                                &self.spatial_monitor.snapshot(),
-                            );
+                        ui.add_space(4.0);
+                        match preset.kind {
+                            AudioSensePresetKind::Pitch => {
+                                changed |= render_pitch_settings_ui(
+                                    ui,
+                                    language,
+                                    &mut preset.pitch,
+                                    &self.pitch_monitor.snapshot(),
+                                );
+                            }
+                            AudioSensePresetKind::Spatial => {
+                                changed |= render_spatial_settings_ui(
+                                    ui,
+                                    language,
+                                    &mut preset.spatial,
+                                    &self.spatial_monitor.snapshot(),
+                                );
+                            }
                         }
                     }
+                });
+                ui.add_space(4.0);
+                if position + 1 < matching_indices.len() {
+                    ui.separator();
                 }
-            });
-            ui.add_space(4.0);
-            if preset_index + 1 < preset_count {
-                ui.separator();
             }
         }
 
