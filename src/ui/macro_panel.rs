@@ -4939,6 +4939,7 @@ impl CrosshairApp {
                     let mut delete_selected_steps = None;
 
                     let mut paste_step_after: Option<(u32, u32, usize)> = None;
+                    let mut paste_steps_at_start: Option<(u32, u32)> = None;
 
                     let mut copy_single_step: Option<(u32, u32, usize)> = None;
 
@@ -11009,7 +11010,20 @@ impl CrosshairApp {
 
                                         let capture_active = self.capture_target.as_ref() == Some(&capture_target);
 
-                                        let (rect, _) = ui.allocate_exact_size(egui::vec2(118.0, 18.0), egui::Sense::hover());
+                                        let has_selected_steps = selected_steps_snapshot.iter().any(|(g_id, p_id, _)| *g_id == group.id && *p_id == preset.id);
+                                        let selected_copy_feedback_active =
+                                            self.macro_selected_steps_copy_feedback_target
+                                                == Some((group.id, preset.id))
+                                                && Self::is_copy_feedback_active(
+                                                    self.macro_selected_steps_copy_feedback_until,
+                                                );
+                                        let selected_copy_feedback_active =
+                                            self.macro_selected_steps_copy_feedback_target
+                                                == Some((group.id, preset.id))
+                                                && Self::is_copy_feedback_active(
+                                                    self.macro_selected_steps_copy_feedback_until,
+                                                );
+                                        let (rect, _) = ui.allocate_exact_size(egui::vec2(216.0, 18.0), egui::Sense::hover());
 
                                          let mut child_ui = ui.new_child(
 
@@ -11046,6 +11060,52 @@ impl CrosshairApp {
                                              live_sync = true;
 
                                          }
+
+                                        if child_ui
+                                            .add_enabled(
+                                                !self.macro_step_clipboard.is_empty(),
+                                                Button::new(Self::tr_lang(language, "Paste", "Paste"))
+                                                    .min_size(egui::vec2(42.0, 18.0)),
+                                            )
+                                            .on_hover_text(Self::tr_lang(
+                                                language,
+                                                "Paste copied step(s) at the top of this preset.",
+                                                "Paste copied step(s) at the top of this preset.",
+                                            ))
+                                            .clicked()
+                                        {
+                                            paste_steps_at_start = Some((group.id, preset.id));
+                                        }
+
+                                        if has_selected_steps {
+                                            if selected_copy_feedback_active {
+                                                child_ui.add_sized(
+                                                    [48.0, 18.0],
+                                                    egui::Label::new(
+                                                        RichText::new(Self::tr_lang(
+                                                            language,
+                                                            "Copied",
+                                                            "Copied",
+                                                        ))
+                                                        .color(Color32::from_rgb(126, 224, 182))
+                                                        .strong(),
+                                                    ),
+                                                );
+                                            } else if child_ui
+                                                .add(
+                                                    Button::new(Self::tr_lang(language, "Copy", "Copy"))
+                                                        .min_size(egui::vec2(40.0, 18.0)),
+                                                )
+                                                .on_hover_text(Self::tr_lang(
+                                                    language,
+                                                    "Copy the selected steps in this preset.",
+                                                    "Copy selected steps in this preset.",
+                                                ))
+                                                .clicked()
+                                            {
+                                                copy_selected_steps = Some((group.id, preset.id));
+                                            }
+                                        }
 
                                          let is_recording_this = self.active_macro_record_preset_id == Some(preset.id);
 
@@ -11369,29 +11429,59 @@ impl CrosshairApp {
 
                                              }
 
-                                             let copy_btn = Button::new(Self::tr_lang(language, "Copy", "Copy"))
+                                             if selected_copy_feedback_active {
 
-                                                 .min_size(egui::vec2(56.0, 20.0));
+                                                 ui.add_sized(
 
-                                             if ui
+                                                     [56.0, 20.0],
 
-                                                 .add(copy_btn)
+                                                     egui::Label::new(
 
-                                                 .on_hover_text(Self::tr_lang(
+                                                         RichText::new(Self::tr_lang(
 
-                                                     language,
+                                                             language,
 
-                                                     "Copy the selected steps in this preset.",
+                                                             "Copied",
 
-                                                     "Copy selected steps in this preset.",
+                                                             "Copied",
 
-                                                 ))
+                                                         ))
 
-                                                 .clicked()
+                                                         .color(Color32::from_rgb(126, 224, 182))
 
-                                             {
+                                                         .strong(),
 
-                                                 copy_selected_steps = Some((group.id, preset.id));
+                                                     ),
+
+                                                 );
+
+                                             } else {
+
+                                                 let copy_btn = Button::new(Self::tr_lang(language, "Copy", "Copy"))
+
+                                                     .min_size(egui::vec2(56.0, 20.0));
+
+                                                 if ui
+
+                                                     .add(copy_btn)
+
+                                                     .on_hover_text(Self::tr_lang(
+
+                                                         language,
+
+                                                         "Copy the selected steps in this preset.",
+
+                                                         "Copy selected steps in this preset.",
+
+                                                     ))
+
+                                                     .clicked()
+
+                                                 {
+
+                                                     copy_selected_steps = Some((group.id, preset.id));
+
+                                                 }
 
                                              }
 
@@ -18328,6 +18418,28 @@ impl CrosshairApp {
                     if let Some((group_id, preset_id)) = copy_selected_steps {
 
                         self.copy_selected_macro_steps_for_preset(group_id, preset_id);
+
+                    }
+
+                    if let Some((group_id, preset_id)) = paste_steps_at_start {
+
+                        if let Some(selection) = self.paste_macro_steps_at_start(group_id, preset_id) {
+
+                            self.selected_macro_steps.clear();
+                            self.selected_macro_steps.extend(
+                                selection
+                                    .into_iter()
+                                    .map(|step_index| (group_id, preset_id, step_index)),
+                            );
+                            self.last_selected_macro_step = self
+                                .selected_macro_steps
+                                .iter()
+                                .copied()
+                                .max_by_key(|(_, _, step_index)| *step_index);
+
+                            live_sync = true;
+
+                        }
 
                     }
 

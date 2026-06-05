@@ -635,6 +635,8 @@ pub struct CrosshairApp {
     mouse_path_add_feedback_until: Option<Instant>,
     macro_step_copy_feedback_target: Option<(u32, u32, usize)>,
     macro_step_copy_feedback_until: Option<Instant>,
+    macro_selected_steps_copy_feedback_target: Option<(u32, u32)>,
+    macro_selected_steps_copy_feedback_until: Option<Instant>,
     vision_capture_active: bool,
     vision_capture_target: Option<VisionCaptureTarget>,
     vision_capture_mode: Option<VisionCaptureMode>,
@@ -820,6 +822,8 @@ impl CrosshairApp {
             mouse_path_add_feedback_until: None,
             macro_step_copy_feedback_target: None,
             macro_step_copy_feedback_until: None,
+            macro_selected_steps_copy_feedback_target: None,
+            macro_selected_steps_copy_feedback_until: None,
             vision_capture_active: false,
             vision_capture_target: None,
             vision_capture_mode: None,
@@ -6516,6 +6520,9 @@ impl CrosshairApp {
         if self.macro_step_clipboard.is_empty() {
             self.status = "No selected steps to copy.".to_owned();
         } else {
+            self.macro_selected_steps_copy_feedback_target = Some((group_id, preset_id));
+            self.macro_selected_steps_copy_feedback_until =
+                Some(Instant::now() + Duration::from_secs(1));
             self.status = format!("Copied {} step(s).", self.macro_step_clipboard.len());
         }
     }
@@ -6587,6 +6594,37 @@ impl CrosshairApp {
 
         self.status = format!("Pasted {} step(s).", pasted_count);
         Some((final_insert_at..final_insert_at + pasted_count).collect::<Vec<_>>())
+    }
+
+    fn paste_macro_steps_at_start(&mut self, group_id: u32, preset_id: u32) -> Option<Vec<usize>> {
+        if self.macro_step_clipboard.is_empty() {
+            self.status = "No steps in clipboard.".to_owned();
+            return None;
+        }
+
+        let clipboard_steps = self.macro_step_clipboard.clone();
+        let pasted_count = clipboard_steps.len();
+
+        let Some(group) = self
+            .state
+            .macro_groups
+            .iter_mut()
+            .find(|g| g.id == group_id)
+        else {
+            self.status = "Macro group not found.".to_owned();
+            return None;
+        };
+        let Some(preset) = group.presets.iter_mut().find(|p| p.id == preset_id) else {
+            self.status = "Macro preset not found.".to_owned();
+            return None;
+        };
+
+        for (offset, step) in clipboard_steps.into_iter().enumerate() {
+            preset.steps.insert(offset, step);
+        }
+
+        self.status = format!("Pasted {} step(s).", pasted_count);
+        Some((0..pasted_count).collect::<Vec<_>>())
     }
 
     fn cut_selected_macro_groups(&mut self) {
