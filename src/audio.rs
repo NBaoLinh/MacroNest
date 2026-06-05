@@ -244,11 +244,17 @@ impl VideoPreviewAudioState {
 }
 
 pub fn load_duration_ms(path: &str) -> Result<u64> {
-    let decoder = open_decoder(path)?;
-    let duration = decoder
-        .total_duration()
-        .context("Could not determine the audio duration")?;
-    Ok(duration.as_millis() as u64)
+    let trimmed = path.trim();
+    let mut decoder = open_decoder(trimmed)?;
+    if let Some(duration) = decoder.total_duration() {
+        return Ok(duration.as_millis() as u64);
+    }
+
+    let channels = decoder.channels();
+    let sample_rate = decoder.sample_rate();
+    let samples: Vec<f32> = decoder.by_ref().collect();
+    computed_duration_ms(samples.len(), channels, sample_rate)
+        .context("Could not determine the audio duration")
 }
 
 pub fn preload_preview_audio(path: &str) -> Result<()> {
@@ -611,6 +617,17 @@ fn load_cached_audio(path: &str) -> Result<CachedAudio> {
 fn open_decoder(path: &str) -> Result<Decoder<BufReader<File>>> {
     let file = File::open(path).with_context(|| format!("Failed to open audio file: {path}"))?;
     Decoder::new(BufReader::new(file)).context("Failed to decode the audio file")
+}
+
+fn computed_duration_ms(sample_count: usize, channels: u16, sample_rate: u32) -> Option<u64> {
+    let channel_count = usize::from(channels.max(1));
+    let rate = sample_rate.max(1);
+    if sample_count == 0 {
+        return Some(0);
+    }
+
+    let frame_count = sample_count / channel_count;
+    Some(((frame_count as f64 / rate as f64) * 1000.0).round().max(0.0) as u64)
 }
 
 fn decode_media_audio(path: &str) -> Result<CachedAudio> {
