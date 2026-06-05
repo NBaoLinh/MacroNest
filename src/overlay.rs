@@ -12840,7 +12840,7 @@ mod windows_overlay {
     ) -> String {
         let kind_tag = match kind {
             AudioSensePresetKind::Pitch => "pitch",
-            AudioSensePresetKind::Spatial => "spatial",
+            AudioSensePresetKind::Spatial => "legacy-spatial",
         };
         format!("custom:{macro_preset_id}:{step_index}:{is_hold_stop}:{kind_tag}")
     }
@@ -12897,30 +12897,6 @@ mod windows_overlay {
         }
     }
 
-    fn write_spatial_snapshot_vars(
-        settings: &crate::model::SpatialAudioSenseSettings,
-        snapshot: &audiosense::SpatialSnapshot,
-    ) {
-        if !settings.output_x_var.trim().is_empty() {
-            set_variable_value(&settings.output_x_var, snapshot.x);
-        }
-        if !settings.output_y_var.trim().is_empty() {
-            set_variable_value(&settings.output_y_var, snapshot.y);
-        }
-        if !settings.output_pan_var.trim().is_empty() {
-            set_variable_value(
-                &settings.output_pan_var,
-                clamp_f64_to_i32((snapshot.pan * 1000.0) as f64),
-            );
-        }
-        if !settings.output_level_var.trim().is_empty() {
-            set_variable_value(
-                &settings.output_level_var,
-                clamp_f64_to_i32((snapshot.level * 1000.0) as f64),
-            );
-        }
-    }
-
     fn run_pitch_monitor_loop(
         monitor_key: String,
         config: crate::model::PitchAudioSenseSettings,
@@ -12956,41 +12932,6 @@ mod windows_overlay {
         set_audio_sense_active(&monitor_key, false);
     }
 
-    fn run_spatial_monitor_loop(
-        monitor_key: String,
-        config: crate::model::SpatialAudioSenseSettings,
-        stop_when_ui_foreground: bool,
-    ) {
-        let mut monitor = audiosense::SpatialMonitor::new();
-        if let Err(error) = monitor.start(config.clone()) {
-            eprintln!("AudioSense spatial start failed: {error}");
-            set_audio_sense_active(&monitor_key, false);
-            return;
-        }
-
-        let update_hz = config.monitor.updates_per_second;
-        while audio_sense_is_active(&monitor_key) {
-            if stop_when_ui_foreground && is_ui_in_foreground() {
-                break;
-            }
-
-            let snapshot = monitor.snapshot();
-            if let Some(error) = snapshot.error.as_ref() {
-                eprintln!("AudioSense spatial error: {error}");
-                break;
-            }
-            if !snapshot.running {
-                break;
-            }
-
-            write_spatial_snapshot_vars(&config, &snapshot);
-            audiosense::sleep_detection_interval(update_hz);
-        }
-
-        monitor.stop();
-        set_audio_sense_active(&monitor_key, false);
-    }
-
     fn start_audio_sense_preset(spec: &str, stop_when_ui_foreground: bool) -> Result<()> {
         let preset = audio_sense_preset_by_id(spec)?;
         let monitor_key = audio_sense_monitor_key_for_preset(preset.id);
@@ -13004,7 +12945,8 @@ mod windows_overlay {
                 thread::spawn(move || run_pitch_monitor_loop(monitor_key, preset.pitch, stop_when_ui_foreground));
             }
             AudioSensePresetKind::Spatial => {
-                thread::spawn(move || run_spatial_monitor_loop(monitor_key, preset.spatial, stop_when_ui_foreground));
+                set_audio_sense_active(&monitor_key, false);
+                bail!("Legacy Spatial AudioSense presets are no longer supported")
             }
         }
         Ok(())
@@ -13032,7 +12974,7 @@ mod windows_overlay {
                 thread::spawn(move || run_pitch_monitor_loop(monitor_key, spec.pitch, stop_when_ui_foreground));
             }
             AudioSensePresetKind::Spatial => {
-                thread::spawn(move || run_spatial_monitor_loop(monitor_key, spec.spatial, stop_when_ui_foreground));
+                set_audio_sense_active(&monitor_key, false);
             }
         }
     }
@@ -13084,39 +13026,7 @@ mod windows_overlay {
                                 }
                             }
                             AudioSensePresetKind::Spatial => {
-                                if !step.audio_sense_spec.spatial.output_x_var.trim().is_empty() {
-                                    preset.spatial.output_x_var =
-                                        step.audio_sense_spec.spatial.output_x_var.clone();
-                                }
-                                if !step.audio_sense_spec.spatial.output_y_var.trim().is_empty() {
-                                    preset.spatial.output_y_var =
-                                        step.audio_sense_spec.spatial.output_y_var.clone();
-                                }
-                                if !step.audio_sense_spec.spatial.output_pan_var.trim().is_empty() {
-                                    preset.spatial.output_pan_var =
-                                        step.audio_sense_spec.spatial.output_pan_var.clone();
-                                }
-                                if !step
-                                    .audio_sense_spec
-                                    .spatial
-                                    .output_level_var
-                                    .trim()
-                                    .is_empty()
-                                {
-                                    preset.spatial.output_level_var =
-                                        step.audio_sense_spec.spatial.output_level_var.clone();
-                                }
-                                let monitor_key = audio_sense_monitor_key_for_preset(preset.id);
-                                if !audio_sense_is_active(&monitor_key) {
-                                    set_audio_sense_active(&monitor_key, true);
-                                    thread::spawn(move || {
-                                        run_spatial_monitor_loop(
-                                            monitor_key,
-                                            preset.spatial,
-                                            stop_when_ui_foreground,
-                                        )
-                                    });
-                                }
+                                let _ = (preset, stop_when_ui_foreground);
                             }
                         }
                     }
@@ -13133,11 +13043,7 @@ mod windows_overlay {
             }
             MacroAction::StartPitchDetect | MacroAction::StartSpatialAudioDetect => {
                 let mut spec = step.audio_sense_spec.clone();
-                spec.kind = if step.action == MacroAction::StartSpatialAudioDetect {
-                    AudioSensePresetKind::Spatial
-                } else {
-                    AudioSensePresetKind::Pitch
-                };
+                spec.kind = AudioSensePresetKind::Pitch;
                 let monitor_key = custom_audio_sense_monitor_key(
                     macro_preset_id,
                     step_index,
@@ -13178,14 +13084,7 @@ mod windows_overlay {
                         is_hold_stop,
                         AudioSensePresetKind::Pitch,
                     );
-                    let spatial_key = custom_audio_sense_monitor_key(
-                        macro_preset_id,
-                        step_index,
-                        is_hold_stop,
-                        AudioSensePresetKind::Spatial,
-                    );
                     set_audio_sense_active(&pitch_key, false);
-                    set_audio_sense_active(&spatial_key, false);
                 }
             }
             _ => {}

@@ -500,6 +500,7 @@ pub enum MacroAction {
 pub enum AudioSensePresetKind {
     #[default]
     Pitch,
+    #[serde(alias = "Spatial")]
     Spatial,
 }
 
@@ -528,30 +529,6 @@ fn default_audio_sense_output_confidence_var() -> String {
 
 fn default_audio_sense_output_level_var() -> String {
     String::new()
-}
-
-fn default_audio_sense_output_x_var() -> String {
-    String::new()
-}
-
-fn default_audio_sense_output_y_var() -> String {
-    String::new()
-}
-
-fn default_audio_sense_output_pan_var() -> String {
-    String::new()
-}
-
-fn default_audio_sense_center_x() -> i32 {
-    960
-}
-
-fn default_audio_sense_center_y() -> i32 {
-    540
-}
-
-fn default_audio_sense_radius() -> i32 {
-    320
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
@@ -605,41 +582,6 @@ impl Default for PitchAudioSenseSettings {
 
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
 #[serde(default)]
-pub struct SpatialAudioSenseSettings {
-    pub monitor: AudioSenseMonitorSettings,
-    #[serde(default = "default_audio_sense_output_x_var")]
-    pub output_x_var: String,
-    #[serde(default = "default_audio_sense_output_y_var")]
-    pub output_y_var: String,
-    #[serde(default = "default_audio_sense_output_pan_var")]
-    pub output_pan_var: String,
-    #[serde(default = "default_audio_sense_output_level_var")]
-    pub output_level_var: String,
-    #[serde(default = "default_audio_sense_center_x")]
-    pub center_x: i32,
-    #[serde(default = "default_audio_sense_center_y")]
-    pub center_y: i32,
-    #[serde(default = "default_audio_sense_radius")]
-    pub radius: i32,
-}
-
-impl Default for SpatialAudioSenseSettings {
-    fn default() -> Self {
-        Self {
-            monitor: AudioSenseMonitorSettings::default(),
-            output_x_var: default_audio_sense_output_x_var(),
-            output_y_var: default_audio_sense_output_y_var(),
-            output_pan_var: default_audio_sense_output_pan_var(),
-            output_level_var: default_audio_sense_output_level_var(),
-            center_x: default_audio_sense_center_x(),
-            center_y: default_audio_sense_center_y(),
-            radius: default_audio_sense_radius(),
-        }
-    }
-}
-
-#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
-#[serde(default)]
 pub struct AudioSensePreset {
     pub id: u32,
     pub name: String,
@@ -647,7 +589,6 @@ pub struct AudioSensePreset {
     pub collapsed: bool,
     pub kind: AudioSensePresetKind,
     pub pitch: PitchAudioSenseSettings,
-    pub spatial: SpatialAudioSenseSettings,
 }
 
 impl AudioSensePreset {
@@ -659,19 +600,6 @@ impl AudioSensePreset {
             collapsed: true,
             kind: AudioSensePresetKind::Pitch,
             pitch: PitchAudioSenseSettings::default(),
-            spatial: SpatialAudioSenseSettings::default(),
-        }
-    }
-
-    pub fn new_spatial(id: u32) -> Self {
-        Self {
-            id,
-            name: format!("Spatial Audio {id}"),
-            enabled: true,
-            collapsed: true,
-            kind: AudioSensePresetKind::Spatial,
-            pitch: PitchAudioSenseSettings::default(),
-            spatial: SpatialAudioSenseSettings::default(),
         }
     }
 }
@@ -687,7 +615,6 @@ impl Default for AudioSensePreset {
 pub struct AudioSenseSpec {
     pub kind: AudioSensePresetKind,
     pub pitch: PitchAudioSenseSettings,
-    pub spatial: SpatialAudioSenseSettings,
 }
 
 impl Default for AudioSenseSpec {
@@ -695,7 +622,6 @@ impl Default for AudioSenseSpec {
         Self {
             kind: AudioSensePresetKind::Pitch,
             pitch: PitchAudioSenseSettings::default(),
-            spatial: SpatialAudioSenseSettings::default(),
         }
     }
 }

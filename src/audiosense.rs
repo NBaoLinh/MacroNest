@@ -13,7 +13,6 @@ use std::time::{Duration, Instant};
 
 use crate::model::{
     AudioSenseMonitorSettings, AudioSenseSource, PitchAudioSenseSettings,
-    SpatialAudioSenseSettings,
 };
 
 #[derive(Clone, Debug)]
@@ -39,37 +38,8 @@ impl Default for PitchSnapshot {
     }
 }
 
-#[derive(Clone, Debug)]
-pub struct SpatialSnapshot {
-    pub running: bool,
-    pub x: i32,
-    pub y: i32,
-    pub pan: f32,
-    pub level: f32,
-    pub error: Option<String>,
-}
-
-impl Default for SpatialSnapshot {
-    fn default() -> Self {
-        Self {
-            running: false,
-            x: 0,
-            y: 0,
-            pan: 0.0,
-            level: 0.0,
-            error: None,
-        }
-    }
-}
-
 pub struct PitchMonitor {
     state: Arc<Mutex<PitchSnapshot>>,
-    stop_flag: Option<Arc<AtomicBool>>,
-    worker: Option<JoinHandle<()>>,
-}
-
-pub struct SpatialMonitor {
-    state: Arc<Mutex<SpatialSnapshot>>,
     stop_flag: Option<Arc<AtomicBool>>,
     worker: Option<JoinHandle<()>>,
 }
@@ -150,73 +120,6 @@ impl PitchMonitor {
 }
 
 impl Drop for PitchMonitor {
-    fn drop(&mut self) {
-        self.stop();
-    }
-}
-
-impl SpatialMonitor {
-    pub fn new() -> Self {
-        Self {
-            state: Arc::new(Mutex::new(SpatialSnapshot::default())),
-            stop_flag: None,
-            worker: None,
-        }
-    }
-
-    pub fn snapshot(&self) -> SpatialSnapshot {
-        self.state.lock().unwrap().clone()
-    }
-
-    pub fn start(&mut self, config: SpatialAudioSenseSettings) -> Result<()> {
-        if self.worker.is_some() {
-            self.stop();
-        }
-
-        let stop_flag = Arc::new(AtomicBool::new(false));
-        let state = Arc::clone(&self.state);
-        let stop_for_thread = Arc::clone(&stop_flag);
-
-        {
-            let mut snapshot = state.lock().unwrap();
-            *snapshot = SpatialSnapshot {
-                running: true,
-                x: config.center_x,
-                y: config.center_y,
-                ..SpatialSnapshot::default()
-            };
-        }
-
-        let worker = thread::Builder::new()
-            .name("audiosense-spatial".to_owned())
-            .spawn(move || {
-                let result =
-                    run_spatial_loop(Arc::clone(&state), Arc::clone(&stop_for_thread), config);
-                let mut snapshot = state.lock().unwrap();
-                snapshot.running = false;
-                if let Err(error) = result {
-                    snapshot.error = Some(error.to_string());
-                }
-            })?;
-
-        self.stop_flag = Some(stop_flag);
-        self.worker = Some(worker);
-        Ok(())
-    }
-
-    pub fn stop(&mut self) {
-        if let Some(stop_flag) = self.stop_flag.take() {
-            stop_flag.store(true, Ordering::Relaxed);
-        }
-        if let Some(worker) = self.worker.take() {
-            let _ = worker.join();
-        }
-        let mut snapshot = self.state.lock().unwrap();
-        *snapshot = SpatialSnapshot::default();
-    }
-}
-
-impl Drop for SpatialMonitor {
     fn drop(&mut self) {
         self.stop();
     }
@@ -421,93 +324,6 @@ fn run_pitch_loop(
 }
 
 #[cfg(windows)]
-fn run_spatial_loop(
-    state: Arc<Mutex<SpatialSnapshot>>,
-    stop_flag: Arc<AtomicBool>,
-    config: SpatialAudioSenseSettings,
-) -> Result<()> {
-    let (mut audio_client, capture_client, event_handle, blockalign) =
-        resolve_device(&config.monitor)?;
-    let buffer_frame_count = audio_client.get_buffer_size()? as usize;
-    let chunk_frames = 512usize;
-    let chunk_bytes = chunk_frames * blockalign;
-    let mut sample_queue =
-        VecDeque::with_capacity(blockalign * (chunk_frames + buffer_frame_count * 4));
-    let interval = publish_interval(config.monitor.updates_per_second);
-    let stop_after = max_duration(&config.monitor);
-    let started_at = Instant::now();
-    let mut last_publish = Instant::now()
-        .checked_sub(interval)
-        .unwrap_or_else(Instant::now);
-    let mut smoothed_pan = 0.0f32;
-    let mut smoothed_level = 0.0f32;
-
-    audio_client.start_stream()?;
-    while !stop_flag.load(Ordering::Relaxed) {
-        if stop_after.is_some_and(|limit| started_at.elapsed() >= limit) {
-            break;
-        }
-
-        let new_frames = capture_client.get_next_packet_size()?.unwrap_or(0);
-        if new_frames > 0 {
-            let additional = (new_frames as usize * blockalign)
-                .saturating_sub(sample_queue.capacity().saturating_sub(sample_queue.len()));
-            sample_queue.reserve(additional);
-            capture_client.read_from_device_to_deque(&mut sample_queue)?;
-        }
-
-        while sample_queue.len() >= chunk_bytes {
-            let mut chunk = vec![0u8; chunk_bytes];
-            for value in &mut chunk {
-                *value = sample_queue.pop_front().unwrap_or_default();
-            }
-
-            let (left, right) = bytes_to_stereo_samples(&chunk);
-            let left_level = rms_level(&left);
-            let right_level = rms_level(&right);
-            let total = left_level + right_level;
-            let level = level_to_visual(total * 0.5);
-            let pan = if total > 1e-5 {
-                ((right_level - left_level) / total).clamp(-1.0, 1.0)
-            } else {
-                0.0
-            };
-
-            smoothed_pan = smoothed_pan * 0.74 + pan * 0.26;
-            smoothed_level = smoothed_level * 0.78 + level * 0.22;
-
-            if last_publish.elapsed() >= interval {
-                let x = config.center_x
-                    + (smoothed_pan * config.radius.max(0) as f32).round() as i32;
-                let y = config.center_y;
-                let mut snapshot = state.lock().unwrap();
-                snapshot.running = true;
-                snapshot.x = x;
-                snapshot.y = y;
-                snapshot.pan = smoothed_pan;
-                snapshot.level = smoothed_level;
-                snapshot.error = None;
-                last_publish = Instant::now();
-            }
-        }
-
-        let _ = event_handle.wait_for_event(200);
-    }
-
-    let _ = audio_client.stop_stream();
-    Ok(())
-}
-
-#[cfg(not(windows))]
-fn run_spatial_loop(
-    _state: Arc<Mutex<SpatialSnapshot>>,
-    _stop_flag: Arc<AtomicBool>,
-    _config: SpatialAudioSenseSettings,
-) -> Result<()> {
-    bail!("AudioSense spatial detection is only available on Windows")
-}
-
-#[cfg(windows)]
 pub fn sleep_detection_interval(updates_per_second: u32) {
     let interval = publish_interval(updates_per_second);
     thread::sleep(interval.min(Duration::from_millis(250)));
@@ -537,16 +353,6 @@ fn bytes_to_mono_samples(bytes: &[u8], channels: usize) -> Vec<f32> {
     }
 
     mono
-}
-
-fn bytes_to_stereo_samples(bytes: &[u8]) -> (Vec<f32>, Vec<f32>) {
-    let mut left = Vec::with_capacity(bytes.len() / 8);
-    let mut right = Vec::with_capacity(bytes.len() / 8);
-    for frame in bytes.chunks_exact(8) {
-        left.push(f32::from_le_bytes([frame[0], frame[1], frame[2], frame[3]]));
-        right.push(f32::from_le_bytes([frame[4], frame[5], frame[6], frame[7]]));
-    }
-    (left, right)
 }
 
 fn rms_level(samples: &[f32]) -> f32 {

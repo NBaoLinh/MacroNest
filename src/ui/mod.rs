@@ -21,8 +21,8 @@ use resvg::usvg;
 use crate::{
     ai, audio, audiosense, hotkey,
     model::{
-        AppPanel, AppState, AudioClipSettings, AudioSensePreset, CaptureRequest, CapturedInput, CommandPreset,
-        CrosshairStyle, GeometryPreset, GeometryShapeKind, GeometrySpec, HotkeyBinding, MacroAction,
+        AppPanel, AppState, AudioClipSettings, AudioSensePreset, AudioSensePresetKind, CaptureRequest,
+        CapturedInput, CommandPreset, CrosshairStyle, GeometryPreset, GeometryShapeKind, GeometrySpec, HotkeyBinding, MacroAction,
         MacroFolder, MacroGroup, MacroPreset, MacroStep, MacroTriggerMode,
         MasterMacroGroupState, MasterMacroPresetState, MasterPreset,
         MasterWindowFocusPresetState, MasterWindowPresetState, MasterZoomPresetState,
@@ -742,11 +742,9 @@ pub struct CrosshairApp {
     geometry_preview_sent: Option<GeometrySpec>,
     audio_sense_devices: Vec<String>,
     pitch_monitor: audiosense::PitchMonitor,
-    spatial_monitor: audiosense::SpatialMonitor,
     audio_sense_test_settings: crate::model::AudioSenseMonitorSettings,
     audio_sense_test_active: bool,
     active_pitch_preview_preset_id: Option<u32>,
-    active_spatial_preview_preset_id: Option<u32>,
     /// Target for color picking a DrawGeometry macro step spec (group_id, preset_id, step_index, is_fill, is_hold_stop)
     macro_step_geometry_color_pick_target: Option<(u32, u32, usize, bool, bool)>,
     /// Which DrawGeometry macro step is currently being previewed on overlay (group_id, preset_id, step_index, is_hold_stop)
@@ -946,11 +944,9 @@ impl CrosshairApp {
             geometry_preview_sent: None,
             audio_sense_devices: audiosense::list_capture_devices().unwrap_or_default(),
             pitch_monitor: audiosense::PitchMonitor::new(),
-            spatial_monitor: audiosense::SpatialMonitor::new(),
             audio_sense_test_settings: crate::model::AudioSenseMonitorSettings::default(),
             audio_sense_test_active: false,
             active_pitch_preview_preset_id: None,
-            active_spatial_preview_preset_id: None,
             macro_step_geometry_color_pick_target: None,
             draw_geometry_step_preview_target: None,
             draw_geometry_step_preview_sent: None,
@@ -973,9 +969,13 @@ impl CrosshairApp {
                 startup_state_changed = true;
             }
         }
+        if app.migrate_legacy_audio_sense_state() {
+            startup_state_changed = true;
+        }
         if startup_state_changed {
             app.persist();
         }
+        app.sync_audio_sense_presets();
         for preset in &app.state.audio_settings.presets {
             if let Some(duration) = audio_duration(&preset.clip) {
                 app.sound_preset_clip_duration_ms
@@ -1096,6 +1096,70 @@ impl CrosshairApp {
         let _ = self.overlay_tx.send(OverlayCommand::UpdateGeometryPresets(
             self.state.geometry_presets.clone(),
         ));
+    }
+
+    fn migrate_legacy_audio_sense_state(&mut self) -> bool {
+        let removed_spatial_ids = self
+            .state
+            .audio_sense_presets
+            .iter()
+            .filter(|preset| preset.kind == AudioSensePresetKind::Spatial)
+            .map(|preset| preset.id)
+            .collect::<HashSet<_>>();
+        let mut changed = false;
+
+        if !removed_spatial_ids.is_empty() {
+            self.state
+                .audio_sense_presets
+                .retain(|preset| preset.kind != AudioSensePresetKind::Spatial);
+            changed = true;
+        }
+
+        for group in &mut self.state.macro_groups {
+            for preset in &mut group.presets {
+                for step in &mut preset.steps {
+                    if step.action == MacroAction::StartSpatialAudioDetect {
+                        step.action = MacroAction::StartAudioSensePreset;
+                        step.audio_sense_preset_id = None;
+                        step.audio_sense_spec.kind = AudioSensePresetKind::Pitch;
+                        changed = true;
+                    }
+                    if step.action == MacroAction::StopAudioSensePreset {
+                        step.action = MacroAction::StopAudioSense;
+                        changed = true;
+                    }
+                    if removed_spatial_ids.contains(&step.audio_sense_preset_id.unwrap_or_default()) {
+                        step.audio_sense_preset_id = None;
+                        changed = true;
+                    }
+                    if step.audio_sense_spec.kind == AudioSensePresetKind::Spatial {
+                        step.audio_sense_spec.kind = AudioSensePresetKind::Pitch;
+                        changed = true;
+                    }
+                }
+            }
+        }
+
+        if self.state.audio_sense_presets.is_empty() {
+            self.state.audio_sense_presets.push(AudioSensePreset::new_pitch(1));
+            self.state.next_audio_sense_preset_id = 2;
+            changed = true;
+        } else {
+            let next_id = self
+                .state
+                .audio_sense_presets
+                .iter()
+                .map(|preset| preset.id)
+                .max()
+                .unwrap_or(0)
+                + 1;
+            if self.state.next_audio_sense_preset_id != next_id {
+                self.state.next_audio_sense_preset_id = next_id;
+                changed = true;
+            }
+        }
+
+        changed
     }
 
     fn sync_audio_sense_presets(&self) {
@@ -3768,7 +3832,7 @@ impl CrosshairApp {
             MacroAction::StartAudioSensePreset => "StartAudio",
             MacroAction::StopAudioSensePreset => "StopAudioPreset",
             MacroAction::StartPitchDetect => "PitchDetect",
-            MacroAction::StartSpatialAudioDetect => "SpatialAudio",
+            MacroAction::StartSpatialAudioDetect => "LegacyAudio",
             MacroAction::StopAudioSense => "StopAudioSense",
 
             MacroAction::StopVisionWait => "StopImageSearchWait",
@@ -4006,7 +4070,7 @@ impl CrosshairApp {
                     "Start listening for pitch detection and write the detected note into variables."
                 }
                 MacroAction::StartSpatialAudioDetect => {
-                    "Start listening for stereo direction and write approximate coordinates into variables."
+                    "Legacy Spatial Audio action removed from the app."
                 }
                 MacroAction::StopAudioSense => {
                     "Stop custom AudioSense monitoring or stop every active AudioSense monitor."
@@ -4279,7 +4343,7 @@ impl CrosshairApp {
                 MacroAction::StartAudioSensePreset => "StartAudio",
                 MacroAction::StopAudioSensePreset => "StopAudio",
                 MacroAction::StartPitchDetect => "Pitch",
-                MacroAction::StartSpatialAudioDetect => "Spatial",
+                MacroAction::StartSpatialAudioDetect => "Legacy",
                 MacroAction::StopAudioSense => "StopAudio",
 
                 MacroAction::StopVisionWait => "Wait",
@@ -4354,7 +4418,7 @@ impl CrosshairApp {
                 MacroAction::StartAudioSensePreset => "StartAudio",
                 MacroAction::StopAudioSensePreset => "StopAudio",
                 MacroAction::StartPitchDetect => "Pitch",
-                MacroAction::StartSpatialAudioDetect => "Spatial",
+                MacroAction::StartSpatialAudioDetect => "Legacy",
                 MacroAction::StopAudioSense => "StopAudio",
 
                 MacroAction::StopVisionWait => "Wait",
@@ -9102,9 +9166,6 @@ impl eframe::App for CrosshairApp {
                 self.pitch_monitor.stop();
                 self.audio_sense_test_active = false;
             }
-            if self.active_spatial_preview_preset_id.take().is_some() {
-                self.spatial_monitor.stop();
-            }
         }
 
         egui::CentralPanel::default()
@@ -9290,3 +9351,4 @@ pub(crate) fn video_duration(clip: &VideoClipSettings) -> Option<u64> {
             .map(|meta| meta.duration_ms)
     }
 }
+
