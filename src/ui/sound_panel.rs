@@ -3,8 +3,16 @@ use crate::model::*;
 use crate::ui::{AudioCardOutcome, AudioEditorTarget, CrosshairApp, video_duration};
 use eframe::egui::{self, *};
 
-#[derive(Default)]
+#[derive(Clone, Copy, Default)]
 struct VideoTrimTimelineOutcome {
+    changed: bool,
+    hovered: bool,
+    preview_at_playhead: bool,
+    preview_from_trim_start: bool,
+}
+
+#[derive(Clone, Copy, Default)]
+struct AudioTrimTimelineOutcome {
     changed: bool,
     hovered: bool,
     preview_at_playhead: bool,
@@ -19,7 +27,7 @@ impl CrosshairApp {
         total_ms: u64,
         waveform: Option<&[f32]>,
         desired_height: f32,
-    ) -> bool {
+    ) -> AudioTrimTimelineOutcome {
         Self::trim_audio_bounds(clip, total_ms);
         let desired_size = vec2(ui.available_width().max(220.0), desired_height);
         let (rect, response) = ui.allocate_exact_size(desired_size, Sense::click_and_drag());
@@ -112,7 +120,7 @@ impl CrosshairApp {
             Sense::click_and_drag(),
         );
 
-        let mut changed = false;
+        let mut outcome = AudioTrimTimelineOutcome::default();
         if total_ms > 0
             && let Some(pointer) = start_response.interact_pointer_pos()
             && (start_response.clicked() || start_response.dragged())
@@ -120,7 +128,7 @@ impl CrosshairApp {
             let ratio = ((pointer.x - rect.left()) / rect.width()).clamp(0.0, 1.0);
             let next_ms = (ratio * total_ms_f32).round() as u64;
             clip.start_ms = next_ms.min(clip.end_ms);
-            changed = true;
+            outcome.changed = true;
         } else if total_ms > 0
             && let Some(pointer) = end_response.interact_pointer_pos()
             && (end_response.clicked() || end_response.dragged())
@@ -128,7 +136,7 @@ impl CrosshairApp {
             let ratio = ((pointer.x - rect.left()) / rect.width()).clamp(0.0, 1.0);
             let next_ms = (ratio * total_ms_f32).round() as u64;
             clip.end_ms = next_ms.max(clip.start_ms);
-            changed = true;
+            outcome.changed = true;
         } else if response.clicked()
             && total_ms > 0
             && let Some(pointer) = response.interact_pointer_pos()
@@ -140,7 +148,7 @@ impl CrosshairApp {
             } else {
                 clip.end_ms = next_ms.max(clip.start_ms);
             }
-            changed = true;
+            outcome.changed = true;
         }
 
         ui.add_space(4.0);
@@ -155,7 +163,7 @@ impl CrosshairApp {
             ));
         });
 
-        changed
+        outcome
     }
 
     fn render_audio_trim_timeline(
@@ -169,7 +177,7 @@ impl CrosshairApp {
         trim_timeline_zoom: &mut f32,
         interactive: bool,
         desired_height: f32,
-    ) -> bool {
+    ) -> AudioTrimTimelineOutcome {
         Self::trim_audio_bounds(clip, total_ms);
         if total_ms > 0 {
             *preview_cursor_ms =
@@ -248,7 +256,7 @@ impl CrosshairApp {
             desired_height,
         );
         let dark_theme = ui.visuals().dark_mode;
-        let mut changed = false;
+        let mut outcome = AudioTrimTimelineOutcome::default();
         let total_ms_f32 = total_ms.max(1) as f32;
 
         ui.allocate_ui_with_layout(
@@ -399,6 +407,13 @@ impl CrosshairApp {
                     let keyboard_panning = pan_left ^ pan_right;
                     let timeline_hovered =
                         interactive && (response.hovered() || hovered_pointer_pos.is_some());
+                    outcome.hovered = timeline_hovered && !keyboard_panning;
+                    outcome.preview_at_playhead = outcome.hovered
+                        && !ui.ctx().wants_keyboard_input()
+                        && ui.input(|input| input.key_pressed(egui::Key::Space));
+                    outcome.preview_from_trim_start = outcome.hovered
+                        && !ui.ctx().wants_keyboard_input()
+                        && ui.input(|input| input.key_pressed(egui::Key::S));
                     let showing_hover_preview = hovered_pointer_pos.is_some()
                         && !keyboard_panning
                         && !start_response.is_pointer_button_down_on()
@@ -481,7 +496,10 @@ impl CrosshairApp {
                         ui.ctx().request_repaint();
                     }
 
-                    if interactive && pointer_pos.is_some() && !ui.ctx().wants_keyboard_input() {
+                    if interactive
+                        && hovered_pointer_pos.is_some()
+                        && !ui.ctx().wants_keyboard_input()
+                    {
                         let zoom_delta = ui.input(|input| {
                             if input.modifiers.ctrl {
                                 input.raw_scroll_delta.y
@@ -523,14 +541,14 @@ impl CrosshairApp {
                         if move_left {
                             clip.start_ms = pointer_time_ms.min(clip.end_ms.saturating_sub(50));
                             Self::trim_audio_bounds(clip, total_ms);
-                            changed = true;
+                            outcome.changed = true;
                             ui.ctx()
                                 .data_mut(|data| data.insert_temp(trim_hotkey_adjusting_id, true));
                         }
                         if move_right {
                             clip.end_ms = pointer_time_ms.max(clip.start_ms + 50);
                             Self::trim_audio_bounds(clip, total_ms);
-                            changed = true;
+                            outcome.changed = true;
                             ui.ctx()
                                 .data_mut(|data| data.insert_temp(trim_hotkey_adjusting_id, true));
                         }
@@ -555,7 +573,7 @@ impl CrosshairApp {
                         let next_ms = (ratio * total_ms_f32).round() as u64;
                         clip.start_ms = next_ms.min(clip.end_ms.saturating_sub(50));
                         Self::trim_audio_bounds(clip, total_ms);
-                        changed = true;
+                        outcome.changed = true;
                         *preview_cursor_ms = clip.start_ms;
                         ui.ctx()
                             .data_mut(|data| data.insert_temp(trim_adjusting_id, true));
@@ -570,7 +588,7 @@ impl CrosshairApp {
                         let next_ms = (ratio * total_ms_f32).round() as u64;
                         clip.end_ms = next_ms.max(clip.start_ms + 50);
                         Self::trim_audio_bounds(clip, total_ms);
-                        changed = true;
+                        outcome.changed = true;
                         *preview_cursor_ms = clip.end_ms;
                         ui.ctx()
                             .data_mut(|data| data.insert_temp(trim_adjusting_id, true));
@@ -674,7 +692,7 @@ impl CrosshairApp {
             }
         });
 
-        changed
+        outcome
     }
 
     fn render_audio_clip_card(
@@ -1137,7 +1155,7 @@ impl CrosshairApp {
                         ui.ctx().request_repaint();
                     }
 
-                    if pointer_pos.is_some() && !ui.ctx().wants_keyboard_input() {
+                    if hovered_pointer_pos.is_some() && !ui.ctx().wants_keyboard_input() {
                         let zoom_delta = ui.input(|input| {
                             if input.modifiers.ctrl {
                                 input.raw_scroll_delta.y
@@ -1501,8 +1519,6 @@ impl CrosshairApp {
         let mut preview_video_overlay_request: Option<(u32, u64)> = None;
         let space_pressed = !ui.ctx().wants_keyboard_input()
             && ui.input(|input| input.key_pressed(egui::Key::Space));
-        let s_pressed = !ui.ctx().wants_keyboard_input()
-            && ui.input(|input| input.key_pressed(egui::Key::S));
         for index in 0..self.state.audio_settings.video_presets.len() {
             let preset_id = self.state.audio_settings.video_presets[index].id;
             let clip_snapshot = self.state.audio_settings.video_presets[index].clip.clone();
@@ -1545,6 +1561,7 @@ impl CrosshairApp {
             if let Some(total_ms) = duration {
                 preview_cursor_ms = preview_cursor_ms.min(total_ms);
             }
+            let mut timeline_hotkeys = VideoTrimTimelineOutcome::default();
             let preview_frame = self.ensure_video_preview_frame(
                 ui.ctx(),
                 preset_id,
@@ -1788,6 +1805,7 @@ impl CrosshairApp {
                                 &mut self.trim_timeline_zoom,
                                 112.0,
                             );
+                            timeline_hotkeys = timeline_outcome;
                             changed |= timeline_outcome.changed;
                             ui.add_space(1.0);
                             ui.horizontal(|ui| {
@@ -1863,8 +1881,8 @@ impl CrosshairApp {
             });
 
             let is_currently_previewing = self.active_video_preview_preset_id == Some(preset_id);
-            if card_hovered {
-                if space_pressed {
+            if timeline_hotkeys.hovered {
+                if timeline_hotkeys.preview_at_playhead {
                     if is_currently_previewing {
                         stop_video_preview = true;
                     } else if self.active_video_preview_preset_id.is_none() {
@@ -1876,14 +1894,15 @@ impl CrosshairApp {
                         preview_video_request = Some((preset_id, start_pos, clip_snapshot.clone()));
                     }
                 }
-                if s_pressed {
+                if timeline_hotkeys.preview_from_trim_start {
                     if is_currently_previewing {
                         stop_video_preview = true;
                     }
-                    preview_video_request = Some((preset_id, clip_snapshot.start_ms, clip_snapshot.clone()));
+                    preview_video_request =
+                        Some((preset_id, clip_snapshot.start_ms, clip_snapshot.clone()));
                 }
-            } else {
-                if space_pressed && is_currently_previewing {
+            } else if is_currently_previewing {
+                if space_pressed {
                     stop_video_preview = true;
                 }
             }
@@ -1971,8 +1990,7 @@ impl CrosshairApp {
         let previewing = audio::is_previewing(clip);
         let previous_item_spacing = ui.spacing().item_spacing;
         ui.spacing_mut().item_spacing = vec2(6.0, 4.0);
-        let space_pressed = ui.input(|input| input.key_pressed(egui::Key::Space));
-        let s_pressed = ui.input(|input| input.key_pressed(egui::Key::S));
+        let mut trim_timeline_outcome = AudioTrimTimelineOutcome::default();
         let mut preview_cursor_ms = Self::preview_cursor_ms_for(preview_cursor, target, clip);
         if previewing && let Some(position_ms) = audio::preview_position_ms(clip) {
             preview_cursor_ms = position_ms;
@@ -1993,68 +2011,6 @@ impl CrosshairApp {
         });
         ui.add_space(2.0);
 
-        if !clip.file_path.trim().is_empty() {
-            if s_pressed {
-                let preview_start_ms = clip.start_ms;
-                Self::set_preview_cursor_ms(preview_cursor, target, preview_start_ms, clip);
-                match audio::start_preview_from_ms(clip.clone(), preview_start_ms) {
-                    Ok(()) => {
-                        outcome.status = Some(match language {
-                            UiLanguage::Vietnamese => {
-                                format!("Đang nghe lại từ đầu.")
-                            }
-                            _ => format!("Restarting preview from the start."),
-                        })
-                    }
-                    Err(error) => {
-                        outcome.status = Some(match language {
-                            UiLanguage::Vietnamese => {
-                                format!("Nghe thử thất bại: {error}")
-                            }
-                            _ => format!("Preview failed: {error}"),
-                        })
-                    }
-                }
-            } else if space_pressed {
-                if previewing {
-                    audio::stop_preview();
-                    outcome.status = Some(match language {
-                        UiLanguage::Vietnamese => format!("Đã dừng nghe thử."),
-                        _ => format!("Stopped preview."),
-                    });
-                } else {
-                    let preview_start_ms = preview_cursor_ms;
-                    Self::set_preview_cursor_ms(preview_cursor, target, preview_start_ms, clip);
-                    match audio::toggle_preview_from_ms(clip.clone(), preview_start_ms) {
-                        Ok(true) => {
-                            outcome.status = Some(match language {
-                                UiLanguage::Vietnamese => {
-                                    format!("Đang nghe thử.")
-                                }
-                                _ => format!("Previewing."),
-                            })
-                        }
-                        Ok(false) => {
-                            outcome.status = Some(match language {
-                                UiLanguage::Vietnamese => {
-                                    format!("Đã dừng nghe thử.")
-                                }
-                                _ => format!("Stopped preview."),
-                            })
-                        }
-                        Err(error) => {
-                            outcome.status = Some(match language {
-                                UiLanguage::Vietnamese => {
-                                    format!("Nghe thử thất bại: {error}")
-                                }
-                                _ => format!("Preview failed: {error}"),
-                            })
-                        }
-                    }
-                }
-            }
-        }
-
         ui.add_space(2.0);
 
         if let Some(total_ms) = *duration_ms {
@@ -2069,7 +2025,7 @@ impl CrosshairApp {
                 .inner_margin(egui::Margin::same(8))
                 .show(ui, |ui| {
                     ui.add_space(1.0);
-                    outcome.changed |= Self::render_audio_trim_timeline(
+                    trim_timeline_outcome = Self::render_audio_trim_timeline(
                         ui,
                         language,
                         (id_source, "trim"),
@@ -2081,6 +2037,7 @@ impl CrosshairApp {
                         true,
                         112.0,
                     );
+                    outcome.changed |= trim_timeline_outcome.changed;
                     ui.add_space(1.0);
                     ui.horizontal(|ui| {
                         ui.label(Self::tr_lang(language, "Start", "Bắt đầu"));
@@ -2092,6 +2049,35 @@ impl CrosshairApp {
                             .add(DragValue::new(&mut clip.end_ms).range(0..=total_ms))
                             .changed();
                     });
+                    if !clip.file_path.trim().is_empty() {
+                        if trim_timeline_outcome.preview_from_trim_start {
+                            let preview_start_ms = clip.start_ms;
+                            Self::set_preview_cursor_ms(preview_cursor, target, preview_start_ms, clip);
+                            match audio::start_preview_from_ms(clip.clone(), preview_start_ms) {
+                                Ok(()) => {
+                                    outcome.status = Some("Restarting preview from the start.".to_owned())
+                                }
+                                Err(error) => {
+                                    outcome.status = Some(format!("Preview failed: {error}"))
+                                }
+                            }
+                        } else if trim_timeline_outcome.preview_at_playhead {
+                            if previewing {
+                                audio::stop_preview();
+                                outcome.status = Some("Stopped preview.".to_owned());
+                            } else {
+                                let preview_start_ms = preview_cursor_ms;
+                                Self::set_preview_cursor_ms(preview_cursor, target, preview_start_ms, clip);
+                                match audio::toggle_preview_from_ms(clip.clone(), preview_start_ms) {
+                                    Ok(true) => outcome.status = Some("Previewing.".to_owned()),
+                                    Ok(false) => outcome.status = Some("Stopped preview.".to_owned()),
+                                    Err(error) => {
+                                        outcome.status = Some(format!("Preview failed: {error}"))
+                                    }
+                                }
+                            }
+                        }
+                    }
                 });
             Self::trim_audio_bounds(clip, total_ms);
         }
@@ -2266,3 +2252,4 @@ impl CrosshairApp {
         self.trim_timeline_zoom = trim_timeline_zoom;
     }
 }
+
