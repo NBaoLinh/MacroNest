@@ -18800,7 +18800,9 @@ impl CrosshairApp {
 
         if !pending_macro_group_scroll_consumed {
 
-            self.pending_macro_group_scroll_target = pending_macro_group_scroll_target;
+            if self.pending_macro_group_scroll_target.is_none() {
+                self.pending_macro_group_scroll_target = pending_macro_group_scroll_target;
+            }
 
         }
 
