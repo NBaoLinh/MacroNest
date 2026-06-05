@@ -4444,7 +4444,6 @@ mod windows_overlay {
                         &preview_regions,
                         &static_geometry_shapes,
                         &[],
-                        false,
                     )?;
                 }
                 runtime.cached_search_overlay_regions = regions.clone();
@@ -4469,7 +4468,6 @@ mod windows_overlay {
                     &[],
                     &[],
                     &dynamic_geometry_shapes,
-                    true,
                 )?;
             }
             runtime.dynamic_geometry_overlay_visible = true;
@@ -14743,7 +14741,6 @@ mod windows_overlay {
         preview_regions: &[VisionRegion],
         static_geometry_shapes: &[GeometryRenderShape],
         dynamic_geometry_shapes: &[GeometryRenderShape],
-        full_screen_canvas: bool,
     ) -> Result<()> {
         let mut min_x = i32::MAX;
         let mut min_y = i32::MAX;
@@ -14782,15 +14779,6 @@ mod windows_overlay {
         if min_x == i32::MAX {
             let _ = ShowWindow(hwnd, SW_HIDE);
             return Ok(());
-        }
-
-        if full_screen_canvas {
-            let (virtual_left, virtual_top, virtual_width, virtual_height) =
-                window_list::virtual_screen_bounds();
-            min_x = virtual_left;
-            min_y = virtual_top;
-            max_x = virtual_left + virtual_width;
-            max_y = virtual_top + virtual_height;
         }
 
         let width = (max_x - min_x).max(1);
