@@ -8,6 +8,7 @@ use eframe::egui::{self, Color32, ComboBox, DragValue, Sense, TextEdit, vec2};
 impl CrosshairApp {
     pub(crate) fn render_audiosense_panel(&mut self, ui: &mut egui::Ui) {
         let language = self.state.ui_language;
+        let ctx = ui.ctx().clone();
         ui.add_space(2.0);
 
         ui.horizontal(|ui| {
@@ -63,7 +64,9 @@ impl CrosshairApp {
                         self.audio_sense_test_active = false;
                     } else {
                         let config = PitchAudioSenseSettings {
-                            monitor: self.audio_sense_test_settings.clone(),
+                            monitor: Self::audio_sense_test_monitor_settings(
+                                &self.audio_sense_test_settings,
+                            ),
                             output_note_var: String::new(),
                             output_confidence_var: String::new(),
                             output_level_var: String::new(),
@@ -162,6 +165,9 @@ impl CrosshairApp {
 
         let test_snapshot = self.pitch_monitor.snapshot();
         if self.audio_sense_test_active || !test_snapshot.waveform.is_empty() {
+            if self.audio_sense_test_active {
+                ctx.request_repaint_after(std::time::Duration::from_millis(16));
+            }
             Self::show_preset_card(ui, self.audio_sense_test_active, |ui| {
                 ui.horizontal(|ui| {
                     ui.label(
@@ -425,13 +431,22 @@ impl CrosshairApp {
     fn restart_audio_sense_test(&mut self) {
         self.pitch_monitor.stop();
         let config = PitchAudioSenseSettings {
-            monitor: self.audio_sense_test_settings.clone(),
+            monitor: Self::audio_sense_test_monitor_settings(&self.audio_sense_test_settings),
             output_note_var: String::new(),
             output_confidence_var: String::new(),
             output_level_var: String::new(),
             ..PitchAudioSenseSettings::default()
         };
         self.audio_sense_test_active = self.pitch_monitor.start(config).is_ok();
+    }
+
+    fn audio_sense_test_monitor_settings(
+        settings: &crate::model::AudioSenseMonitorSettings,
+    ) -> crate::model::AudioSenseMonitorSettings {
+        let mut monitor = settings.clone();
+        monitor.listen_forever = true;
+        monitor.updates_per_second = monitor.updates_per_second.max(24);
+        monitor
     }
 
     fn render_audio_sense_live_waveform(ui: &mut egui::Ui, waveform: &[f32]) {
