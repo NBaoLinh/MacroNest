@@ -498,7 +498,7 @@ pub enum MacroAction {
 #[derive(Debug, Clone, Copy, Serialize, Deserialize, PartialEq, Eq, Hash, Default)]
 pub enum AudioSensePresetKind {
     #[default]
-    #[serde(alias = "Spatial")]
+    #[serde(alias = "Spatial", alias = "Surround")]
     Pitch,
 }
 
