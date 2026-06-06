@@ -209,7 +209,7 @@ mod windows_platform {
             );
 
             let corner = if enabled {
-                DWMWCP_DONOTROUND
+                DWMWCP_ROUND
             } else {
                 DWMWCP_DEFAULT
             };
