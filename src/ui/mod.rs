@@ -8111,15 +8111,12 @@ impl eframe::App for CrosshairApp {
         }
         crate::overlay::set_ui_context(ctx.clone());
         self.apply_theme(ctx);
-        let wants_native_shadow = self.state.show_window
-            && self.startup_splash.duration_sec <= 0.0
-            && !self.vision_capture_active
-            && self.mouse_move_absolute_capture_target.is_none()
-            && self.mouse_path_draw_capture_preset_id.is_none();
+        let wants_native_shadow = false;
         if self.native_shadow_applied != wants_native_shadow {
             crate::platform::set_native_window_shadow(frame, wants_native_shadow);
             self.native_shadow_applied = wants_native_shadow;
         }
+
         while let Ok(command) = self.ui_rx.try_recv() {
             match command {
                 UiCommand::ShowWindow => {
