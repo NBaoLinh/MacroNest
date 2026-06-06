@@ -906,7 +906,7 @@ impl CrosshairApp {
             command_ai_feedback: None,
             command_ai_step_target: None,
             last_applied_theme: None,
-            native_shadow_applied: false,
+            native_shadow_applied: true,
             update_status: UpdateStatus::Idle,
             interception_status: "Interception: Unavailable".to_owned(),
             opencv_download_job: None,
@@ -8113,8 +8113,9 @@ impl eframe::App for CrosshairApp {
         self.apply_theme(ctx);
         let wants_native_shadow = false;
         if self.native_shadow_applied != wants_native_shadow {
-            crate::platform::set_native_window_shadow(frame, wants_native_shadow);
-            self.native_shadow_applied = wants_native_shadow;
+            if crate::platform::set_native_window_shadow(frame, wants_native_shadow) {
+                self.native_shadow_applied = wants_native_shadow;
+            }
         }
 
         while let Ok(command) = self.ui_rx.try_recv() {
@@ -8130,8 +8131,11 @@ impl eframe::App for CrosshairApp {
                     let target_size = Self::desired_window_size();
                     let target_pos =
                         Self::centered_outer_position_for_size(target_size, ctx.pixels_per_point());
-                    crate::platform::set_native_window_shadow(frame, false);
-                    self.native_shadow_applied = false;
+                    if crate::platform::set_native_window_shadow(frame, false) {
+                        self.native_shadow_applied = false;
+                    } else {
+                        self.native_shadow_applied = true;
+                    }
                     self.center_window_next_frame = false;
                     self.state.show_window = true;
                     self.enforce_square_window_frames = 0;
@@ -9111,7 +9115,12 @@ impl eframe::App for CrosshairApp {
                         se: 16,
                         sw: 16,
                     })
-                    .inner_margin(ctx.style().spacing.window_margin)
+                    .inner_margin(egui::Margin {
+                        left: ctx.style().spacing.window_margin.left,
+                        right: ctx.style().spacing.window_margin.right,
+                        top: ctx.style().spacing.window_margin.top,
+                        bottom: 16,
+                    })
                     .shadow(egui::Shadow {
                         offset: [0, 8],
                         blur: 24,

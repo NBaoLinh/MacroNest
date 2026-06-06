@@ -186,13 +186,13 @@ mod windows_platform {
         launch_process_as_admin(&shutdown, Some("/r /t 0"))
     }
 
-    pub fn set_native_window_shadow(frame: &Frame, enabled: bool) {
+    pub fn set_native_window_shadow(frame: &Frame, enabled: bool) -> bool {
         let Ok(window_handle) = frame.window_handle() else {
-            return;
+            return false;
         };
         let hwnd = match window_handle.as_raw() {
             RawWindowHandle::Win32(handle) => HWND(handle.hwnd.get() as *mut _),
-            _ => return,
+            _ => return false,
         };
 
         unsafe {
@@ -216,6 +216,7 @@ mod windows_platform {
                 std::mem::size_of_val(&corner) as u32,
             );
         }
+        true
     }
 
     pub fn bring_native_window_to_front(frame: &Frame) {
@@ -390,7 +391,9 @@ mod fallback {
         Ok(())
     }
 
-    pub fn set_native_window_shadow(_frame: &Frame, _enabled: bool) {}
+    pub fn set_native_window_shadow(_frame: &Frame, _enabled: bool) -> bool {
+        true
+    }
 
     pub fn open_folder_in_explorer(_path: &std::path::Path) -> Result<()> {
         Ok(())
